@@ -1,3 +1,8 @@
+import '../../l10n/oauth_error_description.dart';
+import 'package:busymax/src/core/auth/authorization_attempt.dart';
+import '../../l10n/registration_description.dart';
+import 'android_registration_setup_dialog.dart';
+import '../../core/auth/oauth_registration.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -19,6 +24,9 @@ import '../../dav/nextcloud/nextcloud_trash_service.dart';
 import '../../features/accounts/data/accounts_repository.dart';
 import '../../features/accounts/domain/account_collection_creation_capabilities.dart';
 import '../../features/calendar/data/calendar_repository.dart';
+import '../../features/calendar/data/cloud_calendar_sharing_service.dart';
+import '../../features/calendar/data/microsoft_shared_calendar_service.dart';
+import 'android_cloud_calendar_sharing_content.dart';
 import '../../features/sync/sync_auth_error.dart';
 import '../../features/task_lists/data/task_lists_repository.dart';
 import '../../features/tasks/domain/task_capabilities.dart';
@@ -44,8 +52,17 @@ class AndroidSettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
+  @override
+  void dispose() {
+    _authorizationCancellation?.cancel();
+    _sharedConsentCancellation?.cancel();
+    super.dispose();
+  }
+
   bool _syncing = false;
   BusyProvider? _connecting;
+  AuthorizationCancellation? _authorizationCancellation;
+  AuthorizationCancellation? _sharedConsentCancellation;
   final _removing = <String>{};
 
   @override
@@ -74,7 +91,13 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                   leading: const Icon(Icons.account_circle_outlined),
                   title: Text(context.l10n.providerConnectionDescription),
                 ),
-              for (final account in accounts)
+              for (final account in accounts) ...[
+                if (account.provider == BusyProvider.microsoft ||
+                    account.provider == BusyProvider.google)
+                  _AndroidRegistrationCard(
+                    account: account,
+                    onMigrate: () => _connect(account.provider, account, true),
+                  ),
                 ListTile(
                   leading: Icon(_providerIcon(account.provider)),
                   title: Text(account.displayLabel),
@@ -88,6 +111,10 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                           onSelected: (value) {
                             if (value == 'sync') {
                               unawaited(_syncAccount(account.id));
+                            } else if (value == 'migrate') {
+                              unawaited(
+                                _connect(account.provider, account, true),
+                              );
                             } else if (value == 'reconnect') {
                               unawaited(_connect(account.provider, account));
                             } else if (value == 'remove') {
@@ -100,7 +127,14 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                                 value: 'sync',
                                 child: Text(context.l10n.sync),
                               ),
-                            if (account.needsReconnect)
+                            if (account.provider == BusyProvider.microsoft)
+                              PopupMenuItem(
+                                value: 'migrate',
+                                child: Text(context.l10n.registrationReplace),
+                              ),
+                            if (account.provider == BusyProvider.google ||
+                                account.provider == BusyProvider.microsoft ||
+                                account.needsReconnect)
                               PopupMenuItem(
                                 value: 'reconnect',
                                 child: Text(context.l10n.connectAccountAction),
@@ -112,7 +146,17 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                           ],
                         ),
                 ),
+              ],
               const Divider(height: 1),
+              if (_connecting != null)
+                ListTile(
+                  leading: const Icon(Icons.cancel_outlined),
+                  title: Text(context.l10n.cancelAccountConnection),
+                  onTap: () {
+                    _authorizationCancellation?.cancel();
+                    setState(() => _connecting = null);
+                  },
+                ),
               _AccountButtons(
                 connecting: _connecting,
                 onConnect: (provider) => unawaited(_connect(provider)),
@@ -137,6 +181,43 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                   onTap: () =>
                       unawaited(_createCollection(accounts, calendar: true)),
                 ),
+              for (final account in accounts)
+                if (account.provider == BusyProvider.microsoft &&
+                    account.isSignedIn)
+                  ListTile(
+                    leading: const Icon(Icons.people_outline),
+                    title: Text(context.l10n.openSharedCalendar),
+                    subtitle: Text(
+                      account.displayName ?? account.email ?? account.id,
+                    ),
+                    onTap: () => unawaited(_openSharedCalendar(account.id)),
+                  ),
+              for (final account in accounts)
+                if (account.isSignedIn &&
+                    sources.any(
+                      (source) =>
+                          source.accountId == account.id &&
+                          CloudCalendarSharingService.canManageSource(source),
+                    ))
+                  ListTile(
+                    key: Key('android-manage-sharing-${account.id}'),
+                    leading: const Icon(Icons.people_outline),
+                    title: Text(context.l10n.manageCalendarSharing),
+                    subtitle: Text(account.displayLabel),
+                    onTap: () => unawaited(
+                      _manageCalendarSharing(
+                        sources
+                            .where(
+                              (source) =>
+                                  source.accountId == account.id &&
+                                  CloudCalendarSharingService.canManageSource(
+                                    source,
+                                  ),
+                            )
+                            .toList(),
+                      ),
+                    ),
+                  ),
               if (accounts.any(
                 (account) =>
                     account.isSignedIn &&
@@ -631,83 +712,131 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
   Future<void> _connect(
     BusyProvider provider, [
     AccountEntity? reconnecting,
+    bool replaceRegistration = false,
   ]) async {
-    if (_connecting != null) return;
-    final localNetworkDenied = context.l10n.nextcloudOperationDenied;
-    String? email;
-    String? password;
-    String? server;
-    if (provider == BusyProvider.appleICloud) {
-      final input = await _appleCredentials(reconnecting?.email);
-      if (input == null) return;
-      (email, password) = input;
-    } else if (provider == BusyProvider.nextcloud) {
-      server = await _textPrompt(
-        title: context.l10n.connectNextcloudTitle,
-        label: context.l10n.nextcloudServerUrl,
-        initialValue: reconnecting?.authority,
-        helper: context.l10n.nextcloudBrowserAuthorizationHelp,
-      );
-      if (server == null || !mounted) return;
-      final uri = Uri.tryParse(server);
-      if (uri != null && await requiresAndroidLocalNetworkAccess(uri.host)) {
-        try {
-          final granted = await BusyMaxAndroidPlatform.instance
-              .requestLocalNetworkAccess();
-          if (!granted) {
-            _message(localNetworkDenied);
+    if (_connecting != null ||
+        _authorizationCancellation?.isCancelled == false) {
+      return;
+    }
+    final ownedCancellation = AuthorizationCancellation();
+    _authorizationCancellation = ownedCancellation;
+    try {
+      final localNetworkDenied = context.l10n.nextcloudOperationDenied;
+      String? email;
+      String? password;
+      String? server;
+      if (provider == BusyProvider.appleICloud) {
+        final input = await _appleCredentials(reconnecting?.email);
+        if (input == null) return;
+        (email, password) = input;
+      } else if (provider == BusyProvider.nextcloud) {
+        server = await _textPrompt(
+          title: context.l10n.registrationSetupTitle(
+            BusyProvider.nextcloud.displayName,
+          ),
+          label: context.l10n.nextcloudServerUrl,
+          initialValue: reconnecting?.authority,
+          helper: context.l10n.nextcloudBrowserAuthorizationHelp,
+        );
+        if (server == null || !mounted) return;
+        final uri = Uri.tryParse(server);
+        if (uri != null && await requiresAndroidLocalNetworkAccess(uri.host)) {
+          try {
+            final granted = await BusyMaxAndroidPlatform.instance
+                .requestLocalNetworkAccess();
+            if (!granted) {
+              _message(localNetworkDenied);
+              return;
+            }
+          } on PlatformException catch (error) {
+            _message(error.message ?? localNetworkDenied);
             return;
           }
-        } on PlatformException catch (error) {
-          _message(error.message ?? localNetworkDenied);
-          return;
         }
       }
-    }
-    setState(() => _connecting = provider);
-    try {
-      String? accountId;
-      switch (provider) {
-        case BusyProvider.google:
-          accountId =
-              (await ref.read(authRepositoryProvider).signIn()).accountId;
-        case BusyProvider.microsoft:
-          accountId =
-              (await ref.read(authRepositoryProvider).signInWithMicrosoft())
-                  .accountId;
-        case BusyProvider.appleICloud:
-          final service = ref.read(davAccountOnboardingServiceProvider);
-          accountId = reconnecting == null
-              ? (await service.connectAppleICloud(
-                  email: email!,
-                  appSpecificPassword: password!,
-                )).accountId
-              : (await service.replaceAppleAppSpecificPassword(
-                  accountId: reconnecting.id,
-                  appSpecificPassword: password!,
-                )).accountId;
-        case BusyProvider.nextcloud:
-          final service = ref.read(davAccountOnboardingServiceProvider);
-          accountId = reconnecting == null
-              ? (await service.connectNextcloud(
-                  enteredServer: server!,
-                )).accountId
-              : (await service.reconnectNextcloud(
-                  accountId: reconnecting.id,
-                  enteredServer: server!,
-                )).accountId;
-        case BusyProvider.webCal:
+      if (!mounted) return;
+      AuthorizationRequest? request;
+      if (provider == BusyProvider.microsoft) {
+        if (reconnecting != null && !replaceRegistration) {
+          request = AuthorizationRequest.reconnect(reconnecting.id);
+        } else {
+          final handle = await showAndroidRegistrationSetup(
+            context,
+            ref,
+            provider,
+          );
+          if (handle == null || !mounted) return;
+          request = reconnecting == null
+              ? AuthorizationRequest.newConnection(handle)
+              : AuthorizationRequest.replace(reconnecting.id, handle);
+        }
+      } else if (provider == BusyProvider.google && reconnecting != null) {
+        request = AuthorizationRequest.reconnect(reconnecting.id);
+      }
+      setState(() => _connecting = provider);
+      if (!mounted || ownedCancellation.isCancelled) return;
+      request = (request ?? const AuthorizationRequest.newConnection(null))
+          .withCancellation(ownedCancellation);
+      try {
+        String? accountId;
+        switch (provider) {
+          case BusyProvider.google:
+            accountId =
+                (await ref
+                        .read(authRepositoryProvider)
+                        .signIn(request: request))
+                    .accountId;
+          case BusyProvider.microsoft:
+            accountId =
+                (await ref
+                        .read(authRepositoryProvider)
+                        .signInWithMicrosoft(request: request))
+                    .accountId;
+          case BusyProvider.appleICloud:
+            final service = ref.read(davAccountOnboardingServiceProvider);
+            accountId = reconnecting == null
+                ? (await service.connectAppleICloud(
+                    email: email!,
+                    appSpecificPassword: password!,
+                  )).accountId
+                : (await service.replaceAppleAppSpecificPassword(
+                    accountId: reconnecting.id,
+                    appSpecificPassword: password!,
+                  )).accountId;
+          case BusyProvider.nextcloud:
+            final service = ref.read(davAccountOnboardingServiceProvider);
+            accountId = reconnecting == null
+                ? (await service.connectNextcloud(
+                    enteredServer: server!,
+                  )).accountId
+                : (await service.reconnectNextcloud(
+                    accountId: reconnecting.id,
+                    enteredServer: server!,
+                  )).accountId;
+          case BusyProvider.webCal:
+            return;
+        }
+        if (accountId != null) unawaited(_syncAccount(accountId));
+      } on Object catch (error) {
+        if (error is OAuthException && error.code == 'OAuthSignInCancelled') {
           return;
+        }
+        if (error is DavException && error.kind == DavErrorKind.cancelled) {
+          return;
+        }
+        if (mounted) _message(localizedAuthorizationError(context.l10n, error));
+      } finally {
+        if (mounted &&
+            identical(_authorizationCancellation, ownedCancellation)) {
+          setState(() => _connecting = null);
+        }
       }
-      if (accountId != null) unawaited(_syncAccount(accountId));
-    } on Object catch (error) {
-      if (error is OAuthException && error.code == 'OAuthSignInCancelled') {
-        return;
-      }
-      if (error is DavException && error.kind == DavErrorKind.cancelled) return;
-      _message('$error');
     } finally {
-      if (mounted) setState(() => _connecting = null);
+      ownedCancellation.cancel();
+      if (identical(_authorizationCancellation, ownedCancellation)) {
+        _authorizationCancellation = null;
+        if (mounted) setState(() => _connecting = null);
+      }
     }
   }
 
@@ -773,8 +902,8 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
         }
       });
       await ref.read(notificationReconcilerProvider).reconcile();
-    } on Object {
-      _message(l10n.removeAccountFailed);
+    } on Object catch (error) {
+      _message(localizedAccountRemovalError(l10n, error));
     } finally {
       if (mounted) setState(() => _removing.remove(account.id));
     }
@@ -828,6 +957,83 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
     }
   }
 
+  Future<void> _openSharedCalendar(String accountId) async {
+    _sharedConsentCancellation?.cancel();
+    final cancellation = AuthorizationCancellation();
+    _sharedConsentCancellation = cancellation;
+    try {
+      final controller = TextEditingController();
+      final l10n = context.l10n;
+      final owner = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(l10n.openSharedCalendar),
+          content: TextField(
+            controller: controller,
+            keyboardType: TextInputType.emailAddress,
+            autofocus: true,
+            decoration: InputDecoration(labelText: l10n.calendarOwnerEmail),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(l10n.cancel),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, controller.text),
+              child: Text(l10n.openSharedCalendar),
+            ),
+          ],
+        ),
+      );
+      controller.dispose();
+      if (!mounted || owner == null || owner.trim().isEmpty) return;
+      try {
+        final result = await ref
+            .read(microsoftSharedCalendarServiceProvider)
+            .openPrimaryCalendar(
+              accountId: accountId,
+              owner: owner,
+              cancellation: cancellation,
+            );
+        if (result.outcome ==
+            MicrosoftSharedCalendarOpenOutcome.rangeUnavailable) {
+          _message(l10n.scheduleRangeIncomplete);
+        }
+      } on Object catch (error) {
+        _message(l10n.calendarUpdateFailed('$error'));
+      }
+    } finally {
+      cancellation.cancel();
+      if (identical(_sharedConsentCancellation, cancellation)) {
+        _sharedConsentCancellation = null;
+      }
+    }
+  }
+
+  Future<void> _manageCalendarSharing(
+    List<CalendarSourceEntity> sources,
+  ) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(dialogContext.l10n.manageCalendarSharing),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: CloudCalendarSharingContent(sources: sources),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(dialogContext.l10n.close),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _editCalendarSource(CalendarSourceEntity source) async {
     final l10n = context.l10n;
     final action = await showModalBottomSheet<String>(
@@ -879,9 +1085,22 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
             if (source.capabilities.canRemoveCalendar)
               ListTile(
                 leading: const Icon(Icons.delete_outline),
-                title: Text(context.l10n.delete),
-                textColor: Theme.of(context).colorScheme.error,
-                iconColor: Theme.of(context).colorScheme.error,
+                title: Text(
+                  source.capabilities.removalMode ==
+                          CalendarRemovalMode.removeFromList
+                      ? context.l10n.removeFromMyCalendars
+                      : context.l10n.delete,
+                ),
+                textColor:
+                    source.capabilities.removalMode ==
+                        CalendarRemovalMode.delete
+                    ? Theme.of(context).colorScheme.error
+                    : null,
+                iconColor:
+                    source.capabilities.removalMode ==
+                        CalendarRemovalMode.delete
+                    ? Theme.of(context).colorScheme.error
+                    : null,
                 onTap: () => Navigator.pop(context, 'delete'),
               ),
           ],
@@ -945,16 +1164,22 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
         final remove =
             source.capabilities.removalMode ==
             CalendarRemovalMode.removeFromList;
+        final openedMicrosoftOwner =
+            remove && source.provider == BusyProvider.microsoft;
         final confirmed = await _confirm(
           remove ? l10n.removeFromMyCalendars : l10n.delete,
           remove
-              ? l10n.removeCalendarConfirmation(source.summary)
+              ? openedMicrosoftOwner
+                    ? l10n.removeOpenedSharedCalendarConfirmation(
+                        source.summary,
+                      )
+                    : l10n.removeCalendarConfirmation(source.summary)
               : l10n.deleteCalendarConfirmation(source.summary),
           remove ? l10n.removeAction : l10n.delete,
         );
         if (!confirmed) return;
         await ref.read(calendarRepositoryProvider).deleteLocalSource(source.id);
-        _requestQueuedCalendarSync(source);
+        if (!openedMicrosoftOwner) _requestQueuedCalendarSync(source);
       }
     } on Object catch (error) {
       _message(
@@ -2083,6 +2308,11 @@ class _AccountButtons extends StatelessWidget {
       spacing: 8,
       runSpacing: 8,
       children: [
+        _button(
+          context,
+          BusyProvider.nextcloud,
+          context.l10n.addNextcloudAccount,
+        ),
         _button(context, BusyProvider.google, context.l10n.addGoogleAccount),
         _button(
           context,
@@ -2093,11 +2323,6 @@ class _AccountButtons extends StatelessWidget {
           context,
           BusyProvider.appleICloud,
           context.l10n.addAppleICloudAccount,
-        ),
-        _button(
-          context,
-          BusyProvider.nextcloud,
-          context.l10n.addNextcloudAccount,
         ),
       ],
     ),
@@ -2277,6 +2502,51 @@ Future<void> showAndroidIcsImport(
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(context.l10n.importIcsFailed('$error'))),
+    );
+  }
+}
+
+class _AndroidRegistrationCard extends ConsumerWidget {
+  const _AndroidRegistrationCard({
+    required this.account,
+    required this.onMigrate,
+  });
+  final AccountEntity account;
+  final VoidCallback onMigrate;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final summary = ref
+        .watch(registrationSummariesProvider)
+        .valueOrNull?[account.id];
+    if (summary == null) return const SizedBox.shrink();
+    final l10n = context.l10n;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            Text(l10n.registrationDescription(summary)),
+            if (summary.showRetirementNotice) ...[
+              Text(
+                l10n.registrationRetirementNotice(
+                  account.provider.displayName,
+                  l10n.registrationMicrosoftApp,
+                ),
+              ),
+              Text(l10n.registrationContinue),
+            ],
+            if (account.provider == BusyProvider.microsoft)
+              TextButton(
+                onPressed: onMigrate,
+                child: Text(
+                  summary.showRetirementNotice
+                      ? l10n.registrationMigrate
+                      : l10n.registrationReplace,
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

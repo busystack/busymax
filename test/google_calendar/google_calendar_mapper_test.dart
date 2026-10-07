@@ -4,6 +4,14 @@ import 'package:busymax/src/google_calendar/google_calendar_mapper.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('Google event absence of attachment field is a loaded empty list', () {
+    final event = googleCalendarEventFromJson('cal', {
+      'id': 'event',
+      'summary': 'Planning',
+    });
+    expect(event.attachmentsJson, isEmpty);
+  });
+
   test('Google create identity is stable and uses the valid ID alphabet', () {
     final first = googleCalendarCreateEventId(
       '00112233-4455-6677-8899-aabbccddeeff',
@@ -76,4 +84,89 @@ void main() {
       '0123456789abcdef',
     );
   });
+
+  test('Google status properties survive unrelated event edits', () {
+    const cases = {
+      'focusTime': {
+        'focusTimeProperties': {
+          'autoDeclineMode': 'declineOnlyNewConflictingInvitations',
+          'declineMessage': 'Heads down',
+        },
+      },
+      'outOfOffice': {
+        'outOfOfficeProperties': {
+          'autoDeclineMode': 'declineAllConflictingInvitations',
+        },
+      },
+      'workingLocation': {
+        'workingLocationProperties': {'type': 'homeOffice'},
+      },
+    };
+    for (final entry in cases.entries) {
+      final body = googleEventMutationToJson(
+        CalendarEventMutation(
+          title: 'Updated',
+          providerRaw: {'eventType': entry.key, ...entry.value},
+        ),
+      );
+      expect(body['eventType'], entry.key);
+      for (final property in entry.value.entries) {
+        expect(body[property.key], property.value);
+      }
+    }
+  });
+
+  test(
+    'Google status creation and targeted property edits use native fields',
+    () {
+      for (final (type, key, properties) in [
+        (
+          'focusTime',
+          'focusTimeProperties',
+          <String, Object?>{
+            'autoDeclineMode': 'declineNone',
+            'chatStatus': 'doNotDisturb',
+          },
+        ),
+        (
+          'outOfOffice',
+          'outOfOfficeProperties',
+          <String, Object?>{
+            'autoDeclineMode': 'declineOnlyNewConflictingInvitations',
+          },
+        ),
+        (
+          'workingLocation',
+          'workingLocationProperties',
+          <String, Object?>{
+            'type': 'customLocation',
+            'customLocation': {'label': 'Site'},
+          },
+        ),
+      ]) {
+        final created = googleEventMutationToJson(
+          CalendarEventMutation(
+            eventType: type,
+            googleStatusProperties: properties,
+          ),
+        );
+        expect(created['eventType'], type);
+        expect(created[key], properties);
+        final edited = googleEventMutationToJson(
+          CalendarEventMutation(
+            googleStatusEventTypeContext: type,
+            googleStatusProperties: properties,
+          ),
+        );
+        expect(edited[key], properties);
+        expect(edited, isNot(contains('eventType')));
+      }
+      expect(
+        () => googleEventMutationToJson(
+          const CalendarEventMutation(googleStatusProperties: {}),
+        ),
+        throwsFormatException,
+      );
+    },
+  );
 }

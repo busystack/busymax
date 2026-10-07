@@ -1,4 +1,5 @@
 import 'dart:convert';
+import '../../microsoft_calendar/microsoft_shared_calendar_address.dart';
 
 import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
@@ -63,6 +64,17 @@ class NotificationScheduleService {
     for (final event in rows) {
       final source = sourcesById[event.calendarSourceId];
       if (source == null) {
+        continue;
+      }
+      final sourceMetadata = _decodeJson(source.rawJson ?? '{}');
+      if (sourceMetadata is Map &&
+          MicrosoftSharedPrimaryCalendarAddress.parse(
+                source.providerCalendarId,
+              ) !=
+              null &&
+          (sourceMetadata['_busymaxOwnerAccessUnavailable'] == true ||
+              (event.visibility?.toLowerCase() == 'private' &&
+                  sourceMetadata['canViewPrivateItems'] != true))) {
         continue;
       }
       final startUtc = calendarEventStartAsLocal(event)?.toUtc();
@@ -605,6 +617,13 @@ List<_EventReminder> _davEventReminders(
   required DateTime startUtc,
   required DateTime? endUtc,
 }) {
+  if (reminderData['davEditableRows'] case final List rows) {
+    return _minuteReminders([
+      for (final row in rows)
+        if (row is Map && row['minutes'] is int && (row['minutes'] as int) >= 0)
+          row['minutes'] as int,
+    ], startUtc: startUtc);
+  }
   final rawAlarms = reminderData['alarms'];
   if (rawAlarms is List) {
     final result = <_EventReminder>[];

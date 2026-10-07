@@ -100,14 +100,22 @@ CalendarEventDto microsoftCalendarEventFromJson(
     attendeesJson: json['attendees'],
     categoriesJson: json['categories'],
     organizerJson: json['organizer'],
-    colorId: _firstCategory(json['categories']),
+    // Outlook category names are not color IDs. Their color is resolved from
+    // the account's master-category collection, never from array position.
+    colorId: null,
     colorHex: null,
     visibility: json['sensitivity']?.toString(),
     transparencyOrShowAs: json['showAs']?.toString(),
     eventType: json['type']?.toString(),
     webLink: json['webLink']?.toString(),
     conferenceJson: json['onlineMeeting'],
-    attachmentsJson: json['hasAttachments'] == true ? const [] : null,
+    // Graph's hasAttachments flag is not a listing. An empty collection is
+    // authoritative only when Graph actually supplied one (or said false).
+    attachmentsJson: json['attachments'] is List
+        ? json['attachments']
+        : json['hasAttachments'] == false
+        ? const []
+        : null,
     isCancelled: json['isCancelled'] == true,
     isDeleted: json['@removed'] != null,
     createdAtServer: json['createdDateTime']?.toString(),
@@ -231,13 +239,6 @@ Map<String, Object?> _mapValue(Object? value) {
     return value.cast<String, Object?>();
   }
   return const {};
-}
-
-String? _firstCategory(Object? value) {
-  if (value is List && value.isNotEmpty) {
-    return value.first?.toString();
-  }
-  return null;
 }
 
 String? _dateOnly(Object? value) {

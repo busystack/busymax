@@ -10,10 +10,12 @@ import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
 import 'package:busymax/src/features/calendar/data/calendar_event_detail.dart';
 import 'package:busymax/src/features/calendar/domain/event_timing_policy.dart';
+import 'package:busymax/src/features/calendar/domain/google_status_event.dart';
 import 'package:busymax/src/features/maps/data/location_resolution_repository.dart';
 import 'package:busymax/src/features/maps/domain/geographic_point.dart';
 import 'package:busymax/src/features/maps/domain/location_result.dart';
 import 'package:busymax/src/core/time/provider_date_time.dart';
+import 'package:busymax/src/microsoft_calendar/microsoft_shared_calendar_address.dart';
 import 'package:busymax/src/schedule/schedule_event_rescheduling.dart';
 import 'package:busymax/src/schedule/schedule_item.dart';
 import 'package:busymax/src/schedule/schedule_range.dart';
@@ -1341,6 +1343,362 @@ void main() {
     expect(event.recurrenceJson, jsonEncode(recurrence));
   });
 
+  test(
+    'Google label edits and clearing retain unrelated raw fields locally',
+    () async {
+      await _upsertSource(repository);
+      await repository.upsertEvent(
+        accountId: 'google:g',
+        event: const CalendarEventDto(
+          provider: BusyProvider.google,
+          providerCalendarId: 'calendar-1',
+          providerEventId: 'labelled',
+          title: 'Planning',
+          startDateTime: '2026-06-08T09:00:00Z',
+          endDateTime: '2026-06-08T10:00:00Z',
+          organizerJson: {'self': true},
+          rawJson: {
+            'id': 'labelled',
+            'eventLabelId': 'old-label',
+            'unrelated': {'keep': true},
+            'organizer': {'self': true},
+          },
+        ),
+      );
+      final id = CalendarRepository.eventId(
+        accountId: 'google:g',
+        provider: BusyProvider.google,
+        providerCalendarId: 'calendar-1',
+        providerEventId: 'labelled',
+      );
+      final detail = (await repository.loadEventDetail(id))!;
+      expect(
+        EventEditorDraft.fromEventDetail(detail).eventLabelId,
+        'old-label',
+      );
+      await repository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(detail).copyWith(title: 'Updated'),
+      );
+      var ops = await database.select(database.pendingOps).get();
+      expect(jsonDecode(ops.last.requestJson), isNot(contains('eventLabelId')));
+      await repository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(
+          (await repository.loadEventDetail(id))!,
+        ).copyWith(eventLabelId: 'new-label'),
+      );
+      ops = await database.select(database.pendingOps).get();
+      expect(jsonDecode(ops.last.requestJson)['eventLabelId'], 'new-label');
+      var reopened = (await repository.loadEventDetail(id))!;
+      expect((reopened.raw as Map)['eventLabelId'], 'new-label');
+      expect((reopened.raw as Map)['unrelated'], {'keep': true});
+      await repository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(
+          reopened,
+        ).copyWith(clearEventLabelId: true),
+      );
+      ops = await database.select(database.pendingOps).get();
+      expect(jsonDecode(ops.last.requestJson)['eventLabelId'], '');
+      reopened = (await repository.loadEventDetail(id))!;
+      expect((reopened.raw as Map).containsKey('eventLabelId'), isFalse);
+      expect((reopened.raw as Map)['unrelated'], {'keep': true});
+    },
+  );
+
+  test(
+    'Google status creation projects type and properties into queue and detail',
+    () async {
+      await repository.upsertSource(
+        accountId: 'google:g',
+        source: const CalendarSourceDto(
+          provider: BusyProvider.google,
+          providerCalendarId: 'calendar-1',
+          summary: 'Primary',
+          primaryCalendar: true,
+        ),
+      );
+      for (final type in const [
+        'focusTime',
+        'outOfOffice',
+        'workingLocation',
+      ]) {
+        final properties = defaultGoogleStatusProperties(type);
+        await repository.createLocalEvent(
+          EventEditorDraft.newEvent(
+            accountId: 'google:g',
+            sourceId: CalendarRepository.sourceId(
+              accountId: 'google:g',
+              provider: BusyProvider.google,
+              providerCalendarId: 'calendar-1',
+            ),
+            providerCalendarId: 'calendar-1',
+            start: DateTime.utc(2026, 6, 8, 9),
+            end: DateTime.utc(2026, 6, 8, 10),
+          ).copyWith(
+            title: 'Status',
+            eventType: type,
+            googleStatusProperties: properties,
+            showAs: type == 'workingLocation' ? 'transparent' : 'opaque',
+            visibilityOrSensitivity: type == 'workingLocation'
+                ? 'public'
+                : 'default',
+          ),
+        );
+        final event =
+            (await database.select(database.calendarEvents).get()).last;
+        final operation =
+            (await database.select(database.pendingOps).get()).last;
+        final request = jsonDecode(operation.requestJson) as Map;
+        expect(request['eventType'], type);
+        expect(request['googleStatusProperties'], properties);
+        expect((event.rawJson), contains('"eventType":"$type"'));
+        expect(
+          EventEditorDraft.fromEventDetail(
+            (await repository.loadEventDetail(event.id))!,
+          ).googleStatusProperties,
+          properties,
+        );
+      }
+    },
+  );
+
+  test(
+    'existing Google status edit queues context, not type conversion',
+    () async {
+      await repository.upsertSource(
+        accountId: 'google:g',
+        source: const CalendarSourceDto(
+          provider: BusyProvider.google,
+          providerCalendarId: 'calendar-1',
+          summary: 'Primary',
+          primaryCalendar: true,
+        ),
+      );
+      await repository.upsertEvent(
+        accountId: 'google:g',
+        event: const CalendarEventDto(
+          provider: BusyProvider.google,
+          providerCalendarId: 'calendar-1',
+          providerEventId: 'focus-existing',
+          title: 'Focus',
+          eventType: 'focusTime',
+          startDateTime: '2026-06-08T09:00:00Z',
+          startTimeZone: 'UTC',
+          endDateTime: '2026-06-08T10:00:00Z',
+          endTimeZone: 'UTC',
+          visibility: 'default',
+          transparencyOrShowAs: 'opaque',
+          organizerJson: {'self': true},
+          rawJson: {
+            'id': 'focus-existing',
+            'summary': 'Focus',
+            'eventType': 'focusTime',
+            'focusTimeProperties': {
+              'autoDeclineMode': 'declineNone',
+              'chatStatus': 'available',
+            },
+            'organizer': {'self': true},
+          },
+        ),
+      );
+      final id = CalendarRepository.eventId(
+        accountId: 'google:g',
+        provider: BusyProvider.google,
+        providerCalendarId: 'calendar-1',
+        providerEventId: 'focus-existing',
+      );
+      await repository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(
+          (await repository.loadEventDetail(id))!,
+        ).copyWith(title: 'Focus renamed'),
+      );
+      var request =
+          jsonDecode(
+                (await database.select(database.pendingOps).get())
+                    .last
+                    .requestJson,
+              )
+              as Map;
+      expect(request, isNot(contains('googleStatusProperties')));
+      expect(request, isNot(contains(calendarEventGoogleStatusTypeContextKey)));
+      await repository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(
+          (await repository.loadEventDetail(id))!,
+        ).copyWith(
+          googleStatusProperties: {
+            'autoDeclineMode': 'declineAllConflictingInvitations',
+            'chatStatus': 'available',
+          },
+        ),
+      );
+      request =
+          jsonDecode(
+                (await database.select(database.pendingOps).get())
+                    .last
+                    .requestJson,
+              )
+              as Map;
+      expect(request[calendarEventGoogleStatusTypeContextKey], 'focusTime');
+      expect(request, isNot(contains('eventType')));
+      expect(request, isNot(contains('providerRaw')));
+    },
+  );
+
+  test(
+    'Google status creation on a secondary calendar leaves no local mutation',
+    () async {
+      await _upsertSource(repository);
+      final source =
+          (await database.select(database.calendarSources).get()).single;
+      await expectLater(
+        repository.createLocalEvent(
+          EventEditorDraft.newEvent(
+            accountId: 'google:g',
+            sourceId: source.id,
+            providerCalendarId: source.providerCalendarId,
+            start: DateTime.utc(2026, 6, 8, 9),
+            end: DateTime.utc(2026, 6, 8, 10),
+          ).copyWith(
+            title: 'Focus',
+            eventType: 'focusTime',
+            googleStatusProperties: defaultGoogleStatusProperties('focusTime'),
+            showAs: 'opaque',
+          ),
+        ),
+        throwsUnsupportedError,
+      );
+      expect(await database.select(database.calendarEvents).get(), isEmpty);
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+    },
+  );
+
+  test(
+    'existing Gmail event queues only supported color and reminder edits',
+    () async {
+      await _upsertSource(repository);
+      await repository.upsertEvent(
+        accountId: 'google:g',
+        event: const CalendarEventDto(
+          provider: BusyProvider.google,
+          providerCalendarId: 'calendar-1',
+          providerEventId: 'gmail-event',
+          title: 'Flight',
+          eventType: 'fromGmail',
+          colorId: '1',
+          startDateTime: '2026-06-08T09:00:00Z',
+          endDateTime: '2026-06-08T10:00:00Z',
+          organizerJson: {'self': true},
+          remindersJson: {'useDefault': true},
+          rawJson: {
+            'id': 'gmail-event',
+            'summary': 'Flight',
+            'eventType': 'fromGmail',
+            'organizer': {'self': true},
+            'reminders': {'useDefault': true},
+            'colorId': '1',
+          },
+        ),
+      );
+      final id = CalendarRepository.eventId(
+        accountId: 'google:g',
+        provider: BusyProvider.google,
+        providerCalendarId: 'calendar-1',
+        providerEventId: 'gmail-event',
+      );
+      final initial = EventEditorDraft.fromEventDetail(
+        (await repository.loadEventDetail(id))!,
+      );
+      await repository.updateLocalEvent(initial);
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+      await repository.updateLocalEvent(initial.copyWith(colorId: '2'));
+      var request =
+          jsonDecode(
+                (await database.select(database.pendingOps).get())
+                    .last
+                    .requestJson,
+              )
+              as Map;
+      expect(request['colorId'], '2');
+      expect(request, isNot(contains('eventType')));
+      await repository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(
+          (await repository.loadEventDetail(id))!,
+        ).copyWith(
+          reminders: const {
+            'useDefault': false,
+            'overrides': [
+              {'method': 'popup', 'minutes': 10},
+            ],
+          },
+          remindersChanged: true,
+        ),
+      );
+      request =
+          jsonDecode(
+                (await database.select(database.pendingOps).get())
+                    .last
+                    .requestJson,
+              )
+              as Map;
+      expect((request['remindersJson'] as Map)['useDefault'], false);
+      final count = (await database.select(database.pendingOps).get()).length;
+      await expectLater(
+        repository.updateLocalEvent(
+          EventEditorDraft.fromEventDetail(
+            (await repository.loadEventDetail(id))!,
+          ).copyWith(title: 'Changed flight'),
+        ),
+        throwsA(isA<CalendarMutationNotAllowed>()),
+      );
+      expect((await database.select(database.pendingOps).get()).length, count);
+      expect((await repository.loadEventDetail(id))!.title, 'Flight');
+      await expectLater(
+        repository.updateLocalEvent(
+          EventEditorDraft.fromEventDetail(
+            (await repository.loadEventDetail(id))!,
+          ).copyWith(eventType: 'default'),
+        ),
+        throwsUnsupportedError,
+      );
+      await (database.update(database.calendarSources)
+            ..where((row) => row.id.equals(_sourceId)))
+          .write(const CalendarSourcesCompanion(readOnly: Value(true)));
+      await expectLater(
+        repository.updateLocalEvent(
+          EventEditorDraft.fromEventDetail(
+            (await repository.loadEventDetail(id))!,
+          ).copyWith(colorId: '3'),
+        ),
+        throwsA(isA<CalendarMutationNotAllowed>()),
+      );
+      await (database.update(database.calendarSources)
+            ..where((row) => row.id.equals(_sourceId)))
+          .write(const CalendarSourcesCompanion(readOnly: Value(false)));
+      final local =
+          (await database.select(database.calendarEvents).get()).single;
+      await (database.update(
+        database.calendarEvents,
+      )..where((row) => row.id.equals(id))).write(
+        CalendarEventsCompanion(
+          rawJson: Value(
+            jsonEncode({
+              ...jsonDecode(local.rawJson!) as Map<String, dynamic>,
+              'locked': true,
+            }),
+          ),
+        ),
+      );
+      await expectLater(
+        repository.updateLocalEvent(
+          EventEditorDraft.fromEventDetail(
+            (await repository.loadEventDetail(id))!,
+          ).copyWith(colorId: '3'),
+        ),
+        throwsA(isA<CalendarMutationNotAllowed>()),
+      );
+      expect((await database.select(database.pendingOps).get()).length, count);
+    },
+  );
+
   test('title-only Google edit preserves offset-only timestamps', () async {
     await _upsertSource(repository);
     await repository.upsertEvent(
@@ -1817,6 +2175,57 @@ void main() {
       isFalse,
     );
   });
+
+  test(
+    'opened Microsoft owner calendar removes only the local source',
+    () async {
+      final calendarId = const MicrosoftSharedPrimaryCalendarAddress(
+        owner: 'owner@example.test',
+        graphCalendarId: 'owner-primary',
+      ).sourceCalendarId;
+      final sourceId = CalendarRepository.sourceId(
+        accountId: 'google:g',
+        provider: BusyProvider.microsoft,
+        providerCalendarId: calendarId,
+      );
+      await repository.upsertSource(
+        accountId: 'google:g',
+        source: CalendarSourceDto(
+          provider: BusyProvider.microsoft,
+          providerCalendarId: calendarId,
+          summary: 'Opened',
+          readOnly: false,
+          isRemovable: true,
+        ),
+      );
+      final source = (await repository.watchSourcesForAccounts([
+        'google:g',
+      ]).first).single;
+      expect(source.capabilities.canRemoveCalendar, isTrue);
+      expect(source.capabilities.canRenameCalendar, isFalse);
+      expect(source.capabilities.canChangeCalendarColor, isFalse);
+      await repository.deleteLocalSource(sourceId);
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+      expect(
+        (await database.select(database.calendarSources).getSingle()).isDeleted,
+        isTrue,
+      );
+      await repository.upsertSource(
+        accountId: 'google:g',
+        source: CalendarSourceDto(
+          provider: BusyProvider.microsoft,
+          providerCalendarId: calendarId,
+          summary: 'Opened',
+          readOnly: false,
+          isRemovable: true,
+        ),
+      );
+      expect(
+        (await database.select(database.calendarSources).getSingle()).isDeleted,
+        isTrue,
+      );
+    },
+  );
 
   test('provider hidden state can return to visible', () async {
     await repository.upsertSource(

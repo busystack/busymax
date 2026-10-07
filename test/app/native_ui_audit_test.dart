@@ -389,9 +389,7 @@ void main() {
       final settings = File(
         'lib/src/features/settings/presentation/settings_screen.dart',
       ).readAsStringSync();
-      final signIn = File(
-        'lib/src/features/auth/presentation/sign_in_screen.dart',
-      ).readAsStringSync();
+      final startup = File('lib/src/app/app_router.dart').readAsStringSync();
       final activateStart = runner.indexOf(
         'static void my_application_activate(GApplication* application)',
       );
@@ -415,8 +413,8 @@ void main() {
       expect(frame, contains('Row('));
       expect(schedule, contains('LinuxPageFrame('));
       expect(settings, contains('LinuxPageFrame('));
-      expect(signIn, contains('LinuxPageFrame('));
-      for (final source in [schedule, settings, signIn]) {
+      expect(startup, contains('LinuxPageFrame('));
+      for (final source in [schedule, settings, startup]) {
         expect(source, isNot(contains('LinuxHeaderBarSession')));
       }
     });

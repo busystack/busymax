@@ -21,6 +21,32 @@ Describe 'BusyMax exact-package file inspection' {
       Should -Throw -ExpectedMessage '*Prohibited package content*hidden-secret.key*'
   }
 
+  It 'allows the two packaged registration help files' {
+    $helpDirectory = Join-Path $packageRoot 'data/flutter_assets/docs'
+    New-Item -ItemType Directory -Path $helpDirectory -Force | Out-Null
+    foreach ($name in @('google_setup.md', 'microsoft_setup.md')) {
+      [IO.File]::WriteAllText((Join-Path $helpDirectory $name), 'Setup help')
+    }
+
+    { Assert-BusyMaxPackageHasNoProhibitedFiles -PackageRoot $packageRoot } |
+      Should -Not -Throw
+  }
+
+  It 'rejects other Markdown files and misplaced registration help' {
+    foreach ($relative in @(
+        'data/flutter_assets/docs/notes.md',
+        'google_setup.md',
+        'docs/microsoft_setup.md')) {
+      $filePath = Join-Path $packageRoot $relative
+      New-Item -ItemType Directory -Path (Split-Path -Parent $filePath) `
+        -Force | Out-Null
+      [IO.File]::WriteAllText($filePath, 'Not packaged help')
+
+      Test-BusyMaxProhibitedPackageFile -PackageRoot $packageRoot `
+        -File (Get-Item -LiteralPath $filePath) | Should -BeTrue
+    }
+  }
+
   It 'requires and inventories hidden final-MSIX metadata' {
     $metadataNames = @('AppxBlockMap.xml', '[Content_Types].xml')
     foreach ($metadataName in $metadataNames) {

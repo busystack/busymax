@@ -201,6 +201,181 @@ String calendarDescriptionToHtml(
   return '<div>${buffer.toString()}</div>';
 }
 
+/// The exact provider-owned subtree and the separately editable remainder.
+/// If the subtree is ambiguous, callers must refuse the body mutation.
+final class MicrosoftMeetingBodyParts {
+  const MicrosoftMeetingBodyParts({
+    required this.editableHtml,
+    required this.meetingHtml,
+    this.documentPrefix = '',
+    this.documentSuffix = '',
+  });
+
+  final String editableHtml;
+  final String meetingHtml;
+  final String documentPrefix;
+  final String documentSuffix;
+}
+
+final class MicrosoftMeetingBodyEditUnsafe implements Exception {
+  const MicrosoftMeetingBodyEditUnsafe();
+
+  @override
+  String toString() =>
+      'The online meeting information could not be safely separated from the description.';
+}
+
+MicrosoftMeetingBodyParts splitMicrosoftMeetingBodyHtml({
+  required String originalHtml,
+  required String? meetingUrl,
+}) {
+  if (meetingUrl == null || meetingUrl.isEmpty || originalHtml.isEmpty) {
+    return MicrosoftMeetingBodyParts(
+      editableHtml: originalHtml,
+      meetingHtml: '',
+    );
+  }
+  final offset = _meetingLinkOffset(originalHtml, meetingUrl);
+  if (offset == null) {
+    throw const FormatException(
+      'The online meeting block could not be identified.',
+    );
+  }
+  final blocks = _balancedHtmlBlocks(originalHtml);
+  if (blocks == null) {
+    throw const FormatException('The online meeting HTML is not balanced.');
+  }
+  final containing = blocks
+      .where(
+        (block) =>
+            block.start <= offset &&
+            block.end >= offset &&
+            const {'div', 'p', 'section', 'table'}.contains(block.tag),
+      )
+      .toList();
+  final marked = containing
+      .where(
+        (block) => RegExp(
+          r'(?:teams|meeting|online)',
+          caseSensitive: false,
+        ).hasMatch(originalHtml.substring(block.start, block.openEnd)),
+      )
+      .toList();
+  final _HtmlBlock block;
+  if (marked.isNotEmpty) {
+    marked.sort((a, b) => a.start.compareTo(b.start));
+    block = marked.first;
+  } else if (containing.length == 1) {
+    block = containing.single;
+  } else {
+    // Nested unmarked containers may mix provider details and authored text.
+    throw const FormatException('The online meeting block is ambiguous.');
+  }
+  final meetingHtml = originalHtml.substring(block.start, block.end);
+  final bodies = blocks
+      .where(
+        (candidate) =>
+            candidate.tag == 'body' &&
+            candidate.openEnd <= block.start &&
+            candidate.closeStart >= block.end,
+      )
+      .toList();
+  final body = bodies.length == 1 ? bodies.single : null;
+  if (bodies.length > 1) {
+    throw const FormatException('The online meeting document is ambiguous.');
+  }
+  final contentStart = body?.openEnd ?? 0;
+  final contentEnd = body?.closeStart ?? originalHtml.length;
+  return MicrosoftMeetingBodyParts(
+    editableHtml: originalHtml
+        .substring(contentStart, contentEnd)
+        .replaceRange(block.start - contentStart, block.end - contentStart, ''),
+    meetingHtml: meetingHtml,
+    documentPrefix: body == null ? '' : originalHtml.substring(0, contentStart),
+    documentSuffix: body == null ? '' : originalHtml.substring(contentEnd),
+  );
+}
+
+/// Carries the exact online-meeting subtree through a user-body edit. Never
+/// append an arbitrary suffix: it may contain stale user-authored content.
+String preserveMicrosoftMeetingBodyHtml({
+  required String editedHtml,
+  required String originalHtml,
+  required String? meetingUrl,
+}) {
+  final parts = splitMicrosoftMeetingBodyHtml(
+    originalHtml: originalHtml,
+    meetingUrl: meetingUrl,
+  );
+  if (parts.meetingHtml.isNotEmpty &&
+      (editedHtml.contains(meetingUrl!) ||
+          editedHtml.contains(escapeHtml(meetingUrl)))) {
+    throw const FormatException(
+      'The edited body still contains the online meeting block.',
+    );
+  }
+  return '${parts.documentPrefix}$editedHtml${parts.meetingHtml}'
+      '${parts.documentSuffix}';
+}
+
+final class _HtmlBlock {
+  _HtmlBlock(this.tag, this.start, this.openEnd);
+  final String tag;
+  final int start;
+  final int openEnd;
+  int end = -1;
+  int closeStart = -1;
+}
+
+List<_HtmlBlock>? _balancedHtmlBlocks(String html) {
+  final blocks = <_HtmlBlock>[];
+  final stack = <_HtmlBlock>[];
+  final pattern = RegExp(
+    r'<(/?)([A-Za-z][A-Za-z0-9:-]*)\b[^>]*>',
+    dotAll: true,
+  );
+  const voidTags = {'br', 'hr', 'img', 'meta', 'link', 'input', 'wbr'};
+  for (final match in pattern.allMatches(html)) {
+    final tag = match.group(2)!.toLowerCase();
+    if (match.group(1) == '/') {
+      if (stack.isEmpty || stack.last.tag != tag) return null;
+      final block = stack.removeLast();
+      block.closeStart = match.start;
+      block.end = match.end;
+    } else if (!voidTags.contains(tag) && !match.group(0)!.endsWith('/>')) {
+      final block = _HtmlBlock(tag, match.start, match.end);
+      blocks.add(block);
+      stack.add(block);
+    }
+  }
+  return stack.isEmpty ? blocks : null;
+}
+
+int? _meetingLinkOffset(String html, String meetingUrl) {
+  final direct = html.indexOf(meetingUrl);
+  if (direct >= 0) return direct;
+  final escaped = html.indexOf(escapeHtml(meetingUrl));
+  if (escaped >= 0) return escaped;
+  final anchor = RegExp(r'<a\b[^>]*>', caseSensitive: false, dotAll: true);
+  final href = RegExp(
+    r'''\bhref\s*=\s*(["'])(.*?)\1''',
+    caseSensitive: false,
+    dotAll: true,
+  );
+  for (final match in anchor.allMatches(html)) {
+    final encoded = href.firstMatch(match.group(0)!)?.group(2);
+    if (encoded == null) continue;
+    final decoded = decodeHtmlEntities(encoded);
+    if (decoded == meetingUrl) return match.start;
+    try {
+      if (Uri.decodeComponent(decoded) == meetingUrl) return match.start;
+    } on FormatException {
+      // A malformed href is not evidence of the provider-owned block.
+    }
+  }
+  return null;
+}
+
 String escapeHtml(String value) {
   return value
       .replaceAll('&', '&amp;')

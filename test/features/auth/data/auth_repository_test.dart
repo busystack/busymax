@@ -1,4 +1,10 @@
-import 'package:drift/drift.dart';
+import '../../../core/auth/authorization_transition_test.dart'
+    show Harness, owned, tokens;
+import 'dart:async';
+
+import 'package:busymax/src/core/auth/authorization_persistence.dart';
+import 'package:busymax/src/core/auth/oauth_registration.dart';
+import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -35,6 +41,347 @@ void main() {
   tearDown(() async {
     await database.close();
   });
+
+  for (final shared in [false, true]) {
+    test('removal rejects a late real Google refresh shared=$shared', () async {
+      final h = Harness();
+      addTearDown(() async {
+        h.staging.dispose();
+        await h.db.close();
+      });
+      await h.seed();
+      if (!shared) {
+        await h.persistence.commit(
+          accountId: 'opaque',
+          expectedGeneration: 1,
+          candidate: GoogleDesktopCredential(
+            registration: owned,
+            tokenSet: tokens(),
+            subject: 'subject',
+            generation: 2,
+            transitionEligible: false,
+          ),
+          requireExisting: true,
+          persistAccount: () async {},
+        );
+      }
+      final started = Completer<void>(), release = Completer<void>();
+      h.beforeRequest = (request) async {
+        if (request.url.path == '/token') {
+          started.complete();
+          await release.future;
+        }
+        return null;
+      };
+      final refresh = h.google.refreshTokenForAccount('opaque');
+      final rejected = expectLater(
+        refresh,
+        throwsA(
+          isA<OAuthException>().having(
+            (e) => e.classification,
+            'stale refresh',
+            OAuthFailureKind.stale,
+          ),
+        ),
+      );
+      await started.future;
+      final result = await h.repository.removeAccount(
+        accountId: 'opaque',
+        revokeAuthorization: true,
+      );
+      expect(
+        result.authorizationRevocationStatus,
+        AccountAuthorizationRevocationStatus.succeeded,
+      );
+      expect(
+        Uri.splitQueryString(h.requests.last.body)['token'],
+        'working-refresh',
+      );
+      release.complete();
+      await rejected;
+      expect(await h.secrets.readCredential('opaque'), isNull);
+      expect(await h.accounts.accountById('opaque'), isNull);
+      expect(await h.persistence.run('opaque', () async => true), isTrue);
+    });
+  }
+  for (final shared in [false, true]) {
+    test(
+      'post-deletion cleanup failure reports irreversible state shared=$shared',
+      () async {
+        final h = Harness();
+        addTearDown(() async {
+          h.staging.dispose();
+          await h.db.close();
+        });
+        await h.seed();
+        if (!shared) {
+          await h.persistence.commit(
+            accountId: 'opaque',
+            expectedGeneration: 1,
+            candidate: GoogleDesktopCredential(
+              registration: owned,
+              tokenSet: tokens(),
+              subject: 'subject',
+              generation: 2,
+              transitionEligible: false,
+            ),
+            requireExisting: true,
+            persistAccount: () async {},
+          );
+        }
+        var failCleanup = true;
+        final persistence = AuthorizationPersistence(
+          database: h.db,
+          secrets: h.secrets,
+          onRemovalCommitted: (id, snapshot) async {
+            if (failCleanup) {
+              throw const SecretStoreException(
+                'injected',
+                'Synthetic cleanup failure.',
+              );
+            }
+          },
+        );
+        final requests = <http.Request>[];
+        final google = OAuthService(
+          config: BuildConfig.fromEnvironment(),
+          tokenStore: h.secrets,
+          persistence: persistence,
+          loopbackFlow: OAuthLoopbackFlow(),
+          httpClient: MockClient((request) async {
+            requests.add(request);
+            return http.Response('', 200);
+          }),
+        );
+        final repository = AuthRepository(
+          oAuth: google,
+          database: h.db,
+          authorizationPersistence: persistence,
+        );
+        await expectLater(
+          repository.removeAccount(
+            accountId: 'opaque',
+            revokeAuthorization: true,
+          ),
+          throwsA(
+            isA<AccountRemovalPersistenceException>()
+                .having(
+                  (e) => e.remoteAuthorizationRevoked,
+                  'remote grant was revoked',
+                  true,
+                )
+                .having(
+                  (e) => e.message,
+                  'no false local rollback claim',
+                  isNot(contains('preserved')),
+                ),
+          ),
+        );
+        expect(requests.map((r) => r.url.path), ['/revoke']);
+        expect(
+          Uri.splitQueryString(requests.single.body)['token'],
+          'working-refresh',
+        );
+        expect(await h.accounts.accountById('opaque'), isNull);
+        expect(await h.secrets.readCredential('opaque'), isNull);
+        expect(await persistence.generation('opaque'), shared ? 2 : 3);
+        expect(
+          await h.db.select(h.db.authorizationCommits).get(),
+          hasLength(1),
+        );
+        failCleanup = false;
+        await persistence.recover();
+        expect(await h.db.select(h.db.authorizationCommits).get(), isEmpty);
+        expect(await h.secrets.readCredential('opaque'), isNull);
+        expect(
+          (await repository.removeAccount(accountId: 'opaque')).alreadyRemoved,
+          isTrue,
+        );
+        expect(await persistence.run('opaque', () async => true), isTrue);
+      },
+    );
+  }
+  test(
+    'successful remote revocation followed by failed local removal reports actual state',
+    () async {
+      final h = Harness();
+      addTearDown(() async {
+        h.staging.dispose();
+        await h.db.close();
+      });
+      await h.seed();
+      await h.db.customStatement(
+        "CREATE TRIGGER refuse_delete BEFORE DELETE ON accounts BEGIN SELECT RAISE(ABORT, 'injected'); END",
+      );
+      await expectLater(
+        h.repository.removeAccount(
+          accountId: 'opaque',
+          revokeAuthorization: true,
+        ),
+        throwsA(
+          isA<AccountRemovalPersistenceException>().having(
+            (e) => e.remoteAuthorizationRevoked,
+            'remote side effect remains',
+            true,
+          ),
+        ),
+      );
+      expect(h.requests.where((r) => r.url.path == '/revoke'), hasLength(1));
+      expect(await h.accounts.accountById('opaque'), isNotNull);
+      await h.persistence.recover();
+      expect(
+        await h.persistence.readCurrentCredential('opaque'),
+        isA<GoogleDesktopCredential>(),
+      );
+      await h.db.customStatement('DROP TRIGGER refuse_delete');
+      await h.repository.removeAccount(accountId: 'opaque');
+      expect(await h.secrets.readCredential('opaque'), isNull);
+    },
+  );
+  test(
+    'legacy selected record is revoked without refresh or issuer discovery',
+    () async {
+      final h = Harness();
+      addTearDown(() async {
+        h.staging.dispose();
+        await h.db.close();
+      });
+      await h.seed();
+      await h.secrets.saveCredential(
+        'opaque',
+        OAuthSecretRecord(provider: BusyProvider.google, tokenSet: tokens()),
+      );
+      await h.repository.removeAccount(
+        accountId: 'opaque',
+        revokeAuthorization: true,
+      );
+      expect(h.requests.map((r) => r.url.path).toList(), ['/revoke']);
+      expect(await h.secrets.readCredential('opaque'), isNull);
+    },
+  );
+  for (final shared in [false, true]) {
+    for (final outcome in ['success', 'failure', 'timeout', 'local-only']) {
+      test(
+        'production Google removal $outcome shared=$shared releases its boundary',
+        () async {
+          final secrets = InMemorySecretStore();
+          final persistence = AuthorizationPersistence(
+            database: database,
+            secrets: secrets,
+          );
+          for (final id in ['selected', 'other']) {
+            await AccountsRepository(database: database).upsertSignedInAccount(
+              id: id,
+              provider: BusyProvider.google,
+              providerAccountId: id,
+              grantedScopes: googleBusyMaxOAuthScope,
+            );
+            await persistence.commit(
+              accountId: id,
+              expectedGeneration: 0,
+              requireExisting: true,
+              candidate: GoogleDesktopCredential(
+                registration: GoogleDesktopRegistration(
+                  clientId: '$id.apps.googleusercontent.com',
+                  projectId: 'fixture',
+                  origin: shared
+                      ? RegistrationOrigin.retiringShared
+                      : RegistrationOrigin.userProvided,
+                ),
+                subject: id,
+                generation: 1,
+                transitionEligible: shared,
+                tokenSet: _tokenSet().copyWith(
+                  refreshToken: '$id-refresh',
+                  expiresAtUtc: DateTime.utc(2040),
+                ),
+              ),
+              persistAccount: () async {},
+            );
+          }
+          if (shared) {
+            await database
+                .into(database.oAuthTransitionAccounts)
+                .insert(
+                  OAuthTransitionAccountsCompanion.insert(
+                    accountId: 'selected',
+                  ),
+                );
+          }
+          await secrets.setActiveAccountId('other');
+          final requests = <http.Request>[];
+          final service = OAuthService(
+            config: BuildConfig.fromEnvironment(),
+            tokenStore: secrets,
+            persistence: persistence,
+            loopbackFlow: OAuthLoopbackFlow(),
+            authorizationRevocationTimeout: const Duration(milliseconds: 10),
+            httpClient: MockClient((request) async {
+              requests.add(request);
+              if (outcome == 'timeout') {
+                return Completer<http.Response>().future;
+              }
+              return http.Response('', outcome == 'failure' ? 503 : 200);
+            }),
+          );
+          final realRepository = AuthRepository(
+            oAuth: service,
+            database: database,
+            authorizationPersistence: persistence,
+          );
+          final result = await realRepository
+              .removeAccount(
+                accountId: 'selected',
+                revokeAuthorization: outcome != 'local-only',
+              )
+              .timeout(const Duration(seconds: 1));
+          expect(result.authorizationRevocationStatus, switch (outcome) {
+            'success' => AccountAuthorizationRevocationStatus.succeeded,
+            'local-only' => AccountAuthorizationRevocationStatus.notRequested,
+            _ => AccountAuthorizationRevocationStatus.failed,
+          });
+          expect(requests.length, outcome == 'local-only' ? 0 : 1);
+          if (requests.isNotEmpty) {
+            expect(
+              requests.single.url,
+              Uri.https('oauth2.googleapis.com', '/revoke'),
+            );
+            expect(
+              Uri.splitQueryString(requests.single.body)['token'],
+              'selected-refresh',
+            );
+          }
+          expect(
+            await AccountsRepository(
+              database: database,
+            ).accountById('selected'),
+            isNull,
+          );
+          expect(await secrets.readCredential('selected'), isNull);
+          expect(await persistence.generation('selected'), 2);
+          expect(
+            await database.select(database.authorizationCommits).get(),
+            isEmpty,
+          );
+          expect(
+            (await realRepository.removeAccount(
+              accountId: 'selected',
+            )).alreadyRemoved,
+            true,
+          );
+          expect(
+            await persistence.readCurrentCredential('other'),
+            isA<GoogleDesktopCredential>(),
+          );
+          expect(
+            await service.authorizationHeaderForAccount('other'),
+            'Bearer access',
+          );
+          await persistence.run('selected', () async {});
+        },
+      );
+    }
+  }
 
   test('DAV authentication failures expose only their safe message', () {
     const error = DavException(
@@ -101,15 +448,18 @@ void main() {
     expect(oAuth.revoked, isFalse);
   });
 
-  test('sign-in without required write scope revokes and fails', () async {
-    oAuth.nextTokenSet = _tokenSet(scopes: {googleTasksReadOnlyScope});
+  test(
+    'sign-in without required write scope rejects without destructive cleanup',
+    () async {
+      oAuth.nextTokenSet = _tokenSet(scopes: {googleTasksReadOnlyScope});
 
-    await expectLater(repository.signIn(), throwsA(isA<OAuthException>()));
+      await expectLater(repository.signIn(), throwsA(isA<OAuthException>()));
 
-    expect(oAuth.revoked, isTrue);
-    expect(oAuth.revokedAccountId, 'account-1');
-    expect(await database.select(database.accounts).get(), isEmpty);
-  });
+      expect(oAuth.revoked, isFalse);
+      expect(oAuth.revokedAccountId, null);
+      expect(await database.select(database.accounts).get(), isEmpty);
+    },
+  );
 
   for (final qualified in [false, true]) {
     test(
@@ -167,7 +517,7 @@ void main() {
         ),
       ),
     );
-    expect(microsoftOAuth.signOutAccountIds, ['microsoft:user-1']);
+    expect(microsoftOAuth.signOutAccountIds, isEmpty);
   });
 
   test('revocation failure does not mask missing-scope guidance', () async {
@@ -185,8 +535,8 @@ void main() {
       ),
     );
 
-    expect(oAuth.revoked, isTrue);
-    expect(oAuth.revokedAccountId, 'account-1');
+    expect(oAuth.revoked, isFalse);
+    expect(oAuth.revokedAccountId, null);
     expect(await database.select(database.accounts).get(), isEmpty);
   });
 
@@ -269,8 +619,10 @@ void main() {
     final notifications = await database
         .select(database.notificationSchedule)
         .get();
-    expect(notifications.map((row) => row.accountId), ['google-b']);
-    expect(notifications.single.title, 'Private google-b reminder');
+    expect(
+      notifications.map((row) => row.accountId),
+      containsAll(['google-a', 'google-b']),
+    );
   });
 
   test(
@@ -288,7 +640,7 @@ void main() {
 
       await repository.markReconnectRequired(opaqueAccountId);
 
-      expect(microsoftOAuth.signOutAccountIds, [opaqueAccountId]);
+      expect(microsoftOAuth.signOutAccountIds, isEmpty);
       expect(oAuth.clearedAccountId, null);
     },
   );

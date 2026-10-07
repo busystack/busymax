@@ -386,35 +386,6 @@ class AppLocalizationsKo extends AppLocalizations {
       'Google Calendar 및 Google Tasks 권한이 필요합니다. 다시 시도하여 두 체크박스를 모두 선택하세요.';
 
   @override
-  String get finishSetup => '설정 완료';
-
-  @override
-  String get continueSetup => '계속';
-
-  @override
-  String get onboardingSetupTitle => 'BusyMax 설정';
-
-  @override
-  String get onboardingAccountsStepTitle => '계정 연결';
-
-  @override
-  String get onboardingAccountsStepDescription =>
-      '사용할 모든 계정을 추가하세요. BusyMax는 각 계정의 지원되는 캘린더, 일정, 할 일 목록 및 할 일을 동기화합니다.';
-
-  @override
-  String get onboardingPreferencesStepTitle => '시스템 설정 선택';
-
-  @override
-  String get onboardingPreferencesStepDescription =>
-      '일정을 열기 전에 데스크톱 동작, 미리 알림, 알림 세부 수준 및 화면 모양을 설정하세요.';
-
-  @override
-  String get signInWithGoogle => 'Google로 로그인';
-
-  @override
-  String get signInWithMicrosoft => 'Microsoft로 로그인';
-
-  @override
   String get googleTasksProvider => 'Google Tasks';
 
   @override
@@ -531,6 +502,18 @@ class AppLocalizationsKo extends AppLocalizations {
   String get openInProvider => '서비스에서 열기';
 
   @override
+  String get linkedResources => '연결된 리소스';
+
+  @override
+  String get noLinkedResources => '연결된 리소스가 없습니다';
+
+  @override
+  String get attachments => '첨부 파일';
+
+  @override
+  String get attachmentsNotLoaded => '첨부 파일을 불러오지 못했습니다';
+
+  @override
   String get hideFromSchedule => '일정에서 숨기기';
 
   @override
@@ -565,12 +548,6 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get scheduleNoSourcesDescription => '설정에서 표시할 항목을 선택한 다음 새로 고침하세요.';
-
-  @override
-  String get scheduleSignInRequired => '계정 연결';
-
-  @override
-  String get scheduleSignInDescription => '캘린더와 할 일을 동기화하려면 로그인하세요.';
 
   @override
   String get scheduleNoSearchResults => '일치하는 일정 또는 할 일이 없습니다';
@@ -1965,6 +1942,10 @@ class AppLocalizationsKo extends AppLocalizations {
   }
 
   @override
+  String get deleteAssignedTaskWarning =>
+      'Google Docs 또는 Chat 스페이스의 원본 할 일도 삭제됩니다.';
+
+  @override
   String get metadata => '메타데이터';
 
   @override
@@ -2577,6 +2558,15 @@ class AppLocalizationsKo extends AppLocalizations {
   String get removeAction => '삭제';
 
   @override
+  String removeOpenedSharedCalendarConfirmation(String title) {
+    return 'BusyMax에서 \"$title\"을(를) 제거할까요? 소유자의 캘린더와 일정은 삭제되지 않습니다.';
+  }
+
+  @override
+  String get attachmentUploadUnresolved =>
+      '업로드가 완료되었을 수 있습니다. 다시 업로드하기 전에 첨부 파일을 새로 고쳐 결과를 확인하세요.';
+
+  @override
   String removeCalendarConfirmation(String title) {
     return 'Google Calendar 목록에서 \"$title\"을(를) 삭제할까요? 공유 캘린더와 일정은 삭제되지 않습니다.';
   }
@@ -2909,7 +2899,16 @@ class AppLocalizationsKo extends AppLocalizations {
   String get searchDate => '날짜';
 
   @override
-  String get searchAnyDate => '모든 날짜';
+  String get searchAnyDate => '모든 날짜(다운로드한 데이터)';
+
+  @override
+  String get eventLink => '일정 링크';
+
+  @override
+  String get eventLinkOpenFailed => '링크를 열 수 없습니다.';
+
+  @override
+  String get scheduleRangeIncomplete => '일부 일정을 확인할 수 없습니다. 다운로드한 데이터를 표시합니다.';
 
   @override
   String get searchThisWeek => '이번 주';
@@ -2946,4 +2945,497 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get searchClearText => '텍스트 지우기';
+
+  @override
+  String get openSharedCalendar => '공유 캘린더 열기';
+
+  @override
+  String get manageCalendarSharing => '캘린더 공유 관리';
+
+  @override
+  String get shareRecipientEmail => '받는 사람 이메일';
+
+  @override
+  String get shareRole => '액세스 역할';
+
+  @override
+  String get addCalendarShare => '액세스 추가';
+
+  @override
+  String get sharingRefreshFailed =>
+      '공유 변경은 완료되었지만 권한 목록을 새로 고치지 못했습니다. 다음 변경 전에 다시 불러오세요.';
+
+  @override
+  String get sharingRateLimited => '공유가 일시적으로 제한되었습니다. 대기 시간이 끝나면 다시 시도하세요.';
+
+  @override
+  String get attachmentUploadRateLimited =>
+      '첨부 파일 업로드가 일시적으로 제한되었습니다. 대기 시간이 끝나면 다시 시도하세요.';
+
+  @override
+  String get sharingPermissionUnavailable => '이 캘린더의 공유 권한을 사용할 수 없습니다.';
+
+  @override
+  String get calendarShareFreeBusy => '한가함/바쁨만 보기';
+
+  @override
+  String get calendarShareLimitedRead => '제한된 세부정보 읽기';
+
+  @override
+  String get calendarShareRead => '모든 세부정보 읽기';
+
+  @override
+  String get calendarShareWrite => '일정 수정';
+
+  @override
+  String get calendarShareWriteWithoutPrivate => '비공개 정보 제외하고 수정';
+
+  @override
+  String get calendarShareOwner => '소유자';
+
+  @override
+  String get eventLabel => '일정 라벨';
+
+  @override
+  String get loadOutlookCategories => 'Outlook 범주 불러오기';
+
+  @override
+  String get outlookCategoriesUnavailable =>
+      'Outlook 범주를 사용할 수 없습니다. 기존 지정은 유지됩니다.';
+
+  @override
+  String get googleEventType => '일정 유형';
+
+  @override
+  String get googleRegularEvent => '일반 일정';
+
+  @override
+  String get googleFocusTime => '집중 시간';
+
+  @override
+  String get googleOutOfOffice => '부재중';
+
+  @override
+  String get googleWorkingLocation => '근무 위치';
+
+  @override
+  String get googleDeclineInvitations => '겹치는 초대 거절';
+
+  @override
+  String get googleDeclineNone => '거절하지 않음';
+
+  @override
+  String get googleDeclineNew => '새 초대 거절';
+
+  @override
+  String get googleDeclineAll => '충돌하는 초대 모두 거절';
+
+  @override
+  String get googleDeclineMessage => '거절 메시지';
+
+  @override
+  String get googleChatStatus => '채팅 상태';
+
+  @override
+  String get googleChatAvailable => '사용 가능';
+
+  @override
+  String get googleChatDoNotDisturb => '방해 금지';
+
+  @override
+  String get googleWorkAtHome => '집';
+
+  @override
+  String get googleWorkAtOffice => '사무실';
+
+  @override
+  String get googleWorkAtCustomLocation => '사용자 지정 위치';
+
+  @override
+  String get googleWorkLocationLabel => '위치 이름';
+
+  @override
+  String get googleStatusPrimaryOnly => 'Google 상태 일정에는 기본 Google 캘린더가 필요합니다.';
+
+  @override
+  String unknownEventLabel(String id) {
+    return '알 수 없는 라벨 ($id)';
+  }
+
+  @override
+  String get calendarOwnerEmail => '캘린더 소유자 이메일';
+
+  @override
+  String registrationSetupTitle(String provider) {
+    return '$provider 설정';
+  }
+
+  @override
+  String get registrationSetupGuide => '설정 안내';
+
+  @override
+  String get registrationGoogleInstructions =>
+      '자신의 Google Cloud 프로젝트를 만들고 Calendar 및 Tasks API를 사용 설정한 후 Desktop OAuth 클라이언트 JSON을 가져오세요. 원하는 계정에 권한을 부여하세요.';
+
+  @override
+  String get registrationMicrosoftInstructions =>
+      '앱 등록을 허용하는 Entra 테넌트에서 공용 앱 등록을 사용하세요. 클라이언트 ID와 지원 계정 유형을 입력하세요. 클라이언트 암호는 필요 없습니다.';
+
+  @override
+  String get registrationImportGoogle => 'Desktop OAuth JSON 선택';
+
+  @override
+  String get registrationValidate => '등록 확인';
+
+  @override
+  String get registrationAuthorize => '브라우저에서 권한 부여';
+
+  @override
+  String get registrationClientId => '애플리케이션/클라이언트 ID';
+
+  @override
+  String get registrationTenantId => '테넌트 ID';
+
+  @override
+  String get registrationAudience => '지원 계정';
+
+  @override
+  String get registrationBothAudience => '개인 및 조직 계정';
+
+  @override
+  String get registrationOrganizationAudience => '조직 계정';
+
+  @override
+  String get registrationPersonalAudience => '개인 계정';
+
+  @override
+  String get registrationTenantAudience => '하나의 조직 테넌트';
+
+  @override
+  String registrationSummary(String clientId) {
+    return '등록: $clientId';
+  }
+
+  @override
+  String get registrationMigrate => '지금 이전';
+
+  @override
+  String get registrationReplace => '등록 교체';
+
+  @override
+  String registrationRetirementNotice(String provider, String setup) {
+    return '이 계정은 기존 계정용 원래 $provider 등록을 사용합니다. 바꾸려면 $setup을 설정하고 이 계정을 다시 연결하세요. 기존 캘린더, 작업 및 로컬 변경 사항은 유지됩니다.';
+  }
+
+  @override
+  String get registrationContinue => '이 계정 계속 사용';
+
+  @override
+  String get registrationGoogleProject => 'Google Cloud 프로젝트';
+
+  @override
+  String get registrationMicrosoftApp => 'Microsoft 앱 등록';
+
+  @override
+  String get registrationUserOwned => '사용자가 제공한 등록';
+
+  @override
+  String get registrationNativeGoogle => 'Google Android 기본 등록';
+
+  @override
+  String get registrationShared => '공유 등록(전환 기간)';
+
+  @override
+  String get registrationUnresolved => '등록 출처를 확인할 수 없습니다. 계정 데이터는 보존됩니다.';
+
+  @override
+  String get registrationOfficialDocumentation => '공식 문서';
+
+  @override
+  String registrationAndroidIdentity(
+    String packageName,
+    String signatureHash,
+    String redirectUri,
+  ) {
+    return '패키지: $packageName\n서명 해시: $signatureHash\n리디렉션 URI: $redirectUri';
+  }
+
+  @override
+  String get oauthRegistrationRejected =>
+      '등록의 클라이언트 유형, 지원 계정, 권한 및 리디렉션을 확인하세요. 가져온 설정이라면 다시 선택하세요.';
+
+  @override
+  String get oauthAuthorizationCodeUnusable =>
+      '이 인증을 완료하지 못했습니다. 인증을 다시 시작하세요. 기존 연결은 유지됩니다.';
+
+  @override
+  String get oauthPermissionRefused =>
+      '인증이 거부되었거나 필요한 권한이 부여되지 않았습니다. 다시 시도하여 필요한 권한을 부여하세요.';
+
+  @override
+  String get oauthProviderThrottled =>
+      '제공자가 요청을 제한하고 있습니다. 잠시 기다린 후 다시 시도하세요. 기존 연결은 유지됩니다.';
+
+  @override
+  String get oauthProviderTemporaryFailure =>
+      '제공자의 일시적인 문제로 인증을 완료하지 못했습니다. 다시 시도하세요. 기존 연결은 유지됩니다.';
+
+  @override
+  String get oauthAuthorizationTimedOut =>
+      '인증 시간이 초과되었습니다. 다시 시도하고 가져온 설정이라면 다시 선택하세요.';
+
+  @override
+  String get oauthWrongAccount => '다시 연결하도록 선택한 계정을 인증하세요. 기존 연결은 유지됩니다.';
+
+  @override
+  String get oauthSecureStorageUnavailable =>
+      '보안 저장소를 사용할 수 없습니다. 접근을 복구한 후 다시 시도하세요.';
+
+  @override
+  String get oauthRevokedRemovalIncomplete =>
+      '원격 인증은 취소되었지만 계정 정리를 완료하지 못했습니다. BusyMax를 다시 시작하여 로컬 복구를 재시도하세요.';
+
+  @override
+  String get addAccount => '계정 추가';
+
+  @override
+  String get registrationConnect => '연결';
+
+  @override
+  String get registrationBack => '뒤로';
+
+  @override
+  String get registrationReplaceGoogle => '데스크톱 OAuth JSON 교체';
+
+  @override
+  String get registrationSelectedConfiguration => '선택한 구성';
+
+  @override
+  String get registrationDirectoryId => '디렉터리/테넌트 ID';
+
+  @override
+  String get registrationInvalidId => '올바른 UUID를 입력하세요.';
+
+  @override
+  String get registrationExpired =>
+      '이 구성이 만료되었습니다. 연결하기 전에 다시 가져오거나 등록 필드를 수정하세요.';
+
+  @override
+  String get registrationOwnProjectRequired => '본인 프로젝트 또는 테넌트의 등록을 선택하세요.';
+
+  @override
+  String get registrationSetupFailed => '설정을 완료하지 못했습니다. 다시 시도하세요.';
+
+  @override
+  String get registrationLinkFailed => '링크를 열지 못했습니다. 브라우저를 확인하고 다시 시도하세요.';
+
+  @override
+  String get registrationPermissions => '권한';
+
+  @override
+  String get registrationDesktopClient => '데스크톱 앱';
+
+  @override
+  String get registrationOpenGoogleConsole => 'Google Cloud Console 열기';
+
+  @override
+  String get registrationGoogleAudienceHelp => 'Google 게시 및 테스트 사용자 요구사항';
+
+  @override
+  String get registrationDesktopHelp => '데스크톱 앱 등록 안내';
+
+  @override
+  String get registrationOpenEntra => 'Microsoft Entra 관리 센터 열기';
+
+  @override
+  String get registrationGuideGoogleProject =>
+      'Google Cloud Console을 여세요. 위쪽 프로젝트 선택기에서 본인 프로젝트를 선택하거나 New project를 선택하고 이름을 입력한 뒤 Create를 선택하세요. 나머지 단계에서도 같은 프로젝트를 유지하세요.';
+
+  @override
+  String get registrationGuideGoogleAudience =>
+      'Google Auth Platform → Branding으로 이동하세요. 아직 설정하지 않았다면 Get started를 선택하세요. App name에 BusyMax를 입력하고 본인 User support email을 선택한 뒤 Next를 선택하세요. Audience에서 External을 선택하세요. Next를 선택하고 Contact Information에 이메일을 입력한 뒤 Next를 선택하세요. User Data Policy에 동의하고 Continue와 Create를 선택하세요. 이미 설정했다면 Branding과 Audience를 확인하세요.';
+
+  @override
+  String get registrationGuideGooglePermissions =>
+      'Google Auth Platform → Data Access → Add or remove scopes를 여세요. 아래 다섯 범위를 선택하고 필요하면 Manually add scopes를 사용하세요. 수동 입력 시 누락된 값을 붙여넣고 Add to table을 선택하세요. Update를 선택한 뒤 Save를 선택하세요. BusyMax에는 캘린더와 작업 모두의 접근 권한이 필요합니다.';
+
+  @override
+  String get registrationGuideGoogleClient =>
+      'Google Auth Platform → Clients → Create client를 여세요. Application type을 Desktop app으로 설정하고 Name에 BusyMax를 입력한 뒤 Create를 선택하세요. 생성 대화상자에서 Download JSON을 선택하고 파일을 저장하세요. 뒤로를 선택하고 양식으로 돌아와 파일을 선택하고 프로젝트 및 클라이언트 ID를 확인하세요. 연결을 선택하고 브라우저에서 캘린더와 작업 접근을 승인하세요.';
+
+  @override
+  String get registrationGuideMicrosoftApp =>
+      'Microsoft Entra 관리 센터에 로그인하세요. Settings에서 앱을 등록할 수 있는 테넌트를 선택하세요. Entra ID → App registrations → New registration을 여세요. Name에 BusyMax를 입력하고 다음 단계에서 지원하는 계정 유형을 선택하세요. 등록이 차단되면 테넌트 관리자에게 권한을 요청하세요.';
+
+  @override
+  String get registrationGuideMicrosoftRedirect =>
+      '앱 등록에서 Authentication → Add a platform → Mobile and desktop applications를 여세요. 아래 리디렉션 URI를 선택하거나 입력하고 Configure로 저장하세요. BusyMax는 시스템 브라우저를 사용합니다. 클라이언트 암호는 필요하지 않습니다.';
+
+  @override
+  String get registrationGuideMicrosoftPermissions =>
+      'API permissions → Add a permission → Microsoft Graph → Delegated permissions를 여세요. 아래 범위를 각각 검색하여 선택한 뒤 Add permissions를 선택하세요. User.Read가 이미 있다면 유지하세요. 조직에서 관리자 동의를 요구하면 관리자에게 테넌트의 Grant admin consent 사용을 요청하세요.';
+
+  @override
+  String get registrationGuideMicrosoftConnect =>
+      '뒤로를 선택하고 양식으로 돌아오세요. Application (client) ID를 붙여넣고 등록과 같은 지원 계정을 선택하세요. 단일 조직 테넌트라면 Directory (tenant) ID도 붙여넣으세요. 연결을 선택하고 브라우저에서 원하는 계정으로 로그인하세요. BusyMax는 필드를 로컬에서 검사하며 Microsoft는 브라우저 로그인 중 동의를 요청합니다.';
+
+  @override
+  String get registrationGoogleImportFailed =>
+      '이 파일을 가져오지 못했습니다. 올바른 데스크톱 OAuth JSON을 선택하세요. 이전의 유효한 선택은 유지됩니다.';
+
+  @override
+  String get registrationGoogleSetupInstructions => 'Google 설정 안내';
+
+  @override
+  String get registrationMicrosoftSetupInstructions => 'Microsoft 설정 안내';
+
+  @override
+  String get registrationDesktopConfiguration => '데스크톱 OAuth 구성';
+
+  @override
+  String get registrationNoFileSelected => '선택한 파일 없음';
+
+  @override
+  String get registrationChooseFile => '파일 선택…';
+
+  @override
+  String get registrationReplaceFile => '바꾸기…';
+
+  @override
+  String get registrationGoogleIntroduction =>
+      '본인 Google Cloud 프로젝트의 데스크톱 OAuth JSON을 선택하세요.';
+
+  @override
+  String get registrationMicrosoftIntroduction =>
+      '본인 Microsoft 앱 등록 정보를 입력하세요.';
+
+  @override
+  String get registrationSetupInstructions => '설정 안내';
+
+  @override
+  String get registrationInstructionsDescription => '계정 연결에 필요한 구성을 만드세요.';
+
+  @override
+  String get registrationEnableApis => 'Calendar 및 Tasks 사용 설정';
+
+  @override
+  String get registrationConsentScreen => '동의 화면 설정';
+
+  @override
+  String get registrationAppName => '앱 이름';
+
+  @override
+  String get registrationScopes => '범위';
+
+  @override
+  String get registrationRedirectUri => '리디렉션 URI';
+
+  @override
+  String get registrationOpenApiLibrary => 'Google API 라이브러리 열기';
+
+  @override
+  String get registrationOpenBranding => 'Google Auth Platform의 Branding 열기';
+
+  @override
+  String get registrationOpenDataAccess =>
+      'Google Auth Platform의 Data Access 열기';
+
+  @override
+  String get registrationOpenClients => 'Google Auth Platform의 Clients 열기';
+
+  @override
+  String get registrationOpenEntraAuthentication =>
+      'Authentication 설정을 위해 Entra 앱 등록 열기';
+
+  @override
+  String get registrationOpenEntraPermissions =>
+      'API permissions 설정을 위해 Entra 앱 등록 열기';
+
+  @override
+  String get registrationCopy => '복사';
+
+  @override
+  String get registrationCopyAll => '모두 복사';
+
+  @override
+  String get registrationGuideGoogleApis =>
+      'APIs & Services → Library로 이동하세요. Google Calendar API를 검색하여 페이지를 열고 Enable을 선택하세요. Library로 돌아가 Google Tasks API에도 같은 작업을 하세요.';
+
+  @override
+  String get registrationGuideMicrosoftAudience =>
+      'Supported account types에서 개인 계정은 Personal accounts only, 조직 계정은 Multiple Entra ID tenants, 둘 다는 Any Entra ID Tenant + Personal Microsoft accounts, 이 디렉터리만은 Single tenant only를 선택하세요. Register를 선택하세요. Overview에서 Application (client) ID를 복사하고 단일 테넌트라면 Directory (tenant) ID도 복사하세요. BusyMax에서 같은 지원 계정 선택을 사용하세요.';
+
+  @override
+  String get registrationConnectBusyMax => 'BusyMax로 연결';
+
+  @override
+  String get registrationRecommended => '권장';
+
+  @override
+  String get registrationOtherMethods => '다른 연결 방법';
+
+  @override
+  String get registrationWorkspace => 'Google Workspace 조직';
+
+  @override
+  String get registrationGoogleCustom => '사용자 지정 OAuth 클라이언트';
+
+  @override
+  String get registrationMicrosoftCustom => '사용자 지정 앱 등록';
+
+  @override
+  String get registrationMethodsIntroduction => '계정을 연결할 방법을 선택하세요.';
+
+  @override
+  String get registrationWorkspaceDescription => '조직이 관리하는 구성을 사용하세요.';
+
+  @override
+  String get registrationCustomDescription => '직접 관리하는 등록을 사용하세요.';
+
+  @override
+  String get registrationSharedUnavailable =>
+      '이 빌드에서는 BusyMax 연결을 사용할 수 없습니다. 아래에서 다른 연결 방법을 사용할 수 있습니다.';
+
+  @override
+  String get registrationWorkspaceIntroduction =>
+      '조직에서 제공하거나 관리하는 데스크톱 OAuth JSON을 선택하세요. 파일은 조직 소유권, 대상 계정 또는 인증 상태를 증명하지 않습니다.';
+
+  @override
+  String get registrationWorkspaceSetupInstructions => 'Google Workspace 설정 안내';
+
+  @override
+  String get registrationBusyMaxManaged => 'BusyMax에서 관리하는 등록';
+
+  @override
+  String get registrationBranding => '브랜딩 및 도메인 구성';
+
+  @override
+  String get registrationPublishing => '일반 사용을 위해 게시';
+
+  @override
+  String get registrationOpenAudience => 'Google Auth Platform Audience 열기';
+
+  @override
+  String get registrationGuideWorkspaceProject =>
+      '관리자에게 Desktop OAuth JSON을 받거나 Google Cloud Console에서 Google Workspace 조직이 소유한 프로젝트를 선택하세요. 새로 만들려면 리소스 관리 → 프로젝트 만들기를 열고 프로젝트 이름을 입력한 뒤 상위 리소스에서 조직 또는 조직의 폴더를 선택하고 만들기를 누르세요. 다음 단계에서도 해당 프로젝트를 선택하세요. 생성에는 Project Creator, OAuth 설정에는 OAuth Config Editor, API 사용 설정에는 Service Usage Admin 또는 동등한 권한이 필요합니다. 작업이 차단되면 관리자에게 문의하세요.';
+
+  @override
+  String get registrationGuideGoogleBranding =>
+      'Branding → App domain에서 프로젝트의 승인된 도메인을 먼저 추가한 뒤 홈페이지, 개인정보 처리방침, 서비스 약관 URL을 입력하고 Save를 선택하세요. External 프로덕션 앱에는 이 링크가 필요합니다. 소유한 도메인을 사용하고 Google이 브랜드 인증을 요구하면 Search Console에서 소유권을 확인하세요. 아래 BusyMax 개인정보 링크는 프로젝트의 busystack.org 소유권을 증명하지 않습니다.';
+
+  @override
+  String get registrationGuideGooglePublishing =>
+      'Audience에서 Publish app을 선택하고 In production을 확인하세요. 일반 사용을 Testing으로 두지 마세요. 이 Calendar/Tasks 승인과 갱신 토큰은 7일 후 만료됩니다. 게시와 인증은 별개입니다. 100명 미만의 개인 사용은 경고와 사용자 제한을 적용하여 인증 면제가 가능하며, 광범위 배포는 브랜드와 범위 승인이 필요할 수 있습니다. 프로덕션 승인도 만료되거나 취소될 수 있습니다.';
+
+  @override
+  String get registrationGuideWorkspacePermissions =>
+      '이 범위를 관리자와 검토하세요. Internal 앱은 동의 화면에 범위를 나열할 필요가 없습니다. 요청받으면 Data Access → Add or remove scopes에서 값을 추가하고 Update와 Save를 선택하세요. 관리자 제어로 승인이 제한될 수 있습니다.';
+
+  @override
+  String get registrationGuideMicrosoftOptionalPermissions =>
+      '공유 캘린더와 범주 권한은 선택 기능을 활성화할 때 별도로 요청됩니다. 위의 필수 설정에 추가하지 마세요.';
+
+  @override
+  String get registrationGuideWorkspaceAudience =>
+      'Google Auth Platform → Branding으로 이동하세요. 아직 설정하지 않았다면 Get started를 선택하세요. App name에 BusyMax를 입력하고 본인 User support email을 선택한 뒤 Next를 선택하세요. Audience에서 Internal을 선택하세요. Next를 선택하고 Contact Information에 이메일을 입력한 뒤 Next를 선택하세요. User Data Policy에 동의하고 Continue와 Create를 선택하세요. 이미 설정했다면 Branding과 Audience를 확인하세요.\n\nInternal은 프로젝트의 상위 조직 계정만 허용하며 관리자 제어도 적용됩니다. 테스트 사용자 목록은 필요 없습니다. BusyMax는 다운로드한 JSON으로 이러한 콘솔 설정을 확인할 수 없습니다.';
 }

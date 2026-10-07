@@ -1,4 +1,6 @@
 import 'dart:convert';
+import '../../core/http/retry_after.dart';
+import '../../core/http/provider_throttle.dart';
 
 import '../../features/tasks/domain/task_remote_error.dart';
 
@@ -9,18 +11,25 @@ class GoogleTasksApiError extends TaskRemoteError {
     super.code,
     this.status,
     this.rawJson,
+    super.retryAfter,
+    bool quotaLimited = false,
   }) : super(
-         retryable: statusCode == 429 || statusCode >= 500,
+         retryable: quotaLimited || statusCode == 429 || statusCode >= 500,
          providerDetails: rawJson,
        );
 
   factory GoogleTasksApiError.fromResponse({
     required int statusCode,
     required String body,
+    Map<String, String> headers = const {},
   }) {
+    final retryAfter = parseHttpRetryAfter(headers['retry-after']);
+    final quotaLimited = isGoogleQuotaResponse(statusCode, body);
     if (body.isEmpty) {
       return GoogleTasksApiError(
         statusCode: statusCode,
+        retryAfter: retryAfter,
+        quotaLimited: quotaLimited,
         message: 'Google Tasks API returned HTTP $statusCode.',
       );
     }
@@ -32,6 +41,8 @@ class GoogleTasksApiError extends TaskRemoteError {
         final errorJson = error.cast<String, Object?>();
         return GoogleTasksApiError(
           statusCode: statusCode,
+          retryAfter: retryAfter,
+          quotaLimited: quotaLimited,
           code: errorJson['code']?.toString(),
           status: errorJson['status']?.toString(),
           message:
@@ -42,12 +53,16 @@ class GoogleTasksApiError extends TaskRemoteError {
       }
       return GoogleTasksApiError(
         statusCode: statusCode,
+        retryAfter: retryAfter,
+        quotaLimited: quotaLimited,
         message: 'Google Tasks API returned HTTP $statusCode.',
         rawJson: decoded,
       );
     } on Object {
       return GoogleTasksApiError(
         statusCode: statusCode,
+        retryAfter: retryAfter,
+        quotaLimited: quotaLimited,
         message: 'Google Tasks API returned HTTP $statusCode.',
       );
     }

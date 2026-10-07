@@ -3,6 +3,35 @@ import 'package:busymax/src/google_tasks/oauth/oauth_loopback_flow.dart';
 import 'package:busymax/src/core/auth/oauth_models.dart';
 
 void main() {
+  for (final entry in {
+    'access_denied': OAuthFailureKind.permission,
+    'invalid_client': OAuthFailureKind.configuration,
+    'invalid_scope': OAuthFailureKind.configuration,
+    'temporarily_unavailable': OAuthFailureKind.temporary,
+    'server_error': OAuthFailureKind.temporary,
+    'secret-unknown-provider-value': OAuthFailureKind.temporary,
+  }.entries) {
+    test('validated callback ${entry.key} retains actionable classification', () {
+      expect(
+        () => parseOAuthCallback(
+          Uri.parse(
+            'http://127.0.0.1:4567/?state=same&error=${entry.key}&error_description=secret-description',
+          ),
+          expectedState: 'same',
+          expectedPort: 4567,
+        ),
+        throwsA(
+          isA<OAuthException>()
+              .having((e) => e.classification, 'classification', entry.value)
+              .having(
+                (e) => e.toString().contains('secret-'),
+                'secret redaction',
+                false,
+              ),
+        ),
+      );
+    });
+  }
   test('callback parser accepts code and validates state', () {
     final callback = parseOAuthCallback(
       Uri.parse('http://127.0.0.1:4567/?state=same&code=code&scope=tasks'),

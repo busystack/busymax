@@ -739,3 +739,50 @@ class SyncRuns extends Table {
   @override
   Set<Column<Object>> get primaryKey => {id};
 }
+
+/// Captured transactionally on upgrade before any new OAuth onboarding.
+class OAuthTransitionAccounts extends Table {
+  TextColumn get accountId =>
+      text().references(Accounts, #id, onDelete: KeyAction.cascade)();
+  @override
+  Set<Column<Object>> get primaryKey => {accountId};
+}
+
+class AccountAuthorizations extends Table {
+  TextColumn get accountId =>
+      text().references(Accounts, #id, onDelete: KeyAction.cascade)();
+  IntColumn get generation => integer()();
+  TextColumn get summaryJson => text()();
+  @override
+  Set<Column<Object>> get primaryKey => {accountId};
+}
+
+/// The rollback credentials live only in secure storage, never SQLite.
+class AuthorizationCommits extends Table {
+  TextColumn get accountId => text()();
+  IntColumn get generation => integer()();
+  BoolColumn get hadCredential => boolean()();
+  TextColumn get previousActiveAccountId => text().nullable()();
+  TextColumn get previousNativeBindingJson => text().nullable()();
+  @override
+  Set<Column<Object>> get primaryKey => {accountId};
+}
+
+class DomainSyncSchedules extends Table {
+  TextColumn get accountId =>
+      text().references(Accounts, #id, onDelete: KeyAction.cascade)();
+  TextColumn get domain => text()();
+  TextColumn get lastSuccessfulPullUtc => text().nullable()();
+  TextColumn get nextPassivePullUtc => text().nullable()();
+  TextColumn get cooldownUntilUtc => text().nullable()();
+  @override
+  Set<Column<Object>> get primaryKey => {accountId, domain};
+}
+
+/// Survives account removal so callbacks cannot reuse a deleted generation.
+class AuthorizationGenerations extends Table {
+  TextColumn get accountId => text()();
+  IntColumn get generation => integer()();
+  @override
+  Set<Column<Object>> get primaryKey => {accountId};
+}

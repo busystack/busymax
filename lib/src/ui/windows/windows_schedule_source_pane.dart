@@ -36,6 +36,8 @@ class WindowsScheduleSourcePane extends ConsumerStatefulWidget {
     required this.onCalendarVisibilityChanged,
     required this.onTaskListVisibilityChanged,
     required this.onSourcesChanged,
+    this.onAddAccount,
+    this.accountInventoryResolved = true,
     super.key,
   });
 
@@ -52,6 +54,8 @@ class WindowsScheduleSourcePane extends ConsumerStatefulWidget {
   final void Function(TaskListEntity list, bool visible)
   onTaskListVisibilityChanged;
   final VoidCallback onSourcesChanged;
+  final VoidCallback? onAddAccount;
+  final bool accountInventoryResolved;
 
   @override
   ConsumerState<WindowsScheduleSourcePane> createState() =>
@@ -130,12 +134,24 @@ class _WindowsScheduleSourcePaneState
     final l10n = AppLocalizations.of(context);
     final locale = Localizations.localeOf(context).toLanguageTag();
     final order = ref.watch(appSettingsControllerProvider).sidebarOrder;
-    final accounts = order.apply(
+    final orderedAccounts = order.apply(
       SidebarOrderSection.accounts,
       widget.accounts,
       (account) => account.id,
     );
-    final accountIds = accounts.map((account) => account.id).toList();
+    final authenticationAccounts = orderedAccounts
+        .where((account) => !account.isSubscription)
+        .toList();
+    final subscriptionAccounts = orderedAccounts
+        .where((account) => account.isSubscription)
+        .toList();
+    final accounts = [...authenticationAccounts, ...subscriptionAccounts];
+    final authenticationIds = authenticationAccounts
+        .map((account) => account.id)
+        .toList();
+    final subscriptionIds = subscriptionAccounts
+        .map((account) => account.id)
+        .toList();
     return ColoredBox(
       color: FluentTheme.of(context).cardColor,
       child: Column(
@@ -167,7 +183,41 @@ class _WindowsScheduleSourcePaneState
             child: ListView(
               padding: const EdgeInsets.symmetric(vertical: 8),
               children: [
+                if (widget.accountInventoryResolved &&
+                    authenticationAccounts.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    child: Button(
+                      key: const ValueKey('schedule-add-account'),
+                      onPressed: widget.onAddAccount,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(windowsBusyMaxGlyph(BusyMaxGlyph.add)),
+                          const SizedBox(width: 8),
+                          Flexible(child: Text(l10n.addAccount)),
+                        ],
+                      ),
+                    ),
+                  ),
                 for (final account in accounts) ...[
+                  if (account.isSubscription &&
+                      account.id == subscriptionIds.first)
+                    Padding(
+                      padding: const EdgeInsetsDirectional.fromSTEB(
+                        14,
+                        10,
+                        8,
+                        4,
+                      ),
+                      child: Text(
+                        l10n.subscriptions,
+                        style: FluentTheme.of(context).typography.bodyStrong,
+                      ),
+                    ),
                   _AccountHeader(
                     online:
                         (ref.watch(networkAvailabilityProvider).valueOrNull ??
@@ -181,7 +231,9 @@ class _WindowsScheduleSourcePaneState
                       context,
                       SidebarOrderSection.accounts,
                       account.id,
-                      accountIds,
+                      account.isSubscription
+                          ? subscriptionIds
+                          : authenticationIds,
                     ),
                     capabilities: AccountCollectionCreationCapabilities.resolve(
                       account: account,
@@ -231,7 +283,9 @@ class _WindowsScheduleSourcePaneState
                       menuItems: _taskListMenuItems(context, account, list),
                     ),
                 ],
-                if (widget.calendarSources.isEmpty && widget.taskLists.isEmpty)
+                if (accounts.isNotEmpty &&
+                    widget.calendarSources.isEmpty &&
+                    widget.taskLists.isEmpty)
                   Padding(
                     padding: const EdgeInsets.all(16),
                     child: Text(l10n.scheduleNoSources),

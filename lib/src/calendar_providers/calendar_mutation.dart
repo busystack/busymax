@@ -40,6 +40,9 @@ const calendarEventCopyConfirmationRequiredKey = '_copyConfirmationRequired';
 const calendarEventCopyConfirmedKey = '_copyConfirmed';
 const calendarEventCopyDestinationEventIdKey = '_copyDestinationEventId';
 const calendarEventSemanticBaselineKey = '__busymaxSemanticBaseline';
+const calendarEventImportIcalUidKey = '_importIcalUid';
+// Discriminator for a status-property PATCH, never an event-type mutation.
+const calendarEventGoogleStatusTypeContextKey = '_googleStatusTypeContext';
 
 enum CalendarGuestUpdatePolicy { send, doNotSend }
 
@@ -66,6 +69,10 @@ class CalendarEventMutation {
     this.attendees,
     this.clearAttendees = false,
     this.colorId,
+    this.eventLabelId,
+    this.eventType,
+    this.googleStatusEventTypeContext,
+    this.googleStatusProperties,
     this.visibility,
     this.transparencyOrShowAs,
     this.conference,
@@ -101,6 +108,12 @@ class CalendarEventMutation {
   final Object? attendees;
   final bool clearAttendees;
   final String? colorId;
+
+  /// Null leaves the label untouched; empty explicitly clears it.
+  final String? eventLabelId;
+  final String? eventType;
+  final String? googleStatusEventTypeContext;
+  final Map<String, Object?>? googleStatusProperties;
   final String? visibility;
   final String? transparencyOrShowAs;
   final Object? conference;

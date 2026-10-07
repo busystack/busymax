@@ -16,6 +16,7 @@ if (-not (Test-Path -LiteralPath "$PackageRoot/busymax.exe")) {
 }
 foreach ($required in @(
     'flutter_windows.dll', 'sqlite3.dll',
+    'busymax_registration_reader.dll',
     'connectivity_plus_plugin.dll', 'file_selector_windows_plugin.dll',
     'flutter_local_notifications_windows.dll',
     'flutter_secure_storage_windows_plugin.dll',
@@ -24,6 +25,8 @@ foreach ($required in @(
     'msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll',
     'data/app.so', 'data/icudtl.dat',
     'data/flutter_assets/AssetManifest.bin',
+    'data/flutter_assets/docs/google_setup.md',
+    'data/flutter_assets/docs/microsoft_setup.md',
     'AppxManifest.xml')) {
   if (-not (Test-Path -LiteralPath (Join-Path $PackageRoot $required))) {
     throw "Required package file is missing: $required"
@@ -68,6 +71,7 @@ if ($executables.Count -ne 1 -or $executables[0].Name -cne 'busymax.exe') {
 }
 $allowedDlls = @(
   'flutter_windows.dll', 'sqlite3.dll',
+  'busymax_registration_reader.dll',
   'connectivity_plus_plugin.dll', 'file_selector_windows_plugin.dll',
   'flutter_local_notifications_windows.dll',
   'flutter_secure_storage_windows_plugin.dll',

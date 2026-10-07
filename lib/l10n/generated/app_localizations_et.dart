@@ -398,35 +398,6 @@ class AppLocalizationsEt extends AppLocalizations {
       'Google Calendari ja Google Tasksi õigused on nõutavad. Proovige uuesti ja märkige mõlemad ruudud.';
 
   @override
-  String get finishSetup => 'Lõpeta seadistamine';
-
-  @override
-  String get continueSetup => 'Jätka';
-
-  @override
-  String get onboardingSetupTitle => 'BusyMaxi seadistamine';
-
-  @override
-  String get onboardingAccountsStepTitle => 'Kontode ühendamine';
-
-  @override
-  String get onboardingAccountsStepDescription =>
-      'Lisage kõik kontod, mida soovite kasutada. BusyMax sünkroonib igast kontost toetatud kalendreid, sündmusi, ülesandeloendeid ja ülesandeid.';
-
-  @override
-  String get onboardingPreferencesStepTitle => 'Süsteemiseadete valimine';
-
-  @override
-  String get onboardingPreferencesStepDescription =>
-      'Enne ajakava avamist määrake töölauakäitumine, meeldetuletused, teavituste üksikasjalikkus ja välimus.';
-
-  @override
-  String get signInWithGoogle => 'Logi Google’iga sisse';
-
-  @override
-  String get signInWithMicrosoft => 'Logi Microsoftiga sisse';
-
-  @override
   String get googleTasksProvider => 'Google Tasks';
 
   @override
@@ -543,6 +514,18 @@ class AppLocalizationsEt extends AppLocalizations {
   String get openInProvider => 'Ava teenuses';
 
   @override
+  String get linkedResources => 'Seotud ressursid';
+
+  @override
+  String get noLinkedResources => 'Seotud ressursse pole';
+
+  @override
+  String get attachments => 'Manused';
+
+  @override
+  String get attachmentsNotLoaded => 'Manuseid ei laaditud';
+
+  @override
   String get hideFromSchedule => 'Peida ajakavast';
 
   @override
@@ -575,13 +558,6 @@ class AppLocalizationsEt extends AppLocalizations {
   @override
   String get scheduleNoSourcesDescription =>
       'Valige seadetes, mida kuvada, ja seejärel värskendage.';
-
-  @override
-  String get scheduleSignInRequired => 'Ühendage konto';
-
-  @override
-  String get scheduleSignInDescription =>
-      'Kalendrite ja ülesannete sünkroonimiseks logige sisse.';
 
   @override
   String get scheduleNoSearchResults =>
@@ -1985,6 +1961,10 @@ class AppLocalizationsEt extends AppLocalizations {
   }
 
   @override
+  String get deleteAssignedTaskWarning =>
+      'See kustutab ka algse ülesande Google Docsis või Chati ruumides.';
+
+  @override
   String get metadata => 'Metaandmed';
 
   @override
@@ -2595,6 +2575,15 @@ class AppLocalizationsEt extends AppLocalizations {
   String get removeAction => 'Eemalda';
 
   @override
+  String removeOpenedSharedCalendarConfirmation(String title) {
+    return 'Kas eemaldada „$title” BusyMaxist? Omaniku kalendrit ega sündmusi ei kustutata.';
+  }
+
+  @override
+  String get attachmentUploadUnresolved =>
+      'Üleslaadimine võis õnnestuda. Enne uut üleslaadimist värskendage manuseid ja kontrollige tulemust.';
+
+  @override
   String removeCalendarConfirmation(String title) {
     return 'Kas eemaldada „$title” teie Google’i kalendrite loendist? Jagatud kalendrit ega selle sündmusi ei kustutata.';
   }
@@ -2946,7 +2935,17 @@ class AppLocalizationsEt extends AppLocalizations {
   String get searchDate => 'Kuupäev';
 
   @override
-  String get searchAnyDate => 'Kõik kuupäevad';
+  String get searchAnyDate => 'Kõik kuupäevad (allalaaditud andmed)';
+
+  @override
+  String get eventLink => 'Sündmuse link';
+
+  @override
+  String get eventLinkOpenFailed => 'Linki ei õnnestunud avada.';
+
+  @override
+  String get scheduleRangeIncomplete =>
+      'Mõnda sündmust ei saanud kontrollida. Kuvatakse allalaaditud andmed.';
 
   @override
   String get searchThisWeek => 'See nädal';
@@ -2983,4 +2982,516 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String get searchClearText => 'Tühjenda tekst';
+
+  @override
+  String get openSharedCalendar => 'Ava jagatud kalender';
+
+  @override
+  String get manageCalendarSharing => 'Halda kalendri jagamist';
+
+  @override
+  String get shareRecipientEmail => 'Saaja e-posti aadress';
+
+  @override
+  String get shareRole => 'Juurdepääsu roll';
+
+  @override
+  String get addCalendarShare => 'Lisa juurdepääs';
+
+  @override
+  String get sharingRefreshFailed =>
+      'Jagamine muudeti, kuid õiguste loendit ei saanud värskendada. Värskenda loendit enne järgmist muudatust.';
+
+  @override
+  String get sharingRateLimited =>
+      'Jagamine on ajutiselt piiratud. Proovi pärast ooteaja lõppu uuesti.';
+
+  @override
+  String get attachmentUploadRateLimited =>
+      'Manuste üleslaadimine on ajutiselt piiratud. Proovi pärast ooteaja lõppu uuesti.';
+
+  @override
+  String get sharingPermissionUnavailable =>
+      'Selle kalendri jagamisõigused pole saadaval.';
+
+  @override
+  String get calendarShareFreeBusy => 'Ainult vaba/hõivatud';
+
+  @override
+  String get calendarShareLimitedRead => 'Loe piiratud üksikasju';
+
+  @override
+  String get calendarShareRead => 'Loe kõiki üksikasju';
+
+  @override
+  String get calendarShareWrite => 'Muuda sündmusi';
+
+  @override
+  String get calendarShareWriteWithoutPrivate =>
+      'Muuda ilma privaatsete üksikasjadeta';
+
+  @override
+  String get calendarShareOwner => 'Omanik';
+
+  @override
+  String get eventLabel => 'Sündmuse silt';
+
+  @override
+  String get loadOutlookCategories => 'Laadi Outlooki kategooriad';
+
+  @override
+  String get outlookCategoriesUnavailable =>
+      'Outlooki kategooriad pole saadaval; senised määrangud säilivad.';
+
+  @override
+  String get googleEventType => 'Sündmuse tüüp';
+
+  @override
+  String get googleRegularEvent => 'Tavaline sündmus';
+
+  @override
+  String get googleFocusTime => 'Keskendumisaeg';
+
+  @override
+  String get googleOutOfOffice => 'Kontorist väljas';
+
+  @override
+  String get googleWorkingLocation => 'Tööasukoht';
+
+  @override
+  String get googleDeclineInvitations => 'Keeldu kattuvatest kutsetest';
+
+  @override
+  String get googleDeclineNone => 'Ära keeldu';
+
+  @override
+  String get googleDeclineNew => 'Keeldu uutest kutsetest';
+
+  @override
+  String get googleDeclineAll => 'Keeldu kõigist kattuvatest kutsetest';
+
+  @override
+  String get googleDeclineMessage => 'Keeldumissõnum';
+
+  @override
+  String get googleChatStatus => 'Vestluse olek';
+
+  @override
+  String get googleChatAvailable => 'Saadaval';
+
+  @override
+  String get googleChatDoNotDisturb => 'Ära sega';
+
+  @override
+  String get googleWorkAtHome => 'Kodus';
+
+  @override
+  String get googleWorkAtOffice => 'Kontoris';
+
+  @override
+  String get googleWorkAtCustomLocation => 'Kohandatud asukoht';
+
+  @override
+  String get googleWorkLocationLabel => 'Asukoha nimi';
+
+  @override
+  String get googleStatusPrimaryOnly =>
+      'Google’i olekusündmused nõuavad peamist Google’i kalendrit.';
+
+  @override
+  String unknownEventLabel(String id) {
+    return 'Tundmatu silt ($id)';
+  }
+
+  @override
+  String get calendarOwnerEmail => 'Kalendri omaniku e-posti aadress';
+
+  @override
+  String registrationSetupTitle(String provider) {
+    return 'Seadista $provider';
+  }
+
+  @override
+  String get registrationSetupGuide => 'Seadistusjuhend';
+
+  @override
+  String get registrationGoogleInstructions =>
+      'Loo oma Google Cloudi projekt, luba Calendar ja Tasks ning impordi töölaua OAuth-kliendi JSON-fail. Autoriseeri soovitud konto.';
+
+  @override
+  String get registrationMicrosoftInstructions =>
+      'Kasuta avalikku rakenduse registreeringut Entra rentnikus, mis lubab registreerimist. Sisesta kliendi ID ja kontotüübid. Kliendisaladust pole vaja.';
+
+  @override
+  String get registrationImportGoogle => 'Vali töölaua OAuthi JSON';
+
+  @override
+  String get registrationValidate => 'Kontrolli registreeringut';
+
+  @override
+  String get registrationAuthorize => 'Autoriseeri brauseris';
+
+  @override
+  String get registrationClientId => 'Rakenduse/kliendi ID';
+
+  @override
+  String get registrationTenantId => 'Rentniku ID';
+
+  @override
+  String get registrationAudience => 'Toetatud kontod';
+
+  @override
+  String get registrationBothAudience => 'Isiklikud ja organisatsiooni kontod';
+
+  @override
+  String get registrationOrganizationAudience => 'Organisatsiooni kontod';
+
+  @override
+  String get registrationPersonalAudience => 'Isiklikud kontod';
+
+  @override
+  String get registrationTenantAudience => 'Üks organisatsiooni rentnik';
+
+  @override
+  String registrationSummary(String clientId) {
+    return 'Registreering: $clientId';
+  }
+
+  @override
+  String get registrationMigrate => 'Migreeri kohe';
+
+  @override
+  String get registrationReplace => 'Asenda registreering';
+
+  @override
+  String registrationRetirementNotice(String provider, String setup) {
+    return 'See konto kasutab algset $provider registreeringut, mis on mõeldud olemasolevatele kontodele. Asendamiseks seadista $setup ja ühenda konto uuesti. Kalendrid, ülesanded ja kohalikud muudatused säilivad.';
+  }
+
+  @override
+  String get registrationContinue => 'Jätka selle konto kasutamist';
+
+  @override
+  String get registrationGoogleProject => 'Google Cloudi projekt';
+
+  @override
+  String get registrationMicrosoftApp => 'Microsofti rakenduse registreering';
+
+  @override
+  String get registrationUserOwned => 'Kasutaja antud registreering';
+
+  @override
+  String get registrationNativeGoogle =>
+      'Google Androidi natiivne registreering';
+
+  @override
+  String get registrationShared => 'Ühine registreering (üleminek)';
+
+  @override
+  String get registrationUnresolved =>
+      'Registreeringu päritolu on teadmata. Konto andmed säilivad.';
+
+  @override
+  String get registrationOfficialDocumentation => 'Ametlik dokumentatsioon';
+
+  @override
+  String registrationAndroidIdentity(
+    String packageName,
+    String signatureHash,
+    String redirectUri,
+  ) {
+    return 'Pakett: $packageName\nAllkirja räsi: $signatureHash\nÜmbersuunamise URI: $redirectUri';
+  }
+
+  @override
+  String get oauthRegistrationRejected =>
+      'Kontrolli registreeringu klienditüüpi, toetatud kontosid, õigusi ja ümbersuunamist. Vali imporditud seadistus uuesti.';
+
+  @override
+  String get oauthAuthorizationCodeUnusable =>
+      'Seda autoriseerimist ei saanud lõpetada. Alusta uuesti; olemasolev ühendus säilib.';
+
+  @override
+  String get oauthPermissionRefused =>
+      'Autoriseerimisest keelduti või nõutud õigused puuduvad. Proovi uuesti ja anna vajalikud õigused.';
+
+  @override
+  String get oauthProviderThrottled =>
+      'Teenusepakkuja piirab päringuid. Oota enne uut katset; olemasolev ühendus säilib.';
+
+  @override
+  String get oauthProviderTemporaryFailure =>
+      'Teenusepakkuja ajutine probleem takistas autoriseerimist. Proovi uuesti; olemasolev ühendus säilib.';
+
+  @override
+  String get oauthAuthorizationTimedOut =>
+      'Autoriseerimise aeg sai läbi. Proovi uuesti ja vali imporditud seadistus uuesti.';
+
+  @override
+  String get oauthWrongAccount =>
+      'Autoriseeri taasühendamiseks valitud konto. Olemasolev ühendus säilib.';
+
+  @override
+  String get oauthSecureStorageUnavailable =>
+      'Turvaline salvestus pole saadaval. Taasta juurdepääs ja proovi uuesti.';
+
+  @override
+  String get oauthRevokedRemovalIncomplete =>
+      'Kaugautoriseerimine tühistati, kuid konto puhastamist ei saanud lõpetada. Taaskäivita BusyMax kohaliku taastamise uuesti proovimiseks.';
+
+  @override
+  String get addAccount => 'Lisa konto';
+
+  @override
+  String get registrationConnect => 'Ühenda';
+
+  @override
+  String get registrationBack => 'Tagasi';
+
+  @override
+  String get registrationReplaceGoogle => 'Asenda töölaua OAuthi JSON';
+
+  @override
+  String get registrationSelectedConfiguration => 'Valitud seadistus';
+
+  @override
+  String get registrationDirectoryId => 'Kataloogi/rentniku ID';
+
+  @override
+  String get registrationInvalidId => 'Sisesta kehtiv UUID.';
+
+  @override
+  String get registrationExpired =>
+      'See seadistus aegus. Impordi see uuesti või muuda enne ühendamist registreeringu välju.';
+
+  @override
+  String get registrationOwnProjectRequired =>
+      'Vali oma projekti või rentniku registreering.';
+
+  @override
+  String get registrationSetupFailed =>
+      'Seadistust ei saanud lõpetada. Proovi uuesti.';
+
+  @override
+  String get registrationLinkFailed =>
+      'Linki ei saanud avada. Kontrolli brauserit ja proovi uuesti.';
+
+  @override
+  String get registrationPermissions => 'Õigused';
+
+  @override
+  String get registrationDesktopClient => 'Töölauarakendus';
+
+  @override
+  String get registrationOpenGoogleConsole => 'Ava Google Cloud Console';
+
+  @override
+  String get registrationGoogleAudienceHelp =>
+      'Google’i avaldamise ja testkasutajate nõuded';
+
+  @override
+  String get registrationDesktopHelp =>
+      'Töölauarakenduse registreerimise juhised';
+
+  @override
+  String get registrationOpenEntra => 'Ava Microsoft Entra halduskeskus';
+
+  @override
+  String get registrationGuideGoogleProject =>
+      'Ava Google Cloud Console. Vali ülemise projektivaliku kaudu oma projekt või vali New project, sisesta nimi ja vali Create. Jäta see projekt järgmisteks sammudeks valituks.';
+
+  @override
+  String get registrationGuideGoogleAudience =>
+      'Ava Google Auth Platform → Branding. Kui seadistust pole alustatud, vali Get started. Sisesta väljale App name BusyMax, vali oma User support email ja vali Next. Vali jaotises Audience External. Vali Next, sisesta oma e-post jaotises Contact Information ning vali Next. Nõustu User Data Policyga ja vali Continue ning Create. Olemasoleva seadistuse puhul vaata üle Branding ja Audience.';
+
+  @override
+  String get registrationGuideGooglePermissions =>
+      'Ava Google Auth Platform → Data Access → Add or remove scopes. Vali allolevad viis õiguste ulatust; vajadusel kasuta Manually add scopes. Käsitsi sisestamisel kleebi puuduvad väärtused ja vali Add to table. Vali Update ja seejärel Save. BusyMax vajab kalendri ja ülesannete kasutusõigust.';
+
+  @override
+  String get registrationGuideGoogleClient =>
+      'Ava Google Auth Platform → Clients → Create client. Määra Application type väärtuseks Desktop app, sisesta väljale Name BusyMax ja vali Create. Vali loomisdialoogis Download JSON ja salvesta fail. Vali Tagasi, et naasta vormile, vali see fail ning kontrolli projekti ja kliendi ID-d. Vali Ühenda ning luba brauseris ligipääs kalendrile ja ülesannetele.';
+
+  @override
+  String get registrationGuideMicrosoftApp =>
+      'Logi sisse Microsoft Entra halduskeskusse. Vali Settingsi kaudu rentnik, kus saad rakendusi registreerida. Ava Entra ID → App registrations → New registration. Sisesta väljale Name BusyMax ja vali järgmises sammus toetatud kontotüübid. Kui registreerimine on blokeeritud, küsi rentniku administraatorilt õigust.';
+
+  @override
+  String get registrationGuideMicrosoftRedirect =>
+      'Ava registreeringus Authentication → Add a platform → Mobile and desktop applications. Vali või sisesta allolev ümbersuunamise URI ning salvesta valikuga Configure. BusyMax kasutab süsteemi brauserit. Kliendisaladust pole vaja.';
+
+  @override
+  String get registrationGuideMicrosoftPermissions =>
+      'Ava API permissions → Add a permission → Microsoft Graph → Delegated permissions. Otsi ja vali iga allolev õiguse ulatus ning vali Add permissions. Säilita User.Read, kui see on juba olemas. Kui organisatsioon nõuab administraatori nõusolekut, palu administraatoril kasutada rentniku jaoks Grant admin consent.';
+
+  @override
+  String get registrationGuideMicrosoftConnect =>
+      'Vali Tagasi, et naasta vormile. Kleebi Application (client) ID ja vali samad toetatud kontod kui registreeringus. Ühe organisatsiooni rentniku puhul kleebi ka Directory (tenant) ID. Vali Ühenda ja logi brauseris soovitud kontole sisse. BusyMax kontrollib välju kohapeal; Microsoft küsib sinu nõusolekut brauseris sisselogimisel.';
+
+  @override
+  String get registrationGoogleImportFailed =>
+      'Seda faili ei saanud importida. Vali kehtiv töölaua OAuthi JSON. Eelmine kehtiv valik säilib.';
+
+  @override
+  String get registrationGoogleSetupInstructions =>
+      'Google’i seadistamisjuhised';
+
+  @override
+  String get registrationMicrosoftSetupInstructions =>
+      'Microsofti seadistamisjuhised';
+
+  @override
+  String get registrationDesktopConfiguration => 'Töölaua OAuthi seadistus';
+
+  @override
+  String get registrationNoFileSelected => 'Faili pole valitud';
+
+  @override
+  String get registrationChooseFile => 'Vali fail…';
+
+  @override
+  String get registrationReplaceFile => 'Asenda…';
+
+  @override
+  String get registrationGoogleIntroduction =>
+      'Vali oma Google Cloudi projekti töölaua OAuthi JSON-fail.';
+
+  @override
+  String get registrationMicrosoftIntroduction =>
+      'Sisesta oma Microsofti rakenduse registreeringu andmed.';
+
+  @override
+  String get registrationSetupInstructions => 'Seadistamisjuhised';
+
+  @override
+  String get registrationInstructionsDescription =>
+      'Loo konto ühendamiseks vajalik seadistus.';
+
+  @override
+  String get registrationEnableApis => 'Luba Calendar ja Tasks';
+
+  @override
+  String get registrationConsentScreen => 'Seadista nõusolekukuva';
+
+  @override
+  String get registrationAppName => 'Rakenduse nimi';
+
+  @override
+  String get registrationScopes => 'Õiguste ulatused';
+
+  @override
+  String get registrationRedirectUri => 'Ümbersuunamise URI';
+
+  @override
+  String get registrationOpenApiLibrary => 'Ava Google’i API-teek';
+
+  @override
+  String get registrationOpenBranding => 'Ava Google Auth Platformi Branding';
+
+  @override
+  String get registrationOpenDataAccess =>
+      'Ava Google Auth Platformi Data Access';
+
+  @override
+  String get registrationOpenClients => 'Ava Google Auth Platformi Clients';
+
+  @override
+  String get registrationOpenEntraAuthentication =>
+      'Ava Entra rakenduste registreeringud Authenticationi jaoks';
+
+  @override
+  String get registrationOpenEntraPermissions =>
+      'Ava Entra rakenduste registreeringud API permissionsi jaoks';
+
+  @override
+  String get registrationCopy => 'Kopeeri';
+
+  @override
+  String get registrationCopyAll => 'Kopeeri kõik';
+
+  @override
+  String get registrationGuideGoogleApis =>
+      'Ava APIs & Services → Library. Otsi Google Calendar API, ava selle leht ja vali Enable. Naase Library juurde ning korda Google Tasks API jaoks.';
+
+  @override
+  String get registrationGuideMicrosoftAudience =>
+      'Vali jaotises Supported account types isikliku konto jaoks Personal accounts only, organisatsioonikontode jaoks Multiple Entra ID tenants, mõlema jaoks Any Entra ID Tenant + Personal Microsoft accounts või selle kataloogi jaoks Single tenant only. Vali Register. Kopeeri Overview lehelt Application (client) ID; ühe rentniku puhul ka Directory (tenant) ID. Vali BusyMaxis vastav toetatud kontode valik.';
+
+  @override
+  String get registrationConnectBusyMax => 'Ühenda BusyMaxiga';
+
+  @override
+  String get registrationRecommended => 'Soovitatav';
+
+  @override
+  String get registrationOtherMethods => 'Muud ühendusviisid';
+
+  @override
+  String get registrationWorkspace => 'Google Workspace’i organisatsioon';
+
+  @override
+  String get registrationGoogleCustom => 'Oma OAuthi klient';
+
+  @override
+  String get registrationMicrosoftCustom => 'Oma rakenduse registreering';
+
+  @override
+  String get registrationMethodsIntroduction =>
+      'Vali, kuidas oma konto ühendada.';
+
+  @override
+  String get registrationWorkspaceDescription =>
+      'Kasuta oma organisatsiooni hallatavat seadistust.';
+
+  @override
+  String get registrationCustomDescription =>
+      'Kasuta enda hallatavat registreeringut.';
+
+  @override
+  String get registrationSharedUnavailable =>
+      'BusyMaxiga ühendamine pole selles järgus saadaval. Allpool saad kasutada muud ühendusviisi.';
+
+  @override
+  String get registrationWorkspaceIntroduction =>
+      'Vali organisatsiooni antud või hallatav töölaua OAuthi JSON. Fail ei tõenda organisatsiooni omandiõigust, sihtrühma ega kinnitamise olekut.';
+
+  @override
+  String get registrationWorkspaceSetupInstructions =>
+      'Google Workspace’i seadistusjuhised';
+
+  @override
+  String get registrationBusyMaxManaged => 'BusyMaxi hallatav registreering';
+
+  @override
+  String get registrationBranding => 'Seadista bränding ja domeenid';
+
+  @override
+  String get registrationPublishing => 'Avalda tavakasutuseks';
+
+  @override
+  String get registrationOpenAudience => 'Ava Google Auth Platformi Audience';
+
+  @override
+  String get registrationGuideWorkspaceProject =>
+      'Küsi administraatorilt töölaua OAuth JSON või ava Google Cloud Console ja vali oma Google Workspace’i organisatsioonile kuuluv projekt. Loomiseks ava Ressursside haldamine → Loo projekt, sisesta Projekti nimi, vali Ülemressursi väljal oma organisatsioon või selle kaust ja vali Loo. Vali see projekt järgmisteks sammudeks. Loomiseks on vaja Project Creator õigust, OAuthi seadistamiseks OAuth Config Editor õigust ning APIde lubamiseks Service Usage Admin õigust või samaväärseid õigusi. Blokeeringu korral küsi abi administraatorilt.';
+
+  @override
+  String get registrationGuideGoogleBranding =>
+      'Lisa jaotises Branding → App domain kõigepealt projekti lubatud domeenid ja siis avalehe, privaatsuse ning kasutustingimuste URLid. Vali Save. Tootmises External-rakendused vajavad neid linke. Kasuta enda domeene ja kinnita omand Search Console’is, kui Google nõuab brändi kinnitamist. BusyMaxi privaatsuslink ei tõenda, et sinu projekt omab busystack.org-i.';
+
+  @override
+  String get registrationGuideGooglePublishing =>
+      'Vali jaotises Audience Publish app ja kinnita In production. Ära jäta tavakasutust olekusse Testing: need Calendar/Tasksi volitused ja värskendustõendid aeguvad seitsme päevaga. Avaldamine ja kinnitamine on eraldi. Alla 100 kasutajaga isiklik kasutus võib kinnitamisest vabastatud olla, hoiatuste ja kasutajapiiranguga; laiem levitamine võib nõuda brändi ja õiguste kinnitamist. Ka tootmisvolitused võivad aeguda või tühistatud saada.';
+
+  @override
+  String get registrationGuideWorkspacePermissions =>
+      'Vaata need õigused administraatoriga üle. Internal-rakendused ei pea neid nõusolekukuval loetlema. Kui seda nõutakse, ava Data Access → Add or remove scopes, lisa väärtused ning vali Update ja Save. Administraatori piirangud võivad volitust siiski takistada.';
+
+  @override
+  String get registrationGuideMicrosoftOptionalPermissions =>
+      'Jagatud kalendrite ja kategooriate õigusi küsitakse eraldi vastavate valikuliste funktsioonide lubamisel; ära lisa neid ülaltoodud kohustuslikku seadistusse.';
+
+  @override
+  String get registrationGuideWorkspaceAudience =>
+      'Ava Google Auth Platform → Branding. Kui seadistust pole alustatud, vali Get started. Sisesta väljale App name BusyMax, vali oma User support email ja vali Next. Vali jaotises Audience Internal. Vali Next, sisesta oma e-post jaotises Contact Information ning vali Next. Nõustu User Data Policyga ja vali Continue ning Create. Olemasoleva seadistuse puhul vaata üle Branding ja Audience.\n\nInternal lubab vaid projekti emaorganisatsiooni kontosid administraatori piirangute kohaselt. Testkasutajate loendit pole vaja. BusyMax ei saa neid konsoolisätteid JSON-faili põhjal kontrollida.';
 }

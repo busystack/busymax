@@ -43,6 +43,7 @@ New-Item -ItemType Directory -Force -Path $staging | Out-Null
 Copy-Item -LiteralPath "$ReleasePath/busymax.exe" -Destination $staging
 $runtimeFiles = @(
   'flutter_windows.dll', 'sqlite3.dll',
+  'busymax_registration_reader.dll',
   'connectivity_plus_plugin.dll', 'file_selector_windows_plugin.dll',
   'flutter_local_notifications_windows.dll',
   'flutter_secure_storage_windows_plugin.dll',

@@ -514,6 +514,8 @@ void main() {
       find.byType(BusyMaxLinuxHeaderSearchField).hitTestable(),
       findsOneWidget,
     );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
   });
 }
 
@@ -826,6 +828,12 @@ class _MemorySettingsStore implements LocalSettingsStore {
 
 class _RecordingScheduleRepository implements ScheduleRepository {
   final queries = <String>[];
+
+  @override
+  bool? cloudCoverageCompleteFor(
+    ScheduleRange range, {
+    ScheduleFilters filters = const ScheduleFilters(),
+  }) => null;
 
   @override
   Future<List<ScheduleItem>> listItems({

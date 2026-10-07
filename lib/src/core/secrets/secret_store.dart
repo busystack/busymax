@@ -7,6 +7,7 @@ import 'package:logging/logging.dart';
 import '../../providers/busy_provider.dart';
 import '../../providers/account_authority.dart';
 import '../auth/oauth_models.dart';
+import '../auth/oauth_registration.dart';
 import '../logging/redacting_logger.dart';
 
 const secretRecordSchemaVersion = 1;
@@ -46,9 +47,7 @@ CredentialKind _credentialKindFromSecretStorage(Object? value) =>
       'apple_app_specific_password' => CredentialKind.appleAppSpecificPassword,
       'nextcloud_app_password' => CredentialKind.nextcloudAppPassword,
       'webcal_subscription' => CredentialKind.webCalSubscription,
-      _ => throw SecretStoreCorruptException(
-        'Unsupported credential kind $value.',
-      ),
+      _ => throw SecretStoreCorruptException('Unsupported credential kind.'),
     };
 
 sealed class SecretRecord {
@@ -60,9 +59,24 @@ sealed class SecretRecord {
   Map<String, Object?> toJson();
 
   static SecretRecord fromJson(Map<String, Object?> json) {
+    if (json['schemaVersion'] == 2) {
+      try {
+        if (json['representation'] == 'google_android_v1' ||
+            json['representation'] == 'microsoft_android_v1') {
+          return _decodeNativeOAuth(json);
+        }
+        return _decodeBoundOAuth(json);
+      } on SecretStoreCorruptException {
+        rethrow;
+      } on Object {
+        throw const SecretStoreCorruptException(
+          'Invalid bound credential representation.',
+        );
+      }
+    }
     if (json['schemaVersion'] != secretRecordSchemaVersion) {
       throw SecretStoreCorruptException(
-        'Unsupported credential schema version ${json['schemaVersion']}.',
+        'Unsupported credential schema version.',
       );
     }
     final provider = BusyProviderCodec.requireStorageValue(
@@ -120,7 +134,7 @@ sealed class SecretRecord {
       '$runtimeType(provider: ${provider.storageValue}, secret: [REDACTED])';
 }
 
-final class OAuthSecretRecord extends SecretRecord {
+class OAuthSecretRecord extends SecretRecord {
   OAuthSecretRecord({required super.provider, required this.tokenSet})
     : super(kind: CredentialKind.oauth) {
     if (!credentialKindMatchesProvider(provider, kind)) {
@@ -144,6 +158,338 @@ final class OAuthSecretRecord extends SecretRecord {
     'tokenType': tokenSet.tokenType,
     'scopes': tokenSet.scopes.toList()..sort(),
   };
+}
+
+/// Desktop credential versions retain the issuing client and verified identity.
+sealed class BoundOAuthSecretRecord extends OAuthSecretRecord {
+  BoundOAuthSecretRecord({
+    required super.provider,
+    required super.tokenSet,
+    required this.subject,
+    required this.generation,
+    required this.transitionEligible,
+  });
+  final String subject;
+  final int generation;
+  final bool transitionEligible;
+  OAuthRegistration get registration;
+  BoundOAuthSecretRecord withTokens(OAuthTokenSet tokens);
+  Map<String, Object?> get bindingJson;
+  @override
+  Map<String, Object?> toJson() => {
+    ...super.toJson(),
+    'schemaVersion': 2,
+    'representation': provider == BusyProvider.google
+        ? 'google_desktop_v1'
+        : 'microsoft_desktop_v1',
+    'subject': subject,
+    'generation': generation,
+    'transitionEligible': transitionEligible,
+    ...bindingJson,
+  };
+}
+
+final class GoogleDesktopCredential extends BoundOAuthSecretRecord {
+  GoogleDesktopCredential({
+    required this.registration,
+    required super.tokenSet,
+    required super.subject,
+    required super.generation,
+    required super.transitionEligible,
+  }) : super(provider: BusyProvider.google);
+  @override
+  final GoogleDesktopRegistration registration;
+  @override
+  GoogleDesktopCredential withTokens(OAuthTokenSet tokens) =>
+      GoogleDesktopCredential(
+        registration: registration,
+        tokenSet: tokens,
+        subject: subject,
+        generation: generation,
+        transitionEligible: transitionEligible,
+      );
+  @override
+  Map<String, Object?> get bindingJson => {
+    'clientId': registration.clientId,
+    if (registration.clientSecret != null)
+      'clientSecret': registration.clientSecret,
+    if (registration.projectId != null) 'projectId': registration.projectId,
+    'origin': registration.origin.name,
+  };
+}
+
+final class MicrosoftDesktopCredential extends BoundOAuthSecretRecord {
+  MicrosoftDesktopCredential({
+    required this.registration,
+    required this.tenantId,
+    required super.tokenSet,
+    required super.subject,
+    required super.generation,
+    required super.transitionEligible,
+  }) : super(provider: BusyProvider.microsoft);
+  @override
+  final MicrosoftPublicRegistration registration;
+  final String tenantId;
+  @override
+  MicrosoftDesktopCredential withTokens(OAuthTokenSet tokens) =>
+      MicrosoftDesktopCredential(
+        registration: registration,
+        tenantId: tenantId,
+        tokenSet: tokens,
+        subject: subject,
+        generation: generation,
+        transitionEligible: transitionEligible,
+      );
+  @override
+  Map<String, Object?> get bindingJson => {
+    'clientId': registration.clientId,
+    'audience': registration.audience.name,
+    if (registration.tenantId != null)
+      'configuredTenantId': registration.tenantId,
+    'tenantId': tenantId,
+    'origin': registration.origin.name,
+  };
+}
+
+SecretRecord _decodeBoundOAuth(Map<String, Object?> json) {
+  _requireTypedBinding(json, native: false);
+  final legacy =
+      SecretRecord.fromJson({...json, 'schemaVersion': 1}) as OAuthSecretRecord;
+  final subject = _requiredSecretString(json, 'subject');
+  final generation = json['generation'];
+  final eligible = json['transitionEligible'];
+  if (generation is! int || generation < 0 || eligible is! bool) {
+    throw const SecretStoreCorruptException('Invalid authorization binding.');
+  }
+  final origin = RegistrationOrigin.values
+      .where((v) => v.name == json['origin'])
+      .firstOrNull;
+  if (origin == null || origin == RegistrationOrigin.nativeGoogleAndroid) {
+    throw const SecretStoreCorruptException(
+      'Invalid desktop registration origin.',
+    );
+  }
+  final clientId = _requiredSecretString(json, 'clientId');
+  if (json['representation'] == 'google_desktop_v1' &&
+      legacy.provider == BusyProvider.google) {
+    if (!RegExp(
+      r'^[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$',
+    ).hasMatch(clientId)) {
+      throw const SecretStoreCorruptException('Invalid Google client binding.');
+    }
+    return GoogleDesktopCredential(
+      registration: GoogleDesktopRegistration(
+        clientId: clientId,
+        clientSecret: _optionalSecretString(json, 'clientSecret'),
+        projectId: origin == RegistrationOrigin.retiringShared
+            ? _optionalSecretString(json, 'projectId')
+            : _requiredSecretString(json, 'projectId'),
+        origin: origin,
+      ),
+      tokenSet: legacy.tokenSet,
+      subject: subject,
+      generation: generation,
+      transitionEligible: eligible,
+    );
+  }
+  if (json['representation'] == 'microsoft_desktop_v1' &&
+      legacy.provider == BusyProvider.microsoft) {
+    final audience = MicrosoftAudience.values
+        .where((v) => v.name == json['audience'])
+        .firstOrNull;
+    final tenantId = _requiredSecretString(json, 'tenantId');
+    if (audience == null || !isUuid(tenantId)) {
+      throw const SecretStoreCorruptException(
+        'Invalid Microsoft tenant binding.',
+      );
+    }
+    return MicrosoftDesktopCredential(
+      registration: MicrosoftPublicRegistration(
+        clientId: clientId,
+        audience: audience,
+        tenantId: _optionalSecretString(json, 'configuredTenantId'),
+        origin: origin,
+      ),
+      tenantId: tenantId,
+      tokenSet: legacy.tokenSet,
+      subject: subject,
+      generation: generation,
+      transitionEligible: eligible,
+    );
+  }
+  throw const SecretStoreCorruptException(
+    'Unsupported OAuth credential representation.',
+  );
+}
+
+/// Native cache ownership stays in GIS/MSAL. These contain no native tokens.
+sealed class NativeOAuthCredential extends SecretRecord {
+  const NativeOAuthCredential({
+    required super.provider,
+    required this.nativeAccountId,
+    required this.subject,
+    required this.generation,
+    required this.username,
+  }) : super(kind: CredentialKind.oauth);
+  final String nativeAccountId;
+  final String subject;
+  final int generation;
+  final String? username;
+  RegistrationSummary get summary;
+  Map<String, Object?> get nativeBinding;
+  @override
+  Map<String, Object?> toJson() => {
+    'schemaVersion': 2,
+    'kind': 'oauth',
+    'provider': provider.storageValue,
+    'representation': provider == BusyProvider.google
+        ? 'google_android_v1'
+        : 'microsoft_android_v1',
+    'nativeAccountId': nativeAccountId,
+    'subject': subject,
+    'generation': generation,
+    if (username != null) 'username': username,
+    ...nativeBinding,
+  };
+}
+
+final class GoogleAndroidCredential extends NativeOAuthCredential {
+  const GoogleAndroidCredential({
+    required super.nativeAccountId,
+    required super.subject,
+    required super.generation,
+    super.username,
+  }) : super(provider: BusyProvider.google);
+  @override
+  RegistrationSummary get summary => const RegistrationSummary(
+    provider: BusyProvider.google,
+    platform: AuthenticationPlatform.android,
+    origin: RegistrationOrigin.nativeGoogleAndroid,
+    clientId: 'native-google-android',
+  );
+  @override
+  Map<String, Object?> get nativeBinding => const {};
+}
+
+final class MicrosoftAndroidCredential extends NativeOAuthCredential {
+  const MicrosoftAndroidCredential({
+    required this.registration,
+    required this.tenantId,
+    required this.authority,
+    required this.transitionEligible,
+    required super.nativeAccountId,
+    required super.subject,
+    required super.generation,
+    super.username,
+  }) : super(provider: BusyProvider.microsoft);
+  final MicrosoftPublicRegistration registration;
+  final String tenantId;
+  final String authority;
+  final bool transitionEligible;
+  @override
+  RegistrationSummary get summary =>
+      registration.summary(transitionEligible: transitionEligible);
+  @override
+  Map<String, Object?> get nativeBinding => {
+    'clientId': registration.clientId,
+    'audience': registration.audience.name,
+    'configuredTenantId': registration.tenantId,
+    'tenantId': tenantId,
+    'authority': authority,
+    'origin': registration.origin.name,
+    'transitionEligible': transitionEligible,
+  };
+}
+
+SecretRecord _decodeNativeOAuth(Map<String, Object?> json) {
+  _requireTypedBinding(json, native: true);
+  final nativeId = _requiredSecretString(json, 'nativeAccountId');
+  final subject = _requiredSecretString(json, 'subject');
+  final generation = json['generation'];
+  if (json['kind'] != 'oauth' || generation is! int || generation < 0) {
+    throw const SecretStoreCorruptException('Invalid native binding version.');
+  }
+  if (json['representation'] == 'google_android_v1' &&
+      json['provider'] == 'google') {
+    return GoogleAndroidCredential(
+      nativeAccountId: nativeId,
+      subject: subject,
+      generation: generation,
+      username: _optionalSecretString(json, 'username'),
+    );
+  }
+  if (json['representation'] == 'microsoft_android_v1' &&
+      json['provider'] == 'microsoft') {
+    final tenant = _requiredSecretString(json, 'tenantId');
+    final authority = Uri.tryParse(_requiredSecretString(json, 'authority'));
+    if (!isUuid(tenant) ||
+        json['transitionEligible'] is! bool ||
+        json['origin'] == RegistrationOrigin.nativeGoogleAndroid.name ||
+        authority?.scheme != 'https' ||
+        authority?.host != 'login.microsoftonline.com' ||
+        authority!.userInfo.isNotEmpty) {
+      throw const SecretStoreCorruptException('Invalid native tenant binding.');
+    }
+    return MicrosoftAndroidCredential(
+      registration: MicrosoftPublicRegistration(
+        clientId: _requiredSecretString(json, 'clientId'),
+        audience: MicrosoftAudience.values.byName(
+          _requiredSecretString(json, 'audience'),
+        ),
+        tenantId: _optionalSecretString(json, 'configuredTenantId'),
+        platform: AuthenticationPlatform.android,
+        origin: RegistrationOrigin.values.byName(
+          _requiredSecretString(json, 'origin'),
+        ),
+      ),
+      tenantId: tenant,
+      authority: _requiredSecretString(json, 'authority'),
+      transitionEligible: json['transitionEligible'] as bool,
+      nativeAccountId: nativeId,
+      subject: subject,
+      generation: generation,
+      username: _optionalSecretString(json, 'username'),
+    );
+  }
+  throw const SecretStoreCorruptException('Invalid native provider binding.');
+}
+
+void _requireTypedBinding(Map<String, Object?> json, {required bool native}) {
+  final required = native
+      ? ['nativeAccountId', 'subject']
+      : [
+          'accessToken',
+          'tokenType',
+          'expiresAtUtc',
+          'clientId',
+          'subject',
+          'origin',
+        ];
+  for (final key in required) {
+    if (json[key] is! String || (json[key] as String).isEmpty) {
+      throw const SecretStoreCorruptException(
+        'Invalid bound credential field.',
+      );
+    }
+  }
+  for (final key in [
+    'refreshToken',
+    'idToken',
+    'clientSecret',
+    'username',
+    'configuredTenantId',
+  ]) {
+    if (json[key] != null && json[key] is! String) {
+      throw const SecretStoreCorruptException(
+        'Invalid optional bound credential field.',
+      );
+    }
+  }
+  if (!native &&
+      (json['scopes'] is! List ||
+          (json['scopes'] as List).any((v) => v is! String))) {
+    throw const SecretStoreCorruptException('Invalid credential scopes.');
+  }
 }
 
 final class AppleICloudSecretRecord extends SecretRecord {
@@ -302,8 +648,23 @@ extension OAuthSecretStoreAccess on SecretStore {
     String accountId,
     BusyProvider provider,
     OAuthTokenSet tokenSet,
-  ) {
-    return saveCredential(
+  ) async {
+    final current = await readCredential(accountId);
+    if (current is NativeOAuthCredential) {
+      throw const SecretStoreCorruptException(
+        'Native cache credentials cannot be replaced by desktop tokens.',
+      );
+    }
+    if (current is BoundOAuthSecretRecord) {
+      if (current.provider != provider) {
+        throw const SecretStoreCorruptException(
+          'Credential provider mismatch.',
+        );
+      }
+      await saveCredential(accountId, current.withTokens(tokenSet));
+      return;
+    }
+    await saveCredential(
       accountId,
       OAuthSecretRecord(provider: provider, tokenSet: tokenSet),
     );

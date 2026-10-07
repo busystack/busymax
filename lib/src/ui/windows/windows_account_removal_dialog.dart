@@ -32,7 +32,7 @@ Future<WindowsAccountRemovalOptions?> showWindowsAccountRemovalDialog(
                 Checkbox(
                   checked: revoke,
                   onChanged: (value) => setState(() => revoke = value ?? false),
-                  content: Text(l10n.revokeGoogleAccess),
+                  content: Flexible(child: Text(l10n.revokeGoogleAccess)),
                 ),
                 const SizedBox(height: 4),
                 Text(

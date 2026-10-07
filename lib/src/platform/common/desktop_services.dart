@@ -231,7 +231,7 @@ final class NoOpDesktopActivationService implements DesktopActivationService {
   Future<void> initialize() async {}
 }
 
-enum DesktopNavigationDestination { schedule, tasks, settings, signIn }
+enum DesktopNavigationDestination { schedule, tasks, settings }
 
 @immutable
 final class DesktopNavigationRequest {

@@ -1,7 +1,43 @@
+import '../support/desktop_registration_config.dart';
+import 'package:busymax/src/config/desktop_oauth_configuration.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:busymax/src/config/build_config.dart';
 
 void main() {
+  test(
+    'managed desktop registrations are explicit and original values remain separate',
+    () {
+      final originalsOnly = syntheticDesktopConfig(managed: false);
+      expect(originalsOnly.hasBusyMaxGoogleRegistration, isFalse);
+      expect(originalsOnly.hasBusyMaxMicrosoftRegistration, isFalse);
+      final configured = syntheticDesktopConfig();
+      expect(configured.hasBusyMaxGoogleRegistration, isTrue);
+      expect(configured.hasBusyMaxMicrosoftRegistration, isTrue);
+      expect(configured.googleOAuthClientId, originalsOnly.googleOAuthClientId);
+      expect(
+        configured.microsoftOAuthClientId,
+        originalsOnly.microsoftOAuthClientId,
+      );
+      expect(
+        validGoogleDesktopConfiguration(
+          clientId: configured.busyMaxGoogleOAuthClientId,
+          clientSecret: configured.busyMaxGoogleOAuthClientSecret,
+          projectId: '',
+        ),
+        isFalse,
+      );
+      expect(
+        validMicrosoftDesktopConfiguration(
+          clientId: configured.busyMaxMicrosoftOAuthClientId,
+          authorityTenant: '',
+        ),
+        isFalse,
+      );
+      expect(BuildConfig.forAndroid().hasBusyMaxGoogleRegistration, isFalse);
+      expect(BuildConfig.forAndroid().hasBusyMaxMicrosoftRegistration, isFalse);
+    },
+  );
+
   test('fromEnvironment uses Google endpoint defaults', () {
     final config = BuildConfig.fromEnvironment();
 
@@ -81,6 +117,8 @@ void main() {
     expect(config.hasAppleICloudProvider, isTrue);
     expect(config.hasNextcloudProvider, isTrue);
     expect(config.hasAnyProviderConfigured, isTrue);
+    expect(config.googleSetupAvailable, true);
+    expect(config.microsoftSetupAvailable, true);
   });
 
   test('demo theme parser is tolerant and defaults to system', () {

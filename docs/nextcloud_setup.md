@@ -58,6 +58,15 @@ Collection settings expose sharing, publishing, and removal controls when
 Nextcloud advertises them and the account has permission. Write access to event
 or task content does not automatically grant sharing administration.
 
+For a server that supports calendar federation, enter a remote calendar
+recipient as `<username>@<instance>` in the existing sharing search. If no
+local user or group matches, BusyMax offers the federated recipient and sends
+the share request to your own Nextcloud server. Nextcloud 32 supports
+read-only federated calendar shares; remote write access requires Nextcloud 33
+or later, and the server administrator can disable federation. A failed or
+unsupported share is not saved locally as a successful grant. Verify the
+recipient and role in Nextcloud Calendar after sharing.
+
 For supported calendars, organizers can manage guests and attendees can
 respond from event details. Recurring responses require the offered
 occurrence-or-series choice. BusyMax also exposes guest availability and the
@@ -111,5 +120,5 @@ Official setup references:
 [Nextcloud Login Flow v2](https://docs.nextcloud.com/server/stable/developer_manual/client_apis/LoginFlow/index.html)
 and
 [Nextcloud WebDAV basics](https://docs.nextcloud.com/server/stable/developer_manual/client_apis/WebDAV/basic.html).
-Maintainers should use [live-provider testing](live_provider_testing.md) before
+Maintainers should use [live-provider tests](development.md#live-provider-tests) before
 making release-specific interoperability claims.

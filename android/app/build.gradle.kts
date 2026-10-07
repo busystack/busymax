@@ -59,15 +59,16 @@ android {
         minSdk = 24
         targetSdk = 37
         // Keep Android's required monotonic package code separate from the
-        // public 0.2.3 version declared in pubspec.yaml. When using split APKs,
+        // public 0.2.4 version declared in pubspec.yaml. When using split APKs,
         // 1000 * ABI_VERSION is added automatically by Flutter.
         // (https://developer.android.com/studio/build/configure-apk-splits#configure-APK-versions)
         // You can force using the value of versionCode by specifying the `-P force-version-code-ignoring-abi=true`
         // flag during build.
-        versionCode = 3
+        versionCode = 4
         versionName = flutter.versionName
         manifestPlaceholders["busymaxMsalRedirectHost"] = applicationId!!
         manifestPlaceholders["busymaxMsalSignatureHash"] = msalSignatureHash
+        resValue("string", "busymax_msal_signature_hash", msalSignatureHash)
         resValue("string", "busymax_msal_client_id", msalClientId)
         resValue("string", "busymax_msal_authority_tenant", msalAuthorityTenant)
     }

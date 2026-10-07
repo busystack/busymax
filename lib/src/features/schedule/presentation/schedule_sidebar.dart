@@ -1,3 +1,4 @@
+import '../../../core/http/request_dispatch_exception.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import '../../../dav/presentation/nextcloud_collection_dialog.dart';
@@ -46,6 +47,7 @@ class ScheduleSidebar extends ConsumerWidget {
     required this.onYearSelected,
     required this.onWeekSelected,
     this.showEndBorder = true,
+    this.onAddAccount,
   });
 
   final DateTime selectedDate;
@@ -56,10 +58,17 @@ class ScheduleSidebar extends ConsumerWidget {
   final ValueChanged<DateTime> onYearSelected;
   final ValueChanged<DateTime> onWeekSelected;
   final bool showEndBorder;
+  final VoidCallback? onAddAccount;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     ref.watch(sidebarOrderRegistrationProvider);
+    final inventory = ref.watch(accountsStreamProvider);
+    final showAddAccount =
+        inventory.hasValue &&
+        !inventory.isLoading &&
+        !inventory.hasError &&
+        !inventory.requireValue.any((account) => !account.isSubscription);
     final accounts = ref
         .watch(appSettingsControllerProvider)
         .sidebarOrder
@@ -91,6 +100,25 @@ class ScheduleSidebar extends ConsumerWidget {
             child: ListView(
               padding: const EdgeInsets.symmetric(vertical: BusyMaxSpacing.sm),
               children: [
+                if (showAddAccount)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: BusyMaxSpacing.md,
+                      vertical: BusyMaxSpacing.sm,
+                    ),
+                    child: BusyMaxPushButton.standard(
+                      key: const ValueKey('schedule-add-account'),
+                      onPressed: onAddAccount,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(YaruIcons.plus, size: BusyMaxSizes.iconSm),
+                          const SizedBox(width: BusyMaxSpacing.sm),
+                          Flexible(child: Text(context.l10n.addAccount)),
+                        ],
+                      ),
+                    ),
+                  ),
                 for (final account in accounts.where(
                   (account) => !account.isSubscription,
                 ))
@@ -1257,6 +1285,9 @@ Future<void> _refreshCalendarSource(
   if (!await _manualRefreshAccountIsEligible(context, ref, source.accountId)) {
     return;
   }
+  final generation = await ref.read(authorizationGenerationReaderProvider)(
+    source.accountId,
+  );
   try {
     await ref
         .read(accountSyncOperationsProvider)
@@ -1265,7 +1296,16 @@ Future<void> _refreshCalendarSource(
     if (!context.mounted) {
       return;
     }
-    await _handleRefreshFailure(context, ref, source.accountId, error);
+    await _handleRefreshFailure(
+      context,
+      ref,
+      source.accountId,
+      AuthorizationScopedFailure(
+        accountId: source.accountId,
+        generation: generation,
+        cause: error,
+      ),
+    );
   }
 }
 
@@ -1277,6 +1317,9 @@ Future<void> _refreshTaskListAccount(
   if (!await _manualRefreshAccountIsEligible(context, ref, accountId)) {
     return;
   }
+  final generation = await ref.read(authorizationGenerationReaderProvider)(
+    accountId,
+  );
   try {
     await ref
         .read(accountSyncOperationsProvider)
@@ -1285,7 +1328,16 @@ Future<void> _refreshTaskListAccount(
     if (!context.mounted) {
       return;
     }
-    await _handleRefreshFailure(context, ref, accountId, error);
+    await _handleRefreshFailure(
+      context,
+      ref,
+      accountId,
+      AuthorizationScopedFailure(
+        accountId: accountId,
+        generation: generation,
+        cause: error,
+      ),
+    );
   }
 }
 
@@ -1298,7 +1350,15 @@ Future<void> _handleRefreshFailure(
   try {
     if (syncFailureNotificationDisposition(error) ==
         SyncFailureNotificationDisposition.reconnectRequired) {
-      await ref.read(authRepositoryProvider).markReconnectRequired(accountId);
+      await ref
+          .read(authRepositoryProvider)
+          .markReconnectRequired(
+            accountId,
+            authorizationGeneration: failureAuthorizationGeneration(
+              error,
+              accountId,
+            ),
+          );
     }
   } on Object {
     // Keep the original refresh failure visible even if cleanup fails.

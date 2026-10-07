@@ -289,8 +289,9 @@ void main() {
               (ref, accountId) => lists,
             ),
             davTaskCollectionCapabilitiesProvider.overrideWith(
-              (ref, key) async =>
-                  nextcloudTaskCollectionCapabilities.asReadOnly(),
+              (ref, key) => Stream.value(
+                nextcloudTaskCollectionCapabilities.asReadOnly(),
+              ),
             ),
           ],
           child: FluentApp(
@@ -493,7 +494,11 @@ class _TestTasksRepository extends TasksRepository {
   }
 
   @override
-  Future<void> deleteTask(String taskListId, String taskId) async {
+  Future<void> deleteTask(
+    String taskListId,
+    String taskId, {
+    bool confirmedAssignedSourceDeletion = false,
+  }) async {
     deletedTaskIds.add(taskId);
   }
 }

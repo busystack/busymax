@@ -20,7 +20,9 @@ void main() {
       );
       expect(
         output,
-        contains('Google and Microsoft sign-in will be unavailable'),
+        contains(
+          'Google Workspace/custom JSON import and Microsoft custom setup remain available.',
+        ),
       );
       expect(
         output,
@@ -29,7 +31,12 @@ void main() {
           '--dart-define-from-file .snap-local/busymax-dart-defines.json',
         ),
       );
-      expect(output, contains('Apple and Nextcloud remain available'));
+      expect(
+        output,
+        contains(
+          'Existing unbound shared accounts need their original protected configuration.',
+        ),
+      );
     });
 
     test('installs without removing the existing snap or its data', () async {

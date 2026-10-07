@@ -1,3 +1,4 @@
+import 'package:busymax/src/features/schedule/presentation/schedule_workspace.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -1732,25 +1733,24 @@ void main() {
     expect(source, contains('color: BusyMaxSurfaceColors.of(context).window'));
   });
 
-  test('signed-out onboarding background matches main content surface', () {
-    final source = File(
-      'lib/src/features/auth/presentation/sign_in_screen.dart',
+  test('empty workspace retains native calendar and Settings entry', () {
+    final workspace = File(
+      'lib/src/features/schedule/presentation/schedule_workspace.dart',
     ).readAsStringSync();
-
-    expect(source, contains('color: BusyMaxSurfaceColors.of(context).window'));
+    final sidebar = File(
+      'lib/src/features/schedule/presentation/schedule_sidebar.dart',
+    ).readAsStringSync();
     expect(
-      source,
-      isNot(contains('color: BusyMaxSurfaceColors.of(context).view')),
+      workspace,
+      contains('backgroundColor: BusyMaxSurfaceColors.of(context).window'),
     );
-    expect(source, contains('title: l10n.onboardingSetupTitle'));
-    expect(source, isNot(contains('.claimSession()')));
-    expect(source, isNot(contains('BusyMaxHeaderBarState(')));
-    expect(source, contains('class _OnboardingHeader'));
-    expect(source, isNot(contains('class _OnboardingProgressDots')));
-    expect(source, isNot(contains('Border(top: BorderSide')));
-    expect(source, contains("'onboarding-content-rail'"));
-    expect(source, contains('BusyMaxSizes.onboardingContentMaxWidth'));
-    expect(source, contains('width: contentRailWidth'));
+    expect(
+      workspace,
+      contains('hasAccounts && !hasAnySources && !searchActive'),
+    );
+    expect(workspace, contains("'/settings?page=accounts'"));
+    expect(sidebar, contains('BusyMaxPushButton.standard'));
+    expect(sidebar, contains('context.l10n.addAccount'));
   });
 
   testWidgets('BusyMaxApp wires localization delegates and system theme', (
@@ -1816,6 +1816,8 @@ void main() {
     expect(use24(), true);
     expect(container.read(appRouterProvider), same(router));
     expect(rootNavigatorKey.currentState, same(navigator));
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
   });
 
   testWidgets('BusyMaxApp does not dim Flutter content when inactive', (
@@ -1863,6 +1865,8 @@ void main() {
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pump();
     expect(flutterSurface().child, isNot(isA<Opacity>()));
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
   });
 
   testWidgets('tray startup waits for persisted start-minimized settings', (
@@ -1909,6 +1913,8 @@ void main() {
     await tester.pump();
     expect(trayService!.startCalls, 1);
     expect(windowService.hideWindowCalls, 1);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
   });
 
   for (final showTray in [true, false]) {
@@ -1967,6 +1973,8 @@ void main() {
         await tester.pumpAndSettle();
         expect(tray.available, isTrue);
         expect(window.hideWindowCalls, 1);
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(milliseconds: 1));
       },
     );
   }
@@ -2009,6 +2017,8 @@ void main() {
     expect(tray.available, isTrue);
     expect(window.hideWindowCalls, 0);
     expect(window.visible, isTrue);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
   });
 
   testWidgets(
@@ -2050,6 +2060,8 @@ void main() {
       expect(tray.available, isFalse);
       expect(window.hideWindowCalls, 0);
       expect(window.visible, isTrue);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 1));
     },
   );
 
@@ -2084,13 +2096,15 @@ void main() {
     final container = ProviderScope.containerOf(
       tester.element(find.byType(BusyMaxApp)),
     );
-    final command = container.read(scheduleWorkspaceCommandProvider);
+    await tester.pumpAndSettle();
     expect(windowService.showWindowCalls, 1);
-    expect(command?.kind, ScheduleWorkspaceCommandKind.agenda);
-    expect(command?.date, isNotNull);
-    expect(command!.date!.year, DateTime.now().year);
-    expect(command.date!.month, DateTime.now().month);
-    expect(command.date!.day, DateTime.now().day);
+    expect(
+      container.read(appSettingsControllerProvider).scheduleViewMode,
+      ScheduleViewMode.agenda,
+    );
+    expect(find.byType(ScheduleWorkspace), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
   });
 
   testWidgets('tray application actions use shared routing and commands', (
@@ -2187,6 +2201,8 @@ void main() {
 
     await trayService.configuration.actions.quitBusyMax();
     expect(windowService.quitAppCalls, 1);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
   });
 
   testWidgets('tray Quit honors the active window-close guard', (tester) async {
@@ -2228,6 +2244,8 @@ void main() {
     await tester.pumpAndSettle();
     await trayService.configuration.actions.quitBusyMax();
     expect(windowService.quitAppCalls, 1);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
   });
 
   testWidgets('demo mode retains the local tray entry', (tester) async {
@@ -2256,6 +2274,8 @@ void main() {
     expect(trayService.startCalls, 1);
     expect(trayService.available, isTrue);
     expect(windowService.hideWindowCalls, 0);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
   });
 
   testWidgets('tray presentation follows offline and restored connectivity', (
@@ -2314,6 +2334,8 @@ void main() {
       trayService.configuration.loadPresentation,
     );
     expect(currentPresentation!.offline, isFalse);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
   });
 
   testWidgets('tray refreshes after privacy, locale and clock changes', (
@@ -2366,6 +2388,8 @@ void main() {
     );
     await tester.pump();
     expect(trayService.refreshCalls, greaterThan(previousRefreshCalls));
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
   });
 
   test('production sources avoid forbidden hardcoded accent colors', () {

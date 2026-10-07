@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import '../../core/logging/redacting_logger.dart';
+import '../../core/http/retry_after.dart';
 
 class MicrosoftTodoApiError implements Exception {
   const MicrosoftTodoApiError({
@@ -8,16 +9,20 @@ class MicrosoftTodoApiError implements Exception {
     required this.message,
     this.code,
     this.rawJson,
+    this.retryAfter,
   });
 
   factory MicrosoftTodoApiError.fromResponse({
     required int statusCode,
     required String body,
+    Map<String, String> headers = const {},
   }) {
+    final retryAfter = parseHttpRetryAfter(headers['retry-after']);
     if (body.trim().isEmpty) {
       return MicrosoftTodoApiError(
         statusCode: statusCode,
         message: 'Microsoft Graph returned HTTP $statusCode.',
+        retryAfter: retryAfter,
       );
     }
 
@@ -35,24 +40,28 @@ class MicrosoftTodoApiError implements Exception {
                 ? 'Microsoft Graph returned HTTP $statusCode.'
                 : redactForLog(errorJson['message']),
             rawJson: json,
+            retryAfter: retryAfter,
           );
         }
         return MicrosoftTodoApiError(
           statusCode: statusCode,
           message: 'Microsoft Graph returned HTTP $statusCode.',
           rawJson: json,
+          retryAfter: retryAfter,
         );
       }
     } on FormatException {
       return MicrosoftTodoApiError(
         statusCode: statusCode,
         message: redactForLog(body),
+        retryAfter: retryAfter,
       );
     }
 
     return MicrosoftTodoApiError(
       statusCode: statusCode,
       message: redactForLog(body),
+      retryAfter: retryAfter,
     );
   }
 
@@ -60,6 +69,7 @@ class MicrosoftTodoApiError implements Exception {
   final String? code;
   final String message;
   final Map<String, Object?>? rawJson;
+  final Duration? retryAfter;
 
   @override
   String toString() => 'MicrosoftTodoApiError($statusCode, $message)';

@@ -1,3 +1,8 @@
+import '../core/http/request_dispatch_exception.dart';
+import '../features/sync/domain_sync_schedule.dart';
+import '../core/auth/authorization_persistence.dart';
+import '../core/auth/registration_staging.dart';
+import '../core/auth/oauth_registration.dart';
 import 'dart:async';
 
 import 'package:drift/drift.dart';
@@ -35,6 +40,9 @@ import '../dav/nextcloud/nextcloud_sharing_service.dart';
 import '../dav/nextcloud/nextcloud_trash_service.dart';
 import '../dav/nextcloud/nextcloud_scheduling_service.dart';
 import '../features/calendar/data/calendar_repository.dart';
+import '../features/calendar/data/microsoft_shared_calendar_service.dart';
+import '../features/schedule/presentation/attachment_upload_coordinator.dart';
+import '../features/sync/cloud_calendar_range_coverage_service.dart';
 import '../features/calendar/data/calendar_collection_creation_service.dart';
 import '../ical/ical_import_service.dart';
 import '../features/accounts/data/accounts_repository.dart';
@@ -64,8 +72,13 @@ import '../google_tasks/http/retrying_http_client.dart';
 import '../google_tasks/oauth/oauth_loopback_flow.dart';
 import '../google_tasks/oauth/oauth_service.dart';
 import '../google_calendar/google_calendar_api_client.dart';
+import '../google_calendar/google_calendar_models.dart';
 import '../microsoft_calendar/microsoft_calendar_api_client.dart';
+import '../microsoft_calendar/microsoft_calendar_models.dart';
+import '../microsoft_calendar/microsoft_event_attachment.dart';
+import '../microsoft_todo/api/microsoft_todo_api_models.dart';
 import '../microsoft_todo/api/microsoft_todo_api_client.dart';
+import '../features/tasks/domain/task_source_links.dart';
 import '../microsoft_todo/api/microsoft_todo_task_remote_client.dart';
 import '../microsoft_todo/oauth/microsoft_oauth_service.dart';
 import '../platform/common/desktop_services.dart';
@@ -212,12 +225,85 @@ final secretStoreProvider = Provider<SecretStore>((ref) {
   return SecureSecretStore(ref.watch(secureStorageProvider));
 });
 
+final registrationSummariesProvider =
+    StreamProvider<Map<String, RegistrationSummary>>((ref) async* {
+      final persistence = ref.watch(authorizationPersistenceProvider);
+      await persistence.recover();
+      final existing = await persistence.database
+          .select(persistence.database.oAuthTransitionAccounts)
+          .get();
+      for (final row in existing) {
+        final account = await (persistence.database.select(
+          persistence.database.accounts,
+        )..where((r) => r.id.equals(row.accountId))).getSingleOrNull();
+        if (account == null) continue;
+        final provider = BusyProviderCodec.requireStorageValue(
+          account.provider,
+        );
+        final gateway = provider == BusyProvider.google
+            ? ref.read(applicationOAuthGatewayProvider)
+            : ref.read(applicationMicrosoftOAuthServiceProvider);
+        if (gateway is RegistrationBindingResolver) {
+          try {
+            await gateway.establishExistingBinding(row.accountId, provider);
+          } on Object {
+            /* Unresolved records stay intact and have no retirement label. */
+          }
+        }
+      }
+      await for (final rows
+          in persistence.database
+              .select(persistence.database.accountAuthorizations)
+              .watch()) {
+        final summaries = <String, RegistrationSummary>{};
+        for (final row in rows) {
+          try {
+            final record = await persistence.readCurrentCredential(
+              row.accountId,
+            );
+            if (record is BoundOAuthSecretRecord &&
+                record.generation == row.generation) {
+              summaries[row.accountId] = record.registration.summary(
+                transitionEligible: record.transitionEligible,
+              );
+            } else if (record is NativeOAuthCredential &&
+                record.generation == row.generation) {
+              summaries[row.accountId] = record.summary;
+            }
+          } on Object {
+            /* Missing/corrupt credentials have unresolved provenance. */
+          }
+        }
+        yield summaries;
+      }
+    });
+
+final registrationStagingProvider = Provider<RegistrationStaging>((ref) {
+  final staging = RegistrationStaging(ref.watch(buildConfigProvider));
+  ref.onDispose(staging.dispose);
+  return staging;
+});
+final authorizationPersistenceProvider = Provider<AuthorizationPersistence>(
+  (ref) => AuthorizationPersistence(
+    database: ref.watch(databaseProvider),
+    secrets: ref.watch(secretStoreProvider),
+    gate: ref.watch(crossEngineAccountGateProvider),
+  ),
+);
+
+final authorizationGenerationReaderProvider =
+    Provider<Future<int> Function(String)>(
+      (ref) => ref.watch(authorizationPersistenceProvider).generation,
+    );
+
 final applicationOAuthServiceProvider = Provider<OAuthService>((ref) {
   return OAuthService(
     config: ref.watch(buildConfigProvider),
     httpClient: ref.watch(baseHttpClientProvider),
     tokenStore: ref.watch(secretStoreProvider),
     loopbackFlow: OAuthLoopbackFlow(),
+    registrations: ref.watch(registrationStagingProvider),
+    persistence: ref.watch(authorizationPersistenceProvider),
   );
 });
 
@@ -233,6 +319,8 @@ final microsoftOAuthServiceProvider = Provider<MicrosoftOAuthService>((ref) {
     httpClient: ref.watch(baseHttpClientProvider),
     tokenStore: ref.watch(secretStoreProvider),
     loopbackFlow: OAuthLoopbackFlow(),
+    registrations: ref.watch(registrationStagingProvider),
+    persistence: ref.watch(authorizationPersistenceProvider),
   );
 });
 
@@ -371,6 +459,7 @@ final systemAppearanceSourceProvider = Provider<SystemAppearanceSource>((ref) {
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
   return AuthRepository(
     oAuth: ref.watch(applicationOAuthGatewayProvider),
+    authorizationPersistence: ref.watch(authorizationPersistenceProvider),
     database: ref.watch(databaseProvider),
     accountsRepository: ref.watch(accountsRepositoryProvider),
     microsoftOAuth: ref.watch(applicationMicrosoftOAuthServiceProvider),
@@ -429,14 +518,14 @@ final davConflictResolutionServiceProvider =
     });
 
 final davTaskCollectionCapabilitiesProvider =
-    FutureProvider.family<
+    StreamProvider.family<
       TaskCollectionCapabilities?,
       ({String accountId, String taskListId})
-    >((ref, key) async {
-      final collection = await ref
+    >((ref, key) {
+      return ref
           .watch(davSettingsRepositoryProvider)
-          .collectionByTaskListId(key.accountId, key.taskListId);
-      return collection?.taskCapabilities;
+          .watchCollectionByTaskListId(key.accountId, key.taskListId)
+          .map((collection) => collection?.taskCapabilities);
     });
 
 final selectedAccountIdProvider = StateProvider<String?>((ref) => null);
@@ -510,6 +599,16 @@ final googleCalendarApiClientForAccountProvider =
       );
     });
 
+final googleEventLabelsForCalendarProvider =
+    FutureProvider.family<
+      List<GoogleEventLabel>,
+      ({String accountId, String calendarId})
+    >(
+      (ref, key) async => ref
+          .watch(googleCalendarApiClientForAccountProvider(key.accountId))
+          .getEventLabels(key.calendarId),
+    );
+
 final microsoftTodoApiClientForAccountProvider =
     Provider.family<MicrosoftTodoApiClient, String>((ref, accountId) {
       final config = ref.watch(buildConfigProvider);
@@ -525,20 +624,149 @@ final microsoftTodoApiClientForAccountProvider =
       );
     });
 
+final microsoftTaskLinkedResourcesProvider =
+    FutureProvider.family<
+      List<TaskSourceLink>,
+      ({String accountId, String taskListId, String taskId})
+    >((ref, key) async {
+      final client = ref.read(
+        microsoftTodoApiClientForAccountProvider(key.accountId),
+      );
+      if (client is! MicrosoftTodoLinkedResourcesApiClient) {
+        throw StateError('Microsoft task linked resources are unavailable.');
+      }
+      final links = <TaskSourceLink>[];
+      final seenUrls = <String>{};
+      final seenPages = <String>{};
+      String? nextLink;
+      do {
+        final page = await (client as MicrosoftTodoLinkedResourcesApiClient)
+            .listLinkedResourcesPage(
+              taskListId: key.taskListId,
+              taskId: key.taskId,
+              nextLink: nextLink,
+            );
+        for (final resource in page.resources) {
+          final uri = Uri.tryParse(resource.webUrl?.trim() ?? '');
+          if (uri == null ||
+              (uri.scheme != 'https' && uri.scheme != 'http') ||
+              uri.host.isEmpty ||
+              uri.userInfo.isNotEmpty ||
+              !seenUrls.add(uri.toString())) {
+            continue;
+          }
+          final displayName = resource.displayName?.trim();
+          final applicationName = resource.applicationName?.trim();
+          links.add(
+            TaskSourceLink(
+              url: uri.toString(),
+              label: [
+                if (displayName != null && displayName.isNotEmpty) displayName,
+                if (applicationName != null &&
+                    applicationName.isNotEmpty &&
+                    applicationName != displayName)
+                  applicationName,
+              ].join(' · '),
+            ),
+          );
+        }
+        nextLink = page.nextLink;
+        if (nextLink != null && !seenPages.add(nextLink)) {
+          throw StateError('Microsoft linked resource pagination repeated.');
+        }
+      } while (nextLink != null);
+      return List.unmodifiable(links);
+    });
+
+final attachmentUploadCoordinatorProvider =
+    ChangeNotifierProvider<AttachmentUploadCoordinator>(
+      (ref) => AttachmentUploadCoordinator(),
+    );
+
+final microsoftEventAttachmentsProvider =
+    FutureProvider.family<
+      List<MicrosoftEventAttachment>,
+      ({String accountId, String calendarId, String eventId})
+    >(
+      (ref, key) => ref
+          .read(microsoftCalendarApiClientForAccountProvider(key.accountId))
+          .listEventAttachments(
+            calendarId: key.calendarId,
+            eventId: key.eventId,
+          ),
+    );
+
+final microsoftTaskAttachmentsProvider =
+    FutureProvider.family<
+      List<MicrosoftTodoAttachmentDto>,
+      ({String accountId, String taskListId, String taskId})
+    >((ref, key) async {
+      final client = ref.read(
+        microsoftTodoApiClientForAccountProvider(key.accountId),
+      );
+      if (client is! MicrosoftTodoAttachmentsApiClient) {
+        throw StateError('Microsoft task attachments are unavailable.');
+      }
+      final items = <MicrosoftTodoAttachmentDto>[];
+      final seenPages = <String>{};
+      String? nextLink;
+      do {
+        final page = await (client as MicrosoftTodoAttachmentsApiClient)
+            .listTaskAttachmentsPage(
+              taskListId: key.taskListId,
+              taskId: key.taskId,
+              nextLink: nextLink,
+            );
+        items.addAll(page.attachments);
+        nextLink = page.nextLink;
+        if (nextLink != null && !seenPages.add(nextLink)) {
+          throw const FormatException('Attachment pagination loop.');
+        }
+      } while (nextLink != null);
+      return items;
+    });
+
 final microsoftCalendarApiClientForAccountProvider =
     Provider.family<MicrosoftCalendarApiClient, String>((ref, accountId) {
       final config = ref.watch(buildConfigProvider);
+      final account = ref
+          .watch(accountsStreamProvider)
+          .valueOrNull
+          ?.where((candidate) => candidate.id == accountId)
+          .firstOrNull;
       return MicrosoftCalendarApiClient(
         httpClient: ref.watch(retryingHttpClientProvider),
         baseUri: Uri.parse(config.microsoftGraphBaseUrl),
         responseTimeZone: ref.watch(localTimeZoneProvider),
+        accountTenantId: account?.tenantId,
         authorizationHeaderProvider: () => ref
             .read(accountTokenBrokerProvider)
             .authorizationHeader(BusyProvider.microsoft, accountId),
+        sharedCalendarAuthorizationHeaderProvider: () => ref
+            .read(accountTokenBrokerProvider)
+            .microsoftSharedCalendarAuthorizationHeader(accountId),
+        categoryAuthorizationHeaderProvider: () => ref
+            .read(accountTokenBrokerProvider)
+            .microsoftCategoryAuthorizationHeader(accountId),
         unauthorizedRefreshProvider: () => ref
             .read(accountTokenBrokerProvider)
             .recoverUnauthorized(BusyProvider.microsoft, accountId),
       );
+    });
+
+final microsoftMasterCategoriesProvider =
+    FutureProvider.family<List<MicrosoftMasterCategory>, String>(
+      (ref, accountId) => ref
+          .watch(microsoftCalendarApiClientForAccountProvider(accountId))
+          .listMasterCategories(),
+    );
+
+final microsoftCategoryAuthorizationProvider =
+    Provider<MicrosoftCategoryAuthorization?>((ref) {
+      final gateway = ref.watch(applicationMicrosoftOAuthServiceProvider);
+      return gateway is MicrosoftCategoryAuthorization
+          ? gateway as MicrosoftCategoryAuthorization
+          : null;
     });
 
 final microsoftTodoTaskRemoteClientForAccountProvider =
@@ -647,7 +875,7 @@ typedef CalendarSyncEngineForAccountFactory =
 final calendarSyncEngineForAccountFactoryProvider =
     Provider<CalendarSyncEngineForAccountFactory>((ref) {
       return (accountId, provider) {
-        final client = switch (provider) {
+        final CloudCalendarClient client = switch (provider) {
           BusyProvider.microsoft => ref.read(
             microsoftCalendarApiClientForAccountProvider(accountId),
           ),
@@ -720,6 +948,26 @@ final crossEngineAccountGateProvider = Provider<CrossEngineAccountGate>(
   (ref) => const InProcessAccountGate(),
 );
 
+/// Range snapshots share the account locks used by baseline sync and writes.
+final calendarMonthRetrieverProvider = Provider<CalendarMonthRetriever>((ref) {
+  final gate = ref.watch(crossEngineAccountGateProvider);
+  final coordinator = ref.watch(accountSyncCoordinatorProvider);
+  final connectivity = ref.watch(networkConnectivityMonitorProvider);
+  final engineForAccount = ref.watch(
+    calendarSyncEngineForAccountFactoryProvider,
+  );
+  return (accountId, provider, month, {required sourceIds}) => gate.run(
+    accountId,
+    () => coordinator.run(accountId, () async {
+      await connectivity.requireNetwork();
+      await engineForAccount(
+        accountId,
+        provider,
+      ).retrieveMonth(month, sourceIds: sourceIds);
+    }),
+  );
+});
+
 final accountSyncOperationsProvider = Provider<AccountSyncOperations>((ref) {
   final accountsRepository = ref.watch(accountsRepositoryProvider);
   final connectivity = ref.watch(networkConnectivityMonitorProvider);
@@ -744,30 +992,47 @@ final accountSyncOperationsProvider = Provider<AccountSyncOperations>((ref) {
     syncWebCal: (accountId, {required full}) => ref
         .read(webCalSubscriptionServiceProvider)
         .refreshAccount(accountId, force: full),
-    syncTasksRest: (accountId, {required full}) =>
-        syncCoordinator.trackTaskImport(accountId, () async {
-          final provider = await providerForAccount(accountId);
-          final engine = ref.read(syncEngineForAccountFactoryProvider)(
-            accountId,
-            provider,
-          );
+    syncTasksRest: (accountId, {required full}) async {
+      final provider = await providerForAccount(accountId);
+      final engine = ref.read(syncEngineForAccountFactoryProvider)(
+        accountId,
+        provider,
+      );
+      await DomainSyncPolicy(ref.read(databaseProvider)).run(
+        accountId,
+        SyncDomain.tasks,
+        full: full,
+        deferred: engine.dispatchPendingWrites,
+        maintainCached: engine.maintainCachedReminders,
+        pull: () => syncCoordinator.trackTaskImport(accountId, () async {
           if (full) {
             await engine.fullSync();
           } else {
             await engine.incrementalSync();
           }
-        }),
+        }, changedOnFailure: () => engine.remoteImportWroteData),
+      );
+    },
     syncCalendarRest: (accountId, {required full}) async {
       final provider = await providerForAccount(accountId);
       final engine = ref.read(calendarSyncEngineForAccountFactoryProvider)(
         accountId,
         provider,
       );
-      if (full) {
-        await engine.fullSync();
-      } else {
-        await engine.incrementalSync();
-      }
+      await DomainSyncPolicy(ref.read(databaseProvider)).run(
+        accountId,
+        SyncDomain.calendar,
+        full: full,
+        deferred: engine.dispatchPendingWrites,
+        maintainCached: engine.maintainCachedReminders,
+        pull: () async {
+          if (full) {
+            await engine.fullSync();
+          } else {
+            await engine.incrementalSync();
+          }
+        },
+      );
     },
   );
   return CrossEngineCoordinatedAccountSyncOperations(
@@ -791,7 +1056,10 @@ final signedInSyncRunnerProvider = Provider<SignedInSyncRunner>((ref) {
       await _runAccountSyncIfEligible(
         ref,
         accountId,
-        (operations) => operations.syncAccount(accountId, full: initial),
+        (operations) => withSyncTrigger(
+          initial ? SyncTrigger.manual : SyncTrigger.foreground,
+          () => operations.syncAccount(accountId, full: initial),
+        ),
       );
     } on Object catch (error) {
       await _markAccountReconnectRequiredForSyncError(ref, accountId, error);
@@ -804,7 +1072,11 @@ typedef AllAccountsSyncRunner = Future<void> Function();
 
 final allAccountsSyncRunnerProvider = Provider<AllAccountsSyncRunner>((ref) {
   Future<void> syncAccount(String accountId) async {
-    await ref.read(signedInSyncRunnerProvider)(accountId, false);
+    await _runAccountSyncIfEligible(
+      ref,
+      accountId,
+      (operations) => operations.syncAccount(accountId, full: false),
+    );
   }
 
   return () async {
@@ -845,6 +1117,24 @@ final calendarRepositoryProvider = Provider<CalendarRepository>((ref) {
         ref.read(notificationReconcilerProvider).reconcile(),
   );
 });
+
+final microsoftSharedCalendarServiceProvider =
+    Provider<MicrosoftSharedCalendarService>((ref) {
+      final gateway = ref.read(applicationMicrosoftOAuthServiceProvider);
+      if (gateway is! MicrosoftSharedCalendarAuthorization) {
+        throw StateError(
+          'Microsoft shared-calendar authorization is unavailable.',
+        );
+      }
+      return MicrosoftSharedCalendarService(
+        authorization: gateway as MicrosoftSharedCalendarAuthorization,
+        clientForAccount: (accountId) =>
+            ref.read(microsoftCalendarApiClientForAccountProvider(accountId)),
+        repository: ref.read(calendarRepositoryProvider),
+        retrieveMonth: ref.watch(calendarMonthRetrieverProvider),
+        now: DateTime.now,
+      );
+    });
 
 final calendarSourcesStreamProvider =
     StreamProvider<List<CalendarSourceEntity>>((ref) {
@@ -932,6 +1222,15 @@ final scheduleTaskListsProvider = FutureProvider<List<TaskListEntity>>((
 final scheduleRepositoryProvider = Provider<ScheduleRepository>((ref) {
   return ScheduleRepository(
     ref.watch(databaseProvider),
+    ensureCloudCoverage: (range, filters) => ref
+        .read(cloudCalendarRangeCoverageServiceProvider)
+        .ensureRange(
+          range.start.toUtc(),
+          range.end.toUtc(),
+          accountIds: filters.accountIds,
+          sourceIds: filters.sourceIds,
+          sourceFilterActive: filters.sourceFilterActive,
+        ),
     ensureProjectionCoverage: (range) async {
       final start = range.start.toUtc();
       final end = range.end.toUtc();
@@ -946,6 +1245,14 @@ final scheduleRepositoryProvider = Provider<ScheduleRepository>((ref) {
     },
   );
 });
+
+final cloudCalendarRangeCoverageServiceProvider =
+    Provider<CloudCalendarRangeCoverageService>((ref) {
+      return CloudCalendarRangeCoverageService(
+        database: ref.watch(databaseProvider),
+        retrieveMonth: ref.watch(calendarMonthRetrieverProvider),
+      );
+    });
 
 final Provider<String?> activeAccountProvider = Provider<String?>((ref) {
   final selectedAccount = ref.watch(selectedAccountProvider);
@@ -1211,7 +1518,14 @@ final pendingOpResolutionServiceProvider =
 
 final syncSchedulerProvider = Provider<AllAccountsSyncScheduler>((ref) {
   Future<void> syncAccount(String accountId) async {
-    await ref.read(signedInSyncRunnerProvider)(accountId, false);
+    await _runAccountSyncIfEligible(
+      ref,
+      accountId,
+      (operations) => withSyncTrigger(
+        SyncTrigger.background,
+        () => operations.syncAccount(accountId, full: false),
+      ),
+    );
   }
 
   final scheduler = AllAccountsSyncScheduler(
@@ -1281,7 +1595,15 @@ Future<void> _markAccountReconnectRequiredForSyncError(
     return;
   }
   try {
-    await ref.read(authRepositoryProvider).markReconnectRequired(accountId);
+    await ref
+        .read(authRepositoryProvider)
+        .markReconnectRequired(
+          accountId,
+          authorizationGeneration: failureAuthorizationGeneration(
+            error,
+            accountId,
+          ),
+        );
   } on Object {
     // Keep the original sync failure as the reported error.
   }
@@ -1298,7 +1620,18 @@ Future<void> _runAccountSyncIfEligible(
   if (account?.isSyncEligible != true) {
     return;
   }
-  await synchronize(ref.read(accountSyncOperationsProvider));
+  final generation = await ref
+      .read(authorizationPersistenceProvider)
+      .generation(accountId);
+  try {
+    await synchronize(ref.read(accountSyncOperationsProvider));
+  } on Object catch (error) {
+    throw AuthorizationScopedFailure(
+      accountId: accountId,
+      generation: generation,
+      cause: error,
+    );
+  }
 }
 
 // This handler outlives individual schedulers, so a visible Linux notification

@@ -206,6 +206,9 @@ class NextcloudAdminFixture {
     }
     if (request.method == 'REPORT' &&
         request.body.contains('principal-property-search')) {
+      if (request.body.contains('remote.example.test')) {
+        return http.Response('<d:multistatus $nextcloudXmlNamespaces/>', 207);
+      }
       final group = request.url.path.contains('/groups/');
       final path =
           '/remote.php/dav/principals/${group ? 'groups/team' : 'users/bob'}/';

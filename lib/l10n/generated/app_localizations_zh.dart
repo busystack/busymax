@@ -370,35 +370,6 @@ class AppLocalizationsZh extends AppLocalizations {
       '必须授予 Google 日历和 Google Tasks 权限。请重试并选中两个复选框。';
 
   @override
-  String get finishSetup => '完成设置';
-
-  @override
-  String get continueSetup => '继续';
-
-  @override
-  String get onboardingSetupTitle => '设置 BusyMax';
-
-  @override
-  String get onboardingAccountsStepTitle => '连接账户';
-
-  @override
-  String get onboardingAccountsStepDescription =>
-      '添加所有要使用的账户。BusyMax 会同步每个账户中受支持的日历、日程、任务列表和任务。';
-
-  @override
-  String get onboardingPreferencesStepTitle => '选择系统设置';
-
-  @override
-  String get onboardingPreferencesStepDescription =>
-      '打开日程前，请设置桌面行为、提醒、通知详细程度和外观。';
-
-  @override
-  String get signInWithGoogle => '使用 Google 登录';
-
-  @override
-  String get signInWithMicrosoft => '使用 Microsoft 登录';
-
-  @override
   String get googleTasksProvider => 'Google Tasks';
 
   @override
@@ -514,6 +485,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get openInProvider => '在服务中打开';
 
   @override
+  String get linkedResources => '关联资源';
+
+  @override
+  String get noLinkedResources => '没有关联资源';
+
+  @override
+  String get attachments => '附件';
+
+  @override
+  String get attachmentsNotLoaded => '附件未加载';
+
+  @override
   String get hideFromSchedule => '从日程中隐藏';
 
   @override
@@ -548,12 +531,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get scheduleNoSourcesDescription => '请在设置中选择要显示的内容，然后刷新。';
-
-  @override
-  String get scheduleSignInRequired => '连接账户';
-
-  @override
-  String get scheduleSignInDescription => '登录以同步日历和任务。';
 
   @override
   String get scheduleNoSearchResults => '没有匹配的日程或任务';
@@ -1935,6 +1912,9 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get deleteAssignedTaskWarning => '这也会删除 Google 文档或 Chat 聊天室中的原始任务。';
+
+  @override
   String get metadata => '元数据';
 
   @override
@@ -2541,6 +2521,14 @@ class AppLocalizationsZh extends AppLocalizations {
   String get removeAction => '移除';
 
   @override
+  String removeOpenedSharedCalendarConfirmation(String title) {
+    return '要从 BusyMax 移除“$title”吗？所有者的日历和日程不会被删除。';
+  }
+
+  @override
+  String get attachmentUploadUnresolved => '上传可能已完成。再次上传前，请刷新附件以确认结果。';
+
+  @override
   String removeCalendarConfirmation(String title) {
     return '要从您的 Google 日历列表中移除“$title”吗？共享日历及其日程不会被删除。';
   }
@@ -2868,7 +2856,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get searchDate => '日期';
 
   @override
-  String get searchAnyDate => '任何日期';
+  String get searchAnyDate => '任何日期（已下載資料）';
+
+  @override
+  String get eventLink => '活動連結';
+
+  @override
+  String get eventLinkOpenFailed => '無法開啟連結。';
+
+  @override
+  String get scheduleRangeIncomplete => '部分活動無法確認，正在顯示已下載資料。';
 
   @override
   String get searchThisWeek => '本周';
@@ -2905,6 +2902,488 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get searchClearText => '清除文字';
+
+  @override
+  String get openSharedCalendar => '打开共享日历';
+
+  @override
+  String get manageCalendarSharing => '管理日历共享';
+
+  @override
+  String get shareRecipientEmail => '接收者邮箱';
+
+  @override
+  String get shareRole => '访问角色';
+
+  @override
+  String get addCalendarShare => '添加访问权限';
+
+  @override
+  String get sharingRefreshFailed => '共享更改已成功，但无法刷新权限列表。请在再次更改前重新加载列表。';
+
+  @override
+  String get sharingRateLimited => '共享暂时受到限制。请在等待时间结束后重试。';
+
+  @override
+  String get attachmentUploadRateLimited => '附件上传暂时受到限制。请在等待时间结束后重试。';
+
+  @override
+  String get sharingPermissionUnavailable => '此日历的共享权限不可用。';
+
+  @override
+  String get calendarShareFreeBusy => '仅查看忙闲';
+
+  @override
+  String get calendarShareLimitedRead => '读取有限详情';
+
+  @override
+  String get calendarShareRead => '读取全部详情';
+
+  @override
+  String get calendarShareWrite => '编辑日程';
+
+  @override
+  String get calendarShareWriteWithoutPrivate => '编辑但不查看私人详情';
+
+  @override
+  String get calendarShareOwner => '所有者';
+
+  @override
+  String get eventLabel => '日程标签';
+
+  @override
+  String get loadOutlookCategories => '加载 Outlook 类别';
+
+  @override
+  String get outlookCategoriesUnavailable => 'Outlook 类别不可用；现有分配会保留。';
+
+  @override
+  String get googleEventType => '日程类型';
+
+  @override
+  String get googleRegularEvent => '普通日程';
+
+  @override
+  String get googleFocusTime => '专注时间';
+
+  @override
+  String get googleOutOfOffice => '外出';
+
+  @override
+  String get googleWorkingLocation => '工作地点';
+
+  @override
+  String get googleDeclineInvitations => '拒绝重叠的邀请';
+
+  @override
+  String get googleDeclineNone => '不拒绝';
+
+  @override
+  String get googleDeclineNew => '拒绝新邀请';
+
+  @override
+  String get googleDeclineAll => '拒绝所有冲突邀请';
+
+  @override
+  String get googleDeclineMessage => '拒绝消息';
+
+  @override
+  String get googleChatStatus => '聊天状态';
+
+  @override
+  String get googleChatAvailable => '有空';
+
+  @override
+  String get googleChatDoNotDisturb => '勿扰';
+
+  @override
+  String get googleWorkAtHome => '家';
+
+  @override
+  String get googleWorkAtOffice => '办公室';
+
+  @override
+  String get googleWorkAtCustomLocation => '自定义地点';
+
+  @override
+  String get googleWorkLocationLabel => '地点名称';
+
+  @override
+  String get googleStatusPrimaryOnly => 'Google 状态日程需要您的 Google 主日历。';
+
+  @override
+  String unknownEventLabel(String id) {
+    return '未知标签（$id）';
+  }
+
+  @override
+  String get calendarOwnerEmail => '日历所有者的电子邮件地址';
+
+  @override
+  String registrationSetupTitle(String provider) {
+    return '设置 $provider';
+  }
+
+  @override
+  String get registrationSetupGuide => '设置指南';
+
+  @override
+  String get registrationGoogleInstructions =>
+      '创建自己的 Google Cloud 项目，启用 Calendar 和 Tasks API，然后导入桌面 OAuth 客户端的 JSON。请授权预期的账号。';
+
+  @override
+  String get registrationMicrosoftInstructions =>
+      '在允许应用注册的 Entra 租户中使用公共应用注册。输入客户端 ID 和支持的账号类型。无需客户端密码。';
+
+  @override
+  String get registrationImportGoogle => '选择桌面 OAuth JSON';
+
+  @override
+  String get registrationValidate => '验证注册';
+
+  @override
+  String get registrationAuthorize => '在浏览器中授权';
+
+  @override
+  String get registrationClientId => '应用程序／客户端 ID';
+
+  @override
+  String get registrationTenantId => '租户 ID';
+
+  @override
+  String get registrationAudience => '支持的账号';
+
+  @override
+  String get registrationBothAudience => '个人和组织账号';
+
+  @override
+  String get registrationOrganizationAudience => '组织账号';
+
+  @override
+  String get registrationPersonalAudience => '个人账号';
+
+  @override
+  String get registrationTenantAudience => '单个组织租户';
+
+  @override
+  String registrationSummary(String clientId) {
+    return '注册：$clientId';
+  }
+
+  @override
+  String get registrationMigrate => '立即迁移';
+
+  @override
+  String get registrationReplace => '替换注册';
+
+  @override
+  String registrationRetirementNotice(String provider, String setup) {
+    return '此帐号使用为现有帐号保留的原始 $provider 注册。要替换，请设置 $setup 并重新连接此帐号。现有日历、任务和本地更改会保留。';
+  }
+
+  @override
+  String get registrationContinue => '继续使用此账号';
+
+  @override
+  String get registrationGoogleProject => 'Google Cloud 项目';
+
+  @override
+  String get registrationMicrosoftApp => 'Microsoft 应用注册';
+
+  @override
+  String get registrationUserOwned => '用户提供的注册';
+
+  @override
+  String get registrationNativeGoogle => 'Google Android 原生注册';
+
+  @override
+  String get registrationShared => '共享注册（过渡期）';
+
+  @override
+  String get registrationUnresolved => '无法确定注册来源。账号数据已保留。';
+
+  @override
+  String get registrationOfficialDocumentation => '官方文档';
+
+  @override
+  String registrationAndroidIdentity(
+    String packageName,
+    String signatureHash,
+    String redirectUri,
+  ) {
+    return '软件包：$packageName\n签名哈希：$signatureHash\n重定向 URI：$redirectUri';
+  }
+
+  @override
+  String get oauthRegistrationRejected =>
+      '请检查注册的客户端类型、支持的账户、权限和重定向设置。若配置来自导入，请重新选择配置文件。';
+
+  @override
+  String get oauthAuthorizationCodeUnusable => '此次授权未能完成。请重新开始授权；现有连接已保留。';
+
+  @override
+  String get oauthPermissionRefused => '授权被拒绝或缺少所需权限。请重试并授予所需权限。';
+
+  @override
+  String get oauthProviderThrottled => '服务提供方正在限制请求。请稍后重试；现有连接已保留。';
+
+  @override
+  String get oauthProviderTemporaryFailure => '服务提供方的临时问题导致授权未能完成。请重试；现有连接已保留。';
+
+  @override
+  String get oauthAuthorizationTimedOut => '授权超时。请重试；若配置来自导入，请重新选择配置文件。';
+
+  @override
+  String get oauthWrongAccount => '请授权为重新连接而选定的账户。现有连接已保留。';
+
+  @override
+  String get oauthSecureStorageUnavailable => '安全存储不可用。请恢复安全存储访问后重试。';
+
+  @override
+  String get oauthRevokedRemovalIncomplete =>
+      '远程授权已撤销，但账户清理未能完成。请重启 BusyMax 以重试本地恢复。';
+
+  @override
+  String get addAccount => '添加账户';
+
+  @override
+  String get registrationConnect => '连接';
+
+  @override
+  String get registrationBack => '返回';
+
+  @override
+  String get registrationReplaceGoogle => '替换桌面 OAuth JSON';
+
+  @override
+  String get registrationSelectedConfiguration => '已选择的配置';
+
+  @override
+  String get registrationDirectoryId => '目录／租户 ID';
+
+  @override
+  String get registrationInvalidId => '请输入有效的 UUID。';
+
+  @override
+  String get registrationExpired => '此配置已过期。请重新导入或修改注册字段后再连接。';
+
+  @override
+  String get registrationOwnProjectRequired => '请选择您自己的项目或租户中的注册。';
+
+  @override
+  String get registrationSetupFailed => '无法完成设置，请重试。';
+
+  @override
+  String get registrationLinkFailed => '无法打开链接。请检查浏览器后重试。';
+
+  @override
+  String get registrationPermissions => '权限';
+
+  @override
+  String get registrationDesktopClient => '桌面应用';
+
+  @override
+  String get registrationOpenGoogleConsole => '打开 Google Cloud 控制台';
+
+  @override
+  String get registrationGoogleAudienceHelp => 'Google 发布和测试用户要求';
+
+  @override
+  String get registrationDesktopHelp => '桌面应用注册说明';
+
+  @override
+  String get registrationOpenEntra => '打开 Microsoft Entra 管理中心';
+
+  @override
+  String get registrationGuideGoogleProject =>
+      '打开 Google Cloud Console。使用顶部的项目选择器选择您自己的项目，或选择 New project，输入名称后选择 Create。后续步骤请保持选中此项目。';
+
+  @override
+  String get registrationGuideGoogleAudience =>
+      '进入 Google Auth Platform → Branding。如果尚未开始设置，选择 Get started。在 App name 中输入 BusyMax，选择您自己的 User support email，然后选择 Next。在 Audience 中，请选择 External。选择 Next，在 Contact Information 中输入您的邮箱，再选择 Next。接受 User Data Policy，然后选择 Continue 和 Create。如果已完成设置，请检查 Branding 和 Audience。';
+
+  @override
+  String get registrationGuideGooglePermissions =>
+      '打开 Google Auth Platform → Data Access → Add or remove scopes。选择下面五个权限范围；必要时使用 Manually add scopes。手动输入时，粘贴缺少的值并选择 Add to table。选择 Update，再选择 Save。BusyMax 需要日历和任务的访问权限。';
+
+  @override
+  String get registrationGuideGoogleClient =>
+      '打开 Google Auth Platform → Clients → Create client。将 Application type 设为 Desktop app，在 Name 中输入 BusyMax 并选择 Create。在创建对话框中选择 Download JSON 并保存文件。选择返回以回到表单，选择该文件并检查项目和客户端 ID。选择连接，然后在浏览器中批准日历和任务访问权限。';
+
+  @override
+  String get registrationGuideMicrosoftApp =>
+      '登录 Microsoft Entra 管理中心。使用 Settings 选择允许您注册应用的租户。打开 Entra ID → App registrations → New registration。在 Name 中输入 BusyMax，然后在下一步选择支持的帐号类型。如果注册被禁止，请向租户管理员申请权限。';
+
+  @override
+  String get registrationGuideMicrosoftRedirect =>
+      '在应用注册中打开 Authentication → Add a platform → Mobile and desktop applications。选择或输入下面的重定向 URI，然后选择 Configure 保存。BusyMax 使用系统浏览器。不需要客户端密码。';
+
+  @override
+  String get registrationGuideMicrosoftPermissions =>
+      '打开 API permissions → Add a permission → Microsoft Graph → Delegated permissions。搜索并选择下面每个权限范围，然后选择 Add permissions。如果已有 User.Read，请保留。如果组织要求管理员同意，请让管理员使用租户的 Grant admin consent。';
+
+  @override
+  String get registrationGuideMicrosoftConnect =>
+      '选择返回以回到表单。粘贴 Application (client) ID，并选择与注册一致的支持帐号选项。如果选择一个组织租户，还需粘贴 Directory (tenant) ID。选择连接并在浏览器中登录目标帐号。BusyMax 在本地检查字段；Microsoft 在浏览器登录时请求您的同意。';
+
+  @override
+  String get registrationGoogleImportFailed =>
+      '无法导入此文件。请选择有效的桌面 OAuth JSON。之前的有效选择会保留。';
+
+  @override
+  String get registrationGoogleSetupInstructions => 'Google 设置说明';
+
+  @override
+  String get registrationMicrosoftSetupInstructions => 'Microsoft 设置说明';
+
+  @override
+  String get registrationDesktopConfiguration => '桌面 OAuth 配置';
+
+  @override
+  String get registrationNoFileSelected => '未选择文件';
+
+  @override
+  String get registrationChooseFile => '选择文件…';
+
+  @override
+  String get registrationReplaceFile => '替换…';
+
+  @override
+  String get registrationGoogleIntroduction =>
+      '选择您自己的 Google Cloud 项目的桌面 OAuth JSON。';
+
+  @override
+  String get registrationMicrosoftIntroduction => '输入您自己的 Microsoft 应用注册信息。';
+
+  @override
+  String get registrationSetupInstructions => '设置说明';
+
+  @override
+  String get registrationInstructionsDescription => '创建连接帐号所需的配置。';
+
+  @override
+  String get registrationEnableApis => '启用 Calendar 和 Tasks';
+
+  @override
+  String get registrationConsentScreen => '配置同意屏幕';
+
+  @override
+  String get registrationAppName => '应用名称';
+
+  @override
+  String get registrationScopes => '权限范围';
+
+  @override
+  String get registrationRedirectUri => '重定向 URI';
+
+  @override
+  String get registrationOpenApiLibrary => '打开 Google API 库';
+
+  @override
+  String get registrationOpenBranding => '打开 Google Auth Platform 的 Branding';
+
+  @override
+  String get registrationOpenDataAccess =>
+      '打开 Google Auth Platform 的 Data Access';
+
+  @override
+  String get registrationOpenClients => '打开 Google Auth Platform 的 Clients';
+
+  @override
+  String get registrationOpenEntraAuthentication =>
+      '打开 Entra 应用注册以设置 Authentication';
+
+  @override
+  String get registrationOpenEntraPermissions =>
+      '打开 Entra 应用注册以设置 API permissions';
+
+  @override
+  String get registrationCopy => '复制';
+
+  @override
+  String get registrationCopyAll => '全部复制';
+
+  @override
+  String get registrationGuideGoogleApis =>
+      '进入 APIs & Services → Library。搜索 Google Calendar API，打开其页面并选择 Enable。返回 Library，对 Google Tasks API 重复此操作。';
+
+  @override
+  String get registrationGuideMicrosoftAudience =>
+      '在 Supported account types 中，个人帐号选择 Personal accounts only，组织帐号选择 Multiple Entra ID tenants，同时支持两者选择 Any Entra ID Tenant + Personal Microsoft accounts，仅限此目录选择 Single tenant only。选择 Register。在 Overview 中复制 Application (client) ID；单一租户还需复制 Directory (tenant) ID。在 BusyMax 中选择对应的支持帐号选项。';
+
+  @override
+  String get registrationConnectBusyMax => '通过 BusyMax 连接';
+
+  @override
+  String get registrationRecommended => '推荐';
+
+  @override
+  String get registrationOtherMethods => '其他连接方式';
+
+  @override
+  String get registrationWorkspace => 'Google Workspace 组织';
+
+  @override
+  String get registrationGoogleCustom => '自定义 OAuth 客户端';
+
+  @override
+  String get registrationMicrosoftCustom => '自定义应用注册';
+
+  @override
+  String get registrationMethodsIntroduction => '选择连接帐号的方式。';
+
+  @override
+  String get registrationWorkspaceDescription => '使用组织管理的配置。';
+
+  @override
+  String get registrationCustomDescription => '使用自行管理的注册。';
+
+  @override
+  String get registrationSharedUnavailable =>
+      '此版本无法通过 BusyMax 连接。您可以使用以下其他连接方式。';
+
+  @override
+  String get registrationWorkspaceIntroduction =>
+      '选择组织提供或管理的桌面 OAuth JSON。文件不能证明组织所有权、受众或验证状态。';
+
+  @override
+  String get registrationWorkspaceSetupInstructions => 'Google Workspace 设置说明';
+
+  @override
+  String get registrationBusyMaxManaged => 'BusyMax 管理的注册';
+
+  @override
+  String get registrationBranding => '配置品牌和域名';
+
+  @override
+  String get registrationPublishing => '发布以供日常使用';
+
+  @override
+  String get registrationOpenAudience => '打开 Google Auth Platform Audience';
+
+  @override
+  String get registrationGuideWorkspaceProject =>
+      '向管理员索取 Desktop OAuth JSON，或打开 Google Cloud Console 并选择您的 Google Workspace 组织拥有的项目。若要创建项目，打开“管理资源”→“创建项目”，输入“项目名称”，在“父级资源”中选择您的组织或其文件夹，然后选择“创建”。后续步骤保持选中该项目。创建需要 Project Creator 权限，配置 OAuth 需要 OAuth Config Editor，启用 API 需要 Service Usage Admin 或同等权限。若操作受阻，请联系管理员。';
+
+  @override
+  String get registrationGuideGoogleBranding =>
+      '在 Branding → App domain 中，先添加项目的授权域名，再输入主页、隐私政策和服务条款 URL，然后选择 Save。External 生产应用需要这些链接。请使用自己拥有的域名，并在 Google 要求品牌验证时通过 Search Console 验证所有权。下方 BusyMax 隐私链接不能证明您的项目拥有 busystack.org。';
+
+  @override
+  String get registrationGuideGooglePublishing =>
+      '在 Audience 中选择 Publish app 并确认 In production。日常使用不要停留在 Testing：这些 Calendar/Tasks 授权和刷新令牌会在七天后过期。发布与验证是两回事。少于 100 人的个人使用可能免于验证，但仍有未验证警告和人数限制；更广泛分发可能需要品牌和权限范围批准。生产授权仍可能过期或被撤销。';
+
+  @override
+  String get registrationGuideWorkspacePermissions =>
+      '与管理员检查以下权限范围。Internal 应用不需要在同意屏幕中列出权限范围。如管理员要求，请打开 Data Access → Add or remove scopes，添加这些值，然后选择 Update 和 Save。管理员控制仍可能限制授权。';
+
+  @override
+  String get registrationGuideMicrosoftOptionalPermissions =>
+      '共享日历和类别权限会在启用相应可选功能时单独请求；不要将其添加到上述必需设置中。';
+
+  @override
+  String get registrationGuideWorkspaceAudience =>
+      '进入 Google Auth Platform → Branding。如果尚未开始设置，选择 Get started。在 App name 中输入 BusyMax，选择您自己的 User support email，然后选择 Next。在 Audience 中，请选择 Internal。选择 Next，在 Contact Information 中输入您的邮箱，再选择 Next。接受 User Data Policy，然后选择 Continue 和 Create。如果已完成设置，请检查 Branding 和 Audience。\n\nInternal 仅允许项目父组织中的帐号，并受管理员控制。不需要测试用户列表。BusyMax 无法从下载的 JSON 验证这些控制台设置。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -3269,35 +3748,6 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
       '必须授予 Google 日历和 Google Tasks 权限。请重试并选中两个复选框。';
 
   @override
-  String get finishSetup => '完成设置';
-
-  @override
-  String get continueSetup => '继续';
-
-  @override
-  String get onboardingSetupTitle => '设置 BusyMax';
-
-  @override
-  String get onboardingAccountsStepTitle => '连接账户';
-
-  @override
-  String get onboardingAccountsStepDescription =>
-      '添加所有要使用的账户。BusyMax 会同步每个账户中受支持的日历、日程、任务列表和任务。';
-
-  @override
-  String get onboardingPreferencesStepTitle => '选择系统设置';
-
-  @override
-  String get onboardingPreferencesStepDescription =>
-      '打开日程前，请设置桌面行为、提醒、通知详细程度和外观。';
-
-  @override
-  String get signInWithGoogle => '使用 Google 登录';
-
-  @override
-  String get signInWithMicrosoft => '使用 Microsoft 登录';
-
-  @override
   String get googleTasksProvider => 'Google Tasks';
 
   @override
@@ -3413,6 +3863,18 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get openInProvider => '在服务中打开';
 
   @override
+  String get linkedResources => '关联资源';
+
+  @override
+  String get noLinkedResources => '没有关联资源';
+
+  @override
+  String get attachments => '附件';
+
+  @override
+  String get attachmentsNotLoaded => '附件未加载';
+
+  @override
   String get hideFromSchedule => '从日程中隐藏';
 
   @override
@@ -3447,12 +3909,6 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get scheduleNoSourcesDescription => '请在设置中选择要显示的内容，然后刷新。';
-
-  @override
-  String get scheduleSignInRequired => '连接账户';
-
-  @override
-  String get scheduleSignInDescription => '登录以同步日历和任务。';
 
   @override
   String get scheduleNoSearchResults => '没有匹配的日程或任务';
@@ -4834,6 +5290,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   }
 
   @override
+  String get deleteAssignedTaskWarning => '这也会删除 Google 文档或 Chat 聊天室中的原始任务。';
+
+  @override
   String get metadata => '元数据';
 
   @override
@@ -5440,6 +5899,14 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get removeAction => '移除';
 
   @override
+  String removeOpenedSharedCalendarConfirmation(String title) {
+    return '要从 BusyMax 移除“$title”吗？所有者的日历和日程不会被删除。';
+  }
+
+  @override
+  String get attachmentUploadUnresolved => '上传可能已完成。再次上传前，请刷新附件以确认结果。';
+
+  @override
   String removeCalendarConfirmation(String title) {
     return '要从您的 Google 日历列表中移除“$title”吗？共享日历及其日程不会被删除。';
   }
@@ -5767,7 +6234,16 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get searchDate => '日期';
 
   @override
-  String get searchAnyDate => '任何日期';
+  String get searchAnyDate => '任何日期（已下载数据）';
+
+  @override
+  String get eventLink => '日程链接';
+
+  @override
+  String get eventLinkOpenFailed => '无法打开链接。';
+
+  @override
+  String get scheduleRangeIncomplete => '部分日程无法核实，正在显示已下载数据。';
 
   @override
   String get searchThisWeek => '本周';
@@ -5804,6 +6280,488 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get searchClearText => '清除文字';
+
+  @override
+  String get openSharedCalendar => '打开共享日历';
+
+  @override
+  String get manageCalendarSharing => '管理日历共享';
+
+  @override
+  String get shareRecipientEmail => '接收者邮箱';
+
+  @override
+  String get shareRole => '访问角色';
+
+  @override
+  String get addCalendarShare => '添加访问权限';
+
+  @override
+  String get sharingRefreshFailed => '共享更改已成功，但无法刷新权限列表。请在再次更改前重新加载列表。';
+
+  @override
+  String get sharingRateLimited => '共享暂时受到限制。请在等待时间结束后重试。';
+
+  @override
+  String get attachmentUploadRateLimited => '附件上传暂时受到限制。请在等待时间结束后重试。';
+
+  @override
+  String get sharingPermissionUnavailable => '此日历的共享权限不可用。';
+
+  @override
+  String get calendarShareFreeBusy => '仅查看忙闲';
+
+  @override
+  String get calendarShareLimitedRead => '读取有限详情';
+
+  @override
+  String get calendarShareRead => '读取全部详情';
+
+  @override
+  String get calendarShareWrite => '编辑日程';
+
+  @override
+  String get calendarShareWriteWithoutPrivate => '编辑但不查看私人详情';
+
+  @override
+  String get calendarShareOwner => '所有者';
+
+  @override
+  String get eventLabel => '日程标签';
+
+  @override
+  String get loadOutlookCategories => '加载 Outlook 类别';
+
+  @override
+  String get outlookCategoriesUnavailable => 'Outlook 类别不可用；现有分配会保留。';
+
+  @override
+  String get googleEventType => '日程类型';
+
+  @override
+  String get googleRegularEvent => '普通日程';
+
+  @override
+  String get googleFocusTime => '专注时间';
+
+  @override
+  String get googleOutOfOffice => '外出';
+
+  @override
+  String get googleWorkingLocation => '工作地点';
+
+  @override
+  String get googleDeclineInvitations => '拒绝重叠的邀请';
+
+  @override
+  String get googleDeclineNone => '不拒绝';
+
+  @override
+  String get googleDeclineNew => '拒绝新邀请';
+
+  @override
+  String get googleDeclineAll => '拒绝所有冲突邀请';
+
+  @override
+  String get googleDeclineMessage => '拒绝消息';
+
+  @override
+  String get googleChatStatus => '聊天状态';
+
+  @override
+  String get googleChatAvailable => '有空';
+
+  @override
+  String get googleChatDoNotDisturb => '勿扰';
+
+  @override
+  String get googleWorkAtHome => '家';
+
+  @override
+  String get googleWorkAtOffice => '办公室';
+
+  @override
+  String get googleWorkAtCustomLocation => '自定义地点';
+
+  @override
+  String get googleWorkLocationLabel => '地点名称';
+
+  @override
+  String get googleStatusPrimaryOnly => 'Google 状态日程需要您的 Google 主日历。';
+
+  @override
+  String unknownEventLabel(String id) {
+    return '未知标签（$id）';
+  }
+
+  @override
+  String get calendarOwnerEmail => '日历所有者的电子邮件地址';
+
+  @override
+  String registrationSetupTitle(String provider) {
+    return '设置 $provider';
+  }
+
+  @override
+  String get registrationSetupGuide => '设置指南';
+
+  @override
+  String get registrationGoogleInstructions =>
+      '创建自己的 Google Cloud 项目，启用 Calendar 和 Tasks API，然后导入桌面 OAuth 客户端的 JSON。请授权预期的账号。';
+
+  @override
+  String get registrationMicrosoftInstructions =>
+      '在允许应用注册的 Entra 租户中使用公共应用注册。输入客户端 ID 和支持的账号类型。无需客户端密码。';
+
+  @override
+  String get registrationImportGoogle => '选择桌面 OAuth JSON';
+
+  @override
+  String get registrationValidate => '验证注册';
+
+  @override
+  String get registrationAuthorize => '在浏览器中授权';
+
+  @override
+  String get registrationClientId => '应用程序／客户端 ID';
+
+  @override
+  String get registrationTenantId => '租户 ID';
+
+  @override
+  String get registrationAudience => '支持的账号';
+
+  @override
+  String get registrationBothAudience => '个人和组织账号';
+
+  @override
+  String get registrationOrganizationAudience => '组织账号';
+
+  @override
+  String get registrationPersonalAudience => '个人账号';
+
+  @override
+  String get registrationTenantAudience => '单个组织租户';
+
+  @override
+  String registrationSummary(String clientId) {
+    return '注册：$clientId';
+  }
+
+  @override
+  String get registrationMigrate => '立即迁移';
+
+  @override
+  String get registrationReplace => '替换注册';
+
+  @override
+  String registrationRetirementNotice(String provider, String setup) {
+    return '此帐号使用为现有帐号保留的原始 $provider 注册。要替换，请设置 $setup 并重新连接此帐号。现有日历、任务和本地更改会保留。';
+  }
+
+  @override
+  String get registrationContinue => '继续使用此账号';
+
+  @override
+  String get registrationGoogleProject => 'Google Cloud 项目';
+
+  @override
+  String get registrationMicrosoftApp => 'Microsoft 应用注册';
+
+  @override
+  String get registrationUserOwned => '用户提供的注册';
+
+  @override
+  String get registrationNativeGoogle => 'Google Android 原生注册';
+
+  @override
+  String get registrationShared => '共享注册（过渡期）';
+
+  @override
+  String get registrationUnresolved => '无法确定注册来源。账号数据已保留。';
+
+  @override
+  String get registrationOfficialDocumentation => '官方文档';
+
+  @override
+  String registrationAndroidIdentity(
+    String packageName,
+    String signatureHash,
+    String redirectUri,
+  ) {
+    return '软件包：$packageName\n签名哈希：$signatureHash\n重定向 URI：$redirectUri';
+  }
+
+  @override
+  String get oauthRegistrationRejected =>
+      '请检查注册的客户端类型、支持的账户、权限和重定向设置。若配置来自导入，请重新选择配置文件。';
+
+  @override
+  String get oauthAuthorizationCodeUnusable => '此次授权未能完成。请重新开始授权；现有连接已保留。';
+
+  @override
+  String get oauthPermissionRefused => '授权被拒绝或缺少所需权限。请重试并授予所需权限。';
+
+  @override
+  String get oauthProviderThrottled => '服务提供方正在限制请求。请稍后重试；现有连接已保留。';
+
+  @override
+  String get oauthProviderTemporaryFailure => '服务提供方的临时问题导致授权未能完成。请重试；现有连接已保留。';
+
+  @override
+  String get oauthAuthorizationTimedOut => '授权超时。请重试；若配置来自导入，请重新选择配置文件。';
+
+  @override
+  String get oauthWrongAccount => '请授权为重新连接而选定的账户。现有连接已保留。';
+
+  @override
+  String get oauthSecureStorageUnavailable => '安全存储不可用。请恢复安全存储访问后重试。';
+
+  @override
+  String get oauthRevokedRemovalIncomplete =>
+      '远程授权已撤销，但账户清理未能完成。请重启 BusyMax 以重试本地恢复。';
+
+  @override
+  String get addAccount => '添加账户';
+
+  @override
+  String get registrationConnect => '连接';
+
+  @override
+  String get registrationBack => '返回';
+
+  @override
+  String get registrationReplaceGoogle => '替换桌面 OAuth JSON';
+
+  @override
+  String get registrationSelectedConfiguration => '已选择的配置';
+
+  @override
+  String get registrationDirectoryId => '目录／租户 ID';
+
+  @override
+  String get registrationInvalidId => '请输入有效的 UUID。';
+
+  @override
+  String get registrationExpired => '此配置已过期。请重新导入或修改注册字段后再连接。';
+
+  @override
+  String get registrationOwnProjectRequired => '请选择您自己的项目或租户中的注册。';
+
+  @override
+  String get registrationSetupFailed => '无法完成设置，请重试。';
+
+  @override
+  String get registrationLinkFailed => '无法打开链接。请检查浏览器后重试。';
+
+  @override
+  String get registrationPermissions => '权限';
+
+  @override
+  String get registrationDesktopClient => '桌面应用';
+
+  @override
+  String get registrationOpenGoogleConsole => '打开 Google Cloud 控制台';
+
+  @override
+  String get registrationGoogleAudienceHelp => 'Google 发布和测试用户要求';
+
+  @override
+  String get registrationDesktopHelp => '桌面应用注册说明';
+
+  @override
+  String get registrationOpenEntra => '打开 Microsoft Entra 管理中心';
+
+  @override
+  String get registrationGuideGoogleProject =>
+      '打开 Google Cloud Console。使用顶部的项目选择器选择您自己的项目，或选择 New project，输入名称后选择 Create。后续步骤请保持选中此项目。';
+
+  @override
+  String get registrationGuideGoogleAudience =>
+      '进入 Google Auth Platform → Branding。如果尚未开始设置，选择 Get started。在 App name 中输入 BusyMax，选择您自己的 User support email，然后选择 Next。在 Audience 中，请选择 External。选择 Next，在 Contact Information 中输入您的邮箱，再选择 Next。接受 User Data Policy，然后选择 Continue 和 Create。如果已完成设置，请检查 Branding 和 Audience。';
+
+  @override
+  String get registrationGuideGooglePermissions =>
+      '打开 Google Auth Platform → Data Access → Add or remove scopes。选择下面五个权限范围；必要时使用 Manually add scopes。手动输入时，粘贴缺少的值并选择 Add to table。选择 Update，再选择 Save。BusyMax 需要日历和任务的访问权限。';
+
+  @override
+  String get registrationGuideGoogleClient =>
+      '打开 Google Auth Platform → Clients → Create client。将 Application type 设为 Desktop app，在 Name 中输入 BusyMax 并选择 Create。在创建对话框中选择 Download JSON 并保存文件。选择返回以回到表单，选择该文件并检查项目和客户端 ID。选择连接，然后在浏览器中批准日历和任务访问权限。';
+
+  @override
+  String get registrationGuideMicrosoftApp =>
+      '登录 Microsoft Entra 管理中心。使用 Settings 选择允许您注册应用的租户。打开 Entra ID → App registrations → New registration。在 Name 中输入 BusyMax，然后在下一步选择支持的帐号类型。如果注册被禁止，请向租户管理员申请权限。';
+
+  @override
+  String get registrationGuideMicrosoftRedirect =>
+      '在应用注册中打开 Authentication → Add a platform → Mobile and desktop applications。选择或输入下面的重定向 URI，然后选择 Configure 保存。BusyMax 使用系统浏览器。不需要客户端密码。';
+
+  @override
+  String get registrationGuideMicrosoftPermissions =>
+      '打开 API permissions → Add a permission → Microsoft Graph → Delegated permissions。搜索并选择下面每个权限范围，然后选择 Add permissions。如果已有 User.Read，请保留。如果组织要求管理员同意，请让管理员使用租户的 Grant admin consent。';
+
+  @override
+  String get registrationGuideMicrosoftConnect =>
+      '选择返回以回到表单。粘贴 Application (client) ID，并选择与注册一致的支持帐号选项。如果选择一个组织租户，还需粘贴 Directory (tenant) ID。选择连接并在浏览器中登录目标帐号。BusyMax 在本地检查字段；Microsoft 在浏览器登录时请求您的同意。';
+
+  @override
+  String get registrationGoogleImportFailed =>
+      '无法导入此文件。请选择有效的桌面 OAuth JSON。之前的有效选择会保留。';
+
+  @override
+  String get registrationGoogleSetupInstructions => 'Google 设置说明';
+
+  @override
+  String get registrationMicrosoftSetupInstructions => 'Microsoft 设置说明';
+
+  @override
+  String get registrationDesktopConfiguration => '桌面 OAuth 配置';
+
+  @override
+  String get registrationNoFileSelected => '未选择文件';
+
+  @override
+  String get registrationChooseFile => '选择文件…';
+
+  @override
+  String get registrationReplaceFile => '替换…';
+
+  @override
+  String get registrationGoogleIntroduction =>
+      '选择您自己的 Google Cloud 项目的桌面 OAuth JSON。';
+
+  @override
+  String get registrationMicrosoftIntroduction => '输入您自己的 Microsoft 应用注册信息。';
+
+  @override
+  String get registrationSetupInstructions => '设置说明';
+
+  @override
+  String get registrationInstructionsDescription => '创建连接帐号所需的配置。';
+
+  @override
+  String get registrationEnableApis => '启用 Calendar 和 Tasks';
+
+  @override
+  String get registrationConsentScreen => '配置同意屏幕';
+
+  @override
+  String get registrationAppName => '应用名称';
+
+  @override
+  String get registrationScopes => '权限范围';
+
+  @override
+  String get registrationRedirectUri => '重定向 URI';
+
+  @override
+  String get registrationOpenApiLibrary => '打开 Google API 库';
+
+  @override
+  String get registrationOpenBranding => '打开 Google Auth Platform 的 Branding';
+
+  @override
+  String get registrationOpenDataAccess =>
+      '打开 Google Auth Platform 的 Data Access';
+
+  @override
+  String get registrationOpenClients => '打开 Google Auth Platform 的 Clients';
+
+  @override
+  String get registrationOpenEntraAuthentication =>
+      '打开 Entra 应用注册以设置 Authentication';
+
+  @override
+  String get registrationOpenEntraPermissions =>
+      '打开 Entra 应用注册以设置 API permissions';
+
+  @override
+  String get registrationCopy => '复制';
+
+  @override
+  String get registrationCopyAll => '全部复制';
+
+  @override
+  String get registrationGuideGoogleApis =>
+      '进入 APIs & Services → Library。搜索 Google Calendar API，打开其页面并选择 Enable。返回 Library，对 Google Tasks API 重复此操作。';
+
+  @override
+  String get registrationGuideMicrosoftAudience =>
+      '在 Supported account types 中，个人帐号选择 Personal accounts only，组织帐号选择 Multiple Entra ID tenants，同时支持两者选择 Any Entra ID Tenant + Personal Microsoft accounts，仅限此目录选择 Single tenant only。选择 Register。在 Overview 中复制 Application (client) ID；单一租户还需复制 Directory (tenant) ID。在 BusyMax 中选择对应的支持帐号选项。';
+
+  @override
+  String get registrationConnectBusyMax => '通过 BusyMax 连接';
+
+  @override
+  String get registrationRecommended => '推荐';
+
+  @override
+  String get registrationOtherMethods => '其他连接方式';
+
+  @override
+  String get registrationWorkspace => 'Google Workspace 组织';
+
+  @override
+  String get registrationGoogleCustom => '自定义 OAuth 客户端';
+
+  @override
+  String get registrationMicrosoftCustom => '自定义应用注册';
+
+  @override
+  String get registrationMethodsIntroduction => '选择连接帐号的方式。';
+
+  @override
+  String get registrationWorkspaceDescription => '使用组织管理的配置。';
+
+  @override
+  String get registrationCustomDescription => '使用自行管理的注册。';
+
+  @override
+  String get registrationSharedUnavailable =>
+      '此版本无法通过 BusyMax 连接。您可以使用以下其他连接方式。';
+
+  @override
+  String get registrationWorkspaceIntroduction =>
+      '选择组织提供或管理的桌面 OAuth JSON。文件不能证明组织所有权、受众或验证状态。';
+
+  @override
+  String get registrationWorkspaceSetupInstructions => 'Google Workspace 设置说明';
+
+  @override
+  String get registrationBusyMaxManaged => 'BusyMax 管理的注册';
+
+  @override
+  String get registrationBranding => '配置品牌和域名';
+
+  @override
+  String get registrationPublishing => '发布以供日常使用';
+
+  @override
+  String get registrationOpenAudience => '打开 Google Auth Platform Audience';
+
+  @override
+  String get registrationGuideWorkspaceProject =>
+      '向管理员索取 Desktop OAuth JSON，或打开 Google Cloud Console 并选择您的 Google Workspace 组织拥有的项目。若要创建项目，打开“管理资源”→“创建项目”，输入“项目名称”，在“父级资源”中选择您的组织或其文件夹，然后选择“创建”。后续步骤保持选中该项目。创建需要 Project Creator 权限，配置 OAuth 需要 OAuth Config Editor，启用 API 需要 Service Usage Admin 或同等权限。若操作受阻，请联系管理员。';
+
+  @override
+  String get registrationGuideGoogleBranding =>
+      '在 Branding → App domain 中，先添加项目的授权域名，再输入主页、隐私政策和服务条款 URL，然后选择 Save。External 生产应用需要这些链接。请使用自己拥有的域名，并在 Google 要求品牌验证时通过 Search Console 验证所有权。下方 BusyMax 隐私链接不能证明您的项目拥有 busystack.org。';
+
+  @override
+  String get registrationGuideGooglePublishing =>
+      '在 Audience 中选择 Publish app 并确认 In production。日常使用不要停留在 Testing：这些 Calendar/Tasks 授权和刷新令牌会在七天后过期。发布与验证是两回事。少于 100 人的个人使用可能免于验证，但仍有未验证警告和人数限制；更广泛分发可能需要品牌和权限范围批准。生产授权仍可能过期或被撤销。';
+
+  @override
+  String get registrationGuideWorkspacePermissions =>
+      '与管理员检查以下权限范围。Internal 应用不需要在同意屏幕中列出权限范围。如管理员要求，请打开 Data Access → Add or remove scopes，添加这些值，然后选择 Update 和 Save。管理员控制仍可能限制授权。';
+
+  @override
+  String get registrationGuideMicrosoftOptionalPermissions =>
+      '共享日历和类别权限会在启用相应可选功能时单独请求；不要将其添加到上述必需设置中。';
+
+  @override
+  String get registrationGuideWorkspaceAudience =>
+      '进入 Google Auth Platform → Branding。如果尚未开始设置，选择 Get started。在 App name 中输入 BusyMax，选择您自己的 User support email，然后选择 Next。在 Audience 中，请选择 Internal。选择 Next，在 Contact Information 中输入您的邮箱，再选择 Next。接受 User Data Policy，然后选择 Continue 和 Create。如果已完成设置，请检查 Branding 和 Audience。\n\nInternal 仅允许项目父组织中的帐号，并受管理员控制。不需要测试用户列表。BusyMax 无法从下载的 JSON 验证这些控制台设置。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -6168,35 +7126,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
       '必須授予 Google 日曆和 Google Tasks 權限。請再試一次並勾選兩個核取方塊。';
 
   @override
-  String get finishSetup => '完成設定';
-
-  @override
-  String get continueSetup => '繼續';
-
-  @override
-  String get onboardingSetupTitle => '設定 BusyMax';
-
-  @override
-  String get onboardingAccountsStepTitle => '連結帳戶';
-
-  @override
-  String get onboardingAccountsStepDescription =>
-      '新增所有要使用的帳戶。BusyMax 會同步每個帳戶中支援的行事曆、活動、待辦清單和待辦事項。';
-
-  @override
-  String get onboardingPreferencesStepTitle => '選擇系統設定';
-
-  @override
-  String get onboardingPreferencesStepDescription =>
-      '開啟行程前，請設定桌面行為、提醒、通知詳細程度和外觀。';
-
-  @override
-  String get signInWithGoogle => '使用 Google 登入';
-
-  @override
-  String get signInWithMicrosoft => '使用 Microsoft 登入';
-
-  @override
   String get googleTasksProvider => 'Google Tasks';
 
   @override
@@ -6312,6 +7241,18 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get openInProvider => '在服務中開啟';
 
   @override
+  String get linkedResources => '關聯資源';
+
+  @override
+  String get noLinkedResources => '沒有關聯資源';
+
+  @override
+  String get attachments => '附件';
+
+  @override
+  String get attachmentsNotLoaded => '附件尚未載入';
+
+  @override
   String get hideFromSchedule => '從行程中隱藏';
 
   @override
@@ -6346,12 +7287,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get scheduleNoSourcesDescription => '請在設定中選擇要顯示的內容，然後重新整理。';
-
-  @override
-  String get scheduleSignInRequired => '連結帳戶';
-
-  @override
-  String get scheduleSignInDescription => '登入以同步行事曆和待辦事項。';
 
   @override
   String get scheduleNoSearchResults => '沒有相符的活動或待辦事項';
@@ -7734,6 +8669,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   }
 
   @override
+  String get deleteAssignedTaskWarning => '這也會刪除 Google 文件或 Chat 聊天室中的原始工作。';
+
+  @override
   String get metadata => '中繼資料';
 
   @override
@@ -8340,6 +9278,14 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get removeAction => '移除';
 
   @override
+  String removeOpenedSharedCalendarConfirmation(String title) {
+    return '要從 BusyMax 移除「$title」嗎？擁有者的日曆及活動不會被刪除。';
+  }
+
+  @override
+  String get attachmentUploadUnresolved => '上傳可能已完成。再次上傳前，請重新整理附件以確認結果。';
+
+  @override
   String removeCalendarConfirmation(String title) {
     return '要從您的 Google 日曆清單移除「$title」嗎？共用日曆及其活動不會被刪除。';
   }
@@ -8667,7 +9613,16 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get searchDate => '日期';
 
   @override
-  String get searchAnyDate => '任何日期';
+  String get searchAnyDate => '任何日期（已下載資料）';
+
+  @override
+  String get eventLink => '活動連結';
+
+  @override
+  String get eventLinkOpenFailed => '無法開啟連結。';
+
+  @override
+  String get scheduleRangeIncomplete => '部分活動無法確認，正在顯示已下載資料。';
 
   @override
   String get searchThisWeek => '本週';
@@ -8704,4 +9659,486 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get searchClearText => '清除文字';
+
+  @override
+  String get openSharedCalendar => '開啟共用行事曆';
+
+  @override
+  String get manageCalendarSharing => '管理行事曆共用';
+
+  @override
+  String get shareRecipientEmail => '收件者電子郵件';
+
+  @override
+  String get shareRole => '存取角色';
+
+  @override
+  String get addCalendarShare => '新增存取權';
+
+  @override
+  String get sharingRefreshFailed => '共用設定已變更，但無法重新整理權限清單。再次變更前請重新載入清單。';
+
+  @override
+  String get sharingRateLimited => '共用暫時受到限制。請在等待時間結束後重試。';
+
+  @override
+  String get attachmentUploadRateLimited => '附件上傳暫時受到限制。請在等待時間結束後重試。';
+
+  @override
+  String get sharingPermissionUnavailable => '此行事曆的共用權限無法使用。';
+
+  @override
+  String get calendarShareFreeBusy => '僅顯示忙閒';
+
+  @override
+  String get calendarShareLimitedRead => '讀取有限詳情';
+
+  @override
+  String get calendarShareRead => '讀取全部詳情';
+
+  @override
+  String get calendarShareWrite => '編輯行事曆事件';
+
+  @override
+  String get calendarShareWriteWithoutPrivate => '編輯但不顯示私人詳情';
+
+  @override
+  String get calendarShareOwner => '擁有者';
+
+  @override
+  String get eventLabel => '事件標籤';
+
+  @override
+  String get loadOutlookCategories => '載入 Outlook 類別';
+
+  @override
+  String get outlookCategoriesUnavailable => 'Outlook 類別無法使用；現有指派會保留。';
+
+  @override
+  String get googleEventType => '事件類型';
+
+  @override
+  String get googleRegularEvent => '一般事件';
+
+  @override
+  String get googleFocusTime => '專注時間';
+
+  @override
+  String get googleOutOfOffice => '不在辦公室';
+
+  @override
+  String get googleWorkingLocation => '工作地點';
+
+  @override
+  String get googleDeclineInvitations => '拒絕重疊邀請';
+
+  @override
+  String get googleDeclineNone => '不要拒絕';
+
+  @override
+  String get googleDeclineNew => '拒絕新邀請';
+
+  @override
+  String get googleDeclineAll => '拒絕所有衝突邀請';
+
+  @override
+  String get googleDeclineMessage => '拒絕訊息';
+
+  @override
+  String get googleChatStatus => '聊天狀態';
+
+  @override
+  String get googleChatAvailable => '有空';
+
+  @override
+  String get googleChatDoNotDisturb => '零打擾';
+
+  @override
+  String get googleWorkAtHome => '家中';
+
+  @override
+  String get googleWorkAtOffice => '辦公室';
+
+  @override
+  String get googleWorkAtCustomLocation => '自訂地點';
+
+  @override
+  String get googleWorkLocationLabel => '地點名稱';
+
+  @override
+  String get googleStatusPrimaryOnly => 'Google 狀態事件需要您的 Google 主要行事曆。';
+
+  @override
+  String unknownEventLabel(String id) {
+    return '未知標籤（$id）';
+  }
+
+  @override
+  String get calendarOwnerEmail => '行事曆擁有者的電子郵件地址';
+
+  @override
+  String registrationSetupTitle(String provider) {
+    return '設定 $provider';
+  }
+
+  @override
+  String get registrationSetupGuide => '設定指南';
+
+  @override
+  String get registrationGoogleInstructions =>
+      '建立自己的 Google Cloud 專案，啟用 Calendar 和 Tasks API，然後匯入桌面 OAuth 用戶端的 JSON。請授權預期的帳戶。';
+
+  @override
+  String get registrationMicrosoftInstructions =>
+      '在允許應用程式註冊的 Entra 租戶中使用公用應用程式註冊。輸入用戶端 ID 和支援的帳戶類型。無需用戶端密碼。';
+
+  @override
+  String get registrationImportGoogle => '選擇桌面 OAuth JSON';
+
+  @override
+  String get registrationValidate => '驗證註冊';
+
+  @override
+  String get registrationAuthorize => '在瀏覽器中授權';
+
+  @override
+  String get registrationClientId => '應用程式／用戶端 ID';
+
+  @override
+  String get registrationTenantId => '租戶 ID';
+
+  @override
+  String get registrationAudience => '支援的帳戶';
+
+  @override
+  String get registrationBothAudience => '個人和組織帳戶';
+
+  @override
+  String get registrationOrganizationAudience => '組織帳戶';
+
+  @override
+  String get registrationPersonalAudience => '個人帳戶';
+
+  @override
+  String get registrationTenantAudience => '單一組織租戶';
+
+  @override
+  String registrationSummary(String clientId) {
+    return '註冊：$clientId';
+  }
+
+  @override
+  String get registrationMigrate => '立即移轉';
+
+  @override
+  String get registrationReplace => '取代註冊';
+
+  @override
+  String registrationRetirementNotice(String provider, String setup) {
+    return '此帳號使用為現有帳號保留的原始 $provider 註冊。若要取代，請設定 $setup 並重新連接此帳號。現有日曆、工作事項和本機變更將保留。';
+  }
+
+  @override
+  String get registrationContinue => '繼續使用此帳戶';
+
+  @override
+  String get registrationGoogleProject => 'Google Cloud 專案';
+
+  @override
+  String get registrationMicrosoftApp => 'Microsoft 應用程式註冊';
+
+  @override
+  String get registrationUserOwned => '使用者提供的註冊';
+
+  @override
+  String get registrationNativeGoogle => 'Google Android 原生註冊';
+
+  @override
+  String get registrationShared => '共用註冊（過渡期）';
+
+  @override
+  String get registrationUnresolved => '無法確定註冊來源。帳戶資料已保留。';
+
+  @override
+  String get registrationOfficialDocumentation => '官方文件';
+
+  @override
+  String registrationAndroidIdentity(
+    String packageName,
+    String signatureHash,
+    String redirectUri,
+  ) {
+    return '套件：$packageName\n簽章雜湊：$signatureHash\n重新導向 URI：$redirectUri';
+  }
+
+  @override
+  String get oauthRegistrationRejected =>
+      '請檢查註冊的用戶端類型、支援的帳戶、權限和重新導向設定。若設定來自匯入，請重新選擇設定檔。';
+
+  @override
+  String get oauthAuthorizationCodeUnusable => '此次授權未能完成。請重新開始授權；現有連線已保留。';
+
+  @override
+  String get oauthPermissionRefused => '授權遭拒或缺少所需權限。請重試並授予所需權限。';
+
+  @override
+  String get oauthProviderThrottled => '服務提供者正在限制請求。請稍後重試；現有連線已保留。';
+
+  @override
+  String get oauthProviderTemporaryFailure => '服務提供者的暫時問題導致授權未能完成。請重試；現有連線已保留。';
+
+  @override
+  String get oauthAuthorizationTimedOut => '授權逾時。請重試；若設定來自匯入，請重新選擇設定檔。';
+
+  @override
+  String get oauthWrongAccount => '請授權為重新連線而選定的帳戶。現有連線已保留。';
+
+  @override
+  String get oauthSecureStorageUnavailable => '安全儲存空間無法使用。請恢復存取後重試。';
+
+  @override
+  String get oauthRevokedRemovalIncomplete =>
+      '遠端授權已撤銷，但帳戶清理未能完成。請重新啟動 BusyMax 以重試本機復原。';
+
+  @override
+  String get addAccount => '新增帳戶';
+
+  @override
+  String get registrationConnect => '連線';
+
+  @override
+  String get registrationBack => '返回';
+
+  @override
+  String get registrationReplaceGoogle => '取代桌面 OAuth JSON';
+
+  @override
+  String get registrationSelectedConfiguration => '已選取的設定';
+
+  @override
+  String get registrationDirectoryId => '目錄／租用戶 ID';
+
+  @override
+  String get registrationInvalidId => '請輸入有效的 UUID。';
+
+  @override
+  String get registrationExpired => '此設定已過期。請重新匯入或修改註冊欄位後再連線。';
+
+  @override
+  String get registrationOwnProjectRequired => '請選取您自己的專案或租用戶中的註冊。';
+
+  @override
+  String get registrationSetupFailed => '無法完成設定，請重試。';
+
+  @override
+  String get registrationLinkFailed => '無法開啟連結。請檢查瀏覽器後重試。';
+
+  @override
+  String get registrationPermissions => '權限';
+
+  @override
+  String get registrationDesktopClient => '桌面應用程式';
+
+  @override
+  String get registrationOpenGoogleConsole => '開啟 Google Cloud 控制台';
+
+  @override
+  String get registrationGoogleAudienceHelp => 'Google 發布及測試使用者要求';
+
+  @override
+  String get registrationDesktopHelp => '桌面應用程式註冊說明';
+
+  @override
+  String get registrationOpenEntra => '開啟 Microsoft Entra 管理中心';
+
+  @override
+  String get registrationGuideGoogleProject =>
+      '開啟 Google Cloud Console。使用頂端的專案選擇器選擇您自己的專案，或選擇 New project，輸入名稱後選擇 Create。後續步驟請保持選取此專案。';
+
+  @override
+  String get registrationGuideGoogleAudience =>
+      '進入 Google Auth Platform → Branding。如果尚未開始設定，選擇 Get started。在 App name 中輸入 BusyMax，選擇您自己的 User support email，然後選擇 Next。在 Audience 中，請選擇 External。選擇 Next，在 Contact Information 中輸入您的電子郵件，再選擇 Next。接受 User Data Policy，然後選擇 Continue 和 Create。如果已完成設定，請檢查 Branding 和 Audience。';
+
+  @override
+  String get registrationGuideGooglePermissions =>
+      '開啟 Google Auth Platform → Data Access → Add or remove scopes。選擇下列五個權限範圍；必要時使用 Manually add scopes。手動輸入時，貼上缺少的值並選擇 Add to table。選擇 Update，再選擇 Save。BusyMax 需要日曆和工作事項的存取權限。';
+
+  @override
+  String get registrationGuideGoogleClient =>
+      '開啟 Google Auth Platform → Clients → Create client。將 Application type 設為 Desktop app，在 Name 中輸入 BusyMax 並選擇 Create。在建立對話方塊中選擇 Download JSON 並儲存檔案。選擇返回以回到表單，選取該檔案並檢查專案和用戶端 ID。選擇連接，然後在瀏覽器中核准日曆和工作事項的存取權限。';
+
+  @override
+  String get registrationGuideMicrosoftApp =>
+      '登入 Microsoft Entra 管理中心。使用 Settings 選擇允許您註冊應用程式的租用戶。開啟 Entra ID → App registrations → New registration。在 Name 中輸入 BusyMax，然後在下一步選擇支援的帳號類型。如果無法註冊，請向租用戶管理員申請權限。';
+
+  @override
+  String get registrationGuideMicrosoftRedirect =>
+      '在應用程式註冊中開啟 Authentication → Add a platform → Mobile and desktop applications。選擇或輸入下列重新導向 URI，然後選擇 Configure 儲存。BusyMax 使用系統瀏覽器。不需要用戶端密碼。';
+
+  @override
+  String get registrationGuideMicrosoftPermissions =>
+      '開啟 API permissions → Add a permission → Microsoft Graph → Delegated permissions。搜尋並選擇下列每個權限範圍，然後選擇 Add permissions。如果已有 User.Read，請保留。如果組織要求管理員同意，請讓管理員使用租用戶的 Grant admin consent。';
+
+  @override
+  String get registrationGuideMicrosoftConnect =>
+      '選擇返回以回到表單。貼上 Application (client) ID，並選擇與註冊一致的支援帳號選項。如果選擇單一組織租用戶，還需貼上 Directory (tenant) ID。選擇連接並在瀏覽器中登入目標帳號。BusyMax 在本機檢查欄位；Microsoft 在瀏覽器登入時要求您的同意。';
+
+  @override
+  String get registrationGoogleImportFailed =>
+      '無法匯入此檔案。請選取有效的桌面 OAuth JSON。先前的有效選擇會保留。';
+
+  @override
+  String get registrationGoogleSetupInstructions => 'Google 設定說明';
+
+  @override
+  String get registrationMicrosoftSetupInstructions => 'Microsoft 設定說明';
+
+  @override
+  String get registrationDesktopConfiguration => '桌面 OAuth 設定';
+
+  @override
+  String get registrationNoFileSelected => '尚未選取檔案';
+
+  @override
+  String get registrationChooseFile => '選取檔案…';
+
+  @override
+  String get registrationReplaceFile => '取代…';
+
+  @override
+  String get registrationGoogleIntroduction =>
+      '選取您自己的 Google Cloud 專案的桌面 OAuth JSON。';
+
+  @override
+  String get registrationMicrosoftIntroduction => '輸入您自己的 Microsoft 應用程式註冊資訊。';
+
+  @override
+  String get registrationSetupInstructions => '設定說明';
+
+  @override
+  String get registrationInstructionsDescription => '建立連接帳號所需的設定。';
+
+  @override
+  String get registrationEnableApis => '啟用 Calendar 和 Tasks';
+
+  @override
+  String get registrationConsentScreen => '設定同意畫面';
+
+  @override
+  String get registrationAppName => '應用程式名稱';
+
+  @override
+  String get registrationScopes => '權限範圍';
+
+  @override
+  String get registrationRedirectUri => '重新導向 URI';
+
+  @override
+  String get registrationOpenApiLibrary => '開啟 Google API 程式庫';
+
+  @override
+  String get registrationOpenBranding => '開啟 Google Auth Platform 的 Branding';
+
+  @override
+  String get registrationOpenDataAccess =>
+      '開啟 Google Auth Platform 的 Data Access';
+
+  @override
+  String get registrationOpenClients => '開啟 Google Auth Platform 的 Clients';
+
+  @override
+  String get registrationOpenEntraAuthentication =>
+      '開啟 Entra 應用程式註冊以設定 Authentication';
+
+  @override
+  String get registrationOpenEntraPermissions =>
+      '開啟 Entra 應用程式註冊以設定 API permissions';
+
+  @override
+  String get registrationCopy => '複製';
+
+  @override
+  String get registrationCopyAll => '全部複製';
+
+  @override
+  String get registrationGuideGoogleApis =>
+      '進入 APIs & Services → Library。搜尋 Google Calendar API，開啟其頁面並選擇 Enable。返回 Library，對 Google Tasks API 重複此操作。';
+
+  @override
+  String get registrationGuideMicrosoftAudience =>
+      '在 Supported account types 中，個人帳號選擇 Personal accounts only，組織帳號選擇 Multiple Entra ID tenants，同時支援兩者選擇 Any Entra ID Tenant + Personal Microsoft accounts，僅限此目錄選擇 Single tenant only。選擇 Register。在 Overview 中複製 Application (client) ID；單一租用戶還需複製 Directory (tenant) ID。在 BusyMax 中選擇對應的支援帳號選項。';
+
+  @override
+  String get registrationConnectBusyMax => '透過 BusyMax 連接';
+
+  @override
+  String get registrationRecommended => '建議';
+
+  @override
+  String get registrationOtherMethods => '其他連接方式';
+
+  @override
+  String get registrationWorkspace => 'Google Workspace 組織';
+
+  @override
+  String get registrationGoogleCustom => '自訂 OAuth 用戶端';
+
+  @override
+  String get registrationMicrosoftCustom => '自訂應用程式註冊';
+
+  @override
+  String get registrationMethodsIntroduction => '選擇連接帳號的方式。';
+
+  @override
+  String get registrationWorkspaceDescription => '使用組織管理的設定。';
+
+  @override
+  String get registrationCustomDescription => '使用自行管理的註冊。';
+
+  @override
+  String get registrationSharedUnavailable =>
+      '此版本無法透過 BusyMax 連接。您可以使用以下其他連接方式。';
+
+  @override
+  String get registrationWorkspaceIntroduction =>
+      '選擇組織提供或管理的桌面 OAuth JSON。檔案無法證明組織所有權、對象或驗證狀態。';
+
+  @override
+  String get registrationWorkspaceSetupInstructions => 'Google Workspace 設定說明';
+
+  @override
+  String get registrationBusyMaxManaged => 'BusyMax 管理的註冊';
+
+  @override
+  String get registrationBranding => '設定品牌和網域';
+
+  @override
+  String get registrationPublishing => '發佈供日常使用';
+
+  @override
+  String get registrationOpenAudience => '開啟 Google Auth Platform Audience';
+
+  @override
+  String get registrationGuideWorkspaceProject =>
+      '向管理員索取 Desktop OAuth JSON，或開啟 Google Cloud Console 並選取您的 Google Workspace 組織擁有的專案。若要建立專案，開啟「管理資源」→「建立專案」，輸入「專案名稱」，在「上層資源」中選取您的組織或其資料夾，再選取「建立」。後續步驟保持選取該專案。建立需要 Project Creator 權限，設定 OAuth 需要 OAuth Config Editor，啟用 API 需要 Service Usage Admin 或同等權限。若操作受阻，請聯絡管理員。';
+
+  @override
+  String get registrationGuideGoogleBranding =>
+      '在 Branding → App domain 中，先新增專案的授權網域，再輸入首頁、隱私權政策和服務條款 URL，然後選擇 Save。External 正式應用程式需要這些連結。請使用自己擁有的網域，並在 Google 要求品牌驗證時透過 Search Console 驗證所有權。下方 BusyMax 隱私連結無法證明您的專案擁有 busystack.org。';
+
+  @override
+  String get registrationGuideGooglePublishing =>
+      '在 Audience 中選擇 Publish app 並確認 In production。日常使用不要停留在 Testing：這些 Calendar/Tasks 授權和更新權杖會在七天後到期。發佈與驗證是兩回事。少於 100 人的個人使用可能免於驗證，但仍有未驗證警告和人數限制；更廣泛散布可能需要品牌和權限範圍核准。正式授權仍可能到期或遭撤銷。';
+
+  @override
+  String get registrationGuideWorkspacePermissions =>
+      '與管理員檢查以下權限範圍。Internal 應用程式不需要在同意畫面中列出權限範圍。如管理員要求，請開啟 Data Access → Add or remove scopes，新增這些值，然後選擇 Update 和 Save。管理員控制仍可能限制授權。';
+
+  @override
+  String get registrationGuideMicrosoftOptionalPermissions =>
+      '共用日曆和類別權限會在啟用相應選用功能時個別要求；不要將其加入上述必要設定。';
+
+  @override
+  String get registrationGuideWorkspaceAudience =>
+      '進入 Google Auth Platform → Branding。如果尚未開始設定，選擇 Get started。在 App name 中輸入 BusyMax，選擇您自己的 User support email，然後選擇 Next。在 Audience 中，請選擇 Internal。選擇 Next，在 Contact Information 中輸入您的電子郵件，再選擇 Next。接受 User Data Policy，然後選擇 Continue 和 Create。如果已完成設定，請檢查 Branding 和 Audience。\n\nInternal 僅允許專案父組織中的帳號，並受管理員控制。不需要測試使用者清單。BusyMax 無法從下載的 JSON 驗證這些主控台設定。';
 }

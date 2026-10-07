@@ -2,11 +2,14 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../core/http/retry_after.dart';
+
 class MicrosoftCalendarApiError implements Exception {
   const MicrosoftCalendarApiError({
     required this.statusCode,
     required this.code,
     required this.message,
+    this.retryAfter,
   });
 
   factory MicrosoftCalendarApiError.fromResponse(http.Response response) {
@@ -30,12 +33,16 @@ class MicrosoftCalendarApiError implements Exception {
       statusCode: response.statusCode,
       code: code,
       message: message,
+      retryAfter: parseHttpRetryAfter(response.headers['retry-after']),
     );
   }
 
   final int statusCode;
   final String code;
   final String message;
+  final Duration? retryAfter;
+
+  bool get isRateLimited => statusCode == 429;
 
   bool get isInvalidSyncState {
     final normalizedCode = code.toLowerCase();

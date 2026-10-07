@@ -44,7 +44,6 @@ abstract final class BusyMaxSizes {
   static const double compactDetailsWidth = 700;
   static const double comboWidth = 220;
   static const double toolbarHeight = kYaruTitleBarHeight;
-  static const double onboardingContentMaxWidth = 480;
   static const double sidebarRowHeight = 36;
   static const double taskRowMinHeight = 48;
   static const double iconSm = 16;
@@ -2309,6 +2308,7 @@ class BusyMaxComboRow<T> extends StatelessWidget {
     this.width = BusyMaxSizes.comboWidth,
     this.trailingAction,
     this.selectorLeadingBuilder,
+    this.wrapSelectedValue = false,
   }) : values = List<T>.unmodifiable(values) {
     if (this.values.isEmpty) {
       throw ArgumentError.value(
@@ -2354,6 +2354,9 @@ class BusyMaxComboRow<T> extends StatelessWidget {
   final Widget? trailingAction;
   final Widget Function(BuildContext context, T value)? selectorLeadingBuilder;
 
+  /// Opt-in adaptive layout for essential values that must remain readable.
+  final bool wrapSelectedValue;
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
@@ -2387,6 +2390,22 @@ class BusyMaxComboRow<T> extends StatelessWidget {
                     actionAllowance)
                 .clamp(0.0, width)
                 .toDouble();
+        final selectedText = labelFor(selected);
+        var stackedValue = false;
+        if (wrapSelectedValue) {
+          final selectedLayout = TextPainter(
+            text: TextSpan(
+              text: selectedText,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            textDirection: Directionality.of(context),
+            textScaler: MediaQuery.textScalerOf(context),
+          )..layout();
+          stackedValue =
+              selectedLayout.width >
+              maximumValueWidth - BusyMaxSizes.iconSm - BusyMaxSpacing.sm;
+          selectedLayout.dispose();
+        }
         final menuButton = BusyMaxMenuButton<T>(
           tooltip: tooltip ?? title,
           entries: [
@@ -2409,47 +2428,70 @@ class BusyMaxComboRow<T> extends StatelessWidget {
             final valueForeground = enabled
                 ? colors.foreground
                 : colors.disabledForeground;
-            final value = ExcludeSemantics(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: maximumValueWidth),
-                child: DefaultTextStyle.merge(
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(color: valueForeground),
-                  child: IconTheme.merge(
-                    data: IconThemeData(
-                      color: valueForeground,
-                      size: BusyMaxSizes.iconSm,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (selectorLeadingBuilder?.call(context, selected)
-                            case final selectedLeading?) ...[
-                          selectedLeading,
-                          const SizedBox(width: BusyMaxSpacing.sm),
-                        ],
-                        Flexible(
-                          child: Text(
-                            labelFor(selected),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+            final value = stackedValue
+                ? ExcludeSemantics(child: const Icon(YaruIcons.pan_down))
+                : ExcludeSemantics(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(maxWidth: maximumValueWidth),
+                      child: DefaultTextStyle.merge(
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: valueForeground,
+                        ),
+                        child: IconTheme.merge(
+                          data: IconThemeData(
+                            color: valueForeground,
+                            size: BusyMaxSizes.iconSm,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (selectorLeadingBuilder?.call(
+                                    context,
+                                    selected,
+                                  )
+                                  case final selectedLeading?) ...[
+                                selectedLeading,
+                                const SizedBox(width: BusyMaxSpacing.sm),
+                              ],
+                              Flexible(
+                                child: Text(
+                                  labelFor(selected),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: BusyMaxSpacing.sm),
+                              if (wrapSelectedValue)
+                                const Icon(YaruIcons.pan_down)
+                              else
+                                trigger.anchor(
+                                  child: const Icon(YaruIcons.pan_down),
+                                ),
+                            ],
                           ),
                         ),
-                        const SizedBox(width: BusyMaxSpacing.sm),
-                        trigger.anchor(child: const Icon(YaruIcons.pan_down)),
-                      ],
+                      ),
                     ),
-                  ),
-                ),
-              ),
-            );
+                  );
             final row = YaruListTile.square(
               leading: leading == null
                   ? null
                   : ExcludeSemantics(child: leading!),
               title: ExcludeSemantics(child: Text(title)),
-              subtitle: styledSubtitle == null
+              subtitle: stackedValue
+                  ? ExcludeSemantics(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            selectedText,
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                          if (styledSubtitle != null) styledSubtitle,
+                        ],
+                      ),
+                    )
+                  : styledSubtitle == null
                   ? null
                   : ExcludeSemantics(child: styledSubtitle),
               trailing: value,
@@ -2497,12 +2539,17 @@ class BusyMaxComboRow<T> extends StatelessWidget {
             final boundedRow = constraints.hasBoundedWidth
                 ? statefulRow
                 : SizedBox(width: availableWidth, child: statefulRow);
+            // The opt-in readable row anchors its host menu to the full entry,
+            // keeping long choices within a compact registration dialog.
+            final anchoredRow = wrapSelectedValue
+                ? trigger.anchor(child: boundedRow)
+                : boundedRow;
             return tooltip == null
-                ? boundedRow
+                ? anchoredRow
                 : Tooltip(
                     message: tooltip!,
                     excludeFromSemantics: true,
-                    child: boundedRow,
+                    child: anchoredRow,
                   );
           },
         );

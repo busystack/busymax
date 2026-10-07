@@ -1,16 +1,16 @@
 # Android setup and provider registration
 
 BusyMax Android is a beta application with package ID
-`io.busystack.busymax`, version `0.2.3`, minimum API 24, and compile/target
-API 37. The supported toolchain is Flutter 3.47.4, its bundled Dart 3.13.3,
+`io.busystack.busymax`, version `0.2.4`, minimum API 24, and compile/target
+API 37. The supported toolchain is Flutter 3.47.5, its bundled Dart 3.13.4,
 JDK 17, Android platform 37, and Build Tools 37.x.
 
 The resolved Android build uses Gradle 9.4.1 and Android Gradle Plugin 9.2.0.
 Built-in Kotlin is enabled; the Kotlin plugin declaration is 2.4.0 so Flutter's
-toolchain validation sees the supported language level. Flutter 3.47.4's own
+toolchain validation sees the supported language level. Flutter 3.47.5's own
 Gradle integration still casts the Android application extension to the legacy
-type, so this pinned project retains `android.newDsl=false`. Enabling the new
-DSL was exercised and reproducibly fails in Flutter's Gradle plugin with an
+type, so this pinned project retains `android.newDsl=false`. The new
+DSL causes Flutter's Gradle plugin to fail with an
 `ApplicationExtensionImpl`/`AbstractAppExtension` class cast before the app is
 configured. This is a narrow pinned-toolchain compatibility setting, not a
 blanket AGP 9 restriction.
@@ -72,9 +72,9 @@ Apple iCloud Calendar continues to require an app-specific password. Nextcloud
 uses Login Flow v2 and stores the returned app password in secure storage.
 WebCal is read-only. On Android 17, a local Nextcloud hostname causes a
 contextual local-network permission request; a public HTTPS server does not.
-Notification and exact-alarm permissions are requested only from the relevant
-Settings controls. Exact access improves reminder precision but is not required
-for synchronization or for inexact reminders.
+Notification permission is requested when creating reminders or from Settings;
+exact-alarm access is requested from Settings. Exact access improves reminder
+precision but is not required for synchronization or for inexact reminders.
 
 Run on one explicitly selected device:
 

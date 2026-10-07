@@ -3,7 +3,7 @@
 BusyMax uses one Flutter engine and one `FlView` in its main Linux window. The
 native runner creates and owns the `HdyApplicationWindow`, while Flutter owns
 the visible main application chrome: the header, sidebar, calendar/task
-workspace, settings header, onboarding header, and startup header.
+workspace, settings header, and startup header.
 
 `LinuxWindowHost` is the Linux-only boundary around the existing router. It
 tracks native window state and GTK titlebar preferences and presents only the

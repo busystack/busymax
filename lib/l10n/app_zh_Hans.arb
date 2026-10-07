@@ -16,7 +16,13 @@
   "settingsSaveFailed": "无法保存设置。重新启动 BusyMax 时，您的更改可能会丢失。",
   "nextcloudExportCollection": "导出集合资源",
   "nextcloudImportItems": "找到 {count} 个事件/任务资源",
-  "@nextcloudImportItems": {"placeholders": {"count": {"type": "int"}}},
+  "@nextcloudImportItems": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "nextcloudSchedulingInbox": "日程邀请收件箱",
   "nextcloudInboxExplanation": "Nextcloud 会将这些消息处理到日历中。确认消息只会移除收件箱消息，不会删除事件。",
   "nextcloudInboxEmpty": "没有日程消息。",
@@ -24,7 +30,13 @@
   "nextcloudAcknowledgeConfirm": "从收件箱移除此消息？日历事件将被保留。",
   "nextcloudGuestAvailability": "查看受邀者的空闲时间",
   "nextcloudTrashRetention": "服务器回收站保留时间：{days} 天",
-  "@nextcloudTrashRetention": {"placeholders": {"days": {"type": "int"}}},
+  "@nextcloudTrashRetention": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
   "nextcloudCancelMeeting": "取消会议",
   "nextcloudDeclineAndRemove": "拒绝并移除邀请",
   "nextcloudDeclineRemovalWarning": "同步时会发送拒绝回复。此操作不会取消组织者的会议。",
@@ -103,15 +115,6 @@
   "connectGoogleAccount": "连接 Google、Microsoft、Apple iCloud Calendar 或 Nextcloud 账户。",
   "googlePermissionsConsentNotice": "在 Google 权限页面上，同时选择日历和任务权限。",
   "googlePermissionsRequiredRetry": "必须授予 Google 日历和 Google Tasks 权限。请重试并选中两个复选框。",
-  "finishSetup": "完成设置",
-  "continueSetup": "继续",
-  "onboardingSetupTitle": "设置 BusyMax",
-  "onboardingAccountsStepTitle": "连接账户",
-  "onboardingAccountsStepDescription": "添加所有要使用的账户。BusyMax 会同步每个账户中受支持的日历、日程、任务列表和任务。",
-  "onboardingPreferencesStepTitle": "选择系统设置",
-  "onboardingPreferencesStepDescription": "打开日程前，请设置桌面行为、提醒、通知详细程度和外观。",
-  "signInWithGoogle": "使用 Google 登录",
-  "signInWithMicrosoft": "使用 Microsoft 登录",
   "googleTasksProvider": "Google Tasks",
   "microsoftTodoProvider": "Microsoft To Do",
   "providerNotConfigured": "尚未配置此服务。",
@@ -172,6 +175,10 @@
   "newEvent": "新建日程",
   "refreshCalendar": "刷新日历",
   "openInProvider": "在服务中打开",
+  "linkedResources": "关联资源",
+  "noLinkedResources": "没有关联资源",
+  "attachments": "附件",
+  "attachmentsNotLoaded": "附件未加载",
   "hideFromSchedule": "从日程中隐藏",
   "showInSchedule": "在日程中显示",
   "noCalendarsSynced": "尚未同步任何日历。",
@@ -182,8 +189,6 @@
   "scheduleUnavailable": "日程不可用",
   "scheduleNoSources": "没有可见的日历或任务列表",
   "scheduleNoSourcesDescription": "请在设置中选择要显示的内容，然后刷新。",
-  "scheduleSignInRequired": "连接账户",
-  "scheduleSignInDescription": "登录以同步日历和任务。",
   "scheduleNoSearchResults": "没有匹配的日程或任务",
   "scheduleNoSearchResultsDescription": "请尝试其他搜索内容或清除当前筛选条件。",
   "refresh": "刷新",
@@ -468,6 +473,7 @@
   "deleteTask": "删除任务",
   "newSubtask": "新建子任务",
   "deleteTaskConfirmation": "删除“{title}”？",
+  "deleteAssignedTaskWarning": "这也会删除 Google 文档或 Chat 聊天室中的原始任务。",
   "metadata": "元数据",
   "id": "ID",
   "etag": "ETag",
@@ -826,6 +832,8 @@
   "removeFromMyCalendars": "从“我的日历”中移除",
   "removeAction": "移除",
   "removeCalendarConfirmation": "要从您的 Google 日历列表中移除“{title}”吗？共享日历及其日程不会被删除。",
+  "removeOpenedSharedCalendarConfirmation": "要从 BusyMax 移除“{title}”吗？所有者的日历和日程不会被删除。",
+  "attachmentUploadUnresolved": "上传可能已完成。再次上传前，请刷新附件以确认结果。",
   "calendarCannotRemove": "无法从此账户删除或移除此日历。",
   "calendarPendingChangesPreventRemoval": "请等待此日历的待处理更改完成同步，然后再删除或移除它。",
   "taskListPendingChangesPreventRemoval": "删除或移除此列表前，请同步账户，或在“诊断”中解决此任务列表被阻止的更改。",
@@ -1018,25 +1026,42 @@
   "@repeatYearlyOnMonthDaysSummary": {
     "description": "Complete yearly recurrence summary for selected month days; placeholders may be reordered by locale.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "month": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "repeatYearlyOnOrdinalSummary": "{frequency}{month}的{position, select, first{第一个{days}} second{第二个{days}} third{第三个{days}} fourth{第四个{days}} fifth{第五个{days}} secondToLast{倒数第二个{days}} last{最后一个{days}} other{{days}}}",
   "@repeatYearlyOnOrdinalSummary": {
     "description": "Complete yearly ordinal recurrence summary; {position} selects the ordinal wording and placeholders may be reordered by locale.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "month": {"type": "String"},
-      "position": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "position": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "searchFilters": "搜索筛选条件",
   "searchType": "类型",
   "searchDate": "日期",
-  "searchAnyDate": "任何日期",
+  "searchAnyDate": "任何日期（已下载数据）",
+  "eventLink": "日程链接",
+  "eventLinkOpenFailed": "无法打开链接。",
+  "scheduleRangeIncomplete": "部分日程无法核实，正在显示已下载数据。",
   "searchThisWeek": "本周",
   "searchCustomRange": "自定义范围",
   "searchTaskStatus": "任务状态",
@@ -1051,5 +1076,196 @@
   "searchClearText": "清除文字",
   "windowMinimize": "最小化",
   "windowMaximize": "最大化",
-  "windowRestore": "还原"
+  "windowRestore": "还原",
+  "openSharedCalendar": "打开共享日历",
+  "calendarOwnerEmail": "日历所有者的电子邮件地址",
+  "addCalendarShare": "添加访问权限",
+  "calendarShareFreeBusy": "仅查看忙闲",
+  "calendarShareLimitedRead": "读取有限详情",
+  "calendarShareOwner": "所有者",
+  "calendarShareRead": "读取全部详情",
+  "calendarShareWrite": "编辑日程",
+  "calendarShareWriteWithoutPrivate": "编辑但不查看私人详情",
+  "eventLabel": "日程标签",
+  "googleChatAvailable": "有空",
+  "googleChatDoNotDisturb": "勿扰",
+  "googleChatStatus": "聊天状态",
+  "googleDeclineAll": "拒绝所有冲突邀请",
+  "googleDeclineInvitations": "拒绝重叠的邀请",
+  "googleDeclineMessage": "拒绝消息",
+  "googleDeclineNew": "拒绝新邀请",
+  "googleDeclineNone": "不拒绝",
+  "googleEventType": "日程类型",
+  "googleFocusTime": "专注时间",
+  "googleOutOfOffice": "外出",
+  "googleRegularEvent": "普通日程",
+  "googleStatusPrimaryOnly": "Google 状态日程需要您的 Google 主日历。",
+  "googleWorkAtCustomLocation": "自定义地点",
+  "googleWorkAtHome": "家",
+  "googleWorkAtOffice": "办公室",
+  "googleWorkLocationLabel": "地点名称",
+  "googleWorkingLocation": "工作地点",
+  "loadOutlookCategories": "加载 Outlook 类别",
+  "manageCalendarSharing": "管理日历共享",
+  "outlookCategoriesUnavailable": "Outlook 类别不可用；现有分配会保留。",
+  "shareRecipientEmail": "接收者邮箱",
+  "shareRole": "访问角色",
+  "sharingPermissionUnavailable": "此日历的共享权限不可用。",
+  "sharingRefreshFailed": "共享更改已成功，但无法刷新权限列表。请在再次更改前重新加载列表。",
+  "sharingRateLimited": "共享暂时受到限制。请在等待时间结束后重试。",
+  "attachmentUploadRateLimited": "附件上传暂时受到限制。请在等待时间结束后重试。",
+  "unknownEventLabel": "未知标签（{id}）",
+  "@unknownEventLabel": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationSetupTitle": "设置 {provider}",
+  "registrationSetupGuide": "设置指南",
+  "registrationGoogleInstructions": "创建自己的 Google Cloud 项目，启用 Calendar 和 Tasks API，然后导入桌面 OAuth 客户端的 JSON。请授权预期的账号。",
+  "registrationMicrosoftInstructions": "在允许应用注册的 Entra 租户中使用公共应用注册。输入客户端 ID 和支持的账号类型。无需客户端密码。",
+  "registrationImportGoogle": "选择桌面 OAuth JSON",
+  "registrationValidate": "验证注册",
+  "registrationAuthorize": "在浏览器中授权",
+  "registrationClientId": "应用程序／客户端 ID",
+  "registrationTenantId": "租户 ID",
+  "registrationAudience": "支持的账号",
+  "registrationBothAudience": "个人和组织账号",
+  "registrationOrganizationAudience": "组织账号",
+  "registrationPersonalAudience": "个人账号",
+  "registrationTenantAudience": "单个组织租户",
+  "registrationSummary": "注册：{clientId}",
+  "registrationMigrate": "立即迁移",
+  "registrationReplace": "替换注册",
+  "registrationRetirementNotice": "此帐号使用为现有帐号保留的原始 {provider} 注册。要替换，请设置 {setup} 并重新连接此帐号。现有日历、任务和本地更改会保留。",
+  "registrationContinue": "继续使用此账号",
+  "registrationGoogleProject": "Google Cloud 项目",
+  "registrationMicrosoftApp": "Microsoft 应用注册",
+  "registrationUserOwned": "用户提供的注册",
+  "registrationNativeGoogle": "Google Android 原生注册",
+  "registrationShared": "共享注册（过渡期）",
+  "registrationUnresolved": "无法确定注册来源。账号数据已保留。",
+  "registrationOfficialDocumentation": "官方文档",
+  "registrationAndroidIdentity": "软件包：{packageName}\n签名哈希：{signatureHash}\n重定向 URI：{redirectUri}",
+  "@registrationSetupTitle": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      }
+    }
+  },
+  "@registrationSummary": {
+    "placeholders": {
+      "clientId": {
+        "type": "String"
+      }
+    }
+  },
+  "@registrationRetirementNotice": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      },
+      "setup": {
+        "type": "String"
+      }
+    }
+  },
+  "@registrationAndroidIdentity": {
+    "placeholders": {
+      "packageName": {
+        "type": "String"
+      },
+      "signatureHash": {
+        "type": "String"
+      },
+      "redirectUri": {
+        "type": "String"
+      }
+    }
+  },
+  "oauthRegistrationRejected": "请检查注册的客户端类型、支持的账户、权限和重定向设置。若配置来自导入，请重新选择配置文件。",
+  "oauthAuthorizationCodeUnusable": "此次授权未能完成。请重新开始授权；现有连接已保留。",
+  "oauthPermissionRefused": "授权被拒绝或缺少所需权限。请重试并授予所需权限。",
+  "oauthProviderThrottled": "服务提供方正在限制请求。请稍后重试；现有连接已保留。",
+  "oauthProviderTemporaryFailure": "服务提供方的临时问题导致授权未能完成。请重试；现有连接已保留。",
+  "oauthAuthorizationTimedOut": "授权超时。请重试；若配置来自导入，请重新选择配置文件。",
+  "oauthWrongAccount": "请授权为重新连接而选定的账户。现有连接已保留。",
+  "oauthSecureStorageUnavailable": "安全存储不可用。请恢复安全存储访问后重试。",
+  "oauthRevokedRemovalIncomplete": "远程授权已撤销，但账户清理未能完成。请重启 BusyMax 以重试本地恢复。",
+  "addAccount": "添加账户",
+  "registrationConnect": "连接",
+  "registrationBack": "返回",
+  "registrationReplaceGoogle": "替换桌面 OAuth JSON",
+  "registrationSelectedConfiguration": "已选择的配置",
+  "registrationDirectoryId": "目录／租户 ID",
+  "registrationInvalidId": "请输入有效的 UUID。",
+  "registrationExpired": "此配置已过期。请重新导入或修改注册字段后再连接。",
+  "registrationOwnProjectRequired": "请选择您自己的项目或租户中的注册。",
+  "registrationSetupFailed": "无法完成设置，请重试。",
+  "registrationLinkFailed": "无法打开链接。请检查浏览器后重试。",
+  "registrationPermissions": "权限",
+  "registrationDesktopClient": "桌面应用",
+  "registrationOpenGoogleConsole": "打开 Google Cloud 控制台",
+  "registrationGoogleAudienceHelp": "Google 发布和测试用户要求",
+  "registrationDesktopHelp": "桌面应用注册说明",
+  "registrationOpenEntra": "打开 Microsoft Entra 管理中心",
+  "registrationGuideGoogleProject": "打开 Google Cloud Console。使用顶部的项目选择器选择您自己的项目，或选择 New project，输入名称后选择 Create。后续步骤请保持选中此项目。",
+  "registrationGuideGoogleAudience": "进入 Google Auth Platform → Branding。如果尚未开始设置，选择 Get started。在 App name 中输入 BusyMax，选择您自己的 User support email，然后选择 Next。在 Audience 中，请选择 External。选择 Next，在 Contact Information 中输入您的邮箱，再选择 Next。接受 User Data Policy，然后选择 Continue 和 Create。如果已完成设置，请检查 Branding 和 Audience。",
+  "registrationGuideGooglePermissions": "打开 Google Auth Platform → Data Access → Add or remove scopes。选择下面五个权限范围；必要时使用 Manually add scopes。手动输入时，粘贴缺少的值并选择 Add to table。选择 Update，再选择 Save。BusyMax 需要日历和任务的访问权限。",
+  "registrationGuideGoogleClient": "打开 Google Auth Platform → Clients → Create client。将 Application type 设为 Desktop app，在 Name 中输入 BusyMax 并选择 Create。在创建对话框中选择 Download JSON 并保存文件。选择返回以回到表单，选择该文件并检查项目和客户端 ID。选择连接，然后在浏览器中批准日历和任务访问权限。",
+  "registrationGuideMicrosoftApp": "登录 Microsoft Entra 管理中心。使用 Settings 选择允许您注册应用的租户。打开 Entra ID → App registrations → New registration。在 Name 中输入 BusyMax，然后在下一步选择支持的帐号类型。如果注册被禁止，请向租户管理员申请权限。",
+  "registrationGuideMicrosoftRedirect": "在应用注册中打开 Authentication → Add a platform → Mobile and desktop applications。选择或输入下面的重定向 URI，然后选择 Configure 保存。BusyMax 使用系统浏览器。不需要客户端密码。",
+  "registrationGuideMicrosoftPermissions": "打开 API permissions → Add a permission → Microsoft Graph → Delegated permissions。搜索并选择下面每个权限范围，然后选择 Add permissions。如果已有 User.Read，请保留。如果组织要求管理员同意，请让管理员使用租户的 Grant admin consent。",
+  "registrationGuideMicrosoftConnect": "选择返回以回到表单。粘贴 Application (client) ID，并选择与注册一致的支持帐号选项。如果选择一个组织租户，还需粘贴 Directory (tenant) ID。选择连接并在浏览器中登录目标帐号。BusyMax 在本地检查字段；Microsoft 在浏览器登录时请求您的同意。",
+  "registrationGoogleImportFailed": "无法导入此文件。请选择有效的桌面 OAuth JSON。之前的有效选择会保留。",
+  "registrationGoogleSetupInstructions": "Google 设置说明",
+  "registrationMicrosoftSetupInstructions": "Microsoft 设置说明",
+  "registrationDesktopConfiguration": "桌面 OAuth 配置",
+  "registrationNoFileSelected": "未选择文件",
+  "registrationChooseFile": "选择文件…",
+  "registrationReplaceFile": "替换…",
+  "registrationGoogleIntroduction": "选择您自己的 Google Cloud 项目的桌面 OAuth JSON。",
+  "registrationMicrosoftIntroduction": "输入您自己的 Microsoft 应用注册信息。",
+  "registrationSetupInstructions": "设置说明",
+  "registrationInstructionsDescription": "创建连接帐号所需的配置。",
+  "registrationEnableApis": "启用 Calendar 和 Tasks",
+  "registrationConsentScreen": "配置同意屏幕",
+  "registrationAppName": "应用名称",
+  "registrationScopes": "权限范围",
+  "registrationRedirectUri": "重定向 URI",
+  "registrationOpenApiLibrary": "打开 Google API 库",
+  "registrationOpenBranding": "打开 Google Auth Platform 的 Branding",
+  "registrationOpenDataAccess": "打开 Google Auth Platform 的 Data Access",
+  "registrationOpenClients": "打开 Google Auth Platform 的 Clients",
+  "registrationOpenEntraAuthentication": "打开 Entra 应用注册以设置 Authentication",
+  "registrationOpenEntraPermissions": "打开 Entra 应用注册以设置 API permissions",
+  "registrationCopy": "复制",
+  "registrationCopyAll": "全部复制",
+  "registrationGuideGoogleApis": "进入 APIs & Services → Library。搜索 Google Calendar API，打开其页面并选择 Enable。返回 Library，对 Google Tasks API 重复此操作。",
+  "registrationGuideMicrosoftAudience": "在 Supported account types 中，个人帐号选择 Personal accounts only，组织帐号选择 Multiple Entra ID tenants，同时支持两者选择 Any Entra ID Tenant + Personal Microsoft accounts，仅限此目录选择 Single tenant only。选择 Register。在 Overview 中复制 Application (client) ID；单一租户还需复制 Directory (tenant) ID。在 BusyMax 中选择对应的支持帐号选项。",
+  "registrationConnectBusyMax": "通过 BusyMax 连接",
+  "registrationRecommended": "推荐",
+  "registrationOtherMethods": "其他连接方式",
+  "registrationWorkspace": "Google Workspace 组织",
+  "registrationGoogleCustom": "自定义 OAuth 客户端",
+  "registrationMicrosoftCustom": "自定义应用注册",
+  "registrationMethodsIntroduction": "选择连接帐号的方式。",
+  "registrationWorkspaceDescription": "使用组织管理的配置。",
+  "registrationCustomDescription": "使用自行管理的注册。",
+  "registrationSharedUnavailable": "此版本无法通过 BusyMax 连接。您可以使用以下其他连接方式。",
+  "registrationWorkspaceIntroduction": "选择组织提供或管理的桌面 OAuth JSON。文件不能证明组织所有权、受众或验证状态。",
+  "registrationWorkspaceSetupInstructions": "Google Workspace 设置说明",
+  "registrationBusyMaxManaged": "BusyMax 管理的注册",
+  "registrationBranding": "配置品牌和域名",
+  "registrationPublishing": "发布以供日常使用",
+  "registrationOpenAudience": "打开 Google Auth Platform Audience",
+  "registrationGuideWorkspaceProject": "向管理员索取 Desktop OAuth JSON，或打开 Google Cloud Console 并选择您的 Google Workspace 组织拥有的项目。若要创建项目，打开“管理资源”→“创建项目”，输入“项目名称”，在“父级资源”中选择您的组织或其文件夹，然后选择“创建”。后续步骤保持选中该项目。创建需要 Project Creator 权限，配置 OAuth 需要 OAuth Config Editor，启用 API 需要 Service Usage Admin 或同等权限。若操作受阻，请联系管理员。",
+  "registrationGuideGoogleBranding": "在 Branding → App domain 中，先添加项目的授权域名，再输入主页、隐私政策和服务条款 URL，然后选择 Save。External 生产应用需要这些链接。请使用自己拥有的域名，并在 Google 要求品牌验证时通过 Search Console 验证所有权。下方 BusyMax 隐私链接不能证明您的项目拥有 busystack.org。",
+  "registrationGuideGooglePublishing": "在 Audience 中选择 Publish app 并确认 In production。日常使用不要停留在 Testing：这些 Calendar/Tasks 授权和刷新令牌会在七天后过期。发布与验证是两回事。少于 100 人的个人使用可能免于验证，但仍有未验证警告和人数限制；更广泛分发可能需要品牌和权限范围批准。生产授权仍可能过期或被撤销。",
+  "registrationGuideWorkspacePermissions": "与管理员检查以下权限范围。Internal 应用不需要在同意屏幕中列出权限范围。如管理员要求，请打开 Data Access → Add or remove scopes，添加这些值，然后选择 Update 和 Save。管理员控制仍可能限制授权。",
+  "registrationGuideMicrosoftOptionalPermissions": "共享日历和类别权限会在启用相应可选功能时单独请求；不要将其添加到上述必需设置中。",
+  "registrationGuideWorkspaceAudience": "进入 Google Auth Platform → Branding。如果尚未开始设置，选择 Get started。在 App name 中输入 BusyMax，选择您自己的 User support email，然后选择 Next。在 Audience 中，请选择 Internal。选择 Next，在 Contact Information 中输入您的邮箱，再选择 Next。接受 User Data Policy，然后选择 Continue 和 Create。如果已完成设置，请检查 Branding 和 Audience。\n\nInternal 仅允许项目父组织中的帐号，并受管理员控制。不需要测试用户列表。BusyMax 无法从下载的 JSON 验证这些控制台设置。"
 }

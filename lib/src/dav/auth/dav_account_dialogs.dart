@@ -4,6 +4,7 @@ import 'package:yaru/yaru.dart';
 import '../../app/busymax_design.dart';
 import '../../app/busymax_dialogs.dart';
 import '../../l10n/l10n.dart';
+import '../../providers/busy_provider.dart';
 
 final class AppleICloudCredentialInput {
   AppleICloudCredentialInput({required this.email, required this.password});
@@ -180,9 +181,37 @@ final class _NextcloudServerDialogState extends State<_NextcloudServerDialog> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final title = l10n.registrationSetupTitle(
+      BusyProvider.nextcloud.displayName,
+    );
     return BusyMaxDialogShell(
-      title: l10n.connectNextcloudTitle,
-      maxWidth: 520,
+      title: title,
+      maxWidth: 560,
+      header: Padding(
+        padding: const EdgeInsets.all(BusyMaxSpacing.headerInset),
+        child: Row(
+          children: [
+            const SizedBox(width: BusyMaxSizes.headerIconButton),
+            Expanded(
+              child: Text(
+                title,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+            SizedBox(
+              width: BusyMaxSizes.headerIconButton,
+              child: Center(
+                child: YaruWindowControl(
+                  type: YaruWindowControlType.close,
+                  semanticLabel: l10n.close,
+                  onTap: () => Navigator.pop(context),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
       actions: [
         BusyMaxPushButton.standard(
           onPressed: () => Navigator.of(context).pop(),
@@ -222,15 +251,9 @@ final class _NextcloudServerDialogState extends State<_NextcloudServerDialog> {
           ],
         ),
         const SizedBox(height: BusyMaxSpacing.sm),
-        Text(
-          l10n.nextcloudServerUrlHelp,
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
+        Text(l10n.nextcloudServerUrlHelp),
         const SizedBox(height: BusyMaxSpacing.md),
-        Text(
-          l10n.nextcloudBrowserAuthorizationHelp,
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
+        Text(l10n.nextcloudBrowserAuthorizationHelp),
       ],
     );
   }

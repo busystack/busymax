@@ -1,52 +1,38 @@
-# Microsoft OAuth registration
+# Microsoft desktop connections
 
-This guide is for developers and release maintainers who configure a BusyMax
-build. People installing an already configured package do not need their own
-Microsoft Entra application.
+In Settings → Accounts, choose **Add Microsoft account**. **Connect with BusyMax** uses an explicitly configured BusyMax-managed public registration. If this build has none, the action is unavailable with an explanation; original registrations are reserved for existing accounts and are never a fallback for new connections. Under **Other connection methods**, choose **Custom app registration**. No separate organization method is required.
 
-BusyMax reads the public-client application ID from the compile-time setting
-`MICROSOFT_OAUTH_CLIENT_ID`.
+## Custom app registration
 
-## Create the application registration
+1. Sign in to the [Microsoft Entra admin center](https://entra.microsoft.com/). Select a tenant where you can register applications, using Settings to switch directories if needed. Open **Entra ID → App registrations → New registration** and enter **BusyMax** in **Name**. If registration is blocked, ask the tenant administrator for app-registration access or a registration. See [Register an application](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app).
+2. Under **Supported account types**, select the option that matches BusyMax's **Supported accounts** field, then **Register**:
 
-1. In the [Microsoft Entra admin center](https://entra.microsoft.com/), open
-   **App registrations** and select **New registration**.
-2. Enter an application name.
-3. Select the supported account type that includes both organizational
-   directories and personal Microsoft accounts.
-4. Register the application and copy its **Application (client) ID**.
-5. Under **Authentication**, add the **Mobile and desktop applications**
-   platform and the redirect URI:
+   | Microsoft portal | BusyMax |
+   | --- | --- |
+   | Any Entra ID Tenant + Personal Microsoft accounts | Personal and organizational accounts |
+   | Multiple Entra ID tenants | Organizational accounts |
+   | Personal accounts only | Personal accounts |
+   | Single tenant only – your tenant | One organizational tenant |
 
-   ```text
-   http://localhost
-   ```
+   In **Overview**, copy **Application (client) ID**. For one tenant, also copy **Directory (tenant) ID**. BusyMax requires the tenant ID only for that audience.
+3. In **Authentication → Add a platform → Mobile and desktop applications**, select or enter **http://localhost**, then **Configure**. This is the existing system-browser redirect; the runtime uses an ephemeral loopback port. No client secret or confidential-client setup is needed. See [Desktop app configuration](https://learn.microsoft.com/en-us/entra/identity-platform/scenario-desktop-app-configuration).
+4. In **API permissions → Add a permission → Microsoft Graph → Delegated permissions**, search for each scope below and select **Add permissions**. Keep **User.Read** if already present. If organizational policy requires admin consent, ask an administrator to use **Grant admin consent** for the tenant. See [Configure API permissions](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-configure-app-access-web-apis).
+5. Use Back to return to the form, paste **Application (client) ID**, choose the matching **Supported accounts**, and enter **Directory (tenant) ID** when shown. Select **Connect** and sign in to the intended account in your browser. Field checks are local validation; provider-side authorization and consent happen at Microsoft. BusyMax does not verify portal settings automatically.
 
-BusyMax opens the system browser and listens on an ephemeral localhost port.
-Microsoft's
-[desktop registration guidance](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-desktop-app-sign-in)
-uses this redirect for a system-browser desktop flow.
-
-## Add delegated permissions
-
-Under **API permissions**, add these **delegated** Microsoft Graph permissions:
+## Required delegated scopes
 
 ```text
 User.Read
 Tasks.ReadWrite
 Calendars.ReadWrite
+openid
+profile
+email
+offline_access
 ```
 
-These are provider-console permission names. At runtime BusyMax requests their
-fully qualified Graph scope strings together with the identity scopes
-`openid`, `profile`, and `email`, plus `offline_access` so it can request
-refresh tokens. See the official
-[Microsoft Graph permissions reference](https://learn.microsoft.com/en-us/graph/permissions-reference)
-and
-[OpenID Connect scope reference](https://learn.microsoft.com/en-us/entra/identity-platform/scopes-oidc).
+These match the existing `microsoftTodoOAuthScopes`. Shared-calendar (`Calendars.ReadWrite.Shared`) and category (`MailboxSettings.Read`) consent remain optional and are requested separately when those features are enabled; do not add them to mandatory onboarding permissions.
 
-Supply the application ID as `MICROSOFT_OAUTH_CLIENT_ID`. It is embedded in
-the desktop package, so treat it as public application configuration and do not
-commit private build configuration. Do not create or embed a client secret:
-BusyMax uses an authorization-code flow with PKCE as a public client, not a
-confidential-client flow.
+Instructions use the same setup modal with a fixed header and one scrolling body. Back preserves the form; Close cancels the whole setup. Audience changes clear the tenant both visibly and in submitted state. Valid staged configuration expires after ten minutes and is single-use. Re-enter/edit after expiry. Ordinary Reconnect, refresh, and optional consent use the registration saved with that account after restart. Explicit Replace registration preserves identity checks, rollback, and local data.
+
+Android's native MSAL flow remains separate. The production app ID, audience, redirect, delegated permissions, and applicable consent are owner-controlled release prerequisites.

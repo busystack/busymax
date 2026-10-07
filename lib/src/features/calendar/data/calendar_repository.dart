@@ -6,6 +6,7 @@ import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../calendar_providers/calendar_colors.dart';
+import '../../../calendar_providers/calendar_description.dart';
 import '../../../calendar_providers/calendar_create_identity.dart';
 import '../../../calendar_providers/calendar_mutation.dart';
 import '../../../calendar_providers/calendar_provider_capabilities.dart';
@@ -15,6 +16,7 @@ import '../../../dav/nextcloud/nextcloud_dav_context.dart';
 import '../../../dav/xml/dav_xml.dart';
 import '../../../calendar_providers/calendar_sync_dto.dart';
 import '../../../core/time/provider_date_time.dart';
+import '../../../core/time/stored_temporal_projection.dart';
 import '../../../dav/ical/ical_document.dart';
 import '../../../dav/ical/ical_semantics.dart';
 import '../../../dav/ical/ical_timezone.dart';
@@ -25,11 +27,13 @@ import '../../../dav/storage/dav_object_repository.dart';
 import '../../../db/app_database.dart';
 import '../../../google_calendar/google_calendar_mapper.dart';
 import '../../../microsoft_calendar/microsoft_calendar_mapper.dart';
+import '../../../microsoft_calendar/microsoft_shared_calendar_address.dart';
 import '../../accounts/domain/account_collection_creation_capabilities.dart';
 import '../../notifications/notification_schedule_service.dart';
 import '../../recurrence/domain/event_recurrence_codec.dart';
 import '../../maps/domain/geographic_point.dart';
 import '../domain/event_move_policy.dart';
+import '../domain/google_status_event.dart';
 import '../domain/event_timing_policy.dart';
 import '../../maps/domain/location_result.dart';
 import '../../maps/data/location_resolution_repository.dart';
@@ -43,6 +47,19 @@ typedef CalendarEventRecoveryFetcher =
       required String calendarId,
       required String eventId,
     });
+
+final class ImportedEventException {
+  const ImportedEventException({
+    required this.originalStart,
+    required this.cancelled,
+    required this.fields,
+  });
+
+  /// The original recurrence position, not the moved start time.
+  final String originalStart;
+  final bool cancelled;
+  final Map<String, Object?> fields;
+}
 
 class CalendarSourceEntity {
   const CalendarSourceEntity({
@@ -180,6 +197,12 @@ class CalendarSourceCapabilities {
   factory CalendarSourceCapabilities.fromSource(CalendarSourceEntity source) {
     final available = !source.isDeleted;
     final writable = !source.readOnly && available;
+    final openedMicrosoftOwner =
+        source.provider == BusyProvider.microsoft &&
+        MicrosoftSharedPrimaryCalendarAddress.parse(
+              source.providerCalendarId,
+            ) !=
+            null;
     final management = calendarManagementCapabilities(source.provider);
     final dav = source.davEffectivePermissions;
     final davMetadataWritable = available && dav['canWriteProperties'] == true;
@@ -207,7 +230,8 @@ class CalendarSourceCapabilities {
         source.primaryCalendar || source.isCurrentGoogleDataOwner
             ? CalendarRenameMode.global
             : CalendarRenameMode.personal,
-      BusyProvider.microsoft when writable => CalendarRenameMode.global,
+      BusyProvider.microsoft when writable && !openedMicrosoftOwner =>
+        CalendarRenameMode.global,
       _ => CalendarRenameMode.unavailable,
     };
     final removalMode = switch (source.provider) {
@@ -218,6 +242,8 @@ class CalendarSourceCapabilities {
       BusyProvider.google || BusyProvider.microsoft
           when available && source.pendingCreate =>
         CalendarRemovalMode.delete,
+      BusyProvider.microsoft when available && openedMicrosoftOwner =>
+        CalendarRemovalMode.removeFromList,
       BusyProvider.google
           when available &&
               !source.primaryCalendar &&
@@ -260,7 +286,7 @@ class CalendarSourceCapabilities {
               ? davMetadataWritable
               : source.provider == BusyProvider.google
               ? available
-              : writable),
+              : writable && !openedMicrosoftOwner),
       canChangeProviderVisibility:
           source.provider == BusyProvider.google &&
           available &&
@@ -836,6 +862,12 @@ class CalendarRepository {
       return;
     }
     final removalMode = entity.capabilities.removalMode;
+    final openedMicrosoftOwner =
+        entity.provider == BusyProvider.microsoft &&
+        MicrosoftSharedPrimaryCalendarAddress.parse(
+              source.providerCalendarId,
+            ) !=
+            null;
     final createOp = await _pendingCalendarCreate(source.id);
     _requireCalendarSourceCapability(
       source,
@@ -892,9 +924,18 @@ class CalendarRepository {
         CalendarSourcesCompanion(
           isDeleted: const Value(true),
           hidden: const Value(true),
+          rawJson: openedMicrosoftOwner
+              ? Value(
+                  jsonEncode({
+                    ..._jsonMap(source.rawJson),
+                    '_busymaxLocallyRemovedOwnerCalendar': true,
+                  }),
+                )
+              : const Value.absent(),
           updatedAtLocal: Value(now.millisecondsSinceEpoch),
         ),
       );
+      if (openedMicrosoftOwner) return;
       await _database.pendingOpsDao.enqueue(
         PendingOpsCompanion.insert(
           id: const Uuid().v4(),
@@ -930,6 +971,7 @@ class CalendarRepository {
   Future<void> upsertSource({
     required String accountId,
     required CalendarSourceDto source,
+    bool reopenLocallyRemovedOwner = false,
   }) async {
     final now = _now().millisecondsSinceEpoch;
     final id = sourceId(
@@ -941,6 +983,17 @@ class CalendarRepository {
       final existing = await (_database.select(
         _database.calendarSources,
       )..where((row) => row.id.equals(id))).getSingleOrNull();
+      final locallyRemovedOwner =
+          source.provider == BusyProvider.microsoft &&
+          MicrosoftSharedPrimaryCalendarAddress.parse(
+                source.providerCalendarId,
+              ) !=
+              null &&
+          existing != null &&
+          existing.isDeleted &&
+          _jsonMap(existing.rawJson)['_busymaxLocallyRemovedOwnerCalendar'] ==
+              true;
+      if (locallyRemovedOwner && !reopenLocallyRemovedOwner) return;
       final pendingPatchFields = existing == null
           ? const <String>{}
           : await _pendingCalendarPatchFields(existing.id);
@@ -1053,6 +1106,11 @@ class CalendarRepository {
       final missingSourceIds = {
         for (final source in sources)
           if (!activeProviderCalendarIds.contains(source.providerCalendarId) &&
+              !(provider == BusyProvider.microsoft &&
+                  MicrosoftSharedPrimaryCalendarAddress.parse(
+                        source.providerCalendarId,
+                      ) !=
+                      null) &&
               !pendingCreateSourceIds.contains(source.id) &&
               !pendingCreateProviderIds.contains(source.providerCalendarId))
             source.id,
@@ -1761,6 +1819,19 @@ class CalendarRepository {
     final calendarCreateOp = await _pendingCalendarCreate(source.id);
     final now = _now().millisecondsSinceEpoch;
     final provider = BusyProviderCodec.requireStorageValue(source.provider);
+    if (provider == BusyProvider.google) {
+      validateGoogleStatusEvent(
+        primaryCalendar: source.primaryCalendar,
+        eventType: draft.eventType,
+        originalEventType: null,
+        allDay: draft.allDay,
+        start: draft.start,
+        end: draft.end,
+        visibility: draft.visibilityOrSensitivity,
+        transparency: draft.showAs,
+        properties: draft.googleStatusProperties,
+      );
+    }
     final conferenceRequest = _conferenceRequest(draft, provider);
     final localEventId = 'local:${const Uuid().v4()}';
     final operationId = const Uuid().v4();
@@ -1851,6 +1922,7 @@ class CalendarRepository {
                 _json(_optimisticOrganizer(draft, provider)),
               ),
               colorId: Value(draft.colorId),
+              eventType: Value(draft.eventType),
               visibility: Value(draft.visibilityOrSensitivity),
               transparencyOrShowAs: Value(draft.showAs),
               conferenceJson: Value(
@@ -1908,7 +1980,14 @@ class CalendarRepository {
 
   Future<List<String>> createImportedEventsBatch({
     required CalendarSourceEntity destination,
-    required List<({String icalUid, EventEditorDraft draft})> events,
+    required List<
+      ({
+        String icalUid,
+        EventEditorDraft draft,
+        List<ImportedEventException> exceptions,
+      })
+    >
+    events,
   }) async {
     if (events.isEmpty) return const [];
     if (events.any(
@@ -1931,6 +2010,43 @@ class CalendarRepository {
           rebuildNotifications: false,
         );
         operationIds.add(operationId);
+        final masterOp = await (_database.select(
+          _database.pendingOps,
+        )..where((row) => row.id.equals(operationId))).getSingle();
+        if (destination.provider == BusyProvider.google) {
+          final request = _jsonMap(masterOp.requestJson);
+          request[calendarEventImportIcalUidKey] = event.icalUid;
+          await (_database.update(
+            _database.pendingOps,
+          )..where((row) => row.id.equals(operationId))).write(
+            PendingOpsCompanion(requestJson: Value(jsonEncode(request))),
+          );
+        }
+        for (final exception in event.exceptions) {
+          await _database
+              .into(_database.pendingOps)
+              .insert(
+                PendingOpsCompanion.insert(
+                  id: const Uuid().v4(),
+                  accountId: destination.accountId,
+                  provider: Value(destination.provider.storageValue),
+                  entityType: 'event',
+                  operation: 'importException',
+                  operationType: const Value('event.importException'),
+                  calendarSourceId: Value(destination.id),
+                  providerCalendarId: Value(destination.providerCalendarId),
+                  eventId: Value(masterOp.eventId),
+                  dependsOnOpId: Value(operationId),
+                  requestJson: jsonEncode({
+                    'originalStart': exception.originalStart,
+                    'cancelled': exception.cancelled,
+                    ...exception.fields,
+                  }),
+                  createdAtUtc: _now().toUtc().toIso8601String(),
+                  updatedAtUtc: _now().toUtc().toIso8601String(),
+                ),
+              );
+        }
         await _database
             .into(_database.icalImportReceipts)
             .insert(
@@ -2022,6 +2138,9 @@ class CalendarRepository {
     bool timingOnly = false,
     bool deferNotifications = false,
   }) async {
+    if (draft.descriptionEditUnsafe) {
+      throw const MicrosoftMeetingBodyEditUnsafe();
+    }
     final eventId = draft.eventId;
     if (eventId == null) {
       await createLocalEvent(
@@ -2040,6 +2159,11 @@ class CalendarRepository {
     final originalSource = await (_database.select(
       _database.calendarSources,
     )..where((row) => row.id.equals(existing.calendarSourceId))).getSingle();
+    _requireMicrosoftSharedPrivateAccess(
+      originalSource,
+      existing,
+      operation: CalendarMutationOperation.editEvent,
+    );
     _requireFullEventEditingAllowed(existing);
     _requireAttendeeManagementAllowed(existing, draft);
     final editBaseline = _eventEditBaseline(draft, existing);
@@ -2059,6 +2183,12 @@ class CalendarRepository {
         draft.accountId != existing.accountId ||
         draft.sourceId != existing.calendarSourceId ||
         draft.providerCalendarId != existing.providerCalendarId;
+    if (sourceChanged && existing.eventType == 'fromGmail') {
+      throw CalendarMutationNotAllowed(
+        operation: CalendarMutationOperation.moveEvent,
+        sourceId: existing.calendarSourceId,
+      );
+    }
     if (sourceChanged) {
       await _requireWritableSource(
         originalSource,
@@ -2093,6 +2223,19 @@ class CalendarRepository {
       return true;
     }
     final provider = BusyProviderCodec.requireStorageValue(source.provider);
+    if (provider == BusyProvider.google) {
+      validateGoogleStatusEvent(
+        primaryCalendar: source.primaryCalendar,
+        eventType: draft.eventType,
+        originalEventType: existing.eventType ?? 'default',
+        allDay: draft.allDay,
+        start: draft.start,
+        end: draft.end,
+        visibility: draft.visibilityOrSensitivity,
+        transparency: draft.showAs,
+        properties: draft.googleStatusProperties,
+      );
+    }
     final recurringOccurrence = _eventRequiresRecurringScope(existing);
     final recurringScope = draft.recurringMutationScope;
     if (recurringOccurrence && recurringScope == null) {
@@ -2167,6 +2310,31 @@ class CalendarRepository {
             (match) => '${match[1]}:${match[2]}',
           );
         }
+      }
+    }
+    if (provider == BusyProvider.google && existing.eventType == 'fromGmail') {
+      const allowed = {
+        'colorId',
+        'remindersJson',
+        'visibility',
+        'transparencyOrShowAs',
+        calendarEventAttendeesField,
+        calendarEventGuestUpdatePolicyKey,
+      };
+      final cleared = request[calendarEventClearFieldsKey];
+      final clearsOnlyAttendees =
+          cleared is List &&
+          cleared.length == 1 &&
+          cleared.single == calendarEventAttendeesField;
+      if (request.keys.any(
+        (field) =>
+            !allowed.contains(field) &&
+            !(field == calendarEventClearFieldsKey && clearsOnlyAttendees),
+      )) {
+        throw CalendarMutationNotAllowed(
+          operation: CalendarMutationOperation.editEvent,
+          sourceId: source.id,
+        );
       }
     }
     if (!_eventRequestHasMutation(request)) {
@@ -2813,6 +2981,8 @@ class CalendarRepository {
         destinationProvider,
       ),
       colorId: sameProviderAccount ? draft.colorId : null,
+      // Google labels are scoped to one calendar, not merely one account.
+      eventLabelId: null,
       categories: destinationProvider == BusyProvider.google
           ? const []
           : draft.categories,
@@ -3113,8 +3283,14 @@ class CalendarRepository {
         ? wall(draft.end)!.difference(existingEnd)
         : Duration.zero;
     final raw = _jsonMap(existing.rawJson);
+    final existingBody = _jsonObjectMap(raw['body']);
     final descriptionChanged =
-        (draft.description ?? '') != (existing.description ?? '');
+        (draft.description ?? '') != (existing.description ?? '') ||
+        (provider == BusyProvider.microsoft &&
+            (draft.descriptionContentType?.toLowerCase() !=
+                    existingBody['contentType']?.toString().toLowerCase() ||
+                (draft.descriptionHtml != null &&
+                    draft.descriptionHtml != existingBody['content'])));
     final locationChanged =
         (draft.location ?? '') != (existing.location ?? '') ||
         (provider == BusyProvider.microsoft && draft.locationChange.changed);
@@ -3138,7 +3314,8 @@ class CalendarRepository {
     final newTimeProposalsChanged =
         draft.allowNewTimeProposals != raw['allowNewTimeProposals'];
     final rawChanged =
-        (provider == BusyProvider.microsoft && draft.locationChange.changed) ||
+        (provider == BusyProvider.microsoft &&
+            (draft.locationChange.changed || descriptionChanged)) ||
         importanceChanged ||
         responseRequestedChanged ||
         hideAttendeesChanged ||
@@ -3226,6 +3403,7 @@ class CalendarRepository {
                     draft,
                     provider,
                     existingJson: row.rawJson,
+                    descriptionChanged: descriptionChanged,
                   ),
                 ),
               )
@@ -3400,6 +3578,11 @@ class CalendarRepository {
     final source = await (_database.select(
       _database.calendarSources,
     )..where((row) => row.id.equals(existing.calendarSourceId))).getSingle();
+    _requireMicrosoftSharedPrivateAccess(
+      source,
+      existing,
+      operation: CalendarMutationOperation.deleteEvent,
+    );
     await _requireWritableSource(
       source,
       database: _database,
@@ -4012,6 +4195,123 @@ class CalendarRepository {
     await _onNotificationScheduleChanged?.call();
   }
 
+  /// Queues a lossless URI ATTACH change through the existing DAV conditional
+  /// mutation path. Binary and unrecognized ATTACH properties are untouched.
+  Future<CalendarEventDetail?> changeNextcloudUriAttachmentReference({
+    required String accountId,
+    required String eventId,
+    String? addUrl,
+    String? removeUrl,
+  }) async {
+    final existing =
+        await (_database.select(_database.calendarEvents)..where(
+              (row) =>
+                  row.id.equals(eventId) &
+                  row.accountId.equals(accountId) &
+                  row.isDeleted.equals(false),
+            ))
+            .getSingleOrNull();
+    if (existing == null || existing.provider != 'nextcloud') {
+      throw UnsupportedError('This is not an editable Nextcloud event.');
+    }
+    final source =
+        await (_database.select(_database.calendarSources)..where(
+              (row) =>
+                  row.id.equals(existing.calendarSourceId) &
+                  row.accountId.equals(accountId) &
+                  row.isDeleted.equals(false),
+            ))
+            .getSingleOrNull();
+    final collectionId = source?.davCollectionId;
+    final uid = existing.icalUid;
+    if (collectionId == null || uid == null) {
+      throw StateError('The DAV event identity is unavailable.');
+    }
+    if (existing.providerRecurringEventId != null &&
+        existing.occurrenceKey != null &&
+        existing.recurrenceIdKey == null) {
+      throw UnsupportedError(
+        'A virtual occurrence cannot change attachment references.',
+      );
+    }
+    final queue = DavPendingOperationQueue(
+      database: _database,
+      nowUtc: () => _now().toUtc(),
+    );
+    final objectId = existing.davObjectId;
+    final baselineRawIcs = objectId == null
+        ? _pendingCreateRawIcs(
+            await _pendingDavCreateForProjection(existing.id) ??
+                (throw StateError('The pending DAV create is unavailable.')),
+          )
+        : await queue.editableRawIcsForObject(
+            accountId: accountId,
+            collectionId: collectionId,
+            objectId: objectId,
+          );
+    final target = IcalComponentKey(
+      componentType: 'VEVENT',
+      uid: uid,
+      recurrenceIdKey: existing.recurrenceIdKey,
+    );
+    final patch = buildDavUriAttachmentPatch(
+      baselineRawIcs: baselineRawIcs,
+      target: target,
+      addUrl: addUrl,
+      removeUrl: removeUrl,
+    );
+    if (patch == null) return loadEventDetail(eventId);
+    final candidate = patch.applyTo(baselineRawIcs, nowUtc: _now().toUtc());
+    await _database.transaction(() async {
+      if (objectId == null) {
+        final updated = await queue.updateUnsentCreate(
+          accountId: accountId,
+          collectionId: collectionId,
+          localProjectionId: existing.id,
+          patch: patch,
+        );
+        if (!updated) {
+          throw StateError('The pending DAV create is no longer editable.');
+        }
+        final component = IcalDocumentPatcher(
+          IcalDocument.parse(candidate),
+        ).requireComponent(target);
+        await (_database.update(
+          _database.calendarEvents,
+        )..where((row) => row.id.equals(existing.id))).write(
+          CalendarEventsCompanion(
+            attachmentsJson: Value(
+              jsonEncode([
+                for (final property in component.propertiesNamed('ATTACH'))
+                  property.rawValue,
+              ]),
+            ),
+            syncStatus: const Value('pending'),
+            updatedAtLocal: Value(_now().millisecondsSinceEpoch),
+          ),
+        );
+      } else {
+        await queue.enqueueUpdate(
+          accountId: accountId,
+          collectionId: collectionId,
+          objectId: objectId,
+          patch: patch,
+        );
+        await DavObjectRepository(
+          database: _database,
+        ).projectLocalMutationCandidate(
+          accountId: accountId,
+          collectionId: collectionId,
+          provider: BusyProvider.nextcloud,
+          objectId: objectId,
+          candidateRawIcs: candidate,
+          projectedAtUtc: _now().toUtc(),
+        );
+      }
+    });
+    return loadEventDetail(eventId);
+  }
+
   Future<String> _deleteLocalDavEvent(
     CalendarSource source,
     CalendarEvent existing, {
@@ -4472,13 +4772,7 @@ class CalendarRepository {
           row.syncStatus != 'synced') {
         continue;
       }
-      final start = row.allDay
-          ? _parseDate(row.startDate)
-          : DateTime.tryParse(row.startDateTime ?? '');
-      final end = row.allDay
-          ? _parseDate(row.endDate)
-          : DateTime.tryParse(row.endDateTime ?? '');
-      if (!_intersects(rangeStart, rangeEnd, start, end)) {
+      if (!storedCalendarEventOverlapsUtcRange(row, rangeStart, rangeEnd)) {
         continue;
       }
       await (_database.update(
@@ -4491,6 +4785,57 @@ class CalendarRepository {
         ),
       );
     }
+  }
+
+  /// Applies a confirmed Microsoft deletion to its existing scoped identity.
+  /// ID-only calendar-view markers must not create a second occurrence row.
+  Future<void> markMicrosoftRemovedEventDeleted({
+    required String accountId,
+    required String providerCalendarId,
+    required String providerEventId,
+  }) async {
+    final scopedSourceId = sourceId(
+      accountId: accountId,
+      provider: BusyProvider.microsoft,
+      providerCalendarId: providerCalendarId,
+    );
+    await _database.transaction(() async {
+      final matches =
+          await (_database.select(_database.calendarEvents)..where(
+                (row) =>
+                    row.accountId.equals(accountId) &
+                    row.calendarSourceId.equals(scopedSourceId) &
+                    row.provider.equals(BusyProvider.microsoft.storageValue) &
+                    row.providerEventId.equals(providerEventId) &
+                    row.isDeleted.equals(false),
+              ))
+              .get();
+      if (matches.isEmpty) return;
+      if (matches.length != 1) {
+        throw StateError('Ambiguous Microsoft event removal identity.');
+      }
+      final match = matches.single;
+      if (match.syncStatus != 'synced') return;
+      final pending =
+          await (_database.select(_database.pendingOps)
+                ..where(
+                  (row) =>
+                      row.accountId.equals(accountId) &
+                      row.entityType.equals('event') &
+                      row.eventId.equals(match.id),
+                )
+                ..limit(1))
+              .getSingleOrNull();
+      if (pending != null) return;
+      await (_database.update(
+        _database.calendarEvents,
+      )..where((row) => row.id.equals(match.id))).write(
+        CalendarEventsCompanion(
+          isDeleted: const Value(true),
+          updatedAtLocal: Value(_now().millisecondsSinceEpoch),
+        ),
+      );
+    });
   }
 
   Future<void> markExpandedRecurringMastersDeleted({
@@ -4640,6 +4985,21 @@ void _requireFullEventEditingAllowed(CalendarEvent event) {
     operation: CalendarMutationOperation.editEvent,
     sourceId: event.calendarSourceId,
   );
+}
+
+void _requireMicrosoftSharedPrivateAccess(
+  CalendarSource source,
+  CalendarEvent event, {
+  required CalendarMutationOperation operation,
+}) {
+  if (MicrosoftSharedPrimaryCalendarAddress.parse(source.providerCalendarId) ==
+          null ||
+      event.visibility?.toLowerCase() != 'private') {
+    return;
+  }
+  final metadata = _jsonMap(source.rawJson);
+  if (metadata['canViewPrivateItems'] == true) return;
+  throw CalendarMutationNotAllowed(operation: operation, sourceId: source.id);
 }
 
 void _requireAttendeeManagementAllowed(
@@ -4968,9 +5328,12 @@ CalendarEventsCompanion _eventPatchProjection({
 }) {
   final rangeChanged = request.containsKey('allDay');
   final rawChanged = switch (provider) {
-    BusyProvider.google => request.containsKey('hideAttendees'),
+    BusyProvider.google =>
+      request.containsKey('hideAttendees') ||
+          request.containsKey('eventLabelId'),
     BusyProvider.microsoft =>
       request.containsKey('importance') ||
+          request.containsKey('description') ||
           request.containsKey('responseRequested') ||
           request.containsKey('hideAttendees') ||
           request.containsKey('allowNewTimeProposals') ||
@@ -5086,7 +5449,17 @@ Map<String, Object?> _eventDeltaRequest(
   }
 
   if (draft.title.trim() != original.title) copy('title');
-  if ((draft.description ?? '') != (original.description ?? '')) {
+  final originalBody = provider == BusyProvider.microsoft
+      ? _jsonObjectMap(_jsonObjectMap(original.raw)['body'])
+      : const <String, Object?>{};
+  final descriptionChanged =
+      (draft.description ?? '') != (original.description ?? '') ||
+      (provider == BusyProvider.microsoft &&
+          (draft.descriptionContentType?.toLowerCase() !=
+                  originalBody['contentType']?.toString().toLowerCase() ||
+              (draft.descriptionHtml != null &&
+                  draft.descriptionHtml != originalBody['content'])));
+  if (descriptionChanged) {
     result['description'] = draft.description ?? '';
     copy('descriptionContentType');
     copy('descriptionHtml');
@@ -5117,6 +5490,19 @@ Map<String, Object?> _eventDeltaRequest(
   }
   if (draft.attendeesChanged) copy(calendarEventAttendeesField);
   if (draft.colorId != original.colorId) copy('colorId');
+  if (provider == BusyProvider.google &&
+      draft.eventLabelChanged &&
+      (draft.eventLabelId ?? '') !=
+          (_jsonObjectMap(original.raw)['eventLabelId']?.toString() ?? '')) {
+    copy('eventLabelId');
+  }
+  if (provider == BusyProvider.google && draft.googleStatusChanged) {
+    copy('googleStatusProperties');
+    if (!googleStatusEventTypes.contains(original.eventType)) {
+      throw StateError('The existing Google status event type is unavailable.');
+    }
+    result[calendarEventGoogleStatusTypeContextKey] = original.eventType;
+  }
   if (draft.categoriesChanged) copy('categoriesJson');
   if (draft.visibilityOrSensitivity != original.visibility) {
     copy(provider == BusyProvider.google ? 'visibility' : 'sensitivity');
@@ -5197,6 +5583,17 @@ Map<String, Object?> _eventRequest(
     if (isCreate || draft.attendeesChanged)
       calendarEventAttendeesField: attendees,
     'colorId': draft.colorId,
+    if (provider == BusyProvider.google &&
+        (isCreate ? draft.eventLabelId != null : draft.eventLabelChanged))
+      'eventLabelId': draft.eventLabelId ?? '',
+    if (provider == BusyProvider.google &&
+        isCreate &&
+        googleStatusEventTypes.contains(draft.eventType))
+      'eventType': draft.eventType,
+    if (provider == BusyProvider.google &&
+        googleStatusEventTypes.contains(draft.eventType) &&
+        (isCreate || draft.googleStatusChanged))
+      'googleStatusProperties': draft.googleStatusProperties,
     if (isCreate || draft.categoriesChanged)
       'categoriesJson': _categoriesJson(draft, provider),
     'visibility': provider == BusyProvider.google
@@ -5325,6 +5722,7 @@ Object? _localAttendeesJson(EventEditorDraft draft, BusyProvider provider) {
     for (final attendee in draft.attendees)
       if (provider == BusyProvider.microsoft)
         {
+          ...attendee.rawJson,
           ...attendee.toMicrosoftJson(),
           if (attendee.responseStatus case final response?
               when response.isNotEmpty)
@@ -5332,7 +5730,11 @@ Object? _localAttendeesJson(EventEditorDraft draft, BusyProvider provider) {
         }
       else
         {
+          ...attendee.rawJson,
           ...attendee.toGoogleJson(),
+          // The provider serializer omits false, but optimistic local state
+          // must override an original optional:true when changing to required.
+          'optional': attendee.optional,
           if (attendee.self) 'self': true,
           if (attendee.organizer) 'organizer': true,
         },
@@ -5355,6 +5757,7 @@ Map<String, Object?> _optimisticEventRaw(
   EventEditorDraft draft,
   BusyProvider provider, {
   String? existingJson,
+  bool descriptionChanged = false,
 }) {
   final raw = {..._jsonMap(existingJson)};
   if (provider == BusyProvider.microsoft && draft.locationChange.changed) {
@@ -5363,10 +5766,30 @@ Map<String, Object?> _optimisticEventRaw(
   }
   switch (provider) {
     case BusyProvider.google:
+      if (googleStatusEventTypes.contains(draft.eventType)) {
+        raw['eventType'] = draft.eventType;
+        if (googleStatusPropertiesKey(draft.eventType) case final key?) {
+          raw[key] = draft.googleStatusProperties;
+        }
+      }
+      if (draft.eventLabelId case final label?) {
+        raw['eventLabelId'] = label;
+      }
       if (draft.hideAttendees case final hidden?) {
         raw['guestsCanSeeOtherGuests'] = !hidden;
       }
     case BusyProvider.microsoft:
+      if (descriptionChanged) {
+        final html = draft.descriptionHtml;
+        raw['body'] =
+            html != null ||
+                draft.descriptionContentType?.toLowerCase() == 'html'
+            ? {
+                'contentType': 'html',
+                'content': html ?? escapeHtml(draft.description ?? ''),
+              }
+            : {'contentType': 'text', 'content': draft.description ?? ''};
+      }
       if (draft.importance case final importance?) {
         raw['importance'] = importance;
       }
@@ -5404,6 +5827,17 @@ Map<String, Object?> _optimisticEventRawForPatch(
   }
   switch (provider) {
     case BusyProvider.google:
+      final statusKey = googleStatusPropertiesKey(draft.eventType);
+      if (request.containsKey('googleStatusProperties') && statusKey != null) {
+        raw[statusKey] = draft.googleStatusProperties;
+      }
+      if (request.containsKey('eventLabelId')) {
+        if (draft.eventLabelId case final label? when label.isNotEmpty) {
+          raw['eventLabelId'] = label;
+        } else {
+          raw.remove('eventLabelId');
+        }
+      }
       if (request.containsKey('hideAttendees')) {
         final hidden = draft.hideAttendees;
         if (hidden == null) {
@@ -5413,6 +5847,17 @@ Map<String, Object?> _optimisticEventRawForPatch(
         }
       }
     case BusyProvider.microsoft:
+      if (request.containsKey('description')) {
+        final html = draft.descriptionHtml;
+        raw['body'] =
+            html != null ||
+                draft.descriptionContentType?.toLowerCase() == 'html'
+            ? {
+                'contentType': 'html',
+                'content': html ?? escapeHtml(draft.description ?? ''),
+              }
+            : {'contentType': 'text', 'content': draft.description ?? ''};
+      }
       _setOrRemoveRawField(
         raw,
         request: request,
@@ -5632,6 +6077,7 @@ bool _eventRequestHasMutation(Map<String, Object?> request) {
     calendarEventTimingBaselineKey,
     calendarEventDestinationCalendarIdKey,
     calendarEventDestinationSourceIdKey,
+    calendarEventGoogleStatusTypeContextKey,
   };
   return request.entries.any(
     (entry) =>
@@ -5645,13 +6091,13 @@ Object _eventRemindersForProvider(Object? reminders, BusyProvider provider) {
   if (reminders is Map) {
     final map = reminders.cast<Object?, Object?>();
     final single = map['reminderMinutesBeforeStart'];
-    if (single is int && single > 0) minutes.add(single);
+    if (single is int && single >= 0) minutes.add(single);
     final overrides = map['overrides'];
     if (overrides is List) {
       for (final override in overrides) {
         if (override is! Map) continue;
         final value = override['minutes'];
-        if (value is int && value > 0 && !minutes.contains(value)) {
+        if (value is int && value >= 0 && !minutes.contains(value)) {
           minutes.add(value);
         }
       }
@@ -5659,7 +6105,7 @@ Object _eventRemindersForProvider(Object? reminders, BusyProvider provider) {
     final davMinutes = map['minutes'];
     if (davMinutes is List) {
       for (final value in davMinutes.whereType<int>()) {
-        if (value > 0 && !minutes.contains(value)) minutes.add(value);
+        if (value >= 0 && !minutes.contains(value)) minutes.add(value);
       }
     }
   }
@@ -5700,24 +6146,4 @@ String? _date(DateTime? value) {
   return '${value.year.toString().padLeft(4, '0')}-'
       '${value.month.toString().padLeft(2, '0')}-'
       '${value.day.toString().padLeft(2, '0')}';
-}
-
-DateTime? _parseDate(String? value) {
-  if (value == null || value.length < 10) {
-    return null;
-  }
-  return DateTime.tryParse(value.substring(0, 10));
-}
-
-bool _intersects(
-  DateTime rangeStart,
-  DateTime rangeEnd,
-  DateTime? start,
-  DateTime? end,
-) {
-  if (start == null) {
-    return false;
-  }
-  final effectiveEnd = end ?? start.add(const Duration(minutes: 1));
-  return effectiveEnd.isAfter(rangeStart) && start.isBefore(rangeEnd);
 }

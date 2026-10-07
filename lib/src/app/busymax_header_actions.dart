@@ -4,7 +4,6 @@
 /// dispatches them directly to the state that owns the corresponding action.
 enum BusyMaxHeaderAction {
   back,
-  continueSetup,
   sidebarToggle,
   today,
   previous,

@@ -16,7 +16,13 @@
   "settingsSaveFailed": "Impossibile salvare le impostazioni. Le modifiche potrebbero andare perse al riavvio di BusyMax.",
   "nextcloudExportCollection": "Esporta risorse della raccolta",
   "nextcloudImportItems": "Trovate {count} risorse di eventi/attività",
-  "@nextcloudImportItems": {"placeholders": {"count": {"type": "int"}}},
+  "@nextcloudImportItems": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "nextcloudSchedulingInbox": "Posta in arrivo degli inviti",
   "nextcloudInboxExplanation": "Nextcloud elabora questi messaggi nei calendari. La conferma rimuove solo il messaggio, non l’evento.",
   "nextcloudInboxEmpty": "Nessun messaggio di pianificazione.",
@@ -24,7 +30,13 @@
   "nextcloudAcknowledgeConfirm": "Rimuovere questo messaggio dalla posta in arrivo? L’evento verrà conservato.",
   "nextcloudGuestAvailability": "Verifica disponibilità degli invitati",
   "nextcloudTrashRetention": "Conservazione nel cestino del server: {days} giorni",
-  "@nextcloudTrashRetention": {"placeholders": {"days": {"type": "int"}}},
+  "@nextcloudTrashRetention": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
   "nextcloudCancelMeeting": "Annulla riunione",
   "nextcloudDeclineAndRemove": "Rifiuta e rimuovi invito",
   "nextcloudDeclineRemovalWarning": "Alla sincronizzazione verrà inviato un rifiuto. La riunione dell’organizzatore non verrà annullata.",
@@ -103,15 +115,6 @@
   "connectGoogleAccount": "Collega gli account Google, Microsoft, Calendario Apple iCloud o Nextcloud.",
   "googlePermissionsConsentNotice": "Nella schermata delle autorizzazioni di Google, seleziona sia l’autorizzazione per il calendario sia quella per le attività.",
   "googlePermissionsRequiredRetry": "Sono necessarie le autorizzazioni per Google Calendar e Google Tasks. Riprova e seleziona entrambe le caselle.",
-  "finishSetup": "Completa la configurazione",
-  "continueSetup": "Continua",
-  "onboardingSetupTitle": "Configura BusyMax",
-  "onboardingAccountsStepTitle": "Collega gli account",
-  "onboardingAccountsStepDescription": "Aggiungi tutti gli account che vuoi usare. BusyMax sincronizza calendari, eventi, elenchi di attività e attività supportati da ogni account.",
-  "onboardingPreferencesStepTitle": "Scegli le impostazioni di sistema",
-  "onboardingPreferencesStepDescription": "Prima di aprire l’agenda, configura il comportamento sul desktop, i promemoria, il livello di dettaglio delle notifiche e l’aspetto.",
-  "signInWithGoogle": "Accedi con Google",
-  "signInWithMicrosoft": "Accedi con Microsoft",
   "googleTasksProvider": "Google Tasks",
   "microsoftTodoProvider": "Microsoft To Do",
   "providerNotConfigured": "Questo servizio non è configurato.",
@@ -172,6 +175,10 @@
   "newEvent": "Nuovo evento",
   "refreshCalendar": "Aggiorna calendario",
   "openInProvider": "Apri nel servizio",
+  "linkedResources": "Risorse collegate",
+  "noLinkedResources": "Nessuna risorsa collegata",
+  "attachments": "Allegati",
+  "attachmentsNotLoaded": "Allegati non caricati",
   "hideFromSchedule": "Nascondi dall’agenda",
   "showInSchedule": "Mostra nell’agenda",
   "noCalendarsSynced": "Nessun calendario ancora sincronizzato.",
@@ -182,8 +189,6 @@
   "scheduleUnavailable": "Agenda non disponibile",
   "scheduleNoSources": "Nessun calendario o elenco di attività visibile",
   "scheduleNoSourcesDescription": "Scegli cosa mostrare nelle Impostazioni, quindi aggiorna l’agenda.",
-  "scheduleSignInRequired": "Collega un account",
-  "scheduleSignInDescription": "Accedi per sincronizzare calendari e attività.",
   "scheduleNoSearchResults": "Nessun evento o attività corrispondente",
   "scheduleNoSearchResultsDescription": "Prova una ricerca diversa o cancella i filtri attuali.",
   "refresh": "Aggiorna",
@@ -468,6 +473,7 @@
   "deleteTask": "Elimina attività",
   "newSubtask": "Nuova sottoattività",
   "deleteTaskConfirmation": "Eliminare «{title}»?",
+  "deleteAssignedTaskWarning": "Questa operazione elimina anche l’attività originale in Google Docs o negli spazi di Chat.",
   "metadata": "Metadati",
   "id": "ID",
   "etag": "ETag",
@@ -826,6 +832,8 @@
   "removeFromMyCalendars": "Rimuovi dai miei calendari",
   "removeAction": "Rimuovi",
   "removeCalendarConfirmation": "Rimuovere \"{title}\" dall'elenco di Google Calendar? Il calendario condiviso e i relativi eventi non verranno eliminati.",
+  "removeOpenedSharedCalendarConfirmation": "Rimuovere \"{title}\" da BusyMax? Il calendario e gli eventi del proprietario non verranno eliminati.",
+  "attachmentUploadUnresolved": "Il caricamento potrebbe essere riuscito. Aggiorna gli allegati per verificarlo prima di riprovare.",
   "calendarCannotRemove": "Non è possibile eliminare o rimuovere questo calendario da questo account.",
   "calendarPendingChangesPreventRemoval": "Attendi il completamento della sincronizzazione delle modifiche in sospeso del calendario prima di eliminarlo o rimuoverlo.",
   "taskListPendingChangesPreventRemoval": "Sincronizza l’account oppure risolvi le modifiche bloccate di questo elenco di attività in Diagnostica prima di eliminare o rimuovere l’elenco.",
@@ -1018,25 +1026,42 @@
   "@repeatYearlyOnMonthDaysSummary": {
     "description": "Complete yearly recurrence summary for selected month days; placeholders may be reordered by locale.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "month": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "repeatYearlyOnOrdinalSummary": "{frequency} {position, select, first{il primo {days} di {month}} second{il secondo {days} di {month}} third{il terzo {days} di {month}} fourth{il quarto {days} di {month}} fifth{il quinto {days} di {month}} secondToLast{il penultimo {days} di {month}} last{l’ultimo {days} di {month}} other{nei giorni {days} di {month}}}",
   "@repeatYearlyOnOrdinalSummary": {
     "description": "Complete yearly ordinal recurrence summary; {position} selects the ordinal wording and placeholders may be reordered by locale.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "month": {"type": "String"},
-      "position": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "position": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "searchFilters": "Filtri di ricerca",
   "searchType": "Tipo",
   "searchDate": "Data",
-  "searchAnyDate": "Qualsiasi data",
+  "searchAnyDate": "Qualsiasi data (dati scaricati)",
+  "eventLink": "Link dell’evento",
+  "eventLinkOpenFailed": "Impossibile aprire il link.",
+  "scheduleRangeIncomplete": "Alcuni eventi non sono stati verificati. Sono mostrati i dati scaricati.",
   "searchThisWeek": "Questa settimana",
   "searchCustomRange": "Intervallo personalizzato",
   "searchTaskStatus": "Stato attività",
@@ -1051,5 +1076,196 @@
   "searchClearText": "Cancella testo",
   "windowMinimize": "Riduci",
   "windowMaximize": "Ingrandisci",
-  "windowRestore": "Ripristina"
+  "windowRestore": "Ripristina",
+  "openSharedCalendar": "Apri calendario condiviso",
+  "calendarOwnerEmail": "Email del proprietario del calendario",
+  "addCalendarShare": "Aggiungi accesso",
+  "calendarShareFreeBusy": "Solo libero/occupato",
+  "calendarShareLimitedRead": "Leggi dettagli limitati",
+  "calendarShareOwner": "Proprietario",
+  "calendarShareRead": "Leggi tutti i dettagli",
+  "calendarShareWrite": "Modifica eventi",
+  "calendarShareWriteWithoutPrivate": "Modifica senza dettagli privati",
+  "eventLabel": "Etichetta evento",
+  "googleChatAvailable": "Disponibile",
+  "googleChatDoNotDisturb": "Non disturbare",
+  "googleChatStatus": "Stato chat",
+  "googleDeclineAll": "Rifiuta tutti gli inviti in conflitto",
+  "googleDeclineInvitations": "Rifiuta gli inviti sovrapposti",
+  "googleDeclineMessage": "Messaggio di rifiuto",
+  "googleDeclineNew": "Rifiuta i nuovi inviti",
+  "googleDeclineNone": "Non rifiutare",
+  "googleEventType": "Tipo di evento",
+  "googleFocusTime": "Tempo di concentrazione",
+  "googleOutOfOffice": "Fuori sede",
+  "googleRegularEvent": "Evento normale",
+  "googleStatusPrimaryOnly": "Gli eventi di stato Google richiedono il calendario Google principale.",
+  "googleWorkAtCustomLocation": "Luogo personalizzato",
+  "googleWorkAtHome": "Casa",
+  "googleWorkAtOffice": "Ufficio",
+  "googleWorkLocationLabel": "Nome del luogo",
+  "googleWorkingLocation": "Luogo di lavoro",
+  "loadOutlookCategories": "Carica categorie Outlook",
+  "manageCalendarSharing": "Gestisci condivisione del calendario",
+  "outlookCategoriesUnavailable": "Le categorie Outlook non sono disponibili; le assegnazioni esistenti vengono conservate.",
+  "shareRecipientEmail": "Email del destinatario",
+  "shareRole": "Ruolo di accesso",
+  "sharingPermissionUnavailable": "Le autorizzazioni di condivisione non sono disponibili per questo calendario.",
+  "sharingRefreshFailed": "La condivisione è stata modificata, ma l’elenco delle autorizzazioni non è stato aggiornato. Ricaricalo prima di un’altra modifica.",
+  "sharingRateLimited": "La condivisione è temporaneamente limitata. Riprova al termine dell’attesa.",
+  "attachmentUploadRateLimited": "Il caricamento degli allegati è temporaneamente limitato. Riprova al termine dell’attesa.",
+  "unknownEventLabel": "Etichetta sconosciuta ({id})",
+  "@unknownEventLabel": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationSetupTitle": "Configura {provider}",
+  "@registrationSetupTitle": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationSetupGuide": "Guida alla configurazione",
+  "registrationGoogleInstructions": "Crea il tuo progetto Google Cloud, abilita Calendar e Tasks e importa il JSON di un client OAuth desktop. Autorizza l’account desiderato.",
+  "registrationMicrosoftInstructions": "Usa una registrazione pubblica in un tenant Entra che consenta la registrazione di app. Inserisci ID client e tipi di account. Non serve un segreto client.",
+  "registrationImportGoogle": "Seleziona JSON OAuth desktop",
+  "registrationValidate": "Convalida registrazione",
+  "registrationAuthorize": "Autorizza nel browser",
+  "registrationClientId": "ID applicazione/client",
+  "registrationTenantId": "ID tenant",
+  "registrationAudience": "Account supportati",
+  "registrationBothAudience": "Account personali e aziendali",
+  "registrationOrganizationAudience": "Account aziendali",
+  "registrationPersonalAudience": "Account personali",
+  "registrationTenantAudience": "Un tenant aziendale",
+  "registrationSummary": "Registrazione: {clientId}",
+  "@registrationSummary": {
+    "placeholders": {
+      "clientId": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationMigrate": "Migra ora",
+  "registrationReplace": "Sostituisci registrazione",
+  "registrationRetirementNotice": "Questo account usa una registrazione originale di {provider} riservata agli account esistenti. Per sostituirla, configura {setup} e riconnetti questo account. Calendari, attività e modifiche locali saranno conservati.",
+  "@registrationRetirementNotice": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      },
+      "setup": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationContinue": "Continua a usare questo account",
+  "registrationGoogleProject": "Progetto Google Cloud",
+  "registrationMicrosoftApp": "Registrazione app Microsoft",
+  "registrationUserOwned": "Registrazione fornita dall’utente",
+  "registrationNativeGoogle": "Registrazione nativa Google per Android",
+  "registrationShared": "Registrazione condivisa (transizione)",
+  "registrationUnresolved": "L’origine della registrazione non è identificata. I dati dell’account sono conservati.",
+  "registrationOfficialDocumentation": "Documentazione ufficiale",
+  "registrationAndroidIdentity": "Pacchetto: {packageName}\nHash della firma: {signatureHash}\nURI di reindirizzamento: {redirectUri}",
+  "@registrationAndroidIdentity": {
+    "placeholders": {
+      "packageName": {
+        "type": "String"
+      },
+      "signatureHash": {
+        "type": "String"
+      },
+      "redirectUri": {
+        "type": "String"
+      }
+    }
+  },
+  "oauthRegistrationRejected": "Controlla il tipo di client, gli account supportati, i permessi e il reindirizzamento della registrazione. Seleziona di nuovo la configurazione importata.",
+  "oauthAuthorizationCodeUnusable": "Impossibile completare questa autorizzazione. Avviala di nuovo; la connessione esistente viene preservata.",
+  "oauthPermissionRefused": "Autorizzazione rifiutata o permessi necessari mancanti. Riprova e concedi i permessi richiesti.",
+  "oauthProviderThrottled": "Il provider sta limitando le richieste. Attendi prima di riprovare; la connessione esistente viene preservata.",
+  "oauthProviderTemporaryFailure": "Un problema temporaneo del provider ha impedito l’autorizzazione. Riprova; la connessione esistente viene preservata.",
+  "oauthAuthorizationTimedOut": "Il tempo per l’autorizzazione è scaduto. Riprova e seleziona di nuovo la configurazione importata.",
+  "oauthWrongAccount": "Autorizza l’account selezionato per la riconnessione. La connessione esistente viene preservata.",
+  "oauthSecureStorageUnavailable": "Archiviazione sicura non disponibile. Ripristina l’accesso e riprova.",
+  "oauthRevokedRemovalIncomplete": "L’autorizzazione remota è stata revocata, ma la pulizia dell’account non è stata completata. Riavvia BusyMax per riprovare il recupero locale.",
+  "addAccount": "Aggiungi account",
+  "registrationConnect": "Connetti",
+  "registrationBack": "Indietro",
+  "registrationReplaceGoogle": "Sostituisci JSON OAuth desktop",
+  "registrationSelectedConfiguration": "Configurazione selezionata",
+  "registrationDirectoryId": "ID directory/tenant",
+  "registrationInvalidId": "Inserisci un UUID valido.",
+  "registrationExpired": "Questa configurazione è scaduta. Importala di nuovo o modifica i campi prima di connetterti.",
+  "registrationOwnProjectRequired": "Scegli una registrazione del tuo progetto o tenant.",
+  "registrationSetupFailed": "Impossibile completare la configurazione. Riprova.",
+  "registrationLinkFailed": "Impossibile aprire il collegamento. Controlla il browser e riprova.",
+  "registrationPermissions": "Autorizzazioni",
+  "registrationDesktopClient": "Applicazione desktop",
+  "registrationOpenGoogleConsole": "Apri Google Cloud Console",
+  "registrationGoogleAudienceHelp": "Requisiti Google per pubblicazione e utenti di prova",
+  "registrationDesktopHelp": "Istruzioni per registrare applicazioni desktop",
+  "registrationOpenEntra": "Apri l’interfaccia di amministrazione Microsoft Entra",
+  "registrationGuideGoogleProject": "Apri Google Cloud Console. Usa il selettore del progetto in alto per scegliere il tuo progetto, oppure scegli New project, inserisci un nome e seleziona Create. Mantieni selezionato questo progetto nei passaggi successivi.",
+  "registrationGuideGoogleAudience": "Vai a Google Auth Platform → Branding. Se la configurazione non è iniziata, seleziona Get started. Inserisci BusyMax in App name, scegli la tua User support email e seleziona Next. In Audience scegli External. Seleziona Next, inserisci la tua email in Contact Information e seleziona Next. Accetta User Data Policy e seleziona Continue e Create. Se è già configurato, controlla Branding e Audience.",
+  "registrationGuideGooglePermissions": "Apri Google Auth Platform → Data Access → Add or remove scopes. Seleziona i cinque ambiti sotto; usa Manually add scopes se necessario. Per l’inserimento manuale, incolla i valori mancanti e seleziona Add to table. Seleziona Update e poi Save. BusyMax richiede l’accesso al calendario e alle attività.",
+  "registrationGuideGoogleClient": "Apri Google Auth Platform → Clients → Create client. Imposta Application type su Desktop app, inserisci BusyMax in Name e seleziona Create. Nella finestra di creazione seleziona Download JSON e salva il file. Seleziona Indietro per tornare al modulo, scegli quel file e controlla progetto e ID client. Seleziona Connetti e consenti l’accesso al calendario e alle attività nel browser.",
+  "registrationGuideMicrosoftApp": "Accedi al centro di amministrazione Microsoft Entra. Usa Settings per scegliere un tenant in cui puoi registrare applicazioni. Apri Entra ID → App registrations → New registration. Inserisci BusyMax in Name, poi scegli i tipi di account nel passaggio successivo. Se la registrazione è bloccata, chiedi l’accesso all’amministratore del tenant.",
+  "registrationGuideMicrosoftRedirect": "Nella registrazione apri Authentication → Add a platform → Mobile and desktop applications. Seleziona o inserisci l’URI di reindirizzamento sotto e seleziona Configure per salvarlo. BusyMax usa il browser di sistema. Non serve un segreto client.",
+  "registrationGuideMicrosoftPermissions": "Apri API permissions → Add a permission → Microsoft Graph → Delegated permissions. Cerca e seleziona ogni ambito sotto, poi seleziona Add permissions. Mantieni User.Read se già presente. Se l’organizzazione richiede il consenso amministrativo, chiedi a un amministratore di usare Grant admin consent per il tenant.",
+  "registrationGuideMicrosoftConnect": "Seleziona Indietro per tornare al modulo. Incolla Application (client) ID e scegli gli stessi Account supportati della registrazione. Per Un tenant aziendale incolla anche Directory (tenant) ID. Seleziona Connetti e accedi all’account desiderato nel browser. BusyMax controlla i campi localmente; Microsoft chiede il consenso durante l’accesso nel browser.",
+  "registrationGoogleImportFailed": "Impossibile importare questo file. Seleziona un JSON OAuth desktop valido. L’eventuale selezione valida precedente viene conservata.",
+  "registrationGoogleSetupInstructions": "Istruzioni di configurazione Google",
+  "registrationMicrosoftSetupInstructions": "Istruzioni di configurazione Microsoft",
+  "registrationDesktopConfiguration": "Configurazione OAuth desktop",
+  "registrationNoFileSelected": "Nessun file selezionato",
+  "registrationChooseFile": "Scegli file…",
+  "registrationReplaceFile": "Sostituisci…",
+  "registrationGoogleIntroduction": "Scegli il JSON OAuth desktop del tuo progetto Google Cloud.",
+  "registrationMicrosoftIntroduction": "Inserisci i dettagli della tua registrazione di app Microsoft.",
+  "registrationSetupInstructions": "Istruzioni di configurazione",
+  "registrationInstructionsDescription": "Crea la configurazione necessaria per collegare il tuo account.",
+  "registrationEnableApis": "Abilitare Calendar e Tasks",
+  "registrationConsentScreen": "Configurare la schermata di consenso",
+  "registrationAppName": "Nome dell’app",
+  "registrationScopes": "Ambiti",
+  "registrationRedirectUri": "URI di reindirizzamento",
+  "registrationOpenApiLibrary": "Apri la libreria API di Google",
+  "registrationOpenBranding": "Apri Branding in Google Auth Platform",
+  "registrationOpenDataAccess": "Apri Data Access in Google Auth Platform",
+  "registrationOpenClients": "Apri Clients in Google Auth Platform",
+  "registrationOpenEntraAuthentication": "Apri le registrazioni Entra per Authentication",
+  "registrationOpenEntraPermissions": "Apri le registrazioni Entra per API permissions",
+  "registrationCopy": "Copia",
+  "registrationCopyAll": "Copia tutto",
+  "registrationGuideGoogleApis": "Vai a APIs & Services → Library. Cerca Google Calendar API, apri la pagina e seleziona Enable. Torna a Library e ripeti per Google Tasks API.",
+  "registrationGuideMicrosoftAudience": "In Supported account types scegli Personal accounts only per un account personale, Multiple Entra ID tenants per account aziendali, Any Entra ID Tenant + Personal Microsoft accounts per entrambi, oppure Single tenant only per questa directory. Seleziona Register. In Overview copia Application (client) ID; per un solo tenant copia anche Directory (tenant) ID. Usa l’opzione corrispondente di Account supportati in BusyMax.",
+  "registrationConnectBusyMax": "Connetti con BusyMax",
+  "registrationRecommended": "Consigliato",
+  "registrationOtherMethods": "Altri metodi di connessione",
+  "registrationWorkspace": "Organizzazione Google Workspace",
+  "registrationGoogleCustom": "Client OAuth personalizzato",
+  "registrationMicrosoftCustom": "Registrazione app personalizzata",
+  "registrationMethodsIntroduction": "Scegli come connettere il tuo account.",
+  "registrationWorkspaceDescription": "Usa una configurazione gestita dalla tua organizzazione.",
+  "registrationCustomDescription": "Usa una registrazione che gestisci tu.",
+  "registrationSharedUnavailable": "La connessione con BusyMax non è disponibile in questa build. Puoi usare un altro metodo qui sotto.",
+  "registrationWorkspaceIntroduction": "Scegli il JSON OAuth desktop fornito o gestito dalla tua organizzazione. Il file non dimostra la proprietà dell’organizzazione, il pubblico o lo stato di verifica.",
+  "registrationWorkspaceSetupInstructions": "Istruzioni di configurazione di Google Workspace",
+  "registrationBusyMaxManaged": "Registrazione gestita da BusyMax",
+  "registrationBranding": "Configurare marchio e domini",
+  "registrationPublishing": "Pubblicare per uso normale",
+  "registrationOpenAudience": "Apri Audience di Google Auth Platform",
+  "registrationGuideWorkspaceProject": "Chiedi all’amministratore il JSON OAuth per desktop oppure apri Google Cloud Console e seleziona un progetto della tua organizzazione Google Workspace. Per crearlo, apri Gestisci risorse → Crea progetto, inserisci Nome progetto, scegli l’organizzazione o una sua cartella in Risorsa principale e seleziona Crea. Seleziona quel progetto per i passaggi successivi. Servono Project Creator per la creazione, OAuth Config Editor per configurare OAuth e Service Usage Admin o autorizzazioni equivalenti per abilitare le API. Se un’azione è bloccata, chiedi all’amministratore.",
+  "registrationGuideGoogleBranding": "In Branding → App domain aggiungi i domini autorizzati del progetto prima delle URL di homepage, privacy e condizioni d’uso, poi scegli Save. Le app External in produzione richiedono questi link. Usa domini tuoi e verificane la proprietà in Search Console quando Google richiede la verifica del marchio. Il link privacy di BusyMax non dimostra che il tuo progetto possieda busystack.org.",
+  "registrationGuideGooglePublishing": "In Audience scegli Publish app e conferma In production. Non lasciare l’uso normale in Testing: queste autorizzazioni Calendar/Tasks e i token di aggiornamento scadono dopo sette giorni. Pubblicazione e verifica sono separate. L’uso personale con meno di 100 utenti può essere esente da verifica, con avvisi e un limite utenti; una distribuzione più ampia può richiedere approvazione del marchio e degli ambiti. Le autorizzazioni in produzione possono comunque scadere o essere revocate.",
+  "registrationGuideWorkspacePermissions": "Esamina questi ambiti con l’amministratore. Le app Internal non devono elencarli nella schermata di consenso. Se richiesto, apri Data Access → Add or remove scopes, aggiungi i valori, poi Update e Save. I controlli amministrativi possono ancora limitare l’autorizzazione.",
+  "registrationGuideMicrosoftOptionalPermissions": "I permessi per calendari condivisi e categorie sono richiesti separatamente quando si attivano queste funzioni facoltative; non aggiungerli alla configurazione obbligatoria.",
+  "registrationGuideWorkspaceAudience": "Vai a Google Auth Platform → Branding. Se la configurazione non è iniziata, seleziona Get started. Inserisci BusyMax in App name, scegli la tua User support email e seleziona Next. In Audience scegli Internal. Seleziona Next, inserisci la tua email in Contact Information e seleziona Next. Accetta User Data Policy e seleziona Continue e Create. Se è già configurato, controlla Branding e Audience.\n\nInternal consente solo account dell’organizzazione principale del progetto, soggetti ai controlli amministrativi. Non serve un elenco di utenti di test. BusyMax non può verificare queste impostazioni dal JSON."
 }

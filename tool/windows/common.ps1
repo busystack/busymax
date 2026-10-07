@@ -65,6 +65,11 @@ function Test-BusyMaxProhibitedPackageFile {
   )
   $relative = Get-BusyMaxPackageRelativePath -PackageRoot $PackageRoot `
     -Path $File.FullName
+  if ($relative -cin @(
+      'data/flutter_assets/docs/google_setup.md',
+      'data/flutter_assets/docs/microsoft_setup.md')) {
+    return $false
+  }
   return $File.Extension -in @(
     '.pfx', '.cer', '.log', '.db', '.sqlite', '.dart', '.cc', '.h', '.pdb',
     '.cpp', '.c', '.hpp', '.cmake', '.ps1', '.jsonl', '.yaml', '.yml',
@@ -244,12 +249,17 @@ function Assert-BusyMaxStoreConfig {
         publisher = 'CN=BusyMax CI Package'
         publisherDisplayName = 'BusyMax CI'
         msixVersion = '1.0.0.0'
-        privacyPolicyUrl = 'https://busystack.org/privacy'
+        privacyPolicyUrl = 'https://busystack.org/privacy-busymax'
         supportUrl = 'https://busystack.org/support'
         homepageUrl = 'https://busystack.org'
-        googleOAuthClientId = 'busymax-ci-google-client-id'
-        microsoftOAuthClientId = 'busymax-ci-microsoft-client-id'
+        googleOAuthClientId = 'busymax-ci-original.apps.googleusercontent.com'
+        microsoftOAuthClientId = '22222222-2222-2222-2222-222222222222'
         microsoftOAuthAuthorityTenant = 'common'
+        busyMaxGoogleOAuthClientId = 'busymax-ci-managed.apps.googleusercontent.com'
+        busyMaxGoogleOAuthClientSecret = 'synthetic-ci-public-secret'
+        busyMaxGoogleOAuthProjectId = 'busymax-ci-managed'
+        busyMaxMicrosoftOAuthClientId = '44444444-4444-4444-4444-444444444444'
+        busyMaxMicrosoftOAuthAuthorityTenant = 'common'
       }
       foreach ($entry in $expected.GetEnumerator()) {
         $property = $Config.PSObject.Properties[$entry.Key]
@@ -259,6 +269,35 @@ function Assert-BusyMaxStoreConfig {
         }
       }
     }
+  }
+  # Syntax is a build gate, not proof of owner-controlled provider approval.
+  $uuidPattern = '^[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$'
+  $externalPrerequisites = @()
+  if ((Test-BusyMaxPlaceholder -Value ([string]$Config.busyMaxGoogleOAuthClientId)) -or
+      [string]$Config.busyMaxGoogleOAuthClientId -notmatch '^[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$' -or
+      (Test-BusyMaxPlaceholder -Value ([string]$Config.busyMaxGoogleOAuthClientSecret)) -or
+      [string]$Config.busyMaxGoogleOAuthProjectId -notmatch '^[a-z][a-z0-9-]{4,62}[a-z0-9]$') {
+    $externalPrerequisites += 'External prerequisite: Google production Desktop client ID, client secret and truthful project ID. The owner must also complete publishing, branding and required scope approval/verification.'
+  }
+  if ([string]$Config.busyMaxMicrosoftOAuthClientId -notmatch $uuidPattern -or
+      ([string]$Config.busyMaxMicrosoftOAuthAuthorityTenant -cnotin @('common', 'organizations', 'consumers') -and
+       [string]$Config.busyMaxMicrosoftOAuthAuthorityTenant -notmatch $uuidPattern)) {
+    $externalPrerequisites += 'External prerequisite: Microsoft production public app registration ID and explicit audience/tenant. The owner must configure the desktop redirect, delegated permissions and applicable consent.'
+  }
+  if ($externalPrerequisites.Count -gt 0) {
+    throw ($externalPrerequisites -join "`n")
+  }
+  if ($Mode -ne 'CiNonProduction' -and
+      ([string]$Config.busyMaxGoogleOAuthClientId -eq 'busymax-ci-managed.apps.googleusercontent.com' -or
+       [string]$Config.busyMaxGoogleOAuthClientSecret -eq 'synthetic-ci-public-secret' -or
+       [string]$Config.busyMaxGoogleOAuthProjectId -eq 'busymax-ci-managed' -or
+       [string]$Config.busyMaxMicrosoftOAuthClientId -eq '44444444-4444-4444-4444-444444444444' -or
+       [string]$Config.googleOAuthClientId -eq 'busymax-ci-original.apps.googleusercontent.com' -or
+       [string]$Config.microsoftOAuthClientId -eq '22222222-2222-2222-2222-222222222222')) {
+    throw 'Synthetic CI registrations cannot be used in official packages.'
+  }
+  if ([string]$Config.privacyPolicyUrl -cne 'https://busystack.org/privacy-busymax') {
+    throw "Field 'privacyPolicyUrl' must use BusyMax's product privacy policy in $Mode mode."
   }
   if ($Config.fakeData -eq $true) {
     throw "Field 'fakeData' must be false in $Mode mode."

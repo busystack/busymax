@@ -1,3 +1,5 @@
+import '../../../core/auth/authorization_transition_test.dart' show Harness;
+import 'package:busymax/src/core/auth/oauth_registration.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -24,6 +26,7 @@ import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/accounts/domain/account_connection_state.dart';
 import 'package:busymax/src/features/auth/data/auth_repository.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
+import 'package:busymax/src/google_calendar/google_calendar_api_client.dart';
 import 'package:busymax/src/features/settings/presentation/settings_screen.dart';
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/sync/sync_auth_error.dart';
@@ -89,6 +92,78 @@ void main() {
     expect(store.value['showTrayIcon'], isFalse);
   });
 
+  registerSettingsAuthorizationCancellationRegressions();
+  for (final shared in [false, true]) {
+    for (final kind in ['invalid_client', 'invalid_grant', 'server_error']) {
+      testWidgets(
+        'Settings renders typed exchange recovery and enables stored reconnect retry $kind shared=$shared',
+        (tester) async {
+          await tester.runAsync(() async {
+            final h = Harness();
+            addTearDown(() async {
+              h.staging.dispose();
+              await h.db.close();
+            });
+            await h.seed();
+            if (!shared) await h.makeGoogleUserOwned();
+            final before = (await h.secrets.readCredential('opaque'))!.toJson();
+            final observing = _ObservedAuthRepository(h);
+            final container = _container(
+              selectedAccountId: 'opaque',
+              authRepository: observing,
+              accounts: await h.accounts.listVisibleAccounts(),
+              accountsRepository: h.accounts,
+              buildConfig: _configuredBuildConfig,
+              productionHarness: h,
+              signedInSyncRunner: (_, _) async {},
+            );
+            addTearDown(container.dispose);
+            await _pumpSettings(
+              tester,
+              container,
+              logicalSize: const Size(1200, 1200),
+            );
+            h.beforeRequest = (r) async => http.Response(
+              jsonEncode({
+                'error': kind,
+                'error_description': 'sensitive-description',
+              }),
+              kind == 'server_error' ? 503 : 400,
+            );
+            await tester.ensureVisible(find.text('Connect').last);
+            await tester.tap(find.text('Connect').last);
+            await observing.finished;
+            await tester.pumpAndSettle();
+            final message = kind == 'invalid_client'
+                ? 'Check the client type, supported accounts, permissions, and redirect in your registration. Select the configuration again if it was imported.'
+                : kind == 'invalid_grant'
+                ? 'This authorization attempt could not be completed. Start authorization again; your existing connection is preserved.'
+                : 'Authorization could not complete because of a temporary provider problem. Try again; your existing connection is preserved.';
+            expect(find.text(message), findsOneWidget);
+            expect(find.textContaining('sensitive'), findsNothing);
+            expect(
+              (await h.secrets.readCredential('opaque'))!.toJson(),
+              before,
+            );
+            expect((await h.summary('opaque')).showRetirementNotice, shared);
+            h.beforeRequest = null;
+            await tester.ensureVisible(find.text('Connect').last);
+            await tester.tap(find.text('Connect').last);
+            await observing.finished;
+            await tester.pumpAndSettle();
+            expect(
+              (await h.secrets.readCredential('opaque')
+                      as GoogleDesktopCredential)
+                  .tokenSet
+                  .accessToken,
+              'candidate-access',
+            );
+            await tester.pumpWidget(const SizedBox());
+          });
+        },
+      );
+    }
+  }
   setUp(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
@@ -426,6 +501,58 @@ void main() {
         0.01,
       ),
     );
+  });
+
+  testWidgets('Linux sharing entry opens owner ACL permissions', (
+    tester,
+  ) async {
+    var permissionReads = 0;
+    final sharingClient = GoogleCalendarApiClient(
+      httpClient: MockClient((request) async {
+        if (request.url.path.endsWith('/acl')) {
+          permissionReads++;
+          return http.Response(jsonEncode({'items': <Object>[]}), 200);
+        }
+        return http.Response('unexpected request', 404);
+      }),
+      baseUri: Uri.parse('https://www.googleapis.com'),
+    );
+    final container = _container(
+      selectedAccountId: 'google:g',
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_googleAccount],
+      googleSharingClient: sharingClient,
+      calendarSources: const [
+        CalendarSourceEntity(
+          id: 'owned',
+          accountId: 'google:g',
+          provider: BusyProvider.google,
+          providerCalendarId: 'owned@example.com',
+          summary: 'Owned',
+          selected: true,
+          hidden: false,
+          readOnly: false,
+          isDeleted: false,
+          accessRole: 'owner',
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: localizedTestApp(
+          child: const SettingsScreen(initialPage: SettingsPage.accounts),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final entry = find.text('Manage calendar sharing');
+    await tester.ensureVisible(entry);
+    await tester.tap(entry);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('calendar-sharing-recipient')), findsOneWidget);
+    expect(permissionReads, 1);
   });
 
   testWidgets('Every Settings page uses only its headerbar title', (
@@ -1927,9 +2054,7 @@ void main() {
     expect(find.text('tasks route'), findsOneWidget);
   });
 
-  testWidgets('Removing last account routes to sign in cleanly', (
-    tester,
-  ) async {
+  testWidgets('Removing last account leaves Settings open', (tester) async {
     final auth = _FakeAuthRepository();
     final container = _container(
       selectedAccountId: 'google:g',
@@ -1948,7 +2073,8 @@ void main() {
       const _AccountRemovalCall('google:g', revokeAuthorization: false),
     ]);
     expect(container.read(selectedAccountIdProvider), isNull);
-    expect(find.text('sign in route'), findsOneWidget);
+    expect(find.byType(SettingsScreen), findsOneWidget);
+    expect(find.text('Add Google account'), findsOneWidget);
   });
 }
 
@@ -1978,21 +2104,35 @@ Future<void> _sendAltLeft(WidgetTester tester) async {
 
 ProviderContainer _container({
   required String selectedAccountId,
-  required _FakeAuthRepository authRepository,
+  required AuthRepository authRepository,
   required List<AccountEntity> accounts,
   BuildConfig buildConfig = _emptyBuildConfig,
   String? activeAccountIdOverride = _useDefaultActiveAccountId,
   DavAccountOnboardingService? davOnboardingService,
   List<DavCollectionSettingsEntity> davCollections = const [],
   List<CalendarSourceEntity> calendarSources = const [],
+  GoogleCalendarApiClient? googleSharingClient,
   List<TaskListEntity> taskLists = const [],
   DesktopAutostartService? autostartService,
   LocalSettingsStore? settingsStore,
   AccountsRepository? accountsRepository,
   SignedInSyncRunner? signedInSyncRunner,
+  Harness? productionHarness,
 }) {
   return ProviderContainer(
     overrides: [
+      if (productionHarness != null) ...[
+        databaseProvider.overrideWithValue(productionHarness.db),
+        authorizationPersistenceProvider.overrideWithValue(
+          productionHarness.persistence,
+        ),
+        applicationOAuthGatewayProvider.overrideWithValue(
+          productionHarness.google,
+        ),
+        applicationMicrosoftOAuthServiceProvider.overrideWithValue(
+          productionHarness.microsoft,
+        ),
+      ],
       if (autostartService != null)
         desktopAutostartServiceProvider.overrideWithValue(autostartService),
       authRepositoryProvider.overrideWithValue(authRepository),
@@ -2015,6 +2155,10 @@ ProviderContainer _container({
       calendarSourcesStreamProvider.overrideWith(
         (ref) => Stream.value(calendarSources),
       ),
+      if (googleSharingClient != null)
+        googleCalendarApiClientForAccountProvider.overrideWith(
+          (ref, accountId) => googleSharingClient,
+        ),
       scheduleTaskListsProvider.overrideWith((ref) async => taskLists),
       davConflictsStreamProvider.overrideWith((ref) => Stream.value(const [])),
       webCalSubscriptionsProvider.overrideWith((ref) => Stream.value(const [])),
@@ -2127,7 +2271,6 @@ Future<GoRouter> _pumpRoutedSettings(
         builder: (_, _) => const Text('schedule route'),
       ),
       GoRoute(path: '/tasks', builder: (_, _) => const Text('tasks route')),
-      GoRoute(path: '/sign-in', builder: (_, _) => const Text('sign in route')),
     ],
   );
   addTearDown(router.dispose);
@@ -2402,3 +2545,144 @@ const _configuredBuildConfig = BuildConfig(
   oauthTokenEndpoint: 'https://oauth2.googleapis.com/token',
   oauthRevocationEndpoint: 'https://oauth2.googleapis.com/revoke',
 );
+
+/// Observation only: all preparation, validation, and persistence run in the
+/// real repository/service composition. This gives widget tests a barrier for
+/// completion rather than relying on rendering pumps to finish database I/O.
+class _ObservedAuthRepository extends AuthRepository {
+  _ObservedAuthRepository(Harness h)
+    : super(
+        oAuth: h.google,
+        microsoftOAuth: h.microsoft,
+        database: h.db,
+        authorizationPersistence: h.persistence,
+      );
+  Future<void>? finished;
+  @override
+  Future<AuthSessionState> signIn({AuthorizationRequest? request}) {
+    final operation = super.signIn(request: request);
+    finished = operation.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
+    return operation;
+  }
+}
+
+void registerSettingsAuthorizationCancellationRegressions() {
+  for (final shared in [false, true]) {
+    for (final dispose in [false, true]) {
+      for (final pause in ['binding', 'browser', 'exchange', 'identity']) {
+        testWidgets(
+          'real Settings ${dispose ? 'disposal' : 'Cancel control'} owns OAuth $pause shared=$shared',
+          (tester) async {
+            // The production database/transport futures run in the real I/O zone.
+            // Rendering pumps cannot be used as a substitute for their barriers.
+            await tester.runAsync(() async {
+              final h = Harness();
+              addTearDown(() async {
+                h.staging.dispose();
+                await h.db.close();
+              });
+              await h.seed();
+              if (!shared) await h.makeGoogleUserOwned();
+              final before = (await h.secrets.readCredential(
+                'opaque',
+              ))!.toJson();
+              final observing = _ObservedAuthRepository(h);
+              final container = _container(
+                selectedAccountId: 'opaque',
+                authRepository: observing,
+                accounts: await h.accounts.listVisibleAccounts(),
+                accountsRepository: h.accounts,
+                buildConfig: _configuredBuildConfig,
+                productionHarness: h,
+                signedInSyncRunner: (_, _) async {},
+              );
+              addTearDown(container.dispose);
+              await _pumpSettings(
+                tester,
+                container,
+                logicalSize: const Size(1200, 1200),
+              );
+              final summaries = await container.read(
+                registrationSummariesProvider.future,
+              );
+              await tester.pump();
+              expect(summaries['opaque']!.showRetirementNotice, shared);
+              final entered = Completer<void>(), release = Completer<void>();
+              Future<void>? holding;
+              if (pause == 'binding') {
+                holding = h.persistence.run('opaque', () async {
+                  entered.complete();
+                  await release.future;
+                });
+                await entered.future;
+              } else if (pause == 'browser') {
+                h.flow.barrier = release;
+              } else {
+                h.beforeRequest = (request) async {
+                  if ((pause == 'exchange' && request.method == 'POST') ||
+                      (pause == 'identity' && request.method == 'GET')) {
+                    if (!entered.isCompleted) entered.complete();
+                    await release.future;
+                  }
+                  return null;
+                };
+              }
+              final reconnect = find.text('Connect');
+              await tester.ensureVisible(reconnect.last);
+              await tester.tap(reconnect.last);
+              if (pause == 'browser') {
+                await h.flow.started.future;
+              } else if (pause != 'binding') {
+                await entered.future;
+              }
+              await tester.pump();
+              if (dispose) {
+                await tester.pumpWidget(const SizedBox());
+              } else {
+                final cancel = find.text('Cancel connection');
+                await tester.ensureVisible(cancel);
+                await tester.tap(cancel);
+                await tester.pump();
+              }
+              release.complete();
+              await holding;
+              await observing.finished;
+              await tester.pumpAndSettle();
+              expect(
+                (await h.secrets.readCredential('opaque'))!.toJson(),
+                before,
+              );
+              expect((await h.summary('opaque')).showRetirementNotice, shared);
+              if (pause == 'binding') expect(h.flow.clients, isEmpty);
+              if (dispose) {
+                await _pumpSettings(
+                  tester,
+                  container,
+                  logicalSize: const Size(1200, 1200),
+                );
+              }
+              h.beforeRequest = null;
+              h.flow.barrier = null;
+              await tester.ensureVisible(find.text('Connect').last);
+              await tester.tap(find.text('Connect').last);
+              await observing.finished;
+              await tester.pumpAndSettle();
+              expect(
+                (await h.secrets.readCredential('opaque')
+                        as GoogleDesktopCredential)
+                    .tokenSet
+                    .accessToken,
+                'candidate-access',
+              );
+              expect((await h.summary('opaque')).showRetirementNotice, shared);
+              await tester.pumpWidget(const SizedBox());
+            });
+          },
+        );
+      }
+    }
+  }
+}

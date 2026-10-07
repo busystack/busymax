@@ -1199,6 +1199,1523 @@ class AccountsCompanion extends UpdateCompanion<Account> {
   }
 }
 
+class $OAuthTransitionAccountsTable extends OAuthTransitionAccounts
+    with TableInfo<$OAuthTransitionAccountsTable, OAuthTransitionAccount> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $OAuthTransitionAccountsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _accountIdMeta = const VerificationMeta(
+    'accountId',
+  );
+  @override
+  late final GeneratedColumn<String> accountId = GeneratedColumn<String>(
+    'account_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES accounts (id) ON DELETE CASCADE',
+    ),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [accountId];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'o_auth_transition_accounts';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<OAuthTransitionAccount> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('account_id')) {
+      context.handle(
+        _accountIdMeta,
+        accountId.isAcceptableOrUnknown(data['account_id']!, _accountIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_accountIdMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {accountId};
+  @override
+  OAuthTransitionAccount map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return OAuthTransitionAccount(
+      accountId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}account_id'],
+      )!,
+    );
+  }
+
+  @override
+  $OAuthTransitionAccountsTable createAlias(String alias) {
+    return $OAuthTransitionAccountsTable(attachedDatabase, alias);
+  }
+}
+
+class OAuthTransitionAccount extends DataClass
+    implements Insertable<OAuthTransitionAccount> {
+  final String accountId;
+  const OAuthTransitionAccount({required this.accountId});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['account_id'] = Variable<String>(accountId);
+    return map;
+  }
+
+  OAuthTransitionAccountsCompanion toCompanion(bool nullToAbsent) {
+    return OAuthTransitionAccountsCompanion(accountId: Value(accountId));
+  }
+
+  factory OAuthTransitionAccount.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return OAuthTransitionAccount(
+      accountId: serializer.fromJson<String>(json['accountId']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{'accountId': serializer.toJson<String>(accountId)};
+  }
+
+  OAuthTransitionAccount copyWith({String? accountId}) =>
+      OAuthTransitionAccount(accountId: accountId ?? this.accountId);
+  OAuthTransitionAccount copyWithCompanion(
+    OAuthTransitionAccountsCompanion data,
+  ) {
+    return OAuthTransitionAccount(
+      accountId: data.accountId.present ? data.accountId.value : this.accountId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('OAuthTransitionAccount(')
+          ..write('accountId: $accountId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => accountId.hashCode;
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is OAuthTransitionAccount && other.accountId == this.accountId);
+}
+
+class OAuthTransitionAccountsCompanion
+    extends UpdateCompanion<OAuthTransitionAccount> {
+  final Value<String> accountId;
+  final Value<int> rowid;
+  const OAuthTransitionAccountsCompanion({
+    this.accountId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  OAuthTransitionAccountsCompanion.insert({
+    required String accountId,
+    this.rowid = const Value.absent(),
+  }) : accountId = Value(accountId);
+  static Insertable<OAuthTransitionAccount> custom({
+    Expression<String>? accountId,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (accountId != null) 'account_id': accountId,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  OAuthTransitionAccountsCompanion copyWith({
+    Value<String>? accountId,
+    Value<int>? rowid,
+  }) {
+    return OAuthTransitionAccountsCompanion(
+      accountId: accountId ?? this.accountId,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (accountId.present) {
+      map['account_id'] = Variable<String>(accountId.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('OAuthTransitionAccountsCompanion(')
+          ..write('accountId: $accountId, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $AccountAuthorizationsTable extends AccountAuthorizations
+    with TableInfo<$AccountAuthorizationsTable, AccountAuthorization> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AccountAuthorizationsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _accountIdMeta = const VerificationMeta(
+    'accountId',
+  );
+  @override
+  late final GeneratedColumn<String> accountId = GeneratedColumn<String>(
+    'account_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES accounts (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _generationMeta = const VerificationMeta(
+    'generation',
+  );
+  @override
+  late final GeneratedColumn<int> generation = GeneratedColumn<int>(
+    'generation',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _summaryJsonMeta = const VerificationMeta(
+    'summaryJson',
+  );
+  @override
+  late final GeneratedColumn<String> summaryJson = GeneratedColumn<String>(
+    'summary_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [accountId, generation, summaryJson];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'account_authorizations';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AccountAuthorization> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('account_id')) {
+      context.handle(
+        _accountIdMeta,
+        accountId.isAcceptableOrUnknown(data['account_id']!, _accountIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_accountIdMeta);
+    }
+    if (data.containsKey('generation')) {
+      context.handle(
+        _generationMeta,
+        generation.isAcceptableOrUnknown(data['generation']!, _generationMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_generationMeta);
+    }
+    if (data.containsKey('summary_json')) {
+      context.handle(
+        _summaryJsonMeta,
+        summaryJson.isAcceptableOrUnknown(
+          data['summary_json']!,
+          _summaryJsonMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_summaryJsonMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {accountId};
+  @override
+  AccountAuthorization map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AccountAuthorization(
+      accountId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}account_id'],
+      )!,
+      generation: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}generation'],
+      )!,
+      summaryJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}summary_json'],
+      )!,
+    );
+  }
+
+  @override
+  $AccountAuthorizationsTable createAlias(String alias) {
+    return $AccountAuthorizationsTable(attachedDatabase, alias);
+  }
+}
+
+class AccountAuthorization extends DataClass
+    implements Insertable<AccountAuthorization> {
+  final String accountId;
+  final int generation;
+  final String summaryJson;
+  const AccountAuthorization({
+    required this.accountId,
+    required this.generation,
+    required this.summaryJson,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['account_id'] = Variable<String>(accountId);
+    map['generation'] = Variable<int>(generation);
+    map['summary_json'] = Variable<String>(summaryJson);
+    return map;
+  }
+
+  AccountAuthorizationsCompanion toCompanion(bool nullToAbsent) {
+    return AccountAuthorizationsCompanion(
+      accountId: Value(accountId),
+      generation: Value(generation),
+      summaryJson: Value(summaryJson),
+    );
+  }
+
+  factory AccountAuthorization.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AccountAuthorization(
+      accountId: serializer.fromJson<String>(json['accountId']),
+      generation: serializer.fromJson<int>(json['generation']),
+      summaryJson: serializer.fromJson<String>(json['summaryJson']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'accountId': serializer.toJson<String>(accountId),
+      'generation': serializer.toJson<int>(generation),
+      'summaryJson': serializer.toJson<String>(summaryJson),
+    };
+  }
+
+  AccountAuthorization copyWith({
+    String? accountId,
+    int? generation,
+    String? summaryJson,
+  }) => AccountAuthorization(
+    accountId: accountId ?? this.accountId,
+    generation: generation ?? this.generation,
+    summaryJson: summaryJson ?? this.summaryJson,
+  );
+  AccountAuthorization copyWithCompanion(AccountAuthorizationsCompanion data) {
+    return AccountAuthorization(
+      accountId: data.accountId.present ? data.accountId.value : this.accountId,
+      generation: data.generation.present
+          ? data.generation.value
+          : this.generation,
+      summaryJson: data.summaryJson.present
+          ? data.summaryJson.value
+          : this.summaryJson,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AccountAuthorization(')
+          ..write('accountId: $accountId, ')
+          ..write('generation: $generation, ')
+          ..write('summaryJson: $summaryJson')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(accountId, generation, summaryJson);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AccountAuthorization &&
+          other.accountId == this.accountId &&
+          other.generation == this.generation &&
+          other.summaryJson == this.summaryJson);
+}
+
+class AccountAuthorizationsCompanion
+    extends UpdateCompanion<AccountAuthorization> {
+  final Value<String> accountId;
+  final Value<int> generation;
+  final Value<String> summaryJson;
+  final Value<int> rowid;
+  const AccountAuthorizationsCompanion({
+    this.accountId = const Value.absent(),
+    this.generation = const Value.absent(),
+    this.summaryJson = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AccountAuthorizationsCompanion.insert({
+    required String accountId,
+    required int generation,
+    required String summaryJson,
+    this.rowid = const Value.absent(),
+  }) : accountId = Value(accountId),
+       generation = Value(generation),
+       summaryJson = Value(summaryJson);
+  static Insertable<AccountAuthorization> custom({
+    Expression<String>? accountId,
+    Expression<int>? generation,
+    Expression<String>? summaryJson,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (accountId != null) 'account_id': accountId,
+      if (generation != null) 'generation': generation,
+      if (summaryJson != null) 'summary_json': summaryJson,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AccountAuthorizationsCompanion copyWith({
+    Value<String>? accountId,
+    Value<int>? generation,
+    Value<String>? summaryJson,
+    Value<int>? rowid,
+  }) {
+    return AccountAuthorizationsCompanion(
+      accountId: accountId ?? this.accountId,
+      generation: generation ?? this.generation,
+      summaryJson: summaryJson ?? this.summaryJson,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (accountId.present) {
+      map['account_id'] = Variable<String>(accountId.value);
+    }
+    if (generation.present) {
+      map['generation'] = Variable<int>(generation.value);
+    }
+    if (summaryJson.present) {
+      map['summary_json'] = Variable<String>(summaryJson.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AccountAuthorizationsCompanion(')
+          ..write('accountId: $accountId, ')
+          ..write('generation: $generation, ')
+          ..write('summaryJson: $summaryJson, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $AuthorizationCommitsTable extends AuthorizationCommits
+    with TableInfo<$AuthorizationCommitsTable, AuthorizationCommit> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AuthorizationCommitsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _accountIdMeta = const VerificationMeta(
+    'accountId',
+  );
+  @override
+  late final GeneratedColumn<String> accountId = GeneratedColumn<String>(
+    'account_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _generationMeta = const VerificationMeta(
+    'generation',
+  );
+  @override
+  late final GeneratedColumn<int> generation = GeneratedColumn<int>(
+    'generation',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _hadCredentialMeta = const VerificationMeta(
+    'hadCredential',
+  );
+  @override
+  late final GeneratedColumn<bool> hadCredential = GeneratedColumn<bool>(
+    'had_credential',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("had_credential" IN (0, 1))',
+    ),
+  );
+  static const VerificationMeta _previousActiveAccountIdMeta =
+      const VerificationMeta('previousActiveAccountId');
+  @override
+  late final GeneratedColumn<String> previousActiveAccountId =
+      GeneratedColumn<String>(
+        'previous_active_account_id',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _previousNativeBindingJsonMeta =
+      const VerificationMeta('previousNativeBindingJson');
+  @override
+  late final GeneratedColumn<String> previousNativeBindingJson =
+      GeneratedColumn<String>(
+        'previous_native_binding_json',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  @override
+  List<GeneratedColumn> get $columns => [
+    accountId,
+    generation,
+    hadCredential,
+    previousActiveAccountId,
+    previousNativeBindingJson,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'authorization_commits';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AuthorizationCommit> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('account_id')) {
+      context.handle(
+        _accountIdMeta,
+        accountId.isAcceptableOrUnknown(data['account_id']!, _accountIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_accountIdMeta);
+    }
+    if (data.containsKey('generation')) {
+      context.handle(
+        _generationMeta,
+        generation.isAcceptableOrUnknown(data['generation']!, _generationMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_generationMeta);
+    }
+    if (data.containsKey('had_credential')) {
+      context.handle(
+        _hadCredentialMeta,
+        hadCredential.isAcceptableOrUnknown(
+          data['had_credential']!,
+          _hadCredentialMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_hadCredentialMeta);
+    }
+    if (data.containsKey('previous_active_account_id')) {
+      context.handle(
+        _previousActiveAccountIdMeta,
+        previousActiveAccountId.isAcceptableOrUnknown(
+          data['previous_active_account_id']!,
+          _previousActiveAccountIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('previous_native_binding_json')) {
+      context.handle(
+        _previousNativeBindingJsonMeta,
+        previousNativeBindingJson.isAcceptableOrUnknown(
+          data['previous_native_binding_json']!,
+          _previousNativeBindingJsonMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {accountId};
+  @override
+  AuthorizationCommit map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AuthorizationCommit(
+      accountId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}account_id'],
+      )!,
+      generation: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}generation'],
+      )!,
+      hadCredential: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}had_credential'],
+      )!,
+      previousActiveAccountId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}previous_active_account_id'],
+      ),
+      previousNativeBindingJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}previous_native_binding_json'],
+      ),
+    );
+  }
+
+  @override
+  $AuthorizationCommitsTable createAlias(String alias) {
+    return $AuthorizationCommitsTable(attachedDatabase, alias);
+  }
+}
+
+class AuthorizationCommit extends DataClass
+    implements Insertable<AuthorizationCommit> {
+  final String accountId;
+  final int generation;
+  final bool hadCredential;
+  final String? previousActiveAccountId;
+  final String? previousNativeBindingJson;
+  const AuthorizationCommit({
+    required this.accountId,
+    required this.generation,
+    required this.hadCredential,
+    this.previousActiveAccountId,
+    this.previousNativeBindingJson,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['account_id'] = Variable<String>(accountId);
+    map['generation'] = Variable<int>(generation);
+    map['had_credential'] = Variable<bool>(hadCredential);
+    if (!nullToAbsent || previousActiveAccountId != null) {
+      map['previous_active_account_id'] = Variable<String>(
+        previousActiveAccountId,
+      );
+    }
+    if (!nullToAbsent || previousNativeBindingJson != null) {
+      map['previous_native_binding_json'] = Variable<String>(
+        previousNativeBindingJson,
+      );
+    }
+    return map;
+  }
+
+  AuthorizationCommitsCompanion toCompanion(bool nullToAbsent) {
+    return AuthorizationCommitsCompanion(
+      accountId: Value(accountId),
+      generation: Value(generation),
+      hadCredential: Value(hadCredential),
+      previousActiveAccountId: previousActiveAccountId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(previousActiveAccountId),
+      previousNativeBindingJson:
+          previousNativeBindingJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(previousNativeBindingJson),
+    );
+  }
+
+  factory AuthorizationCommit.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AuthorizationCommit(
+      accountId: serializer.fromJson<String>(json['accountId']),
+      generation: serializer.fromJson<int>(json['generation']),
+      hadCredential: serializer.fromJson<bool>(json['hadCredential']),
+      previousActiveAccountId: serializer.fromJson<String?>(
+        json['previousActiveAccountId'],
+      ),
+      previousNativeBindingJson: serializer.fromJson<String?>(
+        json['previousNativeBindingJson'],
+      ),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'accountId': serializer.toJson<String>(accountId),
+      'generation': serializer.toJson<int>(generation),
+      'hadCredential': serializer.toJson<bool>(hadCredential),
+      'previousActiveAccountId': serializer.toJson<String?>(
+        previousActiveAccountId,
+      ),
+      'previousNativeBindingJson': serializer.toJson<String?>(
+        previousNativeBindingJson,
+      ),
+    };
+  }
+
+  AuthorizationCommit copyWith({
+    String? accountId,
+    int? generation,
+    bool? hadCredential,
+    Value<String?> previousActiveAccountId = const Value.absent(),
+    Value<String?> previousNativeBindingJson = const Value.absent(),
+  }) => AuthorizationCommit(
+    accountId: accountId ?? this.accountId,
+    generation: generation ?? this.generation,
+    hadCredential: hadCredential ?? this.hadCredential,
+    previousActiveAccountId: previousActiveAccountId.present
+        ? previousActiveAccountId.value
+        : this.previousActiveAccountId,
+    previousNativeBindingJson: previousNativeBindingJson.present
+        ? previousNativeBindingJson.value
+        : this.previousNativeBindingJson,
+  );
+  AuthorizationCommit copyWithCompanion(AuthorizationCommitsCompanion data) {
+    return AuthorizationCommit(
+      accountId: data.accountId.present ? data.accountId.value : this.accountId,
+      generation: data.generation.present
+          ? data.generation.value
+          : this.generation,
+      hadCredential: data.hadCredential.present
+          ? data.hadCredential.value
+          : this.hadCredential,
+      previousActiveAccountId: data.previousActiveAccountId.present
+          ? data.previousActiveAccountId.value
+          : this.previousActiveAccountId,
+      previousNativeBindingJson: data.previousNativeBindingJson.present
+          ? data.previousNativeBindingJson.value
+          : this.previousNativeBindingJson,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AuthorizationCommit(')
+          ..write('accountId: $accountId, ')
+          ..write('generation: $generation, ')
+          ..write('hadCredential: $hadCredential, ')
+          ..write('previousActiveAccountId: $previousActiveAccountId, ')
+          ..write('previousNativeBindingJson: $previousNativeBindingJson')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    accountId,
+    generation,
+    hadCredential,
+    previousActiveAccountId,
+    previousNativeBindingJson,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AuthorizationCommit &&
+          other.accountId == this.accountId &&
+          other.generation == this.generation &&
+          other.hadCredential == this.hadCredential &&
+          other.previousActiveAccountId == this.previousActiveAccountId &&
+          other.previousNativeBindingJson == this.previousNativeBindingJson);
+}
+
+class AuthorizationCommitsCompanion
+    extends UpdateCompanion<AuthorizationCommit> {
+  final Value<String> accountId;
+  final Value<int> generation;
+  final Value<bool> hadCredential;
+  final Value<String?> previousActiveAccountId;
+  final Value<String?> previousNativeBindingJson;
+  final Value<int> rowid;
+  const AuthorizationCommitsCompanion({
+    this.accountId = const Value.absent(),
+    this.generation = const Value.absent(),
+    this.hadCredential = const Value.absent(),
+    this.previousActiveAccountId = const Value.absent(),
+    this.previousNativeBindingJson = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AuthorizationCommitsCompanion.insert({
+    required String accountId,
+    required int generation,
+    required bool hadCredential,
+    this.previousActiveAccountId = const Value.absent(),
+    this.previousNativeBindingJson = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : accountId = Value(accountId),
+       generation = Value(generation),
+       hadCredential = Value(hadCredential);
+  static Insertable<AuthorizationCommit> custom({
+    Expression<String>? accountId,
+    Expression<int>? generation,
+    Expression<bool>? hadCredential,
+    Expression<String>? previousActiveAccountId,
+    Expression<String>? previousNativeBindingJson,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (accountId != null) 'account_id': accountId,
+      if (generation != null) 'generation': generation,
+      if (hadCredential != null) 'had_credential': hadCredential,
+      if (previousActiveAccountId != null)
+        'previous_active_account_id': previousActiveAccountId,
+      if (previousNativeBindingJson != null)
+        'previous_native_binding_json': previousNativeBindingJson,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AuthorizationCommitsCompanion copyWith({
+    Value<String>? accountId,
+    Value<int>? generation,
+    Value<bool>? hadCredential,
+    Value<String?>? previousActiveAccountId,
+    Value<String?>? previousNativeBindingJson,
+    Value<int>? rowid,
+  }) {
+    return AuthorizationCommitsCompanion(
+      accountId: accountId ?? this.accountId,
+      generation: generation ?? this.generation,
+      hadCredential: hadCredential ?? this.hadCredential,
+      previousActiveAccountId:
+          previousActiveAccountId ?? this.previousActiveAccountId,
+      previousNativeBindingJson:
+          previousNativeBindingJson ?? this.previousNativeBindingJson,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (accountId.present) {
+      map['account_id'] = Variable<String>(accountId.value);
+    }
+    if (generation.present) {
+      map['generation'] = Variable<int>(generation.value);
+    }
+    if (hadCredential.present) {
+      map['had_credential'] = Variable<bool>(hadCredential.value);
+    }
+    if (previousActiveAccountId.present) {
+      map['previous_active_account_id'] = Variable<String>(
+        previousActiveAccountId.value,
+      );
+    }
+    if (previousNativeBindingJson.present) {
+      map['previous_native_binding_json'] = Variable<String>(
+        previousNativeBindingJson.value,
+      );
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AuthorizationCommitsCompanion(')
+          ..write('accountId: $accountId, ')
+          ..write('generation: $generation, ')
+          ..write('hadCredential: $hadCredential, ')
+          ..write('previousActiveAccountId: $previousActiveAccountId, ')
+          ..write('previousNativeBindingJson: $previousNativeBindingJson, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $AuthorizationGenerationsTable extends AuthorizationGenerations
+    with TableInfo<$AuthorizationGenerationsTable, AuthorizationGeneration> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AuthorizationGenerationsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _accountIdMeta = const VerificationMeta(
+    'accountId',
+  );
+  @override
+  late final GeneratedColumn<String> accountId = GeneratedColumn<String>(
+    'account_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _generationMeta = const VerificationMeta(
+    'generation',
+  );
+  @override
+  late final GeneratedColumn<int> generation = GeneratedColumn<int>(
+    'generation',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [accountId, generation];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'authorization_generations';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AuthorizationGeneration> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('account_id')) {
+      context.handle(
+        _accountIdMeta,
+        accountId.isAcceptableOrUnknown(data['account_id']!, _accountIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_accountIdMeta);
+    }
+    if (data.containsKey('generation')) {
+      context.handle(
+        _generationMeta,
+        generation.isAcceptableOrUnknown(data['generation']!, _generationMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_generationMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {accountId};
+  @override
+  AuthorizationGeneration map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AuthorizationGeneration(
+      accountId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}account_id'],
+      )!,
+      generation: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}generation'],
+      )!,
+    );
+  }
+
+  @override
+  $AuthorizationGenerationsTable createAlias(String alias) {
+    return $AuthorizationGenerationsTable(attachedDatabase, alias);
+  }
+}
+
+class AuthorizationGeneration extends DataClass
+    implements Insertable<AuthorizationGeneration> {
+  final String accountId;
+  final int generation;
+  const AuthorizationGeneration({
+    required this.accountId,
+    required this.generation,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['account_id'] = Variable<String>(accountId);
+    map['generation'] = Variable<int>(generation);
+    return map;
+  }
+
+  AuthorizationGenerationsCompanion toCompanion(bool nullToAbsent) {
+    return AuthorizationGenerationsCompanion(
+      accountId: Value(accountId),
+      generation: Value(generation),
+    );
+  }
+
+  factory AuthorizationGeneration.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AuthorizationGeneration(
+      accountId: serializer.fromJson<String>(json['accountId']),
+      generation: serializer.fromJson<int>(json['generation']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'accountId': serializer.toJson<String>(accountId),
+      'generation': serializer.toJson<int>(generation),
+    };
+  }
+
+  AuthorizationGeneration copyWith({String? accountId, int? generation}) =>
+      AuthorizationGeneration(
+        accountId: accountId ?? this.accountId,
+        generation: generation ?? this.generation,
+      );
+  AuthorizationGeneration copyWithCompanion(
+    AuthorizationGenerationsCompanion data,
+  ) {
+    return AuthorizationGeneration(
+      accountId: data.accountId.present ? data.accountId.value : this.accountId,
+      generation: data.generation.present
+          ? data.generation.value
+          : this.generation,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AuthorizationGeneration(')
+          ..write('accountId: $accountId, ')
+          ..write('generation: $generation')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(accountId, generation);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AuthorizationGeneration &&
+          other.accountId == this.accountId &&
+          other.generation == this.generation);
+}
+
+class AuthorizationGenerationsCompanion
+    extends UpdateCompanion<AuthorizationGeneration> {
+  final Value<String> accountId;
+  final Value<int> generation;
+  final Value<int> rowid;
+  const AuthorizationGenerationsCompanion({
+    this.accountId = const Value.absent(),
+    this.generation = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AuthorizationGenerationsCompanion.insert({
+    required String accountId,
+    required int generation,
+    this.rowid = const Value.absent(),
+  }) : accountId = Value(accountId),
+       generation = Value(generation);
+  static Insertable<AuthorizationGeneration> custom({
+    Expression<String>? accountId,
+    Expression<int>? generation,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (accountId != null) 'account_id': accountId,
+      if (generation != null) 'generation': generation,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AuthorizationGenerationsCompanion copyWith({
+    Value<String>? accountId,
+    Value<int>? generation,
+    Value<int>? rowid,
+  }) {
+    return AuthorizationGenerationsCompanion(
+      accountId: accountId ?? this.accountId,
+      generation: generation ?? this.generation,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (accountId.present) {
+      map['account_id'] = Variable<String>(accountId.value);
+    }
+    if (generation.present) {
+      map['generation'] = Variable<int>(generation.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AuthorizationGenerationsCompanion(')
+          ..write('accountId: $accountId, ')
+          ..write('generation: $generation, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $DomainSyncSchedulesTable extends DomainSyncSchedules
+    with TableInfo<$DomainSyncSchedulesTable, DomainSyncSchedule> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DomainSyncSchedulesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _accountIdMeta = const VerificationMeta(
+    'accountId',
+  );
+  @override
+  late final GeneratedColumn<String> accountId = GeneratedColumn<String>(
+    'account_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES accounts (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _domainMeta = const VerificationMeta('domain');
+  @override
+  late final GeneratedColumn<String> domain = GeneratedColumn<String>(
+    'domain',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _lastSuccessfulPullUtcMeta =
+      const VerificationMeta('lastSuccessfulPullUtc');
+  @override
+  late final GeneratedColumn<String> lastSuccessfulPullUtc =
+      GeneratedColumn<String>(
+        'last_successful_pull_utc',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _nextPassivePullUtcMeta =
+      const VerificationMeta('nextPassivePullUtc');
+  @override
+  late final GeneratedColumn<String> nextPassivePullUtc =
+      GeneratedColumn<String>(
+        'next_passive_pull_utc',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _cooldownUntilUtcMeta = const VerificationMeta(
+    'cooldownUntilUtc',
+  );
+  @override
+  late final GeneratedColumn<String> cooldownUntilUtc = GeneratedColumn<String>(
+    'cooldown_until_utc',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    accountId,
+    domain,
+    lastSuccessfulPullUtc,
+    nextPassivePullUtc,
+    cooldownUntilUtc,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'domain_sync_schedules';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DomainSyncSchedule> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('account_id')) {
+      context.handle(
+        _accountIdMeta,
+        accountId.isAcceptableOrUnknown(data['account_id']!, _accountIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_accountIdMeta);
+    }
+    if (data.containsKey('domain')) {
+      context.handle(
+        _domainMeta,
+        domain.isAcceptableOrUnknown(data['domain']!, _domainMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_domainMeta);
+    }
+    if (data.containsKey('last_successful_pull_utc')) {
+      context.handle(
+        _lastSuccessfulPullUtcMeta,
+        lastSuccessfulPullUtc.isAcceptableOrUnknown(
+          data['last_successful_pull_utc']!,
+          _lastSuccessfulPullUtcMeta,
+        ),
+      );
+    }
+    if (data.containsKey('next_passive_pull_utc')) {
+      context.handle(
+        _nextPassivePullUtcMeta,
+        nextPassivePullUtc.isAcceptableOrUnknown(
+          data['next_passive_pull_utc']!,
+          _nextPassivePullUtcMeta,
+        ),
+      );
+    }
+    if (data.containsKey('cooldown_until_utc')) {
+      context.handle(
+        _cooldownUntilUtcMeta,
+        cooldownUntilUtc.isAcceptableOrUnknown(
+          data['cooldown_until_utc']!,
+          _cooldownUntilUtcMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {accountId, domain};
+  @override
+  DomainSyncSchedule map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DomainSyncSchedule(
+      accountId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}account_id'],
+      )!,
+      domain: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}domain'],
+      )!,
+      lastSuccessfulPullUtc: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_successful_pull_utc'],
+      ),
+      nextPassivePullUtc: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}next_passive_pull_utc'],
+      ),
+      cooldownUntilUtc: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cooldown_until_utc'],
+      ),
+    );
+  }
+
+  @override
+  $DomainSyncSchedulesTable createAlias(String alias) {
+    return $DomainSyncSchedulesTable(attachedDatabase, alias);
+  }
+}
+
+class DomainSyncSchedule extends DataClass
+    implements Insertable<DomainSyncSchedule> {
+  final String accountId;
+  final String domain;
+  final String? lastSuccessfulPullUtc;
+  final String? nextPassivePullUtc;
+  final String? cooldownUntilUtc;
+  const DomainSyncSchedule({
+    required this.accountId,
+    required this.domain,
+    this.lastSuccessfulPullUtc,
+    this.nextPassivePullUtc,
+    this.cooldownUntilUtc,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['account_id'] = Variable<String>(accountId);
+    map['domain'] = Variable<String>(domain);
+    if (!nullToAbsent || lastSuccessfulPullUtc != null) {
+      map['last_successful_pull_utc'] = Variable<String>(lastSuccessfulPullUtc);
+    }
+    if (!nullToAbsent || nextPassivePullUtc != null) {
+      map['next_passive_pull_utc'] = Variable<String>(nextPassivePullUtc);
+    }
+    if (!nullToAbsent || cooldownUntilUtc != null) {
+      map['cooldown_until_utc'] = Variable<String>(cooldownUntilUtc);
+    }
+    return map;
+  }
+
+  DomainSyncSchedulesCompanion toCompanion(bool nullToAbsent) {
+    return DomainSyncSchedulesCompanion(
+      accountId: Value(accountId),
+      domain: Value(domain),
+      lastSuccessfulPullUtc: lastSuccessfulPullUtc == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastSuccessfulPullUtc),
+      nextPassivePullUtc: nextPassivePullUtc == null && nullToAbsent
+          ? const Value.absent()
+          : Value(nextPassivePullUtc),
+      cooldownUntilUtc: cooldownUntilUtc == null && nullToAbsent
+          ? const Value.absent()
+          : Value(cooldownUntilUtc),
+    );
+  }
+
+  factory DomainSyncSchedule.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DomainSyncSchedule(
+      accountId: serializer.fromJson<String>(json['accountId']),
+      domain: serializer.fromJson<String>(json['domain']),
+      lastSuccessfulPullUtc: serializer.fromJson<String?>(
+        json['lastSuccessfulPullUtc'],
+      ),
+      nextPassivePullUtc: serializer.fromJson<String?>(
+        json['nextPassivePullUtc'],
+      ),
+      cooldownUntilUtc: serializer.fromJson<String?>(json['cooldownUntilUtc']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'accountId': serializer.toJson<String>(accountId),
+      'domain': serializer.toJson<String>(domain),
+      'lastSuccessfulPullUtc': serializer.toJson<String?>(
+        lastSuccessfulPullUtc,
+      ),
+      'nextPassivePullUtc': serializer.toJson<String?>(nextPassivePullUtc),
+      'cooldownUntilUtc': serializer.toJson<String?>(cooldownUntilUtc),
+    };
+  }
+
+  DomainSyncSchedule copyWith({
+    String? accountId,
+    String? domain,
+    Value<String?> lastSuccessfulPullUtc = const Value.absent(),
+    Value<String?> nextPassivePullUtc = const Value.absent(),
+    Value<String?> cooldownUntilUtc = const Value.absent(),
+  }) => DomainSyncSchedule(
+    accountId: accountId ?? this.accountId,
+    domain: domain ?? this.domain,
+    lastSuccessfulPullUtc: lastSuccessfulPullUtc.present
+        ? lastSuccessfulPullUtc.value
+        : this.lastSuccessfulPullUtc,
+    nextPassivePullUtc: nextPassivePullUtc.present
+        ? nextPassivePullUtc.value
+        : this.nextPassivePullUtc,
+    cooldownUntilUtc: cooldownUntilUtc.present
+        ? cooldownUntilUtc.value
+        : this.cooldownUntilUtc,
+  );
+  DomainSyncSchedule copyWithCompanion(DomainSyncSchedulesCompanion data) {
+    return DomainSyncSchedule(
+      accountId: data.accountId.present ? data.accountId.value : this.accountId,
+      domain: data.domain.present ? data.domain.value : this.domain,
+      lastSuccessfulPullUtc: data.lastSuccessfulPullUtc.present
+          ? data.lastSuccessfulPullUtc.value
+          : this.lastSuccessfulPullUtc,
+      nextPassivePullUtc: data.nextPassivePullUtc.present
+          ? data.nextPassivePullUtc.value
+          : this.nextPassivePullUtc,
+      cooldownUntilUtc: data.cooldownUntilUtc.present
+          ? data.cooldownUntilUtc.value
+          : this.cooldownUntilUtc,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DomainSyncSchedule(')
+          ..write('accountId: $accountId, ')
+          ..write('domain: $domain, ')
+          ..write('lastSuccessfulPullUtc: $lastSuccessfulPullUtc, ')
+          ..write('nextPassivePullUtc: $nextPassivePullUtc, ')
+          ..write('cooldownUntilUtc: $cooldownUntilUtc')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    accountId,
+    domain,
+    lastSuccessfulPullUtc,
+    nextPassivePullUtc,
+    cooldownUntilUtc,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DomainSyncSchedule &&
+          other.accountId == this.accountId &&
+          other.domain == this.domain &&
+          other.lastSuccessfulPullUtc == this.lastSuccessfulPullUtc &&
+          other.nextPassivePullUtc == this.nextPassivePullUtc &&
+          other.cooldownUntilUtc == this.cooldownUntilUtc);
+}
+
+class DomainSyncSchedulesCompanion extends UpdateCompanion<DomainSyncSchedule> {
+  final Value<String> accountId;
+  final Value<String> domain;
+  final Value<String?> lastSuccessfulPullUtc;
+  final Value<String?> nextPassivePullUtc;
+  final Value<String?> cooldownUntilUtc;
+  final Value<int> rowid;
+  const DomainSyncSchedulesCompanion({
+    this.accountId = const Value.absent(),
+    this.domain = const Value.absent(),
+    this.lastSuccessfulPullUtc = const Value.absent(),
+    this.nextPassivePullUtc = const Value.absent(),
+    this.cooldownUntilUtc = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DomainSyncSchedulesCompanion.insert({
+    required String accountId,
+    required String domain,
+    this.lastSuccessfulPullUtc = const Value.absent(),
+    this.nextPassivePullUtc = const Value.absent(),
+    this.cooldownUntilUtc = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : accountId = Value(accountId),
+       domain = Value(domain);
+  static Insertable<DomainSyncSchedule> custom({
+    Expression<String>? accountId,
+    Expression<String>? domain,
+    Expression<String>? lastSuccessfulPullUtc,
+    Expression<String>? nextPassivePullUtc,
+    Expression<String>? cooldownUntilUtc,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (accountId != null) 'account_id': accountId,
+      if (domain != null) 'domain': domain,
+      if (lastSuccessfulPullUtc != null)
+        'last_successful_pull_utc': lastSuccessfulPullUtc,
+      if (nextPassivePullUtc != null)
+        'next_passive_pull_utc': nextPassivePullUtc,
+      if (cooldownUntilUtc != null) 'cooldown_until_utc': cooldownUntilUtc,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DomainSyncSchedulesCompanion copyWith({
+    Value<String>? accountId,
+    Value<String>? domain,
+    Value<String?>? lastSuccessfulPullUtc,
+    Value<String?>? nextPassivePullUtc,
+    Value<String?>? cooldownUntilUtc,
+    Value<int>? rowid,
+  }) {
+    return DomainSyncSchedulesCompanion(
+      accountId: accountId ?? this.accountId,
+      domain: domain ?? this.domain,
+      lastSuccessfulPullUtc:
+          lastSuccessfulPullUtc ?? this.lastSuccessfulPullUtc,
+      nextPassivePullUtc: nextPassivePullUtc ?? this.nextPassivePullUtc,
+      cooldownUntilUtc: cooldownUntilUtc ?? this.cooldownUntilUtc,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (accountId.present) {
+      map['account_id'] = Variable<String>(accountId.value);
+    }
+    if (domain.present) {
+      map['domain'] = Variable<String>(domain.value);
+    }
+    if (lastSuccessfulPullUtc.present) {
+      map['last_successful_pull_utc'] = Variable<String>(
+        lastSuccessfulPullUtc.value,
+      );
+    }
+    if (nextPassivePullUtc.present) {
+      map['next_passive_pull_utc'] = Variable<String>(nextPassivePullUtc.value);
+    }
+    if (cooldownUntilUtc.present) {
+      map['cooldown_until_utc'] = Variable<String>(cooldownUntilUtc.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DomainSyncSchedulesCompanion(')
+          ..write('accountId: $accountId, ')
+          ..write('domain: $domain, ')
+          ..write('lastSuccessfulPullUtc: $lastSuccessfulPullUtc, ')
+          ..write('nextPassivePullUtc: $nextPassivePullUtc, ')
+          ..write('cooldownUntilUtc: $cooldownUntilUtc, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $DavAccountServicesTable extends DavAccountServices
     with TableInfo<$DavAccountServicesTable, DavAccountService> {
   @override
@@ -26724,6 +28241,16 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $AccountsTable accounts = $AccountsTable(this);
+  late final $OAuthTransitionAccountsTable oAuthTransitionAccounts =
+      $OAuthTransitionAccountsTable(this);
+  late final $AccountAuthorizationsTable accountAuthorizations =
+      $AccountAuthorizationsTable(this);
+  late final $AuthorizationCommitsTable authorizationCommits =
+      $AuthorizationCommitsTable(this);
+  late final $AuthorizationGenerationsTable authorizationGenerations =
+      $AuthorizationGenerationsTable(this);
+  late final $DomainSyncSchedulesTable domainSyncSchedules =
+      $DomainSyncSchedulesTable(this);
   late final $DavAccountServicesTable davAccountServices =
       $DavAccountServicesTable(this);
   late final $DavCollectionsTable davCollections = $DavCollectionsTable(this);
@@ -26770,6 +28297,11 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   @override
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     accounts,
+    oAuthTransitionAccounts,
+    accountAuthorizations,
+    authorizationCommits,
+    authorizationGenerations,
+    domainSyncSchedules,
     davAccountServices,
     davCollections,
     davObjects,
@@ -26795,6 +28327,29 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'accounts',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [
+        TableUpdate('o_auth_transition_accounts', kind: UpdateKind.delete),
+      ],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'accounts',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('account_authorizations', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'accounts',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('domain_sync_schedules', kind: UpdateKind.delete)],
+    ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
         'accounts',
@@ -27129,6 +28684,80 @@ typedef $$AccountsTableUpdateCompanionBuilder =
 final class $$AccountsTableReferences
     extends BaseReferences<_$AppDatabase, $AccountsTable, Account> {
   $$AccountsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static MultiTypedResultKey<
+    $OAuthTransitionAccountsTable,
+    List<OAuthTransitionAccount>
+  >
+  _oAuthTransitionAccountsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.oAuthTransitionAccounts,
+        aliasName: 'accounts__id__o_auth_transition_accounts__account_id',
+      );
+
+  $$OAuthTransitionAccountsTableProcessedTableManager
+  get oAuthTransitionAccountsRefs {
+    final manager = $$OAuthTransitionAccountsTableTableManager(
+      $_db,
+      $_db.oAuthTransitionAccounts,
+    ).filter((f) => f.accountId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _oAuthTransitionAccountsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $AccountAuthorizationsTable,
+    List<AccountAuthorization>
+  >
+  _accountAuthorizationsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.accountAuthorizations,
+        aliasName: 'accounts__id__account_authorizations__account_id',
+      );
+
+  $$AccountAuthorizationsTableProcessedTableManager
+  get accountAuthorizationsRefs {
+    final manager = $$AccountAuthorizationsTableTableManager(
+      $_db,
+      $_db.accountAuthorizations,
+    ).filter((f) => f.accountId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _accountAuthorizationsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $DomainSyncSchedulesTable,
+    List<DomainSyncSchedule>
+  >
+  _domainSyncSchedulesRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.domainSyncSchedules,
+        aliasName: 'accounts__id__domain_sync_schedules__account_id',
+      );
+
+  $$DomainSyncSchedulesTableProcessedTableManager get domainSyncSchedulesRefs {
+    final manager = $$DomainSyncSchedulesTableTableManager(
+      $_db,
+      $_db.domainSyncSchedules,
+    ).filter((f) => f.accountId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _domainSyncSchedulesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 
   static MultiTypedResultKey<$DavAccountServicesTable, List<DavAccountService>>
   _davAccountServicesRefsTable(_$AppDatabase db) =>
@@ -27549,6 +29178,83 @@ class $$AccountsTableFilterComposer
     column: $table.taskImportIncomplete,
     builder: (column) => ColumnFilters(column),
   );
+
+  Expression<bool> oAuthTransitionAccountsRefs(
+    Expression<bool> Function($$OAuthTransitionAccountsTableFilterComposer f) f,
+  ) {
+    final $$OAuthTransitionAccountsTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.oAuthTransitionAccounts,
+          getReferencedColumn: (t) => t.accountId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$OAuthTransitionAccountsTableFilterComposer(
+                $db: $db,
+                $table: $db.oAuthTransitionAccounts,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<bool> accountAuthorizationsRefs(
+    Expression<bool> Function($$AccountAuthorizationsTableFilterComposer f) f,
+  ) {
+    final $$AccountAuthorizationsTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.accountAuthorizations,
+          getReferencedColumn: (t) => t.accountId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$AccountAuthorizationsTableFilterComposer(
+                $db: $db,
+                $table: $db.accountAuthorizations,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<bool> domainSyncSchedulesRefs(
+    Expression<bool> Function($$DomainSyncSchedulesTableFilterComposer f) f,
+  ) {
+    final $$DomainSyncSchedulesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.domainSyncSchedules,
+      getReferencedColumn: (t) => t.accountId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DomainSyncSchedulesTableFilterComposer(
+            $db: $db,
+            $table: $db.domainSyncSchedules,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 
   Expression<bool> davAccountServicesRefs(
     Expression<bool> Function($$DavAccountServicesTableFilterComposer f) f,
@@ -28134,6 +29840,85 @@ class $$AccountsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  Expression<T> oAuthTransitionAccountsRefs<T extends Object>(
+    Expression<T> Function($$OAuthTransitionAccountsTableAnnotationComposer a)
+    f,
+  ) {
+    final $$OAuthTransitionAccountsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.oAuthTransitionAccounts,
+          getReferencedColumn: (t) => t.accountId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$OAuthTransitionAccountsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.oAuthTransitionAccounts,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> accountAuthorizationsRefs<T extends Object>(
+    Expression<T> Function($$AccountAuthorizationsTableAnnotationComposer a) f,
+  ) {
+    final $$AccountAuthorizationsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.accountAuthorizations,
+          getReferencedColumn: (t) => t.accountId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$AccountAuthorizationsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.accountAuthorizations,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> domainSyncSchedulesRefs<T extends Object>(
+    Expression<T> Function($$DomainSyncSchedulesTableAnnotationComposer a) f,
+  ) {
+    final $$DomainSyncSchedulesTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.domainSyncSchedules,
+          getReferencedColumn: (t) => t.accountId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$DomainSyncSchedulesTableAnnotationComposer(
+                $db: $db,
+                $table: $db.domainSyncSchedules,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
   Expression<T> davAccountServicesRefs<T extends Object>(
     Expression<T> Function($$DavAccountServicesTableAnnotationComposer a) f,
   ) {
@@ -28530,6 +30315,9 @@ class $$AccountsTableTableManager
           (Account, $$AccountsTableReferences),
           Account,
           PrefetchHooks Function({
+            bool oAuthTransitionAccountsRefs,
+            bool accountAuthorizationsRefs,
+            bool domainSyncSchedulesRefs,
             bool davAccountServicesRefs,
             bool davCollectionsRefs,
             bool davObjectsRefs,
@@ -28660,6 +30448,9 @@ class $$AccountsTableTableManager
               .toList(),
           prefetchHooksCallback:
               ({
+                oAuthTransitionAccountsRefs = false,
+                accountAuthorizationsRefs = false,
+                domainSyncSchedulesRefs = false,
                 davAccountServicesRefs = false,
                 davCollectionsRefs = false,
                 davObjectsRefs = false,
@@ -28679,6 +30470,9 @@ class $$AccountsTableTableManager
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
+                    if (oAuthTransitionAccountsRefs) db.oAuthTransitionAccounts,
+                    if (accountAuthorizationsRefs) db.accountAuthorizations,
+                    if (domainSyncSchedulesRefs) db.domainSyncSchedules,
                     if (davAccountServicesRefs) db.davAccountServices,
                     if (davCollectionsRefs) db.davCollections,
                     if (davObjectsRefs) db.davObjects,
@@ -28698,6 +30492,69 @@ class $$AccountsTableTableManager
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
                     return [
+                      if (oAuthTransitionAccountsRefs)
+                        await $_getPrefetchedData<
+                          Account,
+                          $AccountsTable,
+                          OAuthTransitionAccount
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AccountsTableReferences
+                              ._oAuthTransitionAccountsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AccountsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).oAuthTransitionAccountsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.accountId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (accountAuthorizationsRefs)
+                        await $_getPrefetchedData<
+                          Account,
+                          $AccountsTable,
+                          AccountAuthorization
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AccountsTableReferences
+                              ._accountAuthorizationsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AccountsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).accountAuthorizationsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.accountId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (domainSyncSchedulesRefs)
+                        await $_getPrefetchedData<
+                          Account,
+                          $AccountsTable,
+                          DomainSyncSchedule
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AccountsTableReferences
+                              ._domainSyncSchedulesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AccountsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).domainSyncSchedulesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.accountId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                       if (davAccountServicesRefs)
                         await $_getPrefetchedData<
                           Account,
@@ -29034,6 +30891,9 @@ typedef $$AccountsTableProcessedTableManager =
       (Account, $$AccountsTableReferences),
       Account,
       PrefetchHooks Function({
+        bool oAuthTransitionAccountsRefs,
+        bool accountAuthorizationsRefs,
+        bool domainSyncSchedulesRefs,
         bool davAccountServicesRefs,
         bool davCollectionsRefs,
         bool davObjectsRefs,
@@ -29050,6 +30910,1335 @@ typedef $$AccountsTableProcessedTableManager =
         bool notificationScheduleRefs,
         bool locationResolutionsRefs,
       })
+    >;
+typedef $$OAuthTransitionAccountsTableCreateCompanionBuilder =
+    OAuthTransitionAccountsCompanion Function({
+      required String accountId,
+      Value<int> rowid,
+    });
+typedef $$OAuthTransitionAccountsTableUpdateCompanionBuilder =
+    OAuthTransitionAccountsCompanion Function({
+      Value<String> accountId,
+      Value<int> rowid,
+    });
+
+final class $$OAuthTransitionAccountsTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $OAuthTransitionAccountsTable,
+          OAuthTransitionAccount
+        > {
+  $$OAuthTransitionAccountsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $AccountsTable _accountIdTable(_$AppDatabase db) => db.accounts
+      .createAlias('o_auth_transition_accounts__account_id__accounts__id');
+
+  $$AccountsTableProcessedTableManager get accountId {
+    final $_column = $_itemColumn<String>('account_id')!;
+
+    final manager = $$AccountsTableTableManager(
+      $_db,
+      $_db.accounts,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_accountIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$OAuthTransitionAccountsTableFilterComposer
+    extends Composer<_$AppDatabase, $OAuthTransitionAccountsTable> {
+  $$OAuthTransitionAccountsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  $$AccountsTableFilterComposer get accountId {
+    final $$AccountsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableFilterComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$OAuthTransitionAccountsTableOrderingComposer
+    extends Composer<_$AppDatabase, $OAuthTransitionAccountsTable> {
+  $$OAuthTransitionAccountsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  $$AccountsTableOrderingComposer get accountId {
+    final $$AccountsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableOrderingComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$OAuthTransitionAccountsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $OAuthTransitionAccountsTable> {
+  $$OAuthTransitionAccountsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  $$AccountsTableAnnotationComposer get accountId {
+    final $$AccountsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$OAuthTransitionAccountsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $OAuthTransitionAccountsTable,
+          OAuthTransitionAccount,
+          $$OAuthTransitionAccountsTableFilterComposer,
+          $$OAuthTransitionAccountsTableOrderingComposer,
+          $$OAuthTransitionAccountsTableAnnotationComposer,
+          $$OAuthTransitionAccountsTableCreateCompanionBuilder,
+          $$OAuthTransitionAccountsTableUpdateCompanionBuilder,
+          (OAuthTransitionAccount, $$OAuthTransitionAccountsTableReferences),
+          OAuthTransitionAccount,
+          PrefetchHooks Function({bool accountId})
+        > {
+  $$OAuthTransitionAccountsTableTableManager(
+    _$AppDatabase db,
+    $OAuthTransitionAccountsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$OAuthTransitionAccountsTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$OAuthTransitionAccountsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$OAuthTransitionAccountsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> accountId = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => OAuthTransitionAccountsCompanion(
+                accountId: accountId,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String accountId,
+                Value<int> rowid = const Value.absent(),
+              }) => OAuthTransitionAccountsCompanion.insert(
+                accountId: accountId,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<
+                    $OAuthTransitionAccountsTable,
+                    OAuthTransitionAccount
+                  >(table),
+                  $$OAuthTransitionAccountsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({accountId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (accountId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.accountId,
+                                referencedTable:
+                                    $$OAuthTransitionAccountsTableReferences
+                                        ._accountIdTable(db),
+                                referencedColumn:
+                                    $$OAuthTransitionAccountsTableReferences
+                                        ._accountIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$OAuthTransitionAccountsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $OAuthTransitionAccountsTable,
+      OAuthTransitionAccount,
+      $$OAuthTransitionAccountsTableFilterComposer,
+      $$OAuthTransitionAccountsTableOrderingComposer,
+      $$OAuthTransitionAccountsTableAnnotationComposer,
+      $$OAuthTransitionAccountsTableCreateCompanionBuilder,
+      $$OAuthTransitionAccountsTableUpdateCompanionBuilder,
+      (OAuthTransitionAccount, $$OAuthTransitionAccountsTableReferences),
+      OAuthTransitionAccount,
+      PrefetchHooks Function({bool accountId})
+    >;
+typedef $$AccountAuthorizationsTableCreateCompanionBuilder =
+    AccountAuthorizationsCompanion Function({
+      required String accountId,
+      required int generation,
+      required String summaryJson,
+      Value<int> rowid,
+    });
+typedef $$AccountAuthorizationsTableUpdateCompanionBuilder =
+    AccountAuthorizationsCompanion Function({
+      Value<String> accountId,
+      Value<int> generation,
+      Value<String> summaryJson,
+      Value<int> rowid,
+    });
+
+final class $$AccountAuthorizationsTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $AccountAuthorizationsTable,
+          AccountAuthorization
+        > {
+  $$AccountAuthorizationsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $AccountsTable _accountIdTable(_$AppDatabase db) => db.accounts
+      .createAlias('account_authorizations__account_id__accounts__id');
+
+  $$AccountsTableProcessedTableManager get accountId {
+    final $_column = $_itemColumn<String>('account_id')!;
+
+    final manager = $$AccountsTableTableManager(
+      $_db,
+      $_db.accounts,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_accountIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$AccountAuthorizationsTableFilterComposer
+    extends Composer<_$AppDatabase, $AccountAuthorizationsTable> {
+  $$AccountAuthorizationsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get generation => $composableBuilder(
+    column: $table.generation,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get summaryJson => $composableBuilder(
+    column: $table.summaryJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$AccountsTableFilterComposer get accountId {
+    final $$AccountsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableFilterComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$AccountAuthorizationsTableOrderingComposer
+    extends Composer<_$AppDatabase, $AccountAuthorizationsTable> {
+  $$AccountAuthorizationsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get generation => $composableBuilder(
+    column: $table.generation,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get summaryJson => $composableBuilder(
+    column: $table.summaryJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$AccountsTableOrderingComposer get accountId {
+    final $$AccountsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableOrderingComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$AccountAuthorizationsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AccountAuthorizationsTable> {
+  $$AccountAuthorizationsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get generation => $composableBuilder(
+    column: $table.generation,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get summaryJson => $composableBuilder(
+    column: $table.summaryJson,
+    builder: (column) => column,
+  );
+
+  $$AccountsTableAnnotationComposer get accountId {
+    final $$AccountsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$AccountAuthorizationsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $AccountAuthorizationsTable,
+          AccountAuthorization,
+          $$AccountAuthorizationsTableFilterComposer,
+          $$AccountAuthorizationsTableOrderingComposer,
+          $$AccountAuthorizationsTableAnnotationComposer,
+          $$AccountAuthorizationsTableCreateCompanionBuilder,
+          $$AccountAuthorizationsTableUpdateCompanionBuilder,
+          (AccountAuthorization, $$AccountAuthorizationsTableReferences),
+          AccountAuthorization,
+          PrefetchHooks Function({bool accountId})
+        > {
+  $$AccountAuthorizationsTableTableManager(
+    _$AppDatabase db,
+    $AccountAuthorizationsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AccountAuthorizationsTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$AccountAuthorizationsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$AccountAuthorizationsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> accountId = const Value.absent(),
+                Value<int> generation = const Value.absent(),
+                Value<String> summaryJson = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AccountAuthorizationsCompanion(
+                accountId: accountId,
+                generation: generation,
+                summaryJson: summaryJson,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String accountId,
+                required int generation,
+                required String summaryJson,
+                Value<int> rowid = const Value.absent(),
+              }) => AccountAuthorizationsCompanion.insert(
+                accountId: accountId,
+                generation: generation,
+                summaryJson: summaryJson,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<
+                    $AccountAuthorizationsTable,
+                    AccountAuthorization
+                  >(table),
+                  $$AccountAuthorizationsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({accountId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (accountId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.accountId,
+                                referencedTable:
+                                    $$AccountAuthorizationsTableReferences
+                                        ._accountIdTable(db),
+                                referencedColumn:
+                                    $$AccountAuthorizationsTableReferences
+                                        ._accountIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$AccountAuthorizationsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $AccountAuthorizationsTable,
+      AccountAuthorization,
+      $$AccountAuthorizationsTableFilterComposer,
+      $$AccountAuthorizationsTableOrderingComposer,
+      $$AccountAuthorizationsTableAnnotationComposer,
+      $$AccountAuthorizationsTableCreateCompanionBuilder,
+      $$AccountAuthorizationsTableUpdateCompanionBuilder,
+      (AccountAuthorization, $$AccountAuthorizationsTableReferences),
+      AccountAuthorization,
+      PrefetchHooks Function({bool accountId})
+    >;
+typedef $$AuthorizationCommitsTableCreateCompanionBuilder =
+    AuthorizationCommitsCompanion Function({
+      required String accountId,
+      required int generation,
+      required bool hadCredential,
+      Value<String?> previousActiveAccountId,
+      Value<String?> previousNativeBindingJson,
+      Value<int> rowid,
+    });
+typedef $$AuthorizationCommitsTableUpdateCompanionBuilder =
+    AuthorizationCommitsCompanion Function({
+      Value<String> accountId,
+      Value<int> generation,
+      Value<bool> hadCredential,
+      Value<String?> previousActiveAccountId,
+      Value<String?> previousNativeBindingJson,
+      Value<int> rowid,
+    });
+
+class $$AuthorizationCommitsTableFilterComposer
+    extends Composer<_$AppDatabase, $AuthorizationCommitsTable> {
+  $$AuthorizationCommitsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get accountId => $composableBuilder(
+    column: $table.accountId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get generation => $composableBuilder(
+    column: $table.generation,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get hadCredential => $composableBuilder(
+    column: $table.hadCredential,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get previousActiveAccountId => $composableBuilder(
+    column: $table.previousActiveAccountId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get previousNativeBindingJson => $composableBuilder(
+    column: $table.previousNativeBindingJson,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$AuthorizationCommitsTableOrderingComposer
+    extends Composer<_$AppDatabase, $AuthorizationCommitsTable> {
+  $$AuthorizationCommitsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get accountId => $composableBuilder(
+    column: $table.accountId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get generation => $composableBuilder(
+    column: $table.generation,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get hadCredential => $composableBuilder(
+    column: $table.hadCredential,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get previousActiveAccountId => $composableBuilder(
+    column: $table.previousActiveAccountId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get previousNativeBindingJson => $composableBuilder(
+    column: $table.previousNativeBindingJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$AuthorizationCommitsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AuthorizationCommitsTable> {
+  $$AuthorizationCommitsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get accountId =>
+      $composableBuilder(column: $table.accountId, builder: (column) => column);
+
+  GeneratedColumn<int> get generation => $composableBuilder(
+    column: $table.generation,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get hadCredential => $composableBuilder(
+    column: $table.hadCredential,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get previousActiveAccountId => $composableBuilder(
+    column: $table.previousActiveAccountId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get previousNativeBindingJson => $composableBuilder(
+    column: $table.previousNativeBindingJson,
+    builder: (column) => column,
+  );
+}
+
+class $$AuthorizationCommitsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $AuthorizationCommitsTable,
+          AuthorizationCommit,
+          $$AuthorizationCommitsTableFilterComposer,
+          $$AuthorizationCommitsTableOrderingComposer,
+          $$AuthorizationCommitsTableAnnotationComposer,
+          $$AuthorizationCommitsTableCreateCompanionBuilder,
+          $$AuthorizationCommitsTableUpdateCompanionBuilder,
+          (
+            AuthorizationCommit,
+            BaseReferences<
+              _$AppDatabase,
+              $AuthorizationCommitsTable,
+              AuthorizationCommit
+            >,
+          ),
+          AuthorizationCommit,
+          PrefetchHooks Function()
+        > {
+  $$AuthorizationCommitsTableTableManager(
+    _$AppDatabase db,
+    $AuthorizationCommitsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AuthorizationCommitsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$AuthorizationCommitsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$AuthorizationCommitsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> accountId = const Value.absent(),
+                Value<int> generation = const Value.absent(),
+                Value<bool> hadCredential = const Value.absent(),
+                Value<String?> previousActiveAccountId = const Value.absent(),
+                Value<String?> previousNativeBindingJson = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AuthorizationCommitsCompanion(
+                accountId: accountId,
+                generation: generation,
+                hadCredential: hadCredential,
+                previousActiveAccountId: previousActiveAccountId,
+                previousNativeBindingJson: previousNativeBindingJson,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String accountId,
+                required int generation,
+                required bool hadCredential,
+                Value<String?> previousActiveAccountId = const Value.absent(),
+                Value<String?> previousNativeBindingJson = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AuthorizationCommitsCompanion.insert(
+                accountId: accountId,
+                generation: generation,
+                hadCredential: hadCredential,
+                previousActiveAccountId: previousActiveAccountId,
+                previousNativeBindingJson: previousNativeBindingJson,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$AuthorizationCommitsTable, AuthorizationCommit>(
+                    table,
+                  ),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $AuthorizationCommitsTable,
+                    AuthorizationCommit
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$AuthorizationCommitsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $AuthorizationCommitsTable,
+      AuthorizationCommit,
+      $$AuthorizationCommitsTableFilterComposer,
+      $$AuthorizationCommitsTableOrderingComposer,
+      $$AuthorizationCommitsTableAnnotationComposer,
+      $$AuthorizationCommitsTableCreateCompanionBuilder,
+      $$AuthorizationCommitsTableUpdateCompanionBuilder,
+      (
+        AuthorizationCommit,
+        BaseReferences<
+          _$AppDatabase,
+          $AuthorizationCommitsTable,
+          AuthorizationCommit
+        >,
+      ),
+      AuthorizationCommit,
+      PrefetchHooks Function()
+    >;
+typedef $$AuthorizationGenerationsTableCreateCompanionBuilder =
+    AuthorizationGenerationsCompanion Function({
+      required String accountId,
+      required int generation,
+      Value<int> rowid,
+    });
+typedef $$AuthorizationGenerationsTableUpdateCompanionBuilder =
+    AuthorizationGenerationsCompanion Function({
+      Value<String> accountId,
+      Value<int> generation,
+      Value<int> rowid,
+    });
+
+class $$AuthorizationGenerationsTableFilterComposer
+    extends Composer<_$AppDatabase, $AuthorizationGenerationsTable> {
+  $$AuthorizationGenerationsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get accountId => $composableBuilder(
+    column: $table.accountId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get generation => $composableBuilder(
+    column: $table.generation,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$AuthorizationGenerationsTableOrderingComposer
+    extends Composer<_$AppDatabase, $AuthorizationGenerationsTable> {
+  $$AuthorizationGenerationsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get accountId => $composableBuilder(
+    column: $table.accountId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get generation => $composableBuilder(
+    column: $table.generation,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$AuthorizationGenerationsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AuthorizationGenerationsTable> {
+  $$AuthorizationGenerationsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get accountId =>
+      $composableBuilder(column: $table.accountId, builder: (column) => column);
+
+  GeneratedColumn<int> get generation => $composableBuilder(
+    column: $table.generation,
+    builder: (column) => column,
+  );
+}
+
+class $$AuthorizationGenerationsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $AuthorizationGenerationsTable,
+          AuthorizationGeneration,
+          $$AuthorizationGenerationsTableFilterComposer,
+          $$AuthorizationGenerationsTableOrderingComposer,
+          $$AuthorizationGenerationsTableAnnotationComposer,
+          $$AuthorizationGenerationsTableCreateCompanionBuilder,
+          $$AuthorizationGenerationsTableUpdateCompanionBuilder,
+          (
+            AuthorizationGeneration,
+            BaseReferences<
+              _$AppDatabase,
+              $AuthorizationGenerationsTable,
+              AuthorizationGeneration
+            >,
+          ),
+          AuthorizationGeneration,
+          PrefetchHooks Function()
+        > {
+  $$AuthorizationGenerationsTableTableManager(
+    _$AppDatabase db,
+    $AuthorizationGenerationsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AuthorizationGenerationsTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$AuthorizationGenerationsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$AuthorizationGenerationsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> accountId = const Value.absent(),
+                Value<int> generation = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AuthorizationGenerationsCompanion(
+                accountId: accountId,
+                generation: generation,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String accountId,
+                required int generation,
+                Value<int> rowid = const Value.absent(),
+              }) => AuthorizationGenerationsCompanion.insert(
+                accountId: accountId,
+                generation: generation,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<
+                    $AuthorizationGenerationsTable,
+                    AuthorizationGeneration
+                  >(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $AuthorizationGenerationsTable,
+                    AuthorizationGeneration
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$AuthorizationGenerationsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $AuthorizationGenerationsTable,
+      AuthorizationGeneration,
+      $$AuthorizationGenerationsTableFilterComposer,
+      $$AuthorizationGenerationsTableOrderingComposer,
+      $$AuthorizationGenerationsTableAnnotationComposer,
+      $$AuthorizationGenerationsTableCreateCompanionBuilder,
+      $$AuthorizationGenerationsTableUpdateCompanionBuilder,
+      (
+        AuthorizationGeneration,
+        BaseReferences<
+          _$AppDatabase,
+          $AuthorizationGenerationsTable,
+          AuthorizationGeneration
+        >,
+      ),
+      AuthorizationGeneration,
+      PrefetchHooks Function()
+    >;
+typedef $$DomainSyncSchedulesTableCreateCompanionBuilder =
+    DomainSyncSchedulesCompanion Function({
+      required String accountId,
+      required String domain,
+      Value<String?> lastSuccessfulPullUtc,
+      Value<String?> nextPassivePullUtc,
+      Value<String?> cooldownUntilUtc,
+      Value<int> rowid,
+    });
+typedef $$DomainSyncSchedulesTableUpdateCompanionBuilder =
+    DomainSyncSchedulesCompanion Function({
+      Value<String> accountId,
+      Value<String> domain,
+      Value<String?> lastSuccessfulPullUtc,
+      Value<String?> nextPassivePullUtc,
+      Value<String?> cooldownUntilUtc,
+      Value<int> rowid,
+    });
+
+final class $$DomainSyncSchedulesTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $DomainSyncSchedulesTable,
+          DomainSyncSchedule
+        > {
+  $$DomainSyncSchedulesTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $AccountsTable _accountIdTable(_$AppDatabase db) => db.accounts
+      .createAlias('domain_sync_schedules__account_id__accounts__id');
+
+  $$AccountsTableProcessedTableManager get accountId {
+    final $_column = $_itemColumn<String>('account_id')!;
+
+    final manager = $$AccountsTableTableManager(
+      $_db,
+      $_db.accounts,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_accountIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$DomainSyncSchedulesTableFilterComposer
+    extends Composer<_$AppDatabase, $DomainSyncSchedulesTable> {
+  $$DomainSyncSchedulesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get domain => $composableBuilder(
+    column: $table.domain,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastSuccessfulPullUtc => $composableBuilder(
+    column: $table.lastSuccessfulPullUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get nextPassivePullUtc => $composableBuilder(
+    column: $table.nextPassivePullUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get cooldownUntilUtc => $composableBuilder(
+    column: $table.cooldownUntilUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$AccountsTableFilterComposer get accountId {
+    final $$AccountsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableFilterComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$DomainSyncSchedulesTableOrderingComposer
+    extends Composer<_$AppDatabase, $DomainSyncSchedulesTable> {
+  $$DomainSyncSchedulesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get domain => $composableBuilder(
+    column: $table.domain,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastSuccessfulPullUtc => $composableBuilder(
+    column: $table.lastSuccessfulPullUtc,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get nextPassivePullUtc => $composableBuilder(
+    column: $table.nextPassivePullUtc,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get cooldownUntilUtc => $composableBuilder(
+    column: $table.cooldownUntilUtc,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$AccountsTableOrderingComposer get accountId {
+    final $$AccountsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableOrderingComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$DomainSyncSchedulesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DomainSyncSchedulesTable> {
+  $$DomainSyncSchedulesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get domain =>
+      $composableBuilder(column: $table.domain, builder: (column) => column);
+
+  GeneratedColumn<String> get lastSuccessfulPullUtc => $composableBuilder(
+    column: $table.lastSuccessfulPullUtc,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get nextPassivePullUtc => $composableBuilder(
+    column: $table.nextPassivePullUtc,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get cooldownUntilUtc => $composableBuilder(
+    column: $table.cooldownUntilUtc,
+    builder: (column) => column,
+  );
+
+  $$AccountsTableAnnotationComposer get accountId {
+    final $$AccountsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$DomainSyncSchedulesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $DomainSyncSchedulesTable,
+          DomainSyncSchedule,
+          $$DomainSyncSchedulesTableFilterComposer,
+          $$DomainSyncSchedulesTableOrderingComposer,
+          $$DomainSyncSchedulesTableAnnotationComposer,
+          $$DomainSyncSchedulesTableCreateCompanionBuilder,
+          $$DomainSyncSchedulesTableUpdateCompanionBuilder,
+          (DomainSyncSchedule, $$DomainSyncSchedulesTableReferences),
+          DomainSyncSchedule,
+          PrefetchHooks Function({bool accountId})
+        > {
+  $$DomainSyncSchedulesTableTableManager(
+    _$AppDatabase db,
+    $DomainSyncSchedulesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DomainSyncSchedulesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$DomainSyncSchedulesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$DomainSyncSchedulesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> accountId = const Value.absent(),
+                Value<String> domain = const Value.absent(),
+                Value<String?> lastSuccessfulPullUtc = const Value.absent(),
+                Value<String?> nextPassivePullUtc = const Value.absent(),
+                Value<String?> cooldownUntilUtc = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DomainSyncSchedulesCompanion(
+                accountId: accountId,
+                domain: domain,
+                lastSuccessfulPullUtc: lastSuccessfulPullUtc,
+                nextPassivePullUtc: nextPassivePullUtc,
+                cooldownUntilUtc: cooldownUntilUtc,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String accountId,
+                required String domain,
+                Value<String?> lastSuccessfulPullUtc = const Value.absent(),
+                Value<String?> nextPassivePullUtc = const Value.absent(),
+                Value<String?> cooldownUntilUtc = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DomainSyncSchedulesCompanion.insert(
+                accountId: accountId,
+                domain: domain,
+                lastSuccessfulPullUtc: lastSuccessfulPullUtc,
+                nextPassivePullUtc: nextPassivePullUtc,
+                cooldownUntilUtc: cooldownUntilUtc,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$DomainSyncSchedulesTable, DomainSyncSchedule>(
+                    table,
+                  ),
+                  $$DomainSyncSchedulesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({accountId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (accountId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.accountId,
+                                referencedTable:
+                                    $$DomainSyncSchedulesTableReferences
+                                        ._accountIdTable(db),
+                                referencedColumn:
+                                    $$DomainSyncSchedulesTableReferences
+                                        ._accountIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$DomainSyncSchedulesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $DomainSyncSchedulesTable,
+      DomainSyncSchedule,
+      $$DomainSyncSchedulesTableFilterComposer,
+      $$DomainSyncSchedulesTableOrderingComposer,
+      $$DomainSyncSchedulesTableAnnotationComposer,
+      $$DomainSyncSchedulesTableCreateCompanionBuilder,
+      $$DomainSyncSchedulesTableUpdateCompanionBuilder,
+      (DomainSyncSchedule, $$DomainSyncSchedulesTableReferences),
+      DomainSyncSchedule,
+      PrefetchHooks Function({bool accountId})
     >;
 typedef $$DavAccountServicesTableCreateCompanionBuilder =
     DavAccountServicesCompanion Function({
@@ -46587,6 +49776,22 @@ class $AppDatabaseManager {
   $AppDatabaseManager(this._db);
   $$AccountsTableTableManager get accounts =>
       $$AccountsTableTableManager(_db, _db.accounts);
+  $$OAuthTransitionAccountsTableTableManager get oAuthTransitionAccounts =>
+      $$OAuthTransitionAccountsTableTableManager(
+        _db,
+        _db.oAuthTransitionAccounts,
+      );
+  $$AccountAuthorizationsTableTableManager get accountAuthorizations =>
+      $$AccountAuthorizationsTableTableManager(_db, _db.accountAuthorizations);
+  $$AuthorizationCommitsTableTableManager get authorizationCommits =>
+      $$AuthorizationCommitsTableTableManager(_db, _db.authorizationCommits);
+  $$AuthorizationGenerationsTableTableManager get authorizationGenerations =>
+      $$AuthorizationGenerationsTableTableManager(
+        _db,
+        _db.authorizationGenerations,
+      );
+  $$DomainSyncSchedulesTableTableManager get domainSyncSchedules =>
+      $$DomainSyncSchedulesTableTableManager(_db, _db.domainSyncSchedules);
   $$DavAccountServicesTableTableManager get davAccountServices =>
       $$DavAccountServicesTableTableManager(_db, _db.davAccountServices);
   $$DavCollectionsTableTableManager get davCollections =>

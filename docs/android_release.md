@@ -24,9 +24,7 @@ adb -s DEVICE_ID install -r build/app/outputs/flutter-apk/app-release.apk
 To launch/install from source with the explicit Android entrypoint, use
 `tool/android/run.sh --device DEVICE_ID`. Certificate identity can be inspected
 directly with the Build Tools 37 `apksigner verify --verbose --print-certs`
-command, or as part of `tool/android/inspect_artifacts.sh`. The build and
-inspection commands were exercised with test signing; device install/launch is
-recorded as blocked, not passed, in the verification report.
+command, or as part of `tool/android/inspect_artifacts.sh`.
 
 Outputs are:
 

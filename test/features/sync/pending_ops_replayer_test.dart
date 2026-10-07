@@ -1,3 +1,4 @@
+import 'package:busymax/src/features/tasks/domain/task_remote_error.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -29,6 +30,8 @@ import 'package:busymax/src/microsoft_todo/api/microsoft_todo_task_remote_client
 import '../../support/recording_notification_backend.dart';
 import '../../support/memory_settings_store.dart';
 
+import '../../support/persistence_test_directory.dart';
+
 void main() {
   late AppDatabase database;
   late _FakeTaskRemoteClient apiClient;
@@ -43,6 +46,294 @@ void main() {
   tearDown(() async {
     await database.close();
   });
+
+  test('replay blocks legacy Docs-assigned note mutation', () async {
+    await database.tasksDao.upsertTask(
+      _task(
+        'list-1',
+        'assigned',
+        assignmentInfoJson: '{"surfaceType":"DOCUMENT"}',
+      ),
+    );
+    await _enqueue(
+      database,
+      id: '01',
+      operation: 'patch_task',
+      taskListId: 'list-1',
+      taskId: 'assigned',
+      request: {'notes': 'Unsupported'},
+    );
+
+    expect(
+      await PendingOpsReplayer(
+        database: database,
+        apiClient: apiClient,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+      ).replayDueOps(),
+      0,
+    );
+    expect(apiClient.calls, isEmpty);
+    expect(
+      (await database.pendingOpsDao.getOp('01'))?.lastErrorCode,
+      'unsupported_assigned_task',
+    );
+  });
+
+  test(
+    'replay blocks notes when a task became Docs-assigned remotely',
+    () async {
+      const baseline = {'id': 'task', 'title': 'Task'};
+      await database.tasksDao.upsertTask(
+        _task(
+          'list-1',
+          'task',
+          updatedUtc: _now,
+          rawJson: jsonEncode(baseline),
+        ),
+      );
+      await _enqueue(
+        database,
+        id: '01',
+        operation: 'patch_task',
+        taskListId: 'list-1',
+        taskId: 'task',
+        request: {'notes': 'Now forbidden'},
+        baselineUpdatedUtc: _now,
+        baselineRawJson: jsonEncode(baseline),
+      );
+      apiClient.remoteTask = TaskDto.fromJson({
+        ...baseline,
+        'updated': _now,
+        'assignmentInfo': {'surfaceType': 'DOCUMENT'},
+      });
+
+      expect(
+        await PendingOpsReplayer(
+          database: database,
+          apiClient: apiClient,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+        ).replayDueOps(),
+        0,
+      );
+      expect(apiClient.calls, isEmpty);
+      expect(
+        (await database.pendingOpsDao.getOp('01'))?.lastErrorCode,
+        'unsupported_assigned_task',
+      );
+    },
+  );
+
+  test('replay blocks a parent that became assigned remotely', () async {
+    const child = {'id': 'child', 'title': 'Child'};
+    const parent = {'id': 'parent', 'title': 'Parent'};
+    await database.tasksDao.upsertTask(
+      _task('list-1', 'child', updatedUtc: _now, rawJson: jsonEncode(child)),
+    );
+    await database.tasksDao.upsertTask(
+      _task('list-1', 'parent', updatedUtc: _now, rawJson: jsonEncode(parent)),
+    );
+    await _enqueue(
+      database,
+      id: '01',
+      operation: 'move_task',
+      taskListId: 'list-1',
+      taskId: 'child',
+      request: {'parent': 'parent'},
+      baselineUpdatedUtc: _now,
+      baselineRawJson: jsonEncode(child),
+    );
+    apiClient.remoteTasksById.addAll({
+      'child': TaskDto.fromJson({...child, 'updated': _now}),
+      'parent': TaskDto.fromJson({
+        ...parent,
+        'updated': _now,
+        'assignmentInfo': {'surfaceType': 'SPACE'},
+      }),
+    });
+
+    expect(
+      await PendingOpsReplayer(
+        database: database,
+        apiClient: apiClient,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+      ).replayDueOps(),
+      0,
+    );
+    expect(apiClient.calls, isEmpty);
+    expect(
+      (await database.pendingOpsDao.getOp('01'))?.lastErrorCode,
+      'unsupported_assigned_task',
+    );
+  });
+
+  test('replay blocks creation below a newly assigned parent', () async {
+    await database.tasksDao.upsertTask(_task('list-1', 'parent'));
+    await _enqueue(
+      database,
+      id: '01',
+      operation: 'create_task',
+      taskListId: 'list-1',
+      taskId: 'local-child',
+      localTempId: 'local-child',
+      request: {
+        'parent': 'parent',
+        'body': {'title': 'Child'},
+      },
+    );
+    apiClient.remoteTasksById['parent'] = TaskDto.fromJson({
+      'id': 'parent',
+      'title': 'Parent',
+      'assignmentInfo': {'surfaceType': 'DOCUMENT'},
+    });
+
+    expect(
+      await PendingOpsReplayer(
+        database: database,
+        apiClient: apiClient,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+      ).replayDueOps(),
+      0,
+    );
+    expect(apiClient.calls, isEmpty);
+    expect(
+      (await database.pendingOpsDao.getOp('01'))?.lastErrorCode,
+      'unsupported_assigned_task',
+    );
+  });
+
+  test('replay blocks assigned child and assigned parent moves', () async {
+    await database.tasksDao.upsertTask(
+      _task(
+        'list-1',
+        'assigned',
+        assignmentInfoJson: '{"surfaceType":"SPACE"}',
+      ),
+    );
+    await database.tasksDao.upsertTask(_task('list-1', 'ordinary'));
+    await _enqueue(
+      database,
+      id: '01',
+      operation: 'move_task',
+      taskListId: 'list-1',
+      taskId: 'assigned',
+      request: {'parent': 'ordinary'},
+    );
+    await _enqueue(
+      database,
+      id: '02',
+      operation: 'move_task',
+      taskListId: 'list-1',
+      taskId: 'ordinary',
+      request: {'parent': 'assigned'},
+    );
+
+    expect(
+      await PendingOpsReplayer(
+        database: database,
+        apiClient: apiClient,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+      ).replayDueOps(),
+      0,
+    );
+    expect(apiClient.calls, isEmpty);
+    final ops = await database.select(database.pendingOps).get();
+    expect(
+      ops.map((op) => op.lastErrorCode),
+      everyElement('unsupported_assigned_task'),
+    );
+  });
+
+  test('replay keeps assigned top-level ordering available', () async {
+    const assigned = {
+      'id': 'assigned',
+      'title': 'Assigned',
+      'assignmentInfo': {'surfaceType': 'DOCUMENT'},
+    };
+    await database.tasksDao.upsertTask(
+      _task(
+        'list-1',
+        'assigned',
+        updatedUtc: _now,
+        rawJson: jsonEncode(assigned),
+        assignmentInfoJson: jsonEncode(assigned['assignmentInfo']),
+      ),
+    );
+    await _enqueue(
+      database,
+      id: '01',
+      operation: 'move_task',
+      taskListId: 'list-1',
+      taskId: 'assigned',
+      request: {'previous': 'sibling'},
+      baselineUpdatedUtc: _now,
+      baselineRawJson: jsonEncode(assigned),
+    );
+    apiClient.remoteTask = TaskDto.fromJson({...assigned, 'updated': _now});
+
+    expect(
+      await PendingOpsReplayer(
+        database: database,
+        apiClient: apiClient,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+      ).replayDueOps(),
+      1,
+    );
+    expect(apiClient.calls, ['move_task:assigned']);
+  });
+
+  for (final confirmed in [false, true]) {
+    test('replay ${confirmed ? 'deletes' : 'blocks'} assigned source only '
+        '${confirmed ? 'with' : 'without'} recorded confirmation', () async {
+      const raw = {
+        'id': 'assigned',
+        'title': 'Assigned',
+        'assignmentInfo': {'surfaceType': 'SPACE'},
+      };
+      await database.tasksDao.upsertTask(
+        _task(
+          'list-1',
+          'assigned',
+          updatedUtc: _now,
+          rawJson: jsonEncode(raw),
+          assignmentInfoJson: jsonEncode(raw['assignmentInfo']),
+        ),
+      );
+      await _enqueue(
+        database,
+        id: '01',
+        operation: 'delete_task',
+        taskListId: 'list-1',
+        taskId: 'assigned',
+        request: {if (confirmed) 'confirmedAssignedSourceDeletion': true},
+        baselineUpdatedUtc: _now,
+        baselineRawJson: jsonEncode(raw),
+      );
+      apiClient.remoteTask = TaskDto.fromJson({...raw, 'updated': _now});
+
+      expect(
+        await PendingOpsReplayer(
+          database: database,
+          apiClient: apiClient,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+        ).replayDueOps(),
+        confirmed ? 1 : 0,
+      );
+      expect(apiClient.calls, confirmed ? ['delete_task:assigned'] : isEmpty);
+      if (!confirmed) {
+        expect(
+          (await database.pendingOpsDao.getOp('01'))?.lastErrorCode,
+          'unsupported_assigned_task',
+        );
+      }
+    });
+  }
 
   for (final lifecycle in ['snoozed', 'sent', 'dismissed']) {
     test(
@@ -433,15 +724,16 @@ void main() {
       message: 'Rate limited',
     );
 
-    final firstApplied = await PendingOpsReplayer(
-      database: database,
-      apiClient: apiClient,
-      accountId: 'account',
-      random: Random(0),
-      nowUtc: () => DateTime.utc(2026, 6, 4, 1),
-    ).replayDueOps();
-
-    expect(firstApplied, 0);
+    await expectLater(
+      PendingOpsReplayer(
+        database: database,
+        apiClient: apiClient,
+        accountId: 'account',
+        random: Random(0),
+        nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+      ).replayDueOps(),
+      throwsA(isA<TaskRemoteError>()),
+    );
     expect(apiClient.calls, ['create_task:list-1']);
     var operations = await database.select(database.pendingOps).get();
     final pendingCreate = operations.singleWhere(
@@ -499,15 +791,15 @@ void main() {
       message: 'Temporary failure',
     );
 
-    expect(
-      await PendingOpsReplayer(
+    await expectLater(
+      PendingOpsReplayer(
         database: database,
         apiClient: apiClient,
         accountId: 'account',
         random: Random(0),
         nowUtc: () => DateTime.utc(2026, 6, 4, 1),
       ).replayDueOps(),
-      1,
+      throwsA(isA<TaskRemoteError>()),
     );
 
     final visible = (await database.tasksDao.listTasks(
@@ -558,15 +850,15 @@ void main() {
         const TaskPatchInput({'title': 'Local title'}),
       );
 
-      expect(
-        await PendingOpsReplayer(
+      await expectLater(
+        PendingOpsReplayer(
           database: database,
           apiClient: apiClient,
           accountId: 'account',
           random: Random(0),
           nowUtc: () => DateTime.utc(2026, 6, 4, 1),
         ).replayDueOps(),
-        1,
+        throwsA(isA<TaskRemoteError>()),
       );
 
       var pending = await database.select(database.pendingOps).getSingle();
@@ -609,7 +901,7 @@ void main() {
     test(
       '$entity creation restart after identity persistence stays acknowledged',
       () async {
-        final directory = await Directory.systemTemp.createTemp(
+        final directory = await createPersistenceTestDirectory(
           'busymax-$entity-create-ack-',
         );
         final databaseFile = File('${directory.path}/busymax.sqlite');
@@ -718,7 +1010,7 @@ void main() {
   test(
     'checklist creation restart after identity persistence stays acknowledged',
     () async {
-      final directory = await Directory.systemTemp.createTemp(
+      final directory = await createPersistenceTestDirectory(
         'busymax-checklist-create-ack-',
       );
       final databaseFile = File('${directory.path}/busymax.sqlite');
@@ -1222,15 +1514,15 @@ void main() {
         statusCode: 429,
         message: 'Rate limited',
       );
-      expect(
-        await PendingOpsReplayer(
+      await expectLater(
+        PendingOpsReplayer(
           database: database,
           apiClient: apiClient,
           accountId: 'account',
           random: Random(0),
           nowUtc: () => DateTime.utc(2026, 6, 4, 1),
         ).replayDueOps(),
-        0,
+        throwsA(isA<TaskRemoteError>()),
       );
       expect(apiClient.calls, ['move_task:task-1']);
       expect(
@@ -1659,15 +1951,15 @@ void main() {
         message: 'Rate limited',
       );
 
-      expect(
-        await PendingOpsReplayer(
+      await expectLater(
+        PendingOpsReplayer(
           database: database,
           apiClient: apiClient,
           accountId: 'account',
           random: Random(0),
           nowUtc: () => DateTime.utc(2026, 6, 4, 1),
         ).replayDueOps(),
-        0,
+        throwsA(isA<TaskRemoteError>()),
       );
       expect(apiClient.taskListPatchTitles, isEmpty);
       expect(
@@ -1990,15 +2282,16 @@ void main() {
       message: 'Temporarily unavailable',
     );
 
-    final firstApplied = await PendingOpsReplayer(
-      database: database,
-      apiClient: apiClient,
-      accountId: 'account',
-      random: Random(0),
-      nowUtc: () => DateTime.utc(2026, 6, 4, 1),
-    ).replayDueOps();
-
-    expect(firstApplied, 1);
+    await expectLater(
+      PendingOpsReplayer(
+        database: database,
+        apiClient: apiClient,
+        accountId: 'account',
+        random: Random(0),
+        nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+      ).replayDueOps(),
+      throwsA(isA<TaskRemoteError>()),
+    );
     var pending = await database.select(database.pendingOps).get();
     expect(pending, hasLength(1));
     expect(pending.single.operation, 'move_task');
@@ -3796,16 +4089,18 @@ void main() {
       request: {'title': 'Patched'},
     );
 
-    final applied = await PendingOpsReplayer(
-      database: database,
-      apiClient: apiClient,
-      accountId: 'account',
-      random: Random(0),
-      nowUtc: () => DateTime.utc(2026, 6, 4),
-    ).replayDueOps();
+    await expectLater(
+      PendingOpsReplayer(
+        database: database,
+        apiClient: apiClient,
+        accountId: 'account',
+        random: Random(0),
+        nowUtc: () => DateTime.utc(2026, 6, 4),
+      ).replayDueOps(),
+      throwsA(isA<TaskRemoteError>()),
+    );
 
     final op = await database.select(database.pendingOps).getSingle();
-    expect(applied, 0);
     expect(op.attemptCount, 1);
     expect(op.lastErrorCode, '500');
     expect(op.nextAttemptAtUtc, isNot(equals(null)));
@@ -3893,16 +4188,18 @@ void main() {
         request: {'title': 'Patched'},
       );
 
-      final applied = await PendingOpsReplayer(
-        database: database,
-        apiClient: _microsoftAdapter(microsoftClient),
-        accountId: 'account',
-        random: Random(0),
-        nowUtc: () => now,
-      ).replayDueOps();
+      await expectLater(
+        PendingOpsReplayer(
+          database: database,
+          apiClient: _microsoftAdapter(microsoftClient),
+          accountId: 'account',
+          random: Random(0),
+          nowUtc: () => now,
+        ).replayDueOps(),
+        throwsA(isA<TaskRemoteError>()),
+      );
 
       final op = await database.select(database.pendingOps).getSingle();
-      expect(applied, 0);
       expect(op.attemptCount, 1);
       expect(op.lastErrorCode, '$statusCode');
       expect(op.lastErrorMessage, 'Transient Microsoft Graph error');
@@ -3912,6 +4209,9 @@ void main() {
   }
 
   test('Microsoft To Do 404 delete reconciles as success', () async {
+    await (database.update(database.accounts)
+          ..where((row) => row.id.equals('account')))
+        .write(const AccountsCompanion(provider: Value('microsoft')));
     final microsoftClient = _ThrowingMicrosoftTodoApiClient(
       deleteTaskError: const MicrosoftTodoApiError(
         statusCode: 404,
@@ -4622,6 +4922,7 @@ class _FakeTaskRemoteClient implements TaskRemoteClient {
   GoogleTasksApiError? moveTaskError;
   TaskListDto? remoteTaskList;
   TaskDto? remoteTask;
+  final Map<String, TaskDto> remoteTasksById = {};
   TaskDto? remoteTaskAfterSecondPatch;
   TaskDto? remoteTaskAfterMove;
   DateTime? taskListPatchResultUpdated;
@@ -4812,7 +5113,7 @@ class _FakeTaskRemoteClient implements TaskRemoteClient {
     required String taskListId,
     required String taskId,
   }) async {
-    return remoteTask ?? _taskDto(taskId);
+    return remoteTasksById[taskId] ?? remoteTask ?? _taskDto(taskId);
   }
 
   @override
@@ -4955,6 +5256,7 @@ TasksCompanion _task(
   String? updatedUtc,
   String? rawJson,
   String? checklistItemsJson,
+  String? assignmentInfoJson,
 }) {
   return TasksCompanion.insert(
     accountId: 'account',
@@ -4964,6 +5266,7 @@ TasksCompanion _task(
     updatedUtc: Value(updatedUtc),
     rawJson: rawJson ?? jsonEncode({'id': id, 'title': title}),
     microsoftChecklistItemsJson: Value(checklistItemsJson),
+    assignmentInfoJson: Value(assignmentInfoJson),
     localDirty: Value(id.startsWith('local-')),
     localCreated: Value(id.startsWith('local-')),
     createdLocalAtUtc: _now,

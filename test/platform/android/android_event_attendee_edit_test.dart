@@ -1,5 +1,6 @@
 import 'package:busymax/src/android/presentation/android_schedule_screen.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -47,5 +48,218 @@ void main() {
     expect(edit.changed, isTrue);
     expect(identical(edit.attendees.first, existing), isTrue);
     expect(edit.attendees.last.email, 'new@example.test');
+  });
+
+  test('role edits preserve guest identity and response metadata', () {
+    final guest = EventAttendeeDraft.fromJson(const {
+      'email': 'guest@example.test',
+      'displayName': 'Guest',
+      'responseStatus': 'accepted',
+      'comment': 'Joining remotely',
+      'additionalGuests': 2,
+      'providerExtension': 'retain locally',
+    });
+    final changed = applyAndroidEventAttendeeRoles(
+      AndroidEventAttendeeEdit(attendees: [guest], changed: false),
+      const {'guest@example.test': true},
+    );
+    expect(changed.changed, isTrue);
+    expect(changed.attendees.single.optional, isTrue);
+    expect(changed.attendees.single.displayName, 'Guest');
+    expect(changed.attendees.single.responseStatus, 'accepted');
+    expect(
+      changed.attendees.single.rawJson['providerExtension'],
+      'retain locally',
+    );
+    expect(
+      changed.attendees.single.toGoogleJson()['comment'],
+      'Joining remotely',
+    );
+    expect(changed.attendees.single.toGoogleJson()['additionalGuests'], 2);
+  });
+
+  test('reminder selection separates defaults, none and at-start', () {
+    expect(
+      androidEventReminderSelection(BusyProvider.google, const {
+        'useDefault': true,
+      }),
+      -1,
+    );
+    expect(
+      androidEventReminderSelection(BusyProvider.google, const {
+        'useDefault': false,
+        'overrides': [],
+      }),
+      -2,
+    );
+    expect(
+      androidEventReminderSelection(BusyProvider.google, const {
+        'useDefault': false,
+        'overrides': [
+          {'method': 'popup', 'minutes': 0},
+        ],
+      }),
+      0,
+    );
+    expect(
+      androidEventReminderSelection(BusyProvider.microsoft, const {
+        'isReminderOn': true,
+        'reminderMinutesBeforeStart': 0,
+      }),
+      0,
+    );
+    expect(
+      androidEventReminderSelection(BusyProvider.google, const {
+        'useDefault': false,
+        'overrides': [
+          {'method': 'popup', 'minutes': 0},
+          {'method': 'popup', 'minutes': 10},
+        ],
+      }),
+      isNull,
+    );
+    expect(
+      androidEventReminderMinutes(BusyProvider.google, const {
+        'useDefault': false,
+        'overrides': [
+          {'method': 'popup', 'minutes': 0},
+          {'method': 'popup', 'minutes': 10},
+        ],
+      }),
+      [0, 10],
+    );
+  });
+
+  test('Nextcloud reminder rows retain alarm identities and zero minutes', () {
+    final rows = androidNextcloudEditableReminderRows(const {
+      'minutes': [0, 10],
+      'alarms': [
+        {
+          'properties': [
+            {'name': 'ACTION', 'value': 'DISPLAY'},
+            {'name': 'TRIGGER', 'value': '-PT0M'},
+          ],
+        },
+        {
+          'properties': [
+            {'name': 'ACTION', 'value': 'AUDIO'},
+            {'name': 'TRIGGER', 'value': '-PT5M'},
+          ],
+        },
+        {
+          'properties': [
+            {'name': 'ACTION', 'value': 'DISPLAY'},
+            {'name': 'TRIGGER', 'value': '-PT10M'},
+          ],
+        },
+      ],
+    });
+    expect(rows!.map((row) => row.minutes), [0, 10]);
+    expect(rows.map((row) => row.originalIndex), [0, 2]);
+    expect(
+      androidNextcloudHasUnsupportedAlarms(const {
+        'alarms': [
+          {
+            'properties': [
+              {'name': 'ACTION', 'value': 'AUDIO'},
+            ],
+          },
+        ],
+      }),
+      isTrue,
+    );
+    expect(
+      androidNextcloudEditableReminderRows(const {
+        'davEditableRows': [
+          {'originalIndex': 0, 'minutes': 0},
+          {'minutes': 30},
+        ],
+      })!.map((row) => row.toJson()),
+      [
+        {'originalIndex': 0, 'minutes': 0},
+        {'minutes': 30},
+      ],
+    );
+  });
+
+  test('G end-relative DISPLAY alarm is not an editable start reminder', () {
+    final rows = androidNextcloudEditableReminderRows(const {
+      'alarms': [
+        {
+          'properties': [
+            {'name': 'ACTION', 'value': 'DISPLAY'},
+            {'name': 'TRIGGER', 'value': '-PT15M'},
+          ],
+        },
+        {
+          'properties': [
+            {'name': 'ACTION', 'value': 'DISPLAY'},
+            {
+              'name': 'TRIGGER',
+              'value': '-PT0M',
+              'parameters': [
+                {
+                  'name': 'RELATED',
+                  'values': ['END'],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    expect(rows!.map((row) => row.originalIndex), [0]);
+    expect(
+      androidNextcloudHasUnsupportedAlarms(const {
+        'alarms': [
+          {
+            'properties': [
+              {'name': 'ACTION', 'value': 'DISPLAY'},
+              {
+                'name': 'TRIGGER',
+                'value': '-PT0M',
+                'parameters': [
+                  {
+                    'name': 'RELATED',
+                    'values': ['END'],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+      isTrue,
+    );
+  });
+
+  test('Google popup edits preserve other and unsupported reminders', () {
+    const original = {
+      'useDefault': false,
+      'overrides': [
+        {'method': 'popup', 'minutes': 0, 'providerTag': 'retain'},
+        {'method': 'email', 'minutes': 30},
+        {'method': 'popup', 'minutes': 60},
+      ],
+    };
+    final changed =
+        androidEditGooglePopupReminder(original, overrideIndex: 2, minutes: 10)
+            as Map;
+    expect(changed['overrides'], [
+      {'method': 'popup', 'minutes': 0, 'providerTag': 'retain'},
+      {'method': 'email', 'minutes': 30},
+      {'method': 'popup', 'minutes': 10},
+    ]);
+    final removed =
+        androidRemoveGooglePopupReminder(changed, overrideIndex: 0) as Map;
+    expect(removed['overrides'], [
+      {'method': 'email', 'minutes': 30},
+      {'method': 'popup', 'minutes': 10},
+    ]);
+    final added =
+        androidEditGooglePopupReminder(removed, overrideIndex: null, minutes: 5)
+            as Map;
+    expect((added['overrides'] as List).length, 3);
+    expect((added['overrides'] as List)[0], {'method': 'email', 'minutes': 30});
   });
 }

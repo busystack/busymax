@@ -8,6 +8,9 @@ google.debugSha256=
 google.releaseSha256=
 google.playSha256=
 
+# The original MSAL client ID is retained for eligible existing bindings this
+# transitional release. New accounts configure their own public client in Settings.
+# Omit the original ID for a user-owned-only build; signatureHash remains required.
 # MSAL public-client registration. microsoft.signatureHash is the Base64
 # signer hash used in the msauth redirect URI, not a secret.
 microsoft.clientId=

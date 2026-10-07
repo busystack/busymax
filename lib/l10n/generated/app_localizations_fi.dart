@@ -399,35 +399,6 @@ class AppLocalizationsFi extends AppLocalizations {
       'Google Kalenterin ja Google Tasksin käyttöoikeudet vaaditaan. Yritä uudelleen ja valitse molemmat valintaruudut.';
 
   @override
-  String get finishSetup => 'Viimeistele määritys';
-
-  @override
-  String get continueSetup => 'Jatka';
-
-  @override
-  String get onboardingSetupTitle => 'Määritä BusyMax';
-
-  @override
-  String get onboardingAccountsStepTitle => 'Yhdistä tilit';
-
-  @override
-  String get onboardingAccountsStepDescription =>
-      'Lisää kaikki tilit, joita haluat käyttää. BusyMax synkronoi tuetut kalenterit, tapahtumat, tehtäväluettelot ja tehtävät jokaiselta tililtä.';
-
-  @override
-  String get onboardingPreferencesStepTitle => 'Valitse järjestelmäasetukset';
-
-  @override
-  String get onboardingPreferencesStepDescription =>
-      'Määritä sovelluksen toiminta työpöydällä, muistutukset, ilmoitusten yksityiskohtaisuus ja ulkoasu ennen aikataulun avaamista.';
-
-  @override
-  String get signInWithGoogle => 'Kirjaudu Google-tilillä';
-
-  @override
-  String get signInWithMicrosoft => 'Kirjaudu Microsoft-tilillä';
-
-  @override
   String get googleTasksProvider => 'Google Tasks';
 
   @override
@@ -547,6 +518,18 @@ class AppLocalizationsFi extends AppLocalizations {
   String get openInProvider => 'Avaa palvelussa';
 
   @override
+  String get linkedResources => 'Linkitetyt resurssit';
+
+  @override
+  String get noLinkedResources => 'Ei linkitettyjä resursseja';
+
+  @override
+  String get attachments => 'Liitteet';
+
+  @override
+  String get attachmentsNotLoaded => 'Liitteitä ei ladattu';
+
+  @override
   String get hideFromSchedule => 'Piilota aikataulusta';
 
   @override
@@ -589,13 +572,6 @@ class AppLocalizationsFi extends AppLocalizations {
   @override
   String get scheduleNoSourcesDescription =>
       'Valitse asetuksissa, mitä näytetään, ja päivitä sitten näkymä.';
-
-  @override
-  String get scheduleSignInRequired => 'Yhdistä tili';
-
-  @override
-  String get scheduleSignInDescription =>
-      'Kirjaudu sisään synkronoidaksesi kalenterit ja tehtävät.';
 
   @override
   String get scheduleNoSearchResults => 'Ei vastaavia tapahtumia tai tehtäviä';
@@ -2014,6 +1990,10 @@ class AppLocalizationsFi extends AppLocalizations {
   }
 
   @override
+  String get deleteAssignedTaskWarning =>
+      'Tämä poistaa myös alkuperäisen tehtävän Google Docsista tai Chat-tiloista.';
+
+  @override
   String get metadata => 'Metatiedot';
 
   @override
@@ -2644,6 +2624,15 @@ class AppLocalizationsFi extends AppLocalizations {
   String get removeAction => 'Poista';
 
   @override
+  String removeOpenedSharedCalendarConfirmation(String title) {
+    return 'Poistetaanko ”$title” BusyMaxista? Omistajan kalenteria tai tapahtumia ei poisteta.';
+  }
+
+  @override
+  String get attachmentUploadUnresolved =>
+      'Lataus saattoi onnistua. Päivitä liitteet ja tarkista tulos ennen uutta latausta.';
+
+  @override
   String removeCalendarConfirmation(String title) {
     return 'Poistetaanko ”$title” Google Kalenterin luettelostasi? Jaettua kalenteria tai sen tapahtumia ei poisteta.';
   }
@@ -2996,7 +2985,17 @@ class AppLocalizationsFi extends AppLocalizations {
   String get searchDate => 'Päivämäärä';
 
   @override
-  String get searchAnyDate => 'Kaikki päivämäärät';
+  String get searchAnyDate => 'Kaikki päivämäärät (ladatut tiedot)';
+
+  @override
+  String get eventLink => 'Tapahtuman linkki';
+
+  @override
+  String get eventLinkOpenFailed => 'Linkkiä ei voitu avata.';
+
+  @override
+  String get scheduleRangeIncomplete =>
+      'Kaikkia tapahtumia ei voitu tarkistaa. Näytetään ladatut tiedot.';
 
   @override
   String get searchThisWeek => 'Tämä viikko';
@@ -3033,4 +3032,516 @@ class AppLocalizationsFi extends AppLocalizations {
 
   @override
   String get searchClearText => 'Tyhjennä teksti';
+
+  @override
+  String get openSharedCalendar => 'Avaa jaettu kalenteri';
+
+  @override
+  String get manageCalendarSharing => 'Hallitse kalenterin jakamista';
+
+  @override
+  String get shareRecipientEmail => 'Vastaanottajan sähköposti';
+
+  @override
+  String get shareRole => 'Käyttöoikeusrooli';
+
+  @override
+  String get addCalendarShare => 'Lisää käyttöoikeus';
+
+  @override
+  String get sharingRefreshFailed =>
+      'Jako muutettiin, mutta oikeusluetteloa ei voitu päivittää. Lataa luettelo uudelleen ennen seuraavaa muutosta.';
+
+  @override
+  String get sharingRateLimited =>
+      'Jakamista on rajoitettu tilapäisesti. Yritä uudelleen odotusajan päätyttyä.';
+
+  @override
+  String get attachmentUploadRateLimited =>
+      'Liitteiden lataamista on rajoitettu tilapäisesti. Yritä uudelleen odotusajan päätyttyä.';
+
+  @override
+  String get sharingPermissionUnavailable =>
+      'Tämän kalenterin jako-oikeudet eivät ole saatavilla.';
+
+  @override
+  String get calendarShareFreeBusy => 'Vain vapaa/varattu';
+
+  @override
+  String get calendarShareLimitedRead => 'Lue rajatut tiedot';
+
+  @override
+  String get calendarShareRead => 'Lue kaikki tiedot';
+
+  @override
+  String get calendarShareWrite => 'Muokkaa tapahtumia';
+
+  @override
+  String get calendarShareWriteWithoutPrivate =>
+      'Muokkaa ilman yksityisiä tietoja';
+
+  @override
+  String get calendarShareOwner => 'Omistaja';
+
+  @override
+  String get eventLabel => 'Tapahtuman tunniste';
+
+  @override
+  String get loadOutlookCategories => 'Lataa Outlook-luokat';
+
+  @override
+  String get outlookCategoriesUnavailable =>
+      'Outlook-luokat eivät ole saatavilla; aiemmat luokitukset säilyvät.';
+
+  @override
+  String get googleEventType => 'Tapahtuman tyyppi';
+
+  @override
+  String get googleRegularEvent => 'Tavallinen tapahtuma';
+
+  @override
+  String get googleFocusTime => 'Keskittymisaika';
+
+  @override
+  String get googleOutOfOffice => 'Poissa toimistolta';
+
+  @override
+  String get googleWorkingLocation => 'Työskentelypaikka';
+
+  @override
+  String get googleDeclineInvitations => 'Hylkää päällekkäiset kutsut';
+
+  @override
+  String get googleDeclineNone => 'Älä hylkää';
+
+  @override
+  String get googleDeclineNew => 'Hylkää uudet kutsut';
+
+  @override
+  String get googleDeclineAll => 'Hylkää kaikki päällekkäiset kutsut';
+
+  @override
+  String get googleDeclineMessage => 'Hylkäysviesti';
+
+  @override
+  String get googleChatStatus => 'Keskustelun tila';
+
+  @override
+  String get googleChatAvailable => 'Saatavilla';
+
+  @override
+  String get googleChatDoNotDisturb => 'Älä häiritse';
+
+  @override
+  String get googleWorkAtHome => 'Kotona';
+
+  @override
+  String get googleWorkAtOffice => 'Toimistolla';
+
+  @override
+  String get googleWorkAtCustomLocation => 'Mukautettu sijainti';
+
+  @override
+  String get googleWorkLocationLabel => 'Sijainnin nimi';
+
+  @override
+  String get googleStatusPrimaryOnly =>
+      'Googlen tilatapahtumat vaativat ensisijaisen Google-kalenterin.';
+
+  @override
+  String unknownEventLabel(String id) {
+    return 'Tuntematon tunniste ($id)';
+  }
+
+  @override
+  String get calendarOwnerEmail => 'Kalenterin omistajan sähköpostiosoite';
+
+  @override
+  String registrationSetupTitle(String provider) {
+    return 'Määritä $provider';
+  }
+
+  @override
+  String get registrationSetupGuide => 'Määritysohje';
+
+  @override
+  String get registrationGoogleInstructions =>
+      'Luo oma Google Cloud -projekti, ota Calendar ja Tasks käyttöön ja tuo työpöydän OAuth-asiakkaan JSON-tiedosto. Valtuuta haluamasi tili.';
+
+  @override
+  String get registrationMicrosoftInstructions =>
+      'Käytä julkisen sovelluksen rekisteröintiä Entra-vuokraajassa, joka sallii rekisteröinnit. Anna asiakastunnus ja tilityypit. Asiakassalaisuutta ei tarvita.';
+
+  @override
+  String get registrationImportGoogle => 'Valitse työpöydän OAuth-JSON';
+
+  @override
+  String get registrationValidate => 'Tarkista rekisteröinti';
+
+  @override
+  String get registrationAuthorize => 'Valtuuta selaimessa';
+
+  @override
+  String get registrationClientId => 'Sovellus-/asiakastunnus';
+
+  @override
+  String get registrationTenantId => 'Vuokraajan tunnus';
+
+  @override
+  String get registrationAudience => 'Tuetut tilit';
+
+  @override
+  String get registrationBothAudience =>
+      'Henkilökohtaiset ja organisaation tilit';
+
+  @override
+  String get registrationOrganizationAudience => 'Organisaation tilit';
+
+  @override
+  String get registrationPersonalAudience => 'Henkilökohtaiset tilit';
+
+  @override
+  String get registrationTenantAudience => 'Yksi organisaation vuokraaja';
+
+  @override
+  String registrationSummary(String clientId) {
+    return 'Rekisteröinti: $clientId';
+  }
+
+  @override
+  String get registrationMigrate => 'Siirry nyt';
+
+  @override
+  String get registrationReplace => 'Vaihda rekisteröinti';
+
+  @override
+  String registrationRetirementNotice(String provider, String setup) {
+    return 'Tämä tili käyttää alkuperäistä $provider-rekisteröintiä, joka on varattu olemassa oleville tileille. Korvaa se määrittämällä $setup ja yhdistämällä tili uudelleen. Kalenterit, tehtävät ja paikalliset muutokset säilyvät.';
+  }
+
+  @override
+  String get registrationContinue => 'Jatka tämän tilin käyttöä';
+
+  @override
+  String get registrationGoogleProject => 'Google Cloud -projekti';
+
+  @override
+  String get registrationMicrosoftApp => 'Microsoft-sovellusrekisteröinti';
+
+  @override
+  String get registrationUserOwned => 'Käyttäjän antama rekisteröinti';
+
+  @override
+  String get registrationNativeGoogle =>
+      'Natiivi Google Android -rekisteröinti';
+
+  @override
+  String get registrationShared => 'Yhteinen rekisteröinti (siirtymä)';
+
+  @override
+  String get registrationUnresolved =>
+      'Rekisteröinnin alkuperä on selvittämättä. Tilin tiedot säilytetään.';
+
+  @override
+  String get registrationOfficialDocumentation => 'Virallinen dokumentaatio';
+
+  @override
+  String registrationAndroidIdentity(
+    String packageName,
+    String signatureHash,
+    String redirectUri,
+  ) {
+    return 'Paketti: $packageName\nAllekirjoituksen tiiviste: $signatureHash\nUudelleenohjaus-URI: $redirectUri';
+  }
+
+  @override
+  String get oauthRegistrationRejected =>
+      'Tarkista rekisteröinnin asiakastyyppi, tuetut tilit, käyttöoikeudet ja uudelleenohjaus. Valitse tuotu määritystiedosto uudelleen.';
+
+  @override
+  String get oauthAuthorizationCodeUnusable =>
+      'Tätä valtuutusta ei voitu viimeistellä. Aloita uudelleen; nykyinen yhteys säilyy.';
+
+  @override
+  String get oauthPermissionRefused =>
+      'Valtuutus hylättiin tai vaadittuja käyttöoikeuksia puuttuu. Yritä uudelleen ja myönnä tarvittavat oikeudet.';
+
+  @override
+  String get oauthProviderThrottled =>
+      'Palveluntarjoaja rajoittaa pyyntöjä. Odota ennen uutta yritystä; nykyinen yhteys säilyy.';
+
+  @override
+  String get oauthProviderTemporaryFailure =>
+      'Palveluntarjoajan tilapäinen ongelma esti valtuutuksen. Yritä uudelleen; nykyinen yhteys säilyy.';
+
+  @override
+  String get oauthAuthorizationTimedOut =>
+      'Valtuutus aikakatkaistiin. Yritä uudelleen ja valitse tuotu määritystiedosto uudelleen.';
+
+  @override
+  String get oauthWrongAccount =>
+      'Valtuuta uudelleenyhdistämistä varten valittu tili. Nykyinen yhteys säilyy.';
+
+  @override
+  String get oauthSecureStorageUnavailable =>
+      'Suojattu tallennustila ei ole käytettävissä. Palauta sen käyttö ja yritä uudelleen.';
+
+  @override
+  String get oauthRevokedRemovalIncomplete =>
+      'Etävaltuutus peruttiin, mutta tilin siivousta ei voitu viimeistellä. Käynnistä BusyMax uudelleen ja yritä paikallista palautusta uudelleen.';
+
+  @override
+  String get addAccount => 'Lisää tili';
+
+  @override
+  String get registrationConnect => 'Yhdistä';
+
+  @override
+  String get registrationBack => 'Takaisin';
+
+  @override
+  String get registrationReplaceGoogle => 'Vaihda työpöydän OAuth-JSON';
+
+  @override
+  String get registrationSelectedConfiguration => 'Valittu määritys';
+
+  @override
+  String get registrationDirectoryId => 'Hakemiston/vuokraajan tunnus';
+
+  @override
+  String get registrationInvalidId => 'Anna kelvollinen UUID.';
+
+  @override
+  String get registrationExpired =>
+      'Tämä määritys on vanhentunut. Tuo se uudelleen tai muokkaa rekisteröintikenttiä ennen yhdistämistä.';
+
+  @override
+  String get registrationOwnProjectRequired =>
+      'Valitse oman projektisi tai vuokraajasi rekisteröinti.';
+
+  @override
+  String get registrationSetupFailed =>
+      'Määritystä ei voitu viimeistellä. Yritä uudelleen.';
+
+  @override
+  String get registrationLinkFailed =>
+      'Linkkiä ei voitu avata. Tarkista selain ja yritä uudelleen.';
+
+  @override
+  String get registrationPermissions => 'Käyttöoikeudet';
+
+  @override
+  String get registrationDesktopClient => 'Työpöytäsovellus';
+
+  @override
+  String get registrationOpenGoogleConsole => 'Avaa Google Cloud Console';
+
+  @override
+  String get registrationGoogleAudienceHelp =>
+      'Googlen julkaisu- ja testikäyttäjävaatimukset';
+
+  @override
+  String get registrationDesktopHelp =>
+      'Työpöytäsovelluksen rekisteröintiohjeet';
+
+  @override
+  String get registrationOpenEntra => 'Avaa Microsoft Entra -hallintakeskus';
+
+  @override
+  String get registrationGuideGoogleProject =>
+      'Avaa Google Cloud Console. Valitse yläreunan projektivalitsimesta oma projektisi tai valitse New project, anna nimi ja valitse Create. Pidä tämä projekti valittuna seuraavissa vaiheissa.';
+
+  @override
+  String get registrationGuideGoogleAudience =>
+      'Avaa Google Auth Platform → Branding. Aloita uusi määritys valitsemalla Get started. Anna App name -kenttään BusyMax, valitse oma User support email ja valitse Next. Valitse Audience-kohdassa External. Valitse Next, anna sähköpostiosoitteesi Contact Information -kohdassa ja valitse Next. Hyväksy User Data Policy ja valitse Continue ja Create. Tarkista aiemmassa määrityksessä Branding ja Audience.';
+
+  @override
+  String get registrationGuideGooglePermissions =>
+      'Avaa Google Auth Platform → Data Access → Add or remove scopes. Valitse alla olevat viisi käyttöoikeusaluetta; käytä tarvittaessa Manually add scopes -toimintoa. Liitä puuttuvat arvot käsin lisättäessä ja valitse Add to table. Valitse Update ja sitten Save. BusyMax tarvitsee kalenterin ja tehtävien käyttöoikeudet.';
+
+  @override
+  String get registrationGuideGoogleClient =>
+      'Avaa Google Auth Platform → Clients → Create client. Valitse Application type -arvoksi Desktop app, anna Name-kenttään BusyMax ja valitse Create. Valitse luonti-ikkunassa Download JSON ja tallenna tiedosto. Valitse Takaisin palataksesi lomakkeeseen, valitse tiedosto ja tarkista projekti ja asiakastunnus. Valitse Yhdistä ja hyväksy kalenterin ja tehtävien käyttö selaimessa.';
+
+  @override
+  String get registrationGuideMicrosoftApp =>
+      'Kirjaudu Microsoft Entra -hallintakeskukseen. Valitse Settings-kohdassa vuokraaja, jossa voit rekisteröidä sovelluksia. Avaa Entra ID → App registrations → New registration. Anna Name-kenttään BusyMax ja valitse seuraavassa vaiheessa tuetut tilityypit. Jos rekisteröinti on estetty, pyydä oikeutta vuokraajan ylläpitäjältä.';
+
+  @override
+  String get registrationGuideMicrosoftRedirect =>
+      'Avaa rekisteröinnissä Authentication → Add a platform → Mobile and desktop applications. Valitse tai anna alla oleva uudelleenohjaus-URI ja tallenna valitsemalla Configure. BusyMax käyttää järjestelmän selainta. Asiakkaan salaisuutta ei tarvita.';
+
+  @override
+  String get registrationGuideMicrosoftPermissions =>
+      'Avaa API permissions → Add a permission → Microsoft Graph → Delegated permissions. Etsi ja valitse jokainen alla oleva käyttöoikeusalue ja valitse Add permissions. Säilytä User.Read, jos se on jo lisätty. Jos organisaatiosi vaatii ylläpitäjän suostumuksen, pyydä ylläpitäjää käyttämään vuokraajan Grant admin consent -toimintoa.';
+
+  @override
+  String get registrationGuideMicrosoftConnect =>
+      'Valitse Takaisin palataksesi lomakkeeseen. Liitä Application (client) ID ja valitse rekisteröintiä vastaavat Tuetut tilit. Yhdelle organisaation vuokraajalle liitä myös Directory (tenant) ID. Valitse Yhdistä ja kirjaudu haluamallesi tilille selaimessa. BusyMax tarkistaa kentät paikallisesti; Microsoft pyytää suostumuksesi selaimessa kirjautuessa.';
+
+  @override
+  String get registrationGoogleImportFailed =>
+      'Tätä tiedostoa ei voitu tuoda. Valitse kelvollinen työpöydän OAuth-JSON. Aiempi kelvollinen valinta säilyy.';
+
+  @override
+  String get registrationGoogleSetupInstructions => 'Googlen määritysohjeet';
+
+  @override
+  String get registrationMicrosoftSetupInstructions =>
+      'Microsoftin määritysohjeet';
+
+  @override
+  String get registrationDesktopConfiguration => 'Työpöydän OAuth-määritys';
+
+  @override
+  String get registrationNoFileSelected => 'Tiedostoa ei ole valittu';
+
+  @override
+  String get registrationChooseFile => 'Valitse tiedosto…';
+
+  @override
+  String get registrationReplaceFile => 'Korvaa…';
+
+  @override
+  String get registrationGoogleIntroduction =>
+      'Valitse oman Google Cloud -projektisi työpöydän OAuth-JSON-tiedosto.';
+
+  @override
+  String get registrationMicrosoftIntroduction =>
+      'Anna oman Microsoft-sovellusrekisteröintisi tiedot.';
+
+  @override
+  String get registrationSetupInstructions => 'Määritysohjeet';
+
+  @override
+  String get registrationInstructionsDescription =>
+      'Luo tilin yhdistämiseen tarvittava määritys.';
+
+  @override
+  String get registrationEnableApis => 'Ota Calendar ja Tasks käyttöön';
+
+  @override
+  String get registrationConsentScreen => 'Määritä suostumusnäyttö';
+
+  @override
+  String get registrationAppName => 'Sovelluksen nimi';
+
+  @override
+  String get registrationScopes => 'Käyttöoikeusalueet';
+
+  @override
+  String get registrationRedirectUri => 'Uudelleenohjaus-URI';
+
+  @override
+  String get registrationOpenApiLibrary => 'Avaa Googlen API-kirjasto';
+
+  @override
+  String get registrationOpenBranding => 'Avaa Google Auth Platformin Branding';
+
+  @override
+  String get registrationOpenDataAccess =>
+      'Avaa Google Auth Platformin Data Access';
+
+  @override
+  String get registrationOpenClients => 'Avaa Google Auth Platformin Clients';
+
+  @override
+  String get registrationOpenEntraAuthentication =>
+      'Avaa Entran sovellusrekisteröinnit Authentication-määritystä varten';
+
+  @override
+  String get registrationOpenEntraPermissions =>
+      'Avaa Entran sovellusrekisteröinnit API permissions -määritystä varten';
+
+  @override
+  String get registrationCopy => 'Kopioi';
+
+  @override
+  String get registrationCopyAll => 'Kopioi kaikki';
+
+  @override
+  String get registrationGuideGoogleApis =>
+      'Avaa APIs & Services → Library. Etsi Google Calendar API, avaa sen sivu ja valitse Enable. Palaa Library-sivulle ja toista Google Tasks API:lle.';
+
+  @override
+  String get registrationGuideMicrosoftAudience =>
+      'Valitse Supported account types -kohdassa Personal accounts only henkilökohtaiselle tilille, Multiple Entra ID tenants organisaatioiden tileille, Any Entra ID Tenant + Personal Microsoft accounts molemmille tai Single tenant only tälle hakemistolle. Valitse Register. Kopioi Overview-kohdasta Application (client) ID; yhdelle vuokraajalle myös Directory (tenant) ID. Valitse vastaava Tuetut tilit -vaihtoehto BusyMaxissa.';
+
+  @override
+  String get registrationConnectBusyMax => 'Yhdistä BusyMaxilla';
+
+  @override
+  String get registrationRecommended => 'Suositeltu';
+
+  @override
+  String get registrationOtherMethods => 'Muut yhdistämistavat';
+
+  @override
+  String get registrationWorkspace => 'Google Workspace -organisaatio';
+
+  @override
+  String get registrationGoogleCustom => 'Oma OAuth-asiakas';
+
+  @override
+  String get registrationMicrosoftCustom => 'Oma sovellusrekisteröinti';
+
+  @override
+  String get registrationMethodsIntroduction =>
+      'Valitse, miten yhdistät tilisi.';
+
+  @override
+  String get registrationWorkspaceDescription =>
+      'Käytä organisaatiosi hallitsemaa määritystä.';
+
+  @override
+  String get registrationCustomDescription =>
+      'Käytä itse hallitsemaasi rekisteröintiä.';
+
+  @override
+  String get registrationSharedUnavailable =>
+      'BusyMax-yhteys ei ole käytettävissä tässä koontiversiossa. Voit käyttää alla toista yhdistämistapaa.';
+
+  @override
+  String get registrationWorkspaceIntroduction =>
+      'Valitse organisaatiosi toimittama tai hallitsema työpöydän OAuth-JSON. Tiedosto ei todista organisaation omistajuutta, kohderyhmää tai vahvistustilaa.';
+
+  @override
+  String get registrationWorkspaceSetupInstructions =>
+      'Google Workspacen asennusohjeet';
+
+  @override
+  String get registrationBusyMaxManaged => 'BusyMaxin hallitsema rekisteröinti';
+
+  @override
+  String get registrationBranding => 'Määritä brändi ja verkkotunnukset';
+
+  @override
+  String get registrationPublishing => 'Julkaise normaalia käyttöä varten';
+
+  @override
+  String get registrationOpenAudience => 'Avaa Google Auth Platformin Audience';
+
+  @override
+  String get registrationGuideWorkspaceProject =>
+      'Pyydä ylläpitäjältä Desktop OAuth JSON tai avaa Google Cloud Console ja valitse Google Workspace -organisaatiosi omistama projekti. Luo projekti kohdassa Resurssien hallinta → Luo projekti: anna Projektin nimi, valitse organisaatiosi tai sen kansio Yläresurssi-kohdassa ja valitse Luo. Valitse tämä projekti seuraavia vaiheita varten. Luominen edellyttää Project Creator -oikeutta, OAuth-määritys OAuth Config Editor -oikeutta ja APIen käyttöönotto Service Usage Admin -oikeutta tai vastaavia oikeuksia. Pyydä ylläpitäjältä apua, jos toiminto on estetty.';
+
+  @override
+  String get registrationGuideGoogleBranding =>
+      'Lisää kohdassa Branding → App domain projektin valtuutetut verkkotunnukset ennen etusivun, tietosuojan ja käyttöehtojen URL-osoitteita ja valitse Save. External-tuotantosovellukset tarvitsevat nämä linkit. Käytä omia verkkotunnuksia ja vahvista omistajuus Search Consolessa, jos Google vaatii brändin vahvistamista. BusyMaxin tietosuojalinkki ei todista projektisi omistavan busystack.org-verkkotunnusta.';
+
+  @override
+  String get registrationGuideGooglePublishing =>
+      'Valitse Audience-kohdassa Publish app ja vahvista In production. Älä jätä normaalia käyttöä Testing-tilaan: nämä Calendar/Tasks-valtuutukset ja päivitystunnukset vanhenevat seitsemässä päivässä. Julkaiseminen ja vahvistaminen ovat eri asioita. Alle 100 käyttäjän henkilökohtainen käyttö voi olla vapautettu vahvistuksesta varoituksin ja käyttäjärajoin; laajempi jakelu voi edellyttää brändin ja käyttöoikeuksien hyväksyntää. Tuotantovaltuutukset voivat silti vanhentua tai tulla perutuiksi.';
+
+  @override
+  String get registrationGuideWorkspacePermissions =>
+      'Tarkista nämä käyttöoikeudet ylläpitäjän kanssa. Internal-sovellusten ei tarvitse luetella niitä suostumusnäytössä. Jos luetteloa pyydetään, avaa Data Access → Add or remove scopes, lisää arvot ja valitse Update ja Save. Ylläpitäjän rajoitukset voivat estää valtuutuksen.';
+
+  @override
+  String get registrationGuideMicrosoftOptionalPermissions =>
+      'Jaettujen kalenterien ja luokkien käyttöoikeuksia pyydetään erikseen valinnaisten toimintojen käyttöönotossa; älä lisää niitä yllä olevaan pakolliseen määritykseen.';
+
+  @override
+  String get registrationGuideWorkspaceAudience =>
+      'Avaa Google Auth Platform → Branding. Aloita uusi määritys valitsemalla Get started. Anna App name -kenttään BusyMax, valitse oma User support email ja valitse Next. Valitse Audience-kohdassa Internal. Valitse Next, anna sähköpostiosoitteesi Contact Information -kohdassa ja valitse Next. Hyväksy User Data Policy ja valitse Continue ja Create. Tarkista aiemmassa määrityksessä Branding ja Audience.\n\nInternal sallii vain projektin emo-organisaation tilit ylläpitäjän rajoitusten mukaisesti. Testikäyttäjäluetteloa ei tarvita. BusyMax ei voi vahvistaa näitä konsoliasetuksia JSON-tiedostosta.';
 }

@@ -16,7 +16,13 @@
   "settingsSaveFailed": "設定を保存できませんでした。BusyMax を再起動すると変更が失われる可能性があります。",
   "nextcloudExportCollection": "コレクションのリソースをエクスポート",
   "nextcloudImportItems": "予定／タスクのリソースが {count} 件見つかりました",
-  "@nextcloudImportItems": {"placeholders": {"count": {"type": "int"}}},
+  "@nextcloudImportItems": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "nextcloudSchedulingInbox": "招待の受信トレイ",
   "nextcloudInboxExplanation": "Nextcloud はこれらのメッセージをカレンダーに反映します。確認するとメッセージだけが削除され、予定は残ります。",
   "nextcloudInboxEmpty": "日程調整メッセージはありません。",
@@ -24,7 +30,13 @@
   "nextcloudAcknowledgeConfirm": "このメッセージを受信トレイから削除しますか？予定は保持されます。",
   "nextcloudGuestAvailability": "参加者の空き時間を確認",
   "nextcloudTrashRetention": "サーバーのごみ箱の保存期間：{days} 日",
-  "@nextcloudTrashRetention": {"placeholders": {"days": {"type": "int"}}},
+  "@nextcloudTrashRetention": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
   "nextcloudCancelMeeting": "会議をキャンセル",
   "nextcloudDeclineAndRemove": "招待を辞退して削除",
   "nextcloudDeclineRemovalWarning": "同期時に辞退の返信を送信します。主催者の会議はキャンセルされません。",
@@ -103,15 +115,6 @@
   "connectGoogleAccount": "Google、Microsoft、Apple iCloud Calendar、または Nextcloud のアカウントを接続します。",
   "googlePermissionsConsentNotice": "Google の権限画面で、カレンダーとタスクの両方の権限を選択してください。",
   "googlePermissionsRequiredRetry": "Google カレンダーと Google Tasks の権限が必要です。もう一度試して、両方のチェックボックスを選択してください。",
-  "finishSetup": "セットアップを完了",
-  "continueSetup": "続行",
-  "onboardingSetupTitle": "BusyMax をセットアップ",
-  "onboardingAccountsStepTitle": "アカウントを接続",
-  "onboardingAccountsStepDescription": "使用するすべてのアカウントを追加します。BusyMax は各アカウントの対応するカレンダー、予定、タスクリスト、タスクを同期します。",
-  "onboardingPreferencesStepTitle": "システム設定を選択",
-  "onboardingPreferencesStepDescription": "スケジュールを開く前に、デスクトップでの動作、リマインダー、通知の詳細度、外観を設定します。",
-  "signInWithGoogle": "Google でサインイン",
-  "signInWithMicrosoft": "Microsoft でサインイン",
   "googleTasksProvider": "Google Tasks",
   "microsoftTodoProvider": "Microsoft To Do",
   "providerNotConfigured": "このプロバイダーは設定されていません。",
@@ -172,6 +175,10 @@
   "newEvent": "新しい予定",
   "refreshCalendar": "カレンダーを更新",
   "openInProvider": "サービスで開く",
+  "linkedResources": "リンクされたリソース",
+  "noLinkedResources": "リンクされたリソースはありません",
+  "attachments": "添付ファイル",
+  "attachmentsNotLoaded": "添付ファイルは読み込まれていません",
   "hideFromSchedule": "スケジュールから非表示",
   "showInSchedule": "スケジュールに表示",
   "noCalendarsSynced": "同期済みのカレンダーはまだありません。",
@@ -182,8 +189,6 @@
   "scheduleUnavailable": "スケジュールを利用できません",
   "scheduleNoSources": "表示できるカレンダーまたはタスクリストがありません",
   "scheduleNoSourcesDescription": "設定で表示する項目を選択してから、更新してください。",
-  "scheduleSignInRequired": "アカウントを接続",
-  "scheduleSignInDescription": "カレンダーとタスクを同期するにはサインインしてください。",
   "scheduleNoSearchResults": "一致する予定またはタスクはありません",
   "scheduleNoSearchResultsDescription": "別の条件で検索するか、現在のフィルターを解除してください。",
   "refresh": "更新",
@@ -468,6 +473,7 @@
   "deleteTask": "タスクを削除",
   "newSubtask": "新しいサブタスク",
   "deleteTaskConfirmation": "「{title}」を削除しますか？",
+  "deleteAssignedTaskWarning": "Google ドキュメントまたは Chat スペースの元のタスクも削除されます。",
   "metadata": "メタデータ",
   "id": "ID",
   "etag": "ETag",
@@ -826,6 +832,8 @@
   "removeFromMyCalendars": "マイカレンダーから削除",
   "removeAction": "削除",
   "removeCalendarConfirmation": "「{title}」を Google カレンダーのリストから削除しますか？共有カレンダーとその予定は削除されません。",
+  "removeOpenedSharedCalendarConfirmation": "「{title}」を BusyMax から削除しますか？所有者のカレンダーと予定は削除されません。",
+  "attachmentUploadUnresolved": "アップロードが完了した可能性があります。再アップロードする前に添付ファイルを更新して結果を確認してください。",
   "calendarCannotRemove": "このカレンダーはこのアカウントから削除または解除できません。",
   "calendarPendingChangesPreventRemoval": "削除または解除する前に、このカレンダーの保留中の変更が同期されるまで待ってください。",
   "taskListPendingChangesPreventRemoval": "このリストを削除する前に、アカウントを同期するか、［診断］でこのタスクリストのブロックされた変更を解決してください。",
@@ -1018,25 +1026,42 @@
   "@repeatYearlyOnMonthDaysSummary": {
     "description": "Complete yearly recurrence summary for selected month days; placeholders may be reordered by locale.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "month": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "repeatYearlyOnOrdinalSummary": "{frequency}{month}の{position, select, first{第1{days}} second{第2{days}} third{第3{days}} fourth{第4{days}} fifth{第5{days}} secondToLast{最後から2番目の{days}} last{最後の{days}} other{{days}}}",
   "@repeatYearlyOnOrdinalSummary": {
     "description": "Complete yearly ordinal recurrence summary; {position} selects the ordinal wording and placeholders may be reordered by locale.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "month": {"type": "String"},
-      "position": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "position": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "searchFilters": "検索フィルター",
   "searchType": "種類",
   "searchDate": "日付",
-  "searchAnyDate": "すべての日付",
+  "searchAnyDate": "すべての日付（ダウンロード済みデータ）",
+  "eventLink": "予定のリンク",
+  "eventLinkOpenFailed": "リンクを開けませんでした。",
+  "scheduleRangeIncomplete": "一部の予定を確認できませんでした。ダウンロード済みデータを表示しています。",
   "searchThisWeek": "今週",
   "searchCustomRange": "期間を指定",
   "searchTaskStatus": "タスクの状態",
@@ -1051,5 +1076,196 @@
   "searchClearText": "テキストを消去",
   "windowMinimize": "最小化",
   "windowMaximize": "最大化",
-  "windowRestore": "元に戻す"
+  "windowRestore": "元に戻す",
+  "openSharedCalendar": "共有カレンダーを開く",
+  "calendarOwnerEmail": "カレンダー所有者のメールアドレス",
+  "addCalendarShare": "アクセスを追加",
+  "calendarShareFreeBusy": "空き時間情報のみ",
+  "calendarShareLimitedRead": "限定された詳細を表示",
+  "calendarShareOwner": "所有者",
+  "calendarShareRead": "すべての詳細を表示",
+  "calendarShareWrite": "予定を編集",
+  "calendarShareWriteWithoutPrivate": "非公開の詳細を除いて編集",
+  "eventLabel": "予定のラベル",
+  "googleChatAvailable": "連絡可能",
+  "googleChatDoNotDisturb": "通知をミュート",
+  "googleChatStatus": "チャットの状態",
+  "googleDeclineAll": "競合する招待をすべて辞退",
+  "googleDeclineInvitations": "重なる招待を辞退",
+  "googleDeclineMessage": "辞退メッセージ",
+  "googleDeclineNew": "新しい招待を辞退",
+  "googleDeclineNone": "辞退しない",
+  "googleEventType": "予定の種類",
+  "googleFocusTime": "集中する時間",
+  "googleOutOfOffice": "不在",
+  "googleRegularEvent": "通常の予定",
+  "googleStatusPrimaryOnly": "Google のステータス予定にはメインの Google カレンダーが必要です。",
+  "googleWorkAtCustomLocation": "カスタムの場所",
+  "googleWorkAtHome": "自宅",
+  "googleWorkAtOffice": "オフィス",
+  "googleWorkLocationLabel": "場所の名前",
+  "googleWorkingLocation": "勤務場所",
+  "loadOutlookCategories": "Outlook カテゴリを読み込む",
+  "manageCalendarSharing": "カレンダーの共有を管理",
+  "outlookCategoriesUnavailable": "Outlook カテゴリを取得できません。既存の割り当ては保持されます。",
+  "shareRecipientEmail": "共有先のメールアドレス",
+  "shareRole": "アクセス権",
+  "sharingPermissionUnavailable": "このカレンダーの共有権限を取得できません。",
+  "sharingRefreshFailed": "共有は変更されましたが、権限一覧を更新できませんでした。次の変更前に一覧を再読み込みしてください。",
+  "sharingRateLimited": "共有は一時的に制限されています。待機時間が終了してから再試行してください。",
+  "attachmentUploadRateLimited": "添付ファイルのアップロードは一時的に制限されています。待機時間が終了してから再試行してください。",
+  "unknownEventLabel": "不明なラベル（{id}）",
+  "@unknownEventLabel": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationSetupTitle": "{provider} を設定",
+  "@registrationSetupTitle": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationSetupGuide": "設定ガイド",
+  "registrationGoogleInstructions": "独自の Google Cloud プロジェクトを作成し、Calendar と Tasks API を有効にして、デスクトップ OAuth クライアントの JSON をインポートします。目的のアカウントを認証してください。",
+  "registrationMicrosoftInstructions": "アプリ登録を許可する Entra テナントでパブリックアプリを登録します。クライアント ID と対象アカウントを入力します。クライアントシークレットは不要です。",
+  "registrationImportGoogle": "デスクトップ OAuth JSON を選択",
+  "registrationValidate": "登録を検証",
+  "registrationAuthorize": "ブラウザで認証",
+  "registrationClientId": "アプリケーション／クライアント ID",
+  "registrationTenantId": "テナント ID",
+  "registrationAudience": "対応アカウント",
+  "registrationBothAudience": "個人および組織アカウント",
+  "registrationOrganizationAudience": "組織アカウント",
+  "registrationPersonalAudience": "個人アカウント",
+  "registrationTenantAudience": "単一の組織テナント",
+  "registrationSummary": "登録: {clientId}",
+  "@registrationSummary": {
+    "placeholders": {
+      "clientId": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationMigrate": "今すぐ移行",
+  "registrationReplace": "登録を置き換え",
+  "registrationRetirementNotice": "このアカウントは既存のアカウント専用の元の {provider} 登録を使用しています。置き換える場合は {setup} を設定して再接続してください。既存のカレンダー、タスク、ローカルの変更は保持されます。",
+  "@registrationRetirementNotice": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      },
+      "setup": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationContinue": "このアカウントを引き続き使用",
+  "registrationGoogleProject": "Google Cloud プロジェクト",
+  "registrationMicrosoftApp": "Microsoft アプリ登録",
+  "registrationUserOwned": "ユーザーが提供した登録",
+  "registrationNativeGoogle": "Google Android ネイティブ登録",
+  "registrationShared": "共有登録（移行期間）",
+  "registrationUnresolved": "登録の出所を確認できません。アカウントのデータは保持されています。",
+  "registrationOfficialDocumentation": "公式ドキュメント",
+  "registrationAndroidIdentity": "パッケージ: {packageName}\n署名ハッシュ: {signatureHash}\nリダイレクト URI: {redirectUri}",
+  "@registrationAndroidIdentity": {
+    "placeholders": {
+      "packageName": {
+        "type": "String"
+      },
+      "signatureHash": {
+        "type": "String"
+      },
+      "redirectUri": {
+        "type": "String"
+      }
+    }
+  },
+  "oauthRegistrationRejected": "登録のクライアント種別、対応アカウント、権限、リダイレクトを確認してください。インポートした設定は再選択してください。",
+  "oauthAuthorizationCodeUnusable": "この認証を完了できませんでした。認証をやり直してください。既存の接続は保持されています。",
+  "oauthPermissionRefused": "認証が拒否されたか、必要な権限がありません。再試行して必要な権限を付与してください。",
+  "oauthProviderThrottled": "プロバイダーがリクエストを制限しています。しばらく待って再試行してください。既存の接続は保持されています。",
+  "oauthProviderTemporaryFailure": "プロバイダーの一時的な問題により認証を完了できませんでした。再試行してください。既存の接続は保持されています。",
+  "oauthAuthorizationTimedOut": "認証がタイムアウトしました。再試行し、インポートした設定は再選択してください。",
+  "oauthWrongAccount": "再接続用に選択したアカウントで認証してください。既存の接続は保持されています。",
+  "oauthSecureStorageUnavailable": "安全なストレージを利用できません。アクセスを復旧して再試行してください。",
+  "oauthRevokedRemovalIncomplete": "リモート認証は取り消されましたが、アカウントのクリーンアップを完了できませんでした。BusyMax を再起動してローカル復旧を再試行してください。",
+  "addAccount": "アカウントを追加",
+  "registrationConnect": "接続",
+  "registrationBack": "戻る",
+  "registrationReplaceGoogle": "デスクトップ OAuth JSON を置き換え",
+  "registrationSelectedConfiguration": "選択した設定",
+  "registrationDirectoryId": "ディレクトリ／テナント ID",
+  "registrationInvalidId": "有効な UUID を入力してください。",
+  "registrationExpired": "この設定は期限切れです。接続する前に再インポートするか、登録項目を編集してください。",
+  "registrationOwnProjectRequired": "自分のプロジェクトまたはテナントの登録を選択してください。",
+  "registrationSetupFailed": "設定を完了できませんでした。もう一度お試しください。",
+  "registrationLinkFailed": "リンクを開けませんでした。ブラウザーを確認して再試行してください。",
+  "registrationPermissions": "アクセス許可",
+  "registrationDesktopClient": "デスクトップアプリ",
+  "registrationOpenGoogleConsole": "Google Cloud Console を開く",
+  "registrationGoogleAudienceHelp": "Google の公開とテストユーザーの要件",
+  "registrationDesktopHelp": "デスクトップアプリの登録手順",
+  "registrationOpenEntra": "Microsoft Entra 管理センターを開く",
+  "registrationGuideGoogleProject": "Google Cloud Console を開きます。上部のプロジェクト選択からご自身のプロジェクトを選ぶか、New project を選び、名前を入力して Create を選択します。以降の手順でも同じプロジェクトを選択したままにしてください。",
+  "registrationGuideGoogleAudience": "Google Auth Platform → Branding に移動します。未設定の場合は Get started を選択します。App name に BusyMax を入力し、ご自身の User support email を選んで Next を選択します。Audience ではExternal を選びます。Next を選び、Contact Information にメールアドレスを入力して Next を選択します。User Data Policy に同意し、Continue、Create の順に選択します。設定済みの場合は Branding と Audience を確認します。",
+  "registrationGuideGooglePermissions": "Google Auth Platform → Data Access → Add or remove scopes を開きます。以下の 5 つのスコープを選び、必要なら Manually add scopes を使います。手動で追加する場合は不足している値を貼り付け、Add to table を選択します。Update、Save の順に選択します。BusyMax にはカレンダーとタスク両方へのアクセスが必要です。",
+  "registrationGuideGoogleClient": "Google Auth Platform → Clients → Create client を開きます。Application type を Desktop app にし、Name に BusyMax を入力して Create を選択します。作成ダイアログで Download JSON を選び、ファイルを保存します。戻るを選んでフォームに戻り、ファイルを選んでプロジェクトとクライアント ID を確認します。接続を選び、ブラウザーでカレンダーとタスクへのアクセスを許可します。",
+  "registrationGuideMicrosoftApp": "Microsoft Entra 管理センターにサインインします。Settings でアプリを登録できるテナントを選びます。Entra ID → App registrations → New registration を開きます。Name に BusyMax を入力し、次の手順で対応アカウントの種類を選びます。登録が制限されている場合はテナント管理者にアクセスを依頼してください。",
+  "registrationGuideMicrosoftRedirect": "アプリ登録で Authentication → Add a platform → Mobile and desktop applications を開きます。以下のリダイレクト URI を選択または入力し、Configure で保存します。BusyMax はシステムのブラウザーを使います。クライアントシークレットは不要です。",
+  "registrationGuideMicrosoftPermissions": "API permissions → Add a permission → Microsoft Graph → Delegated permissions を開きます。以下のスコープをそれぞれ検索して選び、Add permissions を選択します。User.Read が既にある場合は残します。組織で管理者の同意が必要な場合は、管理者にテナントの Grant admin consent を依頼してください。",
+  "registrationGuideMicrosoftConnect": "戻るを選んでフォームに戻ります。Application (client) ID を貼り付け、登録と同じ対応アカウントを選びます。単一の組織テナントの場合は Directory (tenant) ID も貼り付けます。接続を選び、ブラウザーで目的のアカウントにサインインします。BusyMax は入力欄をローカルで確認し、Microsoft はブラウザーでのサインイン中に同意を求めます。",
+  "registrationGoogleImportFailed": "このファイルをインポートできませんでした。有効なデスクトップ OAuth JSON を選択してください。以前の有効な設定は保持されます。",
+  "registrationGoogleSetupInstructions": "Google の設定手順",
+  "registrationMicrosoftSetupInstructions": "Microsoft の設定手順",
+  "registrationDesktopConfiguration": "デスクトップ OAuth 設定",
+  "registrationNoFileSelected": "ファイルが選択されていません",
+  "registrationChooseFile": "ファイルを選択…",
+  "registrationReplaceFile": "置き換え…",
+  "registrationGoogleIntroduction": "ご自身の Google Cloud プロジェクトのデスクトップ OAuth JSON を選択してください。",
+  "registrationMicrosoftIntroduction": "ご自身の Microsoft アプリ登録の情報を入力してください。",
+  "registrationSetupInstructions": "設定手順",
+  "registrationInstructionsDescription": "アカウントの接続に必要な設定を作成します。",
+  "registrationEnableApis": "Calendar と Tasks を有効にする",
+  "registrationConsentScreen": "同意画面を設定する",
+  "registrationAppName": "アプリ名",
+  "registrationScopes": "スコープ",
+  "registrationRedirectUri": "リダイレクト URI",
+  "registrationOpenApiLibrary": "Google API ライブラリを開く",
+  "registrationOpenBranding": "Google Auth Platform の Branding を開く",
+  "registrationOpenDataAccess": "Google Auth Platform の Data Access を開く",
+  "registrationOpenClients": "Google Auth Platform の Clients を開く",
+  "registrationOpenEntraAuthentication": "Authentication 用に Entra のアプリ登録を開く",
+  "registrationOpenEntraPermissions": "API permissions 用に Entra のアプリ登録を開く",
+  "registrationCopy": "コピー",
+  "registrationCopyAll": "すべてコピー",
+  "registrationGuideGoogleApis": "APIs & Services → Library に移動します。Google Calendar API を検索し、ページを開いて Enable を選択します。Library に戻り、Google Tasks API でも同じ操作を行います。",
+  "registrationGuideMicrosoftAudience": "Supported account types で、個人用は Personal accounts only、組織用は Multiple Entra ID tenants、両方は Any Entra ID Tenant + Personal Microsoft accounts、このディレクトリのみは Single tenant only を選びます。Register を選択します。Overview で Application (client) ID をコピーし、単一テナントの場合は Directory (tenant) ID もコピーします。BusyMax で同じ対応アカウントを選びます。",
+  "registrationConnectBusyMax": "BusyMax で接続",
+  "registrationRecommended": "推奨",
+  "registrationOtherMethods": "その他の接続方法",
+  "registrationWorkspace": "Google Workspace 組織",
+  "registrationGoogleCustom": "カスタム OAuth クライアント",
+  "registrationMicrosoftCustom": "カスタム アプリ登録",
+  "registrationMethodsIntroduction": "アカウントの接続方法を選んでください。",
+  "registrationWorkspaceDescription": "組織が管理する設定を使用します。",
+  "registrationCustomDescription": "自分で管理する登録を使用します。",
+  "registrationSharedUnavailable": "このビルドでは BusyMax による接続を利用できません。以下の別の接続方法を使用できます。",
+  "registrationWorkspaceIntroduction": "組織が提供または管理するデスクトップ OAuth JSON を選びます。ファイルから組織の所有権、対象ユーザー、確認状況は証明できません。",
+  "registrationWorkspaceSetupInstructions": "Google Workspace セットアップ手順",
+  "registrationBusyMaxManaged": "BusyMax が管理する登録",
+  "registrationBranding": "ブランドとドメインを設定",
+  "registrationPublishing": "通常の使用向けに公開",
+  "registrationOpenAudience": "Google Auth Platform の Audience を開く",
+  "registrationGuideWorkspaceProject": "管理者から Desktop OAuth JSON を受け取るか、Google Cloud Console で Google Workspace 組織が所有するプロジェクトを選択します。作成する場合は［リソースの管理］→［プロジェクトを作成］を開き、［プロジェクト名］を入力し、［親リソース］で組織またはそのフォルダを選んで［作成］を選択します。以降もそのプロジェクトを選択してください。作成には Project Creator、OAuth 設定には OAuth Config Editor、API 有効化には Service Usage Admin または同等の権限が必要です。操作が制限される場合は管理者に相談してください。",
+  "registrationGuideGoogleBranding": "Branding → App domain でプロジェクトの承認済みドメインを追加してから、ホームページ、プライバシー、利用規約の URL を入力し、Save を選びます。External の本番アプリにはこれらのリンクが必要です。自身のドメインを使い、Google がブランド確認を求める場合は Search Console で所有権を確認します。下の BusyMax のプライバシーリンクはプロジェクトによる busystack.org の所有を証明しません。",
+  "registrationGuideGooglePublishing": "Audience で Publish app を選び、In production を確認します。通常の使用を Testing のままにしないでください。この Calendar/Tasks の認可と更新トークンは 7 日で期限切れになります。公開と確認は別です。100 人未満の個人利用は警告と人数制限付きで確認を免除される場合があります。広い配布にはブランドとスコープの承認が必要な場合があります。本番の認可も期限切れや取り消しになることがあります。",
+  "registrationGuideWorkspacePermissions": "管理者とこれらのスコープを確認します。Internal アプリは同意画面へのスコープの記載は不要です。求められた場合は Data Access → Add or remove scopes で値を追加し、Update、Save を選びます。管理者の制限で認可が制限される場合があります。",
+  "registrationGuideMicrosoftOptionalPermissions": "共有カレンダーとカテゴリの権限は、これらの任意機能を有効にするときに別途求められます。上の必須設定に追加しないでください。",
+  "registrationGuideWorkspaceAudience": "Google Auth Platform → Branding に移動します。未設定の場合は Get started を選択します。App name に BusyMax を入力し、ご自身の User support email を選んで Next を選択します。Audience ではInternal を選びます。Next を選び、Contact Information にメールアドレスを入力して Next を選択します。User Data Policy に同意し、Continue、Create の順に選択します。設定済みの場合は Branding と Audience を確認します。\n\nInternal はプロジェクトの親組織のアカウントのみ利用でき、管理者の制限も適用されます。テストユーザーの一覧は不要です。BusyMax はダウンロードした JSON からこれらの設定を確認できません。"
 }

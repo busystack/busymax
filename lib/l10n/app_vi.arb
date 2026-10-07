@@ -16,7 +16,13 @@
   "settingsSaveFailed": "Không thể lưu cài đặt. Các thay đổi có thể bị mất khi BusyMax khởi động lại.",
   "nextcloudExportCollection": "Xuất tài nguyên bộ sưu tập",
   "nextcloudImportItems": "Tìm thấy {count} tài nguyên sự kiện/công việc",
-  "@nextcloudImportItems": {"placeholders": {"count": {"type": "int"}}},
+  "@nextcloudImportItems": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "nextcloudSchedulingInbox": "Hộp thư lời mời",
   "nextcloudInboxExplanation": "Nextcloud xử lý các thư này vào lịch của bạn. Xác nhận chỉ xóa thư, không xóa sự kiện.",
   "nextcloudInboxEmpty": "Không có thư lập lịch.",
@@ -24,7 +30,13 @@
   "nextcloudAcknowledgeConfirm": "Xóa thư này khỏi hộp thư đến? Sự kiện lịch sẽ được giữ lại.",
   "nextcloudGuestAvailability": "Kiểm tra thời gian rảnh của khách",
   "nextcloudTrashRetention": "Thời gian lưu trong thùng rác máy chủ: {days} ngày",
-  "@nextcloudTrashRetention": {"placeholders": {"days": {"type": "int"}}},
+  "@nextcloudTrashRetention": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
   "nextcloudCancelMeeting": "Hủy cuộc họp",
   "nextcloudDeclineAndRemove": "Từ chối và xóa lời mời",
   "nextcloudDeclineRemovalWarning": "Việc xóa sẽ gửi lời từ chối khi đồng bộ. Cuộc họp của người tổ chức không bị hủy.",
@@ -103,15 +115,6 @@
   "connectGoogleAccount": "Kết nối tài khoản Google, Microsoft, Apple iCloud Calendar hoặc Nextcloud.",
   "googlePermissionsConsentNotice": "Trên màn hình cấp quyền của Google, hãy chọn cả quyền truy cập Lịch và Công việc.",
   "googlePermissionsRequiredRetry": "Cần có quyền truy cập Google Calendar và Google Tasks. Vui lòng thử lại và chọn cả hai hộp kiểm.",
-  "finishSetup": "Hoàn tất thiết lập",
-  "continueSetup": "Tiếp tục",
-  "onboardingSetupTitle": "Thiết lập BusyMax",
-  "onboardingAccountsStepTitle": "Kết nối tài khoản",
-  "onboardingAccountsStepDescription": "Thêm mọi tài khoản bạn muốn sử dụng. BusyMax đồng bộ lịch, sự kiện, danh sách công việc và công việc được hỗ trợ từ từng tài khoản.",
-  "onboardingPreferencesStepTitle": "Chọn cài đặt hệ thống",
-  "onboardingPreferencesStepDescription": "Thiết lập cách ứng dụng hoạt động trên máy tính, lời nhắc, mức độ chi tiết của thông báo và giao diện trước khi mở lịch biểu.",
-  "signInWithGoogle": "Đăng nhập bằng Google",
-  "signInWithMicrosoft": "Đăng nhập bằng Microsoft",
   "googleTasksProvider": "Google Tasks",
   "microsoftTodoProvider": "Microsoft To Do",
   "providerNotConfigured": "Dịch vụ này chưa được cấu hình.",
@@ -172,6 +175,10 @@
   "newEvent": "Sự kiện mới",
   "refreshCalendar": "Làm mới lịch",
   "openInProvider": "Mở trong dịch vụ",
+  "linkedResources": "Tài nguyên liên kết",
+  "noLinkedResources": "Không có tài nguyên liên kết",
+  "attachments": "Tệp đính kèm",
+  "attachmentsNotLoaded": "Chưa tải tệp đính kèm",
   "hideFromSchedule": "Ẩn khỏi lịch biểu",
   "showInSchedule": "Hiện trong lịch biểu",
   "noCalendarsSynced": "Chưa có lịch nào được đồng bộ.",
@@ -182,8 +189,6 @@
   "scheduleUnavailable": "Lịch biểu không khả dụng",
   "scheduleNoSources": "Không có lịch hoặc danh sách công việc nào đang hiển thị",
   "scheduleNoSourcesDescription": "Chọn nội dung cần hiển thị trong Cài đặt, sau đó làm mới lịch biểu.",
-  "scheduleSignInRequired": "Kết nối tài khoản",
-  "scheduleSignInDescription": "Đăng nhập để đồng bộ lịch và công việc.",
   "scheduleNoSearchResults": "Không có sự kiện hoặc công việc phù hợp",
   "scheduleNoSearchResultsDescription": "Thử tìm kiếm khác hoặc xóa các bộ lọc hiện tại.",
   "refresh": "Làm mới",
@@ -468,6 +473,7 @@
   "deleteTask": "Xóa công việc",
   "newSubtask": "Công việc con mới",
   "deleteTaskConfirmation": "Xóa “{title}”?",
+  "deleteAssignedTaskWarning": "Thao tác này cũng xóa công việc gốc trong Google Tài liệu hoặc không gian Chat.",
   "metadata": "Siêu dữ liệu",
   "id": "ID",
   "etag": "ETag",
@@ -826,6 +832,8 @@
   "removeFromMyCalendars": "Xóa khỏi lịch của tôi",
   "removeAction": "Xóa",
   "removeCalendarConfirmation": "Xóa “{title}” khỏi danh sách Google Calendar của bạn? Lịch dùng chung và các sự kiện trong đó sẽ không bị xóa.",
+  "removeOpenedSharedCalendarConfirmation": "Xóa “{title}” khỏi BusyMax? Lịch và các sự kiện của chủ sở hữu sẽ không bị xóa.",
+  "attachmentUploadUnresolved": "Tệp có thể đã được tải lên. Làm mới danh sách tệp đính kèm để kiểm tra trước khi tải lên lại.",
   "calendarCannotRemove": "Không thể xóa hoặc gỡ lịch này khỏi tài khoản.",
   "calendarPendingChangesPreventRemoval": "Hãy chờ các thay đổi đang chờ của lịch này đồng bộ xong trước khi xóa hoặc gỡ lịch.",
   "taskListPendingChangesPreventRemoval": "Hãy đồng bộ hóa tài khoản hoặc xử lý các thay đổi bị chặn của danh sách việc cần làm này trong mục Chẩn đoán trước khi xóa hoặc gỡ danh sách.",
@@ -1018,25 +1026,42 @@
   "@repeatYearlyOnMonthDaysSummary": {
     "description": "Complete yearly recurrence summary for selected month days; placeholders may be reordered by locale.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "month": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "repeatYearlyOnOrdinalSummary": "{frequency} vào {days} {position, select, first{đầu tiên} second{thứ hai} third{thứ ba} fourth{thứ tư} fifth{thứ năm} secondToLast{áp chót} last{cuối cùng} other{}} của {month}",
   "@repeatYearlyOnOrdinalSummary": {
     "description": "Complete yearly ordinal recurrence summary; {position} selects the ordinal wording and placeholders may be reordered by locale.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "month": {"type": "String"},
-      "position": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "position": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "searchFilters": "Bộ lọc tìm kiếm",
   "searchType": "Loại",
   "searchDate": "Ngày",
-  "searchAnyDate": "Mọi ngày",
+  "searchAnyDate": "Mọi ngày (dữ liệu đã tải)",
+  "eventLink": "Liên kết sự kiện",
+  "eventLinkOpenFailed": "Không thể mở liên kết.",
+  "scheduleRangeIncomplete": "Không thể kiểm tra một số sự kiện. Đang hiển thị dữ liệu đã tải.",
   "searchThisWeek": "Tuần này",
   "searchCustomRange": "Khoảng tùy chọn",
   "searchTaskStatus": "Trạng thái công việc",
@@ -1051,5 +1076,196 @@
   "searchClearText": "Xóa văn bản",
   "windowMinimize": "Thu nhỏ",
   "windowMaximize": "Phóng to",
-  "windowRestore": "Khôi phục"
+  "windowRestore": "Khôi phục",
+  "openSharedCalendar": "Mở lịch được chia sẻ",
+  "calendarOwnerEmail": "Email của chủ sở hữu lịch",
+  "addCalendarShare": "Thêm quyền truy cập",
+  "calendarShareFreeBusy": "Chỉ xem bận/rảnh",
+  "calendarShareLimitedRead": "Đọc thông tin hạn chế",
+  "calendarShareOwner": "Chủ sở hữu",
+  "calendarShareRead": "Đọc mọi thông tin",
+  "calendarShareWrite": "Chỉnh sửa sự kiện",
+  "calendarShareWriteWithoutPrivate": "Chỉnh sửa không xem thông tin riêng tư",
+  "eventLabel": "Nhãn sự kiện",
+  "googleChatAvailable": "Có mặt",
+  "googleChatDoNotDisturb": "Không làm phiền",
+  "googleChatStatus": "Trạng thái trò chuyện",
+  "googleDeclineAll": "Từ chối mọi lời mời trùng lịch",
+  "googleDeclineInvitations": "Từ chối lời mời trùng lịch",
+  "googleDeclineMessage": "Lời nhắn từ chối",
+  "googleDeclineNew": "Từ chối lời mời mới",
+  "googleDeclineNone": "Không từ chối",
+  "googleEventType": "Loại sự kiện",
+  "googleFocusTime": "Thời gian tập trung",
+  "googleOutOfOffice": "Vắng mặt",
+  "googleRegularEvent": "Sự kiện thường",
+  "googleStatusPrimaryOnly": "Sự kiện trạng thái Google yêu cầu lịch Google chính của bạn.",
+  "googleWorkAtCustomLocation": "Địa điểm tùy chỉnh",
+  "googleWorkAtHome": "Nhà",
+  "googleWorkAtOffice": "Văn phòng",
+  "googleWorkLocationLabel": "Tên địa điểm",
+  "googleWorkingLocation": "Nơi làm việc",
+  "loadOutlookCategories": "Tải danh mục Outlook",
+  "manageCalendarSharing": "Quản lý chia sẻ lịch",
+  "outlookCategoriesUnavailable": "Không có danh mục Outlook; các mục đã gán vẫn được giữ nguyên.",
+  "shareRecipientEmail": "Email người nhận",
+  "shareRole": "Vai trò truy cập",
+  "sharingPermissionUnavailable": "Không có quyền chia sẻ cho lịch này.",
+  "sharingRefreshFailed": "Đã thay đổi chia sẻ nhưng không thể làm mới danh sách quyền. Hãy tải lại trước khi thay đổi tiếp.",
+  "sharingRateLimited": "Việc chia sẻ đang tạm thời bị giới hạn. Hãy thử lại sau khi hết thời gian chờ.",
+  "attachmentUploadRateLimited": "Việc tải tệp đính kèm lên đang tạm thời bị giới hạn. Hãy thử lại sau khi hết thời gian chờ.",
+  "unknownEventLabel": "Nhãn không xác định ({id})",
+  "@unknownEventLabel": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationSetupTitle": "Thiết lập {provider}",
+  "@registrationSetupTitle": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationSetupGuide": "Hướng dẫn thiết lập",
+  "registrationGoogleInstructions": "Tạo dự án Google Cloud của riêng bạn, bật Calendar và Tasks, rồi nhập JSON của ứng dụng OAuth Desktop. Cấp quyền cho tài khoản mong muốn.",
+  "registrationMicrosoftInstructions": "Dùng đăng ký ứng dụng công khai trong đối tượng thuê Entra cho phép đăng ký. Nhập ID ứng dụng và loại tài khoản. Không cần bí mật ứng dụng.",
+  "registrationImportGoogle": "Chọn JSON OAuth Desktop",
+  "registrationValidate": "Kiểm tra đăng ký",
+  "registrationAuthorize": "Cấp quyền trong trình duyệt",
+  "registrationClientId": "ID ứng dụng/khách",
+  "registrationTenantId": "ID đối tượng thuê",
+  "registrationAudience": "Tài khoản được hỗ trợ",
+  "registrationBothAudience": "Tài khoản cá nhân và tổ chức",
+  "registrationOrganizationAudience": "Tài khoản tổ chức",
+  "registrationPersonalAudience": "Tài khoản cá nhân",
+  "registrationTenantAudience": "Một đối tượng thuê tổ chức",
+  "registrationSummary": "Đăng ký: {clientId}",
+  "@registrationSummary": {
+    "placeholders": {
+      "clientId": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationMigrate": "Chuyển đổi ngay",
+  "registrationReplace": "Thay đăng ký",
+  "registrationRetirementNotice": "Tài khoản này dùng đăng ký {provider} gốc dành cho tài khoản hiện có. Để thay thế, thiết lập {setup} và kết nối lại tài khoản. Lịch, tác vụ và thay đổi cục bộ sẽ được giữ nguyên.",
+  "@registrationRetirementNotice": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      },
+      "setup": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationContinue": "Tiếp tục dùng tài khoản này",
+  "registrationGoogleProject": "Dự án Google Cloud",
+  "registrationMicrosoftApp": "Đăng ký ứng dụng Microsoft",
+  "registrationUserOwned": "Đăng ký do người dùng cung cấp",
+  "registrationNativeGoogle": "Đăng ký Google gốc cho Android",
+  "registrationShared": "Đăng ký chung (chuyển tiếp)",
+  "registrationUnresolved": "Chưa xác định nguồn đăng ký. Dữ liệu tài khoản được giữ lại.",
+  "registrationOfficialDocumentation": "Tài liệu chính thức",
+  "registrationAndroidIdentity": "Gói: {packageName}\nMã băm chữ ký: {signatureHash}\nURI chuyển hướng: {redirectUri}",
+  "@registrationAndroidIdentity": {
+    "placeholders": {
+      "packageName": {
+        "type": "String"
+      },
+      "signatureHash": {
+        "type": "String"
+      },
+      "redirectUri": {
+        "type": "String"
+      }
+    }
+  },
+  "oauthRegistrationRejected": "Kiểm tra loại ứng dụng khách, tài khoản được hỗ trợ, quyền và chuyển hướng của đăng ký. Chọn lại cấu hình nếu đã nhập từ tệp.",
+  "oauthAuthorizationCodeUnusable": "Không thể hoàn tất lần cấp quyền này. Bắt đầu lại; kết nối hiện tại được giữ nguyên.",
+  "oauthPermissionRefused": "Việc cấp quyền bị từ chối hoặc thiếu quyền bắt buộc. Thử lại và cấp các quyền cần thiết.",
+  "oauthProviderThrottled": "Nhà cung cấp đang giới hạn yêu cầu. Hãy chờ trước khi thử lại; kết nối hiện tại được giữ nguyên.",
+  "oauthProviderTemporaryFailure": "Sự cố tạm thời của nhà cung cấp khiến việc cấp quyền không hoàn tất. Thử lại; kết nối hiện tại được giữ nguyên.",
+  "oauthAuthorizationTimedOut": "Việc cấp quyền đã hết thời gian. Thử lại và chọn lại cấu hình nếu đã nhập từ tệp.",
+  "oauthWrongAccount": "Cấp quyền cho tài khoản đã chọn để kết nối lại. Kết nối hiện tại được giữ nguyên.",
+  "oauthSecureStorageUnavailable": "Không thể truy cập kho lưu trữ bảo mật. Khôi phục quyền truy cập rồi thử lại.",
+  "oauthRevokedRemovalIncomplete": "Quyền truy cập từ xa đã bị thu hồi nhưng chưa thể hoàn tất việc dọn dẹp tài khoản. Khởi động lại BusyMax để thử khôi phục cục bộ.",
+  "addAccount": "Thêm tài khoản",
+  "registrationConnect": "Kết nối",
+  "registrationBack": "Quay lại",
+  "registrationReplaceGoogle": "Thay JSON OAuth máy tính",
+  "registrationSelectedConfiguration": "Cấu hình đã chọn",
+  "registrationDirectoryId": "ID thư mục/đối tượng thuê",
+  "registrationInvalidId": "Nhập UUID hợp lệ.",
+  "registrationExpired": "Cấu hình này đã hết hạn. Nhập lại hoặc sửa các trường đăng ký trước khi kết nối.",
+  "registrationOwnProjectRequired": "Chọn đăng ký từ dự án hoặc đối tượng thuê của bạn.",
+  "registrationSetupFailed": "Không thể hoàn tất thiết lập. Hãy thử lại.",
+  "registrationLinkFailed": "Không thể mở liên kết. Kiểm tra trình duyệt và thử lại.",
+  "registrationPermissions": "Quyền truy cập",
+  "registrationDesktopClient": "Ứng dụng máy tính",
+  "registrationOpenGoogleConsole": "Mở Google Cloud Console",
+  "registrationGoogleAudienceHelp": "Yêu cầu Google về xuất bản và người dùng thử nghiệm",
+  "registrationDesktopHelp": "Hướng dẫn đăng ký ứng dụng máy tính",
+  "registrationOpenEntra": "Mở trung tâm quản trị Microsoft Entra",
+  "registrationGuideGoogleProject": "Mở Google Cloud Console. Dùng bộ chọn dự án ở trên cùng để chọn dự án của bạn, hoặc chọn New project, nhập tên rồi chọn Create. Giữ dự án này được chọn trong các bước tiếp theo.",
+  "registrationGuideGoogleAudience": "Vào Google Auth Platform → Branding. Nếu chưa bắt đầu thiết lập, chọn Get started. Nhập BusyMax vào App name, chọn User support email của bạn rồi chọn Next. Trong Audience, chọn External. Chọn Next, nhập email vào Contact Information rồi chọn Next. Chấp nhận User Data Policy rồi chọn Continue và Create. Nếu đã thiết lập, kiểm tra Branding và Audience.",
+  "registrationGuideGooglePermissions": "Mở Google Auth Platform → Data Access → Add or remove scopes. Chọn năm phạm vi bên dưới; dùng Manually add scopes nếu cần. Khi nhập thủ công, dán các giá trị còn thiếu rồi chọn Add to table. Chọn Update rồi Save. BusyMax cần quyền truy cập lịch và tác vụ.",
+  "registrationGuideGoogleClient": "Mở Google Auth Platform → Clients → Create client. Đặt Application type thành Desktop app, nhập BusyMax vào Name rồi chọn Create. Trong hộp thoại tạo, chọn Download JSON và lưu tệp. Chọn Quay lại để trở về biểu mẫu, chọn tệp rồi kiểm tra dự án và ID máy khách. Chọn Kết nối và cho phép truy cập lịch và tác vụ trong trình duyệt.",
+  "registrationGuideMicrosoftApp": "Đăng nhập trung tâm quản trị Microsoft Entra. Dùng Settings để chọn đối tượng thuê cho phép bạn đăng ký ứng dụng. Mở Entra ID → App registrations → New registration. Nhập BusyMax vào Name rồi chọn loại tài khoản ở bước tiếp theo. Nếu đăng ký bị chặn, hãy xin quyền truy cập từ quản trị viên đối tượng thuê.",
+  "registrationGuideMicrosoftRedirect": "Trong đăng ký, mở Authentication → Add a platform → Mobile and desktop applications. Chọn hoặc nhập URI chuyển hướng bên dưới rồi chọn Configure để lưu. BusyMax dùng trình duyệt hệ thống. Không cần bí mật máy khách.",
+  "registrationGuideMicrosoftPermissions": "Mở API permissions → Add a permission → Microsoft Graph → Delegated permissions. Tìm và chọn từng phạm vi bên dưới rồi chọn Add permissions. Giữ User.Read nếu đã có. Nếu tổ chức yêu cầu sự đồng ý của quản trị viên, hãy nhờ quản trị viên dùng Grant admin consent cho đối tượng thuê.",
+  "registrationGuideMicrosoftConnect": "Chọn Quay lại để trở về biểu mẫu. Dán Application (client) ID và chọn Tài khoản được hỗ trợ giống đăng ký. Với Một đối tượng thuê tổ chức, dán cả Directory (tenant) ID. Chọn Kết nối và đăng nhập tài khoản mong muốn trong trình duyệt. BusyMax kiểm tra các trường cục bộ; Microsoft yêu cầu sự đồng ý khi đăng nhập trong trình duyệt.",
+  "registrationGoogleImportFailed": "Không thể nhập tệp này. Chọn JSON OAuth máy tính hợp lệ. Lựa chọn hợp lệ trước đó được giữ lại.",
+  "registrationGoogleSetupInstructions": "Hướng dẫn thiết lập Google",
+  "registrationMicrosoftSetupInstructions": "Hướng dẫn thiết lập Microsoft",
+  "registrationDesktopConfiguration": "Cấu hình OAuth cho máy tính",
+  "registrationNoFileSelected": "Chưa chọn tệp",
+  "registrationChooseFile": "Chọn tệp…",
+  "registrationReplaceFile": "Thay thế…",
+  "registrationGoogleIntroduction": "Chọn tệp JSON OAuth cho máy tính từ dự án Google Cloud của riêng bạn.",
+  "registrationMicrosoftIntroduction": "Nhập thông tin đăng ký ứng dụng Microsoft của riêng bạn.",
+  "registrationSetupInstructions": "Hướng dẫn thiết lập",
+  "registrationInstructionsDescription": "Tạo cấu hình cần thiết để kết nối tài khoản.",
+  "registrationEnableApis": "Bật Calendar và Tasks",
+  "registrationConsentScreen": "Thiết lập màn hình đồng ý",
+  "registrationAppName": "Tên ứng dụng",
+  "registrationScopes": "Phạm vi",
+  "registrationRedirectUri": "URI chuyển hướng",
+  "registrationOpenApiLibrary": "Mở Thư viện API Google",
+  "registrationOpenBranding": "Mở Branding trong Google Auth Platform",
+  "registrationOpenDataAccess": "Mở Data Access trong Google Auth Platform",
+  "registrationOpenClients": "Mở Clients trong Google Auth Platform",
+  "registrationOpenEntraAuthentication": "Mở đăng ký ứng dụng Entra để thiết lập Authentication",
+  "registrationOpenEntraPermissions": "Mở đăng ký ứng dụng Entra để thiết lập API permissions",
+  "registrationCopy": "Sao chép",
+  "registrationCopyAll": "Sao chép tất cả",
+  "registrationGuideGoogleApis": "Vào APIs & Services → Library. Tìm Google Calendar API, mở trang rồi chọn Enable. Quay lại Library và làm tương tự với Google Tasks API.",
+  "registrationGuideMicrosoftAudience": "Trong Supported account types, chọn Personal accounts only cho tài khoản cá nhân, Multiple Entra ID tenants cho tài khoản tổ chức, Any Entra ID Tenant + Personal Microsoft accounts cho cả hai, hoặc Single tenant only cho thư mục này. Chọn Register. Trong Overview, sao chép Application (client) ID; với một đối tượng thuê, sao chép cả Directory (tenant) ID. Chọn mục Tài khoản được hỗ trợ tương ứng trong BusyMax.",
+  "registrationConnectBusyMax": "Kết nối bằng BusyMax",
+  "registrationRecommended": "Được đề xuất",
+  "registrationOtherMethods": "Các cách kết nối khác",
+  "registrationWorkspace": "Tổ chức Google Workspace",
+  "registrationGoogleCustom": "Ứng dụng khách OAuth tùy chỉnh",
+  "registrationMicrosoftCustom": "Đăng ký ứng dụng tùy chỉnh",
+  "registrationMethodsIntroduction": "Chọn cách kết nối tài khoản của bạn.",
+  "registrationWorkspaceDescription": "Dùng cấu hình do tổ chức của bạn quản lý.",
+  "registrationCustomDescription": "Dùng đăng ký do bạn quản lý.",
+  "registrationSharedUnavailable": "Kết nối bằng BusyMax không khả dụng trong bản dựng này. Bạn có thể dùng cách kết nối khác bên dưới.",
+  "registrationWorkspaceIntroduction": "Chọn JSON OAuth máy tính do tổ chức cung cấp hoặc quản lý. Tệp không chứng minh quyền sở hữu của tổ chức, đối tượng hay trạng thái xác minh.",
+  "registrationWorkspaceSetupInstructions": "Hướng dẫn thiết lập Google Workspace",
+  "registrationBusyMaxManaged": "Đăng ký do BusyMax quản lý",
+  "registrationBranding": "Cấu hình thương hiệu và miền",
+  "registrationPublishing": "Xuất bản để sử dụng thông thường",
+  "registrationOpenAudience": "Mở Audience của Google Auth Platform",
+  "registrationGuideWorkspaceProject": "Xin Desktop OAuth JSON từ quản trị viên hoặc mở Google Cloud Console và chọn dự án thuộc tổ chức Google Workspace của bạn. Để tạo dự án, mở Quản lý tài nguyên → Tạo dự án, nhập Tên dự án, chọn tổ chức hoặc thư mục của tổ chức trong Tài nguyên mẹ rồi chọn Tạo. Chọn dự án đó cho các bước tiếp theo. Việc tạo cần Project Creator, cấu hình OAuth cần OAuth Config Editor, và bật API cần Service Usage Admin hoặc quyền tương đương. Nhờ quản trị viên trợ giúp nếu bị chặn.",
+  "registrationGuideGoogleBranding": "Trong Branding → App domain, thêm miền được ủy quyền của dự án trước URL trang chủ, quyền riêng tư và điều khoản dịch vụ, rồi Save. Ứng dụng External trong sản xuất cần các liên kết này. Dùng miền bạn sở hữu và xác minh quyền sở hữu trong Search Console khi Google yêu cầu xác minh thương hiệu. Liên kết quyền riêng tư BusyMax không chứng minh dự án của bạn sở hữu busystack.org.",
+  "registrationGuideGooglePublishing": "Trong Audience, chọn Publish app và xác nhận In production. Không để sử dụng thông thường ở Testing: các ủy quyền Calendar/Tasks và mã làm mới này hết hạn sau bảy ngày. Xuất bản và xác minh là hai việc riêng. Sử dụng cá nhân dưới 100 người có thể được miễn xác minh, với cảnh báo và giới hạn người dùng; phân phối rộng hơn có thể cần phê duyệt thương hiệu và phạm vi. Ủy quyền sản xuất vẫn có thể hết hạn hoặc bị thu hồi.",
+  "registrationGuideWorkspacePermissions": "Xem các phạm vi này với quản trị viên. Ứng dụng Internal không cần liệt kê phạm vi trên màn hình đồng ý. Nếu được yêu cầu, mở Data Access → Add or remove scopes, thêm giá trị rồi Update và Save. Kiểm soát quản trị vẫn có thể hạn chế ủy quyền.",
+  "registrationGuideMicrosoftOptionalPermissions": "Quyền lịch dùng chung và danh mục được yêu cầu riêng khi bật các tính năng tùy chọn; không thêm chúng vào thiết lập bắt buộc ở trên.",
+  "registrationGuideWorkspaceAudience": "Vào Google Auth Platform → Branding. Nếu chưa bắt đầu thiết lập, chọn Get started. Nhập BusyMax vào App name, chọn User support email của bạn rồi chọn Next. Trong Audience, chọn Internal. Chọn Next, nhập email vào Contact Information rồi chọn Next. Chấp nhận User Data Policy rồi chọn Continue và Create. Nếu đã thiết lập, kiểm tra Branding và Audience.\n\nInternal chỉ cho phép tài khoản thuộc tổ chức mẹ của dự án, chịu kiểm soát của quản trị viên. Không cần danh sách người dùng thử. BusyMax không thể xác minh các thiết lập này từ JSON tải xuống."
 }

@@ -180,6 +180,110 @@ class MicrosoftTodoTaskDto {
   final String? removedReason;
 }
 
+class MicrosoftTodoLinkedResourceDto {
+  const MicrosoftTodoLinkedResourceDto({
+    required this.id,
+    required this.applicationName,
+    required this.displayName,
+    required this.webUrl,
+  });
+
+  factory MicrosoftTodoLinkedResourceDto.fromJson(Map<String, Object?> json) =>
+      MicrosoftTodoLinkedResourceDto(
+        id: json['id']?.toString() ?? '',
+        applicationName: microsoftStringOrNull(json['applicationName']),
+        displayName: microsoftStringOrNull(json['displayName']),
+        webUrl: microsoftStringOrNull(json['webUrl']),
+      );
+
+  final String id;
+  final String? applicationName;
+  final String? displayName;
+  final String? webUrl;
+}
+
+class MicrosoftTodoLinkedResourcesPageDto {
+  const MicrosoftTodoLinkedResourcesPageDto({
+    required this.resources,
+    this.nextLink,
+  });
+
+  factory MicrosoftTodoLinkedResourcesPageDto.fromJson(
+    Map<String, Object?> json,
+  ) {
+    final value = json['value'];
+    if (value is! List || value.any((item) => item is! Map)) {
+      throw const FormatException('Malformed Microsoft linked-resource list.');
+    }
+    return MicrosoftTodoLinkedResourcesPageDto(
+      resources: [
+        for (final item in value)
+          MicrosoftTodoLinkedResourceDto.fromJson(
+            (item as Map).cast<String, Object?>(),
+          ),
+      ],
+      nextLink: microsoftStringOrNull(json['@odata.nextLink']),
+    );
+  }
+
+  final List<MicrosoftTodoLinkedResourceDto> resources;
+  final String? nextLink;
+}
+
+class MicrosoftTodoAttachmentDto {
+  const MicrosoftTodoAttachmentDto({
+    required this.id,
+    required this.name,
+    required this.kind,
+    this.size,
+    this.contentType,
+  });
+
+  factory MicrosoftTodoAttachmentDto.fromJson(Map<String, Object?> json) =>
+      MicrosoftTodoAttachmentDto(
+        id: json['id']?.toString() ?? '',
+        name: json['name']?.toString() ?? '',
+        kind: json['@odata.type']?.toString() ?? '',
+        size: json['size'] is int ? json['size'] as int : null,
+        contentType: microsoftStringOrNull(json['contentType']),
+      );
+
+  final String id;
+  final String name;
+  final String kind;
+  final int? size;
+  final String? contentType;
+
+  bool get isFile =>
+      kind.toLowerCase() == '#microsoft.graph.taskfileattachment';
+}
+
+class MicrosoftTodoAttachmentsPageDto {
+  const MicrosoftTodoAttachmentsPageDto({
+    required this.attachments,
+    this.nextLink,
+  });
+
+  factory MicrosoftTodoAttachmentsPageDto.fromJson(Map<String, Object?> json) {
+    final value = json['value'];
+    if (value is! List || value.any((item) => item is! Map)) {
+      throw const FormatException('Malformed Microsoft task attachment list.');
+    }
+    return MicrosoftTodoAttachmentsPageDto(
+      attachments: [
+        for (final item in value)
+          MicrosoftTodoAttachmentDto.fromJson(
+            (item as Map).cast<String, Object?>(),
+          ),
+      ],
+      nextLink: microsoftStringOrNull(json['@odata.nextLink']),
+    );
+  }
+
+  final List<MicrosoftTodoAttachmentDto> attachments;
+  final String? nextLink;
+}
+
 class MicrosoftTodoChecklistItemDto {
   const MicrosoftTodoChecklistItemDto({
     required this.id,

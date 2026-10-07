@@ -7,6 +7,78 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('shared iCalendar ingestion', () {
+    test(
+      'CalDAV attachment URI is projected while original property stays intact',
+      () {
+        final result = IcalIngestion.parseString(
+          _calendar('''
+BEGIN:VEVENT
+UID:attached
+DTSTART:20260830T160000Z
+DTEND:20260830T170000Z
+SUMMARY:Agenda
+ATTACH;FMTTYPE=application/pdf:https://cloud.example.test/file.pdf
+END:VEVENT
+'''),
+          policy: IcalIngestionPolicy.webCal,
+        );
+        final event = IcalEventProjector()
+            .project(
+              result.recurrenceSets.single,
+              rangeStartUtc: DateTime.utc(2026, 8, 1),
+              rangeEndUtc: DateTime.utc(2026, 9, 1),
+              transport: 'caldav',
+            )
+            .single;
+        expect(jsonDecode(event.attachmentsJson), [
+          'https://cloud.example.test/file.pdf',
+        ]);
+        expect(
+          result
+              .recurrenceSets
+              .single
+              .semantic
+              .components
+              .single
+              .documentComponent
+              .propertiesNamed('ATTACH')
+              .single
+              .parameterValue('FMTTYPE'),
+          'application/pdf',
+        );
+      },
+    );
+
+    test(
+      'CalDAV projection keeps event URL distinct from video conference',
+      () {
+        final result = IcalIngestion.parseString(
+          _calendar('''
+BEGIN:VEVENT
+UID:conference
+DTSTART:20260830T160000Z
+DTEND:20260830T170000Z
+SUMMARY:Conference
+URL:https://example.com/event
+CONFERENCE;FEATURE=VIDEO:https://meet.example.com/room
+END:VEVENT
+'''),
+          policy: IcalIngestionPolicy.webCal,
+        );
+        final event = IcalEventProjector()
+            .project(
+              result.recurrenceSets.single,
+              rangeStartUtc: DateTime.utc(2026, 8, 1),
+              rangeEndUtc: DateTime.utc(2026, 9, 1),
+              transport: 'caldav',
+            )
+            .single;
+        expect(event.webLink, 'https://example.com/event');
+        expect((jsonDecode(event.rawJson) as Map)['conferenceLinks'], [
+          {'url': 'https://meet.example.com/room', 'features': 'VIDEO'},
+        ]);
+      },
+    );
     test('groups multiple UIDs and retains recurrence exceptions', () {
       final result = IcalIngestion.parseString(
         _calendar('''

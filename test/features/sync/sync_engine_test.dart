@@ -21,6 +21,8 @@ import 'package:busymax/src/features/tasks/domain/task_checklist_item.dart';
 
 import '../../support/recording_notification_backend.dart';
 
+import '../../support/persistence_test_directory.dart';
+
 void main() {
   late AppDatabase database;
   late FakeTaskRemoteClient apiClient;
@@ -547,8 +549,8 @@ void main() {
     'failed partial task import survives restart before summary retry',
     () async {
       await database.close();
-      final directory = databaseDirectory = await Directory.systemTemp
-          .createTemp('busymax-due-today-restart-');
+      final directory = databaseDirectory =
+          await createPersistenceTestDirectory('busymax-due-today-restart-');
       final databaseFile = File('${directory.path}/busymax.sqlite');
       database = AppDatabase(NativeDatabase(databaseFile));
       await _insertAccount(database);

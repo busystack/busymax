@@ -2,6 +2,72 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_models.dart';
 
 void main() {
+  test('task attachment metadata does not imply content is downloaded', () {
+    final page = MicrosoftTodoAttachmentsPageDto.fromJson(const {
+      'value': [
+        {
+          'id': 'file',
+          'name': 'Notes.txt',
+          'size': 8,
+          '@odata.type': '#microsoft.graph.taskFileAttachment',
+        },
+      ],
+      '@odata.nextLink': 'next',
+    });
+    expect(page.attachments.single.name, 'Notes.txt');
+    expect(page.attachments.single.size, 8);
+    expect(page.attachments.single.isFile, isTrue);
+    expect(page.nextLink, 'next');
+  });
+
+  test('linked resource page retains supplied names and URL', () {
+    final page = MicrosoftTodoLinkedResourcesPageDto.fromJson({
+      'value': [
+        {
+          'id': 'a',
+          'applicationName': 'Planner',
+          'displayName': 'Launch plan',
+          'webUrl': 'https://example.test/plan',
+        },
+        {'id': 'b', 'applicationName': 'Outlook'},
+      ],
+      '@odata.nextLink': 'https://graph.microsoft.com/v1.0/next',
+    });
+    expect(page.resources, hasLength(2));
+    expect(page.resources.first.webUrl, 'https://example.test/plan');
+    expect(page.resources.last.webUrl, isNull);
+    expect(page.nextLink, isNotNull);
+  });
+
+  test('malformed detail collections are not successful empty pages', () {
+    expect(
+      () => MicrosoftTodoLinkedResourcesPageDto.fromJson(const {}),
+      throwsFormatException,
+    );
+    expect(
+      () => MicrosoftTodoLinkedResourcesPageDto.fromJson(const {'value': {}}),
+      throwsFormatException,
+    );
+    expect(
+      MicrosoftTodoLinkedResourcesPageDto.fromJson(const {
+        'value': [],
+      }).resources,
+      isEmpty,
+    );
+    expect(
+      () => MicrosoftTodoAttachmentsPageDto.fromJson(const {}),
+      throwsFormatException,
+    );
+    expect(
+      () => MicrosoftTodoAttachmentsPageDto.fromJson(const {'value': null}),
+      throwsFormatException,
+    );
+    expect(
+      MicrosoftTodoAttachmentsPageDto.fromJson(const {'value': []}).attachments,
+      isEmpty,
+    );
+  });
+
   test('parses todoTask with Microsoft-specific fields and removed marker', () {
     final task = MicrosoftTodoTaskDto.fromJson({
       '@odata.etag': 'etag-1',

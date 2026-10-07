@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:logging/logging.dart';
 
 import '../../core/logging/redacting_logger.dart';
+import 'domain_sync_schedule.dart';
 
 class PendingMutationSyncRequester {
   PendingMutationSyncRequester({
@@ -72,7 +73,7 @@ class PendingMutationSyncRequester {
       if (!await _canSync()) {
         return;
       }
-      await _sync();
+      await withSyncTrigger(SyncTrigger.localMutation, _sync);
     } on Object catch (error) {
       _logger.warning('Pending mutation sync failed: $error');
       try {

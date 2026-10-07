@@ -42,6 +42,18 @@ void main() {
     expect(source.isRemovable, isFalse);
   });
 
+  test('event category names are not treated as provider color IDs', () {
+    final event = microsoftCalendarEventFromJson('calendar', {
+      'id': 'event',
+      'subject': 'Event',
+      'categories': ['Planning', 'Urgent'],
+      'start': {'dateTime': '2026-09-30T09:00:00', 'timeZone': 'UTC'},
+      'end': {'dateTime': '2026-09-30T10:00:00', 'timeZone': 'UTC'},
+    });
+    expect(event.categoriesJson, ['Planning', 'Urgent']);
+    expect(event.colorId, isNull);
+  });
+
   test(
     'Microsoft calendar source maps named colors when hex color is empty',
     () {
@@ -93,7 +105,36 @@ void main() {
     });
 
     expect(event.categoriesJson, ['Work', 'Blue category']);
-    expect(event.colorId, 'Work');
+    expect(event.colorId, isNull);
+  });
+
+  test('attachment flag is not treated as a loaded empty list', () {
+    Map<String, Object?> event(bool? hasAttachments, {Object? attachments}) => {
+      'id': 'event-1',
+      'subject': 'Planning',
+      if (hasAttachments != null) 'hasAttachments': hasAttachments,
+      if (attachments != null) 'attachments': attachments,
+    };
+    expect(
+      microsoftCalendarEventFromJson('cal', event(true)).attachmentsJson,
+      isNull,
+    );
+    expect(
+      microsoftCalendarEventFromJson('cal', event(false)).attachmentsJson,
+      isEmpty,
+    );
+    expect(
+      microsoftCalendarEventFromJson(
+        'cal',
+        event(
+          true,
+          attachments: [
+            {'id': 'file-1', 'name': 'Agenda.pdf'},
+          ],
+        ),
+      ).attachmentsJson,
+      hasLength(1),
+    );
   });
 
   test('formatted Microsoft HTML is converted to plain text with ranges', () {

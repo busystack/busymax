@@ -4,7 +4,13 @@
   "firstDayOfWeek": "First day of the week",
   "systemDefault": "System Default",
   "systemDefaultResolved": "System Default ({weekday})",
-  "@systemDefaultResolved": {"placeholders": {"weekday": {"type": "String"}}},
+  "@systemDefaultResolved": {
+    "placeholders": {
+      "weekday": {
+        "type": "String"
+      }
+    }
+  },
   "timeFormatTwelveHour": "12-hour",
   "timeFormatTwentyFourHour": "24-hour",
   "timeEndOfDay": "end of day",
@@ -15,7 +21,13 @@
   "settingsSaveFailed": "Could not save settings. Your changes may be lost when BusyMax restarts.",
   "nextcloudExportCollection": "Export collection resources",
   "nextcloudImportItems": "{count} event/task resources found",
-  "@nextcloudImportItems": {"placeholders": {"count": {"type": "int"}}},
+  "@nextcloudImportItems": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "nextcloudSchedulingInbox": "Scheduling inbox",
   "nextcloudInboxExplanation": "Nextcloud processes these messages into your calendars. Acknowledging a message removes only the inbox message, not the event.",
   "nextcloudInboxEmpty": "No scheduling messages.",
@@ -23,7 +35,13 @@
   "nextcloudAcknowledgeConfirm": "Remove this scheduling message from the inbox? The calendar event will be kept.",
   "nextcloudGuestAvailability": "Check guest availability",
   "nextcloudTrashRetention": "Server trash retention: {days} days",
-  "@nextcloudTrashRetention": {"placeholders": {"days": {"type": "int"}}},
+  "@nextcloudTrashRetention": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
   "nextcloudCancelMeeting": "Cancel meeting",
   "nextcloudDeclineAndRemove": "Decline and remove invitation",
   "nextcloudDeclineRemovalWarning": "Removing this invitation sends a decline when synchronized. It does not cancel the organizer’s meeting.",
@@ -34,48 +52,58 @@
   "nextcloudAttendeeRestrictions": "Only the organizer or an authorized delegate can change meeting details. You can respond to this invitation from its details.",
   "nextcloudMeetingMoveUnsupported": "This meeting cannot be moved by copying and deleting it. Use a calendar under the same scheduling identity.",
   "nextcloudSchedulingStatus": "Server scheduling status",
-"nextcloudImportFollowUp": "The imported resources were saved locally. Reminder refresh is pending; do not import them again.",
-"nextcloudNativeImport": "Import complete event and task resources without sending invitations. Existing UIDs are skipped unless you choose new copies. Unsupported resources are reported individually.",
-"nextcloudImportMethod": "This file contains scheduling messages. Import stores their content and removes METHOD; it does not process an invitation or reply.",
-"nextcloudImportCopies": "Import as new copies with new identities",
-"nextcloudCollectionSettings": "Collection settings",
-"nextcloudSharing": "Sharing",
-"nextcloudOwned": "Owned",
-"nextcloudShared": "Shared",
-"nextcloudDelegated": "Delegated",
-"nextcloudSubscription": "Subscription",
-"nextcloudDeleted": "Deleted",
-"nextcloudMetadataEditable": "Calendar contents are read-only; collection properties can be changed.",
-"nextcloudServerOrder": "Server order (separate from sidebar order)",
-"nextcloudCalendarEnabled": "Enabled on the server",
-"nextcloudAvailability": "Include this collection in availability",
-"nextcloudCalendarTimezone": "Calendar timezone (VTIMEZONE document)",
-"nextcloudRefreshPending": "The change was saved on Nextcloud. Refresh is pending; do not repeat the change.",
-"nextcloudOutcomeUnknown": "The server outcome could not be confirmed. Refresh before trying again.",
-"nextcloudRemoveShared": "Remove shared calendar/list",
-"nextcloudRemoveMixed": "This collection contains events and tasks. Deleting it removes both its events and tasks.",
-"nextcloudReadAccess": "Read-only",
-"nextcloudWriteAccess": "Read and write",
-"nextcloudRecipientSearch": "Find people or groups",
-"nextcloudNoRecipients": "No matching people or groups.",
-"nextcloudRevokeShare": "Revoke access",
-"nextcloudPublish": "Publish link",
-"nextcloudUnpublish": "Stop publishing",
-"nextcloudPublishWarning": "Anyone with the published link may be able to read this calendar. Publish it?",
-"nextcloudTrash": "Deleted calendars and tasks",
-"nextcloudTrashEmpty": "No deleted calendar items.",
-"nextcloudRestore": "Restore",
-"nextcloudPermanentDelete": "Permanently delete",
-"nextcloudPermanentDeleteWarning": "Permanently delete this item? It cannot be restored from Nextcloud's calendar trash.",
-"nextcloudOperationDenied": "Nextcloud did not allow this operation.",
-"nextcloudUnsupported": "The server does not support this operation.",
-"nextcloudPendingChanges": "Save or discard collection changes before closing.",
-"nextcloudServerUnavailable": "Nextcloud could not be reached. Cached items and pending work are unchanged.",
-"mapsShow": "Show on map",
-"openLink": "Open link",
-"externalLocationOpenFailed": "The location could not be opened in an external application.",
+  "nextcloudImportFollowUp": "The imported resources were saved locally. Reminder refresh is pending; do not import them again.",
+  "nextcloudNativeImport": "Import complete event and task resources without sending invitations. Existing UIDs are skipped unless you choose new copies. Unsupported resources are reported individually.",
+  "nextcloudImportMethod": "This file contains scheduling messages. Import stores their content and removes METHOD; it does not process an invitation or reply.",
+  "nextcloudImportCopies": "Import as new copies with new identities",
+  "nextcloudCollectionSettings": "Collection settings",
+  "nextcloudSharing": "Sharing",
+  "nextcloudOwned": "Owned",
+  "nextcloudShared": "Shared",
+  "nextcloudDelegated": "Delegated",
+  "nextcloudSubscription": "Subscription",
+  "nextcloudDeleted": "Deleted",
+  "nextcloudMetadataEditable": "Calendar contents are read-only; collection properties can be changed.",
+  "nextcloudServerOrder": "Server order (separate from sidebar order)",
+  "nextcloudCalendarEnabled": "Enabled on the server",
+  "nextcloudAvailability": "Include this collection in availability",
+  "nextcloudCalendarTimezone": "Calendar timezone (VTIMEZONE document)",
+  "nextcloudRefreshPending": "The change was saved on Nextcloud. Refresh is pending; do not repeat the change.",
+  "nextcloudOutcomeUnknown": "The server outcome could not be confirmed. Refresh before trying again.",
+  "nextcloudRemoveShared": "Remove shared calendar/list",
+  "nextcloudRemoveMixed": "This collection contains events and tasks. Deleting it removes both its events and tasks.",
+  "nextcloudReadAccess": "Read-only",
+  "nextcloudWriteAccess": "Read and write",
+  "nextcloudRecipientSearch": "Find people or groups",
+  "nextcloudNoRecipients": "No matching people or groups.",
+  "nextcloudRevokeShare": "Revoke access",
+  "nextcloudPublish": "Publish link",
+  "nextcloudUnpublish": "Stop publishing",
+  "nextcloudPublishWarning": "Anyone with the published link may be able to read this calendar. Publish it?",
+  "nextcloudTrash": "Deleted calendars and tasks",
+  "nextcloudTrashEmpty": "No deleted calendar items.",
+  "nextcloudRestore": "Restore",
+  "nextcloudPermanentDelete": "Permanently delete",
+  "nextcloudPermanentDeleteWarning": "Permanently delete this item? It cannot be restored from Nextcloud's calendar trash.",
+  "nextcloudOperationDenied": "Nextcloud did not allow this operation.",
+  "nextcloudUnsupported": "The server does not support this operation.",
+  "nextcloudPendingChanges": "Save or discard collection changes before closing.",
+  "nextcloudServerUnavailable": "Nextcloud could not be reached. Cached items and pending work are unchanged.",
+  "mapsShow": "Show on map",
+  "openLink": "Open link",
+  "externalLocationOpenFailed": "The location could not be opened in an external application.",
   "scheduleProposedRange": "{start} – {end}",
-  "@scheduleProposedRange": {"description": "Proposed event interval while dragging.", "placeholders": {"start": {"type": "String"}, "end": {"type": "String"}}},
+  "@scheduleProposedRange": {
+    "description": "Proposed event interval while dragging.",
+    "placeholders": {
+      "start": {
+        "type": "String"
+      },
+      "end": {
+        "type": "String"
+      }
+    }
+  },
   "scheduleRescheduleFailed": "The event could not be rescheduled. Its stored time has not been changed.",
   "scheduleRescheduleStale": "This event changed while you were dragging. Please try again.",
   "scheduleRescheduleNotificationsFailed": "The new time was saved, but reminders could not be refreshed.",
@@ -96,52 +124,109 @@
   "repeatWeeklyDaySummary": "{dayKey, select, MO{Monday} TU{Tuesday} WE{Wednesday} TH{Thursday} FR{Friday} SA{Saturday} SU{Sunday} other{{day}}}",
   "@repeatWeeklyDaySummary": {
     "description": "Sentence-form weekday used inside a weekly recurrence summary. {dayKey} is MO through SU; {day} is the locale-formatted fallback.",
-    "placeholders": {"dayKey": {"type": "String"}, "day": {"type": "String"}}
+    "placeholders": {
+      "dayKey": {
+        "type": "String"
+      },
+      "day": {
+        "type": "String"
+      }
+    }
   },
   "repeatOnTwoMonthDaysSummary": "on days {first} and {second}",
   "@repeatOnTwoMonthDaysSummary": {
     "description": "Sentence fragment for a monthly recurrence on exactly two dates.",
-    "placeholders": {"first": {"type": "String"}, "second": {"type": "String"}}
+    "placeholders": {
+      "first": {
+        "type": "String"
+      },
+      "second": {
+        "type": "String"
+      }
+    }
   },
   "repeatYearlyOnTwoMonthDaysSummary": "{frequency} on days {firstDay} and {secondDay} of {month}",
   "@repeatYearlyOnTwoMonthDaysSummary": {
     "description": "Complete yearly recurrence summary for exactly two dates in one month.",
-    "placeholders": {"frequency": {"type": "String"}, "month": {"type": "String"}, "firstDay": {"type": "String"}, "secondDay": {"type": "String"}}
+    "placeholders": {
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "firstDay": {
+        "type": "String"
+      },
+      "secondDay": {
+        "type": "String"
+      }
+    }
   },
   "repeatYearlyInTwoMonthsOnMonthDaySummary": "{frequency} on day {day} of {firstMonth} and {secondMonth}",
   "@repeatYearlyInTwoMonthsOnMonthDaySummary": {
     "description": "Complete yearly recurrence summary for one date in exactly two months.",
-    "placeholders": {"frequency": {"type": "String"}, "firstMonth": {"type": "String"}, "secondMonth": {"type": "String"}, "day": {"type": "String"}}
+    "placeholders": {
+      "frequency": {
+        "type": "String"
+      },
+      "firstMonth": {
+        "type": "String"
+      },
+      "secondMonth": {
+        "type": "String"
+      },
+      "day": {
+        "type": "String"
+      }
+    }
   },
   "repeatYearlyInTwoMonthsOnTwoMonthDaysSummary": "{frequency} on days {firstDay} and {secondDay} of {firstMonth} and {secondMonth}",
   "@repeatYearlyInTwoMonthsOnTwoMonthDaysSummary": {
     "description": "Complete yearly recurrence summary for exactly two dates in exactly two months.",
-    "placeholders": {"frequency": {"type": "String"}, "firstMonth": {"type": "String"}, "secondMonth": {"type": "String"}, "firstDay": {"type": "String"}, "secondDay": {"type": "String"}}
+    "placeholders": {
+      "frequency": {
+        "type": "String"
+      },
+      "firstMonth": {
+        "type": "String"
+      },
+      "secondMonth": {
+        "type": "String"
+      },
+      "firstDay": {
+        "type": "String"
+      },
+      "secondDay": {
+        "type": "String"
+      }
+    }
   },
   "repeatYearlyInTwoMonthsOnMonthDaysSummary": "{frequency} on days {days} of {firstMonth} and {secondMonth}",
   "@repeatYearlyInTwoMonthsOnMonthDaysSummary": {
     "description": "Complete yearly recurrence summary for three or more dates in exactly two months.",
-    "placeholders": {"frequency": {"type": "String"}, "firstMonth": {"type": "String"}, "secondMonth": {"type": "String"}, "days": {"type": "String"}}
+    "placeholders": {
+      "frequency": {
+        "type": "String"
+      },
+      "firstMonth": {
+        "type": "String"
+      },
+      "secondMonth": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
+    }
   },
   "appTitle": "BusyMax",
   "connectGoogleAccount": "Connect Google, Microsoft, Apple iCloud Calendar, or Nextcloud accounts.",
   "@connectGoogleAccount": {
-    "description": "Shown in account onboarding and settings; names the supported account providers."
+    "description": "Shown in account settings; names the supported account providers."
   },
-  "googlePermissionsConsentNotice": "On the Google permission screen, select both Calendar and Tasks permissions.",
+  "googlePermissionsConsentNotice": "On the Google permissions screen, select both Calendar and Tasks permissions.",
   "googlePermissionsRequiredRetry": "Google Calendar and Google Tasks permissions are required. Please try again and select both checkboxes.",
-  "finishSetup": "Finish setup",
-  "continueSetup": "Continue",
-  "onboardingSetupTitle": "Set Up BusyMax",
-  "onboardingAccountsStepTitle": "Connect accounts",
-  "onboardingAccountsStepDescription": "Add every account you want to use. BusyMax syncs supported calendars, events, task lists, and tasks from each account.",
-  "@onboardingAccountsStepDescription": {
-    "description": "Onboarding explanation of the account data BusyMax synchronizes."
-  },
-  "onboardingPreferencesStepTitle": "Choose system settings",
-  "onboardingPreferencesStepDescription": "Set desktop behavior, reminders, notification detail, and appearance before opening your schedule.",
-  "signInWithGoogle": "Sign in with Google",
-  "signInWithMicrosoft": "Sign in with Microsoft",
   "googleTasksProvider": "Google Tasks",
   "microsoftTodoProvider": "Microsoft To Do",
   "providerNotConfigured": "This provider is not configured.",
@@ -172,7 +257,7 @@
     "placeholders": {
       "number": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -206,6 +291,10 @@
   "newEvent": "New event",
   "refreshCalendar": "Refresh calendar",
   "openInProvider": "Open in provider",
+  "linkedResources": "Linked resources",
+  "noLinkedResources": "No linked resources",
+  "attachments": "Attachments",
+  "attachmentsNotLoaded": "Attachments not loaded",
   "hideFromSchedule": "Hide from schedule",
   "showInSchedule": "Show in schedule",
   "noCalendarsSynced": "No calendars synced yet.",
@@ -215,7 +304,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -224,8 +313,6 @@
   "scheduleUnavailable": "Schedule unavailable",
   "scheduleNoSources": "No visible calendars or task lists",
   "scheduleNoSourcesDescription": "Choose what to show in Settings, then refresh.",
-  "scheduleSignInRequired": "Connect an account",
-  "scheduleSignInDescription": "Sign in to sync calendars and tasks.",
   "scheduleNoSearchResults": "No matching events or tasks",
   "scheduleNoSearchResultsDescription": "Try a different search or clear the current filters.",
   "refresh": "Refresh",
@@ -244,7 +331,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -259,7 +346,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -268,7 +355,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -277,7 +364,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -378,7 +465,7 @@
     "placeholders": {
       "minutes": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -388,7 +475,7 @@
     "placeholders": {
       "hours": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -397,7 +484,7 @@
     "placeholders": {
       "days": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -660,7 +747,7 @@
     "placeholders": {
       "percent": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -672,7 +759,7 @@
     "placeholders": {
       "priority": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -681,7 +768,7 @@
     "placeholders": {
       "priority": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -690,7 +777,7 @@
     "placeholders": {
       "priority": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -743,7 +830,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -791,8 +878,12 @@
   "@repeatOrdinalDaySummary": {
     "description": "Sentence-form day label used inside ordinal recurrence summaries. {dayKey} is MO through SU, day, weekday, or weekend; {day} is the locale-formatted weekday fallback.",
     "placeholders": {
-      "dayKey": {"type": "String"},
-      "day": {"type": "String"}
+      "dayKey": {
+        "type": "String"
+      },
+      "day": {
+        "type": "String"
+      }
     }
   },
   "repeatEveryDays": "Every {count} days",
@@ -800,7 +891,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -809,7 +900,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -818,7 +909,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -827,7 +918,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -876,7 +967,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -933,6 +1024,7 @@
   "deleteTask": "Delete Task",
   "newSubtask": "New subtask",
   "deleteTaskConfirmation": "Delete \"{title}\"?",
+  "deleteAssignedTaskWarning": "This also deletes the original task in Google Docs or Chat Spaces.",
   "@deleteTaskConfirmation": {
     "placeholders": {
       "title": {
@@ -1052,7 +1144,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -1092,7 +1184,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -1118,7 +1210,7 @@
     "placeholders": {
       "number": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -1128,7 +1220,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -1272,6 +1364,15 @@
   "setAction": "Set",
   "removeFromMyCalendars": "Remove from my calendars",
   "removeAction": "Remove",
+  "removeOpenedSharedCalendarConfirmation": "Remove \"{title}\" from BusyMax? The owner's calendar and events will not be deleted.",
+  "@removeOpenedSharedCalendarConfirmation": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "attachmentUploadUnresolved": "The upload may have completed. Refresh attachments to resolve its outcome before uploading again.",
   "removeCalendarConfirmation": "Remove \"{title}\" from your Google Calendar list? The shared calendar and its events will not be deleted.",
   "@removeCalendarConfirmation": {
     "placeholders": {
@@ -1363,7 +1464,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -1372,7 +1473,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -1393,7 +1494,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -1402,7 +1503,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -1411,7 +1512,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -1452,134 +1553,213 @@
   "@repeatWeekdayListPair": {
     "description": "Joins the final two weekday names in a recurrence summary.",
     "placeholders": {
-      "first": {"type": "String"},
-      "second": {"type": "String"}
+      "first": {
+        "type": "String"
+      },
+      "second": {
+        "type": "String"
+      }
     }
   },
   "repeatWeekdayListStart": "{first}, {rest}",
   "@repeatWeekdayListStart": {
     "description": "Prepends a weekday name to an already localized recurrence weekday list.",
     "placeholders": {
-      "first": {"type": "String"},
-      "rest": {"type": "String"}
+      "first": {
+        "type": "String"
+      },
+      "rest": {
+        "type": "String"
+      }
     }
   },
   "repeatMonthDayListPair": "{first} and {second}",
   "@repeatMonthDayListPair": {
     "description": "Joins the final two day-of-month values in a monthly recurrence summary.",
     "placeholders": {
-      "first": {"type": "String"},
-      "second": {"type": "String"}
+      "first": {
+        "type": "String"
+      },
+      "second": {
+        "type": "String"
+      }
     }
   },
   "repeatMonthDayListStart": "{first}, {rest}",
   "@repeatMonthDayListStart": {
     "description": "Prepends a day-of-month value to an already localized monthly recurrence day list.",
     "placeholders": {
-      "first": {"type": "String"},
-      "rest": {"type": "String"}
+      "first": {
+        "type": "String"
+      },
+      "rest": {
+        "type": "String"
+      }
     }
   },
   "repeatYearlyMonthValue": "{monthKey, select, other{{month}}}",
   "@repeatYearlyMonthValue": {
     "description": "Month value used in yearly recurrence sentences. Locales may select an inflected form with {monthKey}; {month} is the CLDR abbreviated month fallback.",
     "placeholders": {
-      "month": {"type": "String"},
-      "monthKey": {"type": "String"}
+      "month": {
+        "type": "String"
+      },
+      "monthKey": {
+        "type": "String"
+      }
     }
   },
   "repeatYearlyMonthDayListPair": "{first} and {second}",
   "@repeatYearlyMonthDayListPair": {
     "description": "Joins the final two localized day-of-month values in a yearly recurrence summary.",
     "placeholders": {
-      "first": {"type": "String"},
-      "second": {"type": "String"}
+      "first": {
+        "type": "String"
+      },
+      "second": {
+        "type": "String"
+      }
     }
   },
   "repeatYearlyMonthDayListStart": "{first}, {rest}",
   "@repeatYearlyMonthDayListStart": {
     "description": "Prepends a localized day-of-month value to an already localized yearly recurrence day list.",
     "placeholders": {
-      "first": {"type": "String"},
-      "rest": {"type": "String"}
+      "first": {
+        "type": "String"
+      },
+      "rest": {
+        "type": "String"
+      }
     }
   },
   "repeatYearlyMonthListPair": "{first} and {second}",
   "@repeatYearlyMonthListPair": {
     "description": "Joins the final two localized month names in a yearly recurrence summary.",
     "placeholders": {
-      "first": {"type": "String"},
-      "second": {"type": "String"}
+      "first": {
+        "type": "String"
+      },
+      "second": {
+        "type": "String"
+      }
     }
   },
   "repeatYearlyMonthListStart": "{first}, {rest}",
   "@repeatYearlyMonthListStart": {
     "description": "Prepends a localized month name to an already localized yearly recurrence month list.",
     "placeholders": {
-      "first": {"type": "String"},
-      "rest": {"type": "String"}
+      "first": {
+        "type": "String"
+      },
+      "rest": {
+        "type": "String"
+      }
     }
   },
   "repeatYearlyOnMonthDaySummary": "{frequency} on {month} {day}",
   "@repeatYearlyOnMonthDaySummary": {
     "description": "Complete yearly recurrence summary for one day in one month.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "month": {"type": "String"},
-      "day": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "day": {
+        "type": "String"
+      }
     }
   },
   "repeatYearlyOnMonthDaysSummary": "{frequency} on days {days} of {month}",
   "@repeatYearlyOnMonthDaysSummary": {
     "description": "Complete yearly recurrence summary for multiple days in one month.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "month": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "repeatYearlyInMonthsOnMonthDaySummary": "{frequency} on day {day} of {months}",
   "@repeatYearlyInMonthsOnMonthDaySummary": {
     "description": "Complete yearly recurrence summary for one day in multiple months.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "months": {"type": "String"},
-      "day": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "months": {
+        "type": "String"
+      },
+      "day": {
+        "type": "String"
+      }
     }
   },
   "repeatYearlyInMonthsOnMonthDaysSummary": "{frequency} on days {days} of {months}",
   "@repeatYearlyInMonthsOnMonthDaysSummary": {
     "description": "Complete yearly recurrence summary for multiple days in multiple months.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "months": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "months": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "repeatYearlyOnOrdinalSummary": "{frequency} {position, select, first{on the first {days} of {month}} second{on the second {days} of {month}} third{on the third {days} of {month}} fourth{on the fourth {days} of {month}} fifth{on the fifth {days} of {month}} secondToLast{on the second to last {days} of {month}} last{on the last {days} of {month}} other{on {days} of {month}}}",
   "@repeatYearlyOnOrdinalSummary": {
     "description": "Complete yearly ordinal recurrence summary; {position} selects the ordinal wording and placeholders may be reordered by locale.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "month": {"type": "String"},
-      "position": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "position": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "repeatYearlyInMonthsOnOrdinalSummary": "{frequency} {position, select, first{on the first {days} of {months}} second{on the second {days} of {months}} third{on the third {days} of {months}} fourth{on the fourth {days} of {months}} fifth{on the fifth {days} of {months}} secondToLast{on the second to last {days} of {months}} last{on the last {days} of {months}} other{on {days} of {months}}}",
   "@repeatYearlyInMonthsOnOrdinalSummary": {
     "description": "Complete yearly ordinal-weekday recurrence summary for multiple months.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "months": {"type": "String"},
-      "position": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "months": {
+        "type": "String"
+      },
+      "position": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "searchFilters": "Search filters",
   "searchType": "Type",
   "searchDate": "Date",
-  "searchAnyDate": "Any date",
+  "searchAnyDate": "Any date (downloaded data)",
+  "eventLink": "Event link",
+  "eventLinkOpenFailed": "Could not open the link.",
+  "scheduleRangeIncomplete": "Some events could not be checked. Showing downloaded data.",
   "searchThisWeek": "This week",
   "searchCustomRange": "Custom range",
   "searchTaskStatus": "Task status",
@@ -1591,5 +1771,196 @@
   "searchClearFilters": "Clear filters",
   "searchFiltersAction": "Filters",
   "searchNoSources": "No search sources selected",
-  "searchClearText": "Clear text"
+  "searchClearText": "Clear text",
+  "openSharedCalendar": "Open shared calendar",
+  "manageCalendarSharing": "Manage calendar sharing",
+  "shareRecipientEmail": "Recipient email",
+  "shareRole": "Access role",
+  "addCalendarShare": "Add access",
+  "sharingRefreshFailed": "The sharing change succeeded, but the permission list could not be refreshed. Retry the list before making another change.",
+  "sharingRateLimited": "Sharing is temporarily rate-limited. Try again when the wait ends.",
+  "attachmentUploadRateLimited": "Attachment upload is temporarily rate-limited. Try again when the wait ends.",
+  "sharingPermissionUnavailable": "Sharing permissions are unavailable for this calendar.",
+  "calendarShareFreeBusy": "Free/busy only",
+  "calendarShareLimitedRead": "Read limited details",
+  "calendarShareRead": "Read all details",
+  "calendarShareWrite": "Edit events",
+  "calendarShareWriteWithoutPrivate": "Edit without private details",
+  "calendarShareOwner": "Owner",
+  "eventLabel": "Event label",
+  "loadOutlookCategories": "Load Outlook categories",
+  "outlookCategoriesUnavailable": "Outlook categories are unavailable; existing assignments are preserved.",
+  "googleEventType": "Event type",
+  "googleRegularEvent": "Regular event",
+  "googleFocusTime": "Focus time",
+  "googleOutOfOffice": "Out of office",
+  "googleWorkingLocation": "Working location",
+  "googleDeclineInvitations": "Decline overlapping invitations",
+  "googleDeclineNone": "Do not decline",
+  "googleDeclineNew": "Decline new invitations",
+  "googleDeclineAll": "Decline all conflicting invitations",
+  "googleDeclineMessage": "Decline message",
+  "googleChatStatus": "Chat status",
+  "googleChatAvailable": "Available",
+  "googleChatDoNotDisturb": "Do not disturb",
+  "googleWorkAtHome": "Home",
+  "googleWorkAtOffice": "Office",
+  "googleWorkAtCustomLocation": "Custom location",
+  "googleWorkLocationLabel": "Location label",
+  "googleStatusPrimaryOnly": "Google status events require your primary Google calendar.",
+  "unknownEventLabel": "Unknown label ({id})",
+  "@unknownEventLabel": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "calendarOwnerEmail": "Calendar owner email",
+  "registrationSetupTitle": "Set up {provider}",
+  "@registrationSetupTitle": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationSetupGuide": "Setup guide",
+  "registrationGoogleInstructions": "Create your own Google Cloud project, enable both Calendar and Tasks APIs, and download a Desktop OAuth client JSON. Import the configuration, then authorize the intended account.",
+  "registrationMicrosoftInstructions": "Use a public app registration in an Entra tenant that permits registration. Enter its Application/client ID and supported account audience. No client secret is required.",
+  "registrationImportGoogle": "Select Desktop OAuth JSON",
+  "registrationValidate": "Validate registration",
+  "registrationAuthorize": "Authorize in browser",
+  "registrationClientId": "Application (client) ID",
+  "registrationTenantId": "Tenant ID",
+  "registrationAudience": "Supported accounts",
+  "registrationBothAudience": "Personal and organizational accounts",
+  "registrationOrganizationAudience": "Organizational accounts",
+  "registrationPersonalAudience": "Personal accounts",
+  "registrationTenantAudience": "One organizational tenant",
+  "registrationSummary": "Registration: {clientId}",
+  "@registrationSummary": {
+    "placeholders": {
+      "clientId": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationMigrate": "Migrate now",
+  "registrationReplace": "Replace registration",
+  "registrationRetirementNotice": "This account uses an original {provider} registration reserved for existing accounts. To replace it, set up {setup} and reconnect this account. Your existing calendars, tasks, and local changes will be preserved.",
+  "@registrationRetirementNotice": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      },
+      "setup": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationContinue": "Continue using this account",
+  "registrationGoogleProject": "Google Cloud project",
+  "registrationMicrosoftApp": "Microsoft app registration",
+  "registrationUserOwned": "User-provided registration",
+  "registrationNativeGoogle": "Native Google Android registration",
+  "registrationShared": "Shared registration (transition)",
+  "registrationUnresolved": "Registration provenance is unresolved. Account data is preserved.",
+  "registrationOfficialDocumentation": "Official documentation",
+  "registrationAndroidIdentity": "Package: {packageName}\nSignature hash: {signatureHash}\nRedirect URI: {redirectUri}",
+  "@registrationAndroidIdentity": {
+    "placeholders": {
+      "packageName": {
+        "type": "String"
+      },
+      "signatureHash": {
+        "type": "String"
+      },
+      "redirectUri": {
+        "type": "String"
+      }
+    }
+  },
+  "oauthRegistrationRejected": "Check the client type, supported accounts, permissions, and redirect in your registration. Select the configuration again if it was imported.",
+  "oauthAuthorizationCodeUnusable": "This authorization attempt could not be completed. Start authorization again; your existing connection is preserved.",
+  "oauthPermissionRefused": "Authorization was refused or required permissions were not granted. Try again and grant the required permissions.",
+  "oauthProviderThrottled": "The provider is limiting requests. Wait before trying again; your existing connection is preserved.",
+  "oauthProviderTemporaryFailure": "Authorization could not complete because of a temporary provider problem. Try again; your existing connection is preserved.",
+  "oauthAuthorizationTimedOut": "Authorization timed out. Try again; select a fresh configuration if it was imported.",
+  "oauthWrongAccount": "Authorize the account selected for reconnection. Your existing connection is preserved.",
+  "oauthSecureStorageUnavailable": "Secure storage is unavailable. Restore access to secure storage and try again.",
+  "oauthRevokedRemovalIncomplete": "Remote authorization was revoked, but account cleanup could not finish. Restart BusyMax to retry local recovery.",
+  "addAccount": "Add account",
+  "registrationConnect": "Connect",
+  "registrationBack": "Back",
+  "registrationReplaceGoogle": "Replace Desktop OAuth JSON",
+  "registrationSelectedConfiguration": "Selected configuration",
+  "registrationDirectoryId": "Directory (tenant) ID",
+  "registrationInvalidId": "Enter a valid UUID.",
+  "registrationExpired": "This configuration expired. Import it again or edit the registration fields before connecting.",
+  "registrationOwnProjectRequired": "Choose a registration from your own project or tenant.",
+  "registrationSetupFailed": "Setup could not complete. Try again.",
+  "registrationLinkFailed": "Could not open the link. Check your browser and try again.",
+  "registrationPermissions": "Permissions",
+  "registrationDesktopClient": "Desktop application",
+  "registrationOpenGoogleConsole": "Open Google Cloud Console",
+  "registrationGoogleAudienceHelp": "Google publishing and test-user requirements",
+  "registrationDesktopHelp": "Desktop app registration instructions",
+  "registrationOpenEntra": "Open Microsoft Entra admin center",
+  "registrationGuideGoogleProject": "Open Google Cloud Console. Use the project selector at the top to select your own project, or choose New project, enter a name and select Create. Keep that project selected for the remaining steps.",
+  "registrationGuideGoogleAudience": "Go to Google Auth Platform → Branding. If setup has not started, select Get started. Enter BusyMax as the App name, choose your own User support email and select Next. In Audience, choose External. Select Next, enter your email under Contact Information and select Next. Accept the User Data Policy, then select Continue and Create. If already configured, review Branding and Audience.",
+  "registrationGuideGooglePermissions": "Open Google Auth Platform → Data Access → Add or remove scopes. Select the five scopes below; use Manually add scopes if needed. For manual entry, paste the missing values and select Add to table. Select Update, then Save. BusyMax needs both calendar and task access.",
+  "registrationGuideGoogleClient": "Open Google Auth Platform → Clients → Create client. Set Application type to Desktop app, enter BusyMax as the Name and select Create. In the creation dialog, select Download JSON and save the file. Select Back to return to the form, choose that file and review its project and client ID. Select Connect and approve calendar and task access in your browser.",
+  "registrationGuideMicrosoftApp": "Sign in to Microsoft Entra admin center. Use Settings to select a tenant where you can register applications. Open Entra ID → App registrations → New registration. Enter BusyMax as the Name, then choose the supported account types in the next step. If registration is blocked, ask your tenant administrator for access.",
+  "registrationGuideMicrosoftRedirect": "In your registration, open Authentication → Add a platform → Mobile and desktop applications. Select or enter the redirect URI below, then select Configure to save it. BusyMax uses your system browser. No client secret is required.",
+  "registrationGuideMicrosoftPermissions": "Open API permissions → Add a permission → Microsoft Graph → Delegated permissions. Search for and select each scope below, then select Add permissions. Keep User.Read if it is already present. If your organization requires administrator consent, ask an administrator to use Grant admin consent for your tenant.",
+  "registrationGuideMicrosoftConnect": "Select Back to return to the form. Paste Application (client) ID and select the same Supported accounts as the registration. For One organizational tenant, also paste Directory (tenant) ID. Select Connect and sign in to the intended account in your browser. BusyMax checks the fields locally; Microsoft requests your permission during browser sign-in.",
+  "registrationGoogleImportFailed": "Could not import this file. Select a valid Desktop OAuth JSON. Any previous valid selection is kept.",
+  "registrationGoogleSetupInstructions": "Google setup instructions",
+  "registrationMicrosoftSetupInstructions": "Microsoft setup instructions",
+  "registrationDesktopConfiguration": "Desktop OAuth configuration",
+  "registrationNoFileSelected": "No file selected",
+  "registrationChooseFile": "Choose file…",
+  "registrationReplaceFile": "Replace…",
+  "registrationGoogleIntroduction": "Choose the Desktop OAuth JSON from your own Google Cloud project.",
+  "registrationMicrosoftIntroduction": "Enter the details of your own Microsoft app registration.",
+  "registrationSetupInstructions": "Setup instructions",
+  "registrationInstructionsDescription": "Create the configuration needed to connect your account.",
+  "registrationEnableApis": "Enable Calendar and Tasks",
+  "registrationConsentScreen": "Configure the consent screen",
+  "registrationAppName": "App name",
+  "registrationScopes": "Scopes",
+  "registrationRedirectUri": "Redirect URI",
+  "registrationOpenApiLibrary": "Open Google API Library",
+  "registrationOpenBranding": "Open Google Auth Platform Branding",
+  "registrationOpenDataAccess": "Open Google Auth Platform Data Access",
+  "registrationOpenClients": "Open Google Auth Platform Clients",
+  "registrationOpenEntraAuthentication": "Open Entra app registrations for Authentication",
+  "registrationOpenEntraPermissions": "Open Entra app registrations for API permissions",
+  "registrationCopy": "Copy",
+  "registrationCopyAll": "Copy all",
+  "registrationGuideGoogleApis": "Go to APIs & Services → Library. Search for Google Calendar API, open its page and select Enable. Return to Library and repeat for Google Tasks API.",
+  "registrationGuideMicrosoftAudience": "Under Supported account types, choose Personal accounts only for a personal account, Multiple Entra ID tenants for organizational accounts, Any Entra ID Tenant + Personal Microsoft accounts for both, or Single tenant only for this directory. Select Register. In Overview, copy Application (client) ID; for one tenant, also copy Directory (tenant) ID. Use the matching Supported accounts choice in BusyMax.",
+  "registrationConnectBusyMax": "Connect with BusyMax",
+  "registrationRecommended": "Recommended",
+  "registrationOtherMethods": "Other connection methods",
+  "registrationWorkspace": "Google Workspace organization",
+  "registrationGoogleCustom": "Custom OAuth client",
+  "registrationMicrosoftCustom": "Custom app registration",
+  "registrationMethodsIntroduction": "Choose how to connect your account.",
+  "registrationWorkspaceDescription": "Use a configuration managed by your organization.",
+  "registrationCustomDescription": "Use a registration that you manage.",
+  "registrationSharedUnavailable": "BusyMax connection is unavailable in this build. You can use another connection method below.",
+  "registrationWorkspaceIntroduction": "Choose the Desktop OAuth JSON supplied or managed by your organization. The file does not prove organization ownership, audience, or verification status.",
+  "registrationWorkspaceSetupInstructions": "Google Workspace setup instructions",
+  "registrationBusyMaxManaged": "BusyMax-managed registration",
+  "registrationBranding": "Configure branding and domains",
+  "registrationPublishing": "Publish for normal use",
+  "registrationOpenAudience": "Open Google Auth Platform Audience",
+  "registrationGuideWorkspaceProject": "Ask your administrator for the Desktop OAuth JSON, or open Google Cloud Console and select a project owned by your Google Workspace organization. To create one, open Manage resources → Create project, enter Project name, choose your organization or one of its folders in Parent resource and select Create. Select that project for the remaining steps. Creation needs Project Creator access; configuring OAuth needs OAuth Config Editor, and enabling APIs needs Service Usage Admin or equivalent permissions. Ask the administrator if blocked.",
+  "registrationGuideGoogleBranding": "In Branding → App domain, add your project’s authorized domains before entering its homepage, privacy-policy and terms-of-service URLs, then Save. External production apps need these links. Use domains you own; complete Search Console ownership verification when Google requires brand verification. BusyMax’s product privacy link below does not establish ownership of busystack.org for your project.",
+  "registrationGuideGooglePublishing": "In Audience, select Publish app and confirm In production. Do not leave normal use in Testing: these Calendar/Tasks authorizations and refresh tokens expire after seven days. Publishing and verification are separate. Personal use with fewer than 100 users can be exempt from verification, with unverified-app warnings and a user cap; broader distribution may require brand and scope approval. Production authorizations can still expire or be revoked.",
+  "registrationGuideWorkspacePermissions": "Review the scopes below with your administrator. Internal apps do not need a consent-screen scope listing. If your administrator requests one, open Data Access → Add or remove scopes, add these values, then Update and Save. Administrator controls can still restrict authorization.",
+  "registrationGuideMicrosoftOptionalPermissions": "Shared-calendar and category permissions are requested separately when those optional features are enabled; do not add them to the required setup above.",
+  "registrationGuideWorkspaceAudience": "Go to Google Auth Platform → Branding. If setup has not started, select Get started. Enter BusyMax as the App name, choose your own User support email and select Next. In Audience, choose Internal. Select Next, enter your email under Contact Information and select Next. Accept the User Data Policy, then select Continue and Create. If already configured, review Branding and Audience.\n\nInternal allows only accounts in the project’s parent organization, subject to administrator controls. No test-user list is needed. BusyMax cannot verify these console settings from the downloaded JSON."
 }

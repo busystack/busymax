@@ -50,9 +50,6 @@ relying on a particular task field or operation.
     <td><img src="docs/screenshots/main_window_new_task.png" alt="BusyMax task editor on Linux"><br><sub>Task editor</sub></td>
     <td><img src="docs/screenshots/main_window_edit_event.png" alt="BusyMax event editor on Linux"><br><sub>Event editor</sub></td>
   </tr>
-  <tr>
-    <td><img src="docs/screenshots/account_provider_selection.png" alt="BusyMax account provider selection on Linux"><br><sub>Account providers</sub></td>
-  </tr>
 </table>
 
 </details>
@@ -66,8 +63,10 @@ build and install a test-signed package by following the
 [Windows packaging guide](docs/windows_packaging.md); unsigned CI packages are
 test artifacts, not ordinary user downloads.
 
-Packaged users do not need Flutter, Visual Studio, Linux development libraries,
-or their own OAuth registration. In a configured build:
+Packaged users do not need Flutter, Visual Studio, or Linux development libraries.
+Managed Google/Microsoft sign-in requires an explicitly configured build;
+unconfigured desktop builds retain custom registration setup. In a configured
+build, users can connect without creating their own OAuth registration:
 
 - Desktop Google and Microsoft accounts connect through browser-based sign-in.
   Android uses Google Play services authorization for Google and MSAL's
@@ -87,8 +86,8 @@ differences and limitations are summarized in the
 ### Android development build
 
 Android support targets API 37 with a minimum API of 24 and uses the explicit
-entrypoint `lib/main_android.dart`. It requires Flutter 3.47.4, bundled Dart
-3.13.3, JDK 17, Android platform 37, and Build Tools 37.x.
+entrypoint `lib/main_android.dart`. It requires Flutter 3.47.5, bundled Dart
+3.13.4, JDK 17, Android platform 37, and Build Tools 37.x.
 
 ```sh
 tool/android/check_prerequisites.sh
@@ -98,9 +97,9 @@ tool/android/run.sh --device DEVICE_ID
 
 The copied public configuration needs real Microsoft and certificate-specific
 provider registrations before those sign-in flows work. It contains no client
-secret. See [Android setup](docs/android_setup.md), [Android release](docs/android_release.md),
-and the [Android verification report](docs/android_verification.md). Generated
-test-signed artifacts are not production releases.
+secret. See [Android setup](docs/android_setup.md) and
+[Android release](docs/android_release.md). Generated test-signed artifacts are
+not production releases.
 
 ## Documentation
 
@@ -111,18 +110,16 @@ Account, provider, and data information:
 - [Nextcloud Calendar and Tasks setup](docs/nextcloud_setup.md)
 - [Privacy and data map](docs/privacy_data_map.md)
 - [Android setup and OAuth registration](docs/android_setup.md)
-- [Android provider parity](docs/android_provider_parity.md)
 
 Development and maintenance:
 
-- [Development setup for Linux and Windows](docs/development.md)
+- [Development setup and live-provider tests](docs/development.md)
 - [Linux window and rendering architecture](docs/linux_architecture.md)
-- [Android release](docs/android_release.md), [verification](docs/android_verification.md),
-  and [implementation status](docs/android_implementation_status.md)
+- [Android release](docs/android_release.md)
 - [Google developer OAuth registration](docs/google_setup.md) and
   [Microsoft developer OAuth registration](docs/microsoft_setup.md)
 - [iCalendar and DAV data model](docs/icalendar_data_model.md)
-- [Live-provider testing](docs/live_provider_testing.md)
+- [Desktop OAuth release checklist](docs/desktop_oauth_release_checklist.md)
 - [Windows architecture](docs/windows_architecture.md)
 - [Snap beta release](docs/beta_snap_release.md)
 - [Windows packaging](docs/windows_packaging.md) and

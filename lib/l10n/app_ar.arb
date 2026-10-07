@@ -16,7 +16,13 @@
   "settingsSaveFailed": "تعذر حفظ الإعدادات. قد تُفقد تغييراتك عند إعادة تشغيل BusyMax.",
   "nextcloudExportCollection": "تصدير موارد المجموعة",
   "nextcloudImportItems": "تم العثور على {count} من موارد الأحداث والمهام",
-  "@nextcloudImportItems": {"placeholders": {"count": {"type": "int"}}},
+  "@nextcloudImportItems": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "nextcloudSchedulingInbox": "صندوق وارد الدعوات",
   "nextcloudInboxExplanation": "يعالج Nextcloud هذه الرسائل في تقاويمك. يؤدي الإقرار إلى إزالة الرسالة فقط، وليس الحدث.",
   "nextcloudInboxEmpty": "لا توجد رسائل جدولة.",
@@ -24,7 +30,13 @@
   "nextcloudAcknowledgeConfirm": "إزالة هذه الرسالة من صندوق الوارد؟ سيُحتفظ بحدث التقويم.",
   "nextcloudGuestAvailability": "التحقق من توفر المدعوين",
   "nextcloudTrashRetention": "مدة الاحتفاظ في مهملات الخادم: {days} يومًا",
-  "@nextcloudTrashRetention": {"placeholders": {"days": {"type": "int"}}},
+  "@nextcloudTrashRetention": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
   "nextcloudCancelMeeting": "إلغاء الاجتماع",
   "nextcloudDeclineAndRemove": "رفض الدعوة وإزالتها",
   "nextcloudDeclineRemovalWarning": "ستُرسل رسالة رفض عند المزامنة. لن يُلغى اجتماع المنظّم.",
@@ -103,15 +115,6 @@
   "connectGoogleAccount": "اربط حسابات Google أو Microsoft أو تقويم Apple iCloud أو Nextcloud.",
   "googlePermissionsConsentNotice": "في شاشة أذونات Google، حدّد أذونات التقويم والمهام معًا.",
   "googlePermissionsRequiredRetry": "أذونات تقويم Google وGoogle Tasks مطلوبة. حاول مرة أخرى وحدّد مربعي الاختيار.",
-  "finishSetup": "إنهاء الإعداد",
-  "continueSetup": "متابعة",
-  "onboardingSetupTitle": "إعداد BusyMax",
-  "onboardingAccountsStepTitle": "ربط الحسابات",
-  "onboardingAccountsStepDescription": "أضف كل الحسابات التي تريد استخدامها. يزامن BusyMax التقويمات والأحداث وقوائم المهام والمهام المدعومة من كل حساب.",
-  "onboardingPreferencesStepTitle": "اختيار إعدادات النظام",
-  "onboardingPreferencesStepDescription": "اضبط سلوك التطبيق على سطح المكتب والتذكيرات ومستوى تفاصيل الإشعارات والمظهر قبل فتح جدولك.",
-  "signInWithGoogle": "تسجيل الدخول باستخدام Google",
-  "signInWithMicrosoft": "تسجيل الدخول باستخدام Microsoft",
   "googleTasksProvider": "Google Tasks",
   "microsoftTodoProvider": "Microsoft To Do",
   "providerNotConfigured": "هذه الخدمة غير مهيأة.",
@@ -172,6 +175,10 @@
   "newEvent": "حدث جديد",
   "refreshCalendar": "تحديث التقويم",
   "openInProvider": "فتح في الخدمة",
+  "linkedResources": "الموارد المرتبطة",
+  "noLinkedResources": "لا توجد موارد مرتبطة",
+  "attachments": "المرفقات",
+  "attachmentsNotLoaded": "لم يتم تحميل المرفقات",
   "hideFromSchedule": "إخفاء من الجدول",
   "showInSchedule": "إظهار في الجدول",
   "noCalendarsSynced": "لم تتم مزامنة أي تقويمات بعد.",
@@ -182,8 +189,6 @@
   "scheduleUnavailable": "الجدول غير متاح",
   "scheduleNoSources": "لا توجد تقويمات أو قوائم مهام ظاهرة",
   "scheduleNoSourcesDescription": "اختر ما تريد إظهاره في الإعدادات، ثم حدّث الجدول.",
-  "scheduleSignInRequired": "ربط حساب",
-  "scheduleSignInDescription": "سجّل الدخول لمزامنة التقويمات والمهام.",
   "scheduleNoSearchResults": "لا توجد أحداث أو مهام مطابقة",
   "scheduleNoSearchResultsDescription": "جرّب بحثًا مختلفًا أو امسح عوامل التصفية الحالية.",
   "refresh": "تحديث",
@@ -468,6 +473,7 @@
   "deleteTask": "حذف المهمة",
   "newSubtask": "مهمة فرعية جديدة",
   "deleteTaskConfirmation": "حذف «⁨⁨{title}⁩⁩»؟",
+  "deleteAssignedTaskWarning": "سيؤدي هذا أيضًا إلى حذف المهمة الأصلية في مستندات Google أو مساحات Chat.",
   "metadata": "البيانات الوصفية",
   "id": "المعرّف",
   "etag": "ETag",
@@ -826,6 +832,8 @@
   "removeFromMyCalendars": "إزالة من تقاويمي",
   "removeAction": "إزالة",
   "removeCalendarConfirmation": "هل تريد إزالة \"⁨{title}⁩\" من قائمة تقويم Google؟ لن يتم حذف التقويم المشترك أو أحداثه.",
+  "removeOpenedSharedCalendarConfirmation": "هل تريد إزالة \"⁨{title}⁩\" من BusyMax؟ لن يُحذف تقويم المالك أو أحداثه.",
+  "attachmentUploadUnresolved": "ربما اكتمل رفع المرفق. حدّث المرفقات للتحقق من النتيجة قبل الرفع مرة أخرى.",
   "calendarCannotRemove": "لا يمكن حذف هذا التقويم أو إزالته من هذا الحساب.",
   "calendarPendingChangesPreventRemoval": "انتظر حتى تنتهي مزامنة التغييرات المعلقة لهذا التقويم قبل حذفه أو إزالته.",
   "taskListPendingChangesPreventRemoval": "زامِن الحساب، أو عالِج التغييرات المحظورة لقائمة المهام هذه في «التشخيصات»، قبل حذف القائمة أو إزالتها.",
@@ -1018,25 +1026,42 @@
   "@repeatYearlyOnMonthDaysSummary": {
     "description": "Complete yearly recurrence summary for selected month days; placeholders may be reordered by locale.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "month": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "repeatYearlyOnOrdinalSummary": "{frequency} {position, select, first{في أول {days} من {month}} second{في ثاني {days} من {month}} third{في ثالث {days} من {month}} fourth{في رابع {days} من {month}} fifth{في خامس {days} من {month}} secondToLast{في {days} قبل الأخير من {month}} last{في آخر {days} من {month}} other{في {days} من {month}}}",
   "@repeatYearlyOnOrdinalSummary": {
     "description": "Complete yearly ordinal recurrence summary; {position} selects the ordinal wording and placeholders may be reordered by locale.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "month": {"type": "String"},
-      "position": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "position": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "searchFilters": "عوامل تصفية البحث",
   "searchType": "النوع",
   "searchDate": "التاريخ",
-  "searchAnyDate": "أي تاريخ",
+  "searchAnyDate": "أي تاريخ (البيانات المحمّلة)",
+  "eventLink": "رابط الحدث",
+  "eventLinkOpenFailed": "تعذّر فتح الرابط.",
+  "scheduleRangeIncomplete": "تعذّر التحقق من بعض الأحداث. تُعرض البيانات المحمّلة.",
   "searchThisWeek": "هذا الأسبوع",
   "searchCustomRange": "نطاق مخصص",
   "searchTaskStatus": "حالة المهمة",
@@ -1051,5 +1076,196 @@
   "searchClearText": "مسح النص",
   "windowMinimize": "تصغير",
   "windowMaximize": "تكبير",
-  "windowRestore": "استعادة"
+  "windowRestore": "استعادة",
+  "openSharedCalendar": "فتح تقويم مشترك",
+  "calendarOwnerEmail": "البريد الإلكتروني لمالك التقويم",
+  "addCalendarShare": "إضافة وصول",
+  "calendarShareFreeBusy": "التوفر فقط",
+  "calendarShareLimitedRead": "قراءة تفاصيل محدودة",
+  "calendarShareOwner": "المالك",
+  "calendarShareRead": "قراءة جميع التفاصيل",
+  "calendarShareWrite": "تعديل الأحداث",
+  "calendarShareWriteWithoutPrivate": "تعديل دون التفاصيل الخاصة",
+  "eventLabel": "تسمية الحدث",
+  "googleChatAvailable": "متاح",
+  "googleChatDoNotDisturb": "عدم الإزعاج",
+  "googleChatStatus": "حالة المحادثة",
+  "googleDeclineAll": "رفض جميع الدعوات المتعارضة",
+  "googleDeclineInvitations": "رفض الدعوات المتداخلة",
+  "googleDeclineMessage": "رسالة الرفض",
+  "googleDeclineNew": "رفض الدعوات الجديدة",
+  "googleDeclineNone": "عدم الرفض",
+  "googleEventType": "نوع الحدث",
+  "googleFocusTime": "وقت التركيز",
+  "googleOutOfOffice": "خارج المكتب",
+  "googleRegularEvent": "حدث عادي",
+  "googleStatusPrimaryOnly": "تتطلب أحداث الحالة تقويم Google الأساسي.",
+  "googleWorkAtCustomLocation": "موقع مخصص",
+  "googleWorkAtHome": "المنزل",
+  "googleWorkAtOffice": "المكتب",
+  "googleWorkLocationLabel": "وصف الموقع",
+  "googleWorkingLocation": "موقع العمل",
+  "loadOutlookCategories": "تحميل فئات Outlook",
+  "manageCalendarSharing": "إدارة مشاركة التقويم",
+  "outlookCategoriesUnavailable": "فئات Outlook غير متاحة؛ التعيينات الحالية محفوظة.",
+  "shareRecipientEmail": "البريد الإلكتروني للمستلم",
+  "shareRole": "دور الوصول",
+  "sharingPermissionUnavailable": "أذونات المشاركة غير متاحة لهذا التقويم.",
+  "sharingRefreshFailed": "نجح تغيير المشاركة، لكن تعذر تحديث قائمة الأذونات. أعد تحميل القائمة قبل إجراء تغيير آخر.",
+  "sharingRateLimited": "المشاركة مقيّدة مؤقتًا. حاول مرة أخرى بعد انتهاء فترة الانتظار.",
+  "attachmentUploadRateLimited": "تحميل المرفقات مقيّد مؤقتًا. حاول مرة أخرى بعد انتهاء فترة الانتظار.",
+  "unknownEventLabel": "تسمية غير معروفة (⁨{id}⁩)",
+  "@unknownEventLabel": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationSetupTitle": "إعداد ⁨{provider}⁩",
+  "@registrationSetupTitle": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationSetupGuide": "دليل الإعداد",
+  "registrationGoogleInstructions": "أنشئ مشروع Google Cloud خاصًا بك، وفعّل واجهتي Calendar وTasks، ثم استورد JSON لعميل OAuth لسطح المكتب. امنح الإذن للحساب المقصود.",
+  "registrationMicrosoftInstructions": "استخدم تسجيل تطبيق عميل عام في مستأجر Entra يسمح بالتسجيل. أدخل معرّف العميل وأنواع الحسابات. لا يلزم سر عميل.",
+  "registrationImportGoogle": "اختيار JSON لعميل OAuth لسطح المكتب",
+  "registrationValidate": "التحقق من التسجيل",
+  "registrationAuthorize": "منح الإذن في المتصفح",
+  "registrationClientId": "معرّف التطبيق/العميل",
+  "registrationTenantId": "معرّف المستأجر",
+  "registrationAudience": "الحسابات المدعومة",
+  "registrationBothAudience": "حسابات شخصية ومؤسسية",
+  "registrationOrganizationAudience": "حسابات مؤسسية",
+  "registrationPersonalAudience": "حسابات شخصية",
+  "registrationTenantAudience": "مستأجر مؤسسة واحد",
+  "registrationSummary": "التسجيل: ⁨{clientId}⁩",
+  "@registrationSummary": {
+    "placeholders": {
+      "clientId": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationMigrate": "الانتقال الآن",
+  "registrationReplace": "استبدال التسجيل",
+  "registrationRetirementNotice": "يستخدم هذا الحساب تسجيل ⁨{provider}⁩ أصليًا مخصصًا للحسابات الموجودة. لاستبداله، أعدّ ⁨{setup}⁩ وأعد اتصال هذا الحساب. ستُحفظ التقويمات والمهام والتغييرات المحلية الموجودة.",
+  "@registrationRetirementNotice": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      },
+      "setup": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationContinue": "متابعة استخدام هذا الحساب",
+  "registrationGoogleProject": "مشروع Google Cloud",
+  "registrationMicrosoftApp": "تسجيل تطبيق Microsoft",
+  "registrationUserOwned": "تسجيل يقدمه المستخدم",
+  "registrationNativeGoogle": "تسجيل Google الأصلي على Android",
+  "registrationShared": "تسجيل مشترك (مرحلة انتقالية)",
+  "registrationUnresolved": "لم يُحدّد مصدر التسجيل. بيانات الحساب محفوظة.",
+  "registrationOfficialDocumentation": "الوثائق الرسمية",
+  "registrationAndroidIdentity": "الحزمة: ⁨{packageName}⁩\nبصمة التوقيع: ⁨{signatureHash}⁩\nعنوان إعادة التوجيه: ⁨{redirectUri}⁩",
+  "@registrationAndroidIdentity": {
+    "placeholders": {
+      "packageName": {
+        "type": "String"
+      },
+      "signatureHash": {
+        "type": "String"
+      },
+      "redirectUri": {
+        "type": "String"
+      }
+    }
+  },
+  "oauthRegistrationRejected": "تحقق من نوع العميل والحسابات المدعومة والأذونات وإعادة التوجيه في التسجيل. اختر الإعداد المستورد مرة أخرى.",
+  "oauthAuthorizationCodeUnusable": "تعذر إكمال محاولة التفويض هذه. ابدأ من جديد؛ الاتصال الحالي محفوظ.",
+  "oauthPermissionRefused": "رُفض التفويض أو لم تُمنح الأذونات المطلوبة. حاول مجددًا وامنح الأذونات اللازمة.",
+  "oauthProviderThrottled": "يحد موفر الخدمة من الطلبات. انتظر قبل المحاولة مجددًا؛ الاتصال الحالي محفوظ.",
+  "oauthProviderTemporaryFailure": "تعذر إكمال التفويض بسبب مشكلة مؤقتة لدى موفر الخدمة. حاول مجددًا؛ الاتصال الحالي محفوظ.",
+  "oauthAuthorizationTimedOut": "انتهت مهلة التفويض. حاول مجددًا واختر الإعداد المستورد مرة أخرى.",
+  "oauthWrongAccount": "فوّض الحساب المحدد لإعادة الاتصال. الاتصال الحالي محفوظ.",
+  "oauthSecureStorageUnavailable": "التخزين الآمن غير متاح. استعد الوصول إليه وحاول مجددًا.",
+  "oauthRevokedRemovalIncomplete": "أُلغي التفويض عن بُعد، لكن تنظيف الحساب لم يكتمل. أعد تشغيل BusyMax لإعادة محاولة الاسترداد المحلي.",
+  "addAccount": "إضافة حساب",
+  "registrationConnect": "اتصال",
+  "registrationBack": "رجوع",
+  "registrationReplaceGoogle": "استبدال JSON OAuth لسطح المكتب",
+  "registrationSelectedConfiguration": "الإعداد المحدد",
+  "registrationDirectoryId": "معرّف الدليل/المستأجر",
+  "registrationInvalidId": "أدخل UUID صالحًا.",
+  "registrationExpired": "انتهت صلاحية هذا الإعداد. استورده مجددًا أو عدّل حقول التسجيل قبل الاتصال.",
+  "registrationOwnProjectRequired": "اختر تسجيلًا من مشروعك أو مستأجرك الخاص.",
+  "registrationSetupFailed": "تعذر إكمال الإعداد. حاول مجددًا.",
+  "registrationLinkFailed": "تعذر فتح الرابط. تحقق من المتصفح وحاول مجددًا.",
+  "registrationPermissions": "الأذونات",
+  "registrationDesktopClient": "تطبيق سطح المكتب",
+  "registrationOpenGoogleConsole": "فتح وحدة تحكم Google Cloud",
+  "registrationGoogleAudienceHelp": "متطلبات Google للنشر ومستخدمي الاختبار",
+  "registrationDesktopHelp": "تعليمات تسجيل تطبيق سطح المكتب",
+  "registrationOpenEntra": "فتح مركز إدارة Microsoft Entra",
+  "registrationGuideGoogleProject": "افتح Google Cloud Console. استخدم محدد المشاريع في الأعلى لاختيار مشروعك، أو اختر New project وأدخل اسمًا ثم اختر Create. أبقِ هذا المشروع محددًا في بقية الخطوات.",
+  "registrationGuideGoogleAudience": "انتقل إلى Google Auth Platform → Branding. إن لم يبدأ الإعداد، اختر Get started. أدخل BusyMax في App name واختر بريدك في User support email ثم Next. في Audience، اختر External. اختر Next وأدخل بريدك ضمن Contact Information ثم Next. وافق على User Data Policy ثم اختر Continue وCreate. إذا كان الإعداد موجودًا، راجع Branding وAudience.",
+  "registrationGuideGooglePermissions": "افتح Google Auth Platform → Data Access → Add or remove scopes. اختر النطاقات الخمسة أدناه؛ استخدم Manually add scopes عند الحاجة. للإدخال اليدوي، الصق القيم الناقصة واختر Add to table. اختر Update ثم Save. يحتاج BusyMax إلى الوصول للتقويم والمهام.",
+  "registrationGuideGoogleClient": "افتح Google Auth Platform → Clients → Create client. اضبط Application type على Desktop app وأدخل BusyMax في Name ثم اختر Create. في نافذة الإنشاء، اختر Download JSON واحفظ الملف. اختر رجوع للعودة إلى النموذج، واختر الملف وراجع المشروع ومعرّف العميل. اختر اتصال ووافق على الوصول للتقويم والمهام في المتصفح.",
+  "registrationGuideMicrosoftApp": "سجّل الدخول إلى مركز إدارة Microsoft Entra. استخدم Settings لاختيار مستأجر يسمح لك بتسجيل التطبيقات. افتح Entra ID → App registrations → New registration. أدخل BusyMax في Name ثم اختر أنواع الحسابات في الخطوة التالية. إن كان التسجيل محظورًا، اطلب الوصول من مسؤول المستأجر.",
+  "registrationGuideMicrosoftRedirect": "في تسجيلك، افتح Authentication → Add a platform → Mobile and desktop applications. اختر عنوان URI لإعادة التوجيه أدناه أو أدخله، ثم اختر Configure لحفظه. يستخدم BusyMax متصفح النظام. لا يلزم سر عميل.",
+  "registrationGuideMicrosoftPermissions": "افتح API permissions → Add a permission → Microsoft Graph → Delegated permissions. ابحث عن كل نطاق أدناه وحدده ثم اختر Add permissions. احتفظ بـ User.Read إن كان موجودًا. إذا كانت مؤسستك تتطلب موافقة المسؤول، اطلب منه استخدام Grant admin consent لمستأجرك.",
+  "registrationGuideMicrosoftConnect": "اختر رجوع للعودة إلى النموذج. الصق Application (client) ID واختر الحسابات المدعومة نفسها في التسجيل. لمستأجر مؤسسي واحد، الصق أيضًا Directory (tenant) ID. اختر اتصال وسجّل الدخول إلى الحساب المقصود في المتصفح. يفحص BusyMax الحقول محليًا؛ وتطلب Microsoft موافقتك أثناء تسجيل الدخول في المتصفح.",
+  "registrationGoogleImportFailed": "تعذر استيراد هذا الملف. اختر JSON OAuth صالحًا لسطح المكتب. يُحتفظ بأي اختيار صالح سابق.",
+  "registrationGoogleSetupInstructions": "إرشادات إعداد Google",
+  "registrationMicrosoftSetupInstructions": "إرشادات إعداد Microsoft",
+  "registrationDesktopConfiguration": "إعداد OAuth لسطح المكتب",
+  "registrationNoFileSelected": "لم يتم اختيار ملف",
+  "registrationChooseFile": "اختيار ملف…",
+  "registrationReplaceFile": "استبدال…",
+  "registrationGoogleIntroduction": "اختر ملف JSON الخاص بـ OAuth لسطح المكتب من مشروع Google Cloud الخاص بك.",
+  "registrationMicrosoftIntroduction": "أدخل تفاصيل تسجيل تطبيق Microsoft الخاص بك.",
+  "registrationSetupInstructions": "إرشادات الإعداد",
+  "registrationInstructionsDescription": "أنشئ الإعداد المطلوب لربط حسابك.",
+  "registrationEnableApis": "تفعيل Calendar وTasks",
+  "registrationConsentScreen": "إعداد شاشة الموافقة",
+  "registrationAppName": "اسم التطبيق",
+  "registrationScopes": "نطاقات الوصول",
+  "registrationRedirectUri": "عنوان URI لإعادة التوجيه",
+  "registrationOpenApiLibrary": "فتح مكتبة Google API",
+  "registrationOpenBranding": "فتح Branding في Google Auth Platform",
+  "registrationOpenDataAccess": "فتح Data Access في Google Auth Platform",
+  "registrationOpenClients": "فتح Clients في Google Auth Platform",
+  "registrationOpenEntraAuthentication": "فتح تسجيلات تطبيقات Entra لإعداد Authentication",
+  "registrationOpenEntraPermissions": "فتح تسجيلات تطبيقات Entra لإعداد API permissions",
+  "registrationCopy": "نسخ",
+  "registrationCopyAll": "نسخ الكل",
+  "registrationGuideGoogleApis": "انتقل إلى APIs & Services → Library. ابحث عن Google Calendar API وافتح صفحته واختر Enable. عد إلى Library وكرر العملية مع Google Tasks API.",
+  "registrationGuideMicrosoftAudience": "ضمن Supported account types، اختر Personal accounts only للحساب الشخصي، أو Multiple Entra ID tenants لحسابات المؤسسات، أو Any Entra ID Tenant + Personal Microsoft accounts لكليهما، أو Single tenant only لهذا الدليل. اختر Register. في Overview، انسخ Application (client) ID؛ ولمستأجر واحد انسخ أيضًا Directory (tenant) ID. اختر الحسابات المدعومة المطابقة في BusyMax.",
+  "registrationConnectBusyMax": "الاتصال عبر BusyMax",
+  "registrationRecommended": "موصى به",
+  "registrationOtherMethods": "طرق اتصال أخرى",
+  "registrationWorkspace": "مؤسسة Google Workspace",
+  "registrationGoogleCustom": "عميل OAuth مخصص",
+  "registrationMicrosoftCustom": "تسجيل تطبيق مخصص",
+  "registrationMethodsIntroduction": "اختر طريقة ربط حسابك.",
+  "registrationWorkspaceDescription": "استخدم إعدادًا تديره مؤسستك.",
+  "registrationCustomDescription": "استخدم تسجيلًا تديره بنفسك.",
+  "registrationSharedUnavailable": "الاتصال عبر BusyMax غير متاح في هذا الإصدار. يمكنك استخدام طريقة اتصال أخرى أدناه.",
+  "registrationWorkspaceIntroduction": "اختر ملف Desktop OAuth JSON الذي توفره أو تديره مؤسستك. لا يثبت الملف ملكية المؤسسة أو الجمهور أو حالة التحقق.",
+  "registrationWorkspaceSetupInstructions": "تعليمات إعداد Google Workspace",
+  "registrationBusyMaxManaged": "تسجيل تديره BusyMax",
+  "registrationBranding": "إعداد العلامة التجارية والنطاقات",
+  "registrationPublishing": "النشر للاستخدام العادي",
+  "registrationOpenAudience": "فتح جمهور Google Auth Platform",
+  "registrationGuideWorkspaceProject": "اطلب ملف Desktop OAuth JSON من المسؤول، أو افتح Google Cloud Console واختر مشروعًا تملكه مؤسستك في Google Workspace. لإنشاء مشروع، افتح إدارة الموارد → إنشاء مشروع، وأدخل اسم المشروع، واختر مؤسستك أو أحد مجلداتها في المورد الرئيسي، ثم اختر إنشاء. حدد هذا المشروع للخطوات التالية. يتطلب الإنشاء صلاحية Project Creator، ويتطلب إعداد OAuth صلاحية OAuth Config Editor، ويتطلب تفعيل واجهات API صلاحية Service Usage Admin أو ما يعادلها. اطلب مساعدة المسؤول إذا مُنع الإجراء.",
+  "registrationGuideGoogleBranding": "في Branding → App domain، أضف نطاقات المشروع المصرح بها قبل روابط الصفحة الرئيسية والخصوصية وشروط الخدمة، ثم Save. تحتاج تطبيقات External الإنتاجية هذه الروابط. استخدم نطاقات تملكها وأثبت ملكيتها في Search Console عندما تطلب Google التحقق من العلامة. رابط خصوصية BusyMax أدناه لا يثبت ملكية busystack.org لمشروعك.",
+  "registrationGuideGooglePublishing": "في Audience، اختر Publish app وأكد In production. لا تترك الاستخدام العادي في Testing: تنتهي تفويضات Calendar/Tasks ورموز تحديثها بعد سبعة أيام. النشر والتحقق منفصلان. قد يُعفى الاستخدام الشخصي لأقل من 100 مستخدم من التحقق مع تحذيرات وحد للمستخدمين؛ وقد يتطلب التوزيع الأوسع اعتماد العلامة والنطاقات. قد تنتهي التفويضات الإنتاجية أو تُلغى أيضًا.",
+  "registrationGuideWorkspacePermissions": "راجع هذه النطاقات مع المسؤول. لا تحتاج تطبيقات Internal إلى قائمة نطاقات في شاشة الموافقة. عند طلبها، افتح Data Access → Add or remove scopes وأضف القيم ثم Update وSave. قد تظل قيود المسؤول تمنع التفويض.",
+  "registrationGuideMicrosoftOptionalPermissions": "تُطلب أذونات التقويمات المشتركة والفئات بشكل منفصل عند تفعيل هذه الميزات الاختيارية؛ لا تضفها إلى الإعداد الإلزامي أعلاه.",
+  "registrationGuideWorkspaceAudience": "انتقل إلى Google Auth Platform → Branding. إن لم يبدأ الإعداد، اختر Get started. أدخل BusyMax في App name واختر بريدك في User support email ثم Next. في Audience، اختر Internal. اختر Next وأدخل بريدك ضمن Contact Information ثم Next. وافق على User Data Policy ثم اختر Continue وCreate. إذا كان الإعداد موجودًا، راجع Branding وAudience.\n\nيسمح Internal فقط بحسابات المؤسسة الأم للمشروع، مع الخضوع لقيود المسؤول. لا حاجة لقائمة مستخدمي اختبار. لا يستطيع BusyMax التحقق من إعدادات وحدة التحكم عبر ملف JSON."
 }

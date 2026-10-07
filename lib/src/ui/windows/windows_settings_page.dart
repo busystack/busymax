@@ -1,3 +1,9 @@
+import '../../l10n/oauth_error_description.dart';
+import '../../core/auth/oauth_models.dart';
+import '../../core/auth/authorization_attempt.dart';
+import '../../l10n/registration_description.dart';
+import 'windows_registration_setup_dialog.dart';
+import '../../core/auth/oauth_registration.dart';
 import 'windows_time_picker.dart';
 import 'dart:async';
 import 'windows_nextcloud_dialogs.dart';
@@ -6,13 +12,20 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'windows_workspace_shell.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../../app/app_bootstrap.dart';
 import '../../features/accounts/data/accounts_repository.dart';
+import '../../features/auth/data/auth_repository.dart';
+import '../../dav/dav_errors.dart';
+import '../../dav/http/dav_http_transport.dart';
+import 'windows_dav_account_dialogs.dart';
 import '../../features/calendar/data/calendar_repository.dart';
+import '../../features/calendar/data/cloud_calendar_sharing_service.dart';
+import '../../features/calendar/data/microsoft_shared_calendar_service.dart';
 import '../../features/notifications/desktop_notification_backend.dart';
 import '../../features/sync/sync_auth_error.dart';
 import '../../features/settings/presentation/launch_at_login_refresh.dart';
@@ -25,6 +38,7 @@ import '../common/busymax_glyph.dart';
 import 'windows_account_removal_dialog.dart';
 import 'windows_busymax_glyphs.dart';
 import 'windows_calendar_activation_flows.dart';
+import 'windows_cloud_calendar_sharing_dialog.dart';
 import 'windows_diagnostics_dialog.dart';
 import 'windows_feedback_dialog.dart';
 import 'windows_keyboard_shortcuts_dialog.dart';
@@ -34,7 +48,9 @@ const _apacheLicenseUrl = 'https://www.apache.org/licenses/LICENSE-2.0';
 const _systemLocaleTag = 'system';
 
 class WindowsSettingsPage extends ConsumerStatefulWidget {
-  const WindowsSettingsPage({super.key});
+  const WindowsSettingsPage({super.key, this.initialPage});
+
+  final String? initialPage;
 
   @override
   ConsumerState<WindowsSettingsPage> createState() =>
@@ -43,10 +59,47 @@ class WindowsSettingsPage extends ConsumerStatefulWidget {
 
 class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
   late final LaunchAtLoginRefreshObserver _autostartRefresh;
+  AuthorizationCancellation? _sharedConsentCancellation;
+  final _scrollController = ScrollController();
+  final _accountsKey = GlobalKey();
+  final _accountsFocus = FocusNode();
+  BusyProvider? _connectingDavProvider;
+  DavCancellationToken? _davCancellation;
+  AuthorizationCancellation? _authorizationCancellation;
+  String? _davError;
+
+  void _revealAccounts() {
+    if (!mounted || widget.initialPage != 'accounts') return;
+    final target = _accountsKey.currentContext;
+    if (target != null) {
+      unawaited(Scrollable.ensureVisible(target));
+      _accountsFocus.requestFocus();
+    } else if (_scrollController.hasClients) {
+      // ListView builds lazily. Advance until the account section is laid out,
+      // then align and focus its first connection action.
+      final position = _scrollController.position;
+      final next = (position.pixels + position.viewportDimension).clamp(
+        0.0,
+        position.maxScrollExtent,
+      );
+      if (next == position.pixels) return;
+      _scrollController.jumpTo(next);
+      WidgetsBinding.instance.addPostFrameCallback((_) => _revealAccounts());
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant WindowsSettingsPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialPage != oldWidget.initialPage) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _revealAccounts());
+    }
+  }
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _revealAccounts());
     _autostartRefresh = LaunchAtLoginRefreshObserver(
       () => ref.invalidate(launchAtLoginStateProvider),
     );
@@ -54,8 +107,132 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
 
   @override
   void dispose() {
+    _sharedConsentCancellation?.cancel();
+    _authorizationCancellation?.cancel();
+    _davCancellation?.cancel();
+    _scrollController.dispose();
+    _accountsFocus.dispose();
     _autostartRefresh.dispose();
     super.dispose();
+  }
+
+  Future<void> _openSharedCalendarOwned(String id) async {
+    _sharedConsentCancellation?.cancel();
+    final cancellation = AuthorizationCancellation();
+    _sharedConsentCancellation = cancellation;
+    try {
+      await _openWindowsSharedCalendar(context, ref, id, cancellation);
+    } finally {
+      cancellation.cancel();
+      if (identical(_sharedConsentCancellation, cancellation)) {
+        _sharedConsentCancellation = null;
+      }
+    }
+  }
+
+  Future<void> _setup(BusyProvider provider) async {
+    if (_authorizationCancellation != null) return;
+    final cancellation = AuthorizationCancellation();
+    setState(() => _authorizationCancellation = cancellation);
+    try {
+      final handle = await showWindowsRegistrationSetup(context, ref, provider);
+      if (handle == null || !mounted || cancellation.isCancelled) return;
+      final controller = ref.read(authSessionControllerProvider.notifier);
+      final request = AuthorizationRequest.newConnection(
+        handle,
+        cancellation: cancellation,
+      );
+      if (provider == BusyProvider.google) {
+        await controller.signIn(request: request);
+      } else {
+        await controller.signInWithMicrosoft(request: request);
+      }
+    } finally {
+      cancellation.cancel();
+      if (identical(_authorizationCancellation, cancellation)) {
+        if (mounted) {
+          setState(() => _authorizationCancellation = null);
+        } else {
+          _authorizationCancellation = null;
+        }
+      }
+    }
+  }
+
+  Future<void> _signIn(Future<void> Function() action) async {
+    setState(() => _davError = null);
+    try {
+      await action();
+    } finally {
+      if (mounted) {
+        try {
+          await ref.read(desktopWindowServiceProvider).showWindow();
+        } on Object {
+          // Authentication state remains authoritative if foregrounding is
+          // temporarily denied by Windows.
+        }
+      }
+    }
+    if (!mounted) return;
+  }
+
+  Future<void> _connectDav(BusyProvider provider) async {
+    WindowsAppleCredentialInput? apple;
+    String? server;
+    if (provider == BusyProvider.appleICloud) {
+      apple = await showWindowsAppleICloudDialog(context);
+    } else {
+      server = await showWindowsNextcloudServerDialog(context);
+    }
+    if (!mounted ||
+        (provider == BusyProvider.appleICloud && apple == null) ||
+        (provider == BusyProvider.nextcloud && server == null)) {
+      return;
+    }
+    setState(() {
+      _connectingDavProvider = provider;
+      _davError = null;
+    });
+    final cancellation = DavCancellationToken();
+    _davCancellation = cancellation;
+    try {
+      final onboarding = ref.read(davAccountOnboardingServiceProvider);
+      if (provider == BusyProvider.appleICloud) {
+        await onboarding.connectAppleICloud(
+          email: apple!.email,
+          appSpecificPassword: apple.password,
+          cancellationToken: cancellation,
+        );
+      } else {
+        await onboarding.connectNextcloud(
+          enteredServer: server!,
+          cancellationToken: cancellation,
+        );
+      }
+      if (!mounted || cancellation.isCancelled) return;
+      await ref.read(authSessionControllerProvider.notifier).load();
+    } on Object catch (error) {
+      if (error is DavException && error.kind == DavErrorKind.cancelled) return;
+      if (mounted) {
+        setState(() => _davError = authErrorMessage(error));
+      }
+    } finally {
+      _davCancellation = null;
+      if (mounted) setState(() => _connectingDavProvider = null);
+    }
+  }
+
+  Future<void> _cancelConnection() async {
+    if (_connectingDavProvider != null) {
+      _davCancellation?.cancel();
+      if (_connectingDavProvider == BusyProvider.nextcloud) {
+        ref.read(davAccountOnboardingServiceProvider).cancelNextcloudLogin();
+      }
+      return;
+    }
+    await ref
+        .read(authSessionControllerProvider.notifier)
+        .cancelSignIn(cancellation: _authorizationCancellation);
   }
 
   @override
@@ -72,8 +249,22 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
     final notificationReadiness = ref.watch(
       desktopNotificationReadinessProvider,
     );
+    final session = ref.watch(authSessionControllerProvider);
+    final busy =
+        session.status == AuthSessionStatus.signingIn ||
+        _connectingDavProvider != null ||
+        _authorizationCancellation != null;
     return ScaffoldPage.scrollable(
-      header: PageHeader(title: Text(l10n.settings)),
+      scrollController: _scrollController,
+      header: PageHeader(
+        leading: (GoRouter.maybeOf(context)?.canPop() ?? false)
+            ? PaneBackButton(
+                key: const ValueKey('windows-settings-back'),
+                onPressed: () => WindowsWorkspaceShell.popSettings(context),
+              )
+            : null,
+        title: Text(l10n.settings),
+      ),
       bottomBar: ref.watch(appSettingsPersistenceFailedProvider)
           ? Padding(
               padding: const EdgeInsets.all(16),
@@ -410,7 +601,7 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
           ),
         ),
         const SizedBox(height: 20),
-        _SectionTitle(l10n.accounts),
+        KeyedSubtree(key: _accountsKey, child: _SectionTitle(l10n.accounts)),
         Card(
           child: accounts.when(
             loading: () => const Padding(
@@ -423,13 +614,65 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
             ),
             data: (values) => Column(
               children: [
+                if (session.message != null || _davError != null)
+                  InfoBar(
+                    title: Text(
+                      _davError ??
+                          localizedOAuthFailure(
+                            l10n,
+                            session.failureKind,
+                            session.message!,
+                          ),
+                    ),
+                    severity: InfoBarSeverity.error,
+                  ),
                 ListTile(
                   leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.add)),
-                  title: Text(l10n.connectAccountAction),
-                  onPressed: () => context.go('/sign-in?add=true'),
+                  focusNode: _accountsFocus,
+                  title: Text(l10n.addNextcloudAccount),
+                  onPressed: busy
+                      ? null
+                      : () => _connectDav(BusyProvider.nextcloud),
                 ),
+                ListTile(
+                  leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.add)),
+                  title: Text(l10n.addGoogleAccount),
+                  subtitle: config.googleSetupAvailable
+                      ? null
+                      : Text(l10n.providerNotConfigured),
+                  onPressed: busy || !config.googleSetupAvailable
+                      ? null
+                      : () => _signIn(() => _setup(BusyProvider.google)),
+                ),
+                ListTile(
+                  leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.add)),
+                  title: Text(l10n.addMicrosoftAccount),
+                  subtitle: config.microsoftSetupAvailable
+                      ? null
+                      : Text(l10n.providerNotConfigured),
+                  onPressed: busy || !config.microsoftSetupAvailable
+                      ? null
+                      : () => _signIn(() => _setup(BusyProvider.microsoft)),
+                ),
+                ListTile(
+                  leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.add)),
+                  title: Text(l10n.addAppleICloudAccount),
+                  onPressed: busy
+                      ? null
+                      : () => _connectDav(BusyProvider.appleICloud),
+                ),
+                if (busy) ...[
+                  const ProgressRing(),
+                  Button(
+                    onPressed: _cancelConnection,
+                    child: Text(l10n.cancelAccountConnection),
+                  ),
+                ],
                 if (values.isNotEmpty) const Divider(),
                 for (var index = 0; index < values.length; index++) ...[
+                  if (values[index].provider == BusyProvider.google ||
+                      values[index].provider == BusyProvider.microsoft)
+                    _WindowsRegistrationCard(account: values[index]),
                   ListTile(
                     leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.account)),
                     title: Semantics(
@@ -453,14 +696,60 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                               accountId: values[index].id,
                             ),
                           ),
+                        if (values[index].provider == BusyProvider.microsoft &&
+                            values[index].isSignedIn)
+                          MenuFlyoutItem(
+                            text: Text(l10n.openSharedCalendar),
+                            onPressed: () => unawaited(
+                              _openSharedCalendarOwned(values[index].id),
+                            ),
+                          ),
+                        if (values[index].isSignedIn &&
+                            (calendarSources.valueOrNull ??
+                                    const <CalendarSourceEntity>[])
+                                .any(
+                                  (source) =>
+                                      source.accountId == values[index].id &&
+                                      CloudCalendarSharingService.canManageSource(
+                                        source,
+                                      ),
+                                ))
+                          MenuFlyoutItem(
+                            text: Text(l10n.manageCalendarSharing),
+                            onPressed: () => unawaited(
+                              showWindowsCloudCalendarSharingDialog(
+                                context,
+                                sources: [
+                                  for (final source
+                                      in calendarSources.valueOrNull ??
+                                          const <CalendarSourceEntity>[])
+                                    if (source.accountId == values[index].id &&
+                                        CloudCalendarSharingService.canManageSource(
+                                          source,
+                                        ))
+                                      source,
+                                ],
+                              ),
+                            ),
+                          ),
                         MenuFlyoutItem(
                           leading: Icon(
                             windowsBusyMaxGlyph(BusyMaxGlyph.delete),
                           ),
                           text: Text(l10n.removeAccount),
-                          onPressed: () => unawaited(
-                            _removeWindowsAccount(context, ref, values[index]),
-                          ),
+                          closeAfterClick: false,
+                          onPressed: () {
+                            // Close the menu before pushing the confirmation;
+                            // an asynchronous menu pop can race the dialog.
+                            Navigator.of(context).pop();
+                            unawaited(
+                              _removeWindowsAccount(
+                                context,
+                                ref,
+                                values[index],
+                              ),
+                            );
+                          },
                         ),
                       ],
                     ),
@@ -590,13 +879,17 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                               windowsBusyMaxGlyph(BusyMaxGlyph.delete),
                             ),
                             text: Text(l10n.unsubscribe),
-                            onPressed: () => unawaited(
-                              _unsubscribeWindowsSubscription(
-                                context,
-                                ref,
-                                subscription,
-                              ),
-                            ),
+                            closeAfterClick: false,
+                            onPressed: () {
+                              Navigator.of(context).pop();
+                              unawaited(
+                                _unsubscribeWindowsSubscription(
+                                  context,
+                                  ref,
+                                  subscription,
+                                ),
+                              );
+                            },
                           ),
                         ],
                       ),
@@ -794,7 +1087,7 @@ class _WindowsCalendarSettingsColumnLabel extends StatelessWidget {
   }
 }
 
-class _WindowsCalendarSettingsRow extends StatelessWidget {
+class _WindowsCalendarSettingsRow extends ConsumerWidget {
   const _WindowsCalendarSettingsRow({
     super.key,
     required this.source,
@@ -810,7 +1103,7 @@ class _WindowsCalendarSettingsRow extends StatelessWidget {
   onProviderVisibilityChanged;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final canChangeProviderVisibility =
         source.capabilities.canChangeProviderVisibility;
@@ -847,6 +1140,50 @@ class _WindowsCalendarSettingsRow extends StatelessWidget {
                     : null,
                 semanticLabel: l10n.visibility,
               ),
+            ),
+          if (source.provider == BusyProvider.microsoft &&
+              source.capabilities.removalMode ==
+                  CalendarRemovalMode.removeFromList)
+            IconButton(
+              key: ValueKey('settings-calendar-remove-${source.id}'),
+              icon: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.delete)),
+              onPressed: () async {
+                final confirmed = await showDialog<bool>(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (dialogContext) => ContentDialog(
+                    title: Text(l10n.removeFromMyCalendars),
+                    content: Text(
+                      l10n.removeOpenedSharedCalendarConfirmation(
+                        source.summary,
+                      ),
+                    ),
+                    actions: [
+                      Button(
+                        onPressed: () => Navigator.pop(dialogContext, false),
+                        child: Text(l10n.cancel),
+                      ),
+                      FilledButton(
+                        onPressed: () => Navigator.pop(dialogContext, true),
+                        child: Text(l10n.removeAction),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirmed != true || !context.mounted) return;
+                try {
+                  await ref
+                      .read(calendarRepositoryProvider)
+                      .deleteLocalSource(source.id);
+                } on Object catch (error) {
+                  if (context.mounted) {
+                    await _showWindowsMessage(
+                      context,
+                      l10n.calendarUpdateFailed('$error'),
+                    );
+                  }
+                }
+              },
             ),
         ],
       ),
@@ -992,10 +1329,12 @@ Future<void> _removeWindowsAccount(
         l10n.nextcloudAccountRemovedRevokeFailed,
       );
     }
-    if (remaining.isEmpty && context.mounted) context.go('/sign-in');
-  } on Object {
+  } on Object catch (error) {
     if (context.mounted) {
-      await _showWindowsMessage(context, l10n.removeAccountFailed);
+      await _showWindowsMessage(
+        context,
+        localizedAccountRemovalError(l10n, error),
+      );
     }
   }
 }
@@ -1103,6 +1442,63 @@ Future<void> _runWindowsSubscriptionOperation(
         l10n.subscriptionOperationFailed(l10n.operationFailed),
       );
     }
+  }
+}
+
+Future<void> _openWindowsSharedCalendar(
+  BuildContext context,
+  WidgetRef ref,
+  String accountId,
+  AuthorizationCancellation cancellation,
+) async {
+  final l10n = AppLocalizations.of(context);
+  final owner = await _showWindowsTextPrompt(
+    context,
+    title: l10n.openSharedCalendar,
+    label: l10n.calendarOwnerEmail,
+    initialValue: '',
+    actionLabel: l10n.openSharedCalendar,
+  );
+  if (!context.mounted || owner == null || owner.trim().isEmpty) return;
+  try {
+    final result = await ref
+        .read(microsoftSharedCalendarServiceProvider)
+        .openPrimaryCalendar(
+          accountId: accountId,
+          owner: owner,
+          cancellation: cancellation,
+        );
+    if (context.mounted &&
+        result.outcome == MicrosoftSharedCalendarOpenOutcome.rangeUnavailable) {
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => ContentDialog(
+          title: Text(l10n.openSharedCalendar),
+          content: Text(l10n.scheduleRangeIncomplete),
+          actions: [
+            Button(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(l10n.close),
+            ),
+          ],
+        ),
+      );
+    }
+  } on Object catch (error) {
+    if (!context.mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => ContentDialog(
+        title: Text(l10n.operationFailed),
+        content: SelectableText('$error'),
+        actions: [
+          Button(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(l10n.close),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -1380,4 +1776,132 @@ Future<void> showWindowsLicensesDialog(BuildContext context) async {
       ],
     ),
   );
+}
+
+class _WindowsRegistrationCard extends ConsumerStatefulWidget {
+  const _WindowsRegistrationCard({required this.account});
+  final AccountEntity account;
+  @override
+  ConsumerState<_WindowsRegistrationCard> createState() =>
+      _WindowsRegistrationCardState();
+}
+
+class _WindowsRegistrationCardState
+    extends ConsumerState<_WindowsRegistrationCard> {
+  bool connecting = false;
+  AuthorizationCancellation? _authorizationCancellation;
+  @override
+  void dispose() {
+    _authorizationCancellation?.cancel();
+    super.dispose();
+  }
+
+  AccountEntity get account => widget.account;
+  @override
+  Widget build(BuildContext context) {
+    final summary = ref
+        .watch(registrationSummariesProvider)
+        .valueOrNull?[account.id];
+    final l10n = AppLocalizations.of(context);
+    Future<void> connect(bool replace) async {
+      if (connecting) return;
+      setState(() => connecting = true);
+      final cancellation = AuthorizationCancellation();
+      _authorizationCancellation = cancellation;
+      try {
+        AuthorizationRequest request;
+        if (replace) {
+          final handle = await showWindowsRegistrationSetup(
+            context,
+            ref,
+            account.provider,
+          );
+          if (handle == null) return;
+          request = AuthorizationRequest.replace(account.id, handle);
+        } else {
+          request = AuthorizationRequest.reconnect(account.id);
+        }
+        if (!mounted || cancellation.isCancelled) return;
+        request = request.withCancellation(cancellation);
+        final repository = ref.read(authRepositoryProvider);
+        if (account.provider == BusyProvider.google) {
+          await repository.signIn(request: request);
+        } else {
+          await repository.signInWithMicrosoft(request: request);
+        }
+        await ref.read(signedInSyncRunnerProvider)(account.id, false);
+      } on Object catch (error) {
+        if (error is OAuthException &&
+            error.classification == OAuthFailureKind.cancelled) {
+          return;
+        }
+        if (context.mounted) {
+          await displayInfoBar(
+            context,
+            builder: (_, close) => InfoBar(
+              title: Text(
+                localizedAuthorizationError(
+                  AppLocalizations.of(context),
+                  error,
+                ),
+              ),
+              severity: InfoBarSeverity.error,
+              onClose: close,
+            ),
+          );
+        }
+      } finally {
+        cancellation.cancel();
+        if (identical(_authorizationCancellation, cancellation)) {
+          _authorizationCancellation = null;
+          if (mounted) setState(() => connecting = false);
+        }
+      }
+    }
+
+    return Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            summary == null
+                ? l10n.registrationUnresolved
+                : l10n.registrationDescription(summary),
+          ),
+          if (summary?.showRetirementNotice == true)
+            InfoBar(
+              severity: InfoBarSeverity.warning,
+              title: Text(
+                l10n.registrationRetirementNotice(
+                  account.provider.displayName,
+                  account.provider == BusyProvider.google
+                      ? l10n.registrationGoogleProject
+                      : l10n.registrationMicrosoftApp,
+                ),
+              ),
+            ),
+          Button(
+            onPressed: connecting ? null : () => connect(true),
+            child: Text(
+              summary?.showRetirementNotice == true
+                  ? l10n.registrationMigrate
+                  : l10n.registrationReplace,
+            ),
+          ),
+          if (connecting)
+            Button(
+              onPressed: () {
+                _authorizationCancellation?.cancel();
+                setState(() => connecting = false);
+              },
+              child: Text(l10n.cancelAccountConnection),
+            ),
+          Button(
+            onPressed: connecting ? null : () => connect(false),
+            child: Text(l10n.connectAccountAction),
+          ),
+        ],
+      ),
+    );
+  }
 }

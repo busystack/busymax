@@ -732,7 +732,7 @@ abstract class AppLocalizations {
   /// **'BusyMax'**
   String get appTitle;
 
-  /// Shown in account onboarding and settings; names the supported account providers.
+  /// Shown in account settings; names the supported account providers.
   ///
   /// In en, this message translates to:
   /// **'Connect Google, Microsoft, Apple iCloud Calendar, or Nextcloud accounts.'**
@@ -741,7 +741,7 @@ abstract class AppLocalizations {
   /// No description provided for @googlePermissionsConsentNotice.
   ///
   /// In en, this message translates to:
-  /// **'On the Google permission screen, select both Calendar and Tasks permissions.'**
+  /// **'On the Google permissions screen, select both Calendar and Tasks permissions.'**
   String get googlePermissionsConsentNotice;
 
   /// No description provided for @googlePermissionsRequiredRetry.
@@ -749,60 +749,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Google Calendar and Google Tasks permissions are required. Please try again and select both checkboxes.'**
   String get googlePermissionsRequiredRetry;
-
-  /// No description provided for @finishSetup.
-  ///
-  /// In en, this message translates to:
-  /// **'Finish setup'**
-  String get finishSetup;
-
-  /// No description provided for @continueSetup.
-  ///
-  /// In en, this message translates to:
-  /// **'Continue'**
-  String get continueSetup;
-
-  /// No description provided for @onboardingSetupTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Set Up BusyMax'**
-  String get onboardingSetupTitle;
-
-  /// No description provided for @onboardingAccountsStepTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Connect accounts'**
-  String get onboardingAccountsStepTitle;
-
-  /// Onboarding explanation of the account data BusyMax synchronizes.
-  ///
-  /// In en, this message translates to:
-  /// **'Add every account you want to use. BusyMax syncs supported calendars, events, task lists, and tasks from each account.'**
-  String get onboardingAccountsStepDescription;
-
-  /// No description provided for @onboardingPreferencesStepTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Choose system settings'**
-  String get onboardingPreferencesStepTitle;
-
-  /// No description provided for @onboardingPreferencesStepDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Set desktop behavior, reminders, notification detail, and appearance before opening your schedule.'**
-  String get onboardingPreferencesStepDescription;
-
-  /// No description provided for @signInWithGoogle.
-  ///
-  /// In en, this message translates to:
-  /// **'Sign in with Google'**
-  String get signInWithGoogle;
-
-  /// No description provided for @signInWithMicrosoft.
-  ///
-  /// In en, this message translates to:
-  /// **'Sign in with Microsoft'**
-  String get signInWithMicrosoft;
 
   /// No description provided for @googleTasksProvider.
   ///
@@ -1014,6 +960,30 @@ abstract class AppLocalizations {
   /// **'Open in provider'**
   String get openInProvider;
 
+  /// No description provided for @linkedResources.
+  ///
+  /// In en, this message translates to:
+  /// **'Linked resources'**
+  String get linkedResources;
+
+  /// No description provided for @noLinkedResources.
+  ///
+  /// In en, this message translates to:
+  /// **'No linked resources'**
+  String get noLinkedResources;
+
+  /// No description provided for @attachments.
+  ///
+  /// In en, this message translates to:
+  /// **'Attachments'**
+  String get attachments;
+
+  /// No description provided for @attachmentsNotLoaded.
+  ///
+  /// In en, this message translates to:
+  /// **'Attachments not loaded'**
+  String get attachmentsNotLoaded;
+
   /// No description provided for @hideFromSchedule.
   ///
   /// In en, this message translates to:
@@ -1073,18 +1043,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Choose what to show in Settings, then refresh.'**
   String get scheduleNoSourcesDescription;
-
-  /// No description provided for @scheduleSignInRequired.
-  ///
-  /// In en, this message translates to:
-  /// **'Connect an account'**
-  String get scheduleSignInRequired;
-
-  /// No description provided for @scheduleSignInDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Sign in to sync calendars and tasks.'**
-  String get scheduleSignInDescription;
 
   /// No description provided for @scheduleNoSearchResults.
   ///
@@ -3420,6 +3378,12 @@ abstract class AppLocalizations {
   /// **'Delete \"{title}\"?'**
   String deleteTaskConfirmation(String title);
 
+  /// No description provided for @deleteAssignedTaskWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'This also deletes the original task in Google Docs or Chat Spaces.'**
+  String get deleteAssignedTaskWarning;
+
   /// No description provided for @metadata.
   ///
   /// In en, this message translates to:
@@ -4488,6 +4452,18 @@ abstract class AppLocalizations {
   /// **'Remove'**
   String get removeAction;
 
+  /// No description provided for @removeOpenedSharedCalendarConfirmation.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove \"{title}\" from BusyMax? The owner\'s calendar and events will not be deleted.'**
+  String removeOpenedSharedCalendarConfirmation(String title);
+
+  /// No description provided for @attachmentUploadUnresolved.
+  ///
+  /// In en, this message translates to:
+  /// **'The upload may have completed. Refresh attachments to resolve its outcome before uploading again.'**
+  String get attachmentUploadUnresolved;
+
   /// No description provided for @removeCalendarConfirmation.
   ///
   /// In en, this message translates to:
@@ -4949,8 +4925,26 @@ abstract class AppLocalizations {
   /// No description provided for @searchAnyDate.
   ///
   /// In en, this message translates to:
-  /// **'Any date'**
+  /// **'Any date (downloaded data)'**
   String get searchAnyDate;
+
+  /// No description provided for @eventLink.
+  ///
+  /// In en, this message translates to:
+  /// **'Event link'**
+  String get eventLink;
+
+  /// No description provided for @eventLinkOpenFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open the link.'**
+  String get eventLinkOpenFailed;
+
+  /// No description provided for @scheduleRangeIncomplete.
+  ///
+  /// In en, this message translates to:
+  /// **'Some events could not be checked. Showing downloaded data.'**
+  String get scheduleRangeIncomplete;
 
   /// No description provided for @searchThisWeek.
   ///
@@ -5023,6 +5017,892 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Clear text'**
   String get searchClearText;
+
+  /// No description provided for @openSharedCalendar.
+  ///
+  /// In en, this message translates to:
+  /// **'Open shared calendar'**
+  String get openSharedCalendar;
+
+  /// No description provided for @manageCalendarSharing.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage calendar sharing'**
+  String get manageCalendarSharing;
+
+  /// No description provided for @shareRecipientEmail.
+  ///
+  /// In en, this message translates to:
+  /// **'Recipient email'**
+  String get shareRecipientEmail;
+
+  /// No description provided for @shareRole.
+  ///
+  /// In en, this message translates to:
+  /// **'Access role'**
+  String get shareRole;
+
+  /// No description provided for @addCalendarShare.
+  ///
+  /// In en, this message translates to:
+  /// **'Add access'**
+  String get addCalendarShare;
+
+  /// No description provided for @sharingRefreshFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The sharing change succeeded, but the permission list could not be refreshed. Retry the list before making another change.'**
+  String get sharingRefreshFailed;
+
+  /// No description provided for @sharingRateLimited.
+  ///
+  /// In en, this message translates to:
+  /// **'Sharing is temporarily rate-limited. Try again when the wait ends.'**
+  String get sharingRateLimited;
+
+  /// No description provided for @attachmentUploadRateLimited.
+  ///
+  /// In en, this message translates to:
+  /// **'Attachment upload is temporarily rate-limited. Try again when the wait ends.'**
+  String get attachmentUploadRateLimited;
+
+  /// No description provided for @sharingPermissionUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Sharing permissions are unavailable for this calendar.'**
+  String get sharingPermissionUnavailable;
+
+  /// No description provided for @calendarShareFreeBusy.
+  ///
+  /// In en, this message translates to:
+  /// **'Free/busy only'**
+  String get calendarShareFreeBusy;
+
+  /// No description provided for @calendarShareLimitedRead.
+  ///
+  /// In en, this message translates to:
+  /// **'Read limited details'**
+  String get calendarShareLimitedRead;
+
+  /// No description provided for @calendarShareRead.
+  ///
+  /// In en, this message translates to:
+  /// **'Read all details'**
+  String get calendarShareRead;
+
+  /// No description provided for @calendarShareWrite.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit events'**
+  String get calendarShareWrite;
+
+  /// No description provided for @calendarShareWriteWithoutPrivate.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit without private details'**
+  String get calendarShareWriteWithoutPrivate;
+
+  /// No description provided for @calendarShareOwner.
+  ///
+  /// In en, this message translates to:
+  /// **'Owner'**
+  String get calendarShareOwner;
+
+  /// No description provided for @eventLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Event label'**
+  String get eventLabel;
+
+  /// No description provided for @loadOutlookCategories.
+  ///
+  /// In en, this message translates to:
+  /// **'Load Outlook categories'**
+  String get loadOutlookCategories;
+
+  /// No description provided for @outlookCategoriesUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Outlook categories are unavailable; existing assignments are preserved.'**
+  String get outlookCategoriesUnavailable;
+
+  /// No description provided for @googleEventType.
+  ///
+  /// In en, this message translates to:
+  /// **'Event type'**
+  String get googleEventType;
+
+  /// No description provided for @googleRegularEvent.
+  ///
+  /// In en, this message translates to:
+  /// **'Regular event'**
+  String get googleRegularEvent;
+
+  /// No description provided for @googleFocusTime.
+  ///
+  /// In en, this message translates to:
+  /// **'Focus time'**
+  String get googleFocusTime;
+
+  /// No description provided for @googleOutOfOffice.
+  ///
+  /// In en, this message translates to:
+  /// **'Out of office'**
+  String get googleOutOfOffice;
+
+  /// No description provided for @googleWorkingLocation.
+  ///
+  /// In en, this message translates to:
+  /// **'Working location'**
+  String get googleWorkingLocation;
+
+  /// No description provided for @googleDeclineInvitations.
+  ///
+  /// In en, this message translates to:
+  /// **'Decline overlapping invitations'**
+  String get googleDeclineInvitations;
+
+  /// No description provided for @googleDeclineNone.
+  ///
+  /// In en, this message translates to:
+  /// **'Do not decline'**
+  String get googleDeclineNone;
+
+  /// No description provided for @googleDeclineNew.
+  ///
+  /// In en, this message translates to:
+  /// **'Decline new invitations'**
+  String get googleDeclineNew;
+
+  /// No description provided for @googleDeclineAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Decline all conflicting invitations'**
+  String get googleDeclineAll;
+
+  /// No description provided for @googleDeclineMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Decline message'**
+  String get googleDeclineMessage;
+
+  /// No description provided for @googleChatStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat status'**
+  String get googleChatStatus;
+
+  /// No description provided for @googleChatAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Available'**
+  String get googleChatAvailable;
+
+  /// No description provided for @googleChatDoNotDisturb.
+  ///
+  /// In en, this message translates to:
+  /// **'Do not disturb'**
+  String get googleChatDoNotDisturb;
+
+  /// No description provided for @googleWorkAtHome.
+  ///
+  /// In en, this message translates to:
+  /// **'Home'**
+  String get googleWorkAtHome;
+
+  /// No description provided for @googleWorkAtOffice.
+  ///
+  /// In en, this message translates to:
+  /// **'Office'**
+  String get googleWorkAtOffice;
+
+  /// No description provided for @googleWorkAtCustomLocation.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom location'**
+  String get googleWorkAtCustomLocation;
+
+  /// No description provided for @googleWorkLocationLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Location label'**
+  String get googleWorkLocationLabel;
+
+  /// No description provided for @googleStatusPrimaryOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Google status events require your primary Google calendar.'**
+  String get googleStatusPrimaryOnly;
+
+  /// No description provided for @unknownEventLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown label ({id})'**
+  String unknownEventLabel(String id);
+
+  /// No description provided for @calendarOwnerEmail.
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar owner email'**
+  String get calendarOwnerEmail;
+
+  /// No description provided for @registrationSetupTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Set up {provider}'**
+  String registrationSetupTitle(String provider);
+
+  /// No description provided for @registrationSetupGuide.
+  ///
+  /// In en, this message translates to:
+  /// **'Setup guide'**
+  String get registrationSetupGuide;
+
+  /// No description provided for @registrationGoogleInstructions.
+  ///
+  /// In en, this message translates to:
+  /// **'Create your own Google Cloud project, enable both Calendar and Tasks APIs, and download a Desktop OAuth client JSON. Import the configuration, then authorize the intended account.'**
+  String get registrationGoogleInstructions;
+
+  /// No description provided for @registrationMicrosoftInstructions.
+  ///
+  /// In en, this message translates to:
+  /// **'Use a public app registration in an Entra tenant that permits registration. Enter its Application/client ID and supported account audience. No client secret is required.'**
+  String get registrationMicrosoftInstructions;
+
+  /// No description provided for @registrationImportGoogle.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Desktop OAuth JSON'**
+  String get registrationImportGoogle;
+
+  /// No description provided for @registrationValidate.
+  ///
+  /// In en, this message translates to:
+  /// **'Validate registration'**
+  String get registrationValidate;
+
+  /// No description provided for @registrationAuthorize.
+  ///
+  /// In en, this message translates to:
+  /// **'Authorize in browser'**
+  String get registrationAuthorize;
+
+  /// No description provided for @registrationClientId.
+  ///
+  /// In en, this message translates to:
+  /// **'Application (client) ID'**
+  String get registrationClientId;
+
+  /// No description provided for @registrationTenantId.
+  ///
+  /// In en, this message translates to:
+  /// **'Tenant ID'**
+  String get registrationTenantId;
+
+  /// No description provided for @registrationAudience.
+  ///
+  /// In en, this message translates to:
+  /// **'Supported accounts'**
+  String get registrationAudience;
+
+  /// No description provided for @registrationBothAudience.
+  ///
+  /// In en, this message translates to:
+  /// **'Personal and organizational accounts'**
+  String get registrationBothAudience;
+
+  /// No description provided for @registrationOrganizationAudience.
+  ///
+  /// In en, this message translates to:
+  /// **'Organizational accounts'**
+  String get registrationOrganizationAudience;
+
+  /// No description provided for @registrationPersonalAudience.
+  ///
+  /// In en, this message translates to:
+  /// **'Personal accounts'**
+  String get registrationPersonalAudience;
+
+  /// No description provided for @registrationTenantAudience.
+  ///
+  /// In en, this message translates to:
+  /// **'One organizational tenant'**
+  String get registrationTenantAudience;
+
+  /// No description provided for @registrationSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Registration: {clientId}'**
+  String registrationSummary(String clientId);
+
+  /// No description provided for @registrationMigrate.
+  ///
+  /// In en, this message translates to:
+  /// **'Migrate now'**
+  String get registrationMigrate;
+
+  /// No description provided for @registrationReplace.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace registration'**
+  String get registrationReplace;
+
+  /// No description provided for @registrationRetirementNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'This account uses an original {provider} registration reserved for existing accounts. To replace it, set up {setup} and reconnect this account. Your existing calendars, tasks, and local changes will be preserved.'**
+  String registrationRetirementNotice(String provider, String setup);
+
+  /// No description provided for @registrationContinue.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue using this account'**
+  String get registrationContinue;
+
+  /// No description provided for @registrationGoogleProject.
+  ///
+  /// In en, this message translates to:
+  /// **'Google Cloud project'**
+  String get registrationGoogleProject;
+
+  /// No description provided for @registrationMicrosoftApp.
+  ///
+  /// In en, this message translates to:
+  /// **'Microsoft app registration'**
+  String get registrationMicrosoftApp;
+
+  /// No description provided for @registrationUserOwned.
+  ///
+  /// In en, this message translates to:
+  /// **'User-provided registration'**
+  String get registrationUserOwned;
+
+  /// No description provided for @registrationNativeGoogle.
+  ///
+  /// In en, this message translates to:
+  /// **'Native Google Android registration'**
+  String get registrationNativeGoogle;
+
+  /// No description provided for @registrationShared.
+  ///
+  /// In en, this message translates to:
+  /// **'Shared registration (transition)'**
+  String get registrationShared;
+
+  /// No description provided for @registrationUnresolved.
+  ///
+  /// In en, this message translates to:
+  /// **'Registration provenance is unresolved. Account data is preserved.'**
+  String get registrationUnresolved;
+
+  /// No description provided for @registrationOfficialDocumentation.
+  ///
+  /// In en, this message translates to:
+  /// **'Official documentation'**
+  String get registrationOfficialDocumentation;
+
+  /// No description provided for @registrationAndroidIdentity.
+  ///
+  /// In en, this message translates to:
+  /// **'Package: {packageName}\nSignature hash: {signatureHash}\nRedirect URI: {redirectUri}'**
+  String registrationAndroidIdentity(
+    String packageName,
+    String signatureHash,
+    String redirectUri,
+  );
+
+  /// No description provided for @oauthRegistrationRejected.
+  ///
+  /// In en, this message translates to:
+  /// **'Check the client type, supported accounts, permissions, and redirect in your registration. Select the configuration again if it was imported.'**
+  String get oauthRegistrationRejected;
+
+  /// No description provided for @oauthAuthorizationCodeUnusable.
+  ///
+  /// In en, this message translates to:
+  /// **'This authorization attempt could not be completed. Start authorization again; your existing connection is preserved.'**
+  String get oauthAuthorizationCodeUnusable;
+
+  /// No description provided for @oauthPermissionRefused.
+  ///
+  /// In en, this message translates to:
+  /// **'Authorization was refused or required permissions were not granted. Try again and grant the required permissions.'**
+  String get oauthPermissionRefused;
+
+  /// No description provided for @oauthProviderThrottled.
+  ///
+  /// In en, this message translates to:
+  /// **'The provider is limiting requests. Wait before trying again; your existing connection is preserved.'**
+  String get oauthProviderThrottled;
+
+  /// No description provided for @oauthProviderTemporaryFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'Authorization could not complete because of a temporary provider problem. Try again; your existing connection is preserved.'**
+  String get oauthProviderTemporaryFailure;
+
+  /// No description provided for @oauthAuthorizationTimedOut.
+  ///
+  /// In en, this message translates to:
+  /// **'Authorization timed out. Try again; select a fresh configuration if it was imported.'**
+  String get oauthAuthorizationTimedOut;
+
+  /// No description provided for @oauthWrongAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Authorize the account selected for reconnection. Your existing connection is preserved.'**
+  String get oauthWrongAccount;
+
+  /// No description provided for @oauthSecureStorageUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Secure storage is unavailable. Restore access to secure storage and try again.'**
+  String get oauthSecureStorageUnavailable;
+
+  /// No description provided for @oauthRevokedRemovalIncomplete.
+  ///
+  /// In en, this message translates to:
+  /// **'Remote authorization was revoked, but account cleanup could not finish. Restart BusyMax to retry local recovery.'**
+  String get oauthRevokedRemovalIncomplete;
+
+  /// No description provided for @addAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Add account'**
+  String get addAccount;
+
+  /// No description provided for @registrationConnect.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect'**
+  String get registrationConnect;
+
+  /// No description provided for @registrationBack.
+  ///
+  /// In en, this message translates to:
+  /// **'Back'**
+  String get registrationBack;
+
+  /// No description provided for @registrationReplaceGoogle.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace Desktop OAuth JSON'**
+  String get registrationReplaceGoogle;
+
+  /// No description provided for @registrationSelectedConfiguration.
+  ///
+  /// In en, this message translates to:
+  /// **'Selected configuration'**
+  String get registrationSelectedConfiguration;
+
+  /// No description provided for @registrationDirectoryId.
+  ///
+  /// In en, this message translates to:
+  /// **'Directory (tenant) ID'**
+  String get registrationDirectoryId;
+
+  /// No description provided for @registrationInvalidId.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a valid UUID.'**
+  String get registrationInvalidId;
+
+  /// No description provided for @registrationExpired.
+  ///
+  /// In en, this message translates to:
+  /// **'This configuration expired. Import it again or edit the registration fields before connecting.'**
+  String get registrationExpired;
+
+  /// No description provided for @registrationOwnProjectRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a registration from your own project or tenant.'**
+  String get registrationOwnProjectRequired;
+
+  /// No description provided for @registrationSetupFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Setup could not complete. Try again.'**
+  String get registrationSetupFailed;
+
+  /// No description provided for @registrationLinkFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open the link. Check your browser and try again.'**
+  String get registrationLinkFailed;
+
+  /// No description provided for @registrationPermissions.
+  ///
+  /// In en, this message translates to:
+  /// **'Permissions'**
+  String get registrationPermissions;
+
+  /// No description provided for @registrationDesktopClient.
+  ///
+  /// In en, this message translates to:
+  /// **'Desktop application'**
+  String get registrationDesktopClient;
+
+  /// No description provided for @registrationOpenGoogleConsole.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Google Cloud Console'**
+  String get registrationOpenGoogleConsole;
+
+  /// No description provided for @registrationGoogleAudienceHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Google publishing and test-user requirements'**
+  String get registrationGoogleAudienceHelp;
+
+  /// No description provided for @registrationDesktopHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Desktop app registration instructions'**
+  String get registrationDesktopHelp;
+
+  /// No description provided for @registrationOpenEntra.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Microsoft Entra admin center'**
+  String get registrationOpenEntra;
+
+  /// No description provided for @registrationGuideGoogleProject.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Google Cloud Console. Use the project selector at the top to select your own project, or choose New project, enter a name and select Create. Keep that project selected for the remaining steps.'**
+  String get registrationGuideGoogleProject;
+
+  /// No description provided for @registrationGuideGoogleAudience.
+  ///
+  /// In en, this message translates to:
+  /// **'Go to Google Auth Platform → Branding. If setup has not started, select Get started. Enter BusyMax as the App name, choose your own User support email and select Next. In Audience, choose External. Select Next, enter your email under Contact Information and select Next. Accept the User Data Policy, then select Continue and Create. If already configured, review Branding and Audience.'**
+  String get registrationGuideGoogleAudience;
+
+  /// No description provided for @registrationGuideGooglePermissions.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Google Auth Platform → Data Access → Add or remove scopes. Select the five scopes below; use Manually add scopes if needed. For manual entry, paste the missing values and select Add to table. Select Update, then Save. BusyMax needs both calendar and task access.'**
+  String get registrationGuideGooglePermissions;
+
+  /// No description provided for @registrationGuideGoogleClient.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Google Auth Platform → Clients → Create client. Set Application type to Desktop app, enter BusyMax as the Name and select Create. In the creation dialog, select Download JSON and save the file. Select Back to return to the form, choose that file and review its project and client ID. Select Connect and approve calendar and task access in your browser.'**
+  String get registrationGuideGoogleClient;
+
+  /// No description provided for @registrationGuideMicrosoftApp.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in to Microsoft Entra admin center. Use Settings to select a tenant where you can register applications. Open Entra ID → App registrations → New registration. Enter BusyMax as the Name, then choose the supported account types in the next step. If registration is blocked, ask your tenant administrator for access.'**
+  String get registrationGuideMicrosoftApp;
+
+  /// No description provided for @registrationGuideMicrosoftRedirect.
+  ///
+  /// In en, this message translates to:
+  /// **'In your registration, open Authentication → Add a platform → Mobile and desktop applications. Select or enter the redirect URI below, then select Configure to save it. BusyMax uses your system browser. No client secret is required.'**
+  String get registrationGuideMicrosoftRedirect;
+
+  /// No description provided for @registrationGuideMicrosoftPermissions.
+  ///
+  /// In en, this message translates to:
+  /// **'Open API permissions → Add a permission → Microsoft Graph → Delegated permissions. Search for and select each scope below, then select Add permissions. Keep User.Read if it is already present. If your organization requires administrator consent, ask an administrator to use Grant admin consent for your tenant.'**
+  String get registrationGuideMicrosoftPermissions;
+
+  /// No description provided for @registrationGuideMicrosoftConnect.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Back to return to the form. Paste Application (client) ID and select the same Supported accounts as the registration. For One organizational tenant, also paste Directory (tenant) ID. Select Connect and sign in to the intended account in your browser. BusyMax checks the fields locally; Microsoft requests your permission during browser sign-in.'**
+  String get registrationGuideMicrosoftConnect;
+
+  /// No description provided for @registrationGoogleImportFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not import this file. Select a valid Desktop OAuth JSON. Any previous valid selection is kept.'**
+  String get registrationGoogleImportFailed;
+
+  /// No description provided for @registrationGoogleSetupInstructions.
+  ///
+  /// In en, this message translates to:
+  /// **'Google setup instructions'**
+  String get registrationGoogleSetupInstructions;
+
+  /// No description provided for @registrationMicrosoftSetupInstructions.
+  ///
+  /// In en, this message translates to:
+  /// **'Microsoft setup instructions'**
+  String get registrationMicrosoftSetupInstructions;
+
+  /// No description provided for @registrationDesktopConfiguration.
+  ///
+  /// In en, this message translates to:
+  /// **'Desktop OAuth configuration'**
+  String get registrationDesktopConfiguration;
+
+  /// No description provided for @registrationNoFileSelected.
+  ///
+  /// In en, this message translates to:
+  /// **'No file selected'**
+  String get registrationNoFileSelected;
+
+  /// No description provided for @registrationChooseFile.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose file…'**
+  String get registrationChooseFile;
+
+  /// No description provided for @registrationReplaceFile.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace…'**
+  String get registrationReplaceFile;
+
+  /// No description provided for @registrationGoogleIntroduction.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose the Desktop OAuth JSON from your own Google Cloud project.'**
+  String get registrationGoogleIntroduction;
+
+  /// No description provided for @registrationMicrosoftIntroduction.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter the details of your own Microsoft app registration.'**
+  String get registrationMicrosoftIntroduction;
+
+  /// No description provided for @registrationSetupInstructions.
+  ///
+  /// In en, this message translates to:
+  /// **'Setup instructions'**
+  String get registrationSetupInstructions;
+
+  /// No description provided for @registrationInstructionsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Create the configuration needed to connect your account.'**
+  String get registrationInstructionsDescription;
+
+  /// No description provided for @registrationEnableApis.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable Calendar and Tasks'**
+  String get registrationEnableApis;
+
+  /// No description provided for @registrationConsentScreen.
+  ///
+  /// In en, this message translates to:
+  /// **'Configure the consent screen'**
+  String get registrationConsentScreen;
+
+  /// No description provided for @registrationAppName.
+  ///
+  /// In en, this message translates to:
+  /// **'App name'**
+  String get registrationAppName;
+
+  /// No description provided for @registrationScopes.
+  ///
+  /// In en, this message translates to:
+  /// **'Scopes'**
+  String get registrationScopes;
+
+  /// No description provided for @registrationRedirectUri.
+  ///
+  /// In en, this message translates to:
+  /// **'Redirect URI'**
+  String get registrationRedirectUri;
+
+  /// No description provided for @registrationOpenApiLibrary.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Google API Library'**
+  String get registrationOpenApiLibrary;
+
+  /// No description provided for @registrationOpenBranding.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Google Auth Platform Branding'**
+  String get registrationOpenBranding;
+
+  /// No description provided for @registrationOpenDataAccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Google Auth Platform Data Access'**
+  String get registrationOpenDataAccess;
+
+  /// No description provided for @registrationOpenClients.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Google Auth Platform Clients'**
+  String get registrationOpenClients;
+
+  /// No description provided for @registrationOpenEntraAuthentication.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Entra app registrations for Authentication'**
+  String get registrationOpenEntraAuthentication;
+
+  /// No description provided for @registrationOpenEntraPermissions.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Entra app registrations for API permissions'**
+  String get registrationOpenEntraPermissions;
+
+  /// No description provided for @registrationCopy.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy'**
+  String get registrationCopy;
+
+  /// No description provided for @registrationCopyAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy all'**
+  String get registrationCopyAll;
+
+  /// No description provided for @registrationGuideGoogleApis.
+  ///
+  /// In en, this message translates to:
+  /// **'Go to APIs & Services → Library. Search for Google Calendar API, open its page and select Enable. Return to Library and repeat for Google Tasks API.'**
+  String get registrationGuideGoogleApis;
+
+  /// No description provided for @registrationGuideMicrosoftAudience.
+  ///
+  /// In en, this message translates to:
+  /// **'Under Supported account types, choose Personal accounts only for a personal account, Multiple Entra ID tenants for organizational accounts, Any Entra ID Tenant + Personal Microsoft accounts for both, or Single tenant only for this directory. Select Register. In Overview, copy Application (client) ID; for one tenant, also copy Directory (tenant) ID. Use the matching Supported accounts choice in BusyMax.'**
+  String get registrationGuideMicrosoftAudience;
+
+  /// No description provided for @registrationConnectBusyMax.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect with BusyMax'**
+  String get registrationConnectBusyMax;
+
+  /// No description provided for @registrationRecommended.
+  ///
+  /// In en, this message translates to:
+  /// **'Recommended'**
+  String get registrationRecommended;
+
+  /// No description provided for @registrationOtherMethods.
+  ///
+  /// In en, this message translates to:
+  /// **'Other connection methods'**
+  String get registrationOtherMethods;
+
+  /// No description provided for @registrationWorkspace.
+  ///
+  /// In en, this message translates to:
+  /// **'Google Workspace organization'**
+  String get registrationWorkspace;
+
+  /// No description provided for @registrationGoogleCustom.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom OAuth client'**
+  String get registrationGoogleCustom;
+
+  /// No description provided for @registrationMicrosoftCustom.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom app registration'**
+  String get registrationMicrosoftCustom;
+
+  /// No description provided for @registrationMethodsIntroduction.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose how to connect your account.'**
+  String get registrationMethodsIntroduction;
+
+  /// No description provided for @registrationWorkspaceDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Use a configuration managed by your organization.'**
+  String get registrationWorkspaceDescription;
+
+  /// No description provided for @registrationCustomDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Use a registration that you manage.'**
+  String get registrationCustomDescription;
+
+  /// No description provided for @registrationSharedUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'BusyMax connection is unavailable in this build. You can use another connection method below.'**
+  String get registrationSharedUnavailable;
+
+  /// No description provided for @registrationWorkspaceIntroduction.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose the Desktop OAuth JSON supplied or managed by your organization. The file does not prove organization ownership, audience, or verification status.'**
+  String get registrationWorkspaceIntroduction;
+
+  /// No description provided for @registrationWorkspaceSetupInstructions.
+  ///
+  /// In en, this message translates to:
+  /// **'Google Workspace setup instructions'**
+  String get registrationWorkspaceSetupInstructions;
+
+  /// No description provided for @registrationBusyMaxManaged.
+  ///
+  /// In en, this message translates to:
+  /// **'BusyMax-managed registration'**
+  String get registrationBusyMaxManaged;
+
+  /// No description provided for @registrationBranding.
+  ///
+  /// In en, this message translates to:
+  /// **'Configure branding and domains'**
+  String get registrationBranding;
+
+  /// No description provided for @registrationPublishing.
+  ///
+  /// In en, this message translates to:
+  /// **'Publish for normal use'**
+  String get registrationPublishing;
+
+  /// No description provided for @registrationOpenAudience.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Google Auth Platform Audience'**
+  String get registrationOpenAudience;
+
+  /// No description provided for @registrationGuideWorkspaceProject.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask your administrator for the Desktop OAuth JSON, or open Google Cloud Console and select a project owned by your Google Workspace organization. To create one, open Manage resources → Create project, enter Project name, choose your organization or one of its folders in Parent resource and select Create. Select that project for the remaining steps. Creation needs Project Creator access; configuring OAuth needs OAuth Config Editor, and enabling APIs needs Service Usage Admin or equivalent permissions. Ask the administrator if blocked.'**
+  String get registrationGuideWorkspaceProject;
+
+  /// No description provided for @registrationGuideGoogleBranding.
+  ///
+  /// In en, this message translates to:
+  /// **'In Branding → App domain, add your project’s authorized domains before entering its homepage, privacy-policy and terms-of-service URLs, then Save. External production apps need these links. Use domains you own; complete Search Console ownership verification when Google requires brand verification. BusyMax’s product privacy link below does not establish ownership of busystack.org for your project.'**
+  String get registrationGuideGoogleBranding;
+
+  /// No description provided for @registrationGuideGooglePublishing.
+  ///
+  /// In en, this message translates to:
+  /// **'In Audience, select Publish app and confirm In production. Do not leave normal use in Testing: these Calendar/Tasks authorizations and refresh tokens expire after seven days. Publishing and verification are separate. Personal use with fewer than 100 users can be exempt from verification, with unverified-app warnings and a user cap; broader distribution may require brand and scope approval. Production authorizations can still expire or be revoked.'**
+  String get registrationGuideGooglePublishing;
+
+  /// No description provided for @registrationGuideWorkspacePermissions.
+  ///
+  /// In en, this message translates to:
+  /// **'Review the scopes below with your administrator. Internal apps do not need a consent-screen scope listing. If your administrator requests one, open Data Access → Add or remove scopes, add these values, then Update and Save. Administrator controls can still restrict authorization.'**
+  String get registrationGuideWorkspacePermissions;
+
+  /// No description provided for @registrationGuideMicrosoftOptionalPermissions.
+  ///
+  /// In en, this message translates to:
+  /// **'Shared-calendar and category permissions are requested separately when those optional features are enabled; do not add them to the required setup above.'**
+  String get registrationGuideMicrosoftOptionalPermissions;
+
+  /// No description provided for @registrationGuideWorkspaceAudience.
+  ///
+  /// In en, this message translates to:
+  /// **'Go to Google Auth Platform → Branding. If setup has not started, select Get started. Enter BusyMax as the App name, choose your own User support email and select Next. In Audience, choose Internal. Select Next, enter your email under Contact Information and select Next. Accept the User Data Policy, then select Continue and Create. If already configured, review Branding and Audience.\n\nInternal allows only accounts in the project’s parent organization, subject to administrator controls. No test-user list is needed. BusyMax cannot verify these console settings from the downloaded JSON.'**
+  String get registrationGuideWorkspaceAudience;
 }
 
 class _AppLocalizationsDelegate

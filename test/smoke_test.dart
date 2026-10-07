@@ -1,3 +1,6 @@
+import 'package:flutter/material.dart';
+import 'package:busymax/src/features/settings/presentation/settings_screen.dart';
+import 'package:busymax/src/features/schedule/presentation/schedule_workspace.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
@@ -35,19 +38,20 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.text('Set Up BusyMax'), findsOneWidget);
-    expect(find.text('Connect accounts'), findsOneWidget);
+    expect(find.byType(ScheduleWorkspace), findsOneWidget);
+    await tester.tap(find.text('Add account'));
+    await tester.pumpAndSettle();
+    expect(find.byType(SettingsScreen), findsOneWidget);
     expect(find.text('Add Google account'), findsOneWidget);
     expect(find.text('Add Microsoft account'), findsOneWidget);
     expect(find.text('Add Apple iCloud Calendar account'), findsOneWidget);
     expect(find.text('Add Nextcloud account'), findsOneWidget);
-    expect(find.textContaining('GOOGLE_OAUTH_CLIENT_ID'), findsOneWidget);
-    expect(
-      find.text('Connect calendars and tasks from one of these providers.'),
-      findsOneWidget,
-    );
-    expect(find.text('Accounts'), findsNothing);
+    expect(find.textContaining('GOOGLE_OAUTH_CLIENT_ID'), findsNothing);
+    expect(find.textContaining('discontinued'), findsNothing);
+    expect(find.text('Add calendar subscription'), findsOneWidget);
     expect(find.textContaining('sync task.'), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
   });
 }
 

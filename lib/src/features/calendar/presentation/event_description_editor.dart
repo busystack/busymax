@@ -41,6 +41,8 @@ class EventDescriptionEditor extends StatefulWidget {
 class _EventDescriptionEditorState extends State<EventDescriptionEditor> {
   late final _RichDescriptionController _controller;
   var _notifying = false;
+  late String _lastEmittedText;
+  String? _lastEmittedHtml;
 
   bool get _supportsRichText => widget.provider == BusyProvider.microsoft;
 
@@ -54,6 +56,10 @@ class _EventDescriptionEditorState extends State<EventDescriptionEditor> {
             ranges: const [],
           );
     _controller = _RichDescriptionController(document);
+    _lastEmittedText = _controller.text;
+    _lastEmittedHtml = _supportsRichText
+        ? calendarDescriptionToHtml(_controller.text, _controller.ranges)
+        : null;
     _controller.addListener(_emitChanged);
   }
 
@@ -74,11 +80,16 @@ class _EventDescriptionEditorState extends State<EventDescriptionEditor> {
       final text = _controller.text;
       if (_supportsRichText) {
         final html = calendarDescriptionToHtml(text, _controller.ranges);
+        if (text == _lastEmittedText && html == _lastEmittedHtml) return;
+        _lastEmittedText = text;
+        _lastEmittedHtml = html;
         widget.onChanged(
           EventDescriptionValue(text: text, contentType: 'html', html: html),
         );
         return;
       }
+      if (text == _lastEmittedText) return;
+      _lastEmittedText = text;
       widget.onChanged(EventDescriptionValue(text: text));
     } finally {
       _notifying = false;
@@ -239,20 +250,17 @@ class _RichDescriptionController extends TextEditingController {
 
   List<CalendarDescriptionStyleRange> _ranges;
   String _previousText;
-  final _updatingRanges = false;
 
   List<CalendarDescriptionStyleRange> get ranges => List.unmodifiable(_ranges);
 
   @override
   set value(TextEditingValue newValue) {
     final oldText = text;
-    super.value = newValue;
-    if (_updatingRanges || oldText == newValue.text) {
-      _previousText = newValue.text;
-      return;
+    if (oldText != newValue.text) {
+      _ranges = _adjustRanges(_ranges, _previousText, newValue.text);
     }
-    _ranges = _adjustRanges(_ranges, _previousText, newValue.text);
     _previousText = newValue.text;
+    super.value = newValue;
   }
 
   bool selectionHasStyle(CalendarDescriptionInlineStyle style) {

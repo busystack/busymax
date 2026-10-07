@@ -14,13 +14,24 @@ flutter_bin="$(readlink -f "$flutter_bin")"
 dart_bin="$(dirname "$flutter_bin")/cache/dart-sdk/bin/dart"
 cd "$repo_root"
 "$flutter_bin" pub get --enforce-lockfile
+generated_snapshot="$(mktemp)"
+trap 'rm -f "$generated_snapshot"' EXIT
+"$dart_bin" run tool/check_generated_sources.dart snapshot "$generated_snapshot"
 "$flutter_bin" gen-l10n
 "$dart_bin" run build_runner build --force-jit
-git diff --exit-code -- lib/l10n/generated lib/src/db/app_database.g.dart
+"$dart_bin" run tool/check_generated_sources.dart verify "$generated_snapshot"
 "$dart_bin" format --output=none --set-exit-if-changed .
 "$flutter_bin" analyze
 "$dart_bin" run tool/check_platform_boundaries.dart
-"$flutter_bin" test
+test_args=()
+if [[ -n "${BUSYMAX_TEST_CONCURRENCY:-}" ]]; then
+  if [[ ! "$BUSYMAX_TEST_CONCURRENCY" =~ ^[1-9][0-9]*$ ]]; then
+    echo 'BUSYMAX_TEST_CONCURRENCY must be a positive integer.' >&2
+    exit 64
+  fi
+  test_args+=(--concurrency "$BUSYMAX_TEST_CONCURRENCY")
+fi
+"$flutter_bin" test "${test_args[@]}"
 "$repo_root/android/gradlew" --project-dir "$repo_root/android" \
   :busymax_android_platform:testDebugUnitTest :app:lintDebug
 if $build; then

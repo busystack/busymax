@@ -11,16 +11,25 @@ import 'package:busymax/src/android/presentation/android_settings_screen.dart';
 import 'package:busymax/src/android/presentation/android_tasks_screen.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/calendar_providers/cloud_calendar_client.dart';
+import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
 import 'package:busymax/src/config/build_config.dart';
 import 'package:busymax/src/db/app_database.dart';
+import 'package:busymax/src/dav/storage/dav_object_repository.dart';
+import 'package:busymax/src/dav/mutation/dav_mutation_patch.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
 import 'package:busymax/src/features/feedback/data/feedback_api_client.dart';
 import 'package:busymax/src/features/feedback/data/feedback_submission.dart';
 import 'package:busymax/src/features/notifications/notification_reconciler.dart';
+import 'package:busymax/src/features/schedule/presentation/attachment_upload_coordinator.dart';
 import 'package:busymax/src/features/recurrence/domain/recurrence_rule.dart';
 import 'package:busymax/src/features/sync/pending_mutation_sync_requester.dart';
 import 'package:busymax/src/google_calendar/google_calendar_api_client.dart';
+import 'package:busymax/src/google_calendar/google_calendar_models.dart';
+import 'package:busymax/src/microsoft_calendar/microsoft_calendar_api_client.dart';
+import 'package:busymax/src/microsoft_calendar/microsoft_calendar_models.dart';
+import 'package:busymax/src/microsoft_calendar/microsoft_shared_calendar_address.dart';
+import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_client.dart';
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
@@ -38,6 +47,7 @@ import 'package:http/testing.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../support/memory_settings_store.dart';
+import '../../test_localized_app.dart';
 
 final _longScheduleDetailsNotes = List.generate(
   60,
@@ -548,6 +558,190 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('read-only Android invitation shows details and meeting access', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(412, 915);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final harness = await _pumpApp(
+      tester,
+      AppSettings.defaults().copyWith(
+        androidScheduleViewMode: ScheduleViewMode.day,
+      ),
+      populated: true,
+    );
+    addTearDown(harness.dispose);
+    await (harness.database.update(harness.database.calendarSources)
+          ..where((row) => row.id.equals('calendar')))
+        .write(const CalendarSourcesCompanion(readOnly: Value(true)));
+    await (harness.database.update(
+      harness.database.calendarEvents,
+    )..where((row) => row.id.equals('invitation'))).write(
+      const CalendarEventsCompanion(
+        description: Value('Agenda and notes'),
+        startTimeZone: Value('Pacific/Honolulu'),
+        endTimeZone: Value('Asia/Tokyo'),
+        rawJson: Value('{"hangoutLink":"https://meet.google.com/room"}'),
+        webLink: Value('https://calendar.google.com/event'),
+        attachmentsJson: Value(
+          '[{"fileUrl":"https://drive.example/agenda",'
+          '"title":"Agenda attachment"}]',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('more').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Invitation event'));
+    await tester.pumpAndSettle();
+    expect(find.text('Agenda and notes'), findsOneWidget);
+    expect(find.text('Organizer: organizer@example.com'), findsOneWidget);
+    expect(find.text('Join meeting'), findsOneWidget);
+    expect(find.textContaining('Pacific/Honolulu'), findsNothing);
+    expect(find.textContaining('Asia/Tokyo'), findsNothing);
+    expect(find.text('Event link'), findsOneWidget);
+    expect(find.text('Agenda attachment'), findsOneWidget);
+    expect(find.text('Edit Event'), findsNothing);
+    const launcherChannel = MethodChannel('plugins.flutter.io/url_launcher');
+    messenger.setMockMethodCallHandler(launcherChannel, (_) async => false);
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(launcherChannel, null),
+    );
+    await tester.tap(find.text('Join meeting'));
+    await tester.pumpAndSettle();
+    expect(find.text('Could not open the meeting link.'), findsOneWidget);
+  });
+
+  testWidgets(
+    'Android recurring event export chooses occurrence or authoritative series',
+    (tester) async {
+      tester.view.physicalSize = const Size(412, 915);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final today = DateTime.now();
+      final day =
+          '${today.year.toString().padLeft(4, '0')}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+      final next = today.add(const Duration(days: 1));
+      final nextDay =
+          '${next.year.toString().padLeft(4, '0')}-${next.month.toString().padLeft(2, '0')}-${next.day.toString().padLeft(2, '0')}';
+      final master = <String, Object?>{
+        'id': 'invitation',
+        'iCalUID': 'series@example.test',
+        'summary': 'Invitation event',
+        'start': {'date': day},
+        'end': {'date': nextDay},
+        'recurrence': ['RRULE:FREQ=DAILY;COUNT=2'],
+        'reminders': {'useDefault': false, 'overrides': <Object>[]},
+      };
+      final client = GoogleCalendarApiClient(
+        httpClient: MockClient((request) async {
+          if (request.url.path.endsWith('/events/invitation')) {
+            return http.Response(jsonEncode(master), 200);
+          }
+          if (request.url.path.endsWith('/events')) {
+            expect(request.url.queryParameters['showDeleted'], 'true');
+            return http.Response(
+              jsonEncode({
+                'items': [master],
+              }),
+              200,
+            );
+          }
+          return http.Response('unexpected export request', 404);
+        }),
+        baseUri: Uri.parse('https://www.googleapis.com'),
+      );
+      final harness = await _pumpApp(
+        tester,
+        AppSettings.defaults().copyWith(
+          androidScheduleViewMode: ScheduleViewMode.day,
+        ),
+        populated: true,
+        googleSharingClient: client,
+      );
+      addTearDown(harness.dispose);
+      await (harness.database.update(
+        harness.database.calendarEvents,
+      )..where((row) => row.id.equals('invitation'))).write(
+        const CalendarEventsCompanion(
+          recurrenceJson: Value('["RRULE:FREQ=DAILY;COUNT=2"]'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('more').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Invitation event'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Export'));
+      await tester.pumpAndSettle();
+      expect(find.text('This event'), findsOneWidget);
+      expect(find.text('Entire series'), findsOneWidget);
+      String? exported;
+      messenger.setMockMethodCallHandler(platformChannel, (call) async {
+        if (call.method == 'createDocument') {
+          final args = (call.arguments as Map).cast<String, Object?>();
+          exported = utf8.decode((args['bytes'] as List).cast<int>());
+          return 'content://test/export.ics';
+        }
+        return null;
+      });
+      await tester.tap(find.text('Entire series'));
+      await tester.pumpAndSettle();
+      expect(exported, contains('UID:series@example.test'));
+      expect(exported, contains('RRULE:FREQ=DAILY;COUNT=2'));
+      expect(
+        await harness.database.select(harness.database.pendingOps).get(),
+        isEmpty,
+      );
+    },
+  );
+
+  testWidgets('Android timed detail labels projected local time correctly', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(412, 915);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final harness = await _pumpApp(
+      tester,
+      AppSettings.defaults().copyWith(
+        androidScheduleViewMode: ScheduleViewMode.day,
+      ),
+      populated: true,
+    );
+    addTearDown(harness.dispose);
+    final stored = await (harness.database.select(
+      harness.database.calendarEvents,
+    )..where((row) => row.id.equals('overnight'))).getSingle();
+    await (harness.database.update(
+      harness.database.calendarEvents,
+    )..where((row) => row.id.equals('overnight'))).write(
+      CalendarEventsCompanion(
+        startDateTime: Value(
+          DateTime.parse(stored.startDateTime!).toUtc().toIso8601String(),
+        ),
+        endDateTime: Value(
+          DateTime.parse(stored.endDateTime!).toUtc().toIso8601String(),
+        ),
+        startTimeZone: const Value('Pacific/Honolulu'),
+        endTimeZone: const Value('Asia/Tokyo'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final eventLabel = find.textContaining('Overnight event').first;
+    await tester.ensureVisible(eventLabel);
+    await tester.pumpAndSettle();
+    await tester.tap(eventLabel);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('UTC'), findsWidgets);
+    expect(find.textContaining('Pacific/Honolulu'), findsNothing);
+    expect(find.textContaining('Asia/Tokyo'), findsNothing);
+  });
+
   testWidgets('notification event with no writable source opens read-only', (
     tester,
   ) async {
@@ -717,12 +911,293 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Availability unknown'), findsNWidgets(2));
-      expect(find.text('free@example.com'), findsOneWidget);
-      expect(find.text('failed@example.com'), findsOneWidget);
-      expect(find.text('missing@example.com'), findsOneWidget);
+      final dialog = find.byType(AndroidGuestAvailabilityDialog);
+      expect(
+        find.descendant(of: dialog, matching: find.text('free@example.com')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: dialog, matching: find.text('failed@example.com')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: dialog, matching: find.text('missing@example.com')),
+        findsOneWidget,
+      );
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('C Android Google availability resolves event wall time', (
+    tester,
+  ) async {
+    Map<String, dynamic>? requestBody;
+    final client = GoogleCalendarApiClient(
+      httpClient: MockClient((request) async {
+        requestBody = jsonDecode(request.body) as Map<String, dynamic>;
+        return http.Response(
+          jsonEncode({
+            'calendars': {
+              'guest@example.com': {'busy': <Object>[]},
+            },
+          }),
+          200,
+        );
+      }),
+      baseUri: Uri.parse('https://www.googleapis.com'),
+      authorizationHeaderProvider: () async => 'Bearer token',
+    );
+    final harness = await _pumpApp(
+      tester,
+      AppSettings.defaults(),
+      calendarClient: client,
+    );
+    addTearDown(harness.dispose);
+    final draft = EventEditorDraft.existing(
+      eventId: 'event',
+      accountId: 'google:editable',
+      sourceId: 'calendar',
+      providerCalendarId: 'calendar',
+      title: 'Meeting',
+      allDay: false,
+      start: DateTime(2026, 7, 15, 9),
+      end: DateTime(2026, 7, 15, 10),
+      startTimeZone: 'America/Los_Angeles',
+      endTimeZone: 'America/Los_Angeles',
+      attendees: const [EventAttendeeDraft(email: 'guest@example.com')],
+    );
+    final navigator = tester.state<NavigatorState>(
+      find.byType(Navigator).first,
+    );
+    navigator.push<void>(
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          body: TextButton(
+            onPressed: () => showAndroidGuestAvailabilityDialog(
+              context,
+              accountId: draft.accountId,
+              provider: BusyProvider.google,
+              draft: draft,
+            ),
+            child: const Text('Open availability'),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Open availability'));
+    await tester.pumpAndSettle();
+    expect(requestBody?['timeMin'], '2026-07-15T16:00:00.000Z');
+    expect(requestBody?['timeMax'], '2026-07-15T17:00:00.000Z');
+  });
+
+  testWidgets('Google all-day availability uses selected calendar timezone', (
+    tester,
+  ) async {
+    Map<String, dynamic>? requestBody;
+    late EventEditorDraft draft;
+    late String calendarTimeZone;
+    final client = GoogleCalendarApiClient(
+      httpClient: MockClient((request) async {
+        requestBody = jsonDecode(request.body) as Map<String, dynamic>;
+        return http.Response(
+          jsonEncode({
+            'calendars': {
+              'guest@example.com': {'busy': <Object>[]},
+            },
+          }),
+          200,
+        );
+      }),
+      baseUri: Uri.parse('https://www.googleapis.com'),
+      authorizationHeaderProvider: () async => 'Bearer token',
+    );
+    final harness = await _pumpApp(
+      tester,
+      AppSettings.defaults(),
+      calendarClient: client,
+      seedDatabase: (database) async {
+        await database
+            .into(database.accounts)
+            .insert(
+              AccountsCompanion.insert(
+                id: 'google:editable',
+                provider: 'google',
+                authority: 'https://accounts.google.com',
+                providerAccountId: 'me@example.com',
+                credentialKind: 'oauth',
+                authState: const Value('signed_in'),
+                createdAtUtc: '2026-07-01T00:00:00Z',
+                updatedAtUtc: '2026-07-01T00:00:00Z',
+              ),
+            );
+        final repository = CalendarRepository(database: database);
+        await repository.upsertSource(
+          accountId: 'google:editable',
+          source: const CalendarSourceDto(
+            provider: BusyProvider.google,
+            providerCalendarId: 'calendar',
+            summary: 'Tokyo',
+            timeZone: 'Asia/Tokyo',
+            accessRole: 'owner',
+          ),
+        );
+        await repository.upsertEvent(
+          accountId: 'google:editable',
+          event: const CalendarEventDto(
+            provider: BusyProvider.google,
+            providerCalendarId: 'calendar',
+            providerEventId: 'all-day',
+            title: 'All day',
+            allDay: true,
+            startDate: '2026-07-15',
+            endDate: '2026-07-16',
+            attendeesJson: [
+              {'email': 'guest@example.com'},
+            ],
+          ),
+        );
+        final detail = await repository.loadEventDetail(
+          (await database.select(database.calendarEvents).getSingle()).id,
+        );
+        draft = EventEditorDraft.fromEventDetail(detail!);
+        calendarTimeZone = CalendarSourceEntity.fromRow(
+          await database.select(database.calendarSources).getSingle(),
+        ).timeZone!;
+      },
+    );
+    addTearDown(harness.dispose);
+    expect(draft.startTimeZone, isNull);
+    final navigator = tester.state<NavigatorState>(
+      find.byType(Navigator).first,
+    );
+    navigator.push<void>(
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          body: TextButton(
+            onPressed: () => showAndroidGuestAvailabilityDialog(
+              context,
+              accountId: draft.accountId,
+              provider: BusyProvider.google,
+              draft: draft,
+              calendarTimeZone: calendarTimeZone,
+            ),
+            child: const Text('Open availability'),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Open availability'));
+    await tester.pumpAndSettle();
+    expect(requestBody?['timeMin'], '2026-07-14T15:00:00.000Z');
+    expect(requestBody?['timeMax'], '2026-07-15T15:00:00.000Z');
+  });
+
+  testWidgets('Microsoft guest availability preserves mixed results', (
+    tester,
+  ) async {
+    final client = MicrosoftCalendarApiClient(
+      httpClient: MockClient(
+        (_) async => http.Response(
+          jsonEncode({
+            'value': [
+              {'scheduleId': 'free@example.com', 'scheduleItems': []},
+              {
+                'scheduleId': 'denied@example.com',
+                'error': {'responseCode': '5003', 'message': 'No access'},
+              },
+            ],
+          }),
+          200,
+          headers: {'Content-Type': 'application/json'},
+        ),
+      ),
+      baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+      responseTimeZone: 'UTC',
+      accountTenantId: '11111111-2222-4333-8444-555555555555',
+      authorizationHeaderProvider: () async => 'Bearer test-token',
+    );
+    final harness = await _pumpApp(
+      tester,
+      AppSettings.defaults(),
+      calendarClient: client,
+    );
+    addTearDown(harness.dispose);
+    await harness.database
+        .into(harness.database.accounts)
+        .insert(
+          AccountsCompanion.insert(
+            id: 'microsoft:editable',
+            provider: 'microsoft',
+            authority: 'https://login.microsoftonline.com/common',
+            providerAccountId: 'editable',
+            credentialKind: 'oauth',
+            authState: const Value('signed_in'),
+            tenantId: const Value('11111111-2222-4333-8444-555555555555'),
+            createdAtUtc: '2026-09-14T00:00:00.000Z',
+            updatedAtUtc: '2026-09-14T00:00:00.000Z',
+          ),
+        );
+    await tester.pumpAndSettle();
+    final now = DateTime.now();
+    const source = CalendarSourceEntity(
+      id: 'calendar',
+      accountId: 'microsoft:editable',
+      provider: BusyProvider.microsoft,
+      providerCalendarId: 'calendar',
+      summary: 'Editable calendar',
+      selected: true,
+      hidden: false,
+      readOnly: false,
+      isDeleted: false,
+    );
+    tester
+        .state<NavigatorState>(find.byType(Navigator).first)
+        .push<void>(
+          MaterialPageRoute(
+            builder: (_) => AndroidEventEditor(
+              sources: const [source],
+              draft: EventEditorDraft.existing(
+                eventId: 'availability-event',
+                accountId: source.accountId,
+                sourceId: source.id,
+                providerCalendarId: source.providerCalendarId,
+                title: 'Availability event',
+                allDay: false,
+                start: now,
+                end: now.add(const Duration(hours: 1)),
+                attendees: const [
+                  EventAttendeeDraft(email: 'free@example.com'),
+                  EventAttendeeDraft(email: 'denied@example.com'),
+                  EventAttendeeDraft(email: 'missing@example.com'),
+                ],
+              ),
+            ),
+          ),
+        );
+    await tester.pumpAndSettle();
+    final action = find.text('Check guest availability');
+    await _scrollUntilBuilt(tester, action);
+    await tester.ensureVisible(action);
+    await tester.tap(action);
+    await tester.pumpAndSettle();
+    expect(
+      find.text('No busy periods reported for this interval'),
+      findsOneWidget,
+    );
+    expect(find.text('Availability unknown'), findsNWidgets(2));
+    final dialog = find.byType(AndroidGuestAvailabilityDialog);
+    expect(
+      find.descendant(of: dialog, matching: find.text('denied@example.com')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: dialog, matching: find.text('missing@example.com')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('Android Settings exposes diagnostics and feedback routes', (
     tester,
@@ -730,14 +1205,23 @@ void main() {
     PackageInfo.setMockInitialValues(
       appName: 'BusyMax',
       packageName: 'io.busystack.busymax',
-      version: '0.2.3',
-      buildNumber: '3',
+      version: '0.2.4',
+      buildNumber: '4',
       buildSignature: '',
     );
     final harness = await _pumpApp(tester, AppSettings.defaults());
     addTearDown(harness.dispose);
     harness.container.read(androidSelectedDestinationProvider.notifier).state =
         2;
+    await tester.pumpAndSettle();
+
+    final nextcloud = find.text('Add Nextcloud account');
+    await _scrollUntilBuilt(tester, nextcloud);
+    await tester.tap(nextcloud);
+    await tester.pumpAndSettle();
+    expect(find.text('Set up Nextcloud'), findsOneWidget);
+    expect(find.text('Connect Nextcloud'), findsNothing);
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
     await tester.pumpAndSettle();
 
     final apple = find.text('Add Apple iCloud Calendar account');
@@ -773,7 +1257,7 @@ void main() {
     await _scrollUntilBuilt(tester, about);
     await tester.tap(about);
     await tester.pumpAndSettle();
-    expect(find.text('0.2.3'), findsOneWidget);
+    expect(find.text('0.2.4'), findsOneWidget);
     expect(
       find.descendant(
         of: find.byType(AboutDialog),
@@ -836,6 +1320,252 @@ void main() {
     expect(find.text('Delete task'), findsNothing);
     expect(find.text('Read-only account'), findsOneWidget);
     expect(find.text('Read-only list'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('assigned task deletion warns and cancellation changes nothing', (
+    tester,
+  ) async {
+    final harness = await _pumpApp(tester, AppSettings.defaults());
+    addTearDown(harness.dispose);
+    const task = TaskEntity(
+      accountId: 'google:assigned',
+      taskListId: 'assigned-list',
+      id: 'assigned-task',
+      title: 'Assigned task',
+      localDirty: false,
+      pendingDelete: false,
+      pendingMove: false,
+      rawJson: '{}',
+      assignmentInfoJson:
+          '{"surfaceType":"DOCUMENT","linkToTask":"https://docs.google.com/document/d/example"}',
+      updatedLocalAtUtc: '2026-09-14T00:00:00.000Z',
+    );
+    var mutationStarted = false;
+    tester
+        .state<NavigatorState>(find.byType(Navigator).first)
+        .push<void>(
+          MaterialPageRoute(
+            builder: (_) => AndroidTaskEditor(
+              accountId: task.accountId,
+              provider: BusyProvider.google,
+              task: task,
+              accountLabel: 'Assigned account',
+              listLabel: 'Assigned list',
+              onMutationStarted: (_) => mutationStarted = true,
+            ),
+          ),
+        );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Open in provider'), findsOneWidget);
+    expect(
+      find.text('https://docs.google.com/document/d/example'),
+      findsOneWidget,
+    );
+    final editorList = find.descendant(
+      of: find.byType(AndroidTaskEditor),
+      matching: find.byType(ListView),
+    );
+    for (
+      var step = 0;
+      step < 40 && find.text('Delete Task').evaluate().isEmpty;
+      step++
+    ) {
+      await tester.drag(editorList, const Offset(0, -400));
+      await tester.pump();
+    }
+    expect(find.text('Delete Task'), findsOneWidget);
+    await tester.ensureVisible(find.text('Delete Task'));
+    await tester.tap(find.text('Delete Task'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('original task'), findsWidgets);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(mutationStarted, isFalse);
+    expect(find.byType(AndroidTaskEditor), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'Microsoft task linked resources load only after opening detail',
+    (tester) async {
+      var requests = 0;
+      final todoClient = MicrosoftTodoRestApiClient(
+        httpClient: MockClient((request) async {
+          requests++;
+          if (request.url.path.endsWith('/attachments')) {
+            return http.Response(
+              jsonEncode({
+                'value': [
+                  {
+                    'id': 'attachment-1',
+                    'name': 'Notes.txt',
+                    'size': 12,
+                    '@odata.type': '#microsoft.graph.taskFileAttachment',
+                  },
+                ],
+              }),
+              200,
+            );
+          }
+          expect(
+            request.url.path,
+            '/v1.0/me/todo/lists/list-1/tasks/task-1/linkedResources',
+          );
+          return http.Response(
+            jsonEncode({
+              'value': [
+                {
+                  'id': 'resource-1',
+                  'applicationName': 'Planner',
+                  'displayName': 'Launch plan',
+                  'webUrl': 'https://example.test/plan',
+                },
+                {
+                  'id': 'resource-2',
+                  'applicationName': 'Outlook',
+                  'displayName': 'Message',
+                  'webUrl': 'javascript:alert(1)',
+                },
+              ],
+            }),
+            200,
+          );
+        }),
+        baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+        authorizationHeaderProvider: () async => 'Bearer token',
+      );
+      final harness = await _pumpApp(
+        tester,
+        AppSettings.defaults(),
+        todoClient: todoClient,
+      );
+      addTearDown(harness.dispose);
+      const task = TaskEntity(
+        accountId: 'microsoft:account',
+        taskListId: 'list-1',
+        id: 'task-1',
+        title: 'Task',
+        localDirty: false,
+        pendingDelete: false,
+        pendingMove: false,
+        rawJson: '{}',
+        updatedLocalAtUtc: '2026-09-14T00:00:00.000Z',
+      );
+      tester
+          .state<NavigatorState>(find.byType(Navigator).first)
+          .push<void>(
+            MaterialPageRoute(
+              builder: (_) => const AndroidTaskEditor(
+                accountId: 'microsoft:account',
+                provider: BusyProvider.microsoft,
+                task: task,
+              ),
+            ),
+          );
+      await tester.pumpAndSettle();
+      expect(requests, 0);
+      await tester.tap(find.text('Linked resources'));
+      await tester.pumpAndSettle();
+      expect(requests, 1);
+      expect(find.text('Launch plan · Planner'), findsOneWidget);
+      expect(find.text('Message · Outlook'), findsNothing);
+      await tester.tap(find.byKey(const Key('task-attachments-load')));
+      await tester.pumpAndSettle();
+      expect(requests, 2);
+      expect(find.text('Notes.txt'), findsOneWidget);
+      expect(find.text('Task'), findsWidgets);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('Android task detail keeps an uncertain upload blocked', (
+    tester,
+  ) async {
+    var posts = 0;
+    final todoClient = MicrosoftTodoRestApiClient(
+      httpClient: MockClient((request) async {
+        if (request.method == 'GET') {
+          return http.Response(jsonEncode({'value': []}), 200);
+        }
+        posts++;
+        throw http.ClientException('direct response lost');
+      }),
+      baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+      authorizationHeaderProvider: () async => 'Bearer token',
+    );
+    final harness = await _pumpApp(
+      tester,
+      AppSettings.defaults(),
+      todoClient: todoClient,
+    );
+    addTearDown(harness.dispose);
+    final coordinator = harness.container.read(
+      attachmentUploadCoordinatorProvider,
+    );
+    const accountId = 'microsoft:account';
+    const taskListId = 'list-1';
+    const taskId = 'task-1';
+    final key = AttachmentUploadCoordinator.taskKey(
+      accountId,
+      taskListId,
+      taskId,
+    );
+    await expectLater(
+      coordinator.uploadTask(
+        client: todoClient,
+        accountId: accountId,
+        taskListId: taskListId,
+        taskId: taskId,
+        name: 'notes.txt',
+        contentType: 'text/plain',
+        bytes: [1],
+      ),
+      throwsA(isA<AttachmentUploadUnresolvedException>()),
+    );
+    expect(
+      await coordinator.reconcileTask(
+        client: todoClient,
+        accountId: accountId,
+        taskListId: taskListId,
+        taskId: taskId,
+      ),
+      AttachmentUploadStatus.unresolved,
+    );
+    const task = TaskEntity(
+      accountId: accountId,
+      taskListId: taskListId,
+      id: taskId,
+      title: 'Task',
+      localDirty: false,
+      pendingDelete: false,
+      pendingMove: false,
+      rawJson: '{}',
+      updatedLocalAtUtc: '2026-09-14T00:00:00.000Z',
+    );
+    tester
+        .state<NavigatorState>(find.byType(Navigator).first)
+        .push<void>(
+          MaterialPageRoute(
+            builder: (_) => const AndroidTaskEditor(
+              accountId: accountId,
+              provider: BusyProvider.microsoft,
+              task: task,
+            ),
+          ),
+        );
+    await tester.pumpAndSettle();
+    expect(coordinator.canSubmit(key), isFalse);
+    final retry = find.text('Retry');
+    await tester.ensureVisible(retry);
+    await tester.tap(retry);
+    await tester.pumpAndSettle();
+    expect(coordinator.canSubmit(key), isFalse);
+    expect(posts, 1);
+    await tester.tap(find.text('Cancel').last);
+    await tester.pumpAndSettle();
+    expect(coordinator.canSubmit(key), isFalse);
     expect(tester.takeException(), isNull);
   });
 
@@ -999,7 +1729,10 @@ void main() {
       await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
       await tester.pumpAndSettle();
       expect(find.byType(AndroidEventEditor), findsOneWidget);
-      expect(find.text('Edited $label'), findsOneWidget);
+      expect(
+        find.descendant(of: field, matching: find.text('Edited $label')),
+        findsOneWidget,
+      );
       expect(tester.takeException(), isNull);
     });
   }
@@ -1214,6 +1947,55 @@ void main() {
         .cast<String, Object?>();
     expect(saved['recurringMutationScope'], 'singleOccurrence');
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('B synced occurrence hides recurrence-rule editor', (
+    tester,
+  ) async {
+    final harness = await _pumpApp(tester, AppSettings.defaults());
+    addTearDown(harness.dispose);
+    const source = CalendarSourceEntity(
+      id: 'calendar',
+      accountId: 'google:a',
+      provider: BusyProvider.google,
+      providerCalendarId: 'provider-a',
+      summary: 'Calendar',
+      selected: true,
+      hidden: false,
+      readOnly: false,
+      isDeleted: false,
+    );
+    final start = DateTime(2026, 8, 3, 9);
+    tester
+        .state<NavigatorState>(find.byType(Navigator).first)
+        .push<void>(
+          MaterialPageRoute(
+            builder: (_) => AndroidEventEditor(
+              sources: const [source],
+              draft: EventEditorDraft.existing(
+                eventId: 'occurrence',
+                providerRecurringEventId: 'series',
+                accountId: source.accountId,
+                sourceId: source.id,
+                providerCalendarId: source.providerCalendarId,
+                title: 'Occurrence',
+                allDay: false,
+                start: start,
+                end: start.add(const Duration(hours: 1)),
+              ),
+            ),
+          ),
+        );
+    await tester.pumpAndSettle();
+    final scopeAction = find.text(
+      'Choose whether this change applies to the entire series, only this occurrence, or this and following events.',
+    );
+    await _scrollUntilBuilt(tester, scopeAction);
+    expect(
+      find.byKey(const ValueKey('android-event-recurrence')),
+      findsNothing,
+    );
+    expect(scopeAction, findsOneWidget);
   });
 
   testWidgets('task recovery retains full creation recurrence semantics', (
@@ -1511,14 +2293,524 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('Android sharing entry opens owner calendar permissions', (
+    tester,
+  ) async {
+    var permissionReads = 0;
+    final sharingClient = GoogleCalendarApiClient(
+      httpClient: MockClient((request) async {
+        if (request.url.path.endsWith('/acl')) {
+          permissionReads++;
+          return http.Response(jsonEncode({'items': <Object>[]}), 200);
+        }
+        return http.Response('unexpected request', 404);
+      }),
+      baseUri: Uri.parse('https://www.googleapis.com'),
+    );
+    final harness = await _pumpApp(
+      tester,
+      AppSettings.defaults(),
+      seedDatabase: _seedCalendarAdministration,
+      googleSharingClient: sharingClient,
+    );
+    addTearDown(harness.dispose);
+    tester
+        .state<NavigatorState>(find.byType(Navigator).first)
+        .push<void>(
+          MaterialPageRoute(builder: (_) => const AndroidSettingsScreen()),
+        );
+    await tester.pumpAndSettle();
+    final entry = find.byKey(
+      const Key('android-manage-sharing-google:administration'),
+    );
+    await _scrollUntilBuilt(tester, entry);
+    await tester.tap(entry);
+    await tester.pumpAndSettle();
+    expect(find.text('Manage calendar sharing'), findsWidgets);
+    expect(find.byKey(const Key('calendar-sharing-recipient')), findsOneWidget);
+    expect(permissionReads, 1);
+  });
+
+  testWidgets(
+    'Android opened Microsoft calendar removal is local and cancellable',
+    (tester) async {
+      final key = const MicrosoftSharedPrimaryCalendarAddress(
+        owner: 'owner@example.test',
+        graphCalendarId: 'owner-primary',
+      ).sourceCalendarId;
+      final harness = await _pumpApp(
+        tester,
+        AppSettings.defaults(),
+        seedDatabase: (database) async {
+          await database
+              .into(database.accounts)
+              .insert(
+                AccountsCompanion.insert(
+                  id: 'microsoft:owner',
+                  provider: 'microsoft',
+                  authority: 'https://login.microsoftonline.com/common',
+                  providerAccountId: 'recipient',
+                  credentialKind: 'oauth',
+                  authState: const Value('signed_in'),
+                  calendarsEnabled: const Value(true),
+                  createdAtUtc: '2026-09-14T00:00:00Z',
+                  updatedAtUtc: '2026-09-14T00:00:00Z',
+                ),
+              );
+          await CalendarRepository(database: database).upsertSource(
+            accountId: 'microsoft:owner',
+            source: CalendarSourceDto(
+              provider: BusyProvider.microsoft,
+              providerCalendarId: key,
+              summary: 'Owner calendar',
+              readOnly: false,
+              isRemovable: true,
+            ),
+          );
+        },
+      );
+      addTearDown(harness.dispose);
+      tester
+          .state<NavigatorState>(find.byType(Navigator).first)
+          .push<void>(
+            MaterialPageRoute(builder: (_) => const AndroidSettingsScreen()),
+          );
+      await tester.pumpAndSettle();
+      await _scrollUntilBuilt(tester, find.text('Owner calendar'));
+      await tester.tap(find.text('Owner calendar').first);
+      await tester.pumpAndSettle();
+      expect(find.text('Rename'), findsNothing);
+      expect(find.text('Calendar color'), findsNothing);
+      await tester.tap(find.text('Remove from my calendars'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('will not be deleted'), findsOneWidget);
+      await tester.tap(find.text('Cancel').last);
+      await tester.pumpAndSettle();
+      expect(
+        (await harness.database
+                .select(harness.database.calendarSources)
+                .getSingle())
+            .isDeleted,
+        isFalse,
+      );
+      expect(
+        await harness.database.select(harness.database.pendingOps).get(),
+        isEmpty,
+      );
+      await tester.tap(find.text('Owner calendar').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Remove from my calendars'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Remove').last);
+      await tester.pumpAndSettle();
+      expect(
+        (await harness.database
+                .select(harness.database.calendarSources)
+                .getSingle())
+            .isDeleted,
+        isTrue,
+      );
+      expect(
+        await harness.database.select(harness.database.pendingOps).get(),
+        isEmpty,
+      );
+    },
+  );
+
+  testWidgets('Android Nextcloud edits one reminder and keeps sibling alarms', (
+    tester,
+  ) async {
+    final tomorrow = DateTime.now().toUtc().add(const Duration(days: 1));
+    final start = DateTime.utc(tomorrow.year, tomorrow.month, tomorrow.day, 16);
+    final end = start.add(const Duration(hours: 1));
+    String icsDate(DateTime value) =>
+        '${value.toUtc().toIso8601String().split('.').first.replaceAll('-', '').replaceAll(':', '')}Z';
+    const accountId = 'nextcloud:event-reminders';
+    const collectionId = 'reminders-collection';
+    const href = '/remote.php/dav/calendars/user/work/';
+    late CalendarSourceEntity seededSource;
+    late EventEditorDraft seededDraft;
+    late String seededEventId;
+    final raw =
+        'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\n'
+        'UID:reminders@example.test\r\nDTSTART:${icsDate(start)}\r\n'
+        'DTEND:${icsDate(end)}\r\nSUMMARY:Reminders\r\n'
+        'BEGIN:VALARM\r\nACTION:DISPLAY\r\nTRIGGER:-PT15M\r\n'
+        'DESCRIPTION:First\r\nX-KEEP:first\r\nEND:VALARM\r\n'
+        'BEGIN:VALARM\r\nACTION:DISPLAY\r\nTRIGGER:-PT30M\r\n'
+        'DESCRIPTION:Second\r\nX-KEEP:second\r\nEND:VALARM\r\n'
+        'BEGIN:VALARM\r\nACTION:DISPLAY\r\n'
+        'TRIGGER;RELATED=END:-PT0M\r\n'
+        'DESCRIPTION:At end\r\nX-KEEP:end\r\nEND:VALARM\r\n'
+        'BEGIN:VALARM\r\nACTION:AUDIO\r\nTRIGGER:-PT5M\r\n'
+        'X-KEEP:audio\r\nEND:VALARM\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n';
+    final harness = await _pumpApp(
+      tester,
+      AppSettings.defaults(),
+      notificationBackend: _PermissionOnlyNotifications(),
+      onCalendarSync: (_) async {},
+      seedDatabase: (database) async {
+        await tester.runAsync(() async {
+          await database
+              .into(database.accounts)
+              .insert(
+                AccountsCompanion.insert(
+                  id: accountId,
+                  provider: 'nextcloud',
+                  authority: 'https://cloud.example.test',
+                  providerAccountId: 'user',
+                  credentialKind: 'nextcloud_app_password',
+                  authState: const Value('signed_in'),
+                  createdAtUtc: start.toIso8601String(),
+                  updatedAtUtc: start.toIso8601String(),
+                ),
+              );
+          await database
+              .into(database.davCollections)
+              .insert(
+                DavCollectionsCompanion.insert(
+                  id: collectionId,
+                  accountId: accountId,
+                  hrefKey: href,
+                  requestUri: 'https://cloud.example.test$href',
+                  displayName: 'Work',
+                  supportedComponentMask: const Value(1),
+                  currentUserPrivilegesJson: const Value(
+                    '["{DAV:}read","{DAV:}write"]',
+                  ),
+                  readOnly: const Value(false),
+                  eventProjectionEnabled: const Value(true),
+                  createdAtUtc: start.toIso8601String(),
+                  updatedAtUtc: start.toIso8601String(),
+                ),
+              );
+          await database
+              .into(database.calendarSources)
+              .insert(
+                CalendarSourcesCompanion.insert(
+                  id: 'dav-calendar-$collectionId',
+                  accountId: accountId,
+                  provider: 'nextcloud',
+                  providerCalendarId: href,
+                  davCollectionId: const Value(collectionId),
+                  summary: 'Work',
+                  createdAtLocal: 0,
+                  updatedAtLocal: 0,
+                ),
+              );
+          final prepared = DavPreparedObject.parse(
+            hrefKey: '${href}reminders.ics',
+            requestUri: Uri.parse(
+              'https://cloud.example.test${href}reminders.ics',
+            ),
+            etag: '"v1"',
+            contentType: 'text/calendar',
+            rawIcsBody: raw,
+          );
+          await DavObjectRepository(database: database).commit(
+            DavCollectionCommit(
+              accountId: accountId,
+              collectionId: collectionId,
+              provider: BusyProvider.nextcloud,
+              objects: [prepared],
+              deletedHrefKeys: const {},
+              completeMembership: true,
+              membershipHrefKeys: {prepared.hrefKey},
+              finalCursorKind: 'dav_sync_token',
+              finalCursorValue: 'sync-1',
+              baselineGeneration: 1,
+              completedAtUtc: DateTime.now().toUtc(),
+              projectionRangeStartUtc: start.subtract(const Duration(days: 1)),
+              projectionRangeEndUtc: end.add(const Duration(days: 1)),
+            ),
+          );
+          final repository = CalendarRepository(database: database);
+          seededSource = (await repository.watchSourcesForAccounts([
+            accountId,
+          ]).first).single;
+          seededEventId =
+              (await database.select(database.calendarEvents).getSingle()).id;
+          seededDraft = EventEditorDraft.fromEventDetail(
+            (await repository.loadEventDetail(seededEventId))!,
+          );
+        });
+      },
+    );
+    addTearDown(harness.dispose);
+    final repository = CalendarRepository(database: harness.database);
+    expect(seededSource.capabilities.canEditEvents, isTrue);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: harness.container,
+        child: localizedTestApp(
+          child: const Scaffold(body: Text('Editor host')),
+        ),
+      ),
+    );
+    tester
+        .state<NavigatorState>(find.byType(Navigator).first)
+        .push<void>(
+          MaterialPageRoute(
+            builder: (_) =>
+                AndroidEventEditor(sources: [seededSource], draft: seededDraft),
+          ),
+        );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    final second = find.byKey(const Key('android-event-dav-reminder-1'));
+    await _scrollUntilBuilt(tester, second);
+    expect(
+      find.byKey(const Key('android-event-dav-reminder-0')),
+      findsOneWidget,
+    );
+    tester.widget<DropdownButtonFormField<int>>(second).onChanged!.call(45);
+    await tester.pump();
+    await tester.tap(find.widgetWithText(TextButton, 'Save'));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.byType(AndroidEventEditor), findsNothing);
+    final operations = (await tester.runAsync(
+      () => harness.database.select(harness.database.pendingOps).get(),
+    ))!;
+    expect(operations, hasLength(1));
+    expect(operations.single.operationType, 'dav.update');
+    final queuedBody =
+        DavMutationPatch.fromJsonString(
+          operations.single.mutationPatchJson!,
+        ).applyTo(
+          operations.single.baselineRawIcs!,
+          nowUtc: DateTime.now().toUtc(),
+        );
+    expect(queuedBody, contains('TRIGGER:-PT45M'));
+    expect(queuedBody, contains('X-KEEP:first'));
+    expect(queuedBody, contains('X-KEEP:second'));
+    expect(queuedBody, contains('TRIGGER;RELATED=END:-PT0M'));
+    expect(queuedBody, contains('X-KEEP:end'));
+    expect(queuedBody, contains('X-KEEP:audio'));
+    final updated = (await tester.runAsync(
+      () => repository.loadEventDetail(seededEventId),
+    ))!;
+    final editedRows = androidNextcloudEditableReminderRows(updated.reminders)!;
+    expect(editedRows.map((row) => row.minutes), [15, 45]);
+    expect(jsonEncode(updated.reminders), contains('X-KEEP'));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Android event label selection queues the scoped ID', (
+    tester,
+  ) async {
+    final harness = await _pumpApp(
+      tester,
+      AppSettings.defaults(),
+      seedDatabase: _seedCalendarAdministration,
+      googleLabels: const [
+        GoogleEventLabel(
+          id: 'label-1',
+          name: 'Project',
+          backgroundColor: '#336699',
+        ),
+      ],
+    );
+    addTearDown(harness.dispose);
+    const source = CalendarSourceEntity(
+      id: 'administration-calendar',
+      accountId: 'google:administration',
+      provider: BusyProvider.google,
+      providerCalendarId: 'administration-calendar',
+      summary: 'Administration calendar',
+      selected: true,
+      hidden: false,
+      readOnly: false,
+      isDeleted: false,
+      accessRole: 'owner',
+    );
+    final now = DateTime.now().add(const Duration(hours: 1));
+    tester
+        .state<NavigatorState>(find.byType(Navigator).first)
+        .push<void>(
+          MaterialPageRoute(
+            builder: (_) => AndroidEventEditor(
+              sources: const [source],
+              draft: EventEditorDraft.newEvent(
+                accountId: source.accountId,
+                sourceId: source.id,
+                providerCalendarId: source.providerCalendarId,
+                start: now,
+                end: now.add(const Duration(hours: 1)),
+              ).copyWith(title: 'Planning'),
+            ),
+          ),
+        );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    final selector = find.byKey(
+      const Key('android-event-label-administration-calendar'),
+    );
+    await _scrollUntilBuilt(tester, selector);
+    expect(tester.takeException(), isNull);
+    tester
+        .widget<DropdownButtonFormField<String>>(selector)
+        .onChanged!
+        .call('label-1');
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.widgetWithText(TextButton, 'Save'));
+    await tester.pumpAndSettle();
+    final ops = await harness.database
+        .select(harness.database.pendingOps)
+        .get();
+    expect(ops, hasLength(1));
+    expect(jsonDecode(ops.single.requestJson)['eventLabelId'], 'label-1');
+    await tester.pump(const Duration(seconds: 6));
+  });
+
+  testWidgets('Android primary Google editor queues native focus time', (
+    tester,
+  ) async {
+    final harness = await _pumpApp(
+      tester,
+      AppSettings.defaults(),
+      seedDatabase: _seedGoogleStatusCalendar,
+      googleLabels: const [],
+    );
+    addTearDown(harness.dispose);
+    const source = CalendarSourceEntity(
+      id: 'status-calendar',
+      accountId: 'google:status',
+      provider: BusyProvider.google,
+      providerCalendarId: 'status-calendar',
+      summary: 'Primary',
+      selected: true,
+      hidden: false,
+      readOnly: false,
+      isDeleted: false,
+      primaryCalendar: true,
+      accessRole: 'owner',
+    );
+    final now = DateTime.now().add(const Duration(hours: 1));
+    tester
+        .state<NavigatorState>(find.byType(Navigator).first)
+        .push<void>(
+          MaterialPageRoute(
+            builder: (_) => AndroidEventEditor(
+              sources: const [source],
+              draft: EventEditorDraft.newEvent(
+                accountId: source.accountId,
+                sourceId: source.id,
+                providerCalendarId: source.providerCalendarId,
+                start: now,
+                end: now.add(const Duration(hours: 1)),
+              ).copyWith(title: 'Focus'),
+            ),
+          ),
+        );
+    await tester.pumpAndSettle();
+    final type = find.byKey(const Key('android-google-event-type'));
+    await _scrollUntilBuilt(tester, type);
+    tester
+        .widget<DropdownButtonFormField<String>>(type)
+        .onChanged!
+        .call('focusTime');
+    await tester.pumpAndSettle();
+    final decline = find.byKey(const Key('android-google-auto-decline'));
+    await _scrollUntilBuilt(tester, decline);
+    tester
+        .widget<DropdownButtonFormField<String>>(decline)
+        .onChanged!
+        .call('declineOnlyNewConflictingInvitations');
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Save'));
+    await tester.pumpAndSettle();
+    final request =
+        jsonDecode(
+              (await harness.database
+                      .select(harness.database.pendingOps)
+                      .getSingle())
+                  .requestJson,
+            )
+            as Map;
+    expect(request['eventType'], 'focusTime');
+    expect(
+      (request['googleStatusProperties'] as Map)['autoDeclineMode'],
+      'declineOnlyNewConflictingInvitations',
+    );
+    await tester.pump(const Duration(seconds: 6));
+  });
+
+  testWidgets('Android Microsoft category choice queues all assignments', (
+    tester,
+  ) async {
+    final harness = await _pumpApp(
+      tester,
+      AppSettings.defaults(),
+      seedDatabase: _seedMicrosoftCategoryCalendar,
+      microsoftCategories: const [
+        MicrosoftMasterCategory(
+          id: 'category-1',
+          displayName: 'Work',
+          color: 'preset7',
+        ),
+      ],
+    );
+    addTearDown(harness.dispose);
+    const source = CalendarSourceEntity(
+      id: 'microsoft-category-calendar',
+      accountId: 'microsoft:categories',
+      provider: BusyProvider.microsoft,
+      providerCalendarId: 'calendar',
+      summary: 'Work calendar',
+      selected: true,
+      hidden: false,
+      readOnly: false,
+      isDeleted: false,
+    );
+    final now = DateTime.now().add(const Duration(hours: 1));
+    tester
+        .state<NavigatorState>(find.byType(Navigator).first)
+        .push<void>(
+          MaterialPageRoute(
+            builder: (_) => AndroidEventEditor(
+              sources: const [source],
+              draft: EventEditorDraft.newEvent(
+                accountId: source.accountId,
+                sourceId: source.id,
+                providerCalendarId: source.providerCalendarId,
+                start: now,
+                end: now.add(const Duration(hours: 1)),
+              ).copyWith(title: 'Planning', categories: ['Unknown']),
+            ),
+          ),
+        );
+    await tester.pumpAndSettle();
+    final option = find.widgetWithText(FilterChip, 'Work');
+    await _scrollUntilBuilt(tester, option);
+    await tester.tap(option);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Save'));
+    await tester.pumpAndSettle();
+    final request =
+        jsonDecode(
+              (await harness.database
+                      .select(harness.database.pendingOps)
+                      .getSingle())
+                  .requestJson,
+            )
+            as Map;
+    expect(request['categoriesJson'], ['Unknown', 'Work']);
+    await tester.pump(const Duration(seconds: 6));
+  });
+
   testWidgets('Android feedback preserves failure and rotates edited retry', (
     tester,
   ) async {
     PackageInfo.setMockInitialValues(
       appName: 'BusyMax',
       packageName: 'io.busystack.busymax',
-      version: '0.2.3',
-      buildNumber: '3',
+      version: '0.2.4',
+      buildNumber: '4',
       buildSignature: '',
     );
     final feedback = _RecordingFeedbackService();
@@ -1647,6 +2939,11 @@ Future<_AndroidAppHarness> _pumpApp(
   Future<void> Function(String accountId)? onCalendarSync,
   FeedbackSubmissionService? feedbackService,
   CloudCalendarClient? calendarClient,
+  GoogleCalendarApiClient? googleSharingClient,
+  List<GoogleEventLabel>? googleLabels,
+  List<MicrosoftMasterCategory>? microsoftCategories,
+  MicrosoftTodoApiClient? todoClient,
+  AndroidNotificationBackend? notificationBackend,
   Future<void> Function(ScheduleRange range)? scheduleProjectionCoverage,
 }) async {
   final database = AppDatabase.memoryForTests();
@@ -1655,6 +2952,7 @@ Future<_AndroidAppHarness> _pumpApp(
   final notifications = AndroidNotificationService(
     database: database,
     settings: () => settings,
+    backend: notificationBackend,
   );
   final container = ProviderContainer(
     overrides: [
@@ -1692,6 +2990,22 @@ Future<_AndroidAppHarness> _pumpApp(
         calendarRemoteApiClientForAccountProvider.overrideWith(
           (ref, accountId) => calendarClient,
         ),
+      if (googleSharingClient != null)
+        googleCalendarApiClientForAccountProvider.overrideWith(
+          (ref, accountId) => googleSharingClient,
+        ),
+      if (googleLabels != null)
+        googleEventLabelsForCalendarProvider.overrideWith(
+          (ref, key) async => googleLabels,
+        ),
+      if (microsoftCategories != null)
+        microsoftMasterCategoriesProvider.overrideWith(
+          (ref, accountId) async => microsoftCategories,
+        ),
+      if (todoClient != null)
+        microsoftTodoApiClientForAccountProvider.overrideWith(
+          (ref, accountId) => todoClient,
+        ),
       initialAppSettingsProvider.overrideWithValue(settings),
       localSettingsStoreProvider.overrideWithValue(MemorySettingsStore()),
       allAccountsSyncRunnerProvider.overrideWithValue(() async {}),
@@ -1700,7 +3014,7 @@ Future<_AndroidAppHarness> _pumpApp(
       ),
       androidNotificationServiceProvider.overrideWithValue(notifications),
       davTaskCollectionCapabilitiesProvider.overrideWith(
-        (ref, key) async => nextcloudTaskCollectionCapabilities,
+        (ref, key) => Stream.value(nextcloudTaskCollectionCapabilities),
       ),
     ],
   );
@@ -2026,6 +3340,73 @@ Future<void> _seedCalendarAdministration(AppDatabase database) async {
       );
 }
 
+Future<void> _seedGoogleStatusCalendar(AppDatabase database) async {
+  const timestamp = '2026-09-14T00:00:00.000Z';
+  await database
+      .into(database.accounts)
+      .insert(
+        AccountsCompanion.insert(
+          id: 'google:status',
+          provider: 'google',
+          authority: 'https://accounts.google.com',
+          providerAccountId: 'status',
+          credentialKind: 'oauth',
+          authState: const Value('signed_in'),
+          displayName: const Value('Status account'),
+          email: const Value('owner@example.com'),
+          createdAtUtc: timestamp,
+          updatedAtUtc: timestamp,
+        ),
+      );
+  await database
+      .into(database.calendarSources)
+      .insert(
+        CalendarSourcesCompanion.insert(
+          id: 'status-calendar',
+          accountId: 'google:status',
+          provider: 'google',
+          providerCalendarId: 'status-calendar',
+          summary: 'Primary',
+          primaryCalendar: const Value(true),
+          accessRole: const Value('owner'),
+          createdAtLocal: 1,
+          updatedAtLocal: 1,
+        ),
+      );
+}
+
+Future<void> _seedMicrosoftCategoryCalendar(AppDatabase database) async {
+  const timestamp = '2026-09-14T00:00:00.000Z';
+  await database
+      .into(database.accounts)
+      .insert(
+        AccountsCompanion.insert(
+          id: 'microsoft:categories',
+          provider: 'microsoft',
+          authority: 'https://login.microsoftonline.com/common',
+          providerAccountId: 'categories',
+          credentialKind: 'oauth',
+          authState: const Value('signed_in'),
+          createdAtUtc: timestamp,
+          updatedAtUtc: timestamp,
+        ),
+      );
+  await database
+      .into(database.calendarSources)
+      .insert(
+        CalendarSourcesCompanion.insert(
+          id: 'microsoft-category-calendar',
+          accountId: 'microsoft:categories',
+          provider: 'microsoft',
+          providerCalendarId: 'calendar',
+          summary: 'Work calendar',
+          accessRole: const Value('writer'),
+          createdAtLocal: 1,
+          updatedAtLocal: 1,
+        ),
+      );
+}
+
 final class _RecordingFeedbackService implements FeedbackSubmissionService {
   final List<FeedbackSubmission> submissions = [];
   bool fail = true;
@@ -2036,6 +3417,12 @@ final class _RecordingFeedbackService implements FeedbackSubmissionService {
     if (fail) throw const FeedbackServerFailure(statusCode: 503);
     return const FeedbackReceipt(id: 'feedback-test-receipt');
   }
+}
+
+final class _PermissionOnlyNotifications extends Fake
+    implements AndroidNotificationBackend {
+  @override
+  Future<bool> requestNotificationPermission() async => true;
 }
 
 final class _AndroidAppHarness {

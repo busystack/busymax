@@ -19,11 +19,6 @@ BusyMax-specific notes for the platform-scoped package copies are in:
 
 ## XDG StatusNotifierItem changes
 
-The vendored XDG package keeps its upstream
-[README](xdg_status_notifier_item/README.md),
-[CHANGELOG](xdg_status_notifier_item/CHANGELOG.md), and
-[contribution guide](xdg_status_notifier_item/CONTRIBUTING.md) unchanged.
-
 BusyMax's local patches:
 
 - widen the Dart SDK constraint for Dart 3;

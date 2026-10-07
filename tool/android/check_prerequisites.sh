@@ -14,7 +14,7 @@ done
 
 flutter_bin="${BUSYMAX_FLUTTER_EXECUTABLE:-$(command -v flutter || true)}"
 if [[ -z "$flutter_bin" || ! -x "$flutter_bin" ]]; then
-  echo 'Flutter is missing. Install Flutter 3.47.4 and put it on PATH.' >&2
+  echo 'Flutter is missing. Install Flutter 3.47.5 and put it on PATH.' >&2
   exit 1
 fi
 flutter_bin="$(readlink -f "$flutter_bin")"
@@ -26,12 +26,15 @@ fi
 "$dart_bin" "$repo_root/tool/verify_flutter_sdk.dart" \
   --flutter "$flutter_bin" \
   --dart "$dart_bin" \
-  --expected-flutter 3.47.4 \
-  --expected-dart 3.13.3
+  --expected-flutter 3.47.5 \
+  --expected-dart 3.13.4
 
 java_version="$(java -version 2>&1 | sed -n '1s/.*version "\([^"]*\)".*/\1/p')"
-if [[ "$java_version" != 17.* ]]; then
-  echo "JDK 17 is required; the active Java reports '${java_version:-unknown}'." >&2
+# The pinned Gradle 9.4.1 supports running on Java 17 through 26.
+# https://docs.gradle.org/9.4.1/userguide/compatibility.html
+java_major="${java_version%%.*}"
+if [[ ! "$java_major" =~ ^[0-9]+$ ]] || ((java_major < 17 || java_major > 26)); then
+  echo "The pinned Gradle requires supported JDK 17–26; the active Java reports '${java_version:-unknown}'." >&2
   exit 1
 fi
 
@@ -59,7 +62,7 @@ if $require_provider; then
     echo 'Copy android/busymax.android.properties.example to android/busymax.android.properties and configure the public provider registrations.' >&2
     exit 1
   fi
-  for key in microsoft.clientId microsoft.signatureHash; do
+  for key in microsoft.signatureHash; do
     if ! grep -Eq "^${key//./\\.}=.+" "$config"; then
       echo "Android public configuration is missing $key." >&2
       exit 1
@@ -81,6 +84,6 @@ if $require_signing; then
   done
 fi
 
-echo 'PASSED: Flutter 3.47.4, bundled Dart 3.13.3, JDK 17, Android API 37, and Build Tools 37.x are available.'
+echo 'PASSED: Flutter 3.47.5, bundled Dart 3.13.4, supported JDK, Android API 37, and Build Tools 37.x are available.'
 echo "Flutter: $flutter_bin"
 echo "Android SDK: $sdk_root"
