@@ -32,6 +32,7 @@ migrate_working_dir/
 .pub/
 /build/
 /coverage/
+/dist/
 
 # Per-run evidence belongs in build/ or a temporary directory.
 /docs/validation/
