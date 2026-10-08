@@ -91,19 +91,10 @@ final class RegistrationStaging extends ChangeNotifier {
     }
     if (provider == BusyProvider.microsoft &&
         config.hasBusyMaxMicrosoftRegistration) {
-      final authority = config.busyMaxMicrosoftOAuthAuthorityTenant
-          .trim()
-          .toLowerCase();
       return stage(
         MicrosoftPublicRegistration(
           clientId: config.busyMaxMicrosoftOAuthClientId,
-          audience: switch (authority) {
-            'common' => MicrosoftAudience.personalAndOrganizations,
-            'organizations' => MicrosoftAudience.organizations,
-            'consumers' => MicrosoftAudience.personal,
-            _ => MicrosoftAudience.tenant,
-          },
-          tenantId: isUuid(authority) ? authority : null,
+          audience: MicrosoftAudience.personalAndOrganizations,
           origin: RegistrationOrigin.busyMaxManaged,
         ),
       );

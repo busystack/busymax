@@ -3,8 +3,14 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
+const _productionCondition =
+    "if: github.event_name == 'workflow_dispatch' && "
+    "inputs.production_release && github.ref == 'refs/heads/main'";
+const _ciCondition =
+    "if: github.event_name != 'workflow_dispatch' || !inputs.production_release";
+
 void main() {
-  test('Linux CI uploads only a configured installable strict Snap', () {
+  test('Linux builds installable strict Snaps with the pinned SDK', () {
     final workflow = File(
       '.github/workflows/flutter-linux.yml',
     ).readAsStringSync();
@@ -75,20 +81,14 @@ void main() {
     );
     expect(workflow, contains('tool/check_desktop_oauth_config.dart'));
     expect(workflow, contains('BUSYMAX_GOOGLE_OAUTH_PROJECT_ID'));
-    expect(workflow, contains('BUSYMAX_MICROSOFT_OAUTH_AUTHORITY_TENANT'));
+    expect(workflow, contains('BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID'));
+    expect(workflow, contains('MICROSOFT_OAUTH_AUTHORITY_TENANT'));
     expect(workflow, contains('https://busystack.org/privacy-busymax'));
     expect(workflow, contains('for key in GOOGLE_OAUTH_CLIENT_ID'));
     expect(workflow, contains(r'grep -aFq -- "${!key}"'));
     expect(workflow, contains(r'grep -aFq -- "$GOOGLE_OAUTH_CLIENT_SECRET"'));
-    expect(workflow, contains('name: busymax-snap'));
+    expect(workflow, contains('name: busymax-snap\n'));
     expect(workflow, contains(r'path: ${{ steps.snapcraft.outputs.snap }}'));
-    expect(
-      RegExp(
-        r'- name: Upload Snap artifact\s+'
-        r"if: github\.event_name == 'push'",
-      ).hasMatch(workflow),
-      isTrue,
-    );
     expect(workflow, contains('sudo snap install --dangerous'));
     expect(workflow, contains('snap info --verbose busymax'));
     expect(workflow, contains(r'confinement:[[:space:]]+strict'));
@@ -113,45 +113,143 @@ void main() {
         workflow.indexOf('concurrency:'),
         workflow.indexOf('\njobs:'),
       );
-      final upload = _stepBlock(workflow, 'Upload Snap artifact');
 
       expect(
         _triggerBlock(triggers, 'pull_request'),
         'pull_request:\n    branches: [main]',
       );
       expect(_triggerBlock(triggers, 'push'), 'push:\n    branches: [main]');
-      expect(triggers, isNot(contains('workflow_dispatch:')));
+      final manual = _triggerBlock(triggers, 'workflow_dispatch');
+      expect(manual, contains('production_release:'));
+      expect(manual, contains('type: boolean'));
+      expect(manual, contains('required: true'));
+      expect(manual, contains('default: false'));
       expect(triggers, isNot(contains('Release/**')));
       expect(
         concurrency,
         contains(r'group: ${{ github.workflow }}-${{ github.ref }}'),
       );
       expect(concurrency, contains('cancel-in-progress: true'));
-      expect(upload, contains("if: github.event_name == 'push'"));
-      expect(upload, contains('retention-days: 7'));
-      expect(upload, contains('if-no-files-found: error'));
+      for (final name in [
+        'Upload non-production Snap artifact',
+        'Upload Snap artifact',
+      ]) {
+        final upload = _stepBlock(workflow, name);
+        expect(upload, contains('retention-days: 7'));
+        expect(upload, contains('if-no-files-found: error'));
+        expect(
+          workflow.indexOf('- name: $name'),
+          greaterThan(workflow.indexOf('- name: Verify installed strict Snap')),
+          reason: 'Only verified artifacts may be uploaded.',
+        );
+      }
     },
   );
 
-  test('Linux CI validates the strict Snap on pull requests', () {
-    final workflow = File(
-      '.github/workflows/flutter-linux.yml',
-    ).readAsStringSync();
+  test(
+    'routine Linux CI needs no production credentials and verifies its Snap',
+    () {
+      final workflow = File(
+        '.github/workflows/flutter-linux.yml',
+      ).readAsStringSync();
 
-    for (final name in [
-      'Build strict Snap from the release bundle',
-      'Install strict Snap',
-      'Verify installed strict Snap',
-    ]) {
-      final step = _stepBlock(workflow, name);
-      expect(step, contains('- name: $name'));
-      expect(
-        step,
-        isNot(contains('\n        if:')),
-        reason: '$name must run for pull requests.',
+      for (final name in [
+        'Resolve dependencies',
+        'Generate localizations',
+        'Generate Drift code',
+        'Check formatting',
+        'Analyze',
+        'Check platform boundaries',
+        'Test',
+        'Test GTK header-icon bridge',
+        'Test native clock patterns, weekday locale, and GTK time picker',
+        'Test native registration helper teardown',
+        'Test native registration configuration handles',
+        'Build unconfigured release with usable custom registration paths',
+        'Build strict Snap from the release bundle',
+        'Install strict Snap',
+        'Verify installed strict Snap',
+      ]) {
+        final step = _stepBlock(workflow, name);
+        expect(step, contains('- name: $name'));
+        expect(
+          step,
+          isNot(contains('\n        if:')),
+          reason: '$name must run for both pull requests and main pushes.',
+        );
+        expect(step, isNot(contains('secrets.')));
+        expect(step, isNot(contains('vars.')));
+      }
+      final unconfigured = _stepBlock(
+        workflow,
+        'Build unconfigured release with usable custom registration paths',
       );
-    }
-  });
+      expect(unconfigured, isNot(contains('--dart-define')));
+      expect(unconfigured, contains('docs/google_setup.md'));
+      expect(unconfigured, contains('docs/microsoft_setup.md'));
+      final label = _stepBlock(workflow, 'Label non-production Snap artifact');
+      final upload = _stepBlock(
+        workflow,
+        'Upload non-production Snap artifact',
+      );
+      expect(label, contains(_ciCondition));
+      expect(upload, contains(_ciCondition));
+      expect(label, contains('build/busymax-snap-ci-non-production.snap'));
+      expect(
+        upload,
+        contains('path: build/busymax-snap-ci-non-production.snap'),
+      );
+      expect(upload, contains('name: busymax-snap-ci-non-production'));
+      expect(workflow, isNot(contains('snapcraft upload')));
+    },
+  );
+
+  test(
+    'production validation, build and artifact require explicit main dispatch',
+    () {
+      final workflow = File(
+        '.github/workflows/flutter-linux.yml',
+      ).readAsStringSync();
+      final guard = _stepBlock(workflow, 'Require main for manual runs');
+      expect(
+        guard,
+        contains(
+          "if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'",
+        ),
+      );
+      expect(guard, contains('::error::'));
+      expect(guard, contains('exit 1'));
+      expect(
+        workflow.indexOf('- name: Require main for manual runs'),
+        lessThan(workflow.indexOf('- name: Check out repository')),
+      );
+      const validation =
+          'Validate production registrations and protected originals';
+      const build =
+          'Build official Linux release with explicit active registrations';
+      for (final name in [validation, build, 'Upload Snap artifact']) {
+        expect(_stepBlock(workflow, name), contains(_productionCondition));
+      }
+      for (final step in workflow.split(RegExp(r'(?=      - name:)'))) {
+        if (step.contains('secrets.') || step.contains('vars.')) {
+          expect(step, contains(_productionCondition));
+        }
+      }
+      expect(
+        _stepBlock(workflow, validation),
+        contains('tool/check_desktop_oauth_config.dart'),
+      );
+      expect(_stepBlock(workflow, build), contains('--dart-define-from-file='));
+      expect(
+        workflow.indexOf('- name: $validation'),
+        lessThan(workflow.indexOf('- name: $build')),
+      );
+      expect(
+        workflow.indexOf('- name: $build'),
+        lessThan(workflow.indexOf('- name: Build strict Snap')),
+      );
+    },
+  );
 
   test(
     'official release checks report prerequisites without exposing credentials',
@@ -188,7 +286,6 @@ void main() {
         'BUSYMAX_GOOGLE_OAUTH_PROJECT_ID': 'fixture-active',
         'BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID':
             '33333333-3333-3333-3333-333333333333',
-        'BUSYMAX_MICROSOFT_OAUTH_AUTHORITY_TENANT': 'organizations',
         'BUSYMAX_PRIVACY_POLICY_URL': 'https://busystack.org/privacy-busymax',
       };
       final complete = await check(values);
@@ -200,12 +297,26 @@ void main() {
         isNot(contains(values['BUSYMAX_GOOGLE_OAUTH_CLIENT_SECRET'])),
       );
 
-      final noAudience = await check({
-        ...values,
-        'BUSYMAX_MICROSOFT_OAUTH_AUTHORITY_TENANT': '',
+      for (final invalid in ['', 'not-a-client-id']) {
+        final invalidMicrosoft = await check({
+          ...values,
+          'BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID': invalid,
+        });
+        expect(invalidMicrosoft.exitCode, 1);
+        expect(
+          invalidMicrosoft.stderr,
+          contains('External prerequisite: Microsoft'),
+        );
+      }
+      final originalOnly = await check({
+        'GOOGLE_OAUTH_CLIENT_ID': values['GOOGLE_OAUTH_CLIENT_ID'],
+        'GOOGLE_OAUTH_CLIENT_SECRET': 'fixture-original-secret',
+        'MICROSOFT_OAUTH_CLIENT_ID': values['MICROSOFT_OAUTH_CLIENT_ID'],
+        'BUSYMAX_PRIVACY_POLICY_URL': values['BUSYMAX_PRIVACY_POLICY_URL'],
       });
-      expect(noAudience.exitCode, 1);
-      expect(noAudience.stderr, contains('External prerequisite: Microsoft'));
+      expect(originalOnly.exitCode, 1);
+      expect(originalOnly.stderr, contains('External prerequisite: Google'));
+      expect(originalOnly.stderr, contains('External prerequisite: Microsoft'));
       final ci = await check({
         ...values,
         'BUSYMAX_GOOGLE_OAUTH_CLIENT_ID':
@@ -213,6 +324,13 @@ void main() {
       });
       expect(ci.exitCode, 1);
       expect(ci.stderr, contains('Synthetic CI'));
+      final microsoftCi = await check({
+        ...values,
+        'BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID':
+            '44444444-4444-4444-4444-444444444444',
+      });
+      expect(microsoftCi.exitCode, 1);
+      expect(microsoftCi.stderr, contains('Synthetic CI'));
       final paddedCi = await check({
         ...values,
         'BUSYMAX_GOOGLE_OAUTH_CLIENT_SECRET': ' synthetic-ci-public-secret ',
@@ -237,6 +355,7 @@ void main() {
       expect(malformed.stderr, contains('Cannot read a JSON object'));
       expect(malformed.stderr, isNot(contains('must-not-be-printed')));
     },
+    timeout: const Timeout(Duration(minutes: 2)),
   );
 }
 
