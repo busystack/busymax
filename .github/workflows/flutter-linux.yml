@@ -31,6 +31,12 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
 
+      - name: Validate release PR source branch
+        if: github.event_name == 'pull_request'
+        env:
+          RELEASE_PR_TITLE: ${{ github.event.pull_request.title }}
+        run: python3 tool/check_release_pull_request.py
+
       - name: Materialize pinned shared dependencies
         run: python3 tool/checkout_shared_dependencies.py
 
