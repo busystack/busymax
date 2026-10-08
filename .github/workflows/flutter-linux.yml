@@ -279,26 +279,26 @@ jobs:
           # shellcheck disable=SC2016
           snap run --shell busymax -c 'test -x "$SNAP/busymax"'
 
-      - name: Label verified non-production Snap
+      - name: Label non-production Snap artifact
         if: github.event_name != 'workflow_dispatch' || !inputs.production_release
         env:
           SNAP_ARTIFACT: ${{ steps.snapcraft.outputs.snap }}
-        run: cp -- "$SNAP_ARTIFACT" build/busymax-linux-ci-unconfigured-non-production.snap
+        run: cp -- "$SNAP_ARTIFACT" build/busymax-snap-ci-non-production.snap
 
-      - name: Upload verified non-production Snap
+      - name: Upload non-production Snap artifact
         if: github.event_name != 'workflow_dispatch' || !inputs.production_release
         uses: actions/upload-artifact@v7
         with:
-          name: busymax-linux-ci-unconfigured-non-production
-          path: build/busymax-linux-ci-unconfigured-non-production.snap
+          name: busymax-snap-ci-non-production
+          path: build/busymax-snap-ci-non-production.snap
           if-no-files-found: error
           retention-days: 7
 
-      - name: Upload verified production Snap
+      - name: Upload Snap artifact
         if: github.event_name == 'workflow_dispatch' && inputs.production_release && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v7
         with:
-          name: busymax-linux-production-snap
+          name: busymax-snap
           path: ${{ steps.snapcraft.outputs.snap }}
           if-no-files-found: error
           retention-days: 7

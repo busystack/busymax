@@ -161,9 +161,10 @@ pushes to `main`; both also support manual dispatch. Routine Linux CI requires
 no production OAuth configuration: it builds, installs, and verifies an
 unconfigured strict Snap with custom registration available and managed
 connections unavailable. Its verified artifact is explicitly labeled
-`busymax-linux-ci-unconfigured-non-production` and must not be published.
+`busymax-snap-ci-non-production` and must not be published.
 Manual Linux runs are restricted to `main`; selecting `production_release`
-validates production registrations and builds a verified production Snap.
+validates production registrations and builds a verified production Snap,
+uploaded under the established `busymax-snap` artifact name.
 Without that selection, a manual run remains non-production CI.
 A newer run for the same workflow and ref cancels the superseded run. Windows
 test reports are retained for every run, while the unsigned CI MSIX and package
