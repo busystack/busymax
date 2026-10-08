@@ -99,8 +99,7 @@ function Invoke-BusyMaxWindowsCompile {
     "--dart-define=BUSYMAX_GOOGLE_OAUTH_CLIENT_ID=$($config.busyMaxGoogleOAuthClientId)",
     "--dart-define=BUSYMAX_GOOGLE_OAUTH_CLIENT_SECRET=$($config.busyMaxGoogleOAuthClientSecret)",
     "--dart-define=BUSYMAX_GOOGLE_OAUTH_PROJECT_ID=$($config.busyMaxGoogleOAuthProjectId)",
-    "--dart-define=BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID=$($config.busyMaxMicrosoftOAuthClientId)",
-    "--dart-define=BUSYMAX_MICROSOFT_OAUTH_AUTHORITY_TENANT=$($config.busyMaxMicrosoftOAuthAuthorityTenant)"
+    "--dart-define=BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID=$($config.busyMaxMicrosoftOAuthClientId)"
     )
   }
   if (-not $Unconfigured -and -not [string]::IsNullOrWhiteSpace($config.googleOAuthClientSecret)) {

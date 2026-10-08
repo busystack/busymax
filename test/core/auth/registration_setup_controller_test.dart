@@ -56,6 +56,25 @@ void main() {
     });
   }
 
+  test('managed Microsoft always uses common independently of originals', () {
+    final config = syntheticDesktopConfig(
+      originalMicrosoftAuthority: 'organizations',
+    );
+    final staging = RegistrationStaging(config);
+    addTearDown(staging.dispose);
+    final registration =
+        staging.consume(staging.stageBusyMax(BusyProvider.microsoft))
+            as MicrosoftPublicRegistration;
+
+    expect(registration.clientId, config.busyMaxMicrosoftOAuthClientId);
+    expect(registration.audience, MicrosoftAudience.personalAndOrganizations);
+    expect(registration.authorityTenant, 'common');
+    expect(registration.tenantId, isNull);
+    expect(registration.origin, RegistrationOrigin.busyMaxManaged);
+    expect(config.microsoftOAuthAuthorityTenant, 'organizations');
+    expect(config.microsoftOAuthClientId, isNot(registration.clientId));
+  });
+
   group('Google configuration replacement', () {
     late RegistrationStaging staging;
     late RegistrationSetupController setup;
@@ -249,6 +268,28 @@ void main() {
       expect(setup.invalidClientId, isTrue);
       expect(setup.canConnect, isFalse);
     });
+
+    for (final audience in MicrosoftAudience.values) {
+      test(
+        'custom Microsoft preserves the selected $audience registration',
+        () {
+          setup.updateClientId(clientId);
+          setup.updateAudience(audience);
+          if (audience == MicrosoftAudience.tenant) {
+            setup.updateTenantId(tenantId);
+          }
+          final registration =
+              staging.consume(setup.accept()!) as MicrosoftPublicRegistration;
+          expect(registration.clientId, clientId);
+          expect(registration.audience, audience);
+          expect(
+            registration.tenantId,
+            audience == MicrosoftAudience.tenant ? tenantId : null,
+          );
+          expect(registration.origin, RegistrationOrigin.userProvided);
+        },
+      );
+    }
 
     test(
       'audience changes clear tenant and never submit hidden stale data',

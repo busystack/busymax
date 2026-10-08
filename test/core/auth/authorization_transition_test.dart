@@ -94,6 +94,79 @@ void main() {
     h.staging.dispose();
     await h.db.close();
   });
+  for (final origin in [
+    RegistrationOrigin.busyMaxManaged,
+    RegistrationOrigin.userProvided,
+  ]) {
+    for (final audience in [
+      MicrosoftAudience.organizations,
+      MicrosoftAudience.tenant,
+    ]) {
+      test(
+        '$origin $audience binding survives a changed managed build',
+        () async {
+          h.staging.dispose();
+          await h.db.close();
+          h = Harness(
+            buildConfig: syntheticDesktopConfig(
+              later: true,
+              originalMicrosoftAuthority: 'consumers',
+            ),
+          );
+          final issuingRegistration = MicrosoftPublicRegistration(
+            clientId: origin == RegistrationOrigin.busyMaxManaged
+                ? syntheticDesktopConfig().busyMaxMicrosoftOAuthClientId
+                : msOwned,
+            audience: audience,
+            tenantId: audience == MicrosoftAudience.tenant ? tenant : null,
+            origin: origin,
+          );
+          await h.seedMicrosoft(
+            shared: false,
+            registration: issuingRegistration,
+          );
+          const id = 'microsoft:ms-user';
+          final saved = (await h.secrets.readCredential(id))!;
+          await h.secrets.saveCredential(
+            id,
+            SecretRecord.fromJson(jsonDecode(jsonEncode(saved.toJson()))),
+          );
+
+          await h.microsoft.refreshTokenForAccount(id);
+          await h.microsoft.connectMicrosoft(
+            AuthorizationRequest.reconnect(id),
+          );
+          expect(h.requests.where((r) => r.method == 'POST'), isNotEmpty);
+          expect(
+            h.requests
+                .where((r) => r.method == 'POST')
+                .every(
+                  (r) =>
+                      r.url.path.startsWith(
+                        '/${issuingRegistration.authorityTenant}/',
+                      ) &&
+                      Uri.splitQueryString(r.body)['client_id'] ==
+                          issuingRegistration.clientId,
+                ),
+            isTrue,
+          );
+          expect(h.flow.clients, [issuingRegistration.clientId]);
+          final finalRecord =
+              await h.secrets.readCredential(id) as BoundOAuthSecretRecord;
+          final registration =
+              finalRecord.registration as MicrosoftPublicRegistration;
+          expect(registration.clientId, issuingRegistration.clientId);
+          expect(registration.audience, audience);
+          expect(registration.tenantId, issuingRegistration.tenantId);
+          expect(registration.origin, origin);
+          expect(
+            h.staging.stageBusyMax(BusyProvider.microsoft).summary.authority,
+            'common',
+          );
+        },
+      );
+    }
+  }
   for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
     test(
       '$provider managed credentials remain account-bound after restart and a changed build',
@@ -159,7 +232,7 @@ void main() {
           expect(
             h.requests
                 .where((r) => r.method == 'POST')
-                .every((r) => r.url.path.startsWith('/organizations/')),
+                .every((r) => r.url.path.startsWith('/common/')),
             isTrue,
           );
         }
@@ -1448,7 +1521,10 @@ class Harness {
     requireExisting: true,
     persistAccount: () async {},
   );
-  Future<void> seedMicrosoft({required bool shared}) async {
+  Future<void> seedMicrosoft({
+    required bool shared,
+    MicrosoftPublicRegistration? registration,
+  }) async {
     final id = 'microsoft:ms-user';
     await accounts.upsertSignedInAccount(
       id: id,
@@ -1466,13 +1542,15 @@ class Harness {
       accountId: id,
       expectedGeneration: 0,
       candidate: MicrosoftDesktopCredential(
-        registration: MicrosoftPublicRegistration(
-          clientId: shared ? config.microsoftOAuthClientId : msOwned,
-          audience: MicrosoftAudience.personalAndOrganizations,
-          origin: shared
-              ? RegistrationOrigin.retiringShared
-              : RegistrationOrigin.userProvided,
-        ),
+        registration:
+            registration ??
+            MicrosoftPublicRegistration(
+              clientId: shared ? config.microsoftOAuthClientId : msOwned,
+              audience: MicrosoftAudience.personalAndOrganizations,
+              origin: shared
+                  ? RegistrationOrigin.retiringShared
+                  : RegistrationOrigin.userProvided,
+            ),
         subject: 'ms-user',
         tenantId: tenant,
         generation: 1,
