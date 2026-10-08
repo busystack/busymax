@@ -171,6 +171,13 @@ test reports are retained for every run, while the unsigned CI MSIX and package
 evidence are retained for seven days only after a successful `main` push or manual run.
 The workflows do not deploy Windows packages.
 
+Release PRs originate from the existing release branch for that version.
+For v0.2.4, squash feature and fix PRs into `Release/v0.2.4`, then open
+`Release/v0.2.4` into `main` with the title `Release/v0.2.4` and squash it.
+Verify both the PR title and its source branch when checking release CI.
+The workflows reject release titles that do not match the source release
+branch; comparison permits intentionally lowercase release branch names.
+
 For release artifacts, follow [Snap beta release](beta_snap_release.md) or
 [Windows packaging](windows_packaging.md) and the
 [Windows release checklist](windows_release_checklist.md).
