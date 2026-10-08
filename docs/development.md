@@ -29,8 +29,9 @@ registrations in [`BuildConfig`](../lib/src/config/build_config.dart):
 
 - Google: `BUSYMAX_GOOGLE_OAUTH_CLIENT_ID`,
   `BUSYMAX_GOOGLE_OAUTH_CLIENT_SECRET`, and `BUSYMAX_GOOGLE_OAUTH_PROJECT_ID`.
-- Microsoft: `BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID` and an explicit
-  `BUSYMAX_MICROSOFT_OAUTH_AUTHORITY_TENANT`.
+- Microsoft: `BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID`. Managed connections always use
+  `common` for personal and organizational Microsoft accounts. Custom
+  registrations retain their own audience and tenant selections.
 
 Protected `GOOGLE_OAUTH_*` and `MICROSOFT_OAUTH_*` originals serve eligible
 existing account bindings. Keep them separate from active registrations; they
@@ -128,8 +129,7 @@ flutter run -d windows -t lib/main_windows.dart `
   --dart-define=BUSYMAX_GOOGLE_OAUTH_CLIENT_ID=<desktop-client-id> `
   --dart-define=BUSYMAX_GOOGLE_OAUTH_CLIENT_SECRET=<desktop-client-secret> `
   --dart-define=BUSYMAX_GOOGLE_OAUTH_PROJECT_ID=<actual-project-id> `
-  --dart-define=BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID=<public-client-id> `
-  --dart-define=BUSYMAX_MICROSOFT_OAUTH_AUTHORITY_TENANT=<supported-audience-or-tenant>
+  --dart-define=BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID=<public-client-id>
 ```
 
 Omit the defines for providers you are not testing. An unpackaged development
@@ -157,10 +157,17 @@ Normal `flutter test` skips credential-gated provider tests. See
 [Live-provider tests](#live-provider-tests) for their setup and safety requirements.
 
 The Linux and Windows workflows run for pull requests targeting `main` and
-pushes to `main`; Windows also supports a manual dispatch. A newer run for the
-same workflow and ref cancels the superseded run. Windows test reports are
-retained for every run, while the unsigned CI MSIX and package evidence are
-retained for seven days only after a successful `main` push or manual run.
+pushes to `main`; both also support manual dispatch. Routine Linux CI requires
+no production OAuth configuration: it builds, installs, and verifies an
+unconfigured strict Snap with custom registration available and managed
+connections unavailable. Its verified artifact is explicitly labeled
+`busymax-linux-ci-unconfigured-non-production` and must not be published.
+Manual Linux runs are restricted to `main`; selecting `production_release`
+validates production registrations and builds a verified production Snap.
+Without that selection, a manual run remains non-production CI.
+A newer run for the same workflow and ref cancels the superseded run. Windows
+test reports are retained for every run, while the unsigned CI MSIX and package
+evidence are retained for seven days only after a successful `main` push or manual run.
 The workflows do not deploy Windows packages.
 
 For release artifacts, follow [Snap beta release](beta_snap_release.md) or

@@ -1,6 +1,13 @@
 name: Flutter Linux
 
 on:
+  workflow_dispatch:
+    inputs:
+      production_release:
+        description: 'Build an official production Snap (main only)'
+        type: boolean
+        required: true
+        default: false
   pull_request:
     branches: [main]
   push:
@@ -15,6 +22,12 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
+      - name: Require main for manual runs
+        if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
+        run: |
+          echo '::error::Manual Linux builds must run from main.'
+          exit 1
+
       - name: Check out repository
         uses: actions/checkout@v7
 
@@ -180,7 +193,7 @@ jobs:
           test -f build/linux/x64/release/bundle/data/flutter_assets/docs/microsoft_setup.md
 
       - name: Validate production registrations and protected originals
-        if: github.event_name == 'push'
+        if: github.event_name == 'workflow_dispatch' && inputs.production_release && github.ref == 'refs/heads/main'
         env:
           GOOGLE_OAUTH_CLIENT_ID: ${{ vars.GOOGLE_OAUTH_CLIENT_ID }}
           GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
@@ -191,12 +204,11 @@ jobs:
           BUSYMAX_GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.BUSYMAX_GOOGLE_OAUTH_CLIENT_SECRET }}
           BUSYMAX_GOOGLE_OAUTH_PROJECT_ID: ${{ vars.BUSYMAX_GOOGLE_OAUTH_PROJECT_ID }}
           BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID: ${{ vars.BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID }}
-          BUSYMAX_MICROSOFT_OAUTH_AUTHORITY_TENANT: ${{ vars.BUSYMAX_MICROSOFT_OAUTH_AUTHORITY_TENANT }}
           BUSYMAX_PRIVACY_POLICY_URL: https://busystack.org/privacy-busymax
         run: '"$BUSYMAX_DART_EXECUTABLE" run tool/check_desktop_oauth_config.dart'
 
       - name: Build official Linux release with explicit active registrations
-        if: github.event_name == 'push'
+        if: github.event_name == 'workflow_dispatch' && inputs.production_release && github.ref == 'refs/heads/main'
         env:
           GOOGLE_OAUTH_CLIENT_ID: ${{ vars.GOOGLE_OAUTH_CLIENT_ID }}
           GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
@@ -207,7 +219,6 @@ jobs:
           BUSYMAX_GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.BUSYMAX_GOOGLE_OAUTH_CLIENT_SECRET }}
           BUSYMAX_GOOGLE_OAUTH_PROJECT_ID: ${{ vars.BUSYMAX_GOOGLE_OAUTH_PROJECT_ID }}
           BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID: ${{ vars.BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID }}
-          BUSYMAX_MICROSOFT_OAUTH_AUTHORITY_TENANT: ${{ vars.BUSYMAX_MICROSOFT_OAUTH_AUTHORITY_TENANT }}
           BUSYMAX_PRIVACY_POLICY_URL: https://busystack.org/privacy-busymax
         run: |
           registration_file="$(mktemp "$RUNNER_TEMP/busymax-oauth.XXXXXX.json")"
@@ -220,7 +231,7 @@ jobs:
               'MICROSOFT_OAUTH_AUTHORITY_TENANT',
               'BUSYMAX_GOOGLE_OAUTH_CLIENT_ID', 'BUSYMAX_GOOGLE_OAUTH_CLIENT_SECRET',
               'BUSYMAX_GOOGLE_OAUTH_PROJECT_ID', 'BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID',
-              'BUSYMAX_MICROSOFT_OAUTH_AUTHORITY_TENANT', 'BUSYMAX_PRIVACY_POLICY_URL',
+              'BUSYMAX_PRIVACY_POLICY_URL',
           ]
           with open(sys.argv[1], 'w') as output:
               json.dump({key: os.environ[key] for key in keys if os.environ.get(key)}, output)
@@ -241,15 +252,6 @@ jobs:
         id: snapcraft
         uses: snapcore/action-build@v1
 
-      - name: Upload Snap artifact
-        if: github.event_name == 'push'
-        uses: actions/upload-artifact@v7
-        with:
-          name: busymax-snap
-          path: ${{ steps.snapcraft.outputs.snap }}
-          if-no-files-found: error
-          retention-days: 7
-
       - name: Install strict Snap
         run: >-
           sudo snap install --dangerous
@@ -261,3 +263,27 @@ jobs:
             grep -Eq '^[[:space:]]*confinement:[[:space:]]+strict$'
           # shellcheck disable=SC2016
           snap run --shell busymax -c 'test -x "$SNAP/busymax"'
+
+      - name: Label verified non-production Snap
+        if: github.event_name != 'workflow_dispatch' || !inputs.production_release
+        env:
+          SNAP_ARTIFACT: ${{ steps.snapcraft.outputs.snap }}
+        run: cp -- "$SNAP_ARTIFACT" build/busymax-linux-ci-unconfigured-non-production.snap
+
+      - name: Upload verified non-production Snap
+        if: github.event_name != 'workflow_dispatch' || !inputs.production_release
+        uses: actions/upload-artifact@v7
+        with:
+          name: busymax-linux-ci-unconfigured-non-production
+          path: build/busymax-linux-ci-unconfigured-non-production.snap
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload verified production Snap
+        if: github.event_name == 'workflow_dispatch' && inputs.production_release && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v7
+        with:
+          name: busymax-linux-production-snap
+          path: ${{ steps.snapcraft.outputs.snap }}
+          if-no-files-found: error
+          retention-days: 7
