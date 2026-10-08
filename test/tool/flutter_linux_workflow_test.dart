@@ -87,7 +87,7 @@ void main() {
     expect(workflow, contains('for key in GOOGLE_OAUTH_CLIENT_ID'));
     expect(workflow, contains(r'grep -aFq -- "${!key}"'));
     expect(workflow, contains(r'grep -aFq -- "$GOOGLE_OAUTH_CLIENT_SECRET"'));
-    expect(workflow, contains('name: busymax-linux-production-snap'));
+    expect(workflow, contains('name: busymax-snap\n'));
     expect(workflow, contains(r'path: ${{ steps.snapcraft.outputs.snap }}'));
     expect(workflow, contains('sudo snap install --dangerous'));
     expect(workflow, contains('snap info --verbose busymax'));
@@ -131,8 +131,8 @@ void main() {
       );
       expect(concurrency, contains('cancel-in-progress: true'));
       for (final name in [
-        'Upload verified non-production Snap',
-        'Upload verified production Snap',
+        'Upload non-production Snap artifact',
+        'Upload Snap artifact',
       ]) {
         final upload = _stepBlock(workflow, name);
         expect(upload, contains('retention-days: 7'));
@@ -187,27 +187,19 @@ void main() {
       expect(unconfigured, isNot(contains('--dart-define')));
       expect(unconfigured, contains('docs/google_setup.md'));
       expect(unconfigured, contains('docs/microsoft_setup.md'));
-      final label = _stepBlock(workflow, 'Label verified non-production Snap');
+      final label = _stepBlock(workflow, 'Label non-production Snap artifact');
       final upload = _stepBlock(
         workflow,
-        'Upload verified non-production Snap',
+        'Upload non-production Snap artifact',
       );
       expect(label, contains(_ciCondition));
       expect(upload, contains(_ciCondition));
-      expect(
-        label,
-        contains('build/busymax-linux-ci-unconfigured-non-production.snap'),
-      );
+      expect(label, contains('build/busymax-snap-ci-non-production.snap'));
       expect(
         upload,
-        contains(
-          'path: build/busymax-linux-ci-unconfigured-non-production.snap',
-        ),
+        contains('path: build/busymax-snap-ci-non-production.snap'),
       );
-      expect(
-        upload,
-        contains('name: busymax-linux-ci-unconfigured-non-production'),
-      );
+      expect(upload, contains('name: busymax-snap-ci-non-production'));
       expect(workflow, isNot(contains('snapcraft upload')));
     },
   );
@@ -235,11 +227,7 @@ void main() {
           'Validate production registrations and protected originals';
       const build =
           'Build official Linux release with explicit active registrations';
-      for (final name in [
-        validation,
-        build,
-        'Upload verified production Snap',
-      ]) {
+      for (final name in [validation, build, 'Upload Snap artifact']) {
         expect(_stepBlock(workflow, name), contains(_productionCondition));
       }
       for (final step in workflow.split(RegExp(r'(?=      - name:)'))) {
