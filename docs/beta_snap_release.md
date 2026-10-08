@@ -74,8 +74,8 @@ Dart defines and must be rebuilt.
 The Flutter Linux workflow performs source validation, builds
 `lib/main_linux.dart`, packages a strict Snap, and installs and verifies it.
 Pull requests and pushes to `main` need no production OAuth credentials.
-They upload the verified `busymax-linux-ci-unconfigured-non-production`
-artifact, containing `busymax-linux-ci-unconfigured-non-production.snap`, for
+They upload the verified `busymax-snap-ci-non-production`
+artifact, containing `busymax-snap-ci-non-production.snap`, for
 seven days. This unconfigured package keeps custom registration available and
 managed connections unavailable. It is not an official release and must not
 be published.
@@ -91,7 +91,7 @@ gh workflow run flutter-linux.yml --ref main -f production_release=true
 Manual Linux runs from other branches fail. The production path runs the CI
 checks, strictly validates the release configuration, verifies that the
 configured registrations reached the binary, and builds, installs, and
-verifies the strict Snap before uploading `busymax-linux-production-snap`.
+verifies the strict Snap before uploading the established `busymax-snap` artifact.
 Missing, invalid, or synthetic production registrations fail the run. The
 artifact is retained for seven days; the workflow does not publish to the
 Snap Store. A manual run without `production_release` selected remains
