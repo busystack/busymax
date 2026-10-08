@@ -29,14 +29,32 @@ void main() {
       expect(
         validMicrosoftDesktopConfiguration(
           clientId: configured.busyMaxMicrosoftOAuthClientId,
-          authorityTenant: '',
         ),
-        isFalse,
+        isTrue,
       );
+      for (final invalid in ['', 'not-a-client-id']) {
+        expect(validMicrosoftDesktopConfiguration(clientId: invalid), isFalse);
+      }
       expect(BuildConfig.forAndroid().hasBusyMaxGoogleRegistration, isFalse);
       expect(BuildConfig.forAndroid().hasBusyMaxMicrosoftRegistration, isFalse);
     },
   );
+
+  test('managed Microsoft needs only its own valid client ID', () {
+    const config = BuildConfig(
+      googleOAuthClientId: '',
+      googleOAuthClientSecret: '',
+      busyMaxMicrosoftOAuthClientId: '33333333-3333-3333-3333-333333333333',
+      microsoftOAuthAuthorityTenant: 'organizations',
+      oauthAuthorizationEndpoint: 'https://accounts.example/authorize',
+      oauthTokenEndpoint: 'https://accounts.example/token',
+      oauthRevocationEndpoint: 'https://accounts.example/revoke',
+    );
+    expect(config.hasBusyMaxMicrosoftRegistration, isTrue);
+    expect(config.hasBusyMaxGoogleRegistration, isFalse);
+    expect(config.microsoftOAuthClientId, isEmpty);
+    expect(config.microsoftOAuthAuthorityTenant, 'organizations');
+  });
 
   test('fromEnvironment uses Google endpoint defaults', () {
     final config = BuildConfig.fromEnvironment();

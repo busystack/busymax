@@ -34,7 +34,6 @@ For a configured release, create the ignored file
   "BUSYMAX_GOOGLE_OAUTH_CLIENT_SECRET": "PRODUCTION_GOOGLE_DESKTOP_CLIENT_SECRET",
   "BUSYMAX_GOOGLE_OAUTH_PROJECT_ID": "ACTUAL_PRODUCTION_GOOGLE_PROJECT_ID",
   "BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID": "PRODUCTION_MICROSOFT_PUBLIC_CLIENT_ID",
-  "BUSYMAX_MICROSOFT_OAUTH_AUTHORITY_TENANT": "EXPLICIT_PRODUCTION_AUDIENCE_OR_TENANT",
   "BUSYMAX_PRIVACY_POLICY_URL": "https://busystack.org/privacy-busymax"
 }
 ```
@@ -73,11 +72,31 @@ reports that a provider is not configured, the compiled bundle is missing its
 Dart defines and must be rebuilt.
 
 The Flutter Linux workflow performs source validation, builds
-`lib/main_linux.dart`, packages a strict Snap, and installs it for package
-validation. Pull requests use an unconfigured package and do not upload it.
-Pushes to `main` require the Google and Microsoft release settings, verify
-that they reached the binary, and retain the `busymax-snap` artifact for seven
-days.
+`lib/main_linux.dart`, packages a strict Snap, and installs and verifies it.
+Pull requests and pushes to `main` need no production OAuth credentials.
+They upload the verified `busymax-linux-ci-unconfigured-non-production`
+artifact, containing `busymax-linux-ci-unconfigured-non-production.snap`, for
+seven days. This unconfigured package keeps custom registration available and
+managed connections unavailable. It is not an official release and must not
+be published.
+
+For an official production artifact, configure the actual managed Google and
+Microsoft registrations plus the protected originals in GitHub Actions, then
+explicitly request the production path from `main`:
+
+```bash
+gh workflow run flutter-linux.yml --ref main -f production_release=true
+```
+
+Manual Linux runs from other branches fail. The production path runs the CI
+checks, strictly validates the release configuration, verifies that the
+configured registrations reached the binary, and builds, installs, and
+verifies the strict Snap before uploading `busymax-linux-production-snap`.
+Missing, invalid, or synthetic production registrations fail the run. The
+artifact is retained for seven days; the workflow does not publish to the
+Snap Store. A manual run without `production_release` selected remains
+non-production CI. Managed Microsoft connections always use `common`, and
+the app registration must support both personal and organizational accounts.
 
 ### Local scaffold helper
 
