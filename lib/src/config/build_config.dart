@@ -15,7 +15,6 @@ class BuildConfig {
     this.busyMaxGoogleOAuthClientSecret = '',
     this.busyMaxGoogleOAuthProjectId = '',
     this.busyMaxMicrosoftOAuthClientId = '',
-    this.busyMaxMicrosoftOAuthAuthorityTenant = '',
     this.microsoftGraphBaseUrl = 'https://graph.microsoft.com/v1.0',
     this.googleApiBaseUrl = 'https://www.googleapis.com',
     this.feedbackEndpoint = 'https://busystack.org/api/feedback',
@@ -61,9 +60,6 @@ class BuildConfig {
       ),
       busyMaxMicrosoftOAuthClientId: const String.fromEnvironment(
         'BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID',
-      ),
-      busyMaxMicrosoftOAuthAuthorityTenant: const String.fromEnvironment(
-        'BUSYMAX_MICROSOFT_OAUTH_AUTHORITY_TENANT',
       ),
       microsoftOAuthClientId: const String.fromEnvironment(
         'MICROSOFT_OAUTH_CLIENT_ID',
@@ -156,7 +152,6 @@ class BuildConfig {
   final String busyMaxGoogleOAuthClientSecret;
   final String busyMaxGoogleOAuthProjectId;
   final String busyMaxMicrosoftOAuthClientId;
-  final String busyMaxMicrosoftOAuthAuthorityTenant;
   final String microsoftGraphBaseUrl;
   final String googleApiBaseUrl;
   final String feedbackEndpoint;
@@ -191,7 +186,6 @@ class BuildConfig {
       !androidNativeAuthorization &&
       validMicrosoftDesktopConfiguration(
         clientId: busyMaxMicrosoftOAuthClientId,
-        authorityTenant: busyMaxMicrosoftOAuthAuthorityTenant,
       );
 
   bool get hasGoogleOAuthClientId =>

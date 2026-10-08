@@ -1,4 +1,5 @@
 import '../../support/desktop_registration_config.dart';
+
 import 'dart:async';
 import 'dart:io';
 
@@ -19,27 +20,33 @@ const tenantId = 'aabbccdd-1122-3344-5566-77889900aabb';
 
 void main() {
   for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
-    test('$provider shared connection is explicit, validated and single use', () {
-      final staging = RegistrationStaging(syntheticDesktopConfig());
-      final setup = RegistrationSetupController(staging, provider);
-      addTearDown(() {
-        setup.dispose();
-        staging.dispose();
-      });
-      // Remembered retired IDs cannot relabel an explicitly active registration.
-      staging.rememberRetiringClient(
-        provider == BusyProvider.google
-            ? staging.config.busyMaxGoogleOAuthClientId
-            : staging.config.busyMaxMicrosoftOAuthClientId,
-      );
-      final selected = setup.connectWithBusyMax()!;
-      expect(selected.summary.origin, RegistrationOrigin.busyMaxManaged);
-      expect(selected.summary.showRetirementNotice, isFalse);
-      expect(setup.connectWithBusyMax(), isNull);
-      final registration = staging.consume(selected);
-      expect(registration.summary().origin, RegistrationOrigin.busyMaxManaged);
-      expect(() => staging.consume(selected), throwsA(isA<OAuthException>()));
-    });
+    test(
+      '$provider shared connection is explicit, validated and single use',
+      () {
+        final staging = RegistrationStaging(syntheticDesktopConfig());
+        final setup = RegistrationSetupController(staging, provider);
+        addTearDown(() {
+          setup.dispose();
+          staging.dispose();
+        });
+        // Remembered retired IDs cannot relabel an explicitly active registration.
+        staging.rememberRetiringClient(
+          provider == BusyProvider.google
+              ? staging.config.busyMaxGoogleOAuthClientId
+              : staging.config.busyMaxMicrosoftOAuthClientId,
+        );
+        final selected = setup.connectWithBusyMax()!;
+        expect(selected.summary.origin, RegistrationOrigin.busyMaxManaged);
+        expect(selected.summary.showRetirementNotice, isFalse);
+        expect(setup.connectWithBusyMax(), isNull);
+        final registration = staging.consume(selected);
+        expect(
+          registration.summary().origin,
+          RegistrationOrigin.busyMaxManaged,
+        );
+        expect(() => staging.consume(selected), throwsA(isA<OAuthException>()));
+      },
+    );
     test('$provider originals do not make shared authorization available', () {
       final staging = RegistrationStaging(
         syntheticDesktopConfig(managed: false),
@@ -55,6 +62,25 @@ void main() {
       expect(setup.canConnect, isFalse);
     });
   }
+
+  test('managed Microsoft always uses common independently of originals', () {
+    final config = syntheticDesktopConfig(
+      originalMicrosoftAuthority: 'organizations',
+    );
+    final staging = RegistrationStaging(config);
+    addTearDown(staging.dispose);
+    final registration = staging.consume(
+      staging.stageBusyMax(BusyProvider.microsoft),
+    ) as MicrosoftPublicRegistration;
+
+    expect(registration.clientId, config.busyMaxMicrosoftOAuthClientId);
+    expect(registration.audience, MicrosoftAudience.personalAndOrganizations);
+    expect(registration.authorityTenant, 'common');
+    expect(registration.tenantId, isNull);
+    expect(registration.origin, RegistrationOrigin.busyMaxManaged);
+    expect(config.microsoftOAuthAuthorityTenant, 'organizations');
+    expect(config.microsoftOAuthClientId, isNot(registration.clientId));
+  });
 
   group('Google configuration replacement', () {
     late RegistrationStaging staging;
@@ -249,6 +275,28 @@ void main() {
       expect(setup.invalidClientId, isTrue);
       expect(setup.canConnect, isFalse);
     });
+
+    for (final audience in MicrosoftAudience.values) {
+      test(
+        'custom Microsoft preserves the selected $audience registration',
+        () {
+          setup.updateClientId(clientId);
+          setup.updateAudience(audience);
+          if (audience == MicrosoftAudience.tenant) {
+            setup.updateTenantId(tenantId);
+          }
+          final registration =
+              staging.consume(setup.accept()!) as MicrosoftPublicRegistration;
+          expect(registration.clientId, clientId);
+          expect(registration.audience, audience);
+          expect(
+            registration.tenantId,
+            audience == MicrosoftAudience.tenant ? tenantId : null,
+          );
+          expect(registration.origin, RegistrationOrigin.userProvided);
+        },
+      );
+    }
 
     test(
       'audience changes clear tenant and never submit hidden stale data',

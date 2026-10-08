@@ -259,7 +259,6 @@ function Assert-BusyMaxStoreConfig {
         busyMaxGoogleOAuthClientSecret = 'synthetic-ci-public-secret'
         busyMaxGoogleOAuthProjectId = 'busymax-ci-managed'
         busyMaxMicrosoftOAuthClientId = '44444444-4444-4444-4444-444444444444'
-        busyMaxMicrosoftOAuthAuthorityTenant = 'common'
       }
       foreach ($entry in $expected.GetEnumerator()) {
         $property = $Config.PSObject.Properties[$entry.Key]
@@ -279,10 +278,8 @@ function Assert-BusyMaxStoreConfig {
       [string]$Config.busyMaxGoogleOAuthProjectId -notmatch '^[a-z][a-z0-9-]{4,62}[a-z0-9]$') {
     $externalPrerequisites += 'External prerequisite: Google production Desktop client ID, client secret and truthful project ID. The owner must also complete publishing, branding and required scope approval/verification.'
   }
-  if ([string]$Config.busyMaxMicrosoftOAuthClientId -notmatch $uuidPattern -or
-      ([string]$Config.busyMaxMicrosoftOAuthAuthorityTenant -cnotin @('common', 'organizations', 'consumers') -and
-       [string]$Config.busyMaxMicrosoftOAuthAuthorityTenant -notmatch $uuidPattern)) {
-    $externalPrerequisites += 'External prerequisite: Microsoft production public app registration ID and explicit audience/tenant. The owner must configure the desktop redirect, delegated permissions and applicable consent.'
+  if ([string]$Config.busyMaxMicrosoftOAuthClientId -notmatch $uuidPattern) {
+    $externalPrerequisites += 'External prerequisite: Microsoft production public app registration ID. The owner must support personal and organizational accounts and configure the desktop redirect, delegated permissions and applicable consent.'
   }
   if ($externalPrerequisites.Count -gt 0) {
     throw ($externalPrerequisites -join "`n")

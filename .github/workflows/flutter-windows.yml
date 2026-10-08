@@ -63,7 +63,6 @@ jobs:
             busyMaxGoogleOAuthClientSecret = 'synthetic-ci-public-secret'
             busyMaxGoogleOAuthProjectId = 'busymax-ci-managed'
             busyMaxMicrosoftOAuthClientId = '44444444-4444-4444-4444-444444444444'
-            busyMaxMicrosoftOAuthAuthorityTenant = 'common'
             fakeData = $false
             developmentBackend = $false
           } | ConvertTo-Json | Set-Content `

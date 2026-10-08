@@ -306,10 +306,12 @@ void main() {
   test(
     'overdue pending summary is replaced after privacy and precision change',
     () async {
+      final notifications = service(exact: true);
+      await notifications.initialize(timeZoneId: 'America/Vancouver');
       await _insertDueTodayTask(database);
       final dueTask = await database.select(database.tasks).getSingle();
       expect(taskDueAsLocal(dueTask), isNotNull);
-      expect(taskDueAsLocal(dueTask)!.day, DateTime.now().day);
+      expect(taskDueAsLocal(dueTask)!.day, tz.TZDateTime.now(tz.local).day);
       final previousSettings = settings;
       final localDate = _today();
       await database
@@ -338,9 +340,6 @@ void main() {
         notifyDueToday: true,
         notificationDetailLevel: NotificationDetailLevel.private,
       );
-      final notifications = service(exact: true);
-      await notifications.initialize(timeZoneId: 'America/Vancouver');
-
       await notifications.reconcile();
 
       expect(plugin.cancelledIds, contains(0x425903));
@@ -452,7 +451,8 @@ Future<void> _insertDueTodayTask(AppDatabase database) async {
           updatedLocalAtUtc: '',
         ),
       );
-  final today = DateTime.now();
+  // Match the service's configured date, not the host runner's timezone.
+  final today = tz.TZDateTime.now(tz.local);
   await database
       .into(database.tasks)
       .insert(
@@ -472,7 +472,7 @@ Future<void> _insertDueTodayTask(AppDatabase database) async {
 }
 
 String _today() {
-  final now = DateTime.now();
+  final now = tz.TZDateTime.now(tz.local);
   return '${now.year.toString().padLeft(4, '0')}-'
       '${now.month.toString().padLeft(2, '0')}-'
       '${now.day.toString().padLeft(2, '0')}';

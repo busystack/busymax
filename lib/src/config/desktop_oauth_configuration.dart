@@ -5,22 +5,12 @@ bool validGoogleDesktopConfiguration({
   required String clientSecret,
   required String projectId,
 }) =>
-    RegExp(
-      r'^[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$',
-    ).hasMatch(clientId.trim()) &&
+    RegExp(r'^[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$')
+        .hasMatch(clientId.trim()) &&
     RegExp(r'^[a-z][a-z0-9-]{4,62}[a-z0-9]$').hasMatch(projectId.trim()) &&
     clientSecret.trim().isNotEmpty;
 
-bool validMicrosoftDesktopConfiguration({
-  required String clientId,
-  required String authorityTenant,
-}) =>
-    _uuid.hasMatch(clientId.trim()) &&
-    (const {
-          'common',
-          'organizations',
-          'consumers',
-        }.contains(authorityTenant.trim()) ||
-        _uuid.hasMatch(authorityTenant.trim()));
+bool validMicrosoftDesktopConfiguration({required String clientId}) =>
+    _uuid.hasMatch(clientId.trim());
 
 final _uuid = RegExp(r'^[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$');

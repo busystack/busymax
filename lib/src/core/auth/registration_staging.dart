@@ -91,19 +91,10 @@ final class RegistrationStaging extends ChangeNotifier {
     }
     if (provider == BusyProvider.microsoft &&
         config.hasBusyMaxMicrosoftRegistration) {
-      final authority = config.busyMaxMicrosoftOAuthAuthorityTenant
-          .trim()
-          .toLowerCase();
       return stage(
         MicrosoftPublicRegistration(
           clientId: config.busyMaxMicrosoftOAuthClientId,
-          audience: switch (authority) {
-            'common' => MicrosoftAudience.personalAndOrganizations,
-            'organizations' => MicrosoftAudience.organizations,
-            'consumers' => MicrosoftAudience.personal,
-            _ => MicrosoftAudience.tenant,
-          },
-          tenantId: isUuid(authority) ? authority : null,
+          audience: MicrosoftAudience.personalAndOrganizations,
           origin: RegistrationOrigin.busyMaxManaged,
         ),
       );
@@ -324,9 +315,8 @@ GoogleDesktopRegistration parseGoogleDesktopConfiguration(
   final secret = installed['client_secret'];
   final project = installed['project_id'];
   if (clientId is! String ||
-      !RegExp(
-        r'^[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$',
-      ).hasMatch(clientId) ||
+      !RegExp(r'^[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$')
+          .hasMatch(clientId) ||
       project is! String ||
       !RegExp(r'^[a-z][a-z0-9-]{4,62}[a-z0-9]$').hasMatch(project) ||
       (secret != null &&

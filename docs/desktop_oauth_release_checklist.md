@@ -10,7 +10,7 @@ Official desktop releases support explicitly active BusyMax-managed registration
 
 ## Microsoft external prerequisites
 
-- The owner must supply a real public app ID and explicit supported-account authority (`common`, `organizations`, `consumers`, or a tenant UUID) through `BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID` and `BUSYMAX_MICROSOFT_OAUTH_AUTHORITY_TENANT`.
+- The owner must supply a real public app ID through `BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID`. The managed registration must support personal and organizational Microsoft accounts; its authority is always `common` and is not configurable. Custom registrations retain their own audience and tenant selections.
 - Configure Mobile and desktop applications with `http://localhost`, existing mandatory delegated permissions, and applicable administrator consent. Optional shared-calendar/category consent stays optional. No client secret is used.
 
 ## Preserve existing registrations and data
@@ -24,7 +24,9 @@ Official desktop releases support explicitly active BusyMax-managed registration
 ## Build and acceptance gates
 
 - `dart run tool/check_desktop_oauth_config.dart` validates environment values; `--config <dart-defines.json>` validates a define file. Missing production registrations fail official release validation and are reported as separate external prerequisites. Syntactic validity does not mean provider approval.
-- Linux push packaging validates and injects active and original values separately. Unconfigured validation builds display the recommended action as unavailable and retain custom setup. Windows official configuration validates the same prerequisites; synthetic CI values are restricted to explicitly nonproduction CI packages. `-Ci -Unconfigured -Stage WindowsCompile` exercises the unavailable state only.
+- Routine Linux pull-request and main-push CI requires no production registrations. It builds, installs, and verifies an unconfigured strict Snap and labels its artifact as non-production; it must not be published. Unconfigured validation builds display the recommended action as unavailable and retain custom setup.
+- Official Linux packaging requires a manual `Flutter Linux` dispatch on `main` with `production_release` selected. It validates and injects active and original values separately, rejects missing/invalid or synthetic registrations, and uploads the production Snap only after installation and verification. CI success does not prove production readiness or provider approval.
+- Windows official configuration validates the same prerequisites; synthetic CI values are restricted to explicitly nonproduction CI packages. `-Ci -Unconfigured -Stage WindowsCompile` exercises the unavailable state only.
 - Run locked dependency resolution, localization generation, formatting, analysis, full tests, platform boundaries, Linux release build and diff checks. Run Windows release/native/MSIX validation on Windows and affected Android regressions.
 - Inspect actual production Settings dialogs, native menus, all instruction pages and errors in light/dark, narrow, enlarged-text, long-label and keyboard cases. Use isolated synthetic configurations; owner-authorized accounts are required for real provider authorization.
 - Review cancellation, invalid/cancelled replacement, expiry, disposal/stale work, duplicate submits, wrong account, missing scopes, secure-storage failure, restart/reconnect and optional-consent evidence before publication.
