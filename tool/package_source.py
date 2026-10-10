@@ -12,6 +12,7 @@ import tarfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 EPOCH = int(os.environ.get("SOURCE_DATE_EPOCH", "1790899200"))
+EXCLUDED = {".git", ".idea", ".vscode", ".dart_tool", "__pycache__", "ephemeral"}
 
 
 def tracked(root: pathlib.Path) -> list[pathlib.Path]:
@@ -26,6 +27,8 @@ def tracked(root: pathlib.Path) -> list[pathlib.Path]:
         if not encoded:
             continue
         relative = pathlib.PurePosixPath(os.fsdecode(encoded))
+        if EXCLUDED.intersection(relative.parts) or relative.suffix == ".pyc":
+            continue
         if relative.is_absolute() or ".." in relative.parts:
             raise SystemExit(f"Unsafe tracked path: {relative}")
         paths.append(root.joinpath(*relative.parts))
@@ -40,6 +43,8 @@ def add_tree(archive: tarfile.TarFile, root: pathlib.Path, prefix: str) -> None:
     archive.addfile(directory)
     for path in tracked(root):
         relative = path.relative_to(root)
+        if path.is_symlink() and not path.resolve().is_relative_to(root):
+            raise SystemExit(f"Archive symlink escapes its source tree: {relative}")
         item = archive.gettarinfo(str(path), str(pathlib.PurePosixPath(prefix) / relative))
         item.uid = item.gid = 0
         item.uname = item.gname = ""
