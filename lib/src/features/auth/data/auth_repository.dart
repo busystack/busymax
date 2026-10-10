@@ -125,6 +125,8 @@ class AuthRepository {
     this.persistLinkedAccountRemoval,
     this.onAccountRemovalFailed,
     this.onAccountRemoved,
+    this.onAccountRemovalFinished,
+    this.onAccountRemovalStarting,
   }) : _authorizationPersistence = authorizationPersistence,
        _oAuth = oAuth,
        _accountsRepository =
@@ -140,6 +142,9 @@ class AuthRepository {
   final Future<void> Function(String accountId)? persistLinkedAccountRemoval;
   final Future<void> Function(String accountId)? onAccountRemovalFailed;
   final void Function()? onAccountRemoved;
+  final void Function(String accountId)? onAccountRemovalFinished;
+  final void Function(String accountId)? onAccountRemovalStarting;
+  final Map<String, Future<AccountRemovalResult>> _removing = {};
   final RedactingLogger _logger = RedactingLogger(Logger('AuthRepository'));
 
   Future<AuthSessionState> loadSession() async {
@@ -279,21 +284,59 @@ class AuthRepository {
     required String accountId,
     bool revokeAuthorization = false,
   }) {
+    final existing = _removing[accountId];
+    if (existing != null) return existing;
+    try {
+      onAccountRemovalStarting?.call(accountId);
+    } on Object catch (error, stack) {
+      return Future<AccountRemovalResult>.error(error, stack);
+    }
+    late final Future<AccountRemovalResult> operation;
+    operation =
+        Future<AccountRemovalResult>.sync(
+          () => _runRemoval(accountId, revokeAuthorization),
+        ).whenComplete(() {
+          if (identical(_removing[accountId], operation)) {
+            _removing.remove(accountId);
+          }
+          onAccountRemovalFinished?.call(accountId);
+        });
+    _removing[accountId] = operation;
+    return operation;
+  }
+
+  Future<AccountRemovalResult> _runRemoval(
+    String accountId,
+    bool revokeAuthorization,
+  ) async {
     final persistence = _authorizationPersistence;
     if (persistence == null) {
+      await onAccountRemoving?.call(accountId);
       return _removeAccount(
         accountId: accountId,
         revokeAuthorization: revokeAuthorization,
       );
     }
-    return persistence.runRemoval(
-      accountId,
-      (snapshot) => _removeAccount(
-        accountId: accountId,
-        revokeAuthorization: revokeAuthorization,
-        snapshot: snapshot,
-      ),
-    );
+    var entered = false;
+    try {
+      return await persistence.runRemoval(accountId, (snapshot) {
+        entered = true;
+        return _removeAccount(
+          accountId: accountId,
+          revokeAuthorization: revokeAuthorization,
+          snapshot: snapshot,
+        );
+      }, prepare: () async => onAccountRemoving?.call(accountId));
+    } on Object {
+      if (!entered) {
+        await persistence.run(accountId, () async {
+          if (await persistence.removalRecoveryAvailable(accountId)) {
+            await onAccountRemovalFailed?.call(accountId);
+          }
+        });
+      }
+      rethrow;
+    }
   }
 
   Future<AccountRemovalResult> _removeAccount({
@@ -305,8 +348,6 @@ class AuthRepository {
     if (account == null) {
       return const AccountRemovalResult.alreadyRemoved();
     }
-
-    await onAccountRemoving?.call(accountId);
 
     var revocationStatus = AccountAuthorizationRevocationStatus.notRequested;
     if (revokeAuthorization && account.provider == BusyProvider.google) {
@@ -361,7 +402,14 @@ class AuthRepository {
         await _accountsRepository.deleteAccount(accountId);
       }
     } on Object {
-      await onAccountRemovalFailed?.call(accountId);
+      if (revocationStatus != AccountAuthorizationRevocationStatus.succeeded &&
+          (_authorizationPersistence == null ||
+              snapshot != null &&
+                  await _authorizationPersistence.canRestoreRemoval(
+                    snapshot,
+                  ))) {
+        await onAccountRemovalFailed?.call(accountId);
+      }
       rethrow;
     }
 

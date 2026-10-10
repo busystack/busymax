@@ -392,13 +392,18 @@ class OAuthService
           final persistence = _persistence!;
           final generation = current.generation;
           await persistence.run(accountId, () async {
+            attempt.check();
             if (await persistence.generation(accountId) != generation) {
               throw const OAuthException(
                 'OAuthStaleAuthorization',
                 'The account changed while contacts were being enabled.',
               );
             }
-            await persistence.database.transaction(persistContacts);
+            await persistence.database.transaction(() async {
+              attempt.check();
+              await persistContacts();
+              attempt.check();
+            });
           });
         }
         attempt.committed();
@@ -409,7 +414,19 @@ class OAuthService
         attempt,
         <String>{scope},
       );
-      await result.commit!(persistContacts ?? () async {});
+      await result.commit!(() async {
+        // Grant metadata and the linked account share the credential commit.
+        // The controller validates against the accepted grant inside this
+        // transaction, rather than the parent's previous scope set.
+        await (_persistence!.database.update(
+          _persistence.database.accounts,
+        )..where((row) => row.id.equals(accountId))).write(
+          AccountsCompanion(
+            grantedScopes: Value(result.tokenSet.scopes.join(' ')),
+          ),
+        );
+        await persistContacts?.call();
+      });
     } on OAuthException catch (error) {
       if (current == null) rethrow;
       throw AuthorizationScopedOAuthException(

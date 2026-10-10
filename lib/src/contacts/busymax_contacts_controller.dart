@@ -13,6 +13,7 @@ import 'package:http/http.dart' as http;
 
 import '../core/auth/account_token_broker.dart';
 import '../core/auth/authorization_attempt.dart';
+import '../core/auth/microsoft_graph_scopes.dart';
 import '../features/accounts/data/accounts_repository.dart';
 import '../google_tasks/oauth/oauth_service.dart';
 import '../providers/busy_provider.dart';
@@ -75,6 +76,7 @@ final class BusyMaxContactsController {
     required this.launchBrowser,
     this.syncInterval = const Duration(minutes: 15),
     this.providerFactory,
+    this.readAuthorizationGeneration,
   }) : directory = ContactsDirectory(store: store);
 
   final BusyMaxContactsStore store;
@@ -90,6 +92,7 @@ final class BusyMaxContactsController {
   final Duration syncInterval;
   final ContactsDirectory directory;
   final ContactsProvider Function(ContactAccount)? providerFactory;
+  final Future<int> Function(String accountId)? readAuthorizationGeneration;
 
   final Map<String, Future<void>> _syncing = <String, Future<void>>{};
   Timer? _timer;
@@ -98,6 +101,7 @@ final class BusyMaxContactsController {
   bool _closed = false;
   final Set<Future<void>> _background = {};
   final Map<String, _ContactsEnrollment> _enrollments = {};
+  final Map<String, _LinkedAccountRemoval> _linkedRemovals = {};
   final Logger _log = Logger('busymax.contacts');
 
   void _launch(Future<void> Function() action) {
@@ -252,6 +256,12 @@ final class BusyMaxContactsController {
     if (_closed) {
       throw const ContactsException(ContactsFailure.cancelled, 'closed');
     }
+    if (_linkedRemovals.containsKey(key)) {
+      throw const ContactsException(
+        ContactsFailure.cancelled,
+        'parent-account-removing',
+      );
+    }
     if (_enrollments.containsKey(key)) {
       throw const ContactsException(
         ContactsFailure.cancelled,
@@ -335,12 +345,24 @@ final class BusyMaxContactsController {
         final scopes = granted.grantedScopes
             .split(RegExp(r'\s+'))
             .where((s) => s.isNotEmpty)
+            // The shared contacts adapter consumes short Graph scope names;
+            // parent metadata and credentials retain the provider's grant text.
+            .map(
+              (scope) =>
+                  provider == ContactProviderKind.microsoft &&
+                      scope.toLowerCase().startsWith(
+                        'https://graph.microsoft.com/',
+                      )
+                  ? scope.substring('https://graph.microsoft.com/'.length)
+                  : scope,
+            )
             .toSet();
         if (!scopes.any(
           (scope) =>
-              scope.toLowerCase() == grantedScopes.single.toLowerCase() ||
+              microsoftGraphScopeName(scope) ==
+                  microsoftGraphScopeName(grantedScopes.single) ||
               !writable &&
-                  scope.toLowerCase() ==
+                  microsoftGraphScopeName(scope) ==
                       (provider == ContactProviderKind.google
                           ? googleContactsWriteScope
                           : 'contacts.readwrite'),
@@ -640,11 +662,15 @@ final class BusyMaxContactsController {
         }
       });
 
-  Future<void> _bind(ContactAccount account) async {
+  Future<void> _bind(
+    ContactAccount account, {
+    void Function()? validateBinding,
+  }) async {
     if (_closed) {
       throw const ContactsException(ContactsFailure.cancelled, 'closed');
     }
     if (providerFactory != null) {
+      validateBinding?.call();
       directory.bind(
         providerFactory!(account),
         accountGeneration: account.generation,
@@ -655,6 +681,7 @@ final class BusyMaxContactsController {
       case ContactProviderKind.google:
         final parentId = await store.linkedBusyMaxAccount(account.id);
         if (parentId == null) throw StateError('Google contacts link missing.');
+        validateBinding?.call();
         directory.bind(
           GoogleContactsProvider(
             accountId: account.id,
@@ -678,8 +705,9 @@ final class BusyMaxContactsController {
         }
         final parent = await accounts.accountById(parentId);
         final writable = account.grantedScopes.any(
-          (scope) => scope.toLowerCase() == 'contacts.readwrite',
+          (scope) => microsoftGraphScopeName(scope) == 'contacts.readwrite',
         );
+        validateBinding?.call();
         directory.bind(
           MicrosoftContactsProvider(
             accountId: account.id,
@@ -723,6 +751,7 @@ final class BusyMaxContactsController {
         if (config['version'] != 1) {
           throw const FormatException('Unsupported CardDAV credential.');
         }
+        validateBinding?.call();
         directory.bind(
           _davProvider(account, config),
           accountGeneration: account.generation,
@@ -768,6 +797,7 @@ final class BusyMaxContactsController {
 
   Future<void> removeLinkedAccount(String busyMaxAccountId) async {
     final id = linkedContactAccountId(busyMaxAccountId);
+    _linkedRemovals[id]?.recoverable = false;
     await _cancelEnrollment(id);
     final account = await store.read((tx) => tx.account(id));
     if (account == null) return;
@@ -777,11 +807,56 @@ final class BusyMaxContactsController {
   /// Cancels and drains provider work before the parent authorization is
   /// removed. Data is retained, disabled and recoverable until the parent's
   /// database transaction commits.
+  void beginLinkedAccountRemoval(String busyMaxAccountId) {
+    final id = linkedContactAccountId(busyMaxAccountId);
+    if (_linkedRemovals.containsKey(id)) {
+      throw StateError('Parent removal already owns this contacts account.');
+    }
+    _linkedRemovals[id] = _LinkedAccountRemoval();
+    // Invalidate synchronously. A staged enrollment may already own, or be
+    // queued for, authorization serialization; preparation drains it only
+    // after that boundary is released.
+    _enrollments[id]?.cancel();
+  }
+
   Future<void> prepareLinkedAccountRemoval(String busyMaxAccountId) async {
     final id = linkedContactAccountId(busyMaxAccountId);
+    // Direct callers also claim ownership before awaiting. Production claims
+    // it when parent removal starts, before queuing authorization work.
+    if (!_linkedRemovals.containsKey(id)) {
+      beginLinkedAccountRemoval(busyMaxAccountId);
+    }
+    final removal = _linkedRemovals[id]!;
+    if (removal.prepared) {
+      throw StateError('Contacts removal already prepared.');
+    }
+    removal.prepared = true;
+    removal.parent = await accounts.accountById(busyMaxAccountId);
+    removal.authorizationGeneration = await readAuthorizationGeneration?.call(
+      busyMaxAccountId,
+    );
     await _cancelEnrollment(id);
     final account = await store.read((tx) => tx.account(id));
-    if (account?.enabled == true) await directory.disconnect(id);
+    if (account?.enabled == true) {
+      // Detach/drain network work first. Change the setting only if this attempt
+      // still owns the exact account that it observed.
+      await directory.detach(id);
+      await _drain([if (_syncing[id] case final running?) running]);
+      await store.write((tx) async {
+        final current = await tx.account(id);
+        if (removal.recoverable &&
+            identical(_linkedRemovals[id], removal) &&
+            current?.generation == account!.generation &&
+            current?.enabled == true) {
+          final disabled = current!.copy(
+            enabled: false,
+            generation: current.generation + 1,
+          );
+          await tx.putAccount(disabled);
+          removal.changed = disabled;
+        }
+      });
+    }
   }
 
   /// Called inside the parent's account-removal database transaction.
@@ -792,21 +867,76 @@ final class BusyMaxContactsController {
     String busyMaxAccountId,
   ) async {
     final id = linkedContactAccountId(busyMaxAccountId);
-    await _cancelEnrollment(id);
-    final account = await store.read((tx) => tx.account(id));
-    if (account == null || account.enabled) return;
-    final restored = account.copy(
-      enabled: true,
-      generation: account.generation + 1,
+    final removal = _linkedRemovals[id];
+    final changed = removal?.changed;
+    if (removal == null ||
+        !removal.recoverable ||
+        removal.recovered ||
+        changed == null) {
+      return;
+    }
+    final parent = await accounts.accountById(busyMaxAccountId);
+    if (parent == null ||
+        parent.provider != removal.parent?.provider ||
+        parent.providerAccountId != removal.parent?.providerAccountId ||
+        parent.tenantId != removal.parent?.tenantId ||
+        parent.authority != removal.parent?.authority ||
+        parent.credentialKind != removal.parent?.credentialKind ||
+        parent.authState != removal.parent?.authState ||
+        parent.grantedScopes != removal.parent?.grantedScopes ||
+        await readAuthorizationGeneration?.call(busyMaxAccountId) !=
+            removal.authorizationGeneration) {
+      return;
+    }
+    ContactAccount? restored;
+    await store.write((tx) async {
+      final current = await tx.account(id);
+      if (!removal.recoverable ||
+          !identical(_linkedRemovals[id], removal) ||
+          current == null ||
+          current.enabled ||
+          jsonEncode(current.toJson()) != jsonEncode(changed.toJson())) {
+        return;
+      }
+      restored = current.copy(
+        enabled: true,
+        generation: current.generation + 1,
+      );
+      await tx.putAccount(restored!);
+      removal.recovered = true;
+    });
+    if (restored == null) return;
+    // A newer user action may run while the write completes. Never rebind it.
+    final current = await store.read((tx) => tx.account(id));
+    if (!removal.recoverable ||
+        current?.generation != restored!.generation ||
+        current?.enabled != true) {
+      return;
+    }
+    await _bind(
+      restored!,
+      validateBinding: () {
+        if (!removal.recoverable || !identical(_linkedRemovals[id], removal)) {
+          throw const ContactsException(
+            ContactsFailure.cancelled,
+            'stale-removal-recovery',
+          );
+        }
+      },
     );
-    await store.write((tx) => tx.putAccount(restored));
-    await _bind(restored);
+    if (!removal.recoverable) return;
+    _ensureScheduling();
     _launch(() => synchronizeAccount(id));
+  }
+
+  void finishLinkedAccountRemoval(String busyMaxAccountId) {
+    _linkedRemovals.remove(linkedContactAccountId(busyMaxAccountId));
   }
 
   void linkedAccountRemovalCommitted() => store.contactConfigurationChanged();
 
   Future<void> removeContactsAccount(String id) async {
+    _linkedRemovals[id]?.recoverable = false;
     await _cancelEnrollment(id);
     final account = await store.read((tx) => tx.account(id));
     if (account == null) return;
@@ -817,6 +947,7 @@ final class BusyMaxContactsController {
   }
 
   Future<void> disableContactsAccount(String id) async {
+    _linkedRemovals[id]?.recoverable = false;
     await _cancelEnrollment(id);
     await directory.disconnect(id);
   }
@@ -832,7 +963,7 @@ final class BusyMaxContactsController {
     final parent = await store.linkedBusyMaxAccount(id);
     final writable = account.grantedScopes.any(
       (s) =>
-          s.toLowerCase() == 'contacts.readwrite' ||
+          microsoftGraphScopeName(s) == 'contacts.readwrite' ||
           s == googleContactsWriteScope ||
           s == 'carddav:write',
     );
@@ -1001,6 +1132,15 @@ final class BusyMaxContactsController {
       throw const FormatException('An HTTPS CardDAV server is required.');
     }
   }
+}
+
+final class _LinkedAccountRemoval {
+  AccountEntity? parent;
+  int? authorizationGeneration;
+  ContactAccount? changed;
+  bool recoverable = true;
+  bool prepared = false;
+  bool recovered = false;
 }
 
 final class _ContactsEnrollment {

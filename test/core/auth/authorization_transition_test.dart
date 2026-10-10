@@ -2,6 +2,7 @@ import '../../support/desktop_registration_config.dart';
 import '../../support/native_registration_reader_fixture.dart';
 
 import 'package:busymax/src/core/auth/authorization_attempt.dart';
+import 'package:busymax/src/features/sync/account_sync_operations.dart';
 
 import 'dart:async';
 import 'dart:convert';
@@ -1395,9 +1396,19 @@ void main() {
 }
 
 class Harness {
-  Harness({this.buildConfig = config}) {
+  Harness({
+    this.buildConfig = config,
+    CrossEngineAccountGate? gate,
+    AppDatabase? database,
+    FailureStore? secretStore,
+  }) : db = database ?? AppDatabase.memoryForTests(),
+       secrets = secretStore ?? FailureStore() {
     staging = RegistrationStaging(buildConfig);
-    persistence = AuthorizationPersistence(database: db, secrets: secrets);
+    persistence = AuthorizationPersistence(
+      database: db,
+      secrets: secrets,
+      gate: gate,
+    );
     client = MockClient((request) async {
       requests.add(request);
       final injected = await beforeRequest?.call(request);
@@ -1468,8 +1479,8 @@ class Harness {
     );
     flow.cancelled = () => mode == 'cancel';
   }
-  final db = AppDatabase.memoryForTests();
-  final secrets = FailureStore();
+  final AppDatabase db;
+  final FailureStore secrets;
   final BuildConfig buildConfig;
   late final http.Client client;
   late final RegistrationStaging staging;
@@ -1597,11 +1608,12 @@ class FailureStore extends InMemorySecretStore {
     await super.deleteCredential(id);
   }
 
-  Future<void> Function(String id, SecretRecord record)? beforeSave;
+  Future<void> Function(String id, SecretRecord record)? beforeSave, afterSave;
   @override
   Future<void> saveCredential(String id, SecretRecord record) async {
     await beforeSave?.call(id, record);
     await super.saveCredential(id, record);
+    await afterSave?.call(id, record);
   }
 
   @override

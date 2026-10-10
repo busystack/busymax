@@ -3,7 +3,7 @@ import '../../core/http/request_dispatch_exception.dart';
 import '../../core/http/bounded_http.dart';
 import '../../core/http/retry_after.dart';
 
-import 'package:drift/drift.dart' show BooleanExpressionOperators;
+import 'package:drift/drift.dart' show BooleanExpressionOperators, Value;
 
 import 'dart:async';
 import 'dart:convert';
@@ -12,6 +12,7 @@ import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
 
 import '../../config/build_config.dart';
+import '../../db/app_database.dart' show AccountsCompanion;
 import '../../core/auth/oauth_registration.dart';
 import '../../core/auth/registration_staging.dart';
 import '../../core/auth/authorization_persistence.dart';
@@ -605,13 +606,18 @@ class MicrosoftOAuthService
           final persistence = _persistence!;
           final generation = active.generation;
           await persistence.run(id, () async {
+            attempt.check();
             if (await persistence.generation(id) != generation) {
               throw const OAuthException(
                 'OAuthStaleAuthorization',
                 'The account changed while contacts were being enabled.',
               );
             }
-            await persistence.database.transaction(persistContacts);
+            await persistence.database.transaction(() async {
+              attempt.check();
+              await persistContacts();
+              attempt.check();
+            });
           });
         }
         attempt.committed();
@@ -622,7 +628,16 @@ class MicrosoftOAuthService
         optionalScopes: {scope},
         capturedAttempt: attempt,
       );
-      await result.commit!(persistContacts ?? () async {});
+      await result.commit!(() async {
+        await (_persistence!.database.update(
+          _persistence.database.accounts,
+        )..where((row) => row.id.equals(id))).write(
+          AccountsCompanion(
+            grantedScopes: Value(result.tokenSet.scopes.join(' ')),
+          ),
+        );
+        await persistContacts?.call();
+      });
     } on OAuthException catch (error) {
       if (current == null) rethrow;
       throw AuthorizationScopedOAuthException(

@@ -360,6 +360,9 @@ final busyMaxContactsControllerProvider = Provider<BusyMaxContactsController>((
     store: ref.watch(busyMaxContactsStoreProvider),
     accounts: ref.watch(accountsRepositoryProvider),
     authorization: broker as ContactsAuthorizationBroker,
+    readAuthorizationGeneration: ref.watch(
+      authorizationGenerationReaderProvider,
+    ),
     httpClient: ref.watch(baseHttpClientProvider),
     readDavSecret: (accountId) => storage.read(key: key(accountId)),
     writeDavSecret: (accountId, value) =>
@@ -565,6 +568,9 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
     database: ref.watch(databaseProvider),
     accountsRepository: ref.watch(accountsRepositoryProvider),
     microsoftOAuth: ref.watch(applicationMicrosoftOAuthServiceProvider),
+    onAccountRemovalStarting: (accountId) => ref
+        .read(busyMaxContactsControllerProvider)
+        .beginLinkedAccountRemoval(accountId),
     onAccountRemoving: (accountId) => ref
         .read(busyMaxContactsControllerProvider)
         .prepareLinkedAccountRemoval(accountId),
@@ -577,6 +583,9 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
     onAccountRemoved: () => ref
         .read(busyMaxContactsControllerProvider)
         .linkedAccountRemovalCommitted(),
+    onAccountRemovalFinished: (accountId) => ref
+        .read(busyMaxContactsControllerProvider)
+        .finishLinkedAccountRemoval(accountId),
   );
 });
 

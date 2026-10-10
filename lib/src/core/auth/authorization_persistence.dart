@@ -32,6 +32,7 @@ final class AuthorizationPersistence {
   final SecretStore secrets;
   final CrossEngineAccountGate gate;
   final AccountSyncCoordinator _coordinator = AccountSyncCoordinator();
+  final AccountSyncCoordinator _removals = AccountSyncCoordinator();
 
   Future<T> run<T>(String id, Future<T> Function() operation) =>
       _coordinator.run(id, () => gate.run('authorization:$id', operation));
@@ -68,17 +69,39 @@ final class AuthorizationPersistence {
     return record;
   }
 
-  /// Recovery precedes the boundary. The callback owns it once, including
-  /// revocation and local removal; it receives a validated snapshot, no reader.
+  /// Removal owns a separate lifecycle queue. Capture identity under the
+  /// authorization boundary, release it to cancel and drain enrollment, then
+  /// reacquire and validate before revocation or local deletion. Enrollment
+  /// may need that boundary to roll back its staged credential.
   Future<T> runRemoval<T>(
     String id,
-    Future<T> Function(AuthorizationRemovalSnapshot snapshot) operation,
-  ) async {
+    Future<T> Function(AuthorizationRemovalSnapshot snapshot) operation, {
+    Future<void> Function()? prepare,
+  }) => _removals.run(id, () async {
     await recover();
+    final expected = await run(id, () async {
+      final account = await (database.select(
+        database.accounts,
+      )..where((row) => row.id.equals(id))).getSingleOrNull();
+      return (account, await generation(id));
+    });
+    await prepare?.call();
     return run(id, () async {
       final account = await (database.select(
         database.accounts,
       )..where((row) => row.id.equals(id))).getSingleOrNull();
+      if (await generation(id) != expected.$2 ||
+          account?.provider != expected.$1?.provider ||
+          account?.providerAccountId != expected.$1?.providerAccountId ||
+          account?.tenantId != expected.$1?.tenantId ||
+          account?.authority != expected.$1?.authority ||
+          account?.credentialKind != expected.$1?.credentialKind ||
+          (account == null) != (expected.$1 == null)) {
+        throw const OAuthException(
+          'OAuthStaleAuthorization',
+          'The account changed while removal was being prepared.',
+        );
+      }
       final provider = account?.provider;
       if (provider == 'google' || provider == 'microsoft') {
         await secrets.migrateLegacyOAuthCredential(
@@ -89,6 +112,7 @@ final class AuthorizationPersistence {
       final snapshot = AuthorizationRemovalSnapshot._(
         id,
         await _readCurrentCredential(id),
+        expected.$2,
       );
       try {
         return await operation(snapshot);
@@ -96,7 +120,28 @@ final class AuthorizationPersistence {
         snapshot._active = false;
       }
     });
+  });
+
+  /// Recovery authority exists only after a complete reversible rollback.
+  /// A retained journal or a durable generation change cannot restore contacts.
+  Future<bool> canRestoreRemoval(AuthorizationRemovalSnapshot snapshot) async {
+    if (!snapshot._active) return false;
+    final id = snapshot.accountId;
+    return await generation(id) == snapshot.generation &&
+        await removalRecoveryAvailable(id);
   }
+
+  /// Preparation failure has not revoked authorization, but a retained
+  /// credential journal still denies authority to restore contacts.
+  Future<bool> removalRecoveryAvailable(String id) async =>
+      await (database.select(
+            database.accounts,
+          )..where((row) => row.id.equals(id))).getSingleOrNull() !=
+          null &&
+      await (database.select(
+            database.authorizationCommits,
+          )..where((row) => row.accountId.equals(id))).getSingleOrNull() ==
+          null;
 
   Future<void> recover() async {
     final journals = await database.select(database.authorizationCommits).get();
@@ -496,8 +541,13 @@ final class AuthorizationPersistence {
 /// Issued only inside runRemoval. It cannot be used as an unlocked reader or
 /// after the operation releases the account boundary.
 final class AuthorizationRemovalSnapshot {
-  AuthorizationRemovalSnapshot._(this.accountId, this._credential);
+  AuthorizationRemovalSnapshot._(
+    this.accountId,
+    this._credential,
+    this.generation,
+  );
   final String accountId;
+  final int generation;
   final SecretRecord? _credential;
   bool _active = true;
   SecretRecord? get credential {
