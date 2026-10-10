@@ -331,6 +331,7 @@ class _EventEditorState extends ConsumerState<EventEditor> {
   String? _guestError;
   List<BusyMaxContactSuggestion> _guestSuggestions = const [];
   int _guestSuggestionGeneration = 0;
+  StreamSubscription<void>? _contactsChanges;
   var _addingGuest = false;
   var _addingCategory = false;
   var _confirmingCancel = false;
@@ -357,6 +358,8 @@ class _EventEditorState extends ConsumerState<EventEditor> {
   @override
   void dispose() {
     _consentCancellation?.cancel();
+    _guestSuggestionGeneration++;
+    unawaited(_contactsChanges?.cancel());
     _shortcutFocusNode.dispose();
     _guestController.dispose();
     super.dispose();
@@ -1144,6 +1147,8 @@ class _EventEditorState extends ConsumerState<EventEditor> {
       if (source.provider == BusyProvider.google) {
         _addingCategory = false;
       }
+      _guestSuggestionGeneration++;
+      _guestSuggestions = const [];
       _draft = updated;
     });
   }
@@ -1849,6 +1854,8 @@ class _EventEditorState extends ConsumerState<EventEditor> {
   }
 
   void _addGuest() {
+    _guestSuggestionGeneration++;
+    _guestSuggestions = const [];
     final email = _guestController.text.trim();
     if (!_looksLikeEmail(email)) {
       setState(() => _guestError = context.l10n.feedbackInvalidEmail);
@@ -1877,30 +1884,75 @@ class _EventEditorState extends ConsumerState<EventEditor> {
 
   Future<void> _loadGuestSuggestions(String query) async {
     final generation = ++_guestSuggestionGeneration;
+    final accountId = _draft.accountId;
+    final sourceId = _draft.sourceId;
     if (query.trim().isEmpty) {
       setState(() => _guestSuggestions = const []);
       return;
     }
     try {
+      _contactsChanges ??= ref
+          .read(busyMaxContactsControllerProvider)
+          .changes
+          .listen((_) {
+            _guestSuggestionGeneration++;
+            if (mounted) setState(() => _guestSuggestions = const []);
+          });
       final suggestions = await ref
           .read(busyMaxContactsControllerProvider)
           .suggestAttendees(
             query,
-            busyMaxAccountId: _draft.accountId,
+            busyMaxAccountId: accountId,
             excludedAddresses: {
               for (final attendee in _draft.attendees) attendee.email,
             },
           );
-      if (!mounted || generation != _guestSuggestionGeneration) return;
+      if (!mounted ||
+          generation != _guestSuggestionGeneration ||
+          _draft.accountId != accountId ||
+          _draft.sourceId != sourceId ||
+          _guestController.text.trim() != query.trim()) {
+        return;
+      }
       setState(() => _guestSuggestions = suggestions);
     } on Object {
       // Manual attendee entry remains available when contacts are unavailable.
-      if (!mounted || generation != _guestSuggestionGeneration) return;
+      if (!mounted ||
+          generation != _guestSuggestionGeneration ||
+          _draft.accountId != accountId ||
+          _draft.sourceId != sourceId ||
+          _guestController.text.trim() != query.trim()) {
+        return;
+      }
       setState(() => _guestSuggestions = const []);
     }
   }
 
-  void _addSuggestedGuest(BusyMaxContactSuggestion suggestion) {
+  Future<void> _addSuggestedGuest(BusyMaxContactSuggestion suggestion) async {
+    if (!_draft.canManageAttendees || !_guestSuggestions.contains(suggestion)) {
+      return;
+    }
+    final generation = _guestSuggestionGeneration;
+    final accountId = _draft.accountId;
+    final sourceId = _draft.sourceId;
+    try {
+      if (!await ref
+          .read(busyMaxContactsControllerProvider)
+          .suggestionEligible(suggestion, busyMaxAccountId: accountId)) {
+        return;
+      }
+    } on Object {
+      return;
+    }
+    if (!mounted ||
+        generation != _guestSuggestionGeneration ||
+        _draft.accountId != accountId ||
+        _draft.sourceId != sourceId ||
+        !_draft.canManageAttendees ||
+        !_guestSuggestions.contains(suggestion)) {
+      return;
+    }
+    _guestSuggestionGeneration++;
     final duplicate = _draft.attendees.any(
       (attendee) =>
           attendee.email.toLowerCase() == suggestion.email.toLowerCase(),

@@ -2197,6 +2197,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
   final Map<String, String> _suggestedGuestNames = {};
   List<BusyMaxContactSuggestion> _guestSuggestions = const [];
   int _guestSuggestionGeneration = 0;
+  StreamSubscription<void>? _contactsChanges;
   int? _reminderMinutes;
   Object? _editedGoogleReminders;
   List<AndroidNextcloudReminderRow>? _editedNextcloudReminders;
@@ -2220,6 +2221,13 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
   @override
   void initState() {
     super.initState();
+    _contactsChanges = ref
+        .read(busyMaxContactsControllerProvider)
+        .changes
+        .listen((_) {
+          _guestSuggestionGeneration++;
+          if (mounted) setState(() => _guestSuggestions = const []);
+        });
     unawaited(_restoreRecovery());
     _recoveryTimer = Timer.periodic(
       const Duration(seconds: 1),
@@ -2229,6 +2237,8 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
 
   @override
   void dispose() {
+    _guestSuggestionGeneration++;
+    unawaited(_contactsChanges?.cancel());
     _consentCancellation?.cancel();
     _recoveryTimer?.cancel();
     if (_recoveryLoaded && _hasPendingEdits && !_allowPop) {
@@ -2299,6 +2309,8 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
 
   Future<void> _loadGuestSuggestions(String query) async {
     final generation = ++_guestSuggestionGeneration;
+    final accountId = _draft.accountId;
+    final sourceId = _draft.sourceId;
     final term = query.split(',').last.trim();
     if (term.isEmpty) {
       setState(() => _guestSuggestions = const []);
@@ -2309,20 +2321,58 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
           .read(busyMaxContactsControllerProvider)
           .suggestAttendees(
             term,
-            busyMaxAccountId: _draft.accountId,
+            busyMaxAccountId: accountId,
             excludedAddresses: {
               for (final attendee in _currentAttendees()) attendee.email,
             },
           );
-      if (!mounted || generation != _guestSuggestionGeneration) return;
+      if (!mounted ||
+          generation != _guestSuggestionGeneration ||
+          _draft.accountId != accountId ||
+          _draft.sourceId != sourceId ||
+          _guests.text.split(',').last.trim() != term) {
+        return;
+      }
       setState(() => _guestSuggestions = suggestions);
     } on Object {
-      if (!mounted || generation != _guestSuggestionGeneration) return;
+      if (!mounted ||
+          generation != _guestSuggestionGeneration ||
+          _draft.accountId != accountId ||
+          _draft.sourceId != sourceId ||
+          _guests.text.split(',').last.trim() != term) {
+        return;
+      }
       setState(() => _guestSuggestions = const []);
     }
   }
 
-  void _selectGuestSuggestion(BusyMaxContactSuggestion suggestion) {
+  Future<void> _selectGuestSuggestion(
+    BusyMaxContactSuggestion suggestion,
+  ) async {
+    if (!_draft.canManageAttendees || !_guestSuggestions.contains(suggestion)) {
+      return;
+    }
+    final generation = _guestSuggestionGeneration;
+    final accountId = _draft.accountId;
+    final sourceId = _draft.sourceId;
+    try {
+      if (!await ref
+          .read(busyMaxContactsControllerProvider)
+          .suggestionEligible(suggestion, busyMaxAccountId: accountId)) {
+        return;
+      }
+    } on Object {
+      return;
+    }
+    if (!mounted ||
+        generation != _guestSuggestionGeneration ||
+        _draft.accountId != accountId ||
+        _draft.sourceId != sourceId ||
+        !_draft.canManageAttendees ||
+        !_guestSuggestions.contains(suggestion)) {
+      return;
+    }
+    _guestSuggestionGeneration++;
     final emails = _guests.text
         .split(RegExp(r'[,;\n]'))
         .map((value) => value.trim())
@@ -2444,6 +2494,8 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
                           );
                           return;
                         }
+                        _guestSuggestionGeneration++;
+                        _guestSuggestions = const [];
                         setState(
                           () => _draft = _draft.copyWith(
                             accountId: source.accountId,

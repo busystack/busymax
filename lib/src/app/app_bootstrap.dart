@@ -380,7 +380,7 @@ final busyMaxContactsControllerProvider = Provider<BusyMaxContactsController>((
     launchBrowser: (uri) =>
         launchUrl(uri, mode: LaunchMode.externalApplication),
   );
-  unawaited(controller.start());
+  controller.startInBackground();
   ref.onDispose(() => unawaited(controller.close()));
   return controller;
 });
@@ -432,25 +432,57 @@ final operationalNotificationReporterProvider =
       );
     });
 
+Stream<T> _contactsConfigurationStream<T>(
+  BusyMaxContactsController controller,
+  Future<T> Function() read,
+) => Stream<T>.multi((output) {
+  var disposed = false;
+  var generation = 0;
+  void reload() {
+    final captured = ++generation;
+    unawaited(
+      Future<T>.sync(read).then<void>(
+        (value) {
+          if (!disposed && captured == generation) output.add(value);
+        },
+        onError: (Object error, StackTrace stack) {
+          if (!disposed && captured == generation) {
+            output.addError(error, stack);
+          }
+        },
+      ),
+    );
+  }
+
+  final subscription = controller.changes.listen(
+    (_) => reload(),
+    onError: output.addError,
+  );
+  output.onCancel = () {
+    disposed = true;
+    generation++;
+    return subscription.cancel();
+  };
+  reload();
+});
+
 final busyMaxContactAccountsProvider = StreamProvider<List<ContactAccount>>((
   ref,
-) async* {
+) {
   final controller = ref.watch(busyMaxContactsControllerProvider);
-  Future<List<ContactAccount>> read() =>
-      controller.store.read((tx) => tx.accounts());
-  yield await read();
-  await for (final _ in controller.changes) {
-    yield await read();
-  }
+  return _contactsConfigurationStream(
+    controller,
+    () => controller.store.read((tx) => tx.accounts()),
+  );
 });
 
 final busyMaxContactSourceSettingsProvider =
-    StreamProvider<List<BusyMaxContactSourceSetting>>((ref) async* {
+    StreamProvider<List<BusyMaxContactSourceSetting>>((ref) {
       final controller = ref.watch(busyMaxContactsControllerProvider);
-      yield await controller.sourceSettings();
-      await for (final _ in controller.changes) {
-        yield await controller.sourceSettings();
-      }
+      return _contactsConfigurationStream(
+        controller,
+        controller.sourceSettings,
+      );
     });
 
 final desktopWindowServiceProvider = Provider<DesktopWindowService>(

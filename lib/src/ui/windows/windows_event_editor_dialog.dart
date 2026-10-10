@@ -213,6 +213,7 @@ Future<bool> showWindowsEventEditorDialog(
   String? guestError;
   List<BusyMaxContactSuggestion> guestSuggestions = const [];
   var guestSuggestionGeneration = 0;
+  StreamSubscription<void>? contactsChanges;
   var saving = false;
   var saved = false;
   var allowPop = false;
@@ -252,6 +253,15 @@ Future<bool> showWindowsEventEditorDialog(
     builder: (dialogContext) => EditorStateBuilder(
       textControllers: [title, description, location, guestEmail, categories],
       builder: (context, setState) {
+        contactsChanges ??= ref
+            .read(busyMaxContactsControllerProvider)
+            .changes
+            .listen((_) {
+              guestSuggestionGeneration++;
+              if (dialogContext.mounted) {
+                setState(() => guestSuggestions = const []);
+              }
+            });
         final l10n = AppLocalizations.of(context);
         final validEnd =
             EventEditorDraft.newEvent(
@@ -331,6 +341,8 @@ Future<bool> showWindowsEventEditorDialog(
                                     eventLabelId = null;
                                     eventLabelChanged = true;
                                   }
+                                  guestSuggestionGeneration++;
+                                  guestSuggestions = const [];
                                   selectedSource = source;
                                   // Destination conversion belongs to the shared save
                                   // policy. Keep the editable data intact while browsing.
@@ -1308,6 +1320,8 @@ Future<bool> showWindowsEventEditorDialog(
                                 setState(() => guestError = null);
                                 final query = guestEmail.text.trim();
                                 final generation = ++guestSuggestionGeneration;
+                                final accountId = selectedSource.accountId;
+                                final sourceId = selectedSource.id;
                                 if (query.isEmpty) {
                                   setState(() => guestSuggestions = const []);
                                   return;
@@ -1318,8 +1332,7 @@ Future<bool> showWindowsEventEditorDialog(
                                         .read(busyMaxContactsControllerProvider)
                                         .suggestAttendees(
                                           query,
-                                          busyMaxAccountId:
-                                              selectedSource.accountId,
+                                          busyMaxAccountId: accountId,
                                           excludedAddresses: {
                                             for (final attendee in attendees)
                                               attendee.email,
@@ -1327,7 +1340,10 @@ Future<bool> showWindowsEventEditorDialog(
                                         );
                                     if (!dialogContext.mounted ||
                                         generation !=
-                                            guestSuggestionGeneration) {
+                                            guestSuggestionGeneration ||
+                                        selectedSource.accountId != accountId ||
+                                        selectedSource.id != sourceId ||
+                                        guestEmail.text.trim() != query) {
                                       return;
                                     }
                                     setState(
@@ -1336,7 +1352,10 @@ Future<bool> showWindowsEventEditorDialog(
                                   } on Object {
                                     if (!dialogContext.mounted ||
                                         generation !=
-                                            guestSuggestionGeneration) {
+                                            guestSuggestionGeneration ||
+                                        selectedSource.accountId != accountId ||
+                                        selectedSource.id != sourceId ||
+                                        guestEmail.text.trim() != query) {
                                       return;
                                     }
                                     setState(() => guestSuggestions = const []);
@@ -1365,6 +1384,7 @@ Future<bool> showWindowsEventEditorDialog(
                                     attendeesChanged = true;
                                   });
                                 }
+                                guestSuggestionGeneration++;
                                 guestEmail.clear();
                                 setState(() => guestSuggestions = const []);
                               },
@@ -1376,7 +1396,51 @@ Future<bool> showWindowsEventEditorDialog(
                               ),
                               onPressed: saving
                                   ? null
-                                  : () {
+                                  : () async {
+                                      if (!guestSuggestions.contains(
+                                        suggestion,
+                                      )) {
+                                        return;
+                                      }
+                                      final capturedGeneration =
+                                          guestSuggestionGeneration;
+                                      final capturedAccount =
+                                          selectedSource.accountId;
+                                      final capturedSource = selectedSource.id;
+                                      try {
+                                        if (!await ref
+                                            .read(
+                                              busyMaxContactsControllerProvider,
+                                            )
+                                            .suggestionEligible(
+                                              suggestion,
+                                              busyMaxAccountId: capturedAccount,
+                                            )) {
+                                          return;
+                                        }
+                                      } on Object {
+                                        return;
+                                      }
+                                      if (!dialogContext.mounted ||
+                                          capturedGeneration !=
+                                              guestSuggestionGeneration ||
+                                          selectedSource.accountId !=
+                                              capturedAccount ||
+                                          selectedSource.id != capturedSource ||
+                                          !guestSuggestions.contains(
+                                            suggestion,
+                                          ) ||
+                                          !(originalDraft?.canManageAttendees ??
+                                              true) ||
+                                          saving ||
+                                          selectedSource.provider ==
+                                                  BusyProvider.nextcloud &&
+                                              selectedSource
+                                                      .davEffectivePermissions['canInvite'] ==
+                                                  false) {
+                                        return;
+                                      }
+                                      guestSuggestionGeneration++;
                                       if (!attendees.any(
                                         (item) =>
                                             item.email.toLowerCase() ==
@@ -1849,6 +1913,21 @@ Future<bool> showWindowsEventEditorDialog(
       },
     ),
   );
+  guestSuggestionGeneration++;
+  final cancellation = contactsChanges?.cancel();
+  if (cancellation != null) {
+    unawaited(
+      cancellation.catchError((Object error, StackTrace stack) {
+        FlutterError.reportError(
+          FlutterErrorDetails(
+            exception: error,
+            stack: stack,
+            library: 'contacts suggestions',
+          ),
+        );
+      }),
+    );
+  }
   consentCancellation?.cancel();
   title.dispose();
   description.dispose();

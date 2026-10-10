@@ -1,3 +1,4 @@
+import 'windows_contacts_settings.dart';
 import '../../l10n/oauth_error_description.dart';
 import '../../core/auth/oauth_models.dart';
 import '../../core/auth/authorization_attempt.dart';
@@ -5,14 +6,18 @@ import '../../l10n/registration_description.dart';
 import 'windows_registration_setup_dialog.dart';
 import '../../core/auth/oauth_registration.dart';
 import 'windows_time_picker.dart';
+
 import 'dart:async';
+
 import 'windows_nextcloud_dialogs.dart';
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
 import 'windows_workspace_shell.dart';
+
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -601,6 +606,7 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
           ),
         ),
         const SizedBox(height: 20),
+        const WindowsContactsSettings(),
         KeyedSubtree(key: _accountsKey, child: _SectionTitle(l10n.accounts)),
         Card(
           child: accounts.when(
@@ -996,9 +1002,8 @@ class _WindowsAccountCalendars extends StatelessWidget {
             header: true,
             child: Text(
               l10n.calendars,
-              style: FluentTheme.of(
-                context,
-              ).typography.caption?.copyWith(fontWeight: FontWeight.w600),
+              style: FluentTheme.of(context).typography.caption
+                  ?.copyWith(fontWeight: FontWeight.w600),
             ),
           ),
           const SizedBox(height: 8),
@@ -1037,9 +1042,8 @@ class _WindowsCalendarSettingsColumnHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final style = FluentTheme.of(
-      context,
-    ).typography.caption?.copyWith(fontWeight: FontWeight.w600);
+    final style = FluentTheme.of(context).typography.caption
+        ?.copyWith(fontWeight: FontWeight.w600);
     return Padding(
       padding: const EdgeInsets.only(top: 8, bottom: 4),
       child: Row(

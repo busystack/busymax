@@ -5,7 +5,7 @@
     {
       "name": "busystack_contacts",
       "repository": "https://github.com/ChenZhenIO/busystack_contacts.git",
-      "revision": "8f36376546240a472706e8693f8af10681eca63e",
+      "revision": "cf399b9af0b7bf8a315e8c5d6123e601c90b7bd2",
       "path": "../busystack_contacts"
     },
     {
@@ -17,7 +17,7 @@
     {
       "name": "busystack_graph",
       "repository": "https://github.com/ChenZhenIO/busystack_graph.git",
-      "revision": "ad97b118e80882c7d51f4b02fb9351b7c7ce6fbf",
+      "revision": "6572ee14ae992d4cd4f8c2218babaff5051bc132",
       "path": "../busystack_graph"
     }
   ]

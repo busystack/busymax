@@ -1,5 +1,11 @@
+import '../../../support/contacts_fixture.dart';
+import '../../../platform/contacts_settings_routes_test.dart'
+    show complete, settle;
+
 import '../../../core/auth/authorization_transition_test.dart' show Harness;
+
 import 'package:busymax/src/core/auth/oauth_registration.dart';
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -47,11 +53,102 @@ import 'package:ubuntu_localizations/ubuntu_localizations.dart';
 import '../../../test_localized_app.dart';
 import '../../../support/fake_autostart_service.dart';
 import '../../../support/memory_settings_store.dart';
+
 import 'package:busymax/src/platform/common/desktop_services.dart';
 
 const _nativeMenuChannel = MethodChannel(nativeMenuChannelName);
 
 void main() {
+  testWidgets(
+    'Linux contacts source switch immediately saves, filters and rolls back failed persistence',
+    (tester) async {
+      final f = ContactsFixture(AppDatabase.memoryForTests());
+      await tester.runAsync(() async {
+        await f.addParent(BusyProvider.google);
+        await f.controller.enableLinkedContacts('google');
+        await f.controller.synchronizeAccount('contacts:google');
+      });
+      final parent = (await tester.runAsync(
+        () => f.accounts.accountById('google'),
+      ))!;
+      final container = _container(
+        selectedAccountId: 'google',
+        authRepository: _FakeAuthRepository(),
+        accounts: [parent],
+        contactsFixture: f,
+        accountsRepository: f.accounts,
+      );
+      addTearDown(() async {
+        await _disposeDiagnosticsWidget(tester);
+        container.dispose();
+        await complete(tester, f.controller.close);
+        await tester.runAsync(f.database.close);
+      });
+      await _pumpSettings(
+        tester,
+        container,
+        logicalSize: const Size(1200, 1800),
+        initialPage: SettingsPage.accounts,
+      );
+      await settle(tester);
+      final source = (await complete(
+        tester,
+        f.controller.sourceSettings,
+      )).single.source;
+      final toggle = find.byKey(ValueKey('contact-source-${source.key}'));
+      await tester.ensureVisible(toggle);
+      await tester.tap(toggle);
+      await settle(tester);
+      expect(tester.widget<YaruSwitch>(toggle).value, isFalse);
+      expect(
+        await complete(
+          tester,
+          () =>
+              f.controller.suggestAttendees('ada', busyMaxAccountId: 'google'),
+        ),
+        isEmpty,
+      );
+      await tester.runAsync(
+        () => f.database.customStatement(
+          "CREATE TRIGGER reject_source_preference BEFORE UPDATE ON bm_contact_source_preferences BEGIN SELECT RAISE(ABORT,'fixture preference rejected'); END",
+        ),
+      );
+      await tester.tap(toggle);
+      await settle(tester);
+      expect(tester.widget<YaruSwitch>(toggle).value, isFalse);
+      expect(
+        find.text('Could not save contact source preference'),
+        findsOneWidget,
+      );
+      expect(
+        (await complete(tester, f.controller.sourceSettings)).single.enabled,
+        isFalse,
+      );
+      await tester.runAsync(
+        () =>
+            f.database.customStatement('DROP TRIGGER reject_source_preference'),
+      );
+      await tester.tap(toggle);
+      await settle(tester);
+      expect(tester.widget<YaruSwitch>(toggle).value, isTrue);
+      expect(
+        await complete(
+          tester,
+          () =>
+              f.controller.suggestAttendees('ada', busyMaxAccountId: 'google'),
+        ),
+        hasLength(1),
+      );
+      expect(
+        (await complete(
+          tester,
+          () => f.store.read((tx) => tx.account('contacts:google')),
+        ))!.enabled,
+        isTrue,
+      );
+      await _disposeDiagnosticsWidget(tester);
+    },
+  );
   testWidgets('Settings reports unsaved preferences and retries persistence', (
     tester,
   ) async {
@@ -152,10 +249,9 @@ void main() {
             await observing.finished;
             await tester.pumpAndSettle();
             expect(
-              (await h.secrets.readCredential('opaque')
-                      as GoogleDesktopCredential)
-                  .tokenSet
-                  .accessToken,
+              (await h.secrets.readCredential(
+                'opaque',
+              ) as GoogleDesktopCredential).tokenSet.accessToken,
               'candidate-access',
             );
             await tester.pumpWidget(const SizedBox());
@@ -606,9 +702,9 @@ void main() {
     addTearDown(container.dispose);
 
     await _pumpSettings(tester, container, logicalSize: const Size(1000, 900));
-    final foreground = Theme.of(
-      tester.element(find.text('Calendar import')),
-    ).colorScheme.onSurface;
+    final foreground = Theme.of(tester.element(find.text('Calendar import')))
+        .colorScheme
+        .onSurface;
     for (final label in [
       'Google',
       'Calendar import',
@@ -828,14 +924,13 @@ void main() {
         database: database,
         secretStore: secrets,
         nextcloudLoginFlow: _unusedNextcloudLoginFlow(),
-        discover:
-            ({
-              required accountId,
-              required provider,
-              required accountAuthority,
-              required credential,
-              cancellationToken,
-            }) async => throw StateError('Discovery is not used by removal.'),
+        discover: ({
+          required accountId,
+          required provider,
+          required accountAuthority,
+          required credential,
+          cancellationToken,
+        }) async => throw StateError('Discovery is not used by removal.'),
         nextcloudCredentialRevoker:
             ({required accountId, required credential}) async {
               throw const DavException(
@@ -2118,9 +2213,16 @@ ProviderContainer _container({
   AccountsRepository? accountsRepository,
   SignedInSyncRunner? signedInSyncRunner,
   Harness? productionHarness,
+  ContactsFixture? contactsFixture,
 }) {
   return ProviderContainer(
     overrides: [
+      if (contactsFixture != null) ...[
+        databaseProvider.overrideWithValue(contactsFixture.database),
+        busyMaxContactsControllerProvider.overrideWithValue(
+          contactsFixture.controller,
+        ),
+      ],
       if (productionHarness != null) ...[
         databaseProvider.overrideWithValue(productionHarness.db),
         authorizationPersistenceProvider.overrideWithValue(
@@ -2586,9 +2688,8 @@ void registerSettingsAuthorizationCancellationRegressions() {
               });
               await h.seed();
               if (!shared) await h.makeGoogleUserOwned();
-              final before = (await h.secrets.readCredential(
-                'opaque',
-              ))!.toJson();
+              final before = (await h.secrets.readCredential('opaque'))!
+                  .toJson();
               final observing = _ObservedAuthRepository(h);
               final container = _container(
                 selectedAccountId: 'opaque',
@@ -2671,10 +2772,9 @@ void registerSettingsAuthorizationCancellationRegressions() {
               await observing.finished;
               await tester.pumpAndSettle();
               expect(
-                (await h.secrets.readCredential('opaque')
-                        as GoogleDesktopCredential)
-                    .tokenSet
-                    .accessToken,
+                (await h.secrets.readCredential(
+                  'opaque',
+                ) as GoogleDesktopCredential).tokenSet.accessToken,
                 'candidate-access',
               );
               expect((await h.summary('opaque')).showRetirementNotice, shared);

@@ -10,6 +10,57 @@ import 'package:busymax/src/core/http/request_dispatch_exception.dart';
 import 'package:busymax/src/features/schedule/presentation/attachment_upload_coordinator.dart';
 
 void main() {
+  for (final refreshFails in [false, true]) {
+    test(
+      'attachment streaming refreshes ordinary 401 (failure=$refreshFails)',
+      () async {
+        var requests = 0, refreshes = 0;
+        final client = MicrosoftTodoRestApiClient(
+          httpClient: MockClient((request) async {
+            requests++;
+            expect(
+              request.url.path.endsWith('/attachments/file/\$value'),
+              isTrue,
+            );
+            return requests == 1
+                ? http.Response('{}', 401)
+                : http.Response.bytes([1, 2, 3], 200);
+          }),
+          baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+
+          authorizationHeaderProvider: () async =>
+              refreshes == 0 ? 'Bearer old' : 'Bearer new',
+          unauthorizedRefreshProvider: () async {
+            refreshes++;
+            if (refreshFails) throw StateError('fixture refresh failed');
+          },
+        );
+        final download = client.downloadTaskAttachment(
+          taskListId: 'list',
+          taskId: 'task',
+          attachmentId: 'file',
+        );
+        if (refreshFails) {
+          await expectLater(
+            download,
+            throwsA(
+              isA<KnownUnsentRequestException>().having(
+                (e) => e.kind,
+                'kind',
+                RequestPreDispatchFailureKind.authentication,
+              ),
+            ),
+          );
+          expect(requests, 1);
+        } else {
+          expect(await download, [1, 2, 3]);
+          expect(requests, 2);
+        }
+        expect(refreshes, 1);
+      },
+    );
+  }
+
   test(
     'fresh direct task 429 retains retry delay and allows one explicit retry',
     () async {

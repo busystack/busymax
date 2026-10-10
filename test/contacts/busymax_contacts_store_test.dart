@@ -141,6 +141,61 @@ void main() {
       );
     },
   );
+  test(
+    'failing transaction still closes changes and retains the application DB',
+    () async {
+      final entered = Completer<void>();
+      final release = Completer<void>();
+      var notifications = 0;
+      final subscription = store.changes.listen((_) => notifications++);
+      final streamDone = subscription.asFuture<void>();
+      final operation = store.write((tx) async {
+        entered.complete();
+        await release.future;
+        throw StateError('delayed rollback');
+      });
+      final failure = expectLater(operation, throwsStateError);
+      await entered.future;
+      final closing = store.close();
+      release.complete();
+      await failure;
+      await closing.timeout(const Duration(seconds: 3));
+      await streamDone;
+      expect(notifications, 0);
+      await expectLater(
+        store.setSourceEnabled('missing', enabled: false),
+        throwsStateError,
+      );
+      expect(await database.customSelect('SELECT 1').getSingle(), isNotNull);
+      await store.close();
+    },
+  );
+  test(
+    'preferences notify only after commit and preserve the value on failure',
+    () async {
+      await store.write((tx) async {
+        await tx.putAccount(_account('contacts'));
+        await tx.putSource(_source('contacts'));
+      });
+      var notifications = 0;
+      final subscription = store.changes.listen((_) => notifications++);
+      addTearDown(subscription.cancel);
+      await store.setSourceEnabled(_source('contacts').key, enabled: false);
+      await Future<void>.delayed(Duration.zero);
+      expect(notifications, 1);
+      expect(await store.sourceEnabled(_source('contacts').key), false);
+      await database.customStatement(
+        "CREATE TRIGGER fail_preference BEFORE UPDATE ON bm_contact_source_preferences BEGIN SELECT RAISE(ABORT, 'fixture'); END",
+      );
+      await expectLater(
+        store.setSourceEnabled(_source('contacts').key, enabled: true),
+        throwsA(anything),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(notifications, 1);
+      expect(await store.sourceEnabled(_source('contacts').key), false);
+    },
+  );
 }
 
 ContactAccount _account(String id) => ContactAccount(

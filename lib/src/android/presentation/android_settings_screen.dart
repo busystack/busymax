@@ -1,8 +1,12 @@
+import 'android_contacts_settings.dart';
 import '../../l10n/oauth_error_description.dart';
+
 import 'package:busymax/src/core/auth/authorization_attempt.dart';
+
 import '../../l10n/registration_description.dart';
 import 'android_registration_setup_dialog.dart';
 import '../../core/auth/oauth_registration.dart';
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -83,6 +87,7 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 96),
         children: [
+          const AndroidContactsSettings(),
           _Section(
             title: context.l10n.accounts,
             children: [
@@ -170,9 +175,8 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                 (account) =>
                     account.isSignedIn &&
                     account.calendarsEnabled &&
-                    accountCollectionCreationModes(
-                          account.provider,
-                        ).calendarMode !=
+                    accountCollectionCreationModes(account.provider)
+                            .calendarMode !=
                         CalendarCollectionCreationMode.unavailable,
               ))
                 ListTile(
@@ -222,9 +226,8 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                 (account) =>
                     account.isSignedIn &&
                     account.tasksEnabled &&
-                    accountCollectionCreationModes(
-                          account.provider,
-                        ).taskListMode !=
+                    accountCollectionCreationModes(account.provider)
+                            .taskListMode !=
                         TaskListCreationMode.unavailable,
               ))
                 ListTile(
@@ -806,9 +809,8 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
           case BusyProvider.nextcloud:
             final service = ref.read(davAccountOnboardingServiceProvider);
             accountId = reconnecting == null
-                ? (await service.connectNextcloud(
-                    enteredServer: server!,
-                  )).accountId
+                ? (await service.connectNextcloud(enteredServer: server!))
+                      .accountId
                 : (await service.reconnectNextcloud(
                     accountId: reconnecting.id,
                     enteredServer: server!,
@@ -1705,9 +1707,8 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
 
   void _message(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 }
 

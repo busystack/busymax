@@ -45,23 +45,43 @@ final class BusyMaxContactsStore implements ContactsStore {
     Future<T> Function(Transaction transaction) action, {
     required bool writable,
   }) {
+    return _track(
+      () => database.transaction(() async {
+        final transaction = _BusyMaxContactsTransaction(database, writable);
+        try {
+          return await action(transaction as Transaction);
+        } finally {
+          transaction.active = false;
+        }
+      }),
+      notify: writable,
+    );
+  }
+
+  // The returned operation retains its failure for the caller. The separate
+  // completion gate observes it only to let shutdown drain every operation.
+  Future<T> _track<T>(Future<T> Function() action, {bool notify = false}) {
     if (_closing) return Future<T>.error(StateError('Contacts store closed'));
-    late final Future<T> operation;
-    operation = database.transaction(() async {
-      final transaction = _BusyMaxContactsTransaction(database, writable);
+    final done = Zone.root.run(Completer<void>.new);
+    _active.add(done.future);
+    final operation = Future<T>.sync(() async {
       try {
-        return await action(transaction as Transaction);
+        final value = await action();
+        if (notify && !_closing) _changes.add(null);
+        return value;
       } finally {
-        transaction.active = false;
+        _active.remove(done.future);
+        done.complete();
       }
     });
-    _active.add(operation);
-    return operation
-        .then((value) {
-          if (writable) _changes.add(null);
-          return value;
-        })
-        .whenComplete(() => _active.remove(operation));
+    // Observe failure for owned cleanup; the returned future still fails.
+    unawaited(
+      operation.then<void>(
+        (_) {},
+        onError: (Object error, StackTrace stack) {},
+      ),
+    );
+    return operation;
   }
 
   @override
@@ -81,17 +101,16 @@ final class BusyMaxContactsStore implements ContactsStore {
     required ContactAccount account,
     required String busyMaxAccountId,
     required bool reuseAuthorization,
-  }) async {
-    if (_closing) throw StateError('Contacts store closed');
-    await database.transaction(
+  }) => _track(
+    () => database.transaction(
       () => persistLinkedAccount(
         account: account,
         busyMaxAccountId: busyMaxAccountId,
         reuseAuthorization: reuseAuthorization,
       ),
-    );
-    contactConfigurationChanged();
-  }
+    ),
+    notify: true,
+  );
 
   /// Writes through the caller's current Drift transaction. Authorization
   /// upgrades use this so credentials, their generation and the contacts link
@@ -101,6 +120,7 @@ final class BusyMaxContactsStore implements ContactsStore {
     required String busyMaxAccountId,
     required bool reuseAuthorization,
   }) async {
+    if (_closing) throw StateError('Contacts store closed');
     final transaction = _BusyMaxContactsTransaction(database, true);
     try {
       await transaction.putAccount(account);
@@ -123,6 +143,7 @@ ON CONFLICT(contact_account_id) DO UPDATE SET
   /// Removes a linked contacts account through the caller's current Drift
   /// transaction (the parent-account removal transaction in production).
   Future<void> persistRemoveAccount(String accountId) async {
+    if (_closing) throw StateError('Contacts store closed');
     final transaction = _BusyMaxContactsTransaction(database, true);
     try {
       await transaction.removeAccount(accountId);
@@ -135,40 +156,48 @@ ON CONFLICT(contact_account_id) DO UPDATE SET
     if (!_closing) _changes.add(null);
   }
 
-  Future<String?> linkedBusyMaxAccount(String contactAccountId) async {
-    final row = await database
-        .customSelect(
-          'SELECT busymax_account_id FROM bm_contact_account_links '
-          'WHERE contact_account_id = ?',
-          variables: <Variable<Object>>[Variable<String>(contactAccountId)],
-        )
-        .getSingleOrNull();
-    return row?.readNullable<String>('busymax_account_id');
-  }
+  Future<String?> linkedBusyMaxAccount(String contactAccountId) =>
+      _track(() async {
+        final row = await database
+            .customSelect(
+              'SELECT busymax_account_id FROM bm_contact_account_links '
+              'WHERE contact_account_id = ?',
+              variables: <Variable<Object>>[Variable<String>(contactAccountId)],
+            )
+            .getSingleOrNull();
+        return row?.readNullable<String>('busymax_account_id');
+      });
 
-  Future<List<String>> linkedContactAccounts(String busyMaxAccountId) async =>
-      (await database
-              .customSelect(
-                'SELECT contact_account_id FROM bm_contact_account_links '
-                'WHERE busymax_account_id = ? ORDER BY contact_account_id',
-                variables: <Variable<Object>>[
-                  Variable<String>(busyMaxAccountId),
-                ],
-              )
-              .get())
-          .map((row) => row.read<String>('contact_account_id'))
-          .toList(growable: false);
+  Future<List<String>> linkedContactAccounts(String busyMaxAccountId) => _track(
+    () async =>
+        (await database
+                .customSelect(
+                  'SELECT contact_account_id FROM bm_contact_account_links '
+                  'WHERE busymax_account_id = ? ORDER BY contact_account_id',
+                  variables: <Variable<Object>>[
+                    Variable<String>(busyMaxAccountId),
+                  ],
+                )
+                .get())
+            .map((row) => row.read<String>('contact_account_id'))
+            .toList(growable: false),
+  );
 
   Future<void> setSourceEnabled(String sourceKey, {required bool enabled}) =>
-      database.customStatement(
-        '''
+      _track(
+        () => database.transaction(
+          () => database.customStatement(
+            '''
 INSERT INTO bm_contact_source_preferences(source_key, enabled) VALUES (?, ?)
 ON CONFLICT(source_key) DO UPDATE SET enabled = excluded.enabled
 ''',
-        <Object?>[sourceKey, enabled ? 1 : 0],
+            <Object?>[sourceKey, enabled ? 1 : 0],
+          ),
+        ),
+        notify: true,
       );
 
-  Future<bool> sourceEnabled(String sourceKey) async {
+  Future<bool> sourceEnabled(String sourceKey) => _track(() async {
     final row = await database
         .customSelect(
           'SELECT enabled FROM bm_contact_source_preferences '
@@ -177,15 +206,16 @@ ON CONFLICT(source_key) DO UPDATE SET enabled = excluded.enabled
         )
         .getSingleOrNull();
     return row == null || row.read<int>('enabled') != 0;
-  }
+  });
 
   /// Returns every enabled source by default. When [busyMaxAccountId] is set,
   /// linked OAuth contacts are selected together with independent contacts-only
   /// sources, which are intentionally available to the whole event editor.
-  Future<BusyMaxContactSelection> selection({String? busyMaxAccountId}) async {
-    final rows = await database
-        .customSelect(
-          '''
+  Future<BusyMaxContactSelection> selection({String? busyMaxAccountId}) =>
+      _track(() async {
+        final rows = await database
+            .customSelect(
+              '''
 SELECT a.data AS account_data, s.source_key,
        l.busymax_account_id,
        COALESCE(p.enabled, 1) AS source_enabled
@@ -196,29 +226,29 @@ SELECT a.data AS account_data, s.source_key,
  WHERE (? IS NULL OR l.busymax_account_id IS NULL OR l.busymax_account_id = ?)
  ORDER BY a.id, s.source_key
 ''',
-          variables: <Variable<Object>>[
-            Variable<String>(busyMaxAccountId),
-            Variable<String>(busyMaxAccountId),
-          ],
-        )
-        .get();
-    final accountIds = <String>{};
-    final sourceKeys = <String>{};
-    for (final row in rows) {
-      if (row.read<int>('source_enabled') == 0) continue;
-      final account = ContactAccount.fromJson(
-        (jsonDecode(row.read<String>('account_data')) as Map)
-            .cast<String, dynamic>(),
-      );
-      if (!account.enabled) continue;
-      accountIds.add(account.id);
-      sourceKeys.add(row.read<String>('source_key'));
-    }
-    return BusyMaxContactSelection(
-      accountIds: Set<String>.unmodifiable(accountIds),
-      sourceKeys: Set<String>.unmodifiable(sourceKeys),
-    );
-  }
+              variables: <Variable<Object>>[
+                Variable<String>(busyMaxAccountId),
+                Variable<String>(busyMaxAccountId),
+              ],
+            )
+            .get();
+        final accountIds = <String>{};
+        final sourceKeys = <String>{};
+        for (final row in rows) {
+          if (row.read<int>('source_enabled') == 0) continue;
+          final account = ContactAccount.fromJson(
+            (jsonDecode(row.read<String>('account_data')) as Map)
+                .cast<String, dynamic>(),
+          );
+          if (!account.enabled) continue;
+          accountIds.add(account.id);
+          sourceKeys.add(row.read<String>('source_key'));
+        }
+        return BusyMaxContactSelection(
+          accountIds: Set<String>.unmodifiable(accountIds),
+          sourceKeys: Set<String>.unmodifiable(sourceKeys),
+        );
+      });
 }
 
 final class _BusyMaxContactsTransaction implements ContactsWriteTransaction {

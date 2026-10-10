@@ -210,11 +210,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         onEnableContacts: (account, writable) =>
             unawaited(_enableContacts(account, writable: writable)),
         onDisableContacts: (account) => unawaited(_disableContacts(account.id)),
-        onSourceEnabled: (sourceKey, enabled) => unawaited(
-          ref
-              .read(busyMaxContactsControllerProvider)
-              .setSourceEnabled(sourceKey, enabled: enabled),
-        ),
+        onSourceEnabled: (sourceKey, enabled) => ref
+            .read(busyMaxContactsControllerProvider)
+            .setSourceEnabled(sourceKey, enabled: enabled),
         onAddCardDavContacts: () => unawaited(_addCardDavContacts()),
         onAddNextcloudContacts: () => unawaited(_addNextcloudContacts()),
         onRemoveContactsOnly: (account) =>
@@ -1573,7 +1571,7 @@ class _AccountManagementSection extends StatelessWidget {
   final Set<String> busyContactAccountIds;
   final void Function(AccountEntity account, bool writable) onEnableContacts;
   final void Function(ContactAccount account) onDisableContacts;
-  final void Function(String sourceKey, bool enabled) onSourceEnabled;
+  final Future<void> Function(String sourceKey, bool enabled) onSourceEnabled;
   final VoidCallback onAddCardDavContacts;
   final VoidCallback onAddNextcloudContacts;
   final void Function(ContactAccount account) onRemoveContactsOnly;
@@ -1901,7 +1899,7 @@ class _ContactsSettingsCard extends StatelessWidget {
   final VoidCallback onEnableRead;
   final VoidCallback onEnableWrite;
   final VoidCallback onDisable;
-  final void Function(String sourceKey, bool enabled) onSourceEnabled;
+  final Future<void> Function(String sourceKey, bool enabled) onSourceEnabled;
 
   @override
   Widget build(BuildContext context) {
@@ -1988,7 +1986,7 @@ class _ContactsOnlySettingsCard extends StatelessWidget {
   final VoidCallback onAddCardDav;
   final VoidCallback onAddNextcloud;
   final void Function(ContactAccount account) onRemove;
-  final void Function(String sourceKey, bool enabled) onSourceEnabled;
+  final Future<void> Function(String sourceKey, bool enabled) onSourceEnabled;
 
   @override
   Widget build(BuildContext context) {
@@ -2044,28 +2042,65 @@ class _ContactsOnlySettingsCard extends StatelessWidget {
   }
 }
 
-class _ContactSourceSettingsRow extends StatelessWidget {
+class _ContactSourceSettingsRow extends StatefulWidget {
   const _ContactSourceSettingsRow({
     required this.setting,
     required this.onChanged,
   });
-
   final BusyMaxContactSourceSetting setting;
-  final ValueChanged<bool> onChanged;
+  final Future<void> Function(bool) onChanged;
+  @override
+  State<_ContactSourceSettingsRow> createState() =>
+      _ContactSourceSettingsRowState();
+}
+
+class _ContactSourceSettingsRowState extends State<_ContactSourceSettingsRow> {
+  bool _pending = false;
+  late bool _value = widget.setting.enabled;
+  String? _error;
+  @override
+  void didUpdateWidget(covariant _ContactSourceSettingsRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.setting.enabled != widget.setting.enabled) {
+      _value = widget.setting.enabled;
+    }
+  }
+
+  Future<void> _toggle(bool value) async {
+    if (_pending) return;
+    setState(() {
+      _pending = true;
+      _error = null;
+    });
+    try {
+      await widget.onChanged(value);
+      if (mounted) setState(() => _value = value);
+    } on Object {
+      if (mounted) {
+        setState(() => _error = 'Could not save contact source preference');
+      }
+    } finally {
+      if (mounted) setState(() => _pending = false);
+    }
+  }
 
   @override
-  Widget build(BuildContext context) {
-    return BusyMaxActionRow(
-      title: setting.source.name,
-      subtitle: context.l10n.contactsUseForAttendees,
-      leading: const Icon(YaruIcons.user),
-      trailing: YaruSwitch(
-        key: ValueKey('contact-source-${setting.source.key}'),
-        value: setting.enabled,
-        onChanged: onChanged,
-      ),
-    );
-  }
+  Widget build(BuildContext context) => BusyMaxActionRow(
+    title: widget.setting.source.name,
+    subtitle: _error ?? context.l10n.contactsUseForAttendees,
+    leading: const Icon(YaruIcons.user),
+    trailing: _pending
+        ? const SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(),
+          )
+        : YaruSwitch(
+            key: ValueKey('contact-source-${widget.setting.source.key}'),
+            value: _value,
+            onChanged: (value) => unawaited(_toggle(value)),
+          ),
+  );
 }
 
 bool _contactsWritable(ContactAccount account) =>

@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:logging/logging.dart';
+
 import 'package:busystack_contacts/carddav.dart';
 import 'package:busystack_contacts/google.dart';
 import 'package:busystack_contacts/microsoft.dart';
@@ -10,6 +12,7 @@ import 'package:busystack_graph/busystack_graph.dart';
 import 'package:http/http.dart' as http;
 
 import '../core/auth/account_token_broker.dart';
+import '../core/auth/authorization_attempt.dart';
 import '../features/accounts/data/accounts_repository.dart';
 import '../google_tasks/oauth/oauth_service.dart';
 import '../providers/busy_provider.dart';
@@ -71,6 +74,7 @@ final class BusyMaxContactsController {
     required this.readLinkedDavCredential,
     required this.launchBrowser,
     this.syncInterval = const Duration(minutes: 15),
+    this.providerFactory,
   }) : directory = ContactsDirectory(store: store);
 
   final BusyMaxContactsStore store;
@@ -85,12 +89,43 @@ final class BusyMaxContactsController {
   final Future<bool> Function(Uri) launchBrowser;
   final Duration syncInterval;
   final ContactsDirectory directory;
+  final ContactsProvider Function(ContactAccount)? providerFactory;
 
   final Map<String, Future<void>> _syncing = <String, Future<void>>{};
   Timer? _timer;
   Future<void>? _startFuture;
   Future<void>? _closeFuture;
   bool _closed = false;
+  final Set<Future<void>> _background = {};
+  final Map<String, _ContactsEnrollment> _enrollments = {};
+  final Logger _log = Logger('busymax.contacts');
+
+  void _launch(Future<void> Function() action) {
+    if (_closed) return;
+    late final Future<void> observed;
+    observed = Future<void>.sync(action)
+        .then<void>(
+          (_) {},
+          onError: (Object error, StackTrace stack) {
+            if (error is ContactsException &&
+                error.kind == ContactsFailure.cancelled) {
+              return;
+            }
+            _log.warning('Scheduled contacts work failed', error, stack);
+          },
+        )
+        .whenComplete(() => _background.remove(observed));
+    _background.add(observed);
+  }
+
+  Future<void> _drain(Iterable<Future<void>> work) => Future.wait(
+    work.map(
+      (future) => future.then<void>(
+        (_) {},
+        onError: (Object error, StackTrace stack) {},
+      ),
+    ),
+  );
 
   Stream<void> get changes => store.changes;
 
@@ -113,8 +148,17 @@ final class BusyMaxContactsController {
       }
     }
     if (_closed) return;
-    _timer = Timer.periodic(syncInterval, (_) => unawaited(synchronizeAll()));
-    unawaited(synchronizeAll());
+    if (contactAccounts.any((account) => account.enabled)) {
+      _ensureScheduling();
+      _launch(synchronizeAll);
+    }
+  }
+
+  void startInBackground() => _launch(start);
+  void _ensureScheduling() {
+    if (!_closed && _timer == null) {
+      _timer = Timer.periodic(syncInterval, (_) => _launch(synchronizeAll));
+    }
   }
 
   Future<List<BusyMaxContactSuggestion>> suggestAttendees(
@@ -133,7 +177,23 @@ final class BusyMaxContactsController {
       excludedAddresses: excludedAddresses,
       limit: limit,
     );
+    final currentSelection = await store.selection(
+      busyMaxAccountId: busyMaxAccountId,
+    );
     return recipients
+        .where(
+          (recipient) => recipient.identities.any(
+            (identity) =>
+                currentSelection.accountIds.contains(identity.accountId) &&
+                currentSelection.sourceKeys.contains(
+                  jsonEncode([
+                    identity.accountId,
+                    identity.provider.name,
+                    identity.sourceId,
+                  ]),
+                ),
+          ),
+        )
         .map(
           (recipient) => BusyMaxContactSuggestion(
             displayName: recipient.name,
@@ -142,6 +202,34 @@ final class BusyMaxContactsController {
           ),
         )
         .toList(growable: false);
+  }
+
+  Future<bool> suggestionEligible(
+    BusyMaxContactSuggestion suggestion, {
+    required String busyMaxAccountId,
+  }) async {
+    if (_closed) return false;
+    final selected = await store.selection(busyMaxAccountId: busyMaxAccountId);
+    for (final identity in suggestion.identities) {
+      final key = jsonEncode([
+        identity.accountId,
+        identity.provider.name,
+        identity.sourceId,
+      ]);
+      if (!selected.accountIds.contains(identity.accountId) ||
+          !selected.sourceKeys.contains(key)) {
+        continue;
+      }
+      final record = await store.read((tx) => tx.contact(identity));
+      if (record?.projection.emails.any(
+            (email) =>
+                email.value.toLowerCase() == suggestion.email.toLowerCase(),
+          ) ==
+          true) {
+        return true;
+      }
+    }
+    return false;
   }
 
   Future<List<BusyMaxContactSourceSetting>> sourceSettings() async {
@@ -157,11 +245,52 @@ final class BusyMaxContactsController {
     ]);
   }
 
+  Future<T> _enroll<T>(
+    String key,
+    Future<T> Function(_ContactsEnrollment) action,
+  ) async {
+    if (_closed) {
+      throw const ContactsException(ContactsFailure.cancelled, 'closed');
+    }
+    if (_enrollments.containsKey(key)) {
+      throw const ContactsException(
+        ContactsFailure.cancelled,
+        'enrollment-in-progress',
+      );
+    }
+    final attempt = _ContactsEnrollment();
+    _enrollments[key] = attempt;
+    try {
+      return await action(attempt);
+    } finally {
+      attempt.cancel();
+      _enrollments.remove(key);
+      attempt.done.complete();
+    }
+  }
+
+  Future<void> _cancelEnrollment(String key) async {
+    final attempt = _enrollments[key];
+    if (attempt == null) return;
+    attempt.cancel();
+    await attempt.done.future;
+  }
+
+  void _checkEnrollment(_ContactsEnrollment attempt) {
+    if (_closed || attempt.cancelled) {
+      throw const ContactsException(
+        ContactsFailure.cancelled,
+        'stale-enrollment',
+      );
+    }
+  }
+
   Future<void> enableLinkedContacts(
     String busyMaxAccountId, {
     bool writable = false,
-  }) async {
+  }) => _enroll(linkedContactAccountId(busyMaxAccountId), (attempt) async {
     await start();
+    _checkEnrollment(attempt);
     final parent = await accounts.accountById(busyMaxAccountId);
     if (parent == null ||
         parent.provider != BusyProvider.google &&
@@ -178,7 +307,7 @@ final class BusyMaxContactsController {
             writable ? googleContactsWriteScope : googleContactsReadScope,
           }
         : <String>{writable ? 'Contacts.ReadWrite' : 'Contacts.Read'};
-    final contactAccount = ContactAccount(
+    var contactAccount = ContactAccount(
       id: contactId,
       provider: provider,
       displayName: parent.displayLabel,
@@ -190,23 +319,88 @@ final class BusyMaxContactsController {
       parent.provider,
       busyMaxAccountId,
       writable: writable,
-      persistContacts: () => store.persistLinkedAccount(
-        account: contactAccount,
-        busyMaxAccountId: busyMaxAccountId,
-        reuseAuthorization: true,
-      ),
+      cancellation: attempt.authorization,
+      persistContacts: () async {
+        _checkEnrollment(attempt);
+        final granted = await accounts.accountById(busyMaxAccountId);
+        if (granted == null ||
+            granted.providerAccountId != parent.providerAccountId ||
+            granted.provider != parent.provider ||
+            granted.tenantId != parent.tenantId) {
+          throw const ContactsException(
+            ContactsFailure.cancelled,
+            'parent-account-changed',
+          );
+        }
+        final scopes = granted.grantedScopes
+            .split(RegExp(r'\s+'))
+            .where((s) => s.isNotEmpty)
+            .toSet();
+        if (!scopes.any(
+          (scope) =>
+              scope.toLowerCase() == grantedScopes.single.toLowerCase() ||
+              !writable &&
+                  scope.toLowerCase() ==
+                      (provider == ContactProviderKind.google
+                          ? googleContactsWriteScope
+                          : 'contacts.readwrite'),
+        )) {
+          throw const ContactsException(
+            ContactsFailure.permission,
+            'contacts-permission-not-granted',
+          );
+        }
+        contactAccount = ContactAccount(
+          id: contactAccount.id,
+          provider: contactAccount.provider,
+          displayName: contactAccount.displayName,
+          subject: contactAccount.subject,
+          grantedScopes: scopes,
+          generation: contactAccount.generation,
+        );
+        await store.persistLinkedAccount(
+          account: contactAccount,
+          busyMaxAccountId: busyMaxAccountId,
+          reuseAuthorization: true,
+        );
+      },
     );
+    _checkEnrollment(attempt);
     store.contactConfigurationChanged();
-    if (previous?.enabled == true) await directory.disconnect(contactId);
-    await _bind(contactAccount);
-    unawaited(synchronizeAccount(contactId));
+    if (previous?.enabled == true) await _detachForReplacement(contactId);
+    _checkEnrollment(attempt);
+    try {
+      await _bind(contactAccount);
+    } on Object {
+      await store.write(
+        (tx) => tx.putAccount(
+          contactAccount.copy(enabled: false, errorCode: 'reconnect-required'),
+        ),
+      );
+      rethrow;
+    }
+    _ensureScheduling();
+    _launch(() => synchronizeAccount(contactId));
+  });
+
+  Future<void> _detachForReplacement(String id) async {
+    await directory.detach(id);
+    final running = _syncing[id];
+    if (running != null) {
+      try {
+        await running;
+      } on Object {
+        /* The original caller owns the error. */
+      }
+    }
   }
 
   Future<void> enableLinkedNextcloudContacts(
     String busyMaxAccountId, {
     bool writable = false,
-  }) async {
+  }) => _enroll(linkedContactAccountId(busyMaxAccountId), (attempt) async {
     await start();
+    _checkEnrollment(attempt);
     final parent = await accounts.accountById(busyMaxAccountId);
     if (parent == null || parent.provider != BusyProvider.nextcloud) {
       throw StateError('The selected Nextcloud account is unavailable.');
@@ -214,6 +408,15 @@ final class BusyMaxContactsController {
     final credential = await readLinkedDavCredential(busyMaxAccountId);
     if (credential == null) {
       throw StateError('The selected Nextcloud credential is unavailable.');
+    }
+    _checkEnrollment(attempt);
+    final current = await accounts.accountById(busyMaxAccountId);
+    if (current?.providerAccountId != parent.providerAccountId ||
+        current?.provider != parent.provider) {
+      throw const ContactsException(
+        ContactsFailure.cancelled,
+        'parent-account-changed',
+      );
     }
     final contactId = linkedContactAccountId(busyMaxAccountId);
     final previous = await store.read((tx) => tx.account(contactId));
@@ -227,15 +430,17 @@ final class BusyMaxContactsController {
       },
       generation: (previous?.generation ?? -1) + 1,
     );
-    if (previous?.enabled == true) await directory.disconnect(contactId);
     await store.saveLinkedAccount(
       account: contactAccount,
       busyMaxAccountId: busyMaxAccountId,
       reuseAuthorization: true,
     );
+    if (previous?.enabled == true) await _detachForReplacement(contactId);
+    _checkEnrollment(attempt);
     await _bind(contactAccount);
-    unawaited(synchronizeAccount(contactId));
-  }
+    _ensureScheduling();
+    _launch(() => synchronizeAccount(contactId));
+  });
 
   Future<ContactAccount> addCardDavContactsOnly({
     required String id,
@@ -245,9 +450,36 @@ final class BusyMaxContactsController {
     required String password,
     bool readOnly = false,
     bool nextcloud = false,
+  }) => _enroll(
+    id,
+    (attempt) => _addCardDav(
+      attempt,
+      id: id,
+      label: label,
+      server: server,
+      username: username,
+      password: password,
+      readOnly: readOnly,
+      nextcloud: nextcloud,
+    ),
+  );
+
+  Future<ContactAccount> _addCardDav(
+    _ContactsEnrollment attempt, {
+    required String id,
+    required String label,
+    required Uri server,
+    required String username,
+    required String password,
+    required bool readOnly,
+    required bool nextcloud,
   }) async {
     await start();
+    _checkEnrollment(attempt);
     _requireDavServer(server);
+    if (await store.read((tx) => tx.account(id)) != null) {
+      throw StateError('Contacts account already exists');
+    }
     final credential = DavBasicCredential(
       username: username,
       password: password,
@@ -269,16 +501,41 @@ final class BusyMaxContactsController {
       'readOnly': readOnly,
       'nextcloud': nextcloud,
     });
-    await writeDavSecret(id, secret);
+    var durable = false;
     try {
+      _checkEnrollment(attempt);
+      await writeDavSecret(id, secret);
+      _checkEnrollment(attempt);
       await store.write((tx) => tx.putAccount(account));
+      durable = true;
+      _checkEnrollment(attempt);
       await _bind(account);
+      _ensureScheduling();
       await synchronizeAccount(id);
       return account;
-    } on Object {
-      await directory.disconnect(id, remove: true);
-      await deleteDavSecret(id);
-      rethrow;
+    } on Object catch (error, stack) {
+      try {
+        if (durable) {
+          await directory.disconnect(id);
+          await store.write((tx) async {
+            final current = await tx.account(id);
+            if (current != null) {
+              await tx.putAccount(
+                current.copy(errorCode: 'reconnect-required'),
+              );
+            }
+          });
+        } else {
+          await deleteDavSecret(id);
+        }
+      } on Object catch (cleanup, cleanupStack) {
+        _log.warning(
+          'Contacts enrollment cleanup failed',
+          cleanup,
+          cleanupStack,
+        );
+      }
+      Error.throwWithStackTrace(error, stack);
     }
   }
 
@@ -287,16 +544,22 @@ final class BusyMaxContactsController {
     required String label,
     required Uri server,
     bool readOnly = false,
-  }) async {
+  }) => _enroll(id, (attempt) async {
     final cancellation = DavCancellationToken();
     final flow = NextcloudLoginFlowV2(
       server: server,
       launchBrowser: launchBrowser,
       client: httpClient,
     );
+    attempt.onCancel = () {
+      cancellation.cancel();
+      flow.close();
+    };
     try {
       final credential = await flow.authenticate(cancellation);
-      return await addCardDavContactsOnly(
+      _checkEnrollment(attempt);
+      return await _addCardDav(
+        attempt,
         id: id,
         label: label,
         server: credential.server,
@@ -308,44 +571,86 @@ final class BusyMaxContactsController {
     } finally {
       flow.close();
     }
-  }
+  });
 
   Future<void> synchronizeAll() async {
     if (_closed) return;
     final accounts = await store.read((tx) => tx.accounts());
-    for (final account in accounts.where((value) => value.enabled)) {
-      unawaited(synchronizeAccount(account.id));
-    }
+    await Future.wait([
+      for (final account in accounts.where((value) => value.enabled))
+        synchronizeAccount(account.id),
+    ]);
   }
 
   Future<void> synchronizeAccount(String id) => _syncing.putIfAbsent(
     id,
-    () => _synchronize(id).whenComplete(() => _syncing.remove(id)),
+    () => _synchronize(id).whenComplete(() {
+      _syncing.remove(id);
+    }),
   );
 
   Future<void> _synchronize(String id) async {
+    final captured = await store.read((tx) => tx.account(id));
     try {
       final sources = await directory.discover(id);
       await directory.resumeQueued(id);
       for (final source in sources) {
-        if (_closed) return;
+        if (_closed) {
+          throw const ContactsException(ContactsFailure.cancelled, 'closed');
+        }
+        final current = await store.read((tx) => tx.account(id));
+        if (current?.generation != captured?.generation ||
+            current?.enabled != true) {
+          throw const ContactsException(
+            ContactsFailure.cancelled,
+            'stale-account-operation',
+          );
+        }
         if (source.capabilities.read) await directory.synchronize(source.key);
       }
-      await _setAccountError(id, null);
-    } on Object {
-      await _setAccountError(id, 'contacts-sync-failed');
-      rethrow;
+      await _setAccountError(id, captured?.generation, null);
+    } on Object catch (error, stack) {
+      if (!(error is ContactsException &&
+          error.kind == ContactsFailure.cancelled)) {
+        try {
+          await _setAccountError(
+            id,
+            captured?.generation,
+            error is ContactsException ? error.code : 'contacts-sync-failed',
+          );
+        } on Object catch (cleanup, cleanupStack) {
+          _log.warning(
+            'Could not persist contacts failure status',
+            cleanup,
+            cleanupStack,
+          );
+        }
+      }
+      Error.throwWithStackTrace(error, stack);
     }
   }
 
-  Future<void> _setAccountError(String id, String? error) => store.write((
-    tx,
-  ) async {
-    final account = await tx.account(id);
-    if (account != null) await tx.putAccount(account.copy(errorCode: error));
-  });
+  Future<void> _setAccountError(String id, int? generation, String? error) =>
+      store.write((tx) async {
+        final account = await tx.account(id);
+        if (account != null &&
+            account.enabled &&
+            account.generation == generation) {
+          await tx.putAccount(account.copy(errorCode: error));
+        }
+      });
 
   Future<void> _bind(ContactAccount account) async {
+    if (_closed) {
+      throw const ContactsException(ContactsFailure.cancelled, 'closed');
+    }
+    if (providerFactory != null) {
+      directory.bind(
+        providerFactory!(account),
+        accountGeneration: account.generation,
+      );
+      return;
+    }
     switch (account.provider) {
       case ContactProviderKind.google:
         final parentId = await store.linkedBusyMaxAccount(account.id);
@@ -364,6 +669,7 @@ final class BusyMaxContactsController {
             grantedScopes: account.grantedScopes,
             publicPhotoClient: httpClient,
           ),
+          accountGeneration: account.generation,
         );
       case ContactProviderKind.microsoft:
         final parentId = await store.linkedBusyMaxAccount(account.id);
@@ -393,6 +699,7 @@ final class BusyMaxContactsController {
             personalAccount:
                 parent?.tenantId == '9188040d-6c67-4c5b-b112-36a304b66dad',
           ),
+          accountGeneration: account.generation,
         );
       case ContactProviderKind.carddav:
         final parentId = await store.linkedBusyMaxAccount(account.id);
@@ -416,44 +723,52 @@ final class BusyMaxContactsController {
         if (config['version'] != 1) {
           throw const FormatException('Unsupported CardDAV credential.');
         }
-        final server = Uri.parse(config['server'] as String);
-        _requireDavServer(server);
-        final profile = config['nextcloud'] == true
-            ? const DavProviderProfile.nextcloud()
-            : const DavProviderProfile();
-        final resources = DavResourceClient(
-          accountId: account.id,
-          authority: server,
-          profile: profile,
-          transport: DavHttpTransport(
-            client: httpClient,
-            profile: profile,
-            accountAuthority: server,
-          ),
-          streaming: DavTransferClient(
-            client: httpClient,
-            authority: server,
-            profile: profile,
-          ),
-          credentialProvider: () async => DavBasicCredential(
-            username: config['username'] as String,
-            password: config['password'] as String,
-          ),
-        );
         directory.bind(
-          CardDavContactsProvider(
-            accountId: account.id,
-            client: CardDavClient(resources),
-            cachedRecord: (identity) =>
-                store.read((tx) => tx.contact(identity)),
-            readOnly: config['readOnly'] == true,
-          ),
+          _davProvider(account, config),
+          accountGeneration: account.generation,
         );
     }
   }
 
+  CardDavContactsProvider _davProvider(
+    ContactAccount account,
+    Map<String, dynamic> config,
+  ) {
+    final server = Uri.parse(config['server'] as String);
+    _requireDavServer(server);
+    final profile = config['nextcloud'] == true
+        ? const DavProviderProfile.nextcloud()
+        : const DavProviderProfile();
+    final resources = DavResourceClient(
+      accountId: account.id,
+      authority: server,
+      profile: profile,
+      transport: DavHttpTransport(
+        client: httpClient,
+        profile: profile,
+        accountAuthority: server,
+      ),
+      streaming: DavTransferClient(
+        client: httpClient,
+        authority: server,
+        profile: profile,
+      ),
+      credentialProvider: () async => DavBasicCredential(
+        username: config['username'] as String,
+        password: config['password'] as String,
+      ),
+    );
+    return CardDavContactsProvider(
+      accountId: account.id,
+      client: CardDavClient(resources),
+      cachedRecord: (identity) => store.read((tx) => tx.contact(identity)),
+      readOnly: config['readOnly'] == true,
+    );
+  }
+
   Future<void> removeLinkedAccount(String busyMaxAccountId) async {
     final id = linkedContactAccountId(busyMaxAccountId);
+    await _cancelEnrollment(id);
     final account = await store.read((tx) => tx.account(id));
     if (account == null) return;
     await directory.disconnect(id, remove: true);
@@ -464,6 +779,7 @@ final class BusyMaxContactsController {
   /// database transaction commits.
   Future<void> prepareLinkedAccountRemoval(String busyMaxAccountId) async {
     final id = linkedContactAccountId(busyMaxAccountId);
+    await _cancelEnrollment(id);
     final account = await store.read((tx) => tx.account(id));
     if (account?.enabled == true) await directory.disconnect(id);
   }
@@ -476,6 +792,7 @@ final class BusyMaxContactsController {
     String busyMaxAccountId,
   ) async {
     final id = linkedContactAccountId(busyMaxAccountId);
+    await _cancelEnrollment(id);
     final account = await store.read((tx) => tx.account(id));
     if (account == null || account.enabled) return;
     final restored = account.copy(
@@ -484,12 +801,13 @@ final class BusyMaxContactsController {
     );
     await store.write((tx) => tx.putAccount(restored));
     await _bind(restored);
-    unawaited(synchronizeAccount(id));
+    _launch(() => synchronizeAccount(id));
   }
 
   void linkedAccountRemovalCommitted() => store.contactConfigurationChanged();
 
   Future<void> removeContactsAccount(String id) async {
+    await _cancelEnrollment(id);
     final account = await store.read((tx) => tx.account(id));
     if (account == null) return;
     await directory.disconnect(id, remove: true);
@@ -497,6 +815,145 @@ final class BusyMaxContactsController {
       await deleteDavSecret(id);
     }
   }
+
+  Future<void> disableContactsAccount(String id) async {
+    await _cancelEnrollment(id);
+    await directory.disconnect(id);
+  }
+
+  Future<bool> isIndependentNextcloud(String id) async {
+    final encoded = await readDavSecret(id);
+    return encoded != null && (jsonDecode(encoded) as Map)['nextcloud'] == true;
+  }
+
+  Future<void> reconnectContactsAccount(String id) async {
+    final account = await store.read((tx) => tx.account(id));
+    if (account == null) throw StateError('Contacts account unavailable');
+    final parent = await store.linkedBusyMaxAccount(id);
+    final writable = account.grantedScopes.any(
+      (s) =>
+          s.toLowerCase() == 'contacts.readwrite' ||
+          s == googleContactsWriteScope ||
+          s == 'carddav:write',
+    );
+    if (parent != null) {
+      if (account.provider == ContactProviderKind.carddav) {
+        await enableLinkedNextcloudContacts(parent, writable: writable);
+      } else {
+        await enableLinkedContacts(parent, writable: writable);
+      }
+      return;
+    }
+    await reconnectDavContactsOnly(id);
+  }
+
+  Future<void> reconnectDavContactsOnly(
+    String id, {
+    String? password,
+    bool? readOnly,
+  }) => _enroll(id, (attempt) async {
+    await start();
+    _checkEnrollment(attempt);
+    final previous = await store.read((tx) => tx.account(id));
+    final encoded = await readDavSecret(id);
+    if (previous == null ||
+        previous.provider != ContactProviderKind.carddav ||
+        encoded == null ||
+        await store.linkedBusyMaxAccount(id) != null) {
+      throw StateError('Independent DAV account unavailable');
+    }
+    final config = (jsonDecode(encoded) as Map).cast<String, dynamic>();
+    if (password != null) {
+      if (password.isEmpty) {
+        throw const ContactsException(
+          ContactsFailure.validation,
+          'password-required',
+        );
+      }
+      config['password'] = password;
+    } else if (config['nextcloud'] == true && readOnly == null) {
+      final token = DavCancellationToken();
+      final flow = NextcloudLoginFlowV2(
+        server: Uri.parse(config['server'] as String),
+        client: httpClient,
+        launchBrowser: launchBrowser,
+      );
+      attempt.onCancel = () {
+        token.cancel();
+        flow.close();
+      };
+      try {
+        final result = await flow.authenticate(token);
+        _checkEnrollment(attempt);
+        if (result.loginName != config['username'] ||
+            result.server.origin !=
+                Uri.parse(config['server'] as String).origin) {
+          throw const ContactsException(
+            ContactsFailure.authentication,
+            'wrong-contact-identity',
+          );
+        }
+        config['password'] = result.appPassword;
+      } finally {
+        flow.close();
+      }
+    }
+    if (readOnly != null) config['readOnly'] = readOnly;
+    final replacement = ContactAccount(
+      id: previous.id,
+      provider: previous.provider,
+      displayName: previous.displayName,
+      subject: previous.subject,
+      enabled: true,
+      generation: previous.generation + 1,
+      grantedScopes: {
+        config['readOnly'] == true ? 'carddav:read' : 'carddav:write',
+      },
+    );
+    final provider = _davProvider(replacement, config);
+    final cancellation = ContactsCancellationToken();
+    attempt.onCancel = cancellation.cancel;
+    try {
+      if ((await provider.discover(cancellation)).isEmpty) {
+        throw const ContactsException(
+          ContactsFailure.permission,
+          'no-readable-address-books',
+        );
+      }
+    } finally {
+      provider.close();
+    }
+    _checkEnrollment(attempt);
+    final next = jsonEncode(config);
+    var durable = false;
+    try {
+      await writeDavSecret(id, next);
+      _checkEnrollment(attempt);
+      await store.write((tx) => tx.putAccount(replacement));
+      durable = true;
+      await _detachForReplacement(id);
+      _checkEnrollment(attempt);
+      await _bind(replacement);
+    } on Object catch (error, stack) {
+      try {
+        if (!durable) {
+          await writeDavSecret(id, encoded);
+        } else {
+          await directory.detach(id);
+          await store.write(
+            (tx) => tx.putAccount(
+              replacement.copy(enabled: false, errorCode: 'reconnect-required'),
+            ),
+          );
+        }
+      } on Object catch (cleanup, cleanupStack) {
+        _log.warning('DAV reconnect cleanup failed', cleanup, cleanupStack);
+      }
+      Error.throwWithStackTrace(error, stack);
+    }
+    _ensureScheduling();
+    await synchronizeAccount(id);
+  });
 
   Future<void> setSourceEnabled(String sourceKey, {required bool enabled}) {
     return store.setSourceEnabled(sourceKey, enabled: enabled);
@@ -507,9 +964,30 @@ final class BusyMaxContactsController {
   Future<void> _close() async {
     _closed = true;
     _timer?.cancel();
-    await directory.close();
-    await Future.wait(_syncing.values.toList());
-    await store.close();
+    Object? failure;
+    StackTrace? failureStack;
+    Future<void> cleanup(Future<void> Function() action) async {
+      try {
+        await action();
+      } on Object catch (error, stack) {
+        failure ??= error;
+        failureStack ??= stack;
+        _log.warning('Contacts shutdown cleanup failed', error, stack);
+      }
+    }
+
+    final attempts = _enrollments.values.toList();
+    for (final attempt in attempts) {
+      attempt.cancel();
+    }
+    await cleanup(
+      () => Future.wait(attempts.map((attempt) => attempt.done.future)),
+    );
+    if (_startFuture != null) await cleanup(() => _drain([_startFuture!]));
+    await cleanup(directory.close);
+    await cleanup(() => _drain([..._syncing.values, ..._background]));
+    await cleanup(store.close);
+    if (failure != null) Error.throwWithStackTrace(failure!, failureStack!);
   }
 
   static String linkedContactAccountId(String busyMaxAccountId) =>
@@ -522,6 +1000,18 @@ final class BusyMaxContactsController {
         server.hasFragment) {
       throw const FormatException('An HTTPS CardDAV server is required.');
     }
+  }
+}
+
+final class _ContactsEnrollment {
+  final AuthorizationCancellation authorization = AuthorizationCancellation();
+  final Completer<void> done = Zone.root.run(Completer<void>.new);
+  bool cancelled = false;
+  void Function()? onCancel;
+  void cancel() {
+    cancelled = true;
+    authorization.cancel();
+    onCancel?.call();
   }
 }
 

@@ -121,11 +121,33 @@ final class BusyMaxGraphTransport {
 
   Future<List<int>> download(Uri uri, {required int maximumBytes}) async {
     final bytes = <int>[];
-    await for (final chunk in graph.download(uri.toString())) {
-      if (bytes.length + chunk.length > maximumBytes) {
-        throw const GraphException(GraphFailure.protocol, 'download-too-large');
+    try {
+      await for (final chunk in graph.download(uri.toString())) {
+        if (bytes.length + chunk.length > maximumBytes) {
+          throw const GraphException(
+            GraphFailure.protocol,
+            'download-too-large',
+          );
+        }
+        bytes.addAll(chunk);
       }
-      bytes.addAll(chunk);
+    } on GraphTokenProviderException catch (error) {
+      throw error.cause;
+    } on GraphException catch (error) {
+      if (error.kind == GraphFailure.authentication &&
+          error.statusCode == null) {
+        throw KnownUnsentRequestException(
+          kind: RequestPreDispatchFailureKind.authentication,
+          cause: error,
+        );
+      }
+      if (error.statusCode == null &&
+          (error.kind == GraphFailure.connectivity ||
+              error.kind == GraphFailure.timeout ||
+              error.kind == GraphFailure.tls)) {
+        throw http.ClientException('Microsoft Graph response unavailable.');
+      }
+      rethrow;
     }
     return bytes;
   }
