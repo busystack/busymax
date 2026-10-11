@@ -3707,24 +3707,18 @@ class AppLocalizationsPl extends AppLocalizations {
   String get contactsEnableSuggestions => 'Włącz sugestie kontaktów';
 
   @override
+  String get contactsReadOnlyUse =>
+      'Kontakty tylko do odczytu na potrzeby sugestii uczestników';
+
+  @override
   String get contactsReadPermissionDescription =>
       'Prosi o dostęp do kontaktów tylko do odczytu';
-
-  @override
-  String get contactsEnableEditing => 'Włącz edycję kontaktów';
-
-  @override
-  String get contactsWritePermissionDescription =>
-      'Prosi o dostęp do odczytu i zapisu kontaktów';
 
   @override
   String get contactsSuggestionsEnabled => 'Sugestie kontaktów są włączone';
 
   @override
   String get contactsNeedsAttention => 'Kontakty wymagają uwagi';
-
-  @override
-  String get contactsReadWriteAccess => 'Dostęp do odczytu i zapisu';
 
   @override
   String get contactsDisableForAccount => 'Wyłącz kontakty dla tego konta';

@@ -39,3 +39,15 @@ https://www.googleapis.com/auth/calendar
 These are BusyMax's existing desktop scopes. Imported endpoints, redirects, and scope declarations do not replace BusyMax's OAuth settings. Cancellation or an invalid replacement preserves the previous valid selection; staged configuration expires after ten minutes and is single-use. Re-import after expiry. Ordinary Reconnect uses the account's saved issuing registration. Explicit Replace registration chooses a method and preserves account identity and local data transactionally.
 
 Android uses native authentication and is outside these desktop instructions. Production Google registration values and provider approvals are owner-controlled prerequisites, not results of local validation or tests.
+
+## Optional read-only contacts
+
+Contacts are optional and are not requested during first Calendar/Tasks sign-in. To enable cached attendee suggestions, enable **People API** in the same Google Cloud project and allow this separate scope:
+
+```text
+https://www.googleapis.com/auth/contacts.readonly
+```
+
+BusyMax uses synchronized contacts read-only, including offline attendee lookup. It does not edit contacts or groups. A previously granted full contacts permission remains accurately recorded and can satisfy lookup authorization; BusyMax's policy does not revoke that grant or clear working refresh tokens. Explicit reconnect carries contact access forward as read-only in its requested scopes using the installed-app full-required-set PKCE flow.
+
+Review [Google's sensitive-scope verification guidance](https://developers.google.com/identity/protocols/oauth2/production-readiness/sensitive-scope-verification): requested access must match the user-facing functionality. These instructions do not claim verification approval.

@@ -1,0 +1,505 @@
+{
+  "schema": 1,
+  "recordedUtc": "2026-10-11T13:30:21.822384+00:00",
+  "verifiedCommit": "4a4bd5528725fe1eca067099a9671ced9e4a745a",
+  "verifiedTree": "e0e1c52405d73f26a259ecd59cff8f6ee48863f2",
+  "implementationCommits": [
+    "1c7a433950ebcd6ce691b7c3ae4deddb572acf2e",
+    "4a4bd5528725fe1eca067099a9671ced9e4a745a"
+  ],
+  "sourceFingerprint": "8d968885e8e340d57aa5ee640f865ef3ed6c0aff6a2110f873b7bd4781c93dd6",
+  "fingerprintContract": "SHA-256 of json.dumps(sorted path->SHA-256 map, sort_keys=True); application, test, platform, native, tool and embedded provider guides. Only subsequent development evidence is excluded. Full per-file map is in the delivery evidence archive.",
+  "toolchain": {
+    "host": "Linux-7.0.0-38-generic-x86_64-with-glibc2.43",
+    "flutter": {
+      "frameworkVersion": "3.47.5",
+      "channel": "stable",
+      "repositoryUrl": "https://github.com/flutter/flutter.git",
+      "frameworkRevision": "6a19cca56475dbfba1478ee68d7bd0c2ef891da1",
+      "frameworkCommitDate": "2026-09-17 14:13:22 -0400",
+      "engineRevision": "af7e796e161ae0bb1ff0758c71a7105418bd9ded",
+      "engineCommitDate": "2026-09-16 18:35:09.000Z",
+      "engineContentHash": "ab598368592da0064197e2bc15c7f5b0a2c6bb1f",
+      "engineBuildDate": "2026-09-16 12:35:21.428",
+      "dartSdkVersion": "3.13.4",
+      "devToolsVersion": "2.60.0",
+      "flutterVersion": "3.47.5"
+    },
+    "pubspecLockSha256": "d7ad8317a97382b3aa52fa7434fd6d3a3ef2c8cb2a13d431581894f0d8bef849",
+    "dependencyPins": {
+      "schema": 1,
+      "layout": "sibling-working-trees",
+      "dependencies": [
+        {
+          "name": "busystack_contacts",
+          "repository": "https://github.com/ChenZhenIO/busystack_contacts.git",
+          "revision": "cf399b9af0b7bf8a315e8c5d6123e601c90b7bd2",
+          "path": "../busystack_contacts"
+        },
+        {
+          "name": "busystack_dav",
+          "repository": "https://github.com/ChenZhenIO/busystack_dav.git",
+          "revision": "18f636f3227e3df8c1406bafd85b45e7f12cf8bd",
+          "path": "../busystack_dav"
+        },
+        {
+          "name": "busystack_graph",
+          "repository": "https://github.com/ChenZhenIO/busystack_graph.git",
+          "revision": "6572ee14ae992d4cd4f8c2218babaff5051bc132",
+          "path": "../busystack_graph"
+        }
+      ]
+    },
+    "instructions": "No applicable AGENTS.md files found in repository or ancestor directories.",
+    "java": {
+      "exit": 0,
+      "output": "openjdk version \"25.0.1\" 2025-10-21 LTS\nOpenJDK Runtime Environment Temurin-25.0.1+8 (build 25.0.1+8-LTS)\nOpenJDK 64-Bit Server VM Temurin-25.0.1+8 (build 25.0.1+8-LTS, mixed mode, sharing)\n"
+    },
+    "clang": {
+      "exit": 0,
+      "output": "Ubuntu clang version 21.1.8 (6ubuntu1)\nTarget: x86_64-pc-linux-gnu\nThread model: posix\nInstalledDir: /usr/lib/llvm-21/bin\n"
+    },
+    "cmake": {
+      "exit": 0,
+      "output": "cmake version 4.2.3\n\nCMake suite maintained and supported by Kitware (kitware.com/cmake).\n"
+    },
+    "g++": {
+      "exit": 0,
+      "output": "g++ (Ubuntu 15.2.0-16ubuntu1) 15.2.0\nCopyright (C) 2025 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n"
+    }
+  },
+  "fullFlutterSuite": {
+    "passed": 3619,
+    "skipped": 10,
+    "failed": 0
+  },
+  "affectedCasesInFinalFullSuite": {
+    "passed": 435,
+    "skipped": 0,
+    "failed": 0
+  },
+  "priorFocusedCommand": {
+    "command": [
+      "/home/albert/flutter-sdk/bin/flutter",
+      "test",
+      "test/contacts",
+      "test/core/auth/contacts_authorization_requests_test.dart",
+      "test/google_tasks/oauth/auth_url_test.dart",
+      "test/google_tasks/oauth/token_exchange_test.dart",
+      "test/microsoft_todo/oauth/microsoft_oauth_service_test.dart",
+      "test/core/auth/authorization_transition_test.dart",
+      "test/features/auth/data/auth_repository_test.dart",
+      "test/features/settings/presentation/settings_screen_test.dart",
+      "test/platform/contacts_settings_routes_test.dart",
+      "test/platform/attendee_contacts_context_test.dart",
+      "test/platform/android/android_authorization_broker_test.dart",
+      "test/platform/android/android_contacts_enrollment_test.dart",
+      "test/platform/android/android_registration_transition_test.dart",
+      "test/platform/android/android_platform_channel_test.dart",
+      "--machine"
+    ],
+    "cwd": "/home/albert/busystack/busymax",
+    "head": "42dd355454cfc5e86bd10f0c58ea786267f20b5f",
+    "tree": "bba83dd5c534ab05ed1c28a24d85de22942821a2",
+    "sourceFingerprint": "50fdbb2ef28c2a32ac592ce18abf4ca5a755de013c45bb6020116ea797e3fd38",
+    "startedUtc": "2026-10-11T12:52:28.288945+00:00",
+    "exit": 0,
+    "elapsedSeconds": 153.117,
+    "log": "focused.log",
+    "logSha256": "6232d43a982166bad84df8b7febbf9b0e6d26e8961bf6291008a59c7a89f5170"
+  },
+  "correctiveFocusedCases": 42,
+  "skips": [
+    {
+      "name": "real browser Login Flow returns and revokes a canonical app password",
+      "path": "test/dav/nextcloud_login_flow_live_test.dart",
+      "reason": "Set BUSYMAX_NEXTCLOUD_LOGIN_LIVE=1 and its URL, username, temporary app password, and TLS certificate variables to run this test."
+    },
+    {
+      "name": "real Login Flow start can be cancelled while browser authorization opens",
+      "path": "test/dav/nextcloud_login_flow_live_test.dart",
+      "reason": "Live Nextcloud Login Flow is not enabled."
+    },
+    {
+      "name": "real pending polling remains 404 until the operation expires",
+      "path": "test/dav/nextcloud_login_flow_live_test.dart",
+      "reason": "Live Nextcloud Login Flow is not enabled."
+    },
+    {
+      "name": "real Apple iCloud Calendar preserves discovery and event semantics",
+      "path": "test/dav/apple_icloud_live_integration_test.dart",
+      "reason": "Set BUSYMAX_ICLOUD_LIVE=1 and the BUSYMAX_ICLOUD_LIVE_* credential variables to run the Apple iCloud integration test."
+    },
+    {
+      "name": "real iCloud onboarding, credential replacement, and local removal are atomic",
+      "path": "test/dav/apple_icloud_live_integration_test.dart",
+      "reason": "Set BUSYMAX_ICLOUD_LIVE=1 and the BUSYMAX_ICLOUD_LIVE_* credential variables to run the Apple iCloud integration test."
+    },
+    {
+      "name": "exact Nextcloud server preserves DAV calendar and task semantics",
+      "path": "test/dav/nextcloud_live_integration_test.dart",
+      "reason": "Set BUSYMAX_NEXTCLOUD_LIVE=1 and the BUSYMAX_NEXTCLOUD_LIVE_* credential variables to run the isolated live-server tests."
+    },
+    {
+      "name": "large Nextcloud collection synchronizes and deletes without truncation",
+      "path": "test/dav/nextcloud_live_integration_test.dart",
+      "reason": "Set BUSYMAX_NEXTCLOUD_LIVE_LARGE=1 with the live-server variables to run the 128-member collection test."
+    },
+    {
+      "name": "prepare a durable Nextcloud object for server restart",
+      "path": "test/dav/nextcloud_live_integration_test.dart",
+      "reason": "Set the live restart stage to prepare to create the durable probe."
+    },
+    {
+      "name": "rediscover and mutate the durable object after server restart",
+      "path": "test/dav/nextcloud_live_integration_test.dart",
+      "reason": "Set the live restart stage to verify after restarting the server."
+    },
+    {
+      "name": "Nextcloud user and group shares enforce live ACL changes",
+      "path": "test/dav/nextcloud_sharing_live_test.dart",
+      "reason": "Set BUSYMAX_NEXTCLOUD_SHARING_LIVE=1 and disposable user/group environment variables to run the live Nextcloud sharing test."
+    }
+  ],
+  "androidNativeUnitTests": {
+    "tests": 11,
+    "skipped": 0,
+    "failures": 0,
+    "errors": 0
+  },
+  "androidNativeInputReuse": "Unit/lint receipt at 1c7a433; git diff --exit-code confirms android/, packages/busymax_android_platform/ and lib/src/android/ unchanged through verifiedCommit. The independent release build uses verifiedCommit.",
+  "commands": {
+    "locked-pub-final": {
+      "command": [
+        "/home/albert/flutter-sdk/bin/flutter",
+        "pub",
+        "get",
+        "--enforce-lockfile"
+      ],
+      "cwd": "/home/albert/busystack/busymax",
+      "head": "4a4bd5528725fe1eca067099a9671ced9e4a745a",
+      "tree": "e0e1c52405d73f26a259ecd59cff8f6ee48863f2",
+      "sourceFingerprint": "8d968885e8e340d57aa5ee640f865ef3ed6c0aff6a2110f873b7bd4781c93dd6",
+      "startedUtc": "2026-10-11T13:12:06.693602+00:00",
+      "exit": 0,
+      "elapsedSeconds": 5.444,
+      "log": "locked-pub-final.log",
+      "logSha256": "81571a671d2c0bb8c6f76bb7b2225fe07ad8bfd2abfa126840513cf856701ae6"
+    },
+    "localization-verified": {
+      "command": [
+        "/home/albert/flutter-sdk/bin/flutter",
+        "gen-l10n"
+      ],
+      "cwd": "/home/albert/busystack/busymax",
+      "head": "4a4bd5528725fe1eca067099a9671ced9e4a745a",
+      "tree": "e0e1c52405d73f26a259ecd59cff8f6ee48863f2",
+      "sourceFingerprint": "8d968885e8e340d57aa5ee640f865ef3ed6c0aff6a2110f873b7bd4781c93dd6",
+      "startedUtc": "2026-10-11T13:17:38.991692+00:00",
+      "exit": 0,
+      "elapsedSeconds": 8.163,
+      "log": "localization-verified.log",
+      "logSha256": "97362974d3ec503ef18e205dbcc7d8e1ca57e5426c80a4966c6608571fa88609"
+    },
+    "format-final": {
+      "command": [
+        "python3",
+        "-c",
+        "import subprocess; p=subprocess.check_output([\"git\",\"diff\",\"--name-only\",\"42dd355454cfc5e86bd10f0c58ea786267f20b5f\",\"HEAD\",\"--\",\"*.dart\"],text=True).splitlines(); subprocess.run([\"/home/albert/flutter-sdk/bin/cache/dart-sdk/bin/dart\",\"format\",\"--output=none\",\"--set-exit-if-changed\",*p],check=True)"
+      ],
+      "cwd": "/home/albert/busystack/busymax",
+      "head": "4a4bd5528725fe1eca067099a9671ced9e4a745a",
+      "tree": "e0e1c52405d73f26a259ecd59cff8f6ee48863f2",
+      "sourceFingerprint": "8d968885e8e340d57aa5ee640f865ef3ed6c0aff6a2110f873b7bd4781c93dd6",
+      "startedUtc": "2026-10-11T13:12:47.625274+00:00",
+      "exit": 0,
+      "elapsedSeconds": 2.032,
+      "log": "format-final.log",
+      "logSha256": "d7b931aeddd13dbfaf708346f8224047501416a8e8e4592df36bd16897905d6c"
+    },
+    "diff-check-final": {
+      "command": [
+        "git",
+        "diff",
+        "--check",
+        "42dd355454cfc5e86bd10f0c58ea786267f20b5f",
+        "HEAD"
+      ],
+      "cwd": "/home/albert/busystack/busymax",
+      "head": "4a4bd5528725fe1eca067099a9671ced9e4a745a",
+      "tree": "e0e1c52405d73f26a259ecd59cff8f6ee48863f2",
+      "sourceFingerprint": "8d968885e8e340d57aa5ee640f865ef3ed6c0aff6a2110f873b7bd4781c93dd6",
+      "startedUtc": "2026-10-11T13:17:36.740548+00:00",
+      "exit": 0,
+      "elapsedSeconds": 0.477,
+      "log": "diff-check-final.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "analyze-final": {
+      "command": [
+        "/home/albert/flutter-sdk/bin/flutter",
+        "analyze"
+      ],
+      "cwd": "/home/albert/busystack/busymax",
+      "head": "4a4bd5528725fe1eca067099a9671ced9e4a745a",
+      "tree": "e0e1c52405d73f26a259ecd59cff8f6ee48863f2",
+      "sourceFingerprint": "8d968885e8e340d57aa5ee640f865ef3ed6c0aff6a2110f873b7bd4781c93dd6",
+      "startedUtc": "2026-10-11T13:12:12.372728+00:00",
+      "exit": 0,
+      "elapsedSeconds": 32.2,
+      "log": "analyze-final.log",
+      "logSha256": "7fd056ddcba04d39591b14b27d7cb3f3a91ba0f18d01c23a4748fdb519566169"
+    },
+    "boundaries-final": {
+      "command": [
+        "/home/albert/flutter-sdk/bin/cache/dart-sdk/bin/dart",
+        "run",
+        "tool/check_platform_boundaries.dart"
+      ],
+      "cwd": "/home/albert/busystack/busymax",
+      "head": "4a4bd5528725fe1eca067099a9671ced9e4a745a",
+      "tree": "e0e1c52405d73f26a259ecd59cff8f6ee48863f2",
+      "sourceFingerprint": "8d968885e8e340d57aa5ee640f865ef3ed6c0aff6a2110f873b7bd4781c93dd6",
+      "startedUtc": "2026-10-11T13:12:45.429983+00:00",
+      "exit": 0,
+      "elapsedSeconds": 1.996,
+      "log": "boundaries-final.log",
+      "logSha256": "3f00b10245d2e2189cf2f1a007fb552555a01bc024a4a7618cce5a011ca7680e"
+    },
+    "locale-and-linked-verified": {
+      "command": [
+        "/home/albert/flutter-sdk/bin/flutter",
+        "test",
+        "test/app/localization_audit_test.dart",
+        "test/contacts/contacts_read_only_state_test.dart",
+        "--machine"
+      ],
+      "cwd": "/home/albert/busystack/busymax",
+      "head": "1c7a433950ebcd6ce691b7c3ae4deddb572acf2e",
+      "tree": "7ac2af1e93321a972376ed23e67c5e6d697abf0d",
+      "sourceFingerprint": "8d968885e8e340d57aa5ee640f865ef3ed6c0aff6a2110f873b7bd4781c93dd6",
+      "startedUtc": "2026-10-11T13:11:09.973830+00:00",
+      "exit": 0,
+      "elapsedSeconds": 7.584,
+      "log": "locale-and-linked-verified.log",
+      "logSha256": "83ea98596ed15665b2efce7f585c26e73dd751165d972c90984aee38dfe722d6"
+    },
+    "full-suite-final": {
+      "command": [
+        "/home/albert/flutter-sdk/bin/flutter",
+        "test",
+        "--machine"
+      ],
+      "cwd": "/home/albert/busystack/busymax",
+      "head": "4a4bd5528725fe1eca067099a9671ced9e4a745a",
+      "tree": "e0e1c52405d73f26a259ecd59cff8f6ee48863f2",
+      "sourceFingerprint": "8d968885e8e340d57aa5ee640f865ef3ed6c0aff6a2110f873b7bd4781c93dd6",
+      "startedUtc": "2026-10-11T13:11:48.529349+00:00",
+      "exit": 0,
+      "elapsedSeconds": 870.015,
+      "log": "full-suite-final.log",
+      "logSha256": "508eeff6de15de7cae41ec84281a52115088c9faef8640e4c89726f063821b00"
+    },
+    "native-linux-final": {
+      "command": [
+        "bash",
+        "/tmp/busymax-native-checks.sh"
+      ],
+      "cwd": "/home/albert/busystack/busymax",
+      "head": "4a4bd5528725fe1eca067099a9671ced9e4a745a",
+      "tree": "e0e1c52405d73f26a259ecd59cff8f6ee48863f2",
+      "sourceFingerprint": "8d968885e8e340d57aa5ee640f865ef3ed6c0aff6a2110f873b7bd4781c93dd6",
+      "startedUtc": "2026-10-11T13:12:49.868408+00:00",
+      "exit": 0,
+      "elapsedSeconds": 20.436,
+      "log": "native-linux-final.log",
+      "logSha256": "fffdb4efc17e2e656a8ed419a250e486b9a87908c9c72729758b62df327b5795"
+    },
+    "linux-session-final": {
+      "command": [
+        "env",
+        "BUSYMAX_ACCEPTANCE_ROOT=/home/albert/busystack/busymax/build/contacts-read-only/native-session",
+        "XDG_DATA_HOME=/home/albert/busystack/busymax/build/contacts-read-only/native-session/data",
+        "XDG_CONFIG_HOME=/home/albert/busystack/busymax/build/contacts-read-only/native-session/config",
+        "XDG_CACHE_HOME=/home/albert/busystack/busymax/build/contacts-read-only/native-session/cache",
+        "dbus-run-session",
+        "--",
+        "xvfb-run",
+        "-a",
+        "/home/albert/flutter-sdk/bin/flutter",
+        "test",
+        "integration_test/contacts_read_only_linux_test.dart",
+        "-d",
+        "linux",
+        "--reporter",
+        "expanded"
+      ],
+      "cwd": "/home/albert/busystack/busymax",
+      "head": "4a4bd5528725fe1eca067099a9671ced9e4a745a",
+      "tree": "e0e1c52405d73f26a259ecd59cff8f6ee48863f2",
+      "sourceFingerprint": "8d968885e8e340d57aa5ee640f865ef3ed6c0aff6a2110f873b7bd4781c93dd6",
+      "startedUtc": "2026-10-11T13:13:10.513412+00:00",
+      "exit": 0,
+      "elapsedSeconds": 158.794,
+      "log": "linux-session-final.log",
+      "logSha256": "b3b714acab8e4bde0f5fbc88c25835242f564988a097b6189717ce236ae8a264"
+    },
+    "linux-debug-final": {
+      "command": [
+        "/home/albert/flutter-sdk/bin/flutter",
+        "build",
+        "linux",
+        "--debug",
+        "-t",
+        "lib/main_linux.dart"
+      ],
+      "cwd": "/home/albert/busystack/busymax",
+      "head": "4a4bd5528725fe1eca067099a9671ced9e4a745a",
+      "tree": "e0e1c52405d73f26a259ecd59cff8f6ee48863f2",
+      "sourceFingerprint": "8d968885e8e340d57aa5ee640f865ef3ed6c0aff6a2110f873b7bd4781c93dd6",
+      "startedUtc": "2026-10-11T13:15:51.053606+00:00",
+      "exit": 0,
+      "elapsedSeconds": 58.835,
+      "log": "linux-debug-final.log",
+      "logSha256": "f2bdcc31bd06c32b9e3216c398f0c7567578f0b3737e80421e13a34ebfef5798"
+    },
+    "linux-release-final": {
+      "command": [
+        "/home/albert/flutter-sdk/bin/flutter",
+        "build",
+        "linux",
+        "--release",
+        "-t",
+        "lib/main_linux.dart"
+      ],
+      "cwd": "/home/albert/busystack/busymax",
+      "head": "4a4bd5528725fe1eca067099a9671ced9e4a745a",
+      "tree": "e0e1c52405d73f26a259ecd59cff8f6ee48863f2",
+      "sourceFingerprint": "8d968885e8e340d57aa5ee640f865ef3ed6c0aff6a2110f873b7bd4781c93dd6",
+      "startedUtc": "2026-10-11T13:16:51.521909+00:00",
+      "exit": 0,
+      "elapsedSeconds": 228.576,
+      "log": "linux-release-final.log",
+      "logSha256": "cba4d7abad7028d9f049a4469a4c08d8eeb7823d35107f8b4ff5bb18a270a5a9"
+    },
+    "android-native": {
+      "command": [
+        "timeout",
+        "600",
+        "android/gradlew",
+        "--project-dir",
+        "android",
+        ":busymax_android_platform:testDebugUnitTest",
+        ":app:lintDebug",
+        "--console=plain"
+      ],
+      "cwd": "/home/albert/busystack/busymax",
+      "head": "42dd355454cfc5e86bd10f0c58ea786267f20b5f",
+      "tree": "bba83dd5c534ab05ed1c28a24d85de22942821a2",
+      "sourceFingerprint": "50fdbb2ef28c2a32ac592ce18abf4ca5a755de013c45bb6020116ea797e3fd38",
+      "startedUtc": "2026-10-11T12:51:09.823115+00:00",
+      "exit": 0,
+      "elapsedSeconds": 318.333,
+      "log": "android-native.log",
+      "logSha256": "cce1d7c344ddb8f37aa1c26ea3fe8946305cfb20d75eecb9d5751bcf3ba1ec9d"
+    },
+    "android-release-isolated": {
+      "command": [
+        "timeout",
+        "900",
+        "python3",
+        "/tmp/busymax-android-isolated.py"
+      ],
+      "cwd": "/home/albert/busystack/busymax",
+      "head": "4a4bd5528725fe1eca067099a9671ced9e4a745a",
+      "tree": "e0e1c52405d73f26a259ecd59cff8f6ee48863f2",
+      "sourceFingerprint": "8d968885e8e340d57aa5ee640f865ef3ed6c0aff6a2110f873b7bd4781c93dd6",
+      "startedUtc": "2026-10-11T13:11:48.024453+00:00",
+      "exit": 0,
+      "elapsedSeconds": 575.814,
+      "log": "android-release-isolated.log",
+      "logSha256": "c6ad717468194d88b1e8a5512021c7cf0f33085f873cf7901cc1a0d42efa7427"
+    }
+  },
+  "androidArtifacts": {
+    "commit": "4a4bd5528725fe1eca067099a9671ced9e4a745a",
+    "label": "TEST-SIGNED; not production distribution; never installed",
+    "artifacts": [
+      {
+        "file": "build/contacts-read-only/android-test-signed/busymax-contacts-read-only-test-signed.apk",
+        "sha256": "dbe4a866878b437a0e8e99c00c4289199fabb2644fa545de110403ade4a9d7f5",
+        "bytes": 93277935
+      },
+      {
+        "file": "build/contacts-read-only/android-test-signed/busymax-contacts-read-only-test-signed.aab",
+        "sha256": "58a52279a6bc60ac835bfe63c85a90d6265dcf25bde139b06c842a1528fd5025",
+        "bytes": 88155491
+      }
+    ],
+    "remainingGate": "AAB bundletool alignment metadata unverified: local bundletool jar unavailable",
+    "sourceLayout": "/tmp/busymax-contacts-android-check-etq4atas"
+  },
+  "remainingGates": [
+    "Windows native build/device acceptance: no Windows host. Real Fluent route tests passed on Linux; they are not native Windows acceptance.",
+    "Android device acceptance: no emulator/device installation performed or authorized.",
+    "AAB bundletool alignment metadata: no local bundletool jar. APK/AAB builds, signature/resource checks and 16 KB ELF/zip alignment inspection passed.",
+    "Live-provider authorization/sync/mutations: no disposable accounts or registrations authorized; 10 live DAV cases skipped. No live-provider success claimed.",
+    "Snap/engine/driver qualification: unchanged inputs; not restarted or relabeled."
+  ],
+  "diagnosticRuns": {
+    "full-suite": "3617 passed, 10 skipped, 1 Portuguese alias audit failure at 1c7a433; corrected and complete suite rerun.",
+    "android-release": "Shared-layout release exit 1: GeneratedPluginRegistrant referenced integration_test while its release dependency was absent. Independent committed source/sibling layout build and inspection exit 0.",
+    "locale-and-linked-regression": "Initial new fixture compilation/authority setup failures are retained in logs; corrected before final verification.",
+    "sdk-missing-arguments": "Verifier first invoked without required flags, exit 1. Correct pinned-SDK command exit 0."
+  },
+  "siblingFinalState": {
+    "busystack_contacts": {
+      "branch": "main",
+      "head": "cf399b9af0b7bf8a315e8c5d6123e601c90b7bd2",
+      "status": "",
+      "staged": "",
+      "unstaged": ""
+    },
+    "busystack_dav": {
+      "branch": "main",
+      "head": "18f636f3227e3df8c1406bafd85b45e7f12cf8bd",
+      "status": "",
+      "staged": "",
+      "unstaged": ""
+    },
+    "busystack_graph": {
+      "branch": "main",
+      "head": "6572ee14ae992d4cd4f8c2218babaff5051bc132",
+      "status": "",
+      "staged": "",
+      "unstaged": ""
+    },
+    "busycards": {
+      "branch": "main",
+      "head": "8cfb67e50e2d058228edc16dfcb053baf4abef56",
+      "status": "M .idea/busycards.iml\n M .idea/libraries/Dart_Packages.xml\n?? .idea/libraries/Flutter_Plugins.xml\n?? native/microsoft_auth_helper/__pycache__/",
+      "staged": "",
+      "unstaged": ".idea/busycards.iml               | 3574 +++++++++++++++++++++++++++++++++++++\n .idea/libraries/Dart_Packages.xml |  558 +++++-\n 2 files changed, 4130 insertions(+), 2 deletions(-)"
+    },
+    "busybox": {
+      "branch": "Release/v0.0.1",
+      "head": "5aeba272bde4f6798fadaa394c037e8b7aaf74e6",
+      "status": "",
+      "staged": "",
+      "unstaged": ""
+    },
+    "busyfiles": {
+      "branch": "Release/v0.0.1",
+      "head": "14c2853cc089345d2b1ed053fc0d34b1a7477110",
+      "status": "",
+      "staged": "",
+      "unstaged": ""
+    }
+  },
+  "preservedSourceInput": {
+    "originalPath": "dist/source/busymax-0.2.4-source.tar.gz",
+    "preservedPath": "build/contacts-read-only/preserved-source-input/busymax-0.2.4-source.tar.gz",
+    "sha256": "c6431035581860ab05e38cc115d81fcea1d8737354ff3ad423ce4902b194f94a",
+    "revision": "unverified pre-existing artifact; not a build of this correction"
+  }
+}

@@ -5,6 +5,7 @@ import 'package:busystack_contacts/busystack_contacts.dart';
 import 'package:drift/drift.dart';
 
 import '../db/app_database.dart';
+import 'read_only_contacts_provider.dart';
 
 final class BusyMaxContactSelection {
   const BusyMaxContactSelection({
@@ -30,6 +31,14 @@ final class BusyMaxContactsStore implements ContactsStore {
 
   @override
   Stream<void> get changes => _changes.stream;
+
+  /// Normalize cached policy before discovery, including disabled/offline
+  /// sources. Native records, grants, cursors and journals are untouched.
+  Future<void> normalizeReadOnlySources() => write((tx) async {
+    for (final source in await tx.sources()) {
+      await tx.putSource(ReadOnlyContactsProvider.effectiveSource(source));
+    }
+  });
 
   @override
   Future<T> read<T>(
@@ -316,7 +325,9 @@ final class _BusyMaxContactsTransaction implements ContactsWriteTransaction {
         'SELECT data FROM bm_contact_sources'
         '${accountId == null ? '' : ' WHERE account_id = ?'} '
         'ORDER BY source_key',
-        ContactSource.fromJson,
+        (json) => ReadOnlyContactsProvider.effectiveSource(
+          ContactSource.fromJson(json),
+        ),
         accountId == null
             ? const <Variable<Object>>[]
             : <Variable<Object>>[Variable<String>(accountId)],
@@ -327,7 +338,8 @@ final class _BusyMaxContactsTransaction implements ContactsWriteTransaction {
     'bm_contact_sources',
     'source_key',
     key,
-    ContactSource.fromJson,
+    (json) =>
+        ReadOnlyContactsProvider.effectiveSource(ContactSource.fromJson(json)),
   );
 
   @override
@@ -506,7 +518,9 @@ final class _BusyMaxContactsTransaction implements ContactsWriteTransaction {
       _put('bm_contact_sources', <String, Object?>{
         'source_key': source.key,
         'account_id': source.accountId,
-        'data': jsonEncode(source.toJson()),
+        'data': jsonEncode(
+          ReadOnlyContactsProvider.effectiveSource(source).toJson(),
+        ),
       }, 'source_key');
 
   @override

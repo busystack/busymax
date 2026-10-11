@@ -233,11 +233,7 @@ class LifecycleFixture {
       );
     }
     if (granted) {
-      await controller.authorization.contactsAuthorizationHeader(
-        provider,
-        id,
-        writable: false,
-      );
+      await controller.authorization.contactsAuthorizationHeader(provider, id);
     }
     await controller.start();
     if (enabled != null) {
@@ -305,6 +301,77 @@ void main() {
     },
   );
   for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
+    test(
+      '$provider broad credentials and queued writes remain read-only after actual removal rollback',
+      () async {
+        final f = LifecycleFixture(provider);
+        addTearDown(f.close);
+        await f.seed(enabled: true);
+        final credential =
+            await f.h.secrets.readCredential(f.id) as BoundOAuthSecretRecord;
+        final grant = provider == BusyProvider.google
+            ? googleContactsWriteScope
+            : 'Contacts.ReadWrite';
+        final scopes = {...credential.tokenSet.scopes, grant};
+        await f.h.secrets.saveCredential(
+          f.id,
+          credential.withTokens(credential.tokenSet.copyWith(scopes: scopes)),
+        );
+        await f.h.accounts.upsertSignedInAccount(
+          id: f.id,
+          provider: provider,
+          providerAccountId: credential.subject,
+          tenantId: provider == BusyProvider.microsoft ? tenant : null,
+          grantedScopes: scopes.join(' '),
+        );
+        await f.controller.reconnectContactsAccount(f.contactId);
+        await f.controller.synchronizeAccount(f.contactId);
+        await f.seedUncertainMutations(queued: true);
+        await f.h.db.customStatement(
+          "CREATE TRIGGER reject_removal BEFORE DELETE ON accounts BEGIN SELECT RAISE(ABORT, 'rollback'); END",
+        );
+        await expectLater(
+          f.repository.removeAccount(accountId: f.id),
+          throwsA(
+            isA<Exception>().having(
+              (error) => error.toString(),
+              'reason',
+              contains('rollback'),
+            ),
+          ),
+        );
+        await f.controller.synchronizeAccount(f.contactId);
+        final account = (await f.store.read((tx) => tx.account(f.contactId)))!;
+        expect(account.enabled, isTrue);
+        expect(account.grantedScopes, contains(grant));
+        for (final source in await f.store.read(
+          (tx) => tx.sources(accountId: f.contactId),
+        )) {
+          expect(source.capabilities.create, isFalse);
+          expect(source.capabilities.update, isFalse);
+          expect(source.capabilities.delete, isFalse);
+          expect(source.capabilities.photoWrite, isFalse);
+          expect(source.canRename, isFalse);
+          expect(source.canRemove, isFalse);
+        }
+        final journal = await f.store.read(
+          (tx) => tx.mutations(accountId: f.contactId),
+        );
+        expect(
+          journal.singleWhere((m) => m.id == 'queued').state,
+          ContactMutationState.queued,
+        );
+        expect(
+          journal.singleWhere((m) => m.id == 'executing').state,
+          ContactMutationState.unknown,
+        );
+        expect(
+          journal.singleWhere((m) => m.id == 'unknown').state,
+          ContactMutationState.unknown,
+        );
+        expect(f.requests.every((request) => request.method == 'GET'), isTrue);
+      },
+    );
     for (final phase in ['disable-commit', 'detach-journal']) {
       test(
         '$provider preparation $phase failure repairs partial detachment',

@@ -43,13 +43,6 @@ class _AndroidContactsSettingsState
     }
   }
 
-  bool _writable(ContactAccount account) => account.grantedScopes.any(
-    (s) => [
-      'contacts.readwrite',
-      'carddav:write',
-      'https://www.googleapis.com/auth/contacts',
-    ].contains(s.toLowerCase()),
-  );
   Widget _action(String label, Future<void> Function() action) => TextButton(
     onPressed: _pending ? null : () => unawaited(_run(action)),
     child: Text(label),
@@ -69,7 +62,6 @@ class _AndroidContactsSettingsState
           id: id,
           label: input.label,
           server: Uri.parse(input.server),
-          readOnly: input.readOnly,
         );
       } else {
         await controller.addCardDavContactsOnly(
@@ -78,7 +70,6 @@ class _AndroidContactsSettingsState
           server: Uri.parse(input.server),
           username: input.username,
           password: input.password,
-          readOnly: input.readOnly,
         );
       }
     }
@@ -135,19 +126,6 @@ class _AndroidContactsSettingsState
                     ? controller.enableLinkedNextcloudContacts(parent.id)
                     : controller.enableLinkedContacts(parent.id),
               ),
-              Text(context.l10n.contactsWritePermissionDescription),
-              _action(
-                context.l10n.contactsEnableEditing,
-                () => parent.provider == BusyProvider.nextcloud
-                    ? controller.enableLinkedNextcloudContacts(
-                        parent.id,
-                        writable: true,
-                      )
-                    : controller.enableLinkedContacts(
-                        parent.id,
-                        writable: true,
-                      ),
-              ),
             ],
             Wrap(
               spacing: 8,
@@ -158,7 +136,7 @@ class _AndroidContactsSettingsState
             ),
             for (final account in accounts) ...[
               Text(
-                '${account.displayName} · ${_writable(account) ? context.l10n.contactsReadWriteAccess : context.l10n.readOnlySharedCollection} · ${account.enabled ? context.l10n.contactsSuggestionsEnabled : context.l10n.off}',
+                '${account.displayName} · ${context.l10n.contactsReadOnlyUse} · ${account.enabled ? context.l10n.contactsSuggestionsEnabled : context.l10n.off}',
               ),
               if (account.errorCode != null) Text(account.errorCode!),
               Wrap(
@@ -168,16 +146,6 @@ class _AndroidContactsSettingsState
                     context.l10n.connectAccountAction,
                     () => _reconnect(account),
                   ),
-                  if (account.provider == ContactProviderKind.carddav &&
-                      !account.id.startsWith('contacts:') &&
-                      !_writable(account))
-                    _action(
-                      context.l10n.contactsEnableEditing,
-                      () => controller.reconnectDavContactsOnly(
-                        account.id,
-                        readOnly: false,
-                      ),
-                    ),
                   _action(
                     context.l10n.contactsDisableForAccount,
                     () => controller.disableContactsAccount(account.id),
@@ -216,15 +184,8 @@ class _AndroidContactsSettingsState
 }
 
 final class _DavInput {
-  const _DavInput(
-    this.label,
-    this.server,
-    this.username,
-    this.password,
-    this.readOnly,
-  );
+  const _DavInput(this.label, this.server, this.username, this.password);
   final String label, server, username, password;
-  final bool readOnly;
 }
 
 class _DavDialog extends StatefulWidget {
@@ -239,7 +200,6 @@ class _DavDialogState extends State<_DavDialog> {
   final _server = TextEditingController();
   final _username = TextEditingController();
   final _password = TextEditingController();
-  bool _readOnly = true;
   String? _error;
   @override
   void dispose() {
@@ -268,7 +228,6 @@ class _DavDialogState extends State<_DavDialog> {
         uri.toString(),
         _username.text,
         _password.text,
-        _readOnly,
       ),
     );
   }
@@ -314,11 +273,7 @@ class _DavDialogState extends State<_DavDialog> {
                 labelText: context.l10n.contactsPasswordLabel,
               ),
             ),
-          SwitchListTile(
-            title: Text(context.l10n.readOnlySharedCollection),
-            value: _readOnly,
-            onChanged: (value) => setState(() => _readOnly = value),
-          ),
+          Text(context.l10n.contactsReadOnlyUse),
           if (_error != null) Text(_error!),
         ],
       ),

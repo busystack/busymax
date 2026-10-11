@@ -3527,24 +3527,18 @@ class AppLocalizationsHi extends AppLocalizations {
   String get contactsEnableSuggestions => 'संपर्क सुझाव चालू करें';
 
   @override
+  String get contactsReadOnlyUse =>
+      'सहभागियों के सुझावों के लिए केवल पढ़ने योग्य संपर्क';
+
+  @override
   String get contactsReadPermissionDescription =>
       'संपर्कों के लिए केवल पढ़ने की अनुमति माँगता है';
-
-  @override
-  String get contactsEnableEditing => 'संपर्क संपादन चालू करें';
-
-  @override
-  String get contactsWritePermissionDescription =>
-      'संपर्कों को पढ़ने और लिखने की अनुमति माँगता है';
 
   @override
   String get contactsSuggestionsEnabled => 'संपर्क सुझाव चालू हैं';
 
   @override
   String get contactsNeedsAttention => 'संपर्कों पर ध्यान देना आवश्यक है';
-
-  @override
-  String get contactsReadWriteAccess => 'पढ़ने और लिखने की पहुँच';
 
   @override
   String get contactsDisableForAccount => 'इस खाते के संपर्क बंद करें';

@@ -3451,22 +3451,16 @@ class AppLocalizationsKo extends AppLocalizations {
   String get contactsEnableSuggestions => '연락처 추천 사용';
 
   @override
+  String get contactsReadOnlyUse => '참석자 추천을 위한 읽기 전용 연락처';
+
+  @override
   String get contactsReadPermissionDescription => '연락처 읽기 전용 권한을 요청합니다';
-
-  @override
-  String get contactsEnableEditing => '연락처 편집 사용';
-
-  @override
-  String get contactsWritePermissionDescription => '연락처 읽기 및 쓰기 권한을 요청합니다';
 
   @override
   String get contactsSuggestionsEnabled => '연락처 추천을 사용 중입니다';
 
   @override
   String get contactsNeedsAttention => '연락처를 확인해야 합니다';
-
-  @override
-  String get contactsReadWriteAccess => '읽기 및 쓰기 권한';
 
   @override
   String get contactsDisableForAccount => '이 계정의 연락처 사용 중지';

@@ -5922,23 +5922,17 @@ abstract class AppLocalizations {
   /// **'Enable contact suggestions'**
   String get contactsEnableSuggestions;
 
+  /// No description provided for @contactsReadOnlyUse.
+  ///
+  /// In en, this message translates to:
+  /// **'Read-only contacts for attendee suggestions'**
+  String get contactsReadOnlyUse;
+
   /// No description provided for @contactsReadPermissionDescription.
   ///
   /// In en, this message translates to:
   /// **'Requests read-only contact access'**
   String get contactsReadPermissionDescription;
-
-  /// No description provided for @contactsEnableEditing.
-  ///
-  /// In en, this message translates to:
-  /// **'Enable contact editing'**
-  String get contactsEnableEditing;
-
-  /// No description provided for @contactsWritePermissionDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Requests contact read and write access'**
-  String get contactsWritePermissionDescription;
 
   /// No description provided for @contactsSuggestionsEnabled.
   ///
@@ -5951,12 +5945,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Contacts need attention'**
   String get contactsNeedsAttention;
-
-  /// No description provided for @contactsReadWriteAccess.
-  ///
-  /// In en, this message translates to:
-  /// **'Read and write access'**
-  String get contactsReadWriteAccess;
 
   /// No description provided for @contactsDisableForAccount.
   ///

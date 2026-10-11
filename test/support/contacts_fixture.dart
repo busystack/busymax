@@ -19,6 +19,7 @@ final class ContactsFixture implements ContactsAuthorizationBroker {
     this.database, {
     Duration syncInterval = const Duration(days: 1),
     bool realDav = false,
+    BusyMaxLinkedDavCredential? linkedDavCredential,
   }) : accounts = AccountsRepository(database: database),
        store = BusyMaxContactsStore(database) {
     controller = BusyMaxContactsController(
@@ -33,7 +34,7 @@ final class ContactsFixture implements ContactsAuthorizationBroker {
       deleteDavSecret: (id) async {
         davSecrets.remove(id);
       },
-      readLinkedDavCredential: (_) async => null,
+      readLinkedDavCredential: (_) async => linkedDavCredential,
       launchBrowser: (_) async => true,
       syncInterval: syncInterval,
       providerFactory: realDav ? null : provider,
@@ -43,6 +44,7 @@ final class ContactsFixture implements ContactsAuthorizationBroker {
   final AccountsRepository accounts;
   final BusyMaxContactsStore store;
   late final BusyMaxContactsController controller;
+  final requests = <http.Request>[];
   final davSecrets = <String, String>{};
   Future<http.Response> Function(http.Request)? respondDav;
   Object? authorizationFailure;
@@ -64,7 +66,7 @@ final class ContactsFixture implements ContactsAuthorizationBroker {
   Future<void> authorizeContacts(
     BusyProvider provider,
     String accountId, {
-    required bool writable,
+
     AuthorizationCancellation? cancellation,
     Future<void> Function()? persistContacts,
   }) async {
@@ -89,11 +91,7 @@ final class ContactsFixture implements ContactsAuthorizationBroker {
     if (authorizationFailure != null) throw authorizationFailure!;
     final previous = await accounts.accountById(accountId);
     final contactScope = provider == BusyProvider.google
-        ? writable
-              ? 'https://www.googleapis.com/auth/contacts'
-              : 'https://www.googleapis.com/auth/contacts.readonly'
-        : writable
-        ? 'Contacts.ReadWrite'
+        ? 'https://www.googleapis.com/auth/contacts.readonly'
         : 'Contacts.Read';
     await database.transaction(() async {
       await accounts.upsertSignedInAccount(
@@ -112,7 +110,7 @@ final class ContactsFixture implements ContactsAuthorizationBroker {
   Future<String> contactsAuthorizationHeader(
     BusyProvider provider,
     String accountId, {
-    required bool writable,
+
     String? claims,
   }) async => 'Bearer fixture';
 
@@ -136,6 +134,7 @@ final class ContactsFixture implements ContactsAuthorizationBroker {
           ),
         );
   Future<http.Response> respond(http.Request request) async {
+    requests.add(request);
     if (offline ||
         googleOffline && request.url.host == 'people.googleapis.com') {
       throw http.ClientException('fixture offline');

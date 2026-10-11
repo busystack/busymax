@@ -3564,24 +3564,18 @@ class AppLocalizationsRu extends AppLocalizations {
   String get contactsEnableSuggestions => 'Включить предложения контактов';
 
   @override
+  String get contactsReadOnlyUse =>
+      'Контакты только для чтения для предложений участников';
+
+  @override
   String get contactsReadPermissionDescription =>
       'Запрашивает доступ к контактам только для чтения';
-
-  @override
-  String get contactsEnableEditing => 'Включить изменение контактов';
-
-  @override
-  String get contactsWritePermissionDescription =>
-      'Запрашивает доступ к контактам для чтения и записи';
 
   @override
   String get contactsSuggestionsEnabled => 'Предложения контактов включены';
 
   @override
   String get contactsNeedsAttention => 'Контакты требуют внимания';
-
-  @override
-  String get contactsReadWriteAccess => 'Доступ для чтения и записи';
 
   @override
   String get contactsDisableForAccount =>

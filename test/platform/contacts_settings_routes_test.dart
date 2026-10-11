@@ -99,7 +99,7 @@ void main() {
   for (final windows in [true, false]) {
     for (final nextcloud in [false, true]) {
       testWidgets(
-        '${windows ? 'Windows' : 'Android'} Settings completes independent ${nextcloud ? 'Nextcloud' : 'CardDAV'} setup, editing mode and cancellation',
+        '${windows ? 'Windows' : 'Android'} Settings completes independent ${nextcloud ? 'Nextcloud' : 'CardDAV'} read-only setup and cancellation',
         (tester) async {
           tester.view.physicalSize = const Size(1600, 2200);
           tester.view.devicePixelRatio = 1;
@@ -266,28 +266,13 @@ void main() {
             ))!.enabled,
             isTrue,
           );
-          await tester.ensureVisible(find.text('Enable contact editing').first);
-          await tester.pumpAndSettle();
-          final upgraded = f.store.changes
-              .asyncMap((_) => f.store.read((tx) => tx.account(account.id)))
-              .firstWhere(
-                (a) => a?.grantedScopes.contains('carddav:write') == true,
-              );
-          await tester.tap(find.text('Enable contact editing').first);
-          await complete(tester, () => upgraded);
-          await contactActionsReady(tester, windows);
-          await complete(
-            tester,
-            () => f.controller.synchronizeAccount(account.id),
-          );
-          await settle(tester);
+          expect(find.text('Enable contact editing'), findsNothing);
+          expect(find.textContaining('Read and write access'), findsNothing);
           expect(
-            (await complete(
-              tester,
-              () => f.controller.store.read((tx) => tx.account(account.id)),
-            ))!.grantedScopes,
-            contains('carddav:write'),
+            find.textContaining('Read-only contacts for attendee suggestions'),
+            findsWidgets,
           );
+          await contactActionsReady(tester, windows);
           await tester.ensureVisible(find.text('Remove').first);
           await tester.pumpAndSettle();
           await tester.tap(find.text('Remove').first);
@@ -311,7 +296,7 @@ void main() {
   for (final windows in [true, false]) {
     for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
       testWidgets(
-        '${windows ? 'Windows' : 'Android'} Settings enrolls $provider, upgrades, selects and removes',
+        '${windows ? 'Windows' : 'Android'} Settings enrolls $provider read-only, selects and removes',
         (tester) async {
           tester.view.physicalSize = const Size(1600, 2000);
           tester.view.devicePixelRatio = 1;
@@ -441,11 +426,9 @@ void main() {
           );
           await tester.tap(sourceText);
           await settle(tester);
-          await tester.ensureVisible(find.text('Enable contact editing').first);
-          await tester.pumpAndSettle();
-          await tester.tap(find.text('Enable contact editing').first);
-          await settle(tester);
-          expect(find.textContaining('Read and write access'), findsWidgets);
+          expect(find.text('Enable contact editing'), findsNothing);
+          expect(find.textContaining('Read and write access'), findsNothing);
+          await contactActionsReady(tester, windows);
           await tester.ensureVisible(find.text('Remove').first);
           await tester.pumpAndSettle();
           await tester.tap(find.text('Remove').first);

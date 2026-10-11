@@ -3562,24 +3562,18 @@ class AppLocalizationsFa extends AppLocalizations {
   String get contactsEnableSuggestions => 'فعال‌کردن پیشنهادهای مخاطبان';
 
   @override
+  String get contactsReadOnlyUse =>
+      'مخاطبین فقط خواندنی برای پیشنهاد شرکت‌کنندگان';
+
+  @override
   String get contactsReadPermissionDescription =>
       'درخواست دسترسی فقط‌خواندنی به مخاطبان';
-
-  @override
-  String get contactsEnableEditing => 'فعال‌کردن ویرایش مخاطبان';
-
-  @override
-  String get contactsWritePermissionDescription =>
-      'درخواست دسترسی خواندن و نوشتن مخاطبان';
 
   @override
   String get contactsSuggestionsEnabled => 'پیشنهادهای مخاطبان فعال است';
 
   @override
   String get contactsNeedsAttention => 'مخاطبان نیاز به توجه دارند';
-
-  @override
-  String get contactsReadWriteAccess => 'دسترسی خواندن و نوشتن';
 
   @override
   String get contactsDisableForAccount => 'غیرفعال‌کردن مخاطبان برای این حساب';
