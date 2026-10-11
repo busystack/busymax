@@ -1,3 +1,5 @@
+import 'package:busystack_dav/busystack_dav.dart' as shared;
+
 import '../providers/busy_provider.dart';
 import 'dav_errors.dart';
 import 'dav_provider_profile.dart';
@@ -8,28 +10,13 @@ Uri resolveDavHref({
   required DavProviderProfile profile,
   required Uri accountAuthority,
   String? correlationId,
-}) {
-  final source = href.trim();
-  if (source.isEmpty) {
-    throw _invalidHref(correlationId);
-  }
-  late final Uri resolved;
-  try {
-    resolved = responseRequestUri.resolve(source);
-  } on FormatException {
-    throw _invalidHref(correlationId);
-  }
-  if (resolved.userInfo.isNotEmpty ||
-      resolved.hasFragment ||
-      resolved.hasQuery ||
-      !profile.isTrustedCredentialDestination(
-        resolved,
-        accountAuthority: accountAuthority,
-      )) {
-    throw _invalidHref(correlationId);
-  }
-  return resolved;
-}
+}) => shared.resolveDavHref(
+  href: href,
+  responseRequestUri: responseRequestUri,
+  profile: sharedDavProviderProfile(profile),
+  accountAuthority: accountAuthority,
+  correlationId: correlationId,
+);
 
 /// Returns the stable account-relative DAV identity without decoding or
 /// re-encoding percent-escaped reserved path octets. iCloud shard hosts are
@@ -43,12 +30,5 @@ String normalizedDavHrefKey(BusyProvider provider, Uri requestUri) {
       safeMessage: 'A DAV resource did not have an absolute path.',
     );
   }
-  return requestUri.path;
+  return shared.normalizedDavHrefKey(requestUri);
 }
-
-DavException _invalidHref(String? correlationId) => DavException(
-  kind: DavErrorKind.redirectRejected,
-  code: 'DavHrefDestinationRejected',
-  safeMessage: 'The DAV server returned an unsafe resource location.',
-  correlationId: correlationId,
-);

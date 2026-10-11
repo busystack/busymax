@@ -5,6 +5,7 @@ import 'package:logging/logging.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:busymax/src/core/auth/oauth_models.dart';
+
 import 'pkce.dart';
 import '../../core/auth/authorization_attempt.dart';
 
@@ -245,9 +246,8 @@ class OAuthLoopbackFlow {
     String failureMessage,
   ) async {
     try {
-      final launched = await _authorizationLauncher(
-        authorizationUri,
-      ).timeout(const Duration(seconds: 20));
+      final launched = await _authorizationLauncher(authorizationUri)
+          .timeout(const Duration(seconds: 20));
       _logger.info('OAuth browser launch result: $launched');
       if (!launched) {
         throw OAuthException('OAuthBrowserLaunchFailed', failureMessage);

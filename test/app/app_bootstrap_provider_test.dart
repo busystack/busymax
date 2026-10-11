@@ -257,9 +257,8 @@ void main() {
         ),
       );
 
-      final account = await AccountsRepository(
-        database: database,
-      ).accountById('account-1');
+      final account = await AccountsRepository(database: database)
+          .accountById('account-1');
       expect(operations.accountCalls, 1);
       expect(account?.authState, accountAuthStateReauthRequired);
       expect(
@@ -293,9 +292,8 @@ void main() {
   test('signed-in sync runner skips a reconnect-required account', () async {
     final database = AppDatabase(NativeDatabase.memory());
     await _seedSignedInGoogleAccount(database);
-    await AccountsRepository(
-      database: database,
-    ).markReconnectRequired('account-1');
+    await AccountsRepository(database: database)
+        .markReconnectRequired('account-1');
     final operations = _RecordingAccountSyncOperations();
     final container = ProviderContainer(
       overrides: [
@@ -328,9 +326,8 @@ void main() {
       await database.close();
     });
     final runSync = container.read(signedInSyncRunnerProvider);
-    await AccountsRepository(
-      database: database,
-    ).markReconnectRequired('account-1');
+    await AccountsRepository(database: database)
+        .markReconnectRequired('account-1');
 
     await runSync('account-1', false);
 
@@ -453,9 +450,8 @@ void main() {
       ),
     );
 
-    final account = await AccountsRepository(
-      database: database,
-    ).accountById('account-1');
+    final account = await AccountsRepository(database: database)
+        .accountById('account-1');
     expect(account?.authState, accountAuthStateReauthRequired);
     expect(oAuth.activeId, 'account-1');
   });

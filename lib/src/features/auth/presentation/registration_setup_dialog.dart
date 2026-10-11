@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:yaru/yaru.dart';
 import 'package:url_launcher/url_launcher.dart';
+
 import '../../../app/busymax_shortcuts.dart';
 import '../../../app/app_bootstrap.dart';
 import '../../../core/auth/oauth_registration.dart';
@@ -372,9 +373,8 @@ class _RegistrationDialogState extends State<_RegistrationDialog> {
   Widget _error(String message, Key key) => Text(
     message,
     key: key,
-    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-      color: Theme.of(context).colorScheme.error,
-    ),
+    style: Theme.of(context).textTheme.bodyMedium
+        ?.copyWith(color: Theme.of(context).colorScheme.error),
   );
   Future<void> openLink(String url, int step) async {
     if (launching) return;

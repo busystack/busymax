@@ -2,18 +2,21 @@ import 'package:flutter/material.dart';
 
 import '../../../schedule/schedule_item.dart';
 
-typedef ScheduleItemSelectionCallback =
-    void Function(
-      BuildContext context,
-      ScheduleItem item, [
-      Offset? globalPosition,
-    ]);
+typedef ScheduleItemSelectionCallback = void Function(
+  BuildContext context,
+  ScheduleItem item, [
+  Offset? globalPosition,
+]);
 
-typedef ScheduleItemTapCallback =
-    void Function(BuildContext context, [Offset? globalPosition]);
+typedef ScheduleItemTapCallback = void Function(
+  BuildContext context, [
+  Offset? globalPosition,
+]);
 
-typedef ScheduleItemAnchorCallback =
-    void Function(ScheduleItem item, BuildContext context);
+typedef ScheduleItemAnchorCallback = void Function(
+  ScheduleItem item,
+  BuildContext context,
+);
 
 /// Lets planner chips report their mounted anchors through grouped/all-day
 /// layouts without threading the callback through each layout delegate.

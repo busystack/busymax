@@ -3,8 +3,11 @@ import 'package:flutter/widgets.dart';
 import '../../schedule/task_list_mutation_intent.dart';
 import 'busymax_design_values.dart';
 
-typedef BusyMaxMutationItemBuilder<T> =
-    Widget Function(BuildContext context, T item, int index);
+typedef BusyMaxMutationItemBuilder<T> = Widget Function(
+  BuildContext context,
+  T item,
+  int index,
+);
 
 /// Lazy list reconciliation for one identified, successful local mutation.
 /// Unrelated data changes replace the projection without entrance effects.

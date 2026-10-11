@@ -43,14 +43,13 @@ String formatClockDateTime(
   BuildContext context,
   DateTime value,
   String dateLabel,
-) => BusyMaxTimeFormatScope.of(
-  context,
-).compose(dateLabel, value, context.l10n.dateTimeDisplay);
+) =>
+    BusyMaxTimeFormatScope.of(context)
+        .compose(dateLabel, value, context.l10n.dateTimeDisplay);
 
 String formatScheduleBoundary(BuildContext context, int minutes) =>
-    BusyMaxTimeFormatScope.of(
-      context,
-    ).scheduleBoundary(minutes, endOfDayLabel: context.l10n.timeEndOfDay);
+    BusyMaxTimeFormatScope.of(context)
+        .scheduleBoundary(minutes, endOfDayLabel: context.l10n.timeEndOfDay);
 
 /// Measure actual localized labels at the active text scale; shared by ruler
 /// layout and all gutter-dependent hit/resize positions.

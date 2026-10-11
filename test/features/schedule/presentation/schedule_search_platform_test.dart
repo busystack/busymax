@@ -779,9 +779,8 @@ Future<({AppDatabase db, ProviderContainer container})> _mount(
   }
   if (additionalEventDate != null) {
     final startDate = DateFormat('yyyy-MM-dd').format(additionalEventDate);
-    final endDate = DateFormat(
-      'yyyy-MM-dd',
-    ).format(additionalEventDate.add(const Duration(days: 1)));
+    final endDate = DateFormat('yyyy-MM-dd')
+        .format(additionalEventDate.add(const Duration(days: 1)));
     await calendar.upsertEvent(
       accountId: 'account',
       event: CalendarEventDto(

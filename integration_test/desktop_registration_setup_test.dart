@@ -1,6 +1,7 @@
 import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:busymax/src/l10n/registration_setup_content.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
+
 import 'dart:io';
 
 import 'package:busymax/main_linux.dart' as app;
@@ -20,370 +21,388 @@ import 'package:integration_test/integration_test.dart';
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   final output = Platform.environment['BUSYMAX_ACCEPTANCE_ROOT'];
-  testWidgets('Settings owns desktop registration forms, guides and error states', (
-    tester,
-  ) async {
-    expect(Platform.isLinux, isTrue);
-    expect(Platform.environment['XDG_DATA_HOME'], '$output/data');
-    await tester.runAsync(() => app.main(const []));
-    await tester.pumpAndSettle();
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ScheduleWorkspace)),
-    );
-    expect(await container.read(accountsStreamProvider.future), isEmpty);
-    final settings = container.read(appSettingsControllerProvider.notifier);
-    await tester.runAsync(
-      () => settings.setThemeModePreference(BusyMaxThemeModePreference.light),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Add account'));
-    await tester.pumpAndSettle();
-    expect(find.byType(SettingsScreen), findsOneWidget);
-    final staging = container.read(registrationStagingProvider);
-    final picker = _Picker();
-    final previousPicker = FileSelectorPlatform.instance;
-    FileSelectorPlatform.instance = picker;
-    addTearDown(() => FileSelectorPlatform.instance = previousPicker);
-    final file = File('$output/desktop.json');
-    await file.writeAsString(
-      await File('test/fixtures/oauth/desktop_synthetic.json').readAsString(),
-    );
-    picker.selection = XFile(file.path);
-    await tester.tap(find.text('Add Google account'));
-    await tester.pumpAndSettle();
-    await _capture(tester, '$output/google-methods.png');
-    expect(tester.widget<ElevatedButton>(_key('busymax')).onPressed, isNull);
-    expect(_key('shared-unavailable'), findsOneWidget);
-    await _back(tester);
-    expect(_key('methods-dialog'), findsOneWidget);
-    expect(find.byType(SettingsScreen), findsOneWidget);
-    await tester.tap(_key('workspace'));
-    await tester.pumpAndSettle();
-    await _capture(tester, '$output/workspace-empty.png');
-    await tester.tap(_key('import'));
-    await tester.pumpAndSettle();
-    await _capture(tester, '$output/workspace-imported.png');
-    await tester.tap(_key('guide'));
-    await tester.pumpAndSettle();
-    await _inspectInstructions(
-      tester,
-      BusyProvider.google,
-      DesktopConnectionMethod.googleWorkspace,
-      '$output/workspace',
-    );
-    await _back(tester);
-    expect(_key('summary'), findsOneWidget);
-    await _back(tester);
-    await tester.tap(_key('custom'));
-    await tester.pumpAndSettle();
-    // Both ownership pages share the same transactional importer and selection.
-    expect(_key('summary'), findsOneWidget);
-    await tester.tap(find.text('Cancel'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Add Google account'));
-    await tester.pumpAndSettle();
-    await tester.tap(_key('custom'));
-    await tester.pumpAndSettle();
-    await _capture(tester, '$output/google-empty.png');
-    await tester.tap(_key('import'));
-    await tester.pumpAndSettle();
-    expect(_key('summary'), findsOneWidget);
-    await _capture(tester, '$output/google-imported.png');
-    picker.selection = null;
-    await tester.tap(_key('import'));
-    await tester.pumpAndSettle();
-    expect(_key('summary'), findsOneWidget);
-    picker.selection = XFile(file.path);
-    await file.writeAsString('{"web":{}}');
-    await tester.tap(_key('import'));
-    await tester.pumpAndSettle();
-    expect(_key('error'), findsOneWidget);
-    expect(_key('summary'), findsOneWidget);
-    await _capture(tester, '$output/google-invalid-replacement.png');
-    await tester.tap(_key('guide'));
-    await tester.pumpAndSettle();
-    expect(_key('instructions-dialog'), findsOneWidget);
-    expect(_key('back'), findsOneWidget);
-    await _capture(tester, '$output/google-guide.png');
-    await _inspectInstructions(
-      tester,
-      BusyProvider.google,
-      DesktopConnectionMethod.custom,
-      '$output/google',
-    );
-    expect(_key('authorize').hitTestable(), findsNothing);
-    await tester.ensureVisible(_key('copy-all'));
-    await tester.pumpAndSettle();
-    await _capture(tester, '$output/google-guide-scrolled.png');
-    await tester.ensureVisible(find.text('Open Google Cloud Console'));
-    await tester.pumpAndSettle();
-    // Native Linux launcher returns an error string; exercise its real exception path.
-    const channel = BasicMessageChannel<Object?>(
-      'dev.flutter.pigeon.url_launcher_linux.UrlLauncherApi.launchUrl',
-      StandardMessageCodec(),
-    );
-    tester.binding.defaultBinaryMessenger.setMockDecodedMessageHandler<Object?>(
-      channel,
-      (_) async => ['test launch failure'],
-    );
-    addTearDown(
-      () => tester.binding.defaultBinaryMessenger
-          .setMockDecodedMessageHandler<Object?>(channel, null),
-    );
-    await tester.tap(find.text('Open Google Cloud Console'));
-    await tester.pumpAndSettle();
-    expect(_key('link-error'), findsOneWidget);
-    await _capture(tester, '$output/google-guide-link-error.png');
-    await tester.ensureVisible(_key('back'));
-    await tester.tap(_key('back'));
-    await tester.pumpAndSettle();
-    expect(_key('instructions-dialog'), findsNothing);
-    expect(_key('summary'), findsOneWidget);
-    await _capture(tester, '$output/google-instructions-closed.png');
-    staging
-        .cancel(); // Same notification as expiry, without waiting ten minutes.
-    await tester.pumpAndSettle();
-    expect(tester.widget<ElevatedButton>(_key('authorize')).onPressed, isNull);
-    await _capture(tester, '$output/google-expired.png');
-    await tester.tap(find.text('Cancel'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Add Microsoft account'));
-    await tester.pumpAndSettle();
-    await _capture(tester, '$output/microsoft-methods.png');
-    expect(tester.widget<ElevatedButton>(_key('busymax')).onPressed, isNull);
-    expect(_key('workspace'), findsNothing);
-    await _back(tester);
-    expect(_key('methods-dialog'), findsOneWidget);
-    expect(find.byType(SettingsScreen), findsOneWidget);
-    await tester.tap(_key('custom'));
-    await tester.pumpAndSettle();
-    await _capture(tester, '$output/microsoft-empty.png');
-    await tester.enterText(_key('client-id'), 'invalid');
-    await tester.pumpAndSettle();
-    await _capture(tester, '$output/microsoft-invalid.png');
-    await tester.enterText(
-      _key('client-id'),
-      '11223344-5566-7788-99aa-bbccddeeff00',
-    );
-    await _audience(tester, 3, capture: '$output/microsoft-menu-open.png');
-    await tester.enterText(
-      _key('tenant-id'),
-      'aabbccdd-1122-3344-5566-77889900aabb',
-    );
-    await tester.pumpAndSettle();
-    await _capture(tester, '$output/microsoft-tenant.png');
-    await tester.tap(_key('guide'));
-    await tester.pumpAndSettle();
-    await _capture(tester, '$output/microsoft-guide.png');
-    await _inspectInstructions(
-      tester,
-      BusyProvider.microsoft,
-      DesktopConnectionMethod.custom,
-      '$output/microsoft',
-    );
-    expect(_key('authorize').hitTestable(), findsNothing);
-    await tester.ensureVisible(_key('copy-all'));
-    await tester.pumpAndSettle();
-    await _capture(tester, '$output/microsoft-guide-scrolled.png');
-    await tester.ensureVisible(find.text('Open Microsoft Entra admin center'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Open Microsoft Entra admin center'));
-    await tester.pumpAndSettle();
-    await _capture(tester, '$output/microsoft-guide-link-error.png');
-    await tester.ensureVisible(_key('back'));
-    await tester.tap(_key('back'));
-    await tester.pumpAndSettle();
-    expect(_key('instructions-dialog'), findsNothing);
-    expect(
-      tester.widget<TextField>(_key('tenant-id')).controller!.text,
-      'aabbccdd-1122-3344-5566-77889900aabb',
-    );
-    await _capture(tester, '$output/microsoft-instructions-closed.png');
-    await _audience(tester, 1);
-    expect(_key('tenant-id'), findsNothing);
-    expect(
-      tester.widget<ElevatedButton>(_key('authorize')).onPressed,
-      isNotNull,
-    );
-    await _capture(tester, '$output/microsoft-organizations.png');
-    await _audience(tester, 0);
-    await _audience(tester, 2);
-    expect(_key('tenant-id'), findsNothing);
-    await _audience(tester, 3);
-    expect(
-      tester.widget<TextField>(_key('tenant-id')).controller!.text,
-      isEmpty,
-    );
-    expect(tester.widget<ElevatedButton>(_key('authorize')).onPressed, isNull);
-    await _capture(tester, '$output/microsoft-tenant-reset.png');
-    await tester.tap(find.text('Cancel'));
-    await tester.pumpAndSettle();
-    await file.writeAsString(
-      await File('test/fixtures/oauth/desktop_synthetic.json').readAsString(),
-    );
-    picker.selection = XFile(file.path);
-    for (final preference in [
-      BusyMaxThemeModePreference.light,
-      BusyMaxThemeModePreference.dark,
-    ]) {
-      await tester.runAsync(() => settings.setThemeModePreference(preference));
+  testWidgets(
+    'Settings owns desktop registration forms, guides and error states',
+    (tester) async {
+      expect(Platform.isLinux, isTrue);
+      expect(Platform.environment['XDG_DATA_HOME'], '$output/data');
+      await tester.runAsync(() => app.main(const []));
       await tester.pumpAndSettle();
-      final mode = preference.name;
-      for (final (name, methodKey) in [
-        ('Google', 'workspace'),
-        ('Google', 'custom'),
-        ('Microsoft', 'custom'),
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ScheduleWorkspace)),
+      );
+      expect(await container.read(accountsStreamProvider.future), isEmpty);
+      final settings = container.read(appSettingsControllerProvider.notifier);
+      await tester.runAsync(
+        () => settings.setThemeModePreference(BusyMaxThemeModePreference.light),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Add account'));
+      await tester.pumpAndSettle();
+      expect(find.byType(SettingsScreen), findsOneWidget);
+      final staging = container.read(registrationStagingProvider);
+      final picker = _Picker();
+      final previousPicker = FileSelectorPlatform.instance;
+      FileSelectorPlatform.instance = picker;
+      addTearDown(() => FileSelectorPlatform.instance = previousPicker);
+      final file = File('$output/desktop.json');
+      await file.writeAsString(
+        await File('test/fixtures/oauth/desktop_synthetic.json').readAsString(),
+      );
+      picker.selection = XFile(file.path);
+      await tester.tap(find.text('Add Google account'));
+      await tester.pumpAndSettle();
+      await _capture(tester, '$output/google-methods.png');
+      expect(tester.widget<ElevatedButton>(_key('busymax')).onPressed, isNull);
+      expect(_key('shared-unavailable'), findsOneWidget);
+      await _back(tester);
+      expect(_key('methods-dialog'), findsOneWidget);
+      expect(find.byType(SettingsScreen), findsOneWidget);
+      await tester.tap(_key('workspace'));
+      await tester.pumpAndSettle();
+      await _capture(tester, '$output/workspace-empty.png');
+      await tester.tap(_key('import'));
+      await tester.pumpAndSettle();
+      await _capture(tester, '$output/workspace-imported.png');
+      await tester.tap(_key('guide'));
+      await tester.pumpAndSettle();
+      await _inspectInstructions(
+        tester,
+        BusyProvider.google,
+        DesktopConnectionMethod.googleWorkspace,
+        '$output/workspace',
+      );
+      await _back(tester);
+      expect(_key('summary'), findsOneWidget);
+      await _back(tester);
+      await tester.tap(_key('custom'));
+      await tester.pumpAndSettle();
+      // Both ownership pages share the same transactional importer and selection.
+      expect(_key('summary'), findsOneWidget);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Add Google account'));
+      await tester.pumpAndSettle();
+      await tester.tap(_key('custom'));
+      await tester.pumpAndSettle();
+      await _capture(tester, '$output/google-empty.png');
+      await tester.tap(_key('import'));
+      await tester.pumpAndSettle();
+      expect(_key('summary'), findsOneWidget);
+      await _capture(tester, '$output/google-imported.png');
+      picker.selection = null;
+      await tester.tap(_key('import'));
+      await tester.pumpAndSettle();
+      expect(_key('summary'), findsOneWidget);
+      picker.selection = XFile(file.path);
+      await file.writeAsString('{"web":{}}');
+      await tester.tap(_key('import'));
+      await tester.pumpAndSettle();
+      expect(_key('error'), findsOneWidget);
+      expect(_key('summary'), findsOneWidget);
+      await _capture(tester, '$output/google-invalid-replacement.png');
+      await tester.tap(_key('guide'));
+      await tester.pumpAndSettle();
+      expect(_key('instructions-dialog'), findsOneWidget);
+      expect(_key('back'), findsOneWidget);
+      await _capture(tester, '$output/google-guide.png');
+      await _inspectInstructions(
+        tester,
+        BusyProvider.google,
+        DesktopConnectionMethod.custom,
+        '$output/google',
+      );
+      expect(_key('authorize').hitTestable(), findsNothing);
+      await tester.ensureVisible(_key('copy-all'));
+      await tester.pumpAndSettle();
+      await _capture(tester, '$output/google-guide-scrolled.png');
+      await tester.ensureVisible(find.text('Open Google Cloud Console'));
+      await tester.pumpAndSettle();
+      // Native Linux launcher returns an error string; exercise its real exception path.
+      const channel = BasicMessageChannel<Object?>(
+        'dev.flutter.pigeon.url_launcher_linux.UrlLauncherApi.launchUrl',
+        StandardMessageCodec(),
+      );
+      tester.binding.defaultBinaryMessenger
+          .setMockDecodedMessageHandler<Object?>(
+            channel,
+            (_) async => ['test launch failure'],
+          );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger
+            .setMockDecodedMessageHandler<Object?>(channel, null),
+      );
+      await tester.tap(find.text('Open Google Cloud Console'));
+      await tester.pumpAndSettle();
+      expect(_key('link-error'), findsOneWidget);
+      await _capture(tester, '$output/google-guide-link-error.png');
+      await tester.ensureVisible(_key('back'));
+      await tester.tap(_key('back'));
+      await tester.pumpAndSettle();
+      expect(_key('instructions-dialog'), findsNothing);
+      expect(_key('summary'), findsOneWidget);
+      await _capture(tester, '$output/google-instructions-closed.png');
+      staging.cancel(); // Same notification as expiry, without waiting ten minutes.
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<ElevatedButton>(_key('authorize')).onPressed,
+        isNull,
+      );
+      await _capture(tester, '$output/google-expired.png');
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Add Microsoft account'));
+      await tester.pumpAndSettle();
+      await _capture(tester, '$output/microsoft-methods.png');
+      expect(tester.widget<ElevatedButton>(_key('busymax')).onPressed, isNull);
+      expect(_key('workspace'), findsNothing);
+      await _back(tester);
+      expect(_key('methods-dialog'), findsOneWidget);
+      expect(find.byType(SettingsScreen), findsOneWidget);
+      await tester.tap(_key('custom'));
+      await tester.pumpAndSettle();
+      await _capture(tester, '$output/microsoft-empty.png');
+      await tester.enterText(_key('client-id'), 'invalid');
+      await tester.pumpAndSettle();
+      await _capture(tester, '$output/microsoft-invalid.png');
+      await tester.enterText(
+        _key('client-id'),
+        '11223344-5566-7788-99aa-bbccddeeff00',
+      );
+      await _audience(tester, 3, capture: '$output/microsoft-menu-open.png');
+      await tester.enterText(
+        _key('tenant-id'),
+        'aabbccdd-1122-3344-5566-77889900aabb',
+      );
+      await tester.pumpAndSettle();
+      await _capture(tester, '$output/microsoft-tenant.png');
+      await tester.tap(_key('guide'));
+      await tester.pumpAndSettle();
+      await _capture(tester, '$output/microsoft-guide.png');
+      await _inspectInstructions(
+        tester,
+        BusyProvider.microsoft,
+        DesktopConnectionMethod.custom,
+        '$output/microsoft',
+      );
+      expect(_key('authorize').hitTestable(), findsNothing);
+      await tester.ensureVisible(_key('copy-all'));
+      await tester.pumpAndSettle();
+      await _capture(tester, '$output/microsoft-guide-scrolled.png');
+      await tester.ensureVisible(
+        find.text('Open Microsoft Entra admin center'),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Open Microsoft Entra admin center'));
+      await tester.pumpAndSettle();
+      await _capture(tester, '$output/microsoft-guide-link-error.png');
+      await tester.ensureVisible(_key('back'));
+      await tester.tap(_key('back'));
+      await tester.pumpAndSettle();
+      expect(_key('instructions-dialog'), findsNothing);
+      expect(
+        tester.widget<TextField>(_key('tenant-id')).controller!.text,
+        'aabbccdd-1122-3344-5566-77889900aabb',
+      );
+      await _capture(tester, '$output/microsoft-instructions-closed.png');
+      await _audience(tester, 1);
+      expect(_key('tenant-id'), findsNothing);
+      expect(
+        tester.widget<ElevatedButton>(_key('authorize')).onPressed,
+        isNotNull,
+      );
+      await _capture(tester, '$output/microsoft-organizations.png');
+      await _audience(tester, 0);
+      await _audience(tester, 2);
+      expect(_key('tenant-id'), findsNothing);
+      await _audience(tester, 3);
+      expect(
+        tester.widget<TextField>(_key('tenant-id')).controller!.text,
+        isEmpty,
+      );
+      expect(
+        tester.widget<ElevatedButton>(_key('authorize')).onPressed,
+        isNull,
+      );
+      await _capture(tester, '$output/microsoft-tenant-reset.png');
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      await file.writeAsString(
+        await File('test/fixtures/oauth/desktop_synthetic.json').readAsString(),
+      );
+      picker.selection = XFile(file.path);
+      for (final preference in [
+        BusyMaxThemeModePreference.light,
+        BusyMaxThemeModePreference.dark,
       ]) {
-        await tester.tap(find.text('Add $name account'));
+        await tester.runAsync(
+          () => settings.setThemeModePreference(preference),
+        );
         await tester.pumpAndSettle();
-        final prefix = '$output/${name.toLowerCase()}-$methodKey-$mode';
-        await _capture(tester, '$prefix-methods.png');
-        await tester.tap(_key(methodKey));
+        final mode = preference.name;
+        for (final (name, methodKey) in [
+          ('Google', 'workspace'),
+          ('Google', 'custom'),
+          ('Microsoft', 'custom'),
+        ]) {
+          await tester.tap(find.text('Add $name account'));
+          await tester.pumpAndSettle();
+          final prefix = '$output/${name.toLowerCase()}-$methodKey-$mode';
+          await _capture(tester, '$prefix-methods.png');
+          await tester.tap(_key(methodKey));
+          await tester.pumpAndSettle();
+          await _capture(tester, '$prefix-empty.png');
+          tester.platformDispatcher.textScaleFactorTestValue = 1.6;
+          await tester.pumpAndSettle();
+          await _capture(tester, '$prefix-empty-large.png');
+          tester.platformDispatcher.clearTextScaleFactorTestValue();
+          await tester.pumpAndSettle();
+          if (name == 'Google') {
+            await tester.tap(_key('import'));
+          } else {
+            await tester.enterText(
+              _key('client-id'),
+              '11223344-5566-7788-99aa-bbccddeeff00',
+            );
+            await _audience(tester, 3, capture: '$prefix-menu.png');
+            await tester.enterText(
+              _key('tenant-id'),
+              'aabbccdd-1122-3344-5566-77889900aabb',
+            );
+          }
+          await tester.pumpAndSettle();
+          await _capture(tester, '$prefix-populated.png');
+          tester.platformDispatcher.textScaleFactorTestValue = 1.6;
+          await tester.pumpAndSettle();
+          await _capture(tester, '$prefix-large-text.png');
+          if (name == 'Microsoft') {
+            await _audience(tester, 3, capture: '$prefix-menu-large.png');
+          }
+          await tester.tap(_key('guide'));
+          await tester.pumpAndSettle();
+          await _capture(tester, '$prefix-guide-large.png');
+          await tester.ensureVisible(_key('copy-all'));
+          await tester.pumpAndSettle();
+          await _capture(tester, '$prefix-guide-scrolled-large.png');
+          await tester.tap(_key('back'));
+          await tester.pumpAndSettle();
+          expect(
+            _key(name == 'Google' ? 'summary' : 'tenant-id'),
+            findsOneWidget,
+          );
+          tester.platformDispatcher.clearTextScaleFactorTestValue();
+          await tester.pumpAndSettle();
+          if (name == 'Microsoft') {
+            // Traverse from the client entry to the native combo using Tab.
+            await tester.tap(_key('client-id'));
+            await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+            await tester.pumpAndSettle();
+            expect(
+              FocusManager.instance.primaryFocus!.debugLabel,
+              'BusyMax menu trigger',
+            );
+            await tester.sendKeyEvent(LogicalKeyboardKey.space);
+            await tester.pumpAndSettle();
+            await _capture(tester, '$prefix-menu-keyboard.png');
+            await _nativeKeys(tester, [
+              'Home',
+              'Down',
+              'Down',
+              'Down',
+              'Return',
+            ]);
+            await tester.pumpAndSettle();
+            await tester.enterText(_key('tenant-id'), 'invalid');
+            await tester.pumpAndSettle();
+            await _capture(tester, '$prefix-error.png');
+          }
+          await tester.tap(_key('guide'));
+          await tester.pumpAndSettle();
+          await _back(tester);
+          await tester.pumpAndSettle();
+          expect(_key('instructions-dialog'), findsNothing);
+          expect(
+            _key(name == 'Google' ? 'summary' : 'client-id'),
+            findsOneWidget,
+          );
+          await tester.tap(find.text('Cancel'));
+          await tester.pumpAndSettle();
+        }
+      }
+      await tester.runAsync(() => settings.setLocaleTag('de'));
+      await tester.pumpAndSettle();
+      await _resize(tester, 720, 700);
+      tester.platformDispatcher.textScaleFactorTestValue = 1.6;
+      await tester.pumpAndSettle();
+      for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
+        final l10n = AppLocalizations.of(
+          tester.element(find.byType(SettingsScreen)),
+        );
+        final label = provider == BusyProvider.google
+            ? l10n.addGoogleAccount
+            : l10n.addMicrosoftAccount;
+        await tester.ensureVisible(find.text(label));
+        await tester.tap(find.text(label));
         await tester.pumpAndSettle();
-        await _capture(tester, '$prefix-empty.png');
-        tester.platformDispatcher.textScaleFactorTestValue = 1.6;
+        await _capture(
+          tester,
+          '$output/${provider.storageValue}-narrow-german-methods.png',
+        );
+        await tester.ensureVisible(_key('custom'));
+        await tester.tap(_key('custom'));
         await tester.pumpAndSettle();
-        await _capture(tester, '$prefix-empty-large.png');
-        tester.platformDispatcher.clearTextScaleFactorTestValue();
-        await tester.pumpAndSettle();
-        if (name == 'Google') {
+        if (provider == BusyProvider.google) {
           await tester.tap(_key('import'));
         } else {
           await tester.enterText(
             _key('client-id'),
             '11223344-5566-7788-99aa-bbccddeeff00',
           );
-          await _audience(tester, 3, capture: '$prefix-menu.png');
-          await tester.enterText(
-            _key('tenant-id'),
-            'aabbccdd-1122-3344-5566-77889900aabb',
+        }
+        await tester.pumpAndSettle();
+        await _capture(
+          tester,
+          '$output/${provider.storageValue}-narrow-german-form.png',
+        );
+        if (provider == BusyProvider.microsoft) {
+          await _audience(
+            tester,
+            0,
+            capture: '$output/microsoft-narrow-german-menu.png',
           );
         }
-        await tester.pumpAndSettle();
-        await _capture(tester, '$prefix-populated.png');
-        tester.platformDispatcher.textScaleFactorTestValue = 1.6;
-        await tester.pumpAndSettle();
-        await _capture(tester, '$prefix-large-text.png');
-        if (name == 'Microsoft') {
-          await _audience(tester, 3, capture: '$prefix-menu-large.png');
-        }
+        await tester.ensureVisible(_key('guide'));
         await tester.tap(_key('guide'));
         await tester.pumpAndSettle();
-        await _capture(tester, '$prefix-guide-large.png');
+        await _capture(
+          tester,
+          '$output/${provider.storageValue}-narrow-german-guide.png',
+        );
         await tester.ensureVisible(_key('copy-all'));
         await tester.pumpAndSettle();
-        await _capture(tester, '$prefix-guide-scrolled-large.png');
-        await tester.tap(_key('back'));
-        await tester.pumpAndSettle();
-        expect(
-          _key(name == 'Google' ? 'summary' : 'tenant-id'),
-          findsOneWidget,
+        await _capture(
+          tester,
+          '$output/${provider.storageValue}-narrow-german-guide-scrolled.png',
         );
-        tester.platformDispatcher.clearTextScaleFactorTestValue();
-        await tester.pumpAndSettle();
-        if (name == 'Microsoft') {
-          // Traverse from the client entry to the native combo using Tab.
-          await tester.tap(_key('client-id'));
-          await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-          await tester.pumpAndSettle();
-          expect(
-            FocusManager.instance.primaryFocus!.debugLabel,
-            'BusyMax menu trigger',
-          );
-          await tester.sendKeyEvent(LogicalKeyboardKey.space);
-          await tester.pumpAndSettle();
-          await _capture(tester, '$prefix-menu-keyboard.png');
-          await _nativeKeys(tester, ['Home', 'Down', 'Down', 'Down', 'Return']);
-          await tester.pumpAndSettle();
-          await tester.enterText(_key('tenant-id'), 'invalid');
-          await tester.pumpAndSettle();
-          await _capture(tester, '$prefix-error.png');
-        }
+        await _back(tester);
+        expect(_key('guide').hitTestable(), findsOneWidget);
         await tester.tap(_key('guide'));
         await tester.pumpAndSettle();
-        await _back(tester);
+        await tester.tap(_key('close'));
         await tester.pumpAndSettle();
-        expect(_key('instructions-dialog'), findsNothing);
-        expect(
-          _key(name == 'Google' ? 'summary' : 'client-id'),
-          findsOneWidget,
-        );
-        await tester.tap(find.text('Cancel'));
-        await tester.pumpAndSettle();
+        expect(find.byType(SettingsScreen), findsOneWidget);
+        expect(_key('methods-dialog'), findsNothing);
+        expect(tester.takeException(), isNull);
       }
-    }
-    await tester.runAsync(() => settings.setLocaleTag('de'));
-    await tester.pumpAndSettle();
-    await _resize(tester, 720, 700);
-    tester.platformDispatcher.textScaleFactorTestValue = 1.6;
-    await tester.pumpAndSettle();
-    for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
-      final l10n = AppLocalizations.of(
-        tester.element(find.byType(SettingsScreen)),
-      );
-      final label = provider == BusyProvider.google
-          ? l10n.addGoogleAccount
-          : l10n.addMicrosoftAccount;
-      await tester.ensureVisible(find.text(label));
-      await tester.tap(find.text(label));
-      await tester.pumpAndSettle();
-      await _capture(
-        tester,
-        '$output/${provider.storageValue}-narrow-german-methods.png',
-      );
-      await tester.ensureVisible(_key('custom'));
-      await tester.tap(_key('custom'));
-      await tester.pumpAndSettle();
-      if (provider == BusyProvider.google) {
-        await tester.tap(_key('import'));
-      } else {
-        await tester.enterText(
-          _key('client-id'),
-          '11223344-5566-7788-99aa-bbccddeeff00',
-        );
-      }
-      await tester.pumpAndSettle();
-      await _capture(
-        tester,
-        '$output/${provider.storageValue}-narrow-german-form.png',
-      );
-      if (provider == BusyProvider.microsoft) {
-        await _audience(
-          tester,
-          0,
-          capture: '$output/microsoft-narrow-german-menu.png',
-        );
-      }
-      await tester.ensureVisible(_key('guide'));
-      await tester.tap(_key('guide'));
-      await tester.pumpAndSettle();
-      await _capture(
-        tester,
-        '$output/${provider.storageValue}-narrow-german-guide.png',
-      );
-      await tester.ensureVisible(_key('copy-all'));
-      await tester.pumpAndSettle();
-      await _capture(
-        tester,
-        '$output/${provider.storageValue}-narrow-german-guide-scrolled.png',
-      );
-      await _back(tester);
-      expect(_key('guide').hitTestable(), findsOneWidget);
-      await tester.tap(_key('guide'));
-      await tester.pumpAndSettle();
-      await tester.tap(_key('close'));
-      await tester.pumpAndSettle();
-      expect(find.byType(SettingsScreen), findsOneWidget);
-      expect(_key('methods-dialog'), findsNothing);
+      tester.platformDispatcher.clearTextScaleFactorTestValue();
+      await tester.runAsync(() => settings.setLocaleTag('en'));
+      expect(await container.read(accountsStreamProvider.future), isEmpty);
       expect(tester.takeException(), isNull);
-    }
-    tester.platformDispatcher.clearTextScaleFactorTestValue();
-    await tester.runAsync(() => settings.setLocaleTag('en'));
-    expect(await container.read(accountsStreamProvider.future), isEmpty);
-    expect(tester.takeException(), isNull);
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump();
-  }, skip: output == null);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+    },
+    skip: output == null,
+  );
 }
 
 Finder _key(String value) => find.byKey(ValueKey('registration-$value'));

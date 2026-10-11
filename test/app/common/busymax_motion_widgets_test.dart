@@ -74,9 +74,8 @@ void main() {
           builder: (context, setState) {
             update = setState;
             return MediaQuery(
-              data: MediaQuery.of(
-                context,
-              ).copyWith(disableAnimations: disabled),
+              data: MediaQuery.of(context)
+                  .copyWith(disableAnimations: disabled),
               child: Align(
                 alignment: Alignment.topLeft,
                 child: BusyMaxHorizontalReveal(

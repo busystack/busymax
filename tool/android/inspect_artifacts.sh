@@ -45,6 +45,17 @@ if [[ -z "$sdk_root" && -f "$repo_root/android/local.properties" ]]; then
   sdk_root="$(sed -n 's/^sdk\.dir=//p' "$repo_root/android/local.properties" | head -n 1)"
 fi
 build_tools="$(find "$sdk_root/build-tools" -mindepth 1 -maxdepth 1 -type d -name '37*' | sort -V | tail -n 1)"
+"$build_tools/aapt2" dump resources "$apk" > "$temporary/apk-resources.txt"
+if ! grep -Fq 'drawable/ic_notification' "$temporary/apk-resources.txt"; then
+  log 'FAILED: the startup notification drawable was removed from the release APK.'
+  exit 1
+fi
+unzip -Z1 "$aab" > "$temporary/aab-entries.txt"
+if ! grep -Eq '^base/res/drawable[^/]*/ic_notification\.xml$' "$temporary/aab-entries.txt"; then
+  log 'FAILED: the startup notification drawable is missing from the release AAB.'
+  exit 1
+fi
+log 'PASSED: the drawable loaded by the notification plugin is retained in APK and AAB.'
 "$build_tools/zipalign" -c -P 16 4 "$apk" | tee -a "$report"
 "$build_tools/apksigner" verify --verbose --print-certs "$apk" | tee -a "$report"
 if command -v keytool >/dev/null; then

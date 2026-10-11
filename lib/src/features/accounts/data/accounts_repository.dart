@@ -4,6 +4,7 @@ import 'package:drift/drift.dart';
 
 import '../../../db/app_database.dart';
 import '../domain/account_connection_state.dart';
+
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/core/secrets/secret_store.dart';
 import 'package:busymax/src/providers/account_authority.dart';
@@ -45,6 +46,7 @@ class AccountEntity {
     this.email,
     this.tenantId,
     this.providerMetadataJson,
+    this.grantedScopes = '',
     this.calendarsEnabled = true,
     this.tasksEnabled = true,
     this.lastSuccessfulSyncAtUtc,
@@ -70,14 +72,14 @@ class AccountEntity {
       email: row.email,
       tenantId: row.tenantId,
       providerMetadataJson: row.providerMetadataJson,
+      grantedScopes: row.grantedScopes,
       calendarsEnabled: row.calendarsEnabled,
       tasksEnabled: row.tasksEnabled,
       lastSuccessfulSyncAtUtc: DateTime.tryParse(
         row.lastSuccessfulSyncAtUtc ?? '',
       )?.toUtc(),
-      lastFullSyncAtUtc: DateTime.tryParse(
-        row.lastFullSyncAtUtc ?? '',
-      )?.toUtc(),
+      lastFullSyncAtUtc: DateTime.tryParse(row.lastFullSyncAtUtc ?? '')
+          ?.toUtc(),
       authState: row.authState,
     );
   }
@@ -92,6 +94,7 @@ class AccountEntity {
   final String? email;
   final String? tenantId;
   final String? providerMetadataJson;
+  final String grantedScopes;
   final bool calendarsEnabled;
   final bool tasksEnabled;
   final DateTime? lastSuccessfulSyncAtUtc;

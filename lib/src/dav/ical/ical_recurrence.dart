@@ -1008,9 +1008,8 @@ final class _OccurrenceDuration {
     final recurrenceId = override.recurrenceId!;
     final effectiveStart = override.start ?? override.due;
     if (effectiveStart != null) {
-      final shift = _wallDateTime(
-        effectiveStart.localValue,
-      ).difference(_wallDateTime(recurrenceId.localValue));
+      final shift = _wallDateTime(effectiveStart.localValue)
+          .difference(_wallDateTime(recurrenceId.localValue));
       if (!shift.isNegative && shift.compareTo(maximumForwardShift) > 0) {
         maximumForwardShift = shift;
       } else if (shift.isNegative) {
@@ -1115,9 +1114,8 @@ IcalTemporalValue? _rangeAdjustedStart(
   final recurrenceId = rangeOverride?.recurrenceId;
   final rangeStart = rangeOverride?.start ?? rangeOverride?.due;
   if (recurrenceId == null || rangeStart == null) return null;
-  final delta = _wallDateTime(
-    rangeStart.localValue,
-  ).difference(_wallDateTime(recurrenceId.localValue));
+  final delta = _wallDateTime(rangeStart.localValue)
+      .difference(_wallDateTime(recurrenceId.localValue));
   return _withWallValue(
     rangeStart,
     _wallDateTime(originalStart.localValue).add(delta),
@@ -1148,9 +1146,8 @@ IcalTemporalValue? _applyDuration(
   if (duration.calendarDays != 0) {
     value = _withWallValue(
       value,
-      _wallDateTime(
-        value.localValue,
-      ).add(Duration(days: duration.calendarDays)),
+      _wallDateTime(value.localValue)
+          .add(Duration(days: duration.calendarDays)),
     );
   }
   if (duration.exact == Duration.zero) return value;
@@ -1246,9 +1243,8 @@ List<_ByDay> _parseByDay(String? source, int maximumValues) {
 }
 
 _ByDay _parseOneByDay(String source) {
-  final match = RegExp(
-    r'^([+-]?\d{1,2})?(MO|TU|WE|TH|FR|SA|SU)$',
-  ).firstMatch(source);
+  final match = RegExp(r'^([+-]?\d{1,2})?(MO|TU|WE|TH|FR|SA|SU)$')
+      .firstMatch(source);
   if (match == null) throw _invalidRule();
   final ordinal = match.group(1) == null ? null : int.parse(match.group(1)!);
   if (ordinal == 0 || (ordinal != null && ordinal.abs() > 53)) {

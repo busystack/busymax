@@ -1,4 +1,5 @@
 import 'package:busymax/src/l10n/time_format_scope.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -343,12 +344,12 @@ class _IcalTaskFieldsEditorState extends ConsumerState<IcalTaskFieldsEditor> {
       _savedDestination = ExternalLocationDestination.coordinates(point);
       return;
     }
-    LocationDestinationResolver(
-      ref.read(locationResolutionRepositoryProvider),
-    ).resolveSaved(location: location, identity: identity).then((destination) {
-      if (!mounted || generation != _savedDestinationGeneration) return;
-      setState(() => _savedDestination = destination);
-    });
+    LocationDestinationResolver(ref.read(locationResolutionRepositoryProvider))
+        .resolveSaved(location: location, identity: identity)
+        .then((destination) {
+          if (!mounted || generation != _savedDestinationGeneration) return;
+          setState(() => _savedDestination = destination);
+        });
   }
 
   Future<void> _openSavedLocation() async {

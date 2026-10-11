@@ -1,4 +1,5 @@
 import 'package:collection/collection.dart';
+
 import 'geographic_point.dart';
 
 /// Coordinate metadata retained for imports, copies, and existing records.

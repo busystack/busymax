@@ -1,6 +1,9 @@
 import '../../support/desktop_registration_config.dart';
 import '../../support/native_registration_reader_fixture.dart';
+
 import 'package:busymax/src/core/auth/authorization_attempt.dart';
+import 'package:busymax/src/features/sync/account_sync_operations.dart';
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -345,9 +348,8 @@ void main() {
       addTearDown(() => directory.delete(recursive: true));
       final selected = File('${directory.path}/selected.json');
       final substitute = File('${directory.path}/substitute.json');
-      final fixture = await File(
-        'test/fixtures/oauth/desktop_synthetic.json',
-      ).readAsString();
+      final fixture = await File('test/fixtures/oauth/desktop_synthetic.json')
+          .readAsString();
       await selected.writeAsString(fixture);
       await substitute.writeAsString(fixture);
       final staging = RegistrationStaging(
@@ -492,9 +494,8 @@ void main() {
       'optional Microsoft consent captures cancellation during binding preparation shared=$shared',
       () async {
         await h.seedMicrosoft(shared: shared);
-        final before = (await h.secrets.readCredential(
-          'microsoft:ms-user',
-        ))!.toJson();
+        final before = (await h.secrets.readCredential('microsoft:ms-user'))!
+            .toJson();
         final cancellation = AuthorizationCancellation();
         final work = h.microsoft.authorizeCategoryAccess(
           'microsoft:ms-user',
@@ -520,10 +521,9 @@ void main() {
         );
         await h.microsoft.authorizeCategoryAccess('microsoft:ms-user');
         expect(
-          (await h.secrets.readCredential('microsoft:ms-user')
-                  as MicrosoftDesktopCredential)
-              .tokenSet
-              .scopes,
+          (await h.secrets.readCredential(
+            'microsoft:ms-user',
+          ) as MicrosoftDesktopCredential).tokenSet.scopes,
           contains(microsoftCategoryScope),
         );
       },
@@ -535,37 +535,34 @@ void main() {
     expect(h.requests, isEmpty);
     expect(await h.accounts.listVisibleAccounts(), isEmpty);
   });
-  test(
-    'normal legacy binding during consent does not advance authorization generation',
-    () async {
-      await h.seed();
-      await h.db.delete(h.db.authorizationGenerations).go();
-      await h.db.delete(h.db.accountAuthorizations).go();
-      await h.secrets.saveCredential(
-        'opaque',
-        OAuthSecretRecord(provider: BusyProvider.google, tokenSet: tokens()),
-      );
-      h.flow.barrier = Completer<void>();
-      final migration = h.repository.signIn(
-        request: AuthorizationRequest.replace('opaque', h.staging.stage(owned)),
-      );
-      await h.flow.started.future;
-      final originalBound = await h.google.boundCredentialForAccount('opaque');
-      expect(originalBound.generation, 0);
-      expect(await h.persistence.generation('opaque'), 0);
-      expect(
-        SecretRecord.fromJson(originalBound.toJson()),
-        isA<GoogleDesktopCredential>(),
-      );
-      h.flow.barrier!.complete();
-      await migration;
-      final migrated =
-          await h.secrets.readCredential('opaque') as GoogleDesktopCredential;
-      expect(migrated.generation, 1);
-      expect(migrated.registration.clientId, owned.clientId);
-      expect(migrated.transitionEligible, false);
-    },
-  );
+  test('normal legacy binding during consent does not advance authorization generation', () async {
+    await h.seed();
+    await h.db.delete(h.db.authorizationGenerations).go();
+    await h.db.delete(h.db.accountAuthorizations).go();
+    await h.secrets.saveCredential(
+      'opaque',
+      OAuthSecretRecord(provider: BusyProvider.google, tokenSet: tokens()),
+    );
+    h.flow.barrier = Completer<void>();
+    final migration = h.repository.signIn(
+      request: AuthorizationRequest.replace('opaque', h.staging.stage(owned)),
+    );
+    await h.flow.started.future;
+    final originalBound = await h.google.boundCredentialForAccount('opaque');
+    expect(originalBound.generation, 0);
+    expect(await h.persistence.generation('opaque'), 0);
+    expect(
+      SecretRecord.fromJson(originalBound.toJson()),
+      isA<GoogleDesktopCredential>(),
+    );
+    h.flow.barrier!.complete();
+    await migration;
+    final migrated =
+        await h.secrets.readCredential('opaque') as GoogleDesktopCredential;
+    expect(migrated.generation, 1);
+    expect(migrated.registration.clientId, owned.clientId);
+    expect(migrated.transitionEligible, false);
+  });
   test(
     'committed binding receipt recovers without rolling back generation zero',
     () async {
@@ -583,9 +580,8 @@ void main() {
       final journal =
           (await h.db.select(h.db.authorizationCommits).get()).single;
       expect(
-        AuthorizationRecoveryState.decode(
-          journal.previousNativeBindingJson,
-        ).committed,
+        AuthorizationRecoveryState.decode(journal.previousNativeBindingJson)
+            .committed,
         true,
       );
       await h.db.customStatement('DROP TRIGGER retain_receipt');
@@ -651,72 +647,68 @@ void main() {
     },
   );
   for (final shared in [true, false]) {
-    test(
-      'cancelled preparation lets durable recovery finish shared=$shared',
-      () async {
-        await h.seed();
-        if (!shared) await h.makeGoogleUserOwned();
-        final originalRecord = (await h.secrets.readCredential('opaque'))!;
-        await h.secrets.saveCredential(
-          'busymax.authorization.rollback:opaque',
-          originalRecord,
-        );
-        await h.db
-            .into(h.db.authorizationCommits)
-            .insert(
-              AuthorizationCommitsCompanion.insert(
-                accountId: 'opaque',
-                generation: await h.persistence.generation('opaque'),
-                hadCredential: true,
-                previousNativeBindingJson: Value(
-                  const AuthorizationRecoveryState(committed: false).encode(),
-                ),
+    test('cancelled preparation lets durable recovery finish shared=$shared', () async {
+      await h.seed();
+      if (!shared) await h.makeGoogleUserOwned();
+      final originalRecord = (await h.secrets.readCredential('opaque'))!;
+      await h.secrets.saveCredential(
+        'busymax.authorization.rollback:opaque',
+        originalRecord,
+      );
+      await h.db
+          .into(h.db.authorizationCommits)
+          .insert(
+            AuthorizationCommitsCompanion.insert(
+              accountId: 'opaque',
+              generation: await h.persistence.generation('opaque'),
+              hadCredential: true,
+              previousNativeBindingJson: Value(
+                const AuthorizationRecoveryState(committed: false).encode(),
               ),
-            );
-        final entered = Completer<void>();
-        final release = Completer<void>();
-        h.secrets.beforeSave = (id, _) async {
-          if (id == 'opaque') {
-            entered.complete();
-            await release.future;
-          }
-        };
-        final cancellation = AuthorizationCancellation();
-        final connection = h.repository.signIn(
-          request: AuthorizationRequest.reconnect(
-            'opaque',
-          ).withCancellation(cancellation),
-        );
-        final rejected = expectLater(
-          connection,
-          throwsA(
-            isA<OAuthException>().having(
-              (e) => e.classification,
-              'kind',
-              OAuthFailureKind.cancelled,
             ),
+          );
+      final entered = Completer<void>();
+      final release = Completer<void>();
+      h.secrets.beforeSave = (id, _) async {
+        if (id == 'opaque') {
+          entered.complete();
+          await release.future;
+        }
+      };
+      final cancellation = AuthorizationCancellation();
+      final connection = h.repository.signIn(
+        request: AuthorizationRequest.reconnect('opaque')
+            .withCancellation(cancellation),
+      );
+      final rejected = expectLater(
+        connection,
+        throwsA(
+          isA<OAuthException>().having(
+            (e) => e.classification,
+            'kind',
+            OAuthFailureKind.cancelled,
           ),
-        );
-        await entered.future;
-        cancellation.cancel();
-        await rejected;
-        expect(h.flow.started.isCompleted, false);
-        expect(h.requests, isEmpty);
-        h.secrets.beforeSave = null;
-        release.complete();
-        // Recovery retains its serialized owner even after the UI stops waiting.
-        await h.persistence.run('opaque', () async {});
-        expect(await h.db.select(h.db.authorizationCommits).get(), isEmpty);
-        expect(
-          (await h.secrets.readCredential('opaque'))!.toJson(),
-          originalRecord.toJson(),
-        );
-        await h.repository.signIn(
-          request: AuthorizationRequest.reconnect('opaque'),
-        );
-        expect((await h.summary('opaque')).showRetirementNotice, shared);
-      },
-    );
+        ),
+      );
+      await entered.future;
+      cancellation.cancel();
+      await rejected;
+      expect(h.flow.started.isCompleted, false);
+      expect(h.requests, isEmpty);
+      h.secrets.beforeSave = null;
+      release.complete();
+      // Recovery retains its serialized owner even after the UI stops waiting.
+      await h.persistence.run('opaque', () async {});
+      expect(await h.db.select(h.db.authorizationCommits).get(), isEmpty);
+      expect(
+        (await h.secrets.readCredential('opaque'))!.toJson(),
+        originalRecord.toJson(),
+      );
+      await h.repository.signIn(
+        request: AuthorizationRequest.reconnect('opaque'),
+      );
+      expect((await h.summary('opaque')).showRetirementNotice, shared);
+    });
     test(
       'cancel after coherent commit cannot undo accepted connection shared=$shared',
       () async {
@@ -823,9 +815,8 @@ void main() {
         final cooldown =
             (await h.db.select(h.db.domainSyncSchedules).get()).single;
         expect(
-          DateTime.parse(
-            cooldown.cooldownUntilUtc!,
-          ).difference(DateTime.now().toUtc()),
+          DateTime.parse(cooldown.cooldownUntilUtc!)
+              .difference(DateTime.now().toUtc()),
           greaterThan(const Duration(minutes: 119)),
         );
       },
@@ -878,52 +869,49 @@ void main() {
       },
     );
   }
-  test(
-    'legacy token-derived Google ID survives binding and blocks duplicate onboarding',
-    () async {
-      const id = 'legacy-token-derived-local-key';
-      await h.accounts.upsertSignedInAccount(
-        id: id,
-        provider: BusyProvider.google,
-        providerAccountId: id,
-        grantedScopes: googleBusyMaxOAuthScope,
-        tasksEnabled: false,
-      );
-      await h.db
-          .into(h.db.oAuthTransitionAccounts)
-          .insert(OAuthTransitionAccountsCompanion.insert(accountId: id));
-      await h.secrets.saveCredential(
+  test('legacy token-derived Google ID survives binding and blocks duplicate onboarding', () async {
+    const id = 'legacy-token-derived-local-key';
+    await h.accounts.upsertSignedInAccount(
+      id: id,
+      provider: BusyProvider.google,
+      providerAccountId: id,
+      grantedScopes: googleBusyMaxOAuthScope,
+      tasksEnabled: false,
+    );
+    await h.db
+        .into(h.db.oAuthTransitionAccounts)
+        .insert(OAuthTransitionAccountsCompanion.insert(accountId: id));
+    await h.secrets.saveCredential(
+      id,
+      OAuthSecretRecord(provider: BusyProvider.google, tokenSet: tokens()),
+    );
+    final bound = await h.google.boundCredentialForAccount(id);
+    expect(bound.subject, 'subject');
+    expect(bound.registration.origin, RegistrationOrigin.retiringShared);
+    final account = (await h.accounts.accountById(id))!;
+    expect(account.id, id);
+    expect(account.providerAccountId, 'subject');
+    expect(account.tasksEnabled, false);
+    await expectLater(
+      h.repository.signIn(
+        request: AuthorizationRequest.newConnection(h.staging.stage(owned)),
+      ),
+      throwsA(
+        isA<OAuthException>().having(
+          (error) => error.code,
+          'code',
+          'OAuthAccountAlreadyConnected',
+        ),
+      ),
+    );
+    expect((await h.accounts.listVisibleAccounts()).map((a) => a.id), [id]);
+    expect(
+      (await h.secrets.readCredential(
         id,
-        OAuthSecretRecord(provider: BusyProvider.google, tokenSet: tokens()),
-      );
-      final bound = await h.google.boundCredentialForAccount(id);
-      expect(bound.subject, 'subject');
-      expect(bound.registration.origin, RegistrationOrigin.retiringShared);
-      final account = (await h.accounts.accountById(id))!;
-      expect(account.id, id);
-      expect(account.providerAccountId, 'subject');
-      expect(account.tasksEnabled, false);
-      await expectLater(
-        h.repository.signIn(
-          request: AuthorizationRequest.newConnection(h.staging.stage(owned)),
-        ),
-        throwsA(
-          isA<OAuthException>().having(
-            (error) => error.code,
-            'code',
-            'OAuthAccountAlreadyConnected',
-          ),
-        ),
-      );
-      expect((await h.accounts.listVisibleAccounts()).map((a) => a.id), [id]);
-      expect(
-        (await h.secrets.readCredential(id) as GoogleDesktopCredential)
-            .registration
-            .clientId,
-        original.clientId,
-      );
-    },
-  );
+      ) as GoogleDesktopCredential).registration.clientId,
+      original.clientId,
+    );
+  });
   test(
     'new setup stages credentials until identity and repository commit',
     () async {
@@ -939,9 +927,9 @@ void main() {
           grantedScopes: googleBusyMaxOAuthScope,
         ),
       );
-      final saved =
-          await h.secrets.readCredential('google:subject')
-              as GoogleDesktopCredential;
+      final saved = await h.secrets.readCredential(
+        'google:subject',
+      ) as GoogleDesktopCredential;
       expect(saved.registration.clientId, owned.clientId);
       expect(saved.transitionEligible, false);
       expect(
@@ -950,32 +938,29 @@ void main() {
       );
     },
   );
-  test(
-    'targeted migration preserves opaque ID, data and enabled domains across restart',
-    () async {
-      await h.seed();
-      await h.repository.signIn(
-        request: AuthorizationRequest.replace('opaque', h.staging.stage(owned)),
-      );
-      final account = await h.accounts.accountById('opaque');
-      expect(account!.providerAccountId, 'subject');
-      expect(account.tasksEnabled, false);
-      final saved =
-          await h.secrets.readCredential('opaque') as GoogleDesktopCredential;
-      expect(saved.registration.clientId, owned.clientId);
-      expect(saved.transitionEligible, false);
-      expect(await h.accounts.accountById('google:subject'), isNull);
-      final summary = await h.db.select(h.db.accountAuthorizations).getSingle();
-      expect(
-        decodeRegistrationSummary(summary.summaryJson)!.showRetirementNotice,
-        false,
-      );
-      expect(
-        SecretRecord.fromJson(saved.toJson()),
-        isA<GoogleDesktopCredential>(),
-      );
-    },
-  );
+  test('targeted migration preserves opaque ID, data and enabled domains across restart', () async {
+    await h.seed();
+    await h.repository.signIn(
+      request: AuthorizationRequest.replace('opaque', h.staging.stage(owned)),
+    );
+    final account = await h.accounts.accountById('opaque');
+    expect(account!.providerAccountId, 'subject');
+    expect(account.tasksEnabled, false);
+    final saved =
+        await h.secrets.readCredential('opaque') as GoogleDesktopCredential;
+    expect(saved.registration.clientId, owned.clientId);
+    expect(saved.transitionEligible, false);
+    expect(await h.accounts.accountById('google:subject'), isNull);
+    final summary = await h.db.select(h.db.accountAuthorizations).getSingle();
+    expect(
+      decodeRegistrationSummary(summary.summaryJson)!.showRetirementNotice,
+      false,
+    );
+    expect(
+      SecretRecord.fromJson(saved.toJson()),
+      isA<GoogleDesktopCredential>(),
+    );
+  });
   for (final failure in [
     'wrong-account',
     'missing-scope',
@@ -1027,9 +1012,9 @@ void main() {
       h.flow.barrier!.complete();
       await pending;
       expect(
-        (await h.secrets.readCredential('opaque') as GoogleDesktopCredential)
-            .tokenSet
-            .refreshToken,
+        (await h.secrets.readCredential(
+          'opaque',
+        ) as GoogleDesktopCredential).tokenSet.refreshToken,
         'rotated-latest',
       );
     },
@@ -1054,9 +1039,9 @@ void main() {
         throwsStateError,
       );
       expect(
-        (await h.secrets.readCredential('opaque') as GoogleDesktopCredential)
-            .tokenSet
-            .refreshToken,
+        (await h.secrets.readCredential(
+          'opaque',
+        ) as GoogleDesktopCredential).tokenSet.refreshToken,
         'rotated-latest',
       );
       expect(await h.persistence.generation('opaque'), 1);
@@ -1078,9 +1063,9 @@ void main() {
         throwsA(isA<SecretStoreException>()),
       );
       expect(
-        (await h.secrets.readCredential('opaque') as GoogleDesktopCredential)
-            .registration
-            .clientId,
+        (await h.secrets.readCredential(
+          'opaque',
+        ) as GoogleDesktopCredential).registration.clientId,
         original.clientId,
       );
       await h.persistence.recover();
@@ -1125,9 +1110,9 @@ void main() {
       await restarted.recover();
       await restarted.recover();
       expect(
-        (await h.secrets.readCredential('opaque') as GoogleDesktopCredential)
-            .registration
-            .clientId,
+        (await h.secrets.readCredential(
+          'opaque',
+        ) as GoogleDesktopCredential).registration.clientId,
         original.clientId,
       );
     },
@@ -1148,30 +1133,27 @@ void main() {
       expect(await h.accounts.accountById('opaque'), isNull);
     },
   );
-  test(
-    'new consent resolving to existing identity never replaces its registration',
-    () async {
-      await h.seed();
-      await expectLater(
-        h.repository.signIn(
-          request: AuthorizationRequest.newConnection(h.staging.stage(owned)),
+  test('new consent resolving to existing identity never replaces its registration', () async {
+    await h.seed();
+    await expectLater(
+      h.repository.signIn(
+        request: AuthorizationRequest.newConnection(h.staging.stage(owned)),
+      ),
+      throwsA(
+        isA<OAuthException>().having(
+          (e) => e.code,
+          'code',
+          'OAuthAccountAlreadyConnected',
         ),
-        throwsA(
-          isA<OAuthException>().having(
-            (e) => e.code,
-            'code',
-            'OAuthAccountAlreadyConnected',
-          ),
-        ),
-      );
-      expect(
-        (await h.secrets.readCredential('opaque') as GoogleDesktopCredential)
-            .registration
-            .clientId,
-        original.clientId,
-      );
-    },
-  );
+      ),
+    );
+    expect(
+      (await h.secrets.readCredential(
+        'opaque',
+      ) as GoogleDesktopCredential).registration.clientId,
+      original.clientId,
+    );
+  });
   test('credential readers cannot select a provisional secure write', () async {
     await h.seed();
     final candidate = await h.google.connectGoogle(
@@ -1226,9 +1208,9 @@ void main() {
       );
       expect((await h.accounts.accountById('opaque'))!.isSignedIn, true);
       expect(
-        (await h.secrets.readCredential('opaque') as GoogleDesktopCredential)
-            .registration
-            .clientId,
+        (await h.secrets.readCredential(
+          'opaque',
+        ) as GoogleDesktopCredential).registration.clientId,
         owned.clientId,
       );
     },
@@ -1246,9 +1228,9 @@ void main() {
       );
       expect(await h.persistence.generation('opaque'), 1);
       expect(
-        (await h.secrets.readCredential('opaque') as GoogleDesktopCredential)
-            .tokenSet
-            .refreshToken,
+        (await h.secrets.readCredential(
+          'opaque',
+        ) as GoogleDesktopCredential).tokenSet.refreshToken,
         'working-refresh',
       );
       expect((await h.accounts.accountById('opaque'))!.isSignedIn, true);
@@ -1279,9 +1261,9 @@ void main() {
         true,
       );
       expect(posted.any((r) => r.body.contains('client_secret')), false);
-      final saved =
-          await h.secrets.readCredential('microsoft:ms-user')
-              as MicrosoftDesktopCredential;
+      final saved = await h.secrets.readCredential(
+        'microsoft:ms-user',
+      ) as MicrosoftDesktopCredential;
       expect(saved.registration.clientId, msOwned);
       expect(saved.tenantId, tenant);
     },
@@ -1326,9 +1308,9 @@ void main() {
       expect(account.calendarsEnabled, false);
       expect(await h.persistence.generation(id), 2);
       expect(
-        (await h.secrets.readCredential(id) as MicrosoftDesktopCredential)
-            .registration
-            .clientId,
+        (await h.secrets.readCredential(
+          id,
+        ) as MicrosoftDesktopCredential).registration.clientId,
         '44444444-4444-4444-4444-444444444444',
       );
     },
@@ -1414,9 +1396,19 @@ void main() {
 }
 
 class Harness {
-  Harness({this.buildConfig = config}) {
+  Harness({
+    this.buildConfig = config,
+    CrossEngineAccountGate? gate,
+    AppDatabase? database,
+    FailureStore? secretStore,
+  }) : db = database ?? AppDatabase.memoryForTests(),
+       secrets = secretStore ?? FailureStore() {
     staging = RegistrationStaging(buildConfig);
-    persistence = AuthorizationPersistence(database: db, secrets: secrets);
+    persistence = AuthorizationPersistence(
+      database: db,
+      secrets: secrets,
+      gate: gate,
+    );
     client = MockClient((request) async {
       requests.add(request);
       final injected = await beforeRequest?.call(request);
@@ -1487,8 +1479,8 @@ class Harness {
     );
     flow.cancelled = () => mode == 'cancel';
   }
-  final db = AppDatabase.memoryForTests();
-  final secrets = FailureStore();
+  final AppDatabase db;
+  final FailureStore secrets;
   final BuildConfig buildConfig;
   late final http.Client client;
   late final RegistrationStaging staging;
@@ -1616,11 +1608,12 @@ class FailureStore extends InMemorySecretStore {
     await super.deleteCredential(id);
   }
 
-  Future<void> Function(String id, SecretRecord record)? beforeSave;
+  Future<void> Function(String id, SecretRecord record)? beforeSave, afterSave;
   @override
   Future<void> saveCredential(String id, SecretRecord record) async {
     await beforeSave?.call(id, record);
     await super.saveCredential(id, record);
+    await afterSave?.call(id, record);
   }
 
   @override

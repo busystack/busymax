@@ -262,9 +262,9 @@ class MiniCalendarGrid extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: Theme.of(context).textTheme.labelSmall
                                 ?.copyWith(
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onSurfaceVariant,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
                                 ),
                           ),
                         ),
@@ -736,10 +736,8 @@ class _MiniCalendarHeaderLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final labelStyle = Theme.of(context).textTheme.labelMedium?.copyWith(
-      color: colorScheme.onSurface,
-      fontWeight: FontWeight.w600,
-    );
+    final labelStyle = Theme.of(context).textTheme.labelMedium
+        ?.copyWith(color: colorScheme.onSurface, fontWeight: FontWeight.w600);
     final labelWidget = Text(
       label,
       textAlign: TextAlign.center,

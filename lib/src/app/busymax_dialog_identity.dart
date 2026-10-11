@@ -79,9 +79,8 @@ class BusyMaxDialogIdentity extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final titleStyle =
-        Theme.of(
-          context,
-        ).textTheme.headlineSmall?.copyWith(fontWeight: titleWeight) ??
+        Theme.of(context).textTheme.headlineSmall
+            ?.copyWith(fontWeight: titleWeight) ??
         const TextStyle(fontWeight: titleWeight);
     return Column(
       mainAxisSize: MainAxisSize.min,

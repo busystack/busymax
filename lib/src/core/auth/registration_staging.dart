@@ -315,9 +315,8 @@ GoogleDesktopRegistration parseGoogleDesktopConfiguration(
   final secret = installed['client_secret'];
   final project = installed['project_id'];
   if (clientId is! String ||
-      !RegExp(
-        r'^[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$',
-      ).hasMatch(clientId) ||
+      !RegExp(r'^[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$')
+          .hasMatch(clientId) ||
       project is! String ||
       !RegExp(r'^[a-z][a-z0-9-]{4,62}[a-z0-9]$').hasMatch(project) ||
       (secret != null &&

@@ -18,9 +18,8 @@ final class MicrosoftAttachmentUploadSession {
     if (ranges is! List || ranges.length != 1 || ranges.single is! String) {
       throw const FormatException('Invalid attachment upload progress.');
     }
-    final match = RegExp(
-      r'^(\d+)(?:-\d*)?$',
-    ).firstMatch(ranges.single as String);
+    final match = RegExp(r'^(\d+)(?:-\d*)?$')
+        .firstMatch(ranges.single as String);
     final offset = match == null ? null : int.tryParse(match.group(1)!);
     if (offset == null || offset < 0 || offset > totalBytes) {
       throw const FormatException('Invalid attachment upload progress.');

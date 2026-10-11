@@ -8,46 +8,47 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
-  test('a malformed later page fails the whole linked-resource lookup', () async {
-    final client = MicrosoftTodoRestApiClient(
-      httpClient: MockClient(
-        (request) async => http.Response(
-          jsonEncode(
-            request.url.queryParameters.containsKey(r'$skiptoken')
-                ? <String, Object?>{'error': 'incomplete'}
-                : <String, Object?>{
-                    'value': [
-                      {'id': 'first', 'webUrl': 'https://example.test/task'},
-                    ],
-                    '@odata.nextLink':
-                        'https://graph.microsoft.com/v1.0/me/todo/lists/list/tasks/task/linkedResources?\$skiptoken=next',
-                  },
+  test(
+    'a malformed later page fails the whole linked-resource lookup',
+    () async {
+      final client = MicrosoftTodoRestApiClient(
+        httpClient: MockClient(
+          (request) async => http.Response(
+            jsonEncode(
+              request.url.queryParameters.containsKey(r'$skiptoken')
+                  ? <String, Object?>{'error': 'incomplete'}
+                  : <String, Object?>{
+                      'value': [
+                        {'id': 'first', 'webUrl': 'https://example.test/task'},
+                      ],
+                      '@odata.nextLink': 'https://graph.microsoft.com/v1.0/me/todo/lists/list/tasks/task/linkedResources?\$skiptoken=next',
+                    },
+            ),
+            200,
           ),
-          200,
         ),
-      ),
-      baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
-      authorizationHeaderProvider: () async => 'Bearer token',
-    );
-    final container = ProviderContainer(
-      overrides: [
-        microsoftTodoApiClientForAccountProvider(
-          'microsoft:a',
-        ).overrideWithValue(client),
-      ],
-    );
-    addTearDown(container.dispose);
-    await expectLater(
-      container.read(
-        microsoftTaskLinkedResourcesProvider((
-          accountId: 'microsoft:a',
-          taskListId: 'list',
-          taskId: 'task',
-        )).future,
-      ),
-      throwsFormatException,
-    );
-  });
+        baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+        authorizationHeaderProvider: () async => 'Bearer token',
+      );
+      final container = ProviderContainer(
+        overrides: [
+          microsoftTodoApiClientForAccountProvider('microsoft:a')
+              .overrideWithValue(client),
+        ],
+      );
+      addTearDown(container.dispose);
+      await expectLater(
+        container.read(
+          microsoftTaskLinkedResourcesProvider((
+            accountId: 'microsoft:a',
+            taskListId: 'list',
+            taskId: 'task',
+          )).future,
+        ),
+        throwsFormatException,
+      );
+    },
+  );
 
   test(
     'on-demand provider paginates, filters unsafe and duplicate links',
@@ -89,8 +90,7 @@ void main() {
                           'webUrl': 'javascript:alert(1)',
                         },
                       ],
-                      '@odata.nextLink':
-                          'https://graph.microsoft.com/v1.0/me/todo/lists/list/tasks/task/linkedResources?\$skiptoken=next',
+                      '@odata.nextLink': 'https://graph.microsoft.com/v1.0/me/todo/lists/list/tasks/task/linkedResources?\$skiptoken=next',
                     },
             ),
             200,
@@ -101,9 +101,8 @@ void main() {
       );
       final container = ProviderContainer(
         overrides: [
-          microsoftTodoApiClientForAccountProvider(
-            'microsoft:a',
-          ).overrideWithValue(client),
+          microsoftTodoApiClientForAccountProvider('microsoft:a')
+              .overrideWithValue(client),
         ],
       );
       addTearDown(container.dispose);

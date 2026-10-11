@@ -14,52 +14,48 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
-  test(
-    'implicit scheduling adopts a confirmed server-modified meeting exactly once',
-    () async {
-      var puts = 0;
-      final intended = _event('Meeting').replaceFirst(
-        'END:VEVENT',
-        'ORGANIZER:mailto:owner@example.test\r\nATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:guest@example.test\r\nEND:VEVENT',
-      );
-      final canonical = intended.replaceFirst(
-        'PARTSTAT=NEEDS-ACTION',
-        'PARTSTAT=ACCEPTED;SCHEDULE-STATUS=1.2',
-      );
-      final remote = _FakeMutationRemote(
-        put:
-            ({
-              required uri,
-              required rawIcs,
-              required ifMatch,
-              required ifNoneMatch,
-            }) async {
-              puts++;
-              return _success;
-            },
-        fetcher: (href, uri) async =>
-            _live(href, uri, '"scheduled"', canonical),
-      );
-      final result =
-          await DavConditionalMutationService(
-            remoteClient: remote,
-            implicitScheduling: true,
-          ).create(
-            collectionUri: _collectionUri,
-            object: DavNewObject(
-              uid: 'event@example.test',
-              initialMemberName: 'meeting.ics',
-              rawIcs: intended,
-              componentType: 'VEVENT',
-            ),
-            capabilities: _writable,
-            correlationId: 'meeting',
-          );
-      expect(puts, 1);
-      expect(result.canonicalObject?.rawIcsBody, canonical);
-      expect(result.canonicalObject?.etag, '"scheduled"');
-    },
-  );
+  test('implicit scheduling adopts a confirmed server-modified meeting exactly once', () async {
+    var puts = 0;
+    final intended = _event('Meeting').replaceFirst(
+      'END:VEVENT',
+      'ORGANIZER:mailto:owner@example.test\r\nATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:guest@example.test\r\nEND:VEVENT',
+    );
+    final canonical = intended.replaceFirst(
+      'PARTSTAT=NEEDS-ACTION',
+      'PARTSTAT=ACCEPTED;SCHEDULE-STATUS=1.2',
+    );
+    final remote = _FakeMutationRemote(
+      put:
+          ({
+            required uri,
+            required rawIcs,
+            required ifMatch,
+            required ifNoneMatch,
+          }) async {
+            puts++;
+            return _success;
+          },
+      fetcher: (href, uri) async => _live(href, uri, '"scheduled"', canonical),
+    );
+    final result =
+        await DavConditionalMutationService(
+          remoteClient: remote,
+          implicitScheduling: true,
+        ).create(
+          collectionUri: _collectionUri,
+          object: DavNewObject(
+            uid: 'event@example.test',
+            initialMemberName: 'meeting.ics',
+            rawIcs: intended,
+            componentType: 'VEVENT',
+          ),
+          capabilities: _writable,
+          correlationId: 'meeting',
+        );
+    expect(puts, 1);
+    expect(result.canonicalObject?.rawIcsBody, canonical);
+    expect(result.canonicalObject?.etag, '"scheduled"');
+  });
 
   test(
     'restart reconciles scheduling status without resending a meeting update',
@@ -537,51 +533,48 @@ void main() {
     expect(result.canonicalObject?.hrefKey, destinationHref);
   });
 
-  test(
-    'lost MOVE response reconciles destination without repeating MOVE',
-    () async {
-      final destinationUri = Uri.parse(
-        'https://cloud.example.test/remote.php/dav/calendars/alex/home/event.ics',
-      );
-      final destinationHref = destinationUri.path;
-      var moves = 0;
-      final remote = _FakeMutationRemote(
-        move:
-            ({
-              required sourceUri,
-              required destinationUri,
-              required ifMatch,
-            }) async {
-              moves += 1;
-              throw const DavException(
-                kind: DavErrorKind.network,
-                code: 'ConnectionDroppedAfterMove',
-                safeMessage: 'Connection dropped.',
-              );
-            },
-        fetcher: (href, uri) async => href == destinationHref
-            ? _live(href, uri, '"moved"', _event('Baseline'))
-            : DavFetchedMember.missing(hrefKey: href, requestUri: uri),
-      );
+  test('lost MOVE response reconciles destination without repeating MOVE', () async {
+    final destinationUri = Uri.parse(
+      'https://cloud.example.test/remote.php/dav/calendars/alex/home/event.ics',
+    );
+    final destinationHref = destinationUri.path;
+    var moves = 0;
+    final remote = _FakeMutationRemote(
+      move:
+          ({
+            required sourceUri,
+            required destinationUri,
+            required ifMatch,
+          }) async {
+            moves += 1;
+            throw const DavException(
+              kind: DavErrorKind.network,
+              code: 'ConnectionDroppedAfterMove',
+              safeMessage: 'Connection dropped.',
+            );
+          },
+      fetcher: (href, uri) async => href == destinationHref
+          ? _live(href, uri, '"moved"', _event('Baseline'))
+          : DavFetchedMember.missing(hrefKey: href, requestUri: uri),
+    );
 
-      final result = await DavConditionalMutationService(remoteClient: remote)
-          .move(
-            sourceHrefKey: _href,
-            sourceUri: _uri,
-            destinationHrefKey: destinationHref,
-            destinationUri: destinationUri,
-            baselineEtag: 'W/"baseline"',
-            baselineRawIcs: _event('Baseline'),
-            isEvent: true,
-            sourceCapabilities: _writable,
-            destinationCapabilities: _writable,
-            correlationId: 'unknown-move',
-          );
+    final result = await DavConditionalMutationService(remoteClient: remote)
+        .move(
+          sourceHrefKey: _href,
+          sourceUri: _uri,
+          destinationHrefKey: destinationHref,
+          destinationUri: destinationUri,
+          baselineEtag: 'W/"baseline"',
+          baselineRawIcs: _event('Baseline'),
+          isEvent: true,
+          sourceCapabilities: _writable,
+          destinationCapabilities: _writable,
+          correlationId: 'unknown-move',
+        );
 
-      expect(moves, 1);
-      expect(result.outcome, DavMutationOutcome.succeeded);
-    },
-  );
+    expect(moves, 1);
+    expect(result.outcome, DavMutationOutcome.succeeded);
+  });
 
   test('read-only capability blocks mutation before any request', () async {
     var requested = false;
@@ -726,26 +719,25 @@ void main() {
   );
 }
 
-typedef _PutCallback =
-    Future<DavConditionalResponse> Function({
-      required Uri uri,
-      required String rawIcs,
-      required String? ifMatch,
-      required bool ifNoneMatch,
-    });
-typedef _DeleteCallback =
-    Future<DavConditionalResponse> Function({
-      required Uri uri,
-      required String ifMatch,
-    });
-typedef _MoveCallback =
-    Future<DavConditionalResponse> Function({
-      required Uri sourceUri,
-      required Uri destinationUri,
-      required String ifMatch,
-    });
-typedef _FetchCallback =
-    Future<DavFetchedMember> Function(String href, Uri uri);
+typedef _PutCallback = Future<DavConditionalResponse> Function({
+  required Uri uri,
+  required String rawIcs,
+  required String? ifMatch,
+  required bool ifNoneMatch,
+});
+typedef _DeleteCallback = Future<DavConditionalResponse> Function({
+  required Uri uri,
+  required String ifMatch,
+});
+typedef _MoveCallback = Future<DavConditionalResponse> Function({
+  required Uri sourceUri,
+  required Uri destinationUri,
+  required String ifMatch,
+});
+typedef _FetchCallback = Future<DavFetchedMember> Function(
+  String href,
+  Uri uri,
+);
 
 final class _FakeMutationRemote implements DavMutationRemoteClient {
   _FakeMutationRemote({this.put, this.delete, this.move, this.fetcher});

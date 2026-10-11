@@ -145,9 +145,8 @@ void main() {
       await const GtkFontService(channel: fontChannel).getGtkFont(),
       isNull,
     );
-    final colors = await const GtkThemeService(
-      channel: themeChannel,
-    ).getGtkThemeColors();
+    final colors = await const GtkThemeService(channel: themeChannel)
+        .getGtkThemeColors();
     expect(colors?.brightness, Brightness.light);
     expect(colors?.window, isNull);
     expect(colors?.view, isNull);
@@ -189,9 +188,9 @@ void main() {
           .setMockStreamHandler(events, null);
     });
 
-    final settings = await const GtkFontService(
-      fontSettingsEvents: events,
-    ).watchGtkFont().first;
+    final settings = await const GtkFontService(fontSettingsEvents: events)
+        .watchGtkFont()
+        .first;
 
     expect(settings, const GtkFontSettings(family: 'GTK Test Sans', size: 11));
   });
@@ -217,9 +216,8 @@ void main() {
           .setMockStreamHandler(events, null);
     });
 
-    final stream = const GtkFontService(
-      fontSettingsEvents: events,
-    ).watchGtkFont();
+    final stream = const GtkFontService(fontSettingsEvents: events)
+        .watchGtkFont();
     final valuesFuture = stream.take(2).toList();
     await pumpEventQueue();
 
@@ -249,9 +247,9 @@ void main() {
           .setMockStreamHandler(events, null);
     });
 
-    final settings = await const GtkFontService(
-      fontSettingsEvents: events,
-    ).watchGtkFont().first;
+    final settings = await const GtkFontService(fontSettingsEvents: events)
+        .watchGtkFont()
+        .first;
 
     expect(settings, isNull);
   });
@@ -296,9 +294,8 @@ void main() {
           .setMockMethodCallHandler(channel, null);
     });
 
-    final colors = await const GtkThemeService(
-      channel: channel,
-    ).getGtkThemeColors();
+    final colors = await const GtkThemeService(channel: channel)
+        .getGtkThemeColors();
 
     expect(colors?.brightness, Brightness.dark);
     expect(colors?.window, const Color(0xFF202020));
@@ -433,9 +430,8 @@ void main() {
           .setMockMethodCallHandler(channel, null);
     });
 
-    final colors = await const GtkThemeService(
-      channel: channel,
-    ).getGtkThemeColors();
+    final colors = await const GtkThemeService(channel: channel)
+        .getGtkThemeColors();
 
     expect(colors?.brightness, Brightness.light);
     expect(colors?.window, const Color(0xFFFAFAFA));
@@ -464,9 +460,8 @@ void main() {
           .setMockMethodCallHandler(channel, null);
     });
 
-    final colors = await const GtkThemeService(
-      channel: channel,
-    ).getGtkThemeColors();
+    final colors = await const GtkThemeService(channel: channel)
+        .getGtkThemeColors();
 
     expect(colors?.window, const Color(0xFFFAFAFA));
     expect(colors?.searchEntry, isNull);
@@ -497,9 +492,8 @@ void main() {
             .setMockMethodCallHandler(channel, null);
       });
 
-      final colors = await const GtkThemeService(
-        channel: channel,
-      ).getGtkThemeColors();
+      final colors = await const GtkThemeService(channel: channel)
+          .getGtkThemeColors();
 
       expect(colors?.searchEntry, isNotNull);
       expect(colors?.searchEntry?.focused.radius, 12);
@@ -527,9 +521,8 @@ void main() {
           .setMockMethodCallHandler(channel, null);
     });
 
-    final colors = await const GtkThemeService(
-      channel: channel,
-    ).getGtkThemeColors();
+    final colors = await const GtkThemeService(channel: channel)
+        .getGtkThemeColors();
 
     expect(colors?.brightness, Brightness.dark);
     expect(colors?.searchEntry, isNull);
@@ -593,9 +586,8 @@ void main() {
           .setMockStreamHandler(events, null);
     });
 
-    final stream = const GtkThemeService(
-      themeColorsEvents: events,
-    ).watchGtkThemeColors();
+    final stream = const GtkThemeService(themeColorsEvents: events)
+        .watchGtkThemeColors();
     final valuesFuture = stream.take(2).toList();
     await pumpEventQueue();
 
@@ -631,9 +623,9 @@ void main() {
           .setMockStreamHandler(events, null);
     });
 
-    final colors = await const GtkThemeService(
-      themeColorsEvents: events,
-    ).watchGtkThemeColors().first;
+    final colors = await const GtkThemeService(themeColorsEvents: events)
+        .watchGtkThemeColors()
+        .first;
 
     expect(colors, isNull);
   });

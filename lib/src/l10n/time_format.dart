@@ -96,11 +96,12 @@ String normalizeTimeDigits(String input) {
   );
 }
 
-String _normalizeTimeInput(String input) => normalizeTimeDigits(input)
-    .replaceAll(RegExp('[\u200e\u200f\u061c]'), '')
-    .replaceAll(RegExp(r'\s|\u00a0|\u202f'), ' ')
-    .replaceAll(RegExp(' +'), ' ')
-    .trim();
+String _normalizeTimeInput(String input) =>
+    normalizeTimeDigits(input)
+        .replaceAll(RegExp('[\u200e\u200f\u061c]'), '')
+        .replaceAll(RegExp(r'\s|\u00a0|\u202f'), ' ')
+        .replaceAll(RegExp(' +'), ' ')
+        .trim();
 
 /// User entry parsing, separate from canonical HH:mm storage parsing.
 /// Validates the original components before converting a 12-hour value.

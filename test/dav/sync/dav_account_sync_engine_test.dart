@@ -40,34 +40,32 @@ void main() {
 
   tearDown(() => database.close());
 
-  test(
-    'account sequence syncs, conditionally replays, follows up, then pauses on 401',
-    () async {
-      var syncReports = 0;
-      var unauthorized = false;
-      String serverBody = _event('Initial');
-      var serverEtag = '"v1"';
-      final requests = <http.Request>[];
-      final client = MockClient((request) async {
-        requests.add(request);
-        expect(request.headers['authorization'], startsWith('Basic '));
-        if (unauthorized) return http.Response('', 401);
-        if (request.method == 'OPTIONS') {
-          return http.Response(
-            '',
-            200,
-            headers: {'dav': '1, calendar-access, sync-collection'},
-          );
+  test('account sequence syncs, conditionally replays, follows up, then pauses on 401', () async {
+    var syncReports = 0;
+    var unauthorized = false;
+    String serverBody = _event('Initial');
+    var serverEtag = '"v1"';
+    final requests = <http.Request>[];
+    final client = MockClient((request) async {
+      requests.add(request);
+      expect(request.headers['authorization'], startsWith('Basic '));
+      if (unauthorized) return http.Response('', 401);
+      if (request.method == 'OPTIONS') {
+        return http.Response(
+          '',
+          200,
+          headers: {'dav': '1, calendar-access, sync-collection'},
+        );
+      }
+      if (request.method == 'PROPFIND') {
+        if (request.body.contains('<d:current-user-principal/>')) {
+          return _discoveryMultistatus(_currentPrincipalResponse);
         }
-        if (request.method == 'PROPFIND') {
-          if (request.body.contains('<d:current-user-principal/>')) {
-            return _discoveryMultistatus(_currentPrincipalResponse);
-          }
-          if (request.body.contains('<c:calendar-home-set/>')) {
-            return _discoveryMultistatus(_principalPropertiesResponse);
-          }
-          return _discoveryMultistatus(
-            '''<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+        if (request.body.contains('<c:calendar-home-set/>')) {
+          return _discoveryMultistatus(_principalPropertiesResponse);
+        }
+        return _discoveryMultistatus(
+          '''<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
             <d:response><d:href>$_collectionHref</d:href><d:propstat><d:prop>
             <d:resourcetype><d:collection/><c:calendar/></d:resourcetype><d:displayname>Work</d:displayname>
             <d:current-user-privilege-set><d:privilege><d:read/></d:privilege><d:privilege><d:write/></d:privilege></d:current-user-privilege-set>
@@ -75,144 +73,140 @@ void main() {
             <d:supported-report-set><d:supported-report><d:report><d:sync-collection/></d:report></d:supported-report>
             <d:supported-report><d:report><c:calendar-multiget/></d:report></d:supported-report></d:supported-report-set>
             </d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>''',
-          );
-        }
-        if (request.method == 'REPORT' &&
-            request.body.contains('sync-collection')) {
-          syncReports += 1;
-          if (syncReports == 1) {
-            expect(request.body, contains('<d:sync-token></d:sync-token>'));
-            return http.Response(
-              _syncResponse(token: 'token-1', etag: serverEtag),
-              207,
-            );
-          }
-          if (syncReports == 2) {
-            expect(
-              request.body,
-              contains('<d:sync-token>token-1</d:sync-token>'),
-            );
-            return http.Response(_syncResponse(token: 'token-2'), 207);
-          }
-          expect(
-            request.body,
-            contains('<d:sync-token>token-2</d:sync-token>'),
-          );
+        );
+      }
+      if (request.method == 'REPORT' &&
+          request.body.contains('sync-collection')) {
+        syncReports += 1;
+        if (syncReports == 1) {
+          expect(request.body, contains('<d:sync-token></d:sync-token>'));
           return http.Response(
-            _syncResponse(token: 'token-3', etag: serverEtag),
+            _syncResponse(token: 'token-1', etag: serverEtag),
             207,
           );
         }
-        if (request.method == 'REPORT' &&
-            request.body.contains('calendar-multiget')) {
-          return http.Response(_multigetResponse(serverBody, serverEtag), 207);
-        }
-        if (request.method == 'PUT') {
-          expect(request.headers['if-match'], '"v1"');
-          serverBody = request.body;
-          serverEtag = '"v2"';
-          return http.Response('', 204);
-        }
-        if (request.method == 'GET') {
-          return http.Response(
-            serverBody,
-            200,
-            headers: {'etag': serverEtag, 'content-type': 'text/calendar'},
+        if (syncReports == 2) {
+          expect(
+            request.body,
+            contains('<d:sync-token>token-1</d:sync-token>'),
           );
+          return http.Response(_syncResponse(token: 'token-2'), 207);
         }
-        fail('Unexpected ${request.method} ${request.url}');
-      });
-      final notificationObjects = <String>{};
-      DavAccountSyncEngine engine() => DavAccountSyncEngine(
-        database: database,
-        secretStore: secrets,
-        httpClient: client,
-        accountId: 'account',
-        policy: const DavAccountSyncPolicy(
-          discoveryMaxAge: Duration(days: 30),
-          inventoryMaxAge: Duration(days: 30),
+        expect(request.body, contains('<d:sync-token>token-2</d:sync-token>'));
+        return http.Response(
+          _syncResponse(token: 'token-3', etag: serverEtag),
+          207,
+        );
+      }
+      if (request.method == 'REPORT' &&
+          request.body.contains('calendar-multiget')) {
+        return http.Response(_multigetResponse(serverBody, serverEtag), 207);
+      }
+      if (request.method == 'PUT') {
+        expect(request.headers['if-match'], '"v1"');
+        serverBody = request.body;
+        serverEtag = '"v2"';
+        return http.Response('', 204);
+      }
+      if (request.method == 'GET') {
+        return http.Response(
+          serverBody,
+          200,
+          headers: {'etag': serverEtag, 'content-type': 'text/calendar'},
+        );
+      }
+      fail('Unexpected ${request.method} ${request.url}');
+    });
+    final notificationObjects = <String>{};
+    DavAccountSyncEngine engine() => DavAccountSyncEngine(
+      database: database,
+      secretStore: secrets,
+      httpClient: client,
+      accountId: 'account',
+      policy: const DavAccountSyncPolicy(
+        discoveryMaxAge: Duration(days: 30),
+        inventoryMaxAge: Duration(days: 30),
+      ),
+      correlationIdFactory: () => 'safe-correlation',
+      nowUtc: () => _now,
+      rebuildNotifications: (accountId, ids) async {
+        expect(accountId, 'account');
+        notificationObjects.addAll(ids);
+      },
+    );
+
+    final initial = await engine().synchronize();
+    expect(initial.collectionsSynchronized, 1);
+    expect(initial.discoveryRefreshed, isFalse);
+    final raw = await database.select(database.davObjects).getSingle();
+    expect(raw.rawIcsBody, serverBody);
+    expect(raw.etag, '"v1"');
+    expect(
+      (await database.select(database.calendarEvents).getSingle()).title,
+      'Initial',
+    );
+    expect(notificationObjects, {raw.id});
+
+    await DavPendingOperationQueue(
+      database: database,
+      idFactory: () => 'pending-update',
+      nowUtc: () => _now,
+    ).enqueueUpdate(
+      accountId: 'account',
+      collectionId: 'collection',
+      objectId: raw.id,
+      patch: DavMutationPatch(
+        target: const IcalComponentKey(
+          componentType: 'VEVENT',
+          uid: 'event@example.test',
         ),
-        correlationIdFactory: () => 'safe-correlation',
-        nowUtc: () => _now,
-        rebuildNotifications: (accountId, ids) async {
-          expect(accountId, 'account');
-          notificationObjects.addAll(ids);
-        },
-      );
+        scope: DavMutationScope.object,
+        operations: [DavPatchOperation.setText('SUMMARY', 'Offline edit')],
+      ),
+    );
+    notificationObjects.clear();
 
-      final initial = await engine().synchronize();
-      expect(initial.collectionsSynchronized, 1);
-      expect(initial.discoveryRefreshed, isFalse);
-      final raw = await database.select(database.davObjects).getSingle();
-      expect(raw.rawIcsBody, serverBody);
-      expect(raw.etag, '"v1"');
-      expect(
-        (await database.select(database.calendarEvents).getSingle()).title,
-        'Initial',
-      );
-      expect(notificationObjects, {raw.id});
+    final replayed = await engine().synchronize();
+    expect(replayed.discoveryRefreshed, isTrue);
+    expect(replayed.pendingOperationsApplied, 1);
+    expect(replayed.followUpCollectionsSynchronized, 1);
+    expect(await database.select(database.pendingOps).get(), isEmpty);
+    expect(serverBody, contains('SUMMARY:Offline edit'));
+    expect(
+      (await database.select(database.calendarEvents).getSingle()).title,
+      'Offline edit',
+    );
+    expect(
+      (await database.select(database.syncCursors).getSingle()).cursorValue,
+      'token-3',
+    );
+    expect(notificationObjects, isNotEmpty);
 
-      await DavPendingOperationQueue(
-        database: database,
-        idFactory: () => 'pending-update',
-        nowUtc: () => _now,
-      ).enqueueUpdate(
-        accountId: 'account',
-        collectionId: 'collection',
-        objectId: raw.id,
-        patch: DavMutationPatch(
-          target: const IcalComponentKey(
-            componentType: 'VEVENT',
-            uid: 'event@example.test',
-          ),
-          scope: DavMutationScope.object,
-          operations: [DavPatchOperation.setText('SUMMARY', 'Offline edit')],
+    unauthorized = true;
+    await expectLater(
+      engine().synchronize(),
+      throwsA(
+        isA<DavAccountSyncException>().having(
+          (error) => error.failures.single.kind,
+          'failure kind',
+          DavErrorKind.authentication,
         ),
-      );
-      notificationObjects.clear();
-
-      final replayed = await engine().synchronize();
-      expect(replayed.discoveryRefreshed, isTrue);
-      expect(replayed.pendingOperationsApplied, 1);
-      expect(replayed.followUpCollectionsSynchronized, 1);
-      expect(await database.select(database.pendingOps).get(), isEmpty);
-      expect(serverBody, contains('SUMMARY:Offline edit'));
-      expect(
-        (await database.select(database.calendarEvents).getSingle()).title,
-        'Offline edit',
-      );
-      expect(
-        (await database.select(database.syncCursors).getSingle()).cursorValue,
-        'token-3',
-      );
-      expect(notificationObjects, isNotEmpty);
-
-      unauthorized = true;
-      await expectLater(
-        engine().synchronize(),
-        throwsA(
-          isA<DavAccountSyncException>().having(
-            (error) => error.failures.single.kind,
-            'failure kind',
-            DavErrorKind.authentication,
-          ),
-        ),
-      );
-      expect(
-        (await database.select(database.accounts).getSingle()).authState,
-        'reauth_required',
-      );
-      expect(await database.select(database.davObjects).get(), hasLength(1));
-      expect(
-        (await database.select(database.calendarEvents).getSingle()).title,
-        'Offline edit',
-      );
-      expect(
-        requests.every((request) => !request.url.toString().contains('secret')),
-        isTrue,
-      );
-    },
-  );
+      ),
+    );
+    expect(
+      (await database.select(database.accounts).getSingle()).authState,
+      'reauth_required',
+    );
+    expect(await database.select(database.davObjects).get(), hasLength(1));
+    expect(
+      (await database.select(database.calendarEvents).getSingle()).title,
+      'Offline edit',
+    );
+    expect(
+      requests.every((request) => !request.url.toString().contains('secret')),
+      isTrue,
+    );
+  });
 
   test(
     'missing credential marks reauthentication without deleting cache',
@@ -285,9 +279,8 @@ void main() {
           .getSingle();
       final detail = await repository.loadEventDetail(initial.id);
       await repository.updateLocalEvent(
-        EventEditorDraft.fromEventDetail(
-          detail!,
-        ).copyWith(title: 'Local title'),
+        EventEditorDraft.fromEventDetail(detail!)
+            .copyWith(title: 'Local title'),
       );
       expect(
         (await database.select(database.calendarEvents).getSingle()).title,
@@ -308,9 +301,9 @@ void main() {
       expect(projectedLocal.title, 'Local title');
       expect(projectedLocal.syncStatus, 'pending');
 
-      final conflict = await DavConflictRepository(
-        database: database,
-      ).watchUnresolved().first;
+      final conflict = await DavConflictRepository(database: database)
+          .watchUnresolved()
+          .first;
       final rebuiltObjects = <String>{};
       await DavConflictResolutionService(
         database: database,
@@ -408,9 +401,9 @@ void main() {
       expect(projectedLocal.title, 'Local task');
       expect(projectedLocal.localDirty, isTrue);
 
-      final conflict = await DavConflictRepository(
-        database: database,
-      ).watchUnresolved().first;
+      final conflict = await DavConflictRepository(database: database)
+          .watchUnresolved()
+          .first;
       final rebuiltObjects = <String>{};
       await DavConflictResolutionService(
         database: database,
@@ -450,238 +443,232 @@ void main() {
     },
   );
 
-  test(
-    'Diagnostics retry completes a remotely moved task after source sync deletion',
-    () async {
-      await _seedDestination(database);
-      const uid = 'partial-move-task@example.test';
-      const sourceHref = '${_collectionHref}partial-move-task.ics';
-      const destinationHref =
-          '${_destinationCollectionHref}partial-move-task.ics';
-      final sourceRaw = _taskWithParent(uid, 'Parented task');
-      final objectRepository = DavObjectRepository(
-        database: database,
-        idFactory: () => 'source-object',
-      );
-      await objectRepository.commitConfirmedMutation(
-        accountId: 'account',
-        collectionId: 'collection',
-        provider: BusyProvider.nextcloud,
-        canonicalObject: _preparedMember(
-          href: sourceHref,
-          etag: '"source-1"',
-          body: sourceRaw,
-        ),
-        completedAtUtc: _now,
-      );
-      final sourceObject = await (database.select(
-        database.davObjects,
-      )..where((row) => row.hrefKey.equals(sourceHref))).getSingle();
-      final sourceTask = await (database.select(
-        database.tasks,
-      )..where((row) => row.davObjectId.equals(sourceObject.id))).getSingle();
-      final operationId =
-          await DavPendingOperationQueue(
-            database: database,
-            idFactory: () => 'pending-partial-move',
-            nowUtc: () => _now,
-          ).enqueueMove(
-            accountId: 'account',
-            sourceCollectionId: 'collection',
-            destinationCollectionId: 'destination',
-            objectId: sourceObject.id,
-            localProjectionId: sourceTask.id,
+  test('Diagnostics retry completes a remotely moved task after source sync deletion', () async {
+    await _seedDestination(database);
+    const uid = 'partial-move-task@example.test';
+    const sourceHref = '${_collectionHref}partial-move-task.ics';
+    const destinationHref =
+        '${_destinationCollectionHref}partial-move-task.ics';
+    final sourceRaw = _taskWithParent(uid, 'Parented task');
+    final objectRepository = DavObjectRepository(
+      database: database,
+      idFactory: () => 'source-object',
+    );
+    await objectRepository.commitConfirmedMutation(
+      accountId: 'account',
+      collectionId: 'collection',
+      provider: BusyProvider.nextcloud,
+      canonicalObject: _preparedMember(
+        href: sourceHref,
+        etag: '"source-1"',
+        body: sourceRaw,
+      ),
+      completedAtUtc: _now,
+    );
+    final sourceObject = await (database.select(
+      database.davObjects,
+    )..where((row) => row.hrefKey.equals(sourceHref))).getSingle();
+    final sourceTask = await (database.select(
+      database.tasks,
+    )..where((row) => row.davObjectId.equals(sourceObject.id))).getSingle();
+    final operationId =
+        await DavPendingOperationQueue(
+          database: database,
+          idFactory: () => 'pending-partial-move',
+          nowUtc: () => _now,
+        ).enqueueMove(
+          accountId: 'account',
+          sourceCollectionId: 'collection',
+          destinationCollectionId: 'destination',
+          objectId: sourceObject.id,
+          localProjectionId: sourceTask.id,
+          target: const IcalComponentKey(componentType: 'VTODO', uid: uid),
+          postMovePatch: DavMutationPatch(
             target: const IcalComponentKey(componentType: 'VTODO', uid: uid),
-            postMovePatch: DavMutationPatch(
-              target: const IcalComponentKey(componentType: 'VTODO', uid: uid),
-              scope: DavMutationScope.object,
-              operations: [DavPatchOperation.setTaskParent(null)],
-            ),
-          );
+            scope: DavMutationScope.object,
+            operations: [DavPatchOperation.setTaskParent(null)],
+          ),
+        );
 
-      var sourceExists = true;
-      String? destinationRaw;
-      var destinationEtag = '"destination-1"';
-      var moves = 0;
-      var destinationPatchPuts = 0;
-      var destinationGets = 0;
-      var token = 0;
-      final requests = <String>[];
-      addTearDown(() => printOnFailure(requests.join('\n')));
-      final client = MockClient((request) async {
-        requests.add('${request.method} ${request.url.path} ${request.body}');
-        if (request.method == 'OPTIONS') {
+    var sourceExists = true;
+    String? destinationRaw;
+    var destinationEtag = '"destination-1"';
+    var moves = 0;
+    var destinationPatchPuts = 0;
+    var destinationGets = 0;
+    var token = 0;
+    final requests = <String>[];
+    addTearDown(() => printOnFailure(requests.join('\n')));
+    final client = MockClient((request) async {
+      requests.add('${request.method} ${request.url.path} ${request.body}');
+      if (request.method == 'OPTIONS') {
+        return http.Response(
+          '',
+          200,
+          headers: {'dav': '1, calendar-access, sync-collection'},
+        );
+      }
+      if (request.method == 'PROPFIND') {
+        if (request.body.contains('<d:current-user-principal/>')) {
+          return _discoveryMultistatus(_currentPrincipalResponse);
+        }
+        if (request.body.contains('<c:calendar-home-set/>')) {
+          return _discoveryMultistatus(_principalPropertiesResponse);
+        }
+        return _discoveryMultistatus(_twoCollectionInventoryResponse);
+      }
+      if (request.method == 'REPORT' &&
+          request.body.contains('sync-collection')) {
+        token += 1;
+        if (request.url.path == _collectionHref) {
           return http.Response(
-            '',
-            200,
-            headers: {'dav': '1, calendar-access, sync-collection'},
+            _syncMemberResponse(
+              token: 'source-$token',
+              href: sourceHref,
+              etag: sourceExists ? '"source-1"' : null,
+              deleted: !sourceExists,
+            ),
+            207,
           );
         }
-        if (request.method == 'PROPFIND') {
-          if (request.body.contains('<d:current-user-principal/>')) {
-            return _discoveryMultistatus(_currentPrincipalResponse);
-          }
-          if (request.body.contains('<c:calendar-home-set/>')) {
-            return _discoveryMultistatus(_principalPropertiesResponse);
-          }
-          return _discoveryMultistatus(_twoCollectionInventoryResponse);
+        if (request.url.path == _destinationCollectionHref) {
+          return http.Response(
+            _syncMemberResponse(
+              token: 'destination-$token',
+              href: destinationHref,
+              etag: destinationRaw == null ? null : destinationEtag,
+            ),
+            207,
+          );
         }
-        if (request.method == 'REPORT' &&
-            request.body.contains('sync-collection')) {
-          token += 1;
-          if (request.url.path == _collectionHref) {
-            return http.Response(
-              _syncMemberResponse(
-                token: 'source-$token',
-                href: sourceHref,
-                etag: sourceExists ? '"source-1"' : null,
-                deleted: !sourceExists,
-              ),
-              207,
-            );
-          }
-          if (request.url.path == _destinationCollectionHref) {
-            return http.Response(
-              _syncMemberResponse(
-                token: 'destination-$token',
-                href: destinationHref,
-                etag: destinationRaw == null ? null : destinationEtag,
-              ),
-              207,
-            );
-          }
+      }
+      if (request.method == 'REPORT' &&
+          request.body.contains('calendar-multiget')) {
+        if (request.url.path == _collectionHref && sourceExists) {
+          return http.Response(
+            _multigetMemberResponse(
+              href: sourceHref,
+              body: sourceRaw,
+              etag: '"source-1"',
+            ),
+            207,
+          );
         }
-        if (request.method == 'REPORT' &&
-            request.body.contains('calendar-multiget')) {
-          if (request.url.path == _collectionHref && sourceExists) {
-            return http.Response(
-              _multigetMemberResponse(
-                href: sourceHref,
-                body: sourceRaw,
-                etag: '"source-1"',
-              ),
-              207,
-            );
-          }
-          if (request.url.path == _destinationCollectionHref &&
-              destinationRaw != null) {
-            return http.Response(
-              _multigetMemberResponse(
-                href: destinationHref,
-                body: destinationRaw!,
-                etag: destinationEtag,
-              ),
-              207,
-            );
-          }
+        if (request.url.path == _destinationCollectionHref &&
+            destinationRaw != null) {
+          return http.Response(
+            _multigetMemberResponse(
+              href: destinationHref,
+              body: destinationRaw!,
+              etag: destinationEtag,
+            ),
+            207,
+          );
         }
-        if (request.method == 'MOVE') {
-          moves += 1;
-          expect(request.url.path, sourceHref);
-          expect(request.headers['destination'], endsWith(destinationHref));
-          expect(request.headers['if-match'], '"source-1"');
-          sourceExists = false;
-          destinationRaw = sourceRaw;
-          return http.Response('', 204);
+      }
+      if (request.method == 'MOVE') {
+        moves += 1;
+        expect(request.url.path, sourceHref);
+        expect(request.headers['destination'], endsWith(destinationHref));
+        expect(request.headers['if-match'], '"source-1"');
+        sourceExists = false;
+        destinationRaw = sourceRaw;
+        return http.Response('', 204);
+      }
+      if (request.method == 'GET') {
+        if (request.url.path == sourceHref && !sourceExists) {
+          return http.Response('', 404);
         }
-        if (request.method == 'GET') {
-          if (request.url.path == sourceHref && !sourceExists) {
-            return http.Response('', 404);
-          }
-          if (request.url.path == destinationHref && destinationRaw != null) {
-            destinationGets += 1;
-            if (destinationGets == 2) {
-              final synchronizedSource = await (database.select(
-                database.davObjects,
-              )..where((row) => row.id.equals(sourceObject.id))).getSingle();
-              expect(synchronizedSource.serverDeleted, isTrue);
-              expect(
-                (await database.pendingOpsDao.getOp(operationId))?.id,
-                operationId,
-              );
-            }
-            return http.Response(
-              destinationRaw!,
-              200,
-              headers: {
-                'etag': destinationEtag,
-                'content-type': 'text/calendar',
-              },
-            );
-          }
-        }
-        if (request.method == 'PUT' && request.url.path == destinationHref) {
-          destinationPatchPuts += 1;
-          expect(request.headers['if-match'], destinationEtag);
-          expect(request.body, isNot(contains('RELATED-TO')));
-          if (destinationPatchPuts == 1) {
-            return http.Response('Rejected', 415);
-          }
-          destinationRaw = request.body;
-          destinationEtag = '"destination-2"';
-          return http.Response('', 204);
-        }
-        fail('Unexpected ${request.method} ${request.url}');
-      });
-      var now = _now;
-      DavAccountSyncEngine engine() => DavAccountSyncEngine(
-        database: database,
-        secretStore: secrets,
-        httpClient: client,
-        accountId: 'account',
-        policy: const DavAccountSyncPolicy(
-          discoveryMaxAge: Duration(days: 30),
-          inventoryMaxAge: Duration(days: 30),
-          maximumConcurrentCollections: 1,
-        ),
-        correlationIdFactory: () => 'partial-move-recovery',
-        nowUtc: () => now,
-      );
-
-      final failedReplay = await engine().synchronize();
-      expect(failedReplay.pendingOperationsApplied, 0);
-      final failed = await database.pendingOpsDao.getOp(operationId);
-      expect(failed?.state, 'failed');
-      expect(failed?.retryClassification, davPartialMoveRetryClassification);
-      expect(isDavPartiallyCompletedMove(failed!), isTrue);
-      expect(moves, 1);
-      expect(destinationPatchPuts, 1);
-
-      now = now.add(const Duration(minutes: 1));
-      await PendingOpResolutionService(
-        database: database,
-        accountId: 'account',
-        syncCalendar: () async => fail('A task move must use task sync.'),
-        syncTasks: () async {
-          await engine().synchronize();
-        },
-        nowUtc: () => now,
-      ).retryNow(operationId);
-
-      expect(moves, 1);
-      expect(destinationPatchPuts, 2);
-      expect(destinationGets, 3);
-      expect(await database.pendingOpsDao.getOp(operationId), null);
-      expect(
-        (await (database.select(
+        if (request.url.path == destinationHref && destinationRaw != null) {
+          destinationGets += 1;
+          if (destinationGets == 2) {
+            final synchronizedSource = await (database.select(
               database.davObjects,
-            )..where((row) => row.id.equals(sourceObject.id))).getSingle())
-            .serverDeleted,
-        isTrue,
-      );
-      final destinationObject = await (database.select(
-        database.davObjects,
-      )..where((row) => row.hrefKey.equals(destinationHref))).getSingle();
-      expect(destinationObject.collectionId, 'destination');
-      expect(destinationObject.serverDeleted, isFalse);
-      final tasks = await database.select(database.tasks).get();
-      expect(tasks, hasLength(1));
-      expect(tasks.single.davCollectionId, 'destination');
-      expect(tasks.single.taskListId, 'dav-task-list-destination');
-      expect(tasks.single.title, 'Parented task');
-      expect(tasks.single.parentUid, null);
-    },
-  );
+            )..where((row) => row.id.equals(sourceObject.id))).getSingle();
+            expect(synchronizedSource.serverDeleted, isTrue);
+            expect(
+              (await database.pendingOpsDao.getOp(operationId))?.id,
+              operationId,
+            );
+          }
+          return http.Response(
+            destinationRaw!,
+            200,
+            headers: {'etag': destinationEtag, 'content-type': 'text/calendar'},
+          );
+        }
+      }
+      if (request.method == 'PUT' && request.url.path == destinationHref) {
+        destinationPatchPuts += 1;
+        expect(request.headers['if-match'], destinationEtag);
+        expect(request.body, isNot(contains('RELATED-TO')));
+        if (destinationPatchPuts == 1) {
+          return http.Response('Rejected', 415);
+        }
+        destinationRaw = request.body;
+        destinationEtag = '"destination-2"';
+        return http.Response('', 204);
+      }
+      fail('Unexpected ${request.method} ${request.url}');
+    });
+    var now = _now;
+    DavAccountSyncEngine engine() => DavAccountSyncEngine(
+      database: database,
+      secretStore: secrets,
+      httpClient: client,
+      accountId: 'account',
+      policy: const DavAccountSyncPolicy(
+        discoveryMaxAge: Duration(days: 30),
+        inventoryMaxAge: Duration(days: 30),
+        maximumConcurrentCollections: 1,
+      ),
+      correlationIdFactory: () => 'partial-move-recovery',
+      nowUtc: () => now,
+    );
+
+    final failedReplay = await engine().synchronize();
+    expect(failedReplay.pendingOperationsApplied, 0);
+    final failed = await database.pendingOpsDao.getOp(operationId);
+    expect(failed?.state, 'failed');
+    expect(failed?.retryClassification, davPartialMoveRetryClassification);
+    expect(isDavPartiallyCompletedMove(failed!), isTrue);
+    expect(moves, 1);
+    expect(destinationPatchPuts, 1);
+
+    now = now.add(const Duration(minutes: 1));
+    await PendingOpResolutionService(
+      database: database,
+      accountId: 'account',
+      syncCalendar: () async => fail('A task move must use task sync.'),
+      syncTasks: () async {
+        await engine().synchronize();
+      },
+      nowUtc: () => now,
+    ).retryNow(operationId);
+
+    expect(moves, 1);
+    expect(destinationPatchPuts, 2);
+    expect(destinationGets, 3);
+    expect(await database.pendingOpsDao.getOp(operationId), null);
+    expect(
+      (await (database.select(
+            database.davObjects,
+          )..where((row) => row.id.equals(sourceObject.id))).getSingle())
+          .serverDeleted,
+      isTrue,
+    );
+    final destinationObject = await (database.select(
+      database.davObjects,
+    )..where((row) => row.hrefKey.equals(destinationHref))).getSingle();
+    expect(destinationObject.collectionId, 'destination');
+    expect(destinationObject.serverDeleted, isFalse);
+    final tasks = await database.select(database.tasks).get();
+    expect(tasks, hasLength(1));
+    expect(tasks.single.davCollectionId, 'destination');
+    expect(tasks.single.taskListId, 'dav-task-list-destination');
+    expect(tasks.single.title, 'Parented task');
+    expect(tasks.single.parentUid, null);
+  });
 
   test(
     'removed collection rebuilds reminders without object-level changes',
@@ -815,148 +802,142 @@ void main() {
     },
   );
 
-  test(
-    'temporary DAV failure keeps cached reminders and recovery rebuilds after reconnect',
-    () async {
-      var clock = DateTime.utc(2026, 8, 8, 12);
-      final initialBody = _eventWithReminder(
-        'Cached appointment',
-        startUtc: DateTime.utc(2026, 8, 9, 9),
-      );
-      final repository = DavObjectRepository(
+  test('temporary DAV failure keeps cached reminders and recovery rebuilds after reconnect', () async {
+    var clock = DateTime.utc(2026, 8, 8, 12);
+    final initialBody = _eventWithReminder(
+      'Cached appointment',
+      startUtc: DateTime.utc(2026, 8, 9, 9),
+    );
+    final repository = DavObjectRepository(
+      database: database,
+      idFactory: () => 'reminder-object',
+    );
+    await repository.commitConfirmedMutation(
+      accountId: 'account',
+      collectionId: 'collection',
+      provider: BusyProvider.nextcloud,
+      canonicalObject: _preparedMember(
+        href: _eventHref,
+        etag: '"reminder-1"',
+        body: initialBody,
+      ),
+      completedAtUtc: clock,
+    );
+    final scheduleService = NotificationScheduleService(
+      database: database,
+      nowUtc: () => clock,
+    );
+    await scheduleService.rebuildUpcomingNotifications('account');
+    var scheduled = await database
+        .select(database.notificationSchedule)
+        .getSingle();
+    expect(
+      scheduled.scheduledAtUtc,
+      DateTime.utc(2026, 8, 9, 8, 30).millisecondsSinceEpoch,
+    );
+
+    await expectLater(
+      DavAccountSyncEngine(
         database: database,
-        idFactory: () => 'reminder-object',
-      );
-      await repository.commitConfirmedMutation(
+        secretStore: _UnavailableSecretStore(),
+        httpClient: MockClient((_) async => http.Response('', 500)),
         accountId: 'account',
-        collectionId: 'collection',
-        provider: BusyProvider.nextcloud,
-        canonicalObject: _preparedMember(
-          href: _eventHref,
-          etag: '"reminder-1"',
-          body: initialBody,
-        ),
-        completedAtUtc: clock,
-      );
-      final scheduleService = NotificationScheduleService(
-        database: database,
         nowUtc: () => clock,
-      );
-      await scheduleService.rebuildUpcomingNotifications('account');
-      var scheduled = await database
-          .select(database.notificationSchedule)
-          .getSingle();
-      expect(
-        scheduled.scheduledAtUtc,
-        DateTime.utc(2026, 8, 9, 8, 30).millisecondsSinceEpoch,
-      );
-
-      await expectLater(
-        DavAccountSyncEngine(
-          database: database,
-          secretStore: _UnavailableSecretStore(),
-          httpClient: MockClient((_) async => http.Response('', 500)),
-          accountId: 'account',
-          nowUtc: () => clock,
-        ).synchronize(),
-        throwsA(
-          isA<DavException>().having(
-            (error) => error.code,
-            'code',
-            'DavCredentialStoreUnavailable',
-          ),
+      ).synchronize(),
+      throwsA(
+        isA<DavException>().having(
+          (error) => error.code,
+          'code',
+          'DavCredentialStoreUnavailable',
         ),
-      );
-      expect(
-        (await database.select(database.accounts).getSingle()).authState,
-        'temporarily_unavailable',
-      );
-      expect(
-        await database.select(database.notificationSchedule).get(),
-        hasLength(1),
-      );
+      ),
+    );
+    expect(
+      (await database.select(database.accounts).getSingle()).authState,
+      'temporarily_unavailable',
+    );
+    expect(
+      await database.select(database.notificationSchedule).get(),
+      hasLength(1),
+    );
 
-      clock = DateTime.utc(2026, 8, 9, 8, 30);
-      final notificationBackend = _ReminderRecordingBackend();
-      final scheduler = NotificationScheduler(
-        database: database,
-        notifications: DesktopNotificationService(
-          backend: notificationBackend,
-          settings: AppSettings.defaults(),
-          now: () => clock,
-        ),
-        nowUtc: () => clock,
-      );
-      await scheduler.checkNow();
-      scheduler.stop();
-      expect(notificationBackend.requests, hasLength(1));
-      expect(notificationBackend.requests.single.title, 'Cached appointment');
-      scheduled = await database
-          .select(database.notificationSchedule)
-          .getSingle();
-      expect(scheduled.sentAtUtc, isNotNull);
+    clock = DateTime.utc(2026, 8, 9, 8, 30);
+    final notificationBackend = _ReminderRecordingBackend();
+    final scheduler = NotificationScheduler(
+      database: database,
+      notifications: DesktopNotificationService(
+        backend: notificationBackend,
+        settings: AppSettings.defaults(),
+        now: () => clock,
+      ),
+      nowUtc: () => clock,
+    );
+    await scheduler.checkNow();
+    scheduler.stop();
+    expect(notificationBackend.requests, hasLength(1));
+    expect(notificationBackend.requests.single.title, 'Cached appointment');
+    scheduled = await database
+        .select(database.notificationSchedule)
+        .getSingle();
+    expect(scheduled.sentAtUtc, isNotNull);
 
-      final recoveredBody = _eventWithReminder(
-        'Recovered appointment',
-        startUtc: DateTime.utc(2026, 8, 10, 9),
-      );
-      var syncReports = 0;
-      final recoveryClient = MockClient((request) async {
-        if (request.method == 'REPORT' &&
-            request.body.contains('sync-collection')) {
-          syncReports += 1;
-          return http.Response(
-            _syncResponse(
-              token: 'recovered-$syncReports',
-              etag: '"reminder-2"',
-            ),
-            207,
-          );
-        }
-        if (request.method == 'REPORT' &&
-            request.body.contains('calendar-multiget')) {
-          return http.Response(
-            _multigetResponse(recoveredBody, '"reminder-2"'),
-            207,
-          );
-        }
-        fail('Unexpected ${request.method} ${request.url}');
-      });
-      var rebuilds = 0;
-      await DavAccountSyncEngine(
-        database: database,
-        secretStore: secrets,
-        httpClient: recoveryClient,
-        accountId: 'account',
-        policy: const DavAccountSyncPolicy(
-          discoveryMaxAge: Duration(days: 30),
-          inventoryMaxAge: Duration(days: 30),
-        ),
-        nowUtc: () => clock,
-        rebuildNotifications: (accountId, _) async {
-          rebuilds += 1;
-          expect(
-            (await database.select(database.accounts).getSingle()).authState,
-            'signed_in',
-          );
-          await scheduleService.rebuildUpcomingNotifications(accountId);
-        },
-      ).synchronize();
+    final recoveredBody = _eventWithReminder(
+      'Recovered appointment',
+      startUtc: DateTime.utc(2026, 8, 10, 9),
+    );
+    var syncReports = 0;
+    final recoveryClient = MockClient((request) async {
+      if (request.method == 'REPORT' &&
+          request.body.contains('sync-collection')) {
+        syncReports += 1;
+        return http.Response(
+          _syncResponse(token: 'recovered-$syncReports', etag: '"reminder-2"'),
+          207,
+        );
+      }
+      if (request.method == 'REPORT' &&
+          request.body.contains('calendar-multiget')) {
+        return http.Response(
+          _multigetResponse(recoveredBody, '"reminder-2"'),
+          207,
+        );
+      }
+      fail('Unexpected ${request.method} ${request.url}');
+    });
+    var rebuilds = 0;
+    await DavAccountSyncEngine(
+      database: database,
+      secretStore: secrets,
+      httpClient: recoveryClient,
+      accountId: 'account',
+      policy: const DavAccountSyncPolicy(
+        discoveryMaxAge: Duration(days: 30),
+        inventoryMaxAge: Duration(days: 30),
+      ),
+      nowUtc: () => clock,
+      rebuildNotifications: (accountId, _) async {
+        rebuilds += 1;
+        expect(
+          (await database.select(database.accounts).getSingle()).authState,
+          'signed_in',
+        );
+        await scheduleService.rebuildUpcomingNotifications(accountId);
+      },
+    ).synchronize();
 
-      expect(rebuilds, 1);
-      scheduled = await database
-          .select(database.notificationSchedule)
-          .getSingle();
-      expect(scheduled.title, 'Recovered appointment');
-      expect(
-        scheduled.scheduledAtUtc,
-        DateTime.utc(2026, 8, 10, 8, 30).millisecondsSinceEpoch,
-      );
-      expect(scheduled.sentAtUtc, isNull);
-      expect(scheduled.dismissedAtUtc, isNull);
-      expect(scheduled.snoozedUntilUtc, isNull);
-    },
-  );
+    expect(rebuilds, 1);
+    scheduled = await database
+        .select(database.notificationSchedule)
+        .getSingle();
+    expect(scheduled.title, 'Recovered appointment');
+    expect(
+      scheduled.scheduledAtUtc,
+      DateTime.utc(2026, 8, 10, 8, 30).millisecondsSinceEpoch,
+    );
+    expect(scheduled.sentAtUtc, isNull);
+    expect(scheduled.dismissedAtUtc, isNull);
+    expect(scheduled.snoozedUntilUtc, isNull);
+  });
 
   test(
     'restart reconciles an in-progress MOVE after source synchronization',

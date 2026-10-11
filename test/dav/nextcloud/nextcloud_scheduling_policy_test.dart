@@ -26,9 +26,9 @@ void main() {
     () {
       final edited = _raw.replaceFirst('SUMMARY:Meeting', 'SUMMARY:Changed');
       expect(
-        () => policy(
-          'mailto:owner@example.test',
-        ).validateChange(baseline: _raw, candidate: edited),
+        () =>
+            policy('mailto:owner@example.test')
+                .validateChange(baseline: _raw, candidate: edited),
         throwsA(isA<DavException>()),
       );
       expect(
@@ -98,9 +98,10 @@ void main() {
   test(
     'attendee role changes preserve server parameters and participation',
     () {
-      final baseline = IcalSemanticDocument.parse(
-        _raw,
-      ).components.single.documentComponent;
+      final baseline = IcalSemanticDocument.parse(_raw)
+          .components
+          .single
+          .documentComponent;
       final values = nextcloudAttendeeValues([
         const EventAttendeeDraft(
           email: 'guest@example.test',
@@ -124,22 +125,19 @@ void main() {
       );
     },
   );
-  test(
-    'calendar addresses and native participant labels are decoded, not login names',
-    () {
-      expect(
-        normalizeCalendarAddress('mailto:GUEST%40example.test'),
-        'mailto:guest@example.test',
-      );
-      final semantic = IcalSemanticDocument.parse(_raw);
-      final draft = EventAttendeeDraft.fromJson(
-        semantic.components.single.attendees.single,
-      );
-      expect(draft.email, 'guest@example.test');
-      expect(draft.displayName, 'Guest');
-      expect(draft.responseStatus, 'NEEDS-ACTION');
-    },
-  );
+  test('calendar addresses and native participant labels are decoded, not login names', () {
+    expect(
+      normalizeCalendarAddress('mailto:GUEST%40example.test'),
+      'mailto:guest@example.test',
+    );
+    final semantic = IcalSemanticDocument.parse(_raw);
+    final draft = EventAttendeeDraft.fromJson(
+      semantic.components.single.attendees.single,
+    );
+    expect(draft.email, 'guest@example.test');
+    expect(draft.displayName, 'Guest');
+    expect(draft.responseStatus, 'NEEDS-ACTION');
+  });
 }
 
 const _raw = '''BEGIN:VCALENDAR

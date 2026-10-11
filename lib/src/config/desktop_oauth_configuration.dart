@@ -5,9 +5,8 @@ bool validGoogleDesktopConfiguration({
   required String clientSecret,
   required String projectId,
 }) =>
-    RegExp(
-      r'^[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$',
-    ).hasMatch(clientId.trim()) &&
+    RegExp(r'^[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$')
+        .hasMatch(clientId.trim()) &&
     RegExp(r'^[a-z][a-z0-9-]{4,62}[a-z0-9]$').hasMatch(projectId.trim()) &&
     clientSecret.trim().isNotEmpty;
 

@@ -8,8 +8,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/app_bootstrap.dart';
 import '../../../app/busymax_dialogs.dart';
 import '../../../l10n/l10n.dart';
+
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
+
 import '../../accounts/data/accounts_repository.dart';
 import '../../schedule/presentation/schedule_item_exporter.dart';
 import '../../maps/application/external_location_launcher.dart';
@@ -24,8 +26,9 @@ import 'task_details_editor.dart';
 export '../domain/task_mutation_result.dart';
 
 typedef TasksRepositoryForAccount = TasksRepository Function(String accountId);
-typedef TaskListsRepositoryForAccount =
-    TaskListsRepository Function(String accountId);
+typedef TaskListsRepositoryForAccount = TaskListsRepository Function(
+  String accountId,
+);
 
 class TaskDetailsPane extends ConsumerStatefulWidget {
   const TaskDetailsPane({
@@ -627,9 +630,8 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
         ),
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(context.l10n.taskDuplicated)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(context.l10n.taskDuplicated)));
     } on Object catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

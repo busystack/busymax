@@ -260,9 +260,8 @@ void main() {
     await mouse.addPointer(location: Offset.zero);
     await mouse.moveTo(tester.getCenter(standard));
     await tester.pumpAndSettle();
-    final colors = _theme(
-      brightness: Brightness.light,
-    ).extension<BusyMaxSurfaceColors>()!;
+    final colors = _theme(brightness: Brightness.light)
+        .extension<BusyMaxSurfaceColors>()!;
     expect(_buttonMaterial(tester, standard).color, colors.controlHover);
 
     await mouse.down(tester.getCenter(standard));
@@ -467,9 +466,8 @@ void main() {
       MaterialApp(
         theme: _theme(brightness: Brightness.light),
         builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(
-            context,
-          ).copyWith(textScaler: const TextScaler.linear(2)),
+          data: MediaQuery.of(context)
+              .copyWith(textScaler: const TextScaler.linear(2)),
           child: Directionality(
             textDirection: TextDirection.rtl,
             child: child!,

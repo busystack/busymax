@@ -139,9 +139,8 @@ void main() {
         '<d:privilege><d:write-properties/></d:privilege>',
       ),
     );
-    await DavDiscoveryRepository(
-      database: db,
-    ).commitSuccessfulInventory(discovered);
+    await DavDiscoveryRepository(database: db)
+        .commitSuccessfulInventory(discovered);
     final collection = (await db.select(db.davCollections).get()).firstWhere(
       (c) => c.displayName == 'Work & Team',
     );

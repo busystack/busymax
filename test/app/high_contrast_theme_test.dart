@@ -68,9 +68,9 @@ void main() {
       expect(outlinedSide, isNot(BorderSide.none));
       expect(outlinedSide!.color, surfaces.border);
 
-      final elevatedShape =
-          theme.elevatedButtonTheme.style!.shape!.resolve({})
-              as RoundedRectangleBorder;
+      final elevatedShape = theme.elevatedButtonTheme.style!.shape!.resolve(
+        {},
+      ) as RoundedRectangleBorder;
       expect(elevatedShape.side, isNot(BorderSide.none));
       expect(elevatedShape.side.color, surfaces.border);
 

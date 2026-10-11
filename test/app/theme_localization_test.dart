@@ -1,4 +1,5 @@
 import 'package:busymax/src/features/schedule/presentation/schedule_workspace.dart';
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -140,9 +141,9 @@ void main() {
         light.inputDecorationTheme.focusedBorder as OutlineInputBorder;
     expect(focusedBorder.borderSide.color, _testAccentColor);
 
-    final outlinedShape =
-        light.outlinedButtonTheme.style?.shape?.resolve({})
-            as RoundedRectangleBorder;
+    final outlinedShape = light.outlinedButtonTheme.style?.shape?.resolve(
+      {},
+    ) as RoundedRectangleBorder;
     expect(outlinedShape.borderRadius, BorderRadius.circular(BusyMaxRadius.sm));
 
     expect(
@@ -591,9 +592,8 @@ void main() {
   });
 
   test('BusyMaxSurfaceColors copyWith preserves and overrides fields', () {
-    final base = _buildBusyMaxTheme(
-      brightness: Brightness.dark,
-    ).extension<BusyMaxSurfaceColors>()!;
+    final base = _buildBusyMaxTheme(brightness: Brightness.dark)
+        .extension<BusyMaxSurfaceColors>()!;
 
     final updated = base.copyWith(
       window: const Color(0xFF010203),
@@ -615,12 +615,10 @@ void main() {
   });
 
   test('BusyMaxSurfaceColors lerp blends semantic fields', () {
-    final start = _buildBusyMaxTheme(
-      brightness: Brightness.light,
-    ).extension<BusyMaxSurfaceColors>()!;
-    final end = _buildBusyMaxTheme(
-      brightness: Brightness.dark,
-    ).extension<BusyMaxSurfaceColors>()!;
+    final start = _buildBusyMaxTheme(brightness: Brightness.light)
+        .extension<BusyMaxSurfaceColors>()!;
+    final end = _buildBusyMaxTheme(brightness: Brightness.dark)
+        .extension<BusyMaxSurfaceColors>()!;
 
     final midpoint = start.lerp(end, 0.5);
 
@@ -1613,9 +1611,8 @@ void main() {
   test(
     'BusyMax Yaru theme derives text theme from Yaru instead of scratch',
     () {
-      final source = File(
-        'lib/src/app/busymax_yaru_theme.dart',
-      ).readAsStringSync();
+      final source = File('lib/src/app/busymax_yaru_theme.dart')
+          .readAsStringSync();
 
       expect(source, contains('_busyMaxTextTheme('));
       expect(source, contains('base.copyWith('));

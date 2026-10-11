@@ -90,9 +90,9 @@ GeographicPoint? _icalPoint(
 ) {
   if (text == null) return null;
   try {
-    final components = IcalSemanticDocument.parse(
-      text,
-    ).components.where((c) => c.uid == uid).toList();
+    final components = IcalSemanticDocument.parse(text).components
+        .where((c) => c.uid == uid)
+        .toList();
     IcalSemanticComponent? master, exact, inherited;
     for (final c in components) {
       if (c.recurrenceIdKey == null) master = c;

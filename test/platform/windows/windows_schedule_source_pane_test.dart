@@ -214,9 +214,10 @@ void main() {
       DropDownButton menu(Object key) => tester.widget(
         find.descendant(of: _row(key), matching: find.byType(DropDownButton)),
       );
-      MenuFlyoutItem entry(Object key, String label) => menu(key).items
-          .whereType<MenuFlyoutItem>()
-          .singleWhere((item) => (item.text as Text).data == label);
+      MenuFlyoutItem entry(Object key, String label) =>
+          menu(key).items
+              .whereType<MenuFlyoutItem>()
+              .singleWhere((item) => (item.text as Text).data == label);
       const firstCalendar = ('schedule-calendar', 'a', 'c1');
       const lastCalendar = ('schedule-calendar', 'a', 'c2');
       expect(entry(firstCalendar, 'Move up').onPressed, isNull);

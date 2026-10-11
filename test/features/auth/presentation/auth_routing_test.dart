@@ -1,4 +1,5 @@
 import '../../../support/desktop_connection_fixture.dart';
+
 import 'package:busymax/src/dav/auth/dav_account_onboarding_service.dart';
 import 'package:busymax/src/dav/auth/nextcloud_login_flow_v2.dart';
 import 'package:busymax/src/dav/discovery/dav_discovery_models.dart';
@@ -6,23 +7,30 @@ import 'package:busymax/src/providers/provider_capabilities.dart';
 import 'package:busymax/src/microsoft_todo/oauth/microsoft_oauth_service.dart';
 import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_models.dart';
 import 'package:busymax/src/platform/common/desktop_services.dart';
+
 import '../../../support/desktop_activation_fixture.dart';
 import '../../../support/memory_settings_store.dart';
+
 import 'package:busymax/src/platform/busymax_tray_service.dart';
 import 'package:busymax/src/webcal/webcal_http_client.dart';
 import 'package:busymax/src/webcal/webcal_subscription_service.dart';
 import 'package:busymax/src/core/auth/authorization_attempt.dart';
 import 'package:busymax/src/core/auth/registration_file_reader.dart';
+
 import '../../../support/native_registration_reader_fixture.dart';
+
 import 'dart:convert';
+
 import 'package:busymax/src/core/auth/authorization_persistence.dart';
 import 'package:busymax/src/core/auth/oauth_registration.dart';
 import 'package:busymax/src/core/auth/registration_staging.dart';
 import 'package:busymax/src/google_tasks/oauth/oauth_loopback_flow.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+
 import 'dart:async';
 import 'dart:io';
+
 import 'package:busymax/src/features/connectivity/network_connectivity_service.dart';
 import 'package:file_selector_platform_interface/file_selector_platform_interface.dart';
 
@@ -206,9 +214,9 @@ void main() {
           break;
         }
       }
-      final record =
-          await tester.runAsync(() => fixture.secrets.readCredential(id))
-              as BoundOAuthSecretRecord;
+      final record = await tester.runAsync(
+        () => fixture.secrets.readCredential(id),
+      ) as BoundOAuthSecretRecord;
       expect(
         record.registration.summary().origin,
         method == DesktopConnectionMethod.busyMax
@@ -274,9 +282,9 @@ void main() {
             break;
           }
         }
-        final replaced =
-            await tester.runAsync(() => fixture.secrets.readCredential(id))
-                as BoundOAuthSecretRecord;
+        final replaced = await tester.runAsync(
+          () => fixture.secrets.readCredential(id),
+        ) as BoundOAuthSecretRecord;
         expect(replaced.generation, 3);
         expect(replaced.subject, record.subject);
         expect(
@@ -632,64 +640,68 @@ void main() {
     },
   );
 
-  testWidgets('first Settings connection updates session before ICS activation', (
-    tester,
-  ) async {
-    final activations = TestDesktopActivationService();
-    addTearDown(activations.dispose);
-    late Directory directory;
-    await tester.runAsync(() async {
-      directory = await Directory.systemTemp.createTemp(
-        'busymax-session-activation-',
-      );
-    });
-    addTearDown(() => directory.delete(recursive: true));
-    final file = File('${directory.path}/fixture.ics');
-    await tester.runAsync(
-      () => file.writeAsString(
-        'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//BusyMax Fixture//EN\r\nBEGIN:VEVENT\r\nUID:fixture-activation\r\nDTSTAMP:20261004T000000Z\r\nDTSTART:20301004T090000Z\r\nDTEND:20301004T100000Z\r\nSUMMARY:Controlled activation\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n',
-      ),
-    );
-    await _pumpApp(
-      tester,
-      database: database,
-      oAuth: oAuth,
-      activations: activations,
-      settings: AppSettings.defaults().copyWith(
-        firstDayOfWeekPreference: BusyMaxFirstDayOfWeekPreference.monday,
-        showTrayIcon: false,
-        runInBackgroundWhenClosed: false,
-      ),
-    );
-    await tester.pumpAndSettle();
-    await _authorizeGoogleSetup(tester);
-    await tester.pumpAndSettle();
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(SettingsScreen)),
-    );
-    _expectExistingSessionSignedIn(
-      container.read(authSessionControllerProvider),
-      'account-1',
-    );
-    activations.add(
-      DesktopActivation(kind: DesktopActivationKind.icsFile, value: file.path),
-    );
-    for (
-      var attempt = 0;
-      attempt < 30 &&
-          container.read(appRouterProvider).state.uri.path != '/schedule';
-      attempt++
-    ) {
+  testWidgets(
+    'first Settings connection updates session before ICS activation',
+    (tester) async {
+      final activations = TestDesktopActivationService();
+      addTearDown(activations.dispose);
+      late Directory directory;
+      await tester.runAsync(() async {
+        directory = await Directory.systemTemp.createTemp(
+          'busymax-session-activation-',
+        );
+      });
+      addTearDown(() => directory.delete(recursive: true));
+      final file = File('${directory.path}/fixture.ics');
       await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 10)),
+        () => file.writeAsString(
+          'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//BusyMax Fixture//EN\r\nBEGIN:VEVENT\r\nUID:fixture-activation\r\nDTSTAMP:20261004T000000Z\r\nDTSTART:20301004T090000Z\r\nDTEND:20301004T100000Z\r\nSUMMARY:Controlled activation\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n',
+        ),
       );
-      await tester.pump(const Duration(milliseconds: 20));
-    }
-    expect(container.read(appRouterProvider).state.uri.path, '/schedule');
-    expect(find.byType(SettingsScreen), findsNothing);
-    await tester.pumpAndSettle();
-    await _disposeApp(tester);
-  });
+      await _pumpApp(
+        tester,
+        database: database,
+        oAuth: oAuth,
+        activations: activations,
+        settings: AppSettings.defaults().copyWith(
+          firstDayOfWeekPreference: BusyMaxFirstDayOfWeekPreference.monday,
+          showTrayIcon: false,
+          runInBackgroundWhenClosed: false,
+        ),
+      );
+      await tester.pumpAndSettle();
+      await _authorizeGoogleSetup(tester);
+      await tester.pumpAndSettle();
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(SettingsScreen)),
+      );
+      _expectExistingSessionSignedIn(
+        container.read(authSessionControllerProvider),
+        'account-1',
+      );
+      activations.add(
+        DesktopActivation(
+          kind: DesktopActivationKind.icsFile,
+          value: file.path,
+        ),
+      );
+      for (
+        var attempt = 0;
+        attempt < 30 &&
+            container.read(appRouterProvider).state.uri.path != '/schedule';
+        attempt++
+      ) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 10)),
+        );
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+      expect(container.read(appRouterProvider).state.uri.path, '/schedule');
+      expect(find.byType(SettingsScreen), findsNothing);
+      await tester.pumpAndSettle();
+      await _disposeApp(tester);
+    },
+  );
 
   testWidgets('signed-out startup opens calendar and Accounts from sidebar', (
     tester,
@@ -706,9 +718,9 @@ void main() {
     expect(find.byType(SettingsScreen), findsOneWidget);
     expect(router.canPop(), isTrue);
     expect(
-      GoRouterState.of(
-        tester.element(find.byType(SettingsScreen)),
-      ).uri.queryParameters['page'],
+      GoRouterState.of(tester.element(find.byType(SettingsScreen)))
+          .uri
+          .queryParameters['page'],
       'accounts',
     );
     for (final label in [
@@ -955,9 +967,8 @@ void main() {
     );
     final router = GoRouter.of(tester.element(find.byType(ScheduleWorkspace)));
     router.go(
-      Uri(
-        pathSegments: ['', 'tasks', accountId, 'list-1', 'task-1'],
-      ).toString(),
+      Uri(pathSegments: ['', 'tasks', accountId, 'list-1', 'task-1'])
+          .toString(),
     );
     await tester.pumpAndSettle();
 
@@ -975,9 +986,8 @@ void main() {
     await tester.enterText(titleField, 'Unsaved route title');
     await tester.pump();
     router.go(
-      Uri(
-        pathSegments: ['', 'tasks', accountId, 'list-1', 'missing-task'],
-      ).toString(),
+      Uri(pathSegments: ['', 'tasks', accountId, 'list-1', 'missing-task'])
+          .toString(),
     );
     await tester.pump();
     expect(
@@ -1406,49 +1416,50 @@ void main() {
     },
   );
 
-  testWidgets('account add failure stays in Settings and preserves the session', (
-    tester,
-  ) async {
-    await _insertAccount(
-      database,
-      id: 'microsoft:existing',
-      provider: BusyProvider.microsoft,
-    );
-    oAuth.signInError = const OAuthException(
-      'OAuthCallbackTimeout',
-      'raw timeout',
-    );
-    await _pumpApp(tester, database: database, oAuth: oAuth);
-    await tester.pumpAndSettle();
-    await _openSettings(tester);
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(SettingsScreen)),
-    );
+  testWidgets(
+    'account add failure stays in Settings and preserves the session',
+    (tester) async {
+      await _insertAccount(
+        database,
+        id: 'microsoft:existing',
+        provider: BusyProvider.microsoft,
+      );
+      oAuth.signInError = const OAuthException(
+        'OAuthCallbackTimeout',
+        'raw timeout',
+      );
+      await _pumpApp(tester, database: database, oAuth: oAuth);
+      await tester.pumpAndSettle();
+      await _openSettings(tester);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(SettingsScreen)),
+      );
 
-    await _authorizeGoogleSetup(tester);
-    await tester.pumpAndSettle();
+      await _authorizeGoogleSetup(tester);
+      await tester.pumpAndSettle();
 
-    expect(oAuth.signInCalls, 1);
-    expect(find.byType(SettingsScreen), findsOneWidget);
-    expect(
-      find.text(
-        'Authorization timed out. Try again; select a fresh configuration if it was imported.',
-      ),
-      findsOneWidget,
-    );
-    expect(find.textContaining('raw timeout'), findsNothing);
-    _expectExistingSessionSignedIn(
-      container.read(authSessionControllerProvider),
-      'microsoft:existing',
-    );
-    expect(
-      (await tester.runAsync(
-        () => database.select(database.accounts).getSingle(),
-      ))!.authState,
-      accountAuthStateSignedIn,
-    );
-    await _disposeApp(tester);
-  });
+      expect(oAuth.signInCalls, 1);
+      expect(find.byType(SettingsScreen), findsOneWidget);
+      expect(
+        find.text(
+          'Authorization timed out. Try again; select a fresh configuration if it was imported.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('raw timeout'), findsNothing);
+      _expectExistingSessionSignedIn(
+        container.read(authSessionControllerProvider),
+        'microsoft:existing',
+      );
+      expect(
+        (await tester.runAsync(
+          () => database.select(database.accounts).getSingle(),
+        ))!.authState,
+        accountAuthStateSignedIn,
+      );
+      await _disposeApp(tester);
+    },
+  );
 
   testWidgets(
     'reconnecting an account keeps the existing session and Settings route',
@@ -1527,9 +1538,9 @@ Future<void> _sendAltLeft(WidgetTester tester) async {
 
 Future<void> _disposeApp(WidgetTester tester) async {
   // Mock gateways do not consume registration handles like production OAuth.
-  ProviderScope.containerOf(
-    tester.element(find.byType(BusyMaxApp)),
-  ).read(registrationStagingProvider).cancel();
+  ProviderScope.containerOf(tester.element(find.byType(BusyMaxApp)))
+      .read(registrationStagingProvider)
+      .cancel();
   await tester.pumpWidget(const SizedBox.shrink());
   await tester.pump(const Duration(milliseconds: 1));
 }

@@ -5,6 +5,7 @@ import '../../../google_calendar/google_calendar_api_client.dart';
 import '../../../microsoft_calendar/microsoft_calendar_api_client.dart';
 import '../../../providers/busy_provider.dart';
 import '../../recurrence/domain/event_recurrence_codec.dart';
+
 import 'package:timezone/timezone.dart' as tz;
 
 import 'tz_continuations_2025c.dart';
@@ -226,9 +227,10 @@ String cloudSeriesToICalendar({
       'END:VEVENT',
     ]);
   }
-  final referencedZones = RegExp(
-    r';TZID=([^:]+):',
-  ).allMatches(eventLines.join('\n')).map((match) => match.group(1)!).toSet();
+  final referencedZones = RegExp(r';TZID=([^:]+):')
+      .allMatches(eventLines.join('\n'))
+      .map((match) => match.group(1)!)
+      .toSet();
   final lines = <String>[
     'BEGIN:VCALENDAR',
     'VERSION:2.0',

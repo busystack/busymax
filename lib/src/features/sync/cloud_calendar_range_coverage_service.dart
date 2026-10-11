@@ -53,9 +53,8 @@ final class CloudCalendarRangeCoverageService {
           })
         >[];
     for (final account in accounts) {
-      final provider = BusyProviderCodec.parseStorageValue(
-        account.provider,
-      ).provider;
+      final provider = BusyProviderCodec.parseStorageValue(account.provider)
+          .provider;
       if (provider != BusyProvider.google &&
           provider != BusyProvider.microsoft) {
         continue;

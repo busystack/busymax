@@ -17,8 +17,10 @@ import 'schedule_item_chip.dart';
 import 'schedule_item_selection.dart';
 import 'schedule_more_popover.dart';
 
-typedef ScheduleDayCreateCallback =
-    void Function(DateTime day, {BuildContext? anchorContext});
+typedef ScheduleDayCreateCallback = void Function(
+  DateTime day, {
+  BuildContext? anchorContext,
+});
 
 class ScheduleMonthView extends StatelessWidget {
   const ScheduleMonthView({

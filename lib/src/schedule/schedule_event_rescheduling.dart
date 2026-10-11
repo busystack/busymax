@@ -156,13 +156,13 @@ enum ScheduleRescheduleResult {
   savedWithSyncFailure,
 }
 
-typedef ScheduleScopeSelector =
-    Future<RecurringEventMutationScope?> Function(
-      CalendarEventDetail detail,
-      bool supportsFollowing,
-    );
-typedef ScheduleGuestSelector =
-    Future<CalendarGuestUpdatePolicy?> Function(EventEditorDraft draft);
+typedef ScheduleScopeSelector = Future<RecurringEventMutationScope?> Function(
+  CalendarEventDetail detail,
+  bool supportsFollowing,
+);
+typedef ScheduleGuestSelector = Future<CalendarGuestUpdatePolicy?> Function(
+  EventEditorDraft draft,
+);
 
 /// The only bridge from pointer proposals to the existing mutation pipeline.
 /// No store writes or provider requests occur until all decisions are complete.

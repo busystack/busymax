@@ -111,8 +111,9 @@ final class GtkHeaderIconCatalog {
   ) => assets[_catalogKey(icon, direction)];
 }
 
-typedef GtkHeaderIconBatchLoader =
-    Future<Object?> Function(List<Map<String, Object>> requests);
+typedef GtkHeaderIconBatchLoader = Future<Object?> Function(
+  List<Map<String, Object>> requests,
+);
 
 /// Cached Linux application-header artwork supplied by GTK's active icon
 /// theme. A replacement catalog is published only after its full batch loads.
@@ -327,8 +328,7 @@ String resolvedNativeHeaderIconName(
   BuildContext context,
   BusyMaxLinuxHeaderIcon icon,
 ) {
-  final asset = GtkHeaderIconScope.of(
-    context,
-  ).catalog.assetFor(icon, Directionality.of(context));
+  final asset = GtkHeaderIconScope.of(context).catalog
+      .assetFor(icon, Directionality.of(context));
   return asset?.resolvedName ?? icon.gtkNames.first;
 }

@@ -13,9 +13,13 @@ import '../features/notifications/notification_scheduler.dart';
 import '../features/sync/account_sync_operations.dart';
 import '../features/sync/all_accounts_sync_scheduler.dart';
 import '../google_tasks/api/google_tasks_api_surface.dart';
+
 import 'package:busymax/src/core/auth/oauth_models.dart';
+
 import '../google_tasks/oauth/oauth_service.dart';
+
 import 'package:busymax/src/core/secrets/secret_store.dart';
+
 import 'demo_seed.dart';
 
 AppSettings busyMaxDemoSettings(BusyMaxDemoTheme theme) {

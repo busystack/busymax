@@ -106,16 +106,14 @@ final class _GWeatherLocation extends Opaque {}
 
 typedef _GetWorldNative = Pointer<_GWeatherLocation> Function();
 typedef _GetWorldDart = Pointer<_GWeatherLocation> Function();
-typedef _NextChildNative =
-    Pointer<_GWeatherLocation> Function(
-      Pointer<_GWeatherLocation>,
-      Pointer<_GWeatherLocation>,
-    );
-typedef _NextChildDart =
-    Pointer<_GWeatherLocation> Function(
-      Pointer<_GWeatherLocation>,
-      Pointer<_GWeatherLocation>,
-    );
+typedef _NextChildNative = Pointer<_GWeatherLocation> Function(
+  Pointer<_GWeatherLocation>,
+  Pointer<_GWeatherLocation>,
+);
+typedef _NextChildDart = Pointer<_GWeatherLocation> Function(
+  Pointer<_GWeatherLocation>,
+  Pointer<_GWeatherLocation>,
+);
 typedef _GetLevelNative = Int32 Function(Pointer<_GWeatherLocation>);
 typedef _GetLevelDart = int Function(Pointer<_GWeatherLocation>);
 typedef _GetStringNative = Pointer<Void> Function(Pointer<_GWeatherLocation>);

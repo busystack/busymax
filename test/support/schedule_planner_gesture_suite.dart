@@ -58,8 +58,9 @@ class PlannerGestureScenario {
   );
 }
 
-typedef PlannerHarnessBuilder =
-    Widget Function(PlannerGestureScenario scenario);
+typedef PlannerHarnessBuilder = Widget Function(
+  PlannerGestureScenario scenario,
+);
 
 void schedulePlannerGestureTests(
   String platform,

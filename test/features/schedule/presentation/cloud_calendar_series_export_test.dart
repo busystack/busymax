@@ -47,9 +47,9 @@ void main() {
     ..._microsoftMaster,
     'start': {'dateTime': startUtc, 'timeZone': 'UTC'},
     'end': {
-      'dateTime': DateTime.parse(
-        startUtc,
-      ).add(const Duration(hours: 1)).toIso8601String(),
+      'dateTime': DateTime.parse(startUtc)
+          .add(const Duration(hours: 1))
+          .toIso8601String(),
       'timeZone': 'UTC',
     },
     'recurrence': {
@@ -186,37 +186,31 @@ void main() {
     );
   });
 
-  test(
-    'a series starting after the 2037 table keeps its authoritative wall time and UNTIL',
-    () {
-      final data = cloudSeriesToICalendar(
-        master: zonedMicrosoftSeries(
-          zone: 'America/Los_Angeles',
-          startUtc: '2038-07-01T16:00:00',
-          range: {
-            'type': 'endDate',
-            'startDate': '2038-07-01',
-            'endDate': '2038-07-31',
-          },
-        ),
-        exceptions: const [],
-        nowUtc: DateTime.utc(2026),
-      );
-      expect(
+  test('a series starting after the 2037 table keeps its authoritative wall time and UNTIL', () {
+    final data = cloudSeriesToICalendar(
+      master: zonedMicrosoftSeries(
+        zone: 'America/Los_Angeles',
+        startUtc: '2038-07-01T16:00:00',
+        range: {
+          'type': 'endDate',
+          'startDate': '2038-07-01',
+          'endDate': '2038-07-31',
+        },
+      ),
+      exceptions: const [],
+      nowUtc: DateTime.utc(2026),
+    );
+    expect(data, contains('DTSTART;TZID=America/Los_Angeles:20380701T090000'));
+    expect(data, contains('UNTIL=20380731T160000Z'));
+    expect(
+      exportedInstant(
         data,
-        contains('DTSTART;TZID=America/Los_Angeles:20380701T090000'),
-      );
-      expect(data, contains('UNTIL=20380731T160000Z'));
-      expect(
-        exportedInstant(
-          data,
-          'America/Los_Angeles',
-          DateTime.utc(2038, 7, 31, 9),
-        ),
-        DateTime.utc(2038, 7, 31, 16),
-      );
-    },
-  );
+        'America/Los_Angeles',
+        DateTime.utc(2038, 7, 31, 9),
+      ),
+      DateTime.utc(2038, 7, 31, 16),
+    );
+  });
 
   test('IANA 2025c all-year DST continuation stays constant', () {
     for (final zone in ['Africa/Casablanca', 'Africa/El_Aaiun']) {
@@ -316,70 +310,67 @@ void main() {
     );
   });
 
-  test(
-    'Google series export waits for every page and retains moved/cancelled instances',
-    () async {
-      final requests = <http.Request>[];
-      final client = GoogleCalendarApiClient(
-        httpClient: MockClient((request) async {
-          requests.add(request);
-          if (request.url.path.endsWith('/events/master')) {
-            return http.Response(jsonEncode(_googleMaster), 200);
-          }
-          if (request.url.queryParameters['pageToken'] == 'second') {
-            return http.Response(
-              jsonEncode({
-                'items': [_googleMoved, _googleCancelled],
-              }),
-              200,
-            );
-          }
+  test('Google series export waits for every page and retains moved/cancelled instances', () async {
+    final requests = <http.Request>[];
+    final client = GoogleCalendarApiClient(
+      httpClient: MockClient((request) async {
+        requests.add(request);
+        if (request.url.path.endsWith('/events/master')) {
+          return http.Response(jsonEncode(_googleMaster), 200);
+        }
+        if (request.url.queryParameters['pageToken'] == 'second') {
           return http.Response(
             jsonEncode({
-              'items': [_googleMaster],
-              'nextPageToken': 'second',
+              'items': [_googleMoved, _googleCancelled],
             }),
             200,
           );
-        }),
-        baseUri: Uri.parse('https://www.googleapis.com'),
-      );
-      final data = await exportGoogleEventSeries(
-        client: client,
-        calendarId: 'primary',
-        eventId: 'master',
-        nowUtc: DateTime.utc(2026, 8, 1),
-      );
-      expect(
-        requests.where((r) => r.url.queryParameters['pageToken'] == 'second'),
-        hasLength(1),
-      );
-      expect(
-        requests.where((r) => r.url.queryParameters['showDeleted'] == 'true'),
-        hasLength(2),
-      );
-      expect(
-        requests.where((r) => r.url.path.endsWith('/calendarList')),
-        isEmpty,
-      );
-      expect(data, contains('UID:series@example.test'));
-      expect(data, contains('RRULE:FREQ=DAILY;COUNT=3'));
-      expect(
-        data,
-        contains('RECURRENCE-ID;TZID=America/Los_Angeles:20260831T090000'),
-      );
-      expect(data, contains('SUMMARY:Moved'));
-      expect(data, contains('STATUS:CANCELLED'));
-      expect(data, contains('BEGIN:VALARM'));
-      expect(data, contains('ATTENDEE;ROLE=OPT-PARTICIPANT;PARTSTAT=ACCEPTED'));
-      expect(data, contains('ATTACH:https://files.example.test/agenda.pdf'));
-      final parsed = IcalIngestion.parseString(
-        data,
-        policy: IcalIngestionPolicy.fileImport,
-      );
-      expect(parsed.recurrenceSets.single.semantic.components, hasLength(3));
-    },
-  );
+        }
+        return http.Response(
+          jsonEncode({
+            'items': [_googleMaster],
+            'nextPageToken': 'second',
+          }),
+          200,
+        );
+      }),
+      baseUri: Uri.parse('https://www.googleapis.com'),
+    );
+    final data = await exportGoogleEventSeries(
+      client: client,
+      calendarId: 'primary',
+      eventId: 'master',
+      nowUtc: DateTime.utc(2026, 8, 1),
+    );
+    expect(
+      requests.where((r) => r.url.queryParameters['pageToken'] == 'second'),
+      hasLength(1),
+    );
+    expect(
+      requests.where((r) => r.url.queryParameters['showDeleted'] == 'true'),
+      hasLength(2),
+    );
+    expect(
+      requests.where((r) => r.url.path.endsWith('/calendarList')),
+      isEmpty,
+    );
+    expect(data, contains('UID:series@example.test'));
+    expect(data, contains('RRULE:FREQ=DAILY;COUNT=3'));
+    expect(
+      data,
+      contains('RECURRENCE-ID;TZID=America/Los_Angeles:20260831T090000'),
+    );
+    expect(data, contains('SUMMARY:Moved'));
+    expect(data, contains('STATUS:CANCELLED'));
+    expect(data, contains('BEGIN:VALARM'));
+    expect(data, contains('ATTENDEE;ROLE=OPT-PARTICIPANT;PARTSTAT=ACCEPTED'));
+    expect(data, contains('ATTACH:https://files.example.test/agenda.pdf'));
+    final parsed = IcalIngestion.parseString(
+      data,
+      policy: IcalIngestionPolicy.fileImport,
+    );
+    expect(parsed.recurrenceSets.single.semantic.components, hasLength(3));
+  });
 
   test('Google later-page failure does not return a partial series', () async {
     final client = GoogleCalendarApiClient(
@@ -716,9 +707,10 @@ void main() {
         isTrue,
       );
       expect(occurrences.last.isAfter(until), isTrue);
-      final references = RegExp(
-        r';TZID=([^:]+):',
-      ).allMatches(data).map((match) => match.group(1)!).toSet();
+      final references = RegExp(r';TZID=([^:]+):')
+          .allMatches(data)
+          .map((match) => match.group(1)!)
+          .toSet();
       final definitions = RegExp(
         r'^TZID:([^\r\n]+)',
         multiLine: true,
@@ -760,9 +752,8 @@ void main() {
       expect(data, contains('TZOFFSETTO:-0800'));
       time_zone_data.initializeTimeZones();
       final location = tz.getLocation('America/Los_Angeles');
-      final match = RegExp(
-        r'DTSTART;TZID=America/Los_Angeles:(\d{8})T(\d{6})',
-      ).firstMatch(data)!;
+      final match = RegExp(r'DTSTART;TZID=America/Los_Angeles:(\d{8})T(\d{6})')
+          .firstMatch(data)!;
       final date = match.group(1)!;
       final time = match.group(2)!;
       final year = int.parse(date.substring(0, 4));
@@ -781,9 +772,8 @@ void main() {
         ],
       );
       expect(
-        RegExp(
-          r'BEGIN:(?:STANDARD|DAYLIGHT)[\s\S]*?RRULE:FREQ=YEARLY',
-        ).hasMatch(data),
+        RegExp(r'BEGIN:(?:STANDARD|DAYLIGHT)[\s\S]*?RRULE:FREQ=YEARLY')
+            .hasMatch(data),
         isTrue,
       );
     },
@@ -839,60 +829,57 @@ void main() {
     );
   });
 
-  test(
-    'series export retains calendar-default popup alarms only with authoritative settings',
-    () async {
-      final master = {
-        ..._googleMaster,
-        'reminders': {'useDefault': true},
-      };
-      final client = GoogleCalendarApiClient(
-        httpClient: MockClient((request) async {
-          if (request.url.path.endsWith('/events/master')) {
-            return http.Response(jsonEncode(master), 200);
-          }
-          if (request.url.path.endsWith('/users/me/calendarList')) {
-            return http.Response(
-              jsonEncode({
-                'items': [
-                  {
-                    'id': 'primary',
-                    'summary': 'Primary',
-                    'defaultReminders': [
-                      {'method': 'popup', 'minutes': 5},
-                    ],
-                  },
-                ],
-              }),
-              200,
-            );
-          }
+  test('series export retains calendar-default popup alarms only with authoritative settings', () async {
+    final master = {
+      ..._googleMaster,
+      'reminders': {'useDefault': true},
+    };
+    final client = GoogleCalendarApiClient(
+      httpClient: MockClient((request) async {
+        if (request.url.path.endsWith('/events/master')) {
+          return http.Response(jsonEncode(master), 200);
+        }
+        if (request.url.path.endsWith('/users/me/calendarList')) {
           return http.Response(
             jsonEncode({
-              'items': [master],
+              'items': [
+                {
+                  'id': 'primary',
+                  'summary': 'Primary',
+                  'defaultReminders': [
+                    {'method': 'popup', 'minutes': 5},
+                  ],
+                },
+              ],
             }),
             200,
           );
-        }),
-        baseUri: Uri.parse('https://www.googleapis.com'),
-      );
-      final exported = await exportGoogleEventSeries(
-        client: client,
-        calendarId: 'primary',
-        eventId: 'master',
+        }
+        return http.Response(
+          jsonEncode({
+            'items': [master],
+          }),
+          200,
+        );
+      }),
+      baseUri: Uri.parse('https://www.googleapis.com'),
+    );
+    final exported = await exportGoogleEventSeries(
+      client: client,
+      calendarId: 'primary',
+      eventId: 'master',
+      nowUtc: DateTime.utc(2026, 8, 1),
+    );
+    expect(exported, contains('TRIGGER:-PT5M'));
+    expect(
+      () => cloudSeriesToICalendar(
+        master: googleCalendarEventFromJson('primary', master),
+        exceptions: const [],
         nowUtc: DateTime.utc(2026, 8, 1),
-      );
-      expect(exported, contains('TRIGGER:-PT5M'));
-      expect(
-        () => cloudSeriesToICalendar(
-          master: googleCalendarEventFromJson('primary', master),
-          exceptions: const [],
-          nowUtc: DateTime.utc(2026, 8, 1),
-        ),
-        throwsFormatException,
-      );
-    },
-  );
+      ),
+      throwsFormatException,
+    );
+  });
 
   test(
     'E Google exception defaults are fetched when master is explicit',
@@ -984,9 +971,10 @@ void main() {
         eventId: 'master',
         nowUtc: DateTime.utc(2026, 8, 1),
       );
-      final events = RegExp(
-        r'BEGIN:VEVENT[\s\S]*?END:VEVENT',
-      ).allMatches(exported).map((match) => match.group(0)!).toList();
+      final events = RegExp(r'BEGIN:VEVENT[\s\S]*?END:VEVENT')
+          .allMatches(exported)
+          .map((match) => match.group(0)!)
+          .toList();
       expect(defaultReads, 1);
       expect(events, hasLength(2));
       expect(events.first, contains('TRIGGER:-PT10M'));

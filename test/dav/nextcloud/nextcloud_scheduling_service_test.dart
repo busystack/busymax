@@ -2,6 +2,7 @@ import 'package:busymax/src/dav/nextcloud/nextcloud_scheduling_service.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:drift/drift.dart' hide isNull;
 import 'package:flutter_test/flutter_test.dart';
+
 import 'nextcloud_scheduling_fixture.dart';
 import 'nextcloud_admin_fixture.dart';
 
@@ -21,31 +22,28 @@ void main() {
     recipients: ['guest@example.test', 'unknown@example.test'],
   );
 
-  test(
-    'availability uses the discovered outbox and reports missing recipients as unknown',
-    () async {
-      final results = await query();
-      expect(results.first.availability, NextcloudAvailability.known);
-      expect(
-        results.first.intervals.single.startUtc,
-        DateTime.utc(2026, 9, 6, 10),
-      );
-      expect(results.last.availability, NextcloudAvailability.unknown);
-      final post = fixture.requests.singleWhere((r) => r.method == 'POST');
-      expect(post.url.path, '${NextcloudAdminFixture.home}outbox/');
-      expect(post.body, contains('BEGIN:VFREEBUSY'));
-      expect(post.body, contains('ORGANIZER:mailto:alex@example.test'));
-      expect(post.body, isNot(contains('BEGIN:VEVENT')));
-      expect(
-        await fixture.database.select(fixture.database.pendingOps).get(),
-        isEmpty,
-      );
-      expect(
-        await fixture.database.select(fixture.database.calendarEvents).get(),
-        isEmpty,
-      );
-    },
-  );
+  test('availability uses the discovered outbox and reports missing recipients as unknown', () async {
+    final results = await query();
+    expect(results.first.availability, NextcloudAvailability.known);
+    expect(
+      results.first.intervals.single.startUtc,
+      DateTime.utc(2026, 9, 6, 10),
+    );
+    expect(results.last.availability, NextcloudAvailability.unknown);
+    final post = fixture.requests.singleWhere((r) => r.method == 'POST');
+    expect(post.url.path, '${NextcloudAdminFixture.home}outbox/');
+    expect(post.body, contains('BEGIN:VFREEBUSY'));
+    expect(post.body, contains('ORGANIZER:mailto:alex@example.test'));
+    expect(post.body, isNot(contains('BEGIN:VEVENT')));
+    expect(
+      await fixture.database.select(fixture.database.pendingOps).get(),
+      isEmpty,
+    );
+    expect(
+      await fixture.database.select(fixture.database.calendarEvents).get(),
+      isEmpty,
+    );
+  });
   test(
     'denied, duplicate and malformed recipient results are not free',
     () async {
@@ -67,66 +65,61 @@ void main() {
       expect(fixture.requests, isEmpty);
     },
   );
-  test(
-    'inbox acknowledgement deletes only the returned inbox href with its exact ETag',
-    () async {
+  test('inbox acknowledgement deletes only the returned inbox href with its exact ETag', () async {
+    await fixture.database
+        .into(fixture.database.calendarSources)
+        .insert(
+          CalendarSourcesCompanion.insert(
+            id: 'source',
+            accountId: 'account',
+            provider: 'nextcloud',
+            providerCalendarId: NextcloudAdminFixture.collection,
+            davCollectionId: const Value('collection'),
+            summary: 'Work',
+            createdAtLocal: 1,
+            updatedAtLocal: 1,
+          ),
+        );
+    await fixture.database
+        .into(fixture.database.calendarEvents)
+        .insert(
+          CalendarEventsCompanion.insert(
+            id: 'event',
+            accountId: 'account',
+            provider: 'nextcloud',
+            providerCalendarId: NextcloudAdminFixture.collection,
+            calendarSourceId: 'source',
+            providerEventId: 'same-uid',
+            icalUid: const Value('same-uid'),
+            title: 'Stored event',
+            createdAtLocal: 1,
+            updatedAtLocal: 1,
+          ),
+        );
+    final before = await fixture.database
+        .select(fixture.database.calendarEvents)
+        .getSingle();
+    final messages = await service.inbox('collection');
+    expect(messages.single.method, 'REQUEST');
+    await service.acknowledge('collection', messages.single);
+    final deletion = fixture.requests.singleWhere((r) => r.method == 'DELETE');
+    expect(
+      deletion.url.path,
+      '${NextcloudAdminFixture.home}inbox/server-message.ics',
+    );
+    expect(deletion.headers['if-match'], '"message-1"');
+    expect(
       await fixture.database
-          .into(fixture.database.calendarSources)
-          .insert(
-            CalendarSourcesCompanion.insert(
-              id: 'source',
-              accountId: 'account',
-              provider: 'nextcloud',
-              providerCalendarId: NextcloudAdminFixture.collection,
-              davCollectionId: const Value('collection'),
-              summary: 'Work',
-              createdAtLocal: 1,
-              updatedAtLocal: 1,
-            ),
-          );
-      await fixture.database
-          .into(fixture.database.calendarEvents)
-          .insert(
-            CalendarEventsCompanion.insert(
-              id: 'event',
-              accountId: 'account',
-              provider: 'nextcloud',
-              providerCalendarId: NextcloudAdminFixture.collection,
-              calendarSourceId: 'source',
-              providerEventId: 'same-uid',
-              icalUid: const Value('same-uid'),
-              title: 'Stored event',
-              createdAtLocal: 1,
-              updatedAtLocal: 1,
-            ),
-          );
-      final before = await fixture.database
           .select(fixture.database.calendarEvents)
-          .getSingle();
-      final messages = await service.inbox('collection');
-      expect(messages.single.method, 'REQUEST');
-      await service.acknowledge('collection', messages.single);
-      final deletion = fixture.requests.singleWhere(
-        (r) => r.method == 'DELETE',
-      );
-      expect(
-        deletion.url.path,
-        '${NextcloudAdminFixture.home}inbox/server-message.ics',
-      );
-      expect(deletion.headers['if-match'], '"message-1"');
-      expect(
-        await fixture.database
-            .select(fixture.database.calendarEvents)
-            .getSingle(),
-        before,
-      );
-      expect(
-        await fixture.database.select(fixture.database.pendingOps).get(),
-        isEmpty,
-      );
-      expect(await service.inbox('collection'), isEmpty);
-    },
-  );
+          .getSingle(),
+      before,
+    );
+    expect(
+      await fixture.database.select(fixture.database.pendingOps).get(),
+      isEmpty,
+    );
+    expect(await service.inbox('collection'), isEmpty);
+  });
   test(
     'changed inbox message is not acknowledged after confirmation',
     () async {

@@ -1,5 +1,7 @@
-typedef CollectionIdReplacement =
-    Future<void> Function(String oldId, String newId);
+typedef CollectionIdReplacement = Future<void> Function(
+  String oldId,
+  String newId,
+);
 
 /// Local preference failures must never retry an already-created collection.
 Future<void> notifyCollectionIdReplacement(

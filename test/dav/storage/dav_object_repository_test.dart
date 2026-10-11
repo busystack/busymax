@@ -79,61 +79,55 @@ void main() {
     });
   }
 
-  test(
-    'remote cancellation removes unchanged alarm, displayed toast, and summary eligibility',
-    () async {
-      await _importNotificationTask(repository, due: 'DUE;VALUE=DATE:20260809');
-      var now = DateTime.utc(2026, 8, 9, 7);
-      final schedules = NotificationScheduleService(
-        database: database,
-        nowUtc: () => now,
-      );
-      await schedules.rebuildUpcomingTaskNotifications('account');
-      final original = await database.select(database.tasks).getSingle();
-      final backend = RecordingNotificationBackend();
-      final notifications = DesktopNotificationService(
-        backend: backend,
-        settings: AppSettings.defaults().copyWith(notifyDueToday: true),
-      );
-      final scheduler = NotificationScheduler(
-        database: database,
-        notifications: notifications,
-        nowUtc: () => now,
-      );
-      addTearDown(scheduler.stop);
-      now = DateTime.utc(2026, 8, 9, 8);
-      await scheduler.checkNow();
-      expect(backend.requests, hasLength(1));
-      await _importNotificationTask(
-        repository,
-        due: 'DUE;VALUE=DATE:20260809',
-        status: 'CANCELLED',
-      );
-      final cancelled = await database.select(database.tasks).getSingle();
-      expect(cancelled.status, 'cancelled');
-      expect(cancelled.taskAlarmsJson, original.taskAlarmsJson);
-      await schedules.rebuildUpcomingTaskNotifications('account');
-      expect(
-        await database.select(database.notificationSchedule).get(),
-        isEmpty,
-      );
-      await scheduler.checkNow();
-      expect(backend.cancelledIds, contains(backend.requests.single.stableId));
-      final marked = <String>[];
-      final summary = DueTodayNotificationScheduler(
-        database: database,
-        settings: () => AppSettings.defaults().copyWith(notifyDueToday: true),
-        activeAccountId: () => 'account',
-        notifications: () => notifications,
-        markNotified: (date) async => marked.add(date),
-        now: () => DateTime(2026, 8, 9, 9),
-      );
-      addTearDown(summary.stop);
-      await summary.checkNow();
-      expect(marked, isEmpty);
-      expect(backend.requests, hasLength(1));
-    },
-  );
+  test('remote cancellation removes unchanged alarm, displayed toast, and summary eligibility', () async {
+    await _importNotificationTask(repository, due: 'DUE;VALUE=DATE:20260809');
+    var now = DateTime.utc(2026, 8, 9, 7);
+    final schedules = NotificationScheduleService(
+      database: database,
+      nowUtc: () => now,
+    );
+    await schedules.rebuildUpcomingTaskNotifications('account');
+    final original = await database.select(database.tasks).getSingle();
+    final backend = RecordingNotificationBackend();
+    final notifications = DesktopNotificationService(
+      backend: backend,
+      settings: AppSettings.defaults().copyWith(notifyDueToday: true),
+    );
+    final scheduler = NotificationScheduler(
+      database: database,
+      notifications: notifications,
+      nowUtc: () => now,
+    );
+    addTearDown(scheduler.stop);
+    now = DateTime.utc(2026, 8, 9, 8);
+    await scheduler.checkNow();
+    expect(backend.requests, hasLength(1));
+    await _importNotificationTask(
+      repository,
+      due: 'DUE;VALUE=DATE:20260809',
+      status: 'CANCELLED',
+    );
+    final cancelled = await database.select(database.tasks).getSingle();
+    expect(cancelled.status, 'cancelled');
+    expect(cancelled.taskAlarmsJson, original.taskAlarmsJson);
+    await schedules.rebuildUpcomingTaskNotifications('account');
+    expect(await database.select(database.notificationSchedule).get(), isEmpty);
+    await scheduler.checkNow();
+    expect(backend.cancelledIds, contains(backend.requests.single.stableId));
+    final marked = <String>[];
+    final summary = DueTodayNotificationScheduler(
+      database: database,
+      settings: () => AppSettings.defaults().copyWith(notifyDueToday: true),
+      activeAccountId: () => 'account',
+      notifications: () => notifications,
+      markNotified: (date) async => marked.add(date),
+      now: () => DateTime(2026, 8, 9, 9),
+    );
+    addTearDown(summary.stop);
+    await summary.checkNow();
+    expect(marked, isEmpty);
+    expect(backend.requests, hasLength(1));
+  });
 
   test(
     'stores exact raw event and atomically builds recurrence projections',
@@ -188,11 +182,9 @@ void main() {
         ),
         isTrue,
       );
-      final movedProjection =
-          jsonDecode(
-                events.singleWhere((event) => event.title == 'Moved').rawJson!,
-              )
-              as Map<String, Object?>;
+      final movedProjection = jsonDecode(
+        events.singleWhere((event) => event.title == 'Moved').rawJson!,
+      ) as Map<String, Object?>;
       expect(movedProjection['startUtc'], '2026-08-10T18:00:00.000Z');
       final cursor = await database.select(database.syncCursors).getSingle();
       expect(cursor.cursorValue, 'https://cloud.example.test/sync/1');
@@ -670,107 +662,96 @@ void main() {
     },
   );
 
-  test(
-    'previous projection version rebuilds a cached overlap from pending raw data',
-    () async {
-      final baseline = _embeddedAutumnDurationEvent;
-      final prepared = DavPreparedObject.parse(
-        hrefKey: _eventHref,
-        requestUri: Uri.parse('https://cloud.example.test$_eventHref'),
-        etag: '"overlap"',
-        contentType: 'text/calendar',
-        rawIcsBody: baseline,
-      );
-      await repository.commit(
-        _commit(
-          objects: [prepared],
-          membership: {_eventHref},
-          cursor: 'token-1',
-        ),
-      );
-      final object = await database.select(database.davObjects).getSingle();
-      final patch = DavMutationPatch(
-        target: const IcalComponentKey(
-          componentType: 'VEVENT',
-          uid: 'cached-overlap@example.test',
-        ),
-        scope: DavMutationScope.object,
-        operations: [DavPatchOperation.setText('SUMMARY', 'Edited overlap')],
-      );
-      final queue = DavPendingOperationQueue(
-        database: database,
-        idFactory: () => 'pending-overlap-edit',
-        nowUtc: () => _now,
-      );
-      await queue.enqueueUpdate(
-        accountId: 'account',
-        collectionId: 'collection',
-        objectId: object.id,
-        patch: patch,
-      );
-      await repository.projectLocalMutationCandidate(
-        accountId: 'account',
-        collectionId: 'collection',
-        provider: BusyProvider.nextcloud,
-        objectId: object.id,
-        candidateRawIcs: patch.applyTo(baseline, nowUtc: _now),
-        projectedAtUtc: _now,
-      );
-      final operationBefore = await database
-          .select(database.pendingOps)
-          .getSingle();
-      final cachedEvent = await database
-          .select(database.calendarEvents)
-          .getSingle();
-      final staleRaw = Map<String, Object?>.from(
-        jsonDecode(cachedEvent.rawJson!) as Map,
-      )..['endUtc'] = '2026-11-01T08:30:00.000Z';
-      await (database.update(
-        database.calendarEvents,
-      )..where((row) => row.id.equals(cachedEvent.id))).write(
-        CalendarEventsCompanion(
-          projectionVersion: Value(davProjectionVersion - 1),
-          rawJson: Value(jsonEncode(staleRaw)),
-        ),
-      );
-      final cursor = await database.select(database.syncCursors).getSingle();
-      final staleState = Map<String, Object?>.from(
-        jsonDecode(cursor.stateJson!) as Map,
-      )..['projectionVersion'] = davProjectionVersion - 1;
-      await (database.update(
-        database.syncCursors,
-      )..where((row) => row.id.equals(cursor.id))).write(
-        SyncCursorsCompanion(stateJson: Value(jsonEncode(staleState))),
-      );
+  test('previous projection version rebuilds a cached overlap from pending raw data', () async {
+    final baseline = _embeddedAutumnDurationEvent;
+    final prepared = DavPreparedObject.parse(
+      hrefKey: _eventHref,
+      requestUri: Uri.parse('https://cloud.example.test$_eventHref'),
+      etag: '"overlap"',
+      contentType: 'text/calendar',
+      rawIcsBody: baseline,
+    );
+    await repository.commit(
+      _commit(objects: [prepared], membership: {_eventHref}, cursor: 'token-1'),
+    );
+    final object = await database.select(database.davObjects).getSingle();
+    final patch = DavMutationPatch(
+      target: const IcalComponentKey(
+        componentType: 'VEVENT',
+        uid: 'cached-overlap@example.test',
+      ),
+      scope: DavMutationScope.object,
+      operations: [DavPatchOperation.setText('SUMMARY', 'Edited overlap')],
+    );
+    final queue = DavPendingOperationQueue(
+      database: database,
+      idFactory: () => 'pending-overlap-edit',
+      nowUtc: () => _now,
+    );
+    await queue.enqueueUpdate(
+      accountId: 'account',
+      collectionId: 'collection',
+      objectId: object.id,
+      patch: patch,
+    );
+    await repository.projectLocalMutationCandidate(
+      accountId: 'account',
+      collectionId: 'collection',
+      provider: BusyProvider.nextcloud,
+      objectId: object.id,
+      candidateRawIcs: patch.applyTo(baseline, nowUtc: _now),
+      projectedAtUtc: _now,
+    );
+    final operationBefore = await database
+        .select(database.pendingOps)
+        .getSingle();
+    final cachedEvent = await database
+        .select(database.calendarEvents)
+        .getSingle();
+    final staleRaw = Map<String, Object?>.from(
+      jsonDecode(cachedEvent.rawJson!) as Map,
+    )..['endUtc'] = '2026-11-01T08:30:00.000Z';
+    await (database.update(
+      database.calendarEvents,
+    )..where((row) => row.id.equals(cachedEvent.id))).write(
+      CalendarEventsCompanion(
+        projectionVersion: Value(davProjectionVersion - 1),
+        rawJson: Value(jsonEncode(staleRaw)),
+      ),
+    );
+    final cursor = await database.select(database.syncCursors).getSingle();
+    final staleState = Map<String, Object?>.from(
+      jsonDecode(cursor.stateJson!) as Map,
+    )..['projectionVersion'] = davProjectionVersion - 1;
+    await (database.update(database.syncCursors)
+          ..where((row) => row.id.equals(cursor.id)))
+        .write(SyncCursorsCompanion(stateJson: Value(jsonEncode(staleState))));
 
-      await DavProjectionCoverageService(
-        database: database,
-        objectRepository: repository,
-        nowUtc: () => _now,
-      ).ensureProjectionCoverage(
-        rangeStartUtc: DateTime.utc(2026, 11, 1),
-        rangeEndUtc: DateTime.utc(2026, 11, 2),
-      );
+    await DavProjectionCoverageService(
+      database: database,
+      objectRepository: repository,
+      nowUtc: () => _now,
+    ).ensureProjectionCoverage(
+      rangeStartUtc: DateTime.utc(2026, 11, 1),
+      rangeEndUtc: DateTime.utc(2026, 11, 2),
+    );
 
-      final corrected = await database
-          .select(database.calendarEvents)
-          .getSingle();
-      final correctedRaw = jsonDecode(corrected.rawJson!) as Map;
-      expect(correctedRaw['startUtc'], '2026-11-01T08:30:00.000Z');
-      expect(correctedRaw['endUtc'], '2026-11-01T09:30:00.000Z');
-      expect(corrected.projectionVersion, davProjectionVersion);
-      expect(corrected.syncStatus, 'pending');
-      expect(
-        await database.select(database.pendingOps).getSingle(),
-        operationBefore,
-      );
-      final objectAfter = await database
-          .select(database.davObjects)
-          .getSingle();
-      expect(objectAfter.rawIcsBody, baseline);
-      expect(objectAfter.etag, '"overlap"');
-    },
-  );
+    final corrected = await database
+        .select(database.calendarEvents)
+        .getSingle();
+    final correctedRaw = jsonDecode(corrected.rawJson!) as Map;
+    expect(correctedRaw['startUtc'], '2026-11-01T08:30:00.000Z');
+    expect(correctedRaw['endUtc'], '2026-11-01T09:30:00.000Z');
+    expect(corrected.projectionVersion, davProjectionVersion);
+    expect(corrected.syncStatus, 'pending');
+    expect(
+      await database.select(database.pendingOps).getSingle(),
+      operationBefore,
+    );
+    final objectAfter = await database.select(database.davObjects).getSingle();
+    expect(objectAfter.rawIcsBody, baseline);
+    expect(objectAfter.etag, '"overlap"');
+  });
 
   test(
     'failed reprojection does not mark an uncovered range as covered',

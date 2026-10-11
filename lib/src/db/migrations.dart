@@ -3,7 +3,7 @@ import 'package:drift/drift.dart';
 import 'app_database.dart';
 import 'location_migration.dart';
 
-const latestSchemaVersion = 19;
+const latestSchemaVersion = 20;
 
 /// A recoverable, non-secret diagnostic raised when an on-disk schema cannot
 /// be migrated without guessing remote identity or losing synchronized data.
@@ -21,6 +21,7 @@ MigrationStrategy busyMaxMigrationStrategy(AppDatabase database) {
   return MigrationStrategy(
     onCreate: (migrator) async {
       await migrator.createAll();
+      await _createContactsSchema(database);
       await _createIndexes(database);
       await createLocationLifecycleTriggers(database);
       await _verifyForeignKeys(database);
@@ -100,6 +101,9 @@ MigrationStrategy busyMaxMigrationStrategy(AppDatabase database) {
           "INSERT INTO ${database.oAuthTransitionAccounts.actualTableName} (account_id) SELECT id FROM accounts WHERE provider IN ('google', 'microsoft')",
         );
       }
+      if (from < 20) {
+        await _createContactsSchema(database);
+      }
       await _createIndexes(database);
       await createLocationLifecycleTriggers(database);
       await _verifyForeignKeys(database);
@@ -108,6 +112,97 @@ MigrationStrategy busyMaxMigrationStrategy(AppDatabase database) {
       await database.customStatement('PRAGMA foreign_keys = ON');
     },
   );
+}
+
+/// Contacts remain an app-owned subsystem while sharing BusyMax's existing
+/// database connection and transaction/isolate lifecycle. These namespaced
+/// tables deliberately do not widen the calendar/task account constraints:
+/// OAuth accounts may be linked and contacts-only DAV accounts stand alone.
+Future<void> _createContactsSchema(AppDatabase database) async {
+  await database.customStatement('''
+    CREATE TABLE IF NOT EXISTS bm_contact_accounts(
+      id TEXT NOT NULL PRIMARY KEY,
+      data TEXT NOT NULL
+    )
+  ''');
+  await database.customStatement('''
+    CREATE TABLE IF NOT EXISTS bm_contact_account_links(
+      contact_account_id TEXT NOT NULL PRIMARY KEY
+        REFERENCES bm_contact_accounts(id) ON DELETE CASCADE,
+      busymax_account_id TEXT REFERENCES accounts(id) ON DELETE SET NULL,
+      reuse_authorization INTEGER NOT NULL DEFAULT 0
+        CHECK(reuse_authorization IN (0, 1))
+    )
+  ''');
+  await database.customStatement('''
+    CREATE TABLE IF NOT EXISTS bm_contact_sources(
+      source_key TEXT NOT NULL PRIMARY KEY,
+      account_id TEXT NOT NULL
+        REFERENCES bm_contact_accounts(id) ON DELETE CASCADE,
+      data TEXT NOT NULL
+    )
+  ''');
+  await database.customStatement('''
+    CREATE TABLE IF NOT EXISTS bm_contact_records(
+      identity_key TEXT NOT NULL PRIMARY KEY,
+      account_id TEXT NOT NULL
+        REFERENCES bm_contact_accounts(id) ON DELETE CASCADE,
+      source_key TEXT NOT NULL
+        REFERENCES bm_contact_sources(source_key) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      search_text TEXT NOT NULL,
+      data TEXT NOT NULL,
+      projection TEXT NOT NULL,
+      seen_scan TEXT
+    )
+  ''');
+  await database.customStatement(
+    'CREATE INDEX IF NOT EXISTS bm_contact_records_name_idx '
+    'ON bm_contact_records(name COLLATE NOCASE, identity_key)',
+  );
+  await database.customStatement(
+    'CREATE INDEX IF NOT EXISTS bm_contact_records_account_idx '
+    'ON bm_contact_records(account_id, name COLLATE NOCASE, identity_key)',
+  );
+  await database.customStatement(
+    'CREATE INDEX IF NOT EXISTS bm_contact_records_source_idx '
+    'ON bm_contact_records(source_key, name COLLATE NOCASE, identity_key)',
+  );
+  await database.customStatement('''
+    CREATE TABLE IF NOT EXISTS bm_contact_mutations(
+      id TEXT NOT NULL PRIMARY KEY,
+      account_id TEXT NOT NULL
+        REFERENCES bm_contact_accounts(id) ON DELETE CASCADE,
+      source_key TEXT NOT NULL,
+      data TEXT NOT NULL
+    )
+  ''');
+  await database.customStatement(
+    'CREATE INDEX IF NOT EXISTS bm_contact_mutations_account_idx '
+    'ON bm_contact_mutations(account_id, source_key)',
+  );
+  await database.customStatement('''
+    CREATE TABLE IF NOT EXISTS bm_contact_sync_states(
+      source_key TEXT NOT NULL PRIMARY KEY
+        REFERENCES bm_contact_sources(source_key) ON DELETE CASCADE,
+      data TEXT NOT NULL
+    )
+  ''');
+  await database.customStatement('''
+    CREATE TABLE IF NOT EXISTS bm_contact_drafts(
+      id TEXT NOT NULL PRIMARY KEY,
+      source_key TEXT NOT NULL
+        REFERENCES bm_contact_sources(source_key) ON DELETE CASCADE,
+      data TEXT NOT NULL
+    )
+  ''');
+  await database.customStatement('''
+    CREATE TABLE IF NOT EXISTS bm_contact_source_preferences(
+      source_key TEXT NOT NULL PRIMARY KEY
+        REFERENCES bm_contact_sources(source_key) ON DELETE CASCADE,
+      enabled INTEGER NOT NULL DEFAULT 1 CHECK(enabled IN (0, 1))
+    )
+  ''');
 }
 
 Future<void> _migrateToV13(Migrator migrator, AppDatabase database) async {

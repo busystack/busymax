@@ -1,4 +1,5 @@
 import 'package:busymax/src/google_calendar/google_calendar_mapper.dart';
+
 import 'dart:async';
 import 'dart:convert';
 
@@ -10,7 +11,9 @@ import 'package:busymax/src/features/notifications/notification_schedule_service
 import 'package:busymax/src/features/notifications/notification_scheduler.dart';
 import 'package:busymax/src/features/notifications/desktop_notification_service.dart';
 import 'package:busymax/src/app/app_settings.dart';
+
 import '../../support/recording_notification_backend.dart';
+
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:drift/drift.dart' hide isNotNull;
 import 'package:drift/native.dart';
@@ -119,8 +122,7 @@ void main() {
         event: googleCalendarEventFromJson('cal-1', {
           'id': 'malformed',
           'summary': 'Notes',
-          'description':
-              '<p>Notes &#x110000; &#1114112; &#xD800; &#99999999999999999999999999;</p>',
+          'description': '<p>Notes &#x110000; &#1114112; &#xD800; &#99999999999999999999999999;</p>',
           'start': {'dateTime': '2026-06-08T09:00:00Z'},
           'end': {'dateTime': '2026-06-08T10:00:00Z'},
           'reminders': {

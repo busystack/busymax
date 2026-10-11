@@ -555,9 +555,8 @@ int _daysInMonth(int year, int month) =>
     DateTime.utc(year, month + 1).subtract(const Duration(days: 1)).day;
 
 DateTime _parseRuleDateTime(String source) {
-  final match = RegExp(
-    r'^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})$',
-  ).firstMatch(source);
+  final match = RegExp(r'^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})$')
+      .firstMatch(source);
   if (match == null) throw _invalidTimeZone();
   final parts = [
     for (var index = 1; index <= 6; index += 1) int.parse(match.group(index)!),

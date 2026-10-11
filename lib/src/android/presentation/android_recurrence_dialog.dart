@@ -121,9 +121,8 @@ Future<RecurrenceRule?> showAndroidRecurrenceDialog(
                             FilterChip(
                               label: Text(
                                 DateFormat.E(
-                                  Localizations.localeOf(
-                                    context,
-                                  ).toLanguageTag(),
+                                  Localizations.localeOf(context)
+                                      .toLanguageTag(),
                                 ).format(DateTime(2024, 1, index + 1)),
                               ),
                               selected: rule.byDay.contains(rfcWeekdays[index]),

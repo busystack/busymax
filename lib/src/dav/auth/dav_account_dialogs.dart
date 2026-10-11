@@ -151,9 +151,8 @@ final class _AppleCredentialDialogState extends State<_AppleCredentialDialog> {
     final email = _email.text.trim();
     final password = _password.text.trim();
     if (email.isEmpty || password.isEmpty) return;
-    Navigator.of(
-      context,
-    ).pop(AppleICloudCredentialInput(email: email, password: password));
+    Navigator.of(context)
+        .pop(AppleICloudCredentialInput(email: email, password: password));
   }
 }
 

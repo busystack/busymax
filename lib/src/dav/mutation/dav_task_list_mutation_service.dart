@@ -433,7 +433,10 @@ const _taskCollectionProbeXml =
     '</d:propfind>';
 
 bool _mayHaveCommitted(DavException error) => switch (error.kind) {
-  DavErrorKind.timeout || DavErrorKind.network || DavErrorKind.server => true,
+  DavErrorKind.timeout ||
+  DavErrorKind.network ||
+  DavErrorKind.unknownOutcome ||
+  DavErrorKind.server => true,
   _ => false,
 };
 

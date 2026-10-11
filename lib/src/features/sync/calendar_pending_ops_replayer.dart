@@ -1,6 +1,8 @@
 import 'dart:convert';
+
 import '../maps/data/location_resolution_repository.dart';
 import '../maps/domain/location_result.dart';
+
 import 'dart:math';
 
 import 'package:drift/drift.dart';
@@ -21,7 +23,9 @@ import '../../microsoft_calendar/microsoft_calendar_errors.dart';
 import '../../microsoft_calendar/microsoft_calendar_api_client.dart';
 import '../../microsoft_calendar/microsoft_calendar_mapper.dart';
 import '../../microsoft_calendar/microsoft_shared_calendar_address.dart';
+
 import 'package:busymax/src/providers/busy_provider.dart';
+
 import '../calendar/data/calendar_repository.dart';
 import '../recurrence/domain/event_recurrence_codec.dart';
 import '../recurrence/domain/recurrence_rule.dart';
@@ -1151,14 +1155,13 @@ class CalendarPendingOpsReplayer {
         ifMatch: checkedVersion?.etagOrChangeKey,
       );
       if (request.containsKey('location')) {
-        await LocationResolutionRepository(
-          _database,
-        ).removeGoogleSeriesSourceUnlessLocationMatches(
-          accountId: _accountId,
-          sourceId: local.calendarSourceId,
-          providerSeriesId: masterId,
-          expectedLocation: request['location']?.toString() ?? '',
-        );
+        await LocationResolutionRepository(_database)
+            .removeGoogleSeriesSourceUnlessLocationMatches(
+              accountId: _accountId,
+              sourceId: local.calendarSourceId,
+              providerSeriesId: masterId,
+              expectedLocation: request['location']?.toString() ?? '',
+            );
       }
       await _markRecurringRowsSynced(op, local);
       return;
@@ -1876,12 +1879,11 @@ class CalendarPendingOpsReplayer {
       if ((_operationType(op) == 'calendar.delete' ||
               _operationType(op) == 'calendar.remove') &&
           sourceId != null) {
-        await LocationResolutionRepository(
-          _database,
-        ).removeGoogleSeriesSourcesForCalendar(
-          accountId: op.accountId,
-          sourceId: sourceId,
-        );
+        await LocationResolutionRepository(_database)
+            .removeGoogleSeriesSourcesForCalendar(
+              accountId: op.accountId,
+              sourceId: sourceId,
+            );
         await (_database.update(
           _database.calendarSources,
         )..where((row) => row.id.equals(sourceId))).write(
@@ -1903,13 +1905,12 @@ class CalendarPendingOpsReplayer {
       final recurringEventId = local?.providerRecurringEventId;
       if (local != null && recurringEventId != null) {
         if (scope == 'entireSeries') {
-          await LocationResolutionRepository(
-            _database,
-          ).removeGoogleSeriesSource(
-            accountId: local.accountId,
-            sourceId: local.calendarSourceId,
-            providerSeriesId: recurringEventId,
-          );
+          await LocationResolutionRepository(_database)
+              .removeGoogleSeriesSource(
+                accountId: local.accountId,
+                sourceId: local.calendarSourceId,
+                providerSeriesId: recurringEventId,
+              );
         }
         await (_database.update(_database.calendarEvents)..where((row) {
               var predicate =
@@ -2831,9 +2832,9 @@ Map<String, Object?> _microsoftLocationState(Map<String, Object?> raw) {
         for (final value in raw['locations'] as List? ?? const [])
           if (value is Map) _microsoftLocation(value),
       ]..sort(
-        (first, second) => jsonEncode(
-          _normalize(first),
-        ).compareTo(jsonEncode(_normalize(second))),
+        (first, second) =>
+            jsonEncode(_normalize(first))
+                .compareTo(jsonEncode(_normalize(second))),
       );
   return {
     'location': raw['location'] is Map

@@ -2,6 +2,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
+
 import '../../app/busymax_shortcuts.dart';
 import '../../app/app_bootstrap.dart';
 import '../../core/auth/oauth_registration.dart';

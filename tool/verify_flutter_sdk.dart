@@ -47,9 +47,9 @@ Future<void> main(List<String> arguments) async {
 
     final dartResult = await _run(dartExecutable, const ['--version']);
     final dartOutput = '${dartResult.stdout}\n${dartResult.stderr}';
-    final dartVersion = RegExp(
-      r'Dart SDK version:\s+([^\s]+)',
-    ).firstMatch(dartOutput)?.group(1);
+    final dartVersion = RegExp(r'Dart SDK version:\s+([^\s]+)')
+        .firstMatch(dartOutput)
+        ?.group(1);
     if (dartVersion != expectedDart) {
       throw StateError(
         'BusyMax requires bundled Dart $expectedDart; found $dartVersion.',

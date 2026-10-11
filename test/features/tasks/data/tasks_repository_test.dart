@@ -646,9 +646,8 @@ void main() {
         'account',
         'list-1',
       )).single;
-      final created = decodeTaskChecklistItems(
-        task.microsoftChecklistItemsJson,
-      ).single;
+      final created = decodeTaskChecklistItems(task.microsoftChecklistItemsJson)
+          .single;
       var hierarchy = await repository
           .watchTaskHierarchy('list-1', 'parent')
           .first;

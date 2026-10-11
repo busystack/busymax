@@ -327,8 +327,7 @@ String normalizeCalendarAddress(String address) {
 DavException schedulingDenied(String code) => DavException(
   kind: DavErrorKind.authorization,
   code: code,
-  safeMessage:
-      'The selected calendar or scheduling identity does not permit this meeting operation.',
+  safeMessage: 'The selected calendar or scheduling identity does not permit this meeting operation.',
 );
 Map<String, Object?> _map(String? source) {
   try {

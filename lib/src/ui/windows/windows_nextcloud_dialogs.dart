@@ -1,7 +1,10 @@
 import 'dart:async';
+
 import '../common/schedule/native_collection_export.dart';
 import 'windows_nextcloud_scheduling_dialog.dart';
+
 import 'dart:math' as math;
+
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:busymax/l10n/generated/app_localizations.dart';

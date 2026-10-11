@@ -2,8 +2,10 @@ import 'account_sync_operations.dart';
 import 'domain_sync_schedule.dart';
 import '../../core/logging/redacting_logger.dart';
 import '../../core/http/request_dispatch_exception.dart';
+
 import 'package:busymax/src/core/auth/oauth_models.dart';
 import 'package:flutter/services.dart';
+
 import '../connectivity/network_connectivity_service.dart';
 
 const accountReconnectRequiredSyncMessage =

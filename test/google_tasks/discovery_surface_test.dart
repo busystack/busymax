@@ -6,13 +6,10 @@ import 'package:busymax/src/google_tasks/api/google_tasks_api_surface.dart';
 
 void main() {
   test('implemented method set matches cached discovery document', () {
-    final discovery =
-        jsonDecode(
-              File(
-                'tool/google_tasks_discovery/cache/tasks_v1_discovery.json',
-              ).readAsStringSync(),
-            )
-            as Map<String, Object?>;
+    final discovery = jsonDecode(
+      File('tool/google_tasks_discovery/cache/tasks_v1_discovery.json')
+          .readAsStringSync(),
+    ) as Map<String, Object?>;
     final resources = (discovery['resources'] as Map).cast<String, Object?>();
     final methods = <String>{
       for (final resourceName in ['tasklists', 'tasks'])

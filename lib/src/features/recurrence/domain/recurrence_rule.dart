@@ -491,9 +491,8 @@ _NormalizedEditorRule? _normalizeMonthlyOrYearly({
   }
 
   if (byDay.length == 1 && bySetPositions.isEmpty) {
-    final ordinal = RegExp(
-      r'^(-?[1-5])(MO|TU|WE|TH|FR|SA|SU)$',
-    ).firstMatch(byDay.single);
+    final ordinal = RegExp(r'^(-?[1-5])(MO|TU|WE|TH|FR|SA|SU)$')
+        .firstMatch(byDay.single);
     if (ordinal != null) {
       if (byMonth.length > 1) return null;
       final position = int.parse(ordinal.group(1)!);

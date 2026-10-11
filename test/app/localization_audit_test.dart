@@ -191,12 +191,10 @@ void main() {
   });
 
   test('package metadata uses reviewed product wording in every locale', () {
-    final desktop = File(
-      'linux/io.busystack.busymax.desktop',
-    ).readAsStringSync();
-    final metainfo = File(
-      'linux/io.busystack.busymax.metainfo.xml',
-    ).readAsStringSync();
+    final desktop = File('linux/io.busystack.busymax.desktop')
+        .readAsStringSync();
+    final metainfo = File('linux/io.busystack.busymax.metainfo.xml')
+        .readAsStringSync();
 
     const summaries = <String, String>{
       'ar': 'مدير التقويم والمهام',
@@ -278,9 +276,9 @@ void main() {
       expect(portuguese.deleteTask, 'Eliminar tarefa');
       expect(portuguese.copyAndDelete, 'Copiar e eliminar');
 
-      final portugueseArb = File(
-        'lib/l10n/app_pt_PT.arb',
-      ).readAsStringSync().toLowerCase();
+      final portugueseArb = File('lib/l10n/app_pt_PT.arb')
+          .readAsStringSync()
+          .toLowerCase();
       for (final brazilianForm in [
         'excluído',
         'excluir',
@@ -1342,9 +1340,8 @@ void main() {
       );
     }
     expect(
-      lookupAppLocalizations(
-        const Locale('en'),
-      ).repeatYearlyMonthValue('Sep', 'sep'),
+      lookupAppLocalizations(const Locale('en'))
+          .repeatYearlyMonthValue('Sep', 'sep'),
       'Sep',
     );
   });
@@ -1455,9 +1452,8 @@ Iterable<String> _metadataTranslationFailures() sync* {
       RegExp(r'app_([A-Za-z_]+)\.arb$').firstMatch(file.path)!.group(1)!,
   ]..sort();
   final desktop = File('linux/io.busystack.busymax.desktop').readAsStringSync();
-  final metainfo = File(
-    'linux/io.busystack.busymax.metainfo.xml',
-  ).readAsStringSync();
+  final metainfo = File('linux/io.busystack.busymax.metainfo.xml')
+      .readAsStringSync();
   final snap = File('snap/snapcraft.yaml').readAsStringSync();
 
   if (!snap.contains('Snap Store listing translations are managed outside')) {
@@ -1582,9 +1578,8 @@ Iterable<String> _scanIcuOptions(String value) sync* {
     }
     if (index >= value.length) return;
 
-    final optionMatch = RegExp(
-      r'(?:[A-Za-z][A-Za-z0-9_]*|=[0-9]+)',
-    ).matchAsPrefix(value, index);
+    final optionMatch = RegExp(r'(?:[A-Za-z][A-Za-z0-9_]*|=[0-9]+)')
+        .matchAsPrefix(value, index);
     if (optionMatch == null) return;
     index = optionMatch.end;
     while (index < value.length && value[index].trim().isEmpty) {

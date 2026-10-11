@@ -5,6 +5,12 @@ Production key material is never tracked. Copy
 `storeFile` at the owner-controlled keystore, and fill its passwords and alias
 outside logs and shell history. Do not replace an established upload identity.
 
+For v0.3.0 the public version is `0.3.0` and the package code is `5`, advancing
+the v0.2.4 source and retained test-signed artifact code `4`. During preparation
+on 2026-10-11, the owner confirmed `4` is the highest distributed base code.
+For subsequent releases, verify the distribution ledger and account for ABI
+offsets if split APKs were distributed before choosing the next code.
+
 With real public provider configuration and owner signing present, build both
 formats with:
 

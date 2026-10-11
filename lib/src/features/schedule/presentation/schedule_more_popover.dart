@@ -69,9 +69,8 @@ Future<ScheduleMorePopoverSelection?> showScheduleMorePopover({
                           item: item,
                           anchorPoint:
                               globalPosition ??
-                              scheduleGlobalRectFor(
-                                itemAnchorContext,
-                              )?.center ??
+                              scheduleGlobalRectFor(itemAnchorContext)
+                                  ?.center ??
                               fallbackAnchorPoint,
                         ),
                       );

@@ -154,99 +154,96 @@ void main() {
     },
   );
 
-  test(
-    'sidebar movement is adjacent, queued, isolated and restart persistent',
-    () async {
-      final store = MemorySettingsStore();
-      final controller = AppSettingsController(store);
-      addTearDown(controller.dispose);
-      await controller.ready;
-      for (final section in SidebarOrderSection.values) {
-        final accountId =
-            section == SidebarOrderSection.calendars ||
-                section == SidebarOrderSection.taskLists
-            ? 'account'
-            : null;
-        await controller.registerSidebarIds(section, [
-          'a',
-          'b',
-          'c',
-        ], accountId: accountId);
-        final first = controller.moveSidebarItem(section, 'c', -1, [
-          'a',
-          'b',
-          'c',
-        ], accountId: accountId);
-        expect(
-          controller.state.sidebarOrder.sequence(section, accountId: accountId),
-          ['a', 'c', 'b'],
-        );
-        final second = controller.moveSidebarItem(section, 'c', -1, [
-          'a',
-          'b',
-          'c',
-        ], accountId: accountId);
-        await Future.wait([first, second]);
-        await controller.registerSidebarIds(section, [
-          'b',
-          'a',
-          'c',
-          'd',
-        ], accountId: accountId);
-        await controller.moveSidebarItem(section, 'c', -1, [
-          'a',
-          'b',
-          'c',
-          'd',
-        ], accountId: accountId);
-        await controller.moveSidebarItem(section, 'd', 1, [
-          'a',
-          'b',
-          'c',
-          'd',
-        ], accountId: accountId);
-        expect(
-          controller.state.sidebarOrder.sequence(section, accountId: accountId),
-          ['c', 'a', 'b', 'd'],
-        );
-        // Absent rows are omitted; the next present row is the adjacent sibling.
-        await controller.moveSidebarItem(section, 'c', 1, [
-          'c',
-          'b',
-        ], accountId: accountId);
-        expect(
-          controller.state.sidebarOrder.apply(
-            section,
-            ['d', 'b', 'c'],
-            (id) => id,
-            accountId: accountId,
-          ),
-          ['b', 'c', 'd'],
-        );
-      }
-      await controller.registerSidebarIds(SidebarOrderSection.taskLists, [
-        'b',
-        'a',
-      ], accountId: 'other');
-      expect(controller.state.sidebarOrder.taskListIdsByAccount['other'], [
-        'b',
-        'a',
-      ]);
-      final saveCount = store.saves;
-      await controller.registerSidebarIds(SidebarOrderSection.taskLists, [
+  test('sidebar movement is adjacent, queued, isolated and restart persistent', () async {
+    final store = MemorySettingsStore();
+    final controller = AppSettingsController(store);
+    addTearDown(controller.dispose);
+    await controller.ready;
+    for (final section in SidebarOrderSection.values) {
+      final accountId =
+          section == SidebarOrderSection.calendars ||
+              section == SidebarOrderSection.taskLists
+          ? 'account'
+          : null;
+      await controller.registerSidebarIds(section, [
         'a',
         'b',
-      ], accountId: 'other');
-      expect(store.saves, saveCount);
-      final restarted = AppSettingsController(store);
-      addTearDown(restarted.dispose);
-      await restarted.ready;
+        'c',
+      ], accountId: accountId);
+      final first = controller.moveSidebarItem(section, 'c', -1, [
+        'a',
+        'b',
+        'c',
+      ], accountId: accountId);
       expect(
-        restarted.state.sidebarOrder.toJson(),
-        controller.state.sidebarOrder.toJson(),
+        controller.state.sidebarOrder.sequence(section, accountId: accountId),
+        ['a', 'c', 'b'],
       );
-    },
-  );
+      final second = controller.moveSidebarItem(section, 'c', -1, [
+        'a',
+        'b',
+        'c',
+      ], accountId: accountId);
+      await Future.wait([first, second]);
+      await controller.registerSidebarIds(section, [
+        'b',
+        'a',
+        'c',
+        'd',
+      ], accountId: accountId);
+      await controller.moveSidebarItem(section, 'c', -1, [
+        'a',
+        'b',
+        'c',
+        'd',
+      ], accountId: accountId);
+      await controller.moveSidebarItem(section, 'd', 1, [
+        'a',
+        'b',
+        'c',
+        'd',
+      ], accountId: accountId);
+      expect(
+        controller.state.sidebarOrder.sequence(section, accountId: accountId),
+        ['c', 'a', 'b', 'd'],
+      );
+      // Absent rows are omitted; the next present row is the adjacent sibling.
+      await controller.moveSidebarItem(section, 'c', 1, [
+        'c',
+        'b',
+      ], accountId: accountId);
+      expect(
+        controller.state.sidebarOrder.apply(
+          section,
+          ['d', 'b', 'c'],
+          (id) => id,
+          accountId: accountId,
+        ),
+        ['b', 'c', 'd'],
+      );
+    }
+    await controller.registerSidebarIds(SidebarOrderSection.taskLists, [
+      'b',
+      'a',
+    ], accountId: 'other');
+    expect(controller.state.sidebarOrder.taskListIdsByAccount['other'], [
+      'b',
+      'a',
+    ]);
+    final saveCount = store.saves;
+    await controller.registerSidebarIds(SidebarOrderSection.taskLists, [
+      'a',
+      'b',
+    ], accountId: 'other');
+    expect(store.saves, saveCount);
+    final restarted = AppSettingsController(store);
+    addTearDown(restarted.dispose);
+    await restarted.ready;
+    expect(
+      restarted.state.sidebarOrder.toJson(),
+      controller.state.sidebarOrder.toJson(),
+    );
+  });
 
   test(
     'ID replacement retains temporary position and removes server duplicates',

@@ -272,9 +272,8 @@ SecretRecord _decodeBoundOAuth(Map<String, Object?> json) {
   final clientId = _requiredSecretString(json, 'clientId');
   if (json['representation'] == 'google_desktop_v1' &&
       legacy.provider == BusyProvider.google) {
-    if (!RegExp(
-      r'^[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$',
-    ).hasMatch(clientId)) {
+    if (!RegExp(r'^[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$')
+        .hasMatch(clientId)) {
       throw const SecretStoreCorruptException('Invalid Google client binding.');
     }
     return GoogleDesktopCredential(
@@ -630,10 +629,12 @@ extension OAuthSecretStoreAccess on SecretStore {
     if (credential == null) {
       return null;
     }
-    if (credential case OAuthSecretRecord(
-      provider: final provider,
-      tokenSet: final tokenSet,
-    ) when provider == expectedProvider) {
+    if (credential
+        case OAuthSecretRecord(
+          provider: final provider,
+          tokenSet: final tokenSet,
+        )
+        when provider == expectedProvider) {
       return tokenSet;
     }
     throw SecretStoreCredentialMismatchException(

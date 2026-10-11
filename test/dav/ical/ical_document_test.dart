@@ -91,9 +91,9 @@ void main() {
   });
 
   test('all-day values remain dates with exclusive DTEND', () {
-    final component = IcalSemanticDocument.parse(
-      _allDayEvent,
-    ).components.single;
+    final component = IcalSemanticDocument.parse(_allDayEvent)
+        .components
+        .single;
 
     expect(component.start?.kind, IcalTemporalKind.date);
     expect(component.start?.rawValue, '20260808');

@@ -1,4 +1,5 @@
 import 'package:busymax/src/features/tasks/domain/task_remote_error.dart';
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -485,9 +486,8 @@ void main() {
           var committed = false;
           Future<void> replaced(String oldId, String newId) async {
             callbackCount++;
-            final ids = (await database.taskListsDao.listTaskLists(
-              'account',
-            )).map((list) => list.id);
+            final ids = (await database.taskListsDao.listTaskLists('account'))
+                .map((list) => list.id);
             committed =
                 oldId == 'temp-list' &&
                 newId == 'list-server' &&
@@ -1104,9 +1104,8 @@ void main() {
         'account',
         'list-1',
       )).single;
-      final item = decodeTaskChecklistItems(
-        task.microsoftChecklistItemsJson,
-      ).single;
+      final item = decodeTaskChecklistItems(task.microsoftChecklistItemsJson)
+          .single;
       expect(item.id, 'server-step');
       expect(item.completed, isTrue);
       expect(
@@ -1885,9 +1884,8 @@ void main() {
       );
       expect(apiClient.taskListPatchTitles, ['B', 'C']);
       expect(apiClient.remoteTaskList!.title, 'C');
-      final local = (await database.taskListsDao.listTaskLists(
-        'account',
-      )).single;
+      final local = (await database.taskListsDao.listTaskLists('account'))
+          .single;
       expect(local.title, 'C');
       expect(local.localDirty, isFalse);
     },
@@ -2101,9 +2099,8 @@ void main() {
           nowUtc: () => DateTime.utc(2026, 6, 4),
         );
         await repository.createTaskList('Temporary');
-        final temporary = (await database.taskListsDao.listTaskLists(
-          'account',
-        )).singleWhere((list) => list.id.startsWith('local-tasklist-'));
+        final temporary = (await database.taskListsDao.listTaskLists('account'))
+            .singleWhere((list) => list.id.startsWith('local-tasklist-'));
         await repository.renameTaskList(temporary.id, 'Renamed');
         await database.tasksDao.upsertTask(
           TasksCompanion.insert(
@@ -3495,9 +3492,8 @@ void main() {
           nowUtc: () => DateTime.utc(2026, 6, 4, 0, 0, ++mutation),
         );
         await repository.createTaskList('Draft list');
-        final localList = (await database.taskListsDao.listTaskLists(
-          'account',
-        )).singleWhere((list) => list.id.startsWith('local-tasklist-'));
+        final localList = (await database.taskListsDao.listTaskLists('account'))
+            .singleWhere((list) => list.id.startsWith('local-tasklist-'));
         if (renameBeforeDelete) {
           await repository.renameTaskList(localList.id, 'Renamed list');
         }
@@ -3535,9 +3531,8 @@ void main() {
         nowUtc: () => DateTime.utc(2026, 6, 4, 0, 0, ++mutation),
       );
       await repository.createTaskList('Draft list');
-      final localList = (await database.taskListsDao.listTaskLists(
-        'account',
-      )).singleWhere((list) => list.id.startsWith('local-tasklist-'));
+      final localList = (await database.taskListsDao.listTaskLists('account'))
+          .singleWhere((list) => list.id.startsWith('local-tasklist-'));
       await repository.deleteTaskList(localList.id);
       final graphClient = _ConflictMicrosoftTaskListApiClient(
         list: const {'id': 'list-server', 'displayName': 'Draft list'},
@@ -4322,9 +4317,8 @@ void main() {
         'account',
         'list-1',
       )).single;
-      final item = decodeTaskChecklistItems(
-        task.microsoftChecklistItemsJson,
-      ).single;
+      final item = decodeTaskChecklistItems(task.microsoftChecklistItemsJson)
+          .single;
       expect(applied, 2);
       expect(checklistClient.checklistCalls, [
         'create:Step',
@@ -4408,171 +4402,165 @@ void main() {
     },
   );
 
-  test(
-    'checklist claim invalidates a cancellation snapshot before its transaction',
-    () async {
-      final checklistClient = _ChecklistTaskRemoteClient();
-      final deleteReached = Completer<void>();
-      final releaseDelete = Completer<void>();
-      final repository = TasksRepository(
-        database: database,
-        accountId: 'account',
-        apiClient: checklistClient,
-        nowUtc: () => DateTime.utc(2026, 6, 4),
-        beforeChecklistDeleteTransaction: () async {
-          deleteReached.complete();
-          await releaseDelete.future;
-        },
-      );
-      await database.tasksDao.upsertTask(_task('list-1', 'task-1'));
-      await repository.createSubtask(
-        taskListId: 'list-1',
-        parentTaskId: 'task-1',
-        title: 'Step',
-      );
-      final localItem = decodeTaskChecklistItems(
-        (await database.tasksDao.listTasks(
-          'account',
-          'list-1',
-        )).single.microsoftChecklistItemsJson,
-      ).single;
+  test('checklist claim invalidates a cancellation snapshot before its transaction', () async {
+    final checklistClient = _ChecklistTaskRemoteClient();
+    final deleteReached = Completer<void>();
+    final releaseDelete = Completer<void>();
+    final repository = TasksRepository(
+      database: database,
+      accountId: 'account',
+      apiClient: checklistClient,
+      nowUtc: () => DateTime.utc(2026, 6, 4),
+      beforeChecklistDeleteTransaction: () async {
+        deleteReached.complete();
+        await releaseDelete.future;
+      },
+    );
+    await database.tasksDao.upsertTask(_task('list-1', 'task-1'));
+    await repository.createSubtask(
+      taskListId: 'list-1',
+      parentTaskId: 'task-1',
+      title: 'Step',
+    );
+    final localItem = decodeTaskChecklistItems(
+      (await database.tasksDao.listTasks(
+        'account',
+        'list-1',
+      )).single.microsoftChecklistItemsJson,
+    ).single;
 
-      final deletion = repository.deleteChecklistSubtask(
-        taskListId: 'list-1',
-        parentTaskId: 'task-1',
-        checklistItemId: localItem.id,
-      );
-      await deleteReached.future;
-      final createGate = Completer<void>();
-      checklistClient.createChecklistGate = createGate;
-      final replay = PendingOpsReplayer(
+    final deletion = repository.deleteChecklistSubtask(
+      taskListId: 'list-1',
+      parentTaskId: 'task-1',
+      checklistItemId: localItem.id,
+    );
+    await deleteReached.future;
+    final createGate = Completer<void>();
+    checklistClient.createChecklistGate = createGate;
+    final replay = PendingOpsReplayer(
+      database: database,
+      apiClient: checklistClient,
+      accountId: 'account',
+      nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+    ).replayDueOps();
+    await _waitFor(() => checklistClient.checklistCalls.isNotEmpty);
+    releaseDelete.complete();
+    await deletion;
+
+    final queued = await database.select(database.pendingOps).get();
+    final create = queued.singleWhere(
+      (operation) => operation.operation == 'create_task_checklist_item',
+    );
+    final delete = queued.singleWhere(
+      (operation) => operation.operation == 'delete_task_checklist_item',
+    );
+    expect(create.state, 'in_progress');
+    expect(delete.dependsOnOpId, create.id);
+
+    createGate.complete();
+    expect(await replay, 1);
+    expect(
+      await PendingOpsReplayer(
+        database: database,
+        apiClient: checklistClient,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4, 2),
+      ).replayDueOps(),
+      1,
+    );
+    expect(checklistClient.checklistCalls, [
+      'create:Step',
+      'delete:server-step',
+    ]);
+  });
+
+  test('checklist deletion resolves a creation acknowledged before its transaction', () async {
+    final checklistClient = _ChecklistTaskRemoteClient();
+    final deleteReached = Completer<void>();
+    final releaseDelete = Completer<void>();
+    final repository = TasksRepository(
+      database: database,
+      accountId: 'account',
+      apiClient: checklistClient,
+      nowUtc: () => DateTime.utc(2026, 6, 4),
+      beforeChecklistDeleteTransaction: () async {
+        deleteReached.complete();
+        await releaseDelete.future;
+      },
+    );
+    await database.tasksDao.upsertTask(_task('list-1', 'task-1'));
+    await repository.createSubtask(
+      taskListId: 'list-1',
+      parentTaskId: 'task-1',
+      title: 'Step',
+    );
+    final localItem = decodeTaskChecklistItems(
+      (await database.tasksDao.listTasks(
+        'account',
+        'list-1',
+      )).single.microsoftChecklistItemsJson,
+    ).single;
+
+    final deletion = repository.deleteChecklistSubtask(
+      taskListId: 'list-1',
+      parentTaskId: 'task-1',
+      checklistItemId: localItem.id,
+    );
+    await deleteReached.future;
+    expect(
+      await PendingOpsReplayer(
         database: database,
         apiClient: checklistClient,
         accountId: 'account',
         nowUtc: () => DateTime.utc(2026, 6, 4, 1),
-      ).replayDueOps();
-      await _waitFor(() => checklistClient.checklistCalls.isNotEmpty);
-      releaseDelete.complete();
-      await deletion;
-
-      final queued = await database.select(database.pendingOps).get();
-      final create = queued.singleWhere(
-        (operation) => operation.operation == 'create_task_checklist_item',
-      );
-      final delete = queued.singleWhere(
-        (operation) => operation.operation == 'delete_task_checklist_item',
-      );
-      expect(create.state, 'in_progress');
-      expect(delete.dependsOnOpId, create.id);
-
-      createGate.complete();
-      expect(await replay, 1);
-      expect(
-        await PendingOpsReplayer(
-          database: database,
-          apiClient: checklistClient,
-          accountId: 'account',
-          nowUtc: () => DateTime.utc(2026, 6, 4, 2),
-        ).replayDueOps(),
-        1,
-      );
-      expect(checklistClient.checklistCalls, [
-        'create:Step',
-        'delete:server-step',
-      ]);
-    },
-  );
-
-  test(
-    'checklist deletion resolves a creation acknowledged before its transaction',
-    () async {
-      final checklistClient = _ChecklistTaskRemoteClient();
-      final deleteReached = Completer<void>();
-      final releaseDelete = Completer<void>();
-      final repository = TasksRepository(
-        database: database,
-        accountId: 'account',
-        apiClient: checklistClient,
-        nowUtc: () => DateTime.utc(2026, 6, 4),
-        beforeChecklistDeleteTransaction: () async {
-          deleteReached.complete();
-          await releaseDelete.future;
-        },
-      );
-      await database.tasksDao.upsertTask(_task('list-1', 'task-1'));
-      await repository.createSubtask(
-        taskListId: 'list-1',
-        parentTaskId: 'task-1',
-        title: 'Step',
-      );
-      final localItem = decodeTaskChecklistItems(
+      ).replayDueOps(),
+      1,
+    );
+    expect(await database.select(database.pendingOps).get(), isEmpty);
+    expect(
+      decodeTaskChecklistItems(
         (await database.tasksDao.listTasks(
           'account',
           'list-1',
         )).single.microsoftChecklistItemsJson,
-      ).single;
+      ).single.id,
+      'server-step',
+    );
 
-      final deletion = repository.deleteChecklistSubtask(
-        taskListId: 'list-1',
-        parentTaskId: 'task-1',
-        checklistItemId: localItem.id,
-      );
-      await deleteReached.future;
-      expect(
-        await PendingOpsReplayer(
-          database: database,
-          apiClient: checklistClient,
-          accountId: 'account',
-          nowUtc: () => DateTime.utc(2026, 6, 4, 1),
-        ).replayDueOps(),
-        1,
-      );
-      expect(await database.select(database.pendingOps).get(), isEmpty);
-      expect(
-        decodeTaskChecklistItems(
-          (await database.tasksDao.listTasks(
-            'account',
-            'list-1',
-          )).single.microsoftChecklistItemsJson,
-        ).single.id,
-        'server-step',
-      );
-
-      releaseDelete.complete();
-      await deletion;
-      final pendingDelete = await database
-          .select(database.pendingOps)
-          .getSingle();
-      expect(pendingDelete.operation, 'delete_task_checklist_item');
-      expect(
-        jsonDecode(pendingDelete.requestJson)['checklistItemId'],
-        'server-step',
-      );
-      expect(
-        decodeTaskChecklistItems(
-          (await database.tasksDao.listTasks(
-            'account',
-            'list-1',
-          )).single.microsoftChecklistItemsJson,
-        ),
-        isEmpty,
-      );
-      expect(
-        await PendingOpsReplayer(
-          database: database,
-          apiClient: checklistClient,
-          accountId: 'account',
-          nowUtc: () => DateTime.utc(2026, 6, 4, 2),
-        ).replayDueOps(),
-        1,
-      );
-      expect(checklistClient.checklistCalls, [
-        'create:Step',
-        'delete:server-step',
-      ]);
-      expect(await database.select(database.pendingOps).get(), isEmpty);
-    },
-  );
+    releaseDelete.complete();
+    await deletion;
+    final pendingDelete = await database
+        .select(database.pendingOps)
+        .getSingle();
+    expect(pendingDelete.operation, 'delete_task_checklist_item');
+    expect(
+      jsonDecode(pendingDelete.requestJson)['checklistItemId'],
+      'server-step',
+    );
+    expect(
+      decodeTaskChecklistItems(
+        (await database.tasksDao.listTasks(
+          'account',
+          'list-1',
+        )).single.microsoftChecklistItemsJson,
+      ),
+      isEmpty,
+    );
+    expect(
+      await PendingOpsReplayer(
+        database: database,
+        apiClient: checklistClient,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4, 2),
+      ).replayDueOps(),
+      1,
+    );
+    expect(checklistClient.checklistCalls, [
+      'create:Step',
+      'delete:server-step',
+    ]);
+    expect(await database.select(database.pendingOps).get(), isEmpty);
+  });
 
   test(
     'checklist deletion accepts a temporary ID after creation is acknowledged',

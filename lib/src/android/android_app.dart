@@ -239,9 +239,8 @@ class _AndroidHomeShellState extends ConsumerState<AndroidHomeShell>
             .getSingleOrNull();
     if (!mounted) return;
     if (row == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(context.l10n.noEventsOrTasks)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(context.l10n.noEventsOrTasks)));
       return;
     }
     ref.read(androidSelectedDestinationProvider.notifier).state = 0;

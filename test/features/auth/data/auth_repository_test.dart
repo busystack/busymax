@@ -1,5 +1,6 @@
 import '../../../core/auth/authorization_transition_test.dart'
     show Harness, owned, tokens;
+
 import 'dart:async';
 
 import 'package:busymax/src/core/auth/authorization_persistence.dart';
@@ -201,43 +202,40 @@ void main() {
       },
     );
   }
-  test(
-    'successful remote revocation followed by failed local removal reports actual state',
-    () async {
-      final h = Harness();
-      addTearDown(() async {
-        h.staging.dispose();
-        await h.db.close();
-      });
-      await h.seed();
-      await h.db.customStatement(
-        "CREATE TRIGGER refuse_delete BEFORE DELETE ON accounts BEGIN SELECT RAISE(ABORT, 'injected'); END",
-      );
-      await expectLater(
-        h.repository.removeAccount(
-          accountId: 'opaque',
-          revokeAuthorization: true,
+  test('successful remote revocation followed by failed local removal reports actual state', () async {
+    final h = Harness();
+    addTearDown(() async {
+      h.staging.dispose();
+      await h.db.close();
+    });
+    await h.seed();
+    await h.db.customStatement(
+      "CREATE TRIGGER refuse_delete BEFORE DELETE ON accounts BEGIN SELECT RAISE(ABORT, 'injected'); END",
+    );
+    await expectLater(
+      h.repository.removeAccount(
+        accountId: 'opaque',
+        revokeAuthorization: true,
+      ),
+      throwsA(
+        isA<AccountRemovalPersistenceException>().having(
+          (e) => e.remoteAuthorizationRevoked,
+          'remote side effect remains',
+          true,
         ),
-        throwsA(
-          isA<AccountRemovalPersistenceException>().having(
-            (e) => e.remoteAuthorizationRevoked,
-            'remote side effect remains',
-            true,
-          ),
-        ),
-      );
-      expect(h.requests.where((r) => r.url.path == '/revoke'), hasLength(1));
-      expect(await h.accounts.accountById('opaque'), isNotNull);
-      await h.persistence.recover();
-      expect(
-        await h.persistence.readCurrentCredential('opaque'),
-        isA<GoogleDesktopCredential>(),
-      );
-      await h.db.customStatement('DROP TRIGGER refuse_delete');
-      await h.repository.removeAccount(accountId: 'opaque');
-      expect(await h.secrets.readCredential('opaque'), isNull);
-    },
-  );
+      ),
+    );
+    expect(h.requests.where((r) => r.url.path == '/revoke'), hasLength(1));
+    expect(await h.accounts.accountById('opaque'), isNotNull);
+    await h.persistence.recover();
+    expect(
+      await h.persistence.readCurrentCredential('opaque'),
+      isA<GoogleDesktopCredential>(),
+    );
+    await h.db.customStatement('DROP TRIGGER refuse_delete');
+    await h.repository.removeAccount(accountId: 'opaque');
+    expect(await h.secrets.readCredential('opaque'), isNull);
+  });
   test(
     'legacy selected record is revoked without refresh or issuer discovery',
     () async {
@@ -352,9 +350,8 @@ void main() {
             );
           }
           expect(
-            await AccountsRepository(
-              database: database,
-            ).accountById('selected'),
+            await AccountsRepository(database: database)
+                .accountById('selected'),
             isNull,
           );
           expect(await secrets.readCredential('selected'), isNull);
@@ -364,9 +361,8 @@ void main() {
             isEmpty,
           );
           expect(
-            (await realRepository.removeAccount(
-              accountId: 'selected',
-            )).alreadyRemoved,
+            (await realRepository.removeAccount(accountId: 'selected'))
+                .alreadyRemoved,
             true,
           );
           expect(

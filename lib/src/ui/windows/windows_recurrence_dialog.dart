@@ -268,9 +268,8 @@ String _rfcWeekday(int weekday) => rfcWeekdays[weekday - 1];
 String _weekdayLabel(BuildContext context, String weekday) {
   final day = rfcWeekdays.indexOf(weekday) + 1;
   final date = DateTime(2024, 1, day);
-  return DateFormat.E(
-    Localizations.localeOf(context).toLanguageTag(),
-  ).format(date);
+  return DateFormat.E(Localizations.localeOf(context).toLanguageTag())
+      .format(date);
 }
 
 String _dateValue(DateTime date) =>

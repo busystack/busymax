@@ -87,9 +87,8 @@ void main() {
     final toolbar = File(
       'lib/src/features/schedule/presentation/schedule_toolbar.dart',
     ).readAsStringSync();
-    final linuxHeader = File(
-      'lib/src/app/linux/linux_header_style.dart',
-    ).readAsStringSync();
+    final linuxHeader = File('lib/src/app/linux/linux_header_style.dart')
+        .readAsStringSync();
 
     expect(design, contains('class BusyMaxSearchField'));
     expect(RegExp(r'YaruSearchField\(').allMatches(design), hasLength(1));

@@ -1,10 +1,13 @@
 import '../../support/desktop_connection_fixture.dart';
 import '../../support/native_registration_reader_fixture.dart';
+
 import 'package:busymax/src/core/auth/oauth_registration.dart';
 import 'package:busymax/src/core/auth/registration_file_reader.dart';
 import 'package:busymax/src/core/secrets/secret_store.dart';
+
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:busymax/src/webcal/webcal_http_client.dart';
 import 'package:busymax/src/webcal/webcal_subscription_service.dart';
 
@@ -92,9 +95,9 @@ void main() {
         await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
         await _pumpConnectionPage(tester);
         expect(
-          GoRouterState.of(
-            tester.element(find.byType(WindowsSettingsPage)),
-          ).uri.path,
+          GoRouterState.of(tester.element(find.byType(WindowsSettingsPage)))
+              .uri
+              .path,
           '/settings',
         );
         expect(
@@ -130,9 +133,9 @@ void main() {
           break;
         }
       }
-      final record =
-          await tester.runAsync(() => fixture.secrets.readCredential(id))
-              as BoundOAuthSecretRecord;
+      final record = await tester.runAsync(
+        () => fixture.secrets.readCredential(id),
+      ) as BoundOAuthSecretRecord;
       expect(
         record.registration.summary().origin,
         method == DesktopConnectionMethod.busyMax
@@ -183,9 +186,9 @@ void main() {
             break;
           }
         }
-        final replaced =
-            await tester.runAsync(() => fixture.secrets.readCredential(id))
-                as BoundOAuthSecretRecord;
+        final replaced = await tester.runAsync(
+          () => fixture.secrets.readCredential(id),
+        ) as BoundOAuthSecretRecord;
         expect(replaced.generation, 3);
         expect(replaced.subject, record.subject);
         expect(

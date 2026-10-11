@@ -95,9 +95,9 @@ class _ShortcutGroup extends StatelessWidget {
                   ),
                   decoration: BoxDecoration(
                     border: Border.all(
-                      color: FluentTheme.of(
-                        context,
-                      ).resources.controlStrokeColorDefault,
+                      color: FluentTheme.of(context)
+                          .resources
+                          .controlStrokeColorDefault,
                     ),
                     borderRadius: BorderRadius.circular(4),
                   ),

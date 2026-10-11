@@ -106,9 +106,8 @@ final class CalendarCollectionCreationService
     String accountId,
     String title,
   ) async {
-    final result = await _davClientForAccount(
-      accountId,
-    ).createEventCalendar(title);
+    final result = await _davClientForAccount(accountId)
+        .createEventCalendar(title);
     return CalendarCollectionCreationResult(
       outcome: result.refreshPending
           ? CalendarCollectionCreationOutcome.createdRefreshPending

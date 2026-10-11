@@ -161,7 +161,7 @@ void main() {
           isA<DavException>().having(
             (error) => error.kind,
             'kind',
-            DavErrorKind.network,
+            DavErrorKind.unknownOutcome,
           ),
         ),
       );
@@ -187,8 +187,16 @@ void main() {
         service.createEventCalendar('Malformed probe'),
         throwsA(
           isA<DavException>()
-              .having((error) => error.kind, 'kind', DavErrorKind.network)
-              .having((error) => error.code, 'code', 'DavNetworkFailure'),
+              .having(
+                (error) => error.kind,
+                'kind',
+                DavErrorKind.unknownOutcome,
+              )
+              .having(
+                (error) => error.code,
+                'code',
+                'DavUnknownMutationOutcome',
+              ),
         ),
       );
     },
@@ -217,7 +225,7 @@ void main() {
         isA<DavException>().having(
           (error) => error.kind,
           'kind',
-          DavErrorKind.timeout,
+          DavErrorKind.unknownOutcome,
         ),
       ),
     );

@@ -249,14 +249,10 @@ OAuthAuthorizationException authorizationOutcomeFailure({
                 : OAuthFailureKind.temporary,
         };
   final message = switch (kind) {
-    OAuthFailureKind.configuration =>
-      'The provider rejected this registration or its permission configuration. Check setup before authorizing again.',
-    OAuthFailureKind.authorizationCode =>
-      'The authorization code could not be used. Start a fresh authorization attempt.',
-    OAuthFailureKind.permission =>
-      'Authorization was declined or permission is required. Your existing connection is preserved.',
-    OAuthFailureKind.throttled =>
-      'Authorization is rate limited. Wait for the provider cooldown before trying again.',
+    OAuthFailureKind.configuration => 'The provider rejected this registration or its permission configuration. Check setup before authorizing again.',
+    OAuthFailureKind.authorizationCode => 'The authorization code could not be used. Start a fresh authorization attempt.',
+    OAuthFailureKind.permission => 'Authorization was declined or permission is required. Your existing connection is preserved.',
+    OAuthFailureKind.throttled => 'Authorization is rate limited. Wait for the provider cooldown before trying again.',
     _ => 'The provider could not complete authorization. Try again later.',
   };
   return OAuthAuthorizationException(

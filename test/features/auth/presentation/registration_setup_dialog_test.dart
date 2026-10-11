@@ -1,4 +1,5 @@
 import '../../../support/desktop_registration_config.dart';
+
 import 'dart:async';
 import 'dart:io';
 
@@ -364,9 +365,8 @@ void main() {
           expect(tester.getTopLeft(_key('back')), headerPosition);
           await tester.tap(_key('copy-all'));
           await tester.pumpAndSettle();
-          final steps = lookupAppLocalizations(
-            const Locale('en'),
-          ).registrationDesktopSteps(BusyProvider.microsoft);
+          final steps = lookupAppLocalizations(const Locale('en'))
+              .registrationDesktopSteps(BusyProvider.microsoft);
           expect(copied, steps.singleWhere((step) => step.copyAll).values);
           // Back and its shortcut stay inside the one modal, preserving controllers.
           await tester.tap(_key('back'));
@@ -437,9 +437,9 @@ void main() {
         connect();
         await tester.pumpAndSettle();
         expect(harness.results, hasLength(1));
-        final registration =
-            staging.consume(harness.results.single!)
-                as MicrosoftPublicRegistration;
+        final registration = staging.consume(
+          harness.results.single!,
+        ) as MicrosoftPublicRegistration;
         expect(registration.clientId, _clientId);
         expect(registration.tenantId, isNull);
         await tester.pumpWidget(const SizedBox.shrink());
@@ -456,9 +456,8 @@ void main() {
             addTearDown(() => directory.delete(recursive: true));
             file = File('${directory.path}/desktop.json');
             await file.writeAsString(
-              await File(
-                'test/fixtures/oauth/desktop_synthetic.json',
-              ).readAsString(),
+              await File('test/fixtures/oauth/desktop_synthetic.json')
+                  .readAsString(),
             );
             staging.dispose();
             staging = RegistrationStaging(
@@ -524,9 +523,8 @@ void main() {
             addTearDown(() => directory.delete(recursive: true));
             file = File('${directory.path}/desktop.json');
             await file.writeAsString(
-              await File(
-                'test/fixtures/oauth/desktop_synthetic.json',
-              ).readAsString(),
+              await File('test/fixtures/oauth/desktop_synthetic.json')
+                  .readAsString(),
             );
             staging.dispose();
             staging = RegistrationStaging(

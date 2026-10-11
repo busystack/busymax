@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:crypto/crypto.dart';
 
 /// Compares regeneration with the reviewed working tree, including uncommitted

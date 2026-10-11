@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import '../../maps/domain/geographic_point.dart';
 import '../../maps/domain/location_result.dart';
 import '../../maps/data/location_resolution_repository.dart';
@@ -21,7 +22,9 @@ import '../domain/task_remote_client.dart';
 import '../domain/task_remote_models.dart';
 import '../domain/google_task_assignment_policy.dart';
 import '../domain/task_source_links.dart';
+
 import 'package:busymax/src/providers/busy_provider.dart';
+
 import '../../notifications/notification_schedule_service.dart';
 
 class TaskTreeNode {
@@ -631,9 +634,9 @@ class TasksRepository {
         dependsOnOpId: parentCreate?.id,
       );
       if (input.parentTaskId != null) {
-        final moveCreatedAt = DateTime.parse(
-          now,
-        ).add(const Duration(milliseconds: 1)).toIso8601String();
+        final moveCreatedAt = DateTime.parse(now)
+            .add(const Duration(milliseconds: 1))
+            .toIso8601String();
         await _enqueue(
           operation: 'move_task',
           taskListId: taskListId,
@@ -1242,9 +1245,9 @@ class TasksRepository {
       parentUid: parentUid,
       nowUtc: _nowUtc(),
     );
-    final duplicatedMaster = IcalSemanticDocument.parse(
-      duplicatedRaw,
-    ).components.singleWhere((component) => component.recurrenceIdKey == null);
+    final duplicatedMaster = IcalSemanticDocument.parse(duplicatedRaw)
+        .components
+        .singleWhere((component) => component.recurrenceIdKey == null);
     final sortOrder = nextcloudTaskSortOrder(duplicatedMaster);
     final localId = 'dav-local-task-${_uuid.v4()}';
     final metadata = jsonEncode({
@@ -1422,16 +1425,15 @@ class TasksRepository {
         final account = await (_database.select(
           _database.accounts,
         )..where((row) => row.id.equals(_accountId))).getSingle();
-        await DavObjectRepository(
-          database: _database,
-        ).projectLocalMutationCandidate(
-          accountId: _accountId,
-          collectionId: collectionId,
-          provider: BusyProviderCodec.requireStorageValue(account.provider),
-          objectId: objectId,
-          candidateRawIcs: candidate,
-          projectedAtUtc: mutationNow,
-        );
+        await DavObjectRepository(database: _database)
+            .projectLocalMutationCandidate(
+              accountId: _accountId,
+              collectionId: collectionId,
+              provider: BusyProviderCodec.requireStorageValue(account.provider),
+              objectId: objectId,
+              candidateRawIcs: candidate,
+              projectedAtUtc: mutationNow,
+            );
       }
     });
     if (announce) {
@@ -1906,16 +1908,15 @@ class TasksRepository {
           postMovePatch: postMovePatch,
           dependsOnOperationId: dependency,
         );
-        await DavObjectRepository(
-          database: _database,
-        ).projectLocalMutationCandidate(
-          accountId: _accountId,
-          collectionId: sourceList.davCollectionId!,
-          provider: BusyProviderCodec.requireStorageValue(account.provider),
-          objectId: objectId,
-          candidateRawIcs: candidateRawIcs!,
-          projectedAtUtc: _nowUtc(),
-        );
+        await DavObjectRepository(database: _database)
+            .projectLocalMutationCandidate(
+              accountId: _accountId,
+              collectionId: sourceList.davCollectionId!,
+              provider: BusyProviderCodec.requireStorageValue(account.provider),
+              objectId: objectId,
+              candidateRawIcs: candidateRawIcs!,
+              projectedAtUtc: _nowUtc(),
+            );
         await (_database.update(_database.tasks)..where(
               (row) =>
                   row.accountId.equals(_accountId) &
@@ -3395,9 +3396,8 @@ _davNativeTaskFields(String? source) {
       timeZone: null,
     );
   }
-  final dateTime = RegExp(
-    r'^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(Z?)$',
-  ).firstMatch(raw);
+  final dateTime = RegExp(r'^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(Z?)$')
+      .firstMatch(raw);
   if (dateTime == null) return (dateTime: null, timeZone: null);
   final normalized =
       '${dateTime.group(1)}-${dateTime.group(2)}-${dateTime.group(3)}'

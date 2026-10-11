@@ -4,6 +4,7 @@ import '../../../app/busymax_design.dart';
 import '../../../app/busymax_yaru_theme.dart';
 import '../../../calendar_providers/calendar_description.dart';
 import '../../../l10n/l10n.dart';
+
 import 'package:busymax/src/providers/busy_provider.dart';
 
 class EventDescriptionValue {
@@ -221,12 +222,10 @@ InputDecoration _descriptionDecoration(BuildContext context) {
   return InputDecoration(
     labelText: context.l10n.description,
     alignLabelWithHint: true,
-    floatingLabelStyle: Theme.of(
-      context,
-    ).textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
-    labelStyle: Theme.of(
-      context,
-    ).textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant),
+    floatingLabelStyle: Theme.of(context).textTheme.bodySmall
+        ?.copyWith(color: colorScheme.onSurfaceVariant),
+    labelStyle: Theme.of(context).textTheme.bodyMedium
+        ?.copyWith(color: colorScheme.onSurfaceVariant),
     border: InputBorder.none,
     enabledBorder: InputBorder.none,
     focusedBorder: InputBorder.none,

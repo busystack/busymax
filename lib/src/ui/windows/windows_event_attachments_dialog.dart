@@ -330,10 +330,12 @@ class _WindowsEventAttachmentsDialogState
             contentType: file.mimeType ?? 'application/octet-stream',
             bytes: await file.readAsBytes(),
           );
+      if (!mounted) return;
       _refresh();
     } on Object catch (error) {
+      if (!mounted) return;
       _refresh();
-      if (mounted) setState(() => _error = context.l10n.exportFailed('$error'));
+      setState(() => _error = context.l10n.exportFailed('$error'));
     } finally {
       if (mounted) setState(() => _saving = false);
     }

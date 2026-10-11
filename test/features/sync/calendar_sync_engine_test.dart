@@ -1,9 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:busymax/src/app/app_settings.dart';
 import 'package:busymax/src/features/notifications/desktop_notification_service.dart';
 import 'package:busymax/src/features/notifications/notification_scheduler.dart';
+
 import '../../support/recording_notification_backend.dart';
+
 import 'package:busymax/src/calendar_providers/calendar_mutation.dart';
 import 'package:busymax/src/calendar_providers/calendar_provider_capabilities.dart';
 import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
@@ -634,123 +637,120 @@ void main() {
     },
   );
 
-  test(
-    'Microsoft calendar-view occurrences hydrate their master for whole-series mutations',
-    () async {
-      const source = CalendarSourceDto(
-        provider: BusyProvider.microsoft,
-        providerCalendarId: 'cal-1',
-        summary: 'Work',
-      );
-      await _insertAccount(database, provider: BusyProvider.microsoft);
-      const master = CalendarEventDto(
-        provider: BusyProvider.microsoft,
-        providerCalendarId: 'cal-1',
-        providerEventId: 'series-1',
-        title: 'Weekly planning',
-        startDateTime: '2026-07-14T09:00:00.000Z',
-        endDateTime: '2026-07-14T10:00:00.000Z',
-        recurrenceJson: {
-          'pattern': {'type': 'weekly', 'interval': 1},
-          'range': {'type': 'noEnd', 'startDate': '2026-07-14'},
-        },
-        eventType: 'seriesMaster',
-        updatedAtServer: '2026-07-01T00:00:00.000Z',
-        rawJson: {
-          'id': 'series-1',
-          'subject': 'Weekly planning',
-          'type': 'seriesMaster',
-          'lastModifiedDateTime': '2026-07-01T00:00:00.000Z',
-        },
-      );
-      const occurrence = CalendarEventDto(
-        provider: BusyProvider.microsoft,
-        providerCalendarId: 'cal-1',
-        providerEventId: 'occurrence-1',
-        providerRecurringEventId: 'series-1',
-        providerOriginalStartKey: '2026-07-14T09:00:00.000Z',
-        title: 'Weekly planning',
-        startDateTime: '2026-07-14T09:00:00.000Z',
-        endDateTime: '2026-07-14T10:00:00.000Z',
-        eventType: 'occurrence',
-        updatedAtServer: '2026-07-10T00:00:00.000Z',
-        rawJson: {
-          'id': 'occurrence-1',
-          'seriesMasterId': 'series-1',
-          'originalStart': '2026-07-14T09:00:00.000Z',
-          'type': 'occurrence',
-          'lastModifiedDateTime': '2026-07-10T00:00:00.000Z',
-          'isOrganizer': true,
-        },
-      );
-      final client = _FakeCalendarClient(
-        provider: BusyProvider.microsoft,
-        calendars: const [source],
-        eventsById: const {'series-1': master},
-        pages: const [
-          CalendarSyncPageDto(events: [occurrence]),
-        ],
-      );
+  test('Microsoft calendar-view occurrences hydrate their master for whole-series mutations', () async {
+    const source = CalendarSourceDto(
+      provider: BusyProvider.microsoft,
+      providerCalendarId: 'cal-1',
+      summary: 'Work',
+    );
+    await _insertAccount(database, provider: BusyProvider.microsoft);
+    const master = CalendarEventDto(
+      provider: BusyProvider.microsoft,
+      providerCalendarId: 'cal-1',
+      providerEventId: 'series-1',
+      title: 'Weekly planning',
+      startDateTime: '2026-07-14T09:00:00.000Z',
+      endDateTime: '2026-07-14T10:00:00.000Z',
+      recurrenceJson: {
+        'pattern': {'type': 'weekly', 'interval': 1},
+        'range': {'type': 'noEnd', 'startDate': '2026-07-14'},
+      },
+      eventType: 'seriesMaster',
+      updatedAtServer: '2026-07-01T00:00:00.000Z',
+      rawJson: {
+        'id': 'series-1',
+        'subject': 'Weekly planning',
+        'type': 'seriesMaster',
+        'lastModifiedDateTime': '2026-07-01T00:00:00.000Z',
+      },
+    );
+    const occurrence = CalendarEventDto(
+      provider: BusyProvider.microsoft,
+      providerCalendarId: 'cal-1',
+      providerEventId: 'occurrence-1',
+      providerRecurringEventId: 'series-1',
+      providerOriginalStartKey: '2026-07-14T09:00:00.000Z',
+      title: 'Weekly planning',
+      startDateTime: '2026-07-14T09:00:00.000Z',
+      endDateTime: '2026-07-14T10:00:00.000Z',
+      eventType: 'occurrence',
+      updatedAtServer: '2026-07-10T00:00:00.000Z',
+      rawJson: {
+        'id': 'occurrence-1',
+        'seriesMasterId': 'series-1',
+        'originalStart': '2026-07-14T09:00:00.000Z',
+        'type': 'occurrence',
+        'lastModifiedDateTime': '2026-07-10T00:00:00.000Z',
+        'isOrganizer': true,
+      },
+    );
+    final client = _FakeCalendarClient(
+      provider: BusyProvider.microsoft,
+      calendars: const [source],
+      eventsById: const {'series-1': master},
+      pages: const [
+        CalendarSyncPageDto(events: [occurrence]),
+      ],
+    );
 
-      await CalendarSyncEngine(
-        database: database,
-        client: client,
-        accountId: 'account',
-        nowUtc: () => DateTime.utc(2026, 7, 10),
-      ).fullSync();
+    await CalendarSyncEngine(
+      database: database,
+      client: client,
+      accountId: 'account',
+      nowUtc: () => DateTime.utc(2026, 7, 10),
+    ).fullSync();
 
-      final occurrenceId = CalendarRepository.eventId(
-        accountId: 'account',
-        provider: BusyProvider.microsoft,
-        providerCalendarId: source.providerCalendarId,
-        providerEventId: occurrence.providerEventId,
-        providerOriginalStartKey: occurrence.providerOriginalStartKey,
-      );
-      final masterId = CalendarRepository.eventId(
-        accountId: 'account',
-        provider: BusyProvider.microsoft,
-        providerCalendarId: source.providerCalendarId,
-        providerEventId: master.providerEventId,
-      );
-      final storedMaster = await (database.select(
-        database.calendarEvents,
-      )..where((row) => row.id.equals(masterId))).getSingle();
-      expect(storedMaster.isDeleted, isTrue);
-      expect(storedMaster.updatedAtServer, master.updatedAtServer);
-      expect((jsonDecode(storedMaster.rawJson!) as Map)['id'], 'series-1');
-      final repository = CalendarRepository(database: database);
-      final detail = await repository.loadEventDetail(occurrenceId);
-      await repository.updateLocalEvent(
-        EventEditorDraft.fromEventDetail(detail!).copyWith(
-          title: 'Renamed series',
-          recurringMutationScope: RecurringEventMutationScope.entireSeries,
-        ),
-      );
-      await repository.deleteLocalEvent(
-        occurrenceId,
-        recurringScope: RecurringEventMutationScope.entireSeries,
-      );
+    final occurrenceId = CalendarRepository.eventId(
+      accountId: 'account',
+      provider: BusyProvider.microsoft,
+      providerCalendarId: source.providerCalendarId,
+      providerEventId: occurrence.providerEventId,
+      providerOriginalStartKey: occurrence.providerOriginalStartKey,
+    );
+    final masterId = CalendarRepository.eventId(
+      accountId: 'account',
+      provider: BusyProvider.microsoft,
+      providerCalendarId: source.providerCalendarId,
+      providerEventId: master.providerEventId,
+    );
+    final storedMaster = await (database.select(
+      database.calendarEvents,
+    )..where((row) => row.id.equals(masterId))).getSingle();
+    expect(storedMaster.isDeleted, isTrue);
+    expect(storedMaster.updatedAtServer, master.updatedAtServer);
+    expect((jsonDecode(storedMaster.rawJson!) as Map)['id'], 'series-1');
+    final repository = CalendarRepository(database: database);
+    final detail = await repository.loadEventDetail(occurrenceId);
+    await repository.updateLocalEvent(
+      EventEditorDraft.fromEventDetail(detail!).copyWith(
+        title: 'Renamed series',
+        recurringMutationScope: RecurringEventMutationScope.entireSeries,
+      ),
+    );
+    await repository.deleteLocalEvent(
+      occurrenceId,
+      recurringScope: RecurringEventMutationScope.entireSeries,
+    );
 
-      final operations = await (database.select(
-        database.pendingOps,
-      )..orderBy([(row) => OrderingTerm.asc(row.createdAtUtc)])).get();
-      expect(operations, hasLength(2));
-      expect(operations.map((operation) => operation.operationType), [
-        'event.patch',
-        'event.delete',
-      ]);
-      expect(
-        operations.map((operation) => operation.baselineUpdatedUtc),
-        everyElement(master.updatedAtServer),
-      );
-      expect(
-        operations.map(
-          (operation) => (jsonDecode(operation.baselineRawJson!) as Map)['id'],
-        ),
-        everyElement(master.providerEventId),
-      );
-    },
-  );
+    final operations = await (database.select(
+      database.pendingOps,
+    )..orderBy([(row) => OrderingTerm.asc(row.createdAtUtc)])).get();
+    expect(operations, hasLength(2));
+    expect(operations.map((operation) => operation.operationType), [
+      'event.patch',
+      'event.delete',
+    ]);
+    expect(
+      operations.map((operation) => operation.baselineUpdatedUtc),
+      everyElement(master.updatedAtServer),
+    );
+    expect(
+      operations.map(
+        (operation) => (jsonDecode(operation.baselineRawJson!) as Map)['id'],
+      ),
+      everyElement(master.providerEventId),
+    );
+  });
 
   test('no-cursor baseline reconciles a missing provider event', () async {
     const source = CalendarSourceDto(
@@ -1224,101 +1224,90 @@ void main() {
     },
   );
 
-  test(
-    'A Microsoft ID-only occurrence removal deletes its original row and reminder',
-    () async {
-      const source = CalendarSourceDto(
+  test('A Microsoft ID-only occurrence removal deletes its original row and reminder', () async {
+    const source = CalendarSourceDto(
+      provider: BusyProvider.microsoft,
+      providerCalendarId: 'cal-primary',
+      summary: 'Calendar',
+      primaryCalendar: true,
+    );
+    await _insertAccount(database, provider: BusyProvider.microsoft);
+    await _insertSource(database, source);
+    final repository = CalendarRepository(database: database);
+    await repository.upsertEvent(
+      accountId: 'account',
+      event: const CalendarEventDto(
         provider: BusyProvider.microsoft,
         providerCalendarId: 'cal-primary',
-        summary: 'Calendar',
-        primaryCalendar: true,
-      );
-      await _insertAccount(database, provider: BusyProvider.microsoft);
-      await _insertSource(database, source);
-      final repository = CalendarRepository(database: database);
-      await repository.upsertEvent(
-        accountId: 'account',
-        event: const CalendarEventDto(
-          provider: BusyProvider.microsoft,
-          providerCalendarId: 'cal-primary',
-          providerEventId: 'occurrence-1',
-          providerRecurringEventId: 'master-1',
-          providerOriginalStartKey: '2026-07-15T09:00:00Z',
-          title: 'Occurrence',
-          startDateTime: '2026-07-15T09:00:00Z',
-          endDateTime: '2026-07-15T10:00:00Z',
-          remindersJson: {
-            'isReminderOn': true,
-            'reminderMinutesBeforeStart': 10,
-          },
-        ),
-      );
-      await NotificationScheduleService(
-        database: database,
-        nowUtc: () => DateTime.utc(2026, 7, 15, 8),
-      ).rebuildUpcomingEventNotifications('account');
-      expect(
-        await database.select(database.notificationSchedule).get(),
-        hasLength(1),
-      );
-      expect(
-        await ScheduleRepository(
-          database,
-        ).listItems(range: ScheduleRange.day(DateTime(2026, 7, 15))),
-        isNotEmpty,
-      );
-      await repository.saveSyncState(
+        providerEventId: 'occurrence-1',
+        providerRecurringEventId: 'master-1',
+        providerOriginalStartKey: '2026-07-15T09:00:00Z',
+        title: 'Occurrence',
+        startDateTime: '2026-07-15T09:00:00Z',
+        endDateTime: '2026-07-15T10:00:00Z',
+        remindersJson: {'isReminderOn': true, 'reminderMinutesBeforeStart': 10},
+      ),
+    );
+    await NotificationScheduleService(
+      database: database,
+      nowUtc: () => DateTime.utc(2026, 7, 15, 8),
+    ).rebuildUpcomingEventNotifications('account');
+    expect(
+      await database.select(database.notificationSchedule).get(),
+      hasLength(1),
+    );
+    expect(
+      await ScheduleRepository(database)
+          .listItems(range: ScheduleRange.day(DateTime(2026, 7, 15))),
+      isNotEmpty,
+    );
+    await repository.saveSyncState(
+      accountId: 'account',
+      provider: BusyProvider.microsoft,
+      syncKind: 'events',
+      calendarSourceId: CalendarRepository.sourceId(
         accountId: 'account',
         provider: BusyProvider.microsoft,
-        syncKind: 'events',
-        calendarSourceId: CalendarRepository.sourceId(
-          accountId: 'account',
-          provider: BusyProvider.microsoft,
-          providerCalendarId: 'cal-primary',
-        ),
-        rangeStart: DateTime.utc(2025, 7).toIso8601String(),
-        rangeEnd: DateTime.utc(2028, 8).toIso8601String(),
-        cursorKind: 'microsoft_delta_link',
-        cursorValue: 'https://graph.example/delta',
-        full: true,
-      );
-      final marker = microsoftCalendarEventFromJson('cal-primary', {
-        'id': 'occurrence-1',
-        '@removed': {'reason': 'deleted'},
-      });
-      final client = _FakeCalendarClient(
-        provider: BusyProvider.microsoft,
-        calendars: const [source],
-        pages: [
-          CalendarSyncPageDto(events: [marker]),
-          CalendarSyncPageDto(events: [marker]),
-        ],
-        missingEventIds: const {'occurrence-1'},
-      );
-      final engine = CalendarSyncEngine(
-        database: database,
-        client: client,
-        accountId: 'account',
-        nowUtc: () => DateTime.utc(2026, 7, 15, 8),
-      );
-      await engine.incrementalSync();
-      await engine.incrementalSync();
-      final rows = await database.select(database.calendarEvents).get();
-      expect(rows, hasLength(1));
-      expect(rows.single.providerOriginalStartKey, '2026-07-15T09:00:00Z');
-      expect(rows.single.isDeleted, isTrue);
-      expect(
-        await ScheduleRepository(
-          database,
-        ).listItems(range: ScheduleRange.day(DateTime(2026, 7, 15))),
-        isEmpty,
-      );
-      expect(
-        await database.select(database.notificationSchedule).get(),
-        isEmpty,
-      );
-    },
-  );
+        providerCalendarId: 'cal-primary',
+      ),
+      rangeStart: DateTime.utc(2025, 7).toIso8601String(),
+      rangeEnd: DateTime.utc(2028, 8).toIso8601String(),
+      cursorKind: 'microsoft_delta_link',
+      cursorValue: 'https://graph.example/delta',
+      full: true,
+    );
+    final marker = microsoftCalendarEventFromJson('cal-primary', {
+      'id': 'occurrence-1',
+      '@removed': {'reason': 'deleted'},
+    });
+    final client = _FakeCalendarClient(
+      provider: BusyProvider.microsoft,
+      calendars: const [source],
+      pages: [
+        CalendarSyncPageDto(events: [marker]),
+        CalendarSyncPageDto(events: [marker]),
+      ],
+      missingEventIds: const {'occurrence-1'},
+    );
+    final engine = CalendarSyncEngine(
+      database: database,
+      client: client,
+      accountId: 'account',
+      nowUtc: () => DateTime.utc(2026, 7, 15, 8),
+    );
+    await engine.incrementalSync();
+    await engine.incrementalSync();
+    final rows = await database.select(database.calendarEvents).get();
+    expect(rows, hasLength(1));
+    expect(rows.single.providerOriginalStartKey, '2026-07-15T09:00:00Z');
+    expect(rows.single.isDeleted, isTrue);
+    expect(
+      await ScheduleRepository(database)
+          .listItems(range: ScheduleRange.day(DateTime(2026, 7, 15))),
+      isEmpty,
+    );
+    expect(await database.select(database.notificationSchedule).get(), isEmpty);
+  });
 
   test(
     'A Microsoft view removal preserves an event cached from another range',
@@ -1380,9 +1369,8 @@ void main() {
       expect(rows.single.isDeleted, isFalse);
       expect(rows.single.startDateTime, '2030-01-15T09:00:00Z');
       expect(
-        await ScheduleRepository(
-          database,
-        ).listItems(range: ScheduleRange.day(DateTime(2030, 1, 15))),
+        await ScheduleRepository(database)
+            .listItems(range: ScheduleRange.day(DateTime(2030, 1, 15))),
         hasLength(1),
       );
     },
@@ -1895,9 +1883,8 @@ void main() {
             updatedAtUtc: '2026-07-01T00:00:00.000Z',
           ),
         );
-    await CalendarRepository(
-      database: database,
-    ).upsertSource(accountId: 'other-account', source: unrelated);
+    await CalendarRepository(database: database)
+        .upsertSource(accountId: 'other-account', source: unrelated);
     final selectedId = CalendarRepository.sourceId(
       accountId: 'account',
       provider: BusyProvider.google,
@@ -1955,9 +1942,9 @@ void main() {
           providerEventId: id,
           title: id,
           startDateTime: start,
-          endDateTime: DateTime.parse(
-            start,
-          ).add(const Duration(hours: 1)).toIso8601String(),
+          endDateTime: DateTime.parse(start)
+              .add(const Duration(hours: 1))
+              .toIso8601String(),
           rawJson: {'id': id},
         ),
       );
@@ -2053,9 +2040,8 @@ Future<void> _insertAccount(
 }
 
 Future<void> _insertSource(AppDatabase database, CalendarSourceDto source) {
-  return CalendarRepository(
-    database: database,
-  ).upsertSource(accountId: 'account', source: source);
+  return CalendarRepository(database: database)
+      .upsertSource(accountId: 'account', source: source);
 }
 
 Future<String> _insertEvent(
@@ -2069,9 +2055,8 @@ Future<String> _insertEvent(
     providerCalendarId: providerCalendarId,
     remindersJson: remindersJson,
   );
-  await CalendarRepository(
-    database: database,
-  ).upsertEvent(accountId: 'account', event: event);
+  await CalendarRepository(database: database)
+      .upsertEvent(accountId: 'account', event: event);
   return CalendarRepository.eventId(
     accountId: 'account',
     provider: provider,

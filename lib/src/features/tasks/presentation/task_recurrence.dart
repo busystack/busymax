@@ -59,9 +59,8 @@ String? encodeSimpleTaskRecurrence(
     'pattern': pattern,
     'range': {
       'type': 'noEnd',
-      'startDate': providerWallTimeIso8601String(
-        recurrenceStart,
-      ).substring(0, 10),
+      'startDate': providerWallTimeIso8601String(recurrenceStart)
+          .substring(0, 10),
     },
   });
 }

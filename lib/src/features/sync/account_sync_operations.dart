@@ -2,12 +2,16 @@ import 'dart:async';
 
 import '../../providers/busy_provider.dart';
 
-typedef AccountSyncAction =
-    Future<void> Function(String accountId, {required bool full});
+typedef AccountSyncAction = Future<void> Function(
+  String accountId, {
+  required bool full,
+});
 typedef AccountProvider = Future<BusyProvider> Function(String accountId);
 typedef IncompleteTaskImportLoader = Future<Set<String>> Function();
-typedef IncompleteTaskImportWriter =
-    Future<void> Function(String accountId, bool incomplete);
+typedef IncompleteTaskImportWriter = Future<void> Function(
+  String accountId,
+  bool incomplete,
+);
 
 abstract interface class AccountSyncOperations {
   Future<void> syncAccount(String accountId, {required bool full});

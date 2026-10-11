@@ -1,7 +1,10 @@
 import 'package:busymax/src/l10n/time_format_scope.dart';
 import 'package:busymax/src/l10n/week_preferences_scope.dart';
+
 import 'dart:async';
+
 import '../../providers/busy_provider.dart';
+
 import 'dart:math' as math;
 
 import 'package:fluent_ui/fluent_ui.dart';
@@ -2372,9 +2375,8 @@ class WindowsScheduleMonthView extends StatelessWidget {
     }
     return ScheduleInteractionRegion(
       onReschedule: onReschedule,
-      previewColor: FluentTheme.of(
-        context,
-      ).accentColor.defaultBrushFor(FluentTheme.of(context).brightness),
+      previewColor: FluentTheme.of(context).accentColor
+          .defaultBrushFor(FluentTheme.of(context).brightness),
       previewBuilder: (context, interval, allDay) => Text(
         schedulePreviewLabel(context, interval, allDay),
         style: FluentTheme.of(context).typography.caption,
@@ -2444,9 +2446,8 @@ class WindowsScheduleMonthView extends StatelessWidget {
                                   style: day.month == selectedDate.month
                                       ? null
                                       : TextStyle(
-                                          color: FluentTheme.of(
-                                            context,
-                                          ).inactiveColor,
+                                          color: FluentTheme.of(context)
+                                              .inactiveColor,
                                         ),
                                 ),
                               ),
@@ -2643,9 +2644,8 @@ class WindowsScheduleYearView extends StatelessWidget {
                                         color: FluentTheme.of(context)
                                             .accentColor
                                             .defaultBrushFor(
-                                              FluentTheme.of(
-                                                context,
-                                              ).brightness,
+                                              FluentTheme.of(context)
+                                                  .brightness,
                                             ),
                                         width: selected ? 2 : 1,
                                       )

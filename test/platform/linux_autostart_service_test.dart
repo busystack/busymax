@@ -147,34 +147,30 @@ void main() {
       await service.setEnabled(false);
       expect(await service.isEnabled(), isFalse);
       expect(
-        await File(
-          path.join(configHome, 'autostart', busyMaxAutostartFileName),
-        ).exists(),
+        await File(path.join(configHome, 'autostart', busyMaxAutostartFileName))
+            .exists(),
         isFalse,
       );
     });
 
-    test(
-      'Snap reports the GNOME startup launch as externally managed',
-      () async {
-        environment.addAll({
-          'SNAP': '/snap/busymax/current',
-          'GIO_LAUNCHED_DESKTOP_FILE':
-              '/home/example/.config/autostart/busymax_busymax.desktop',
-          'GIO_LAUNCHED_DESKTOP_FILE_PID': '123',
-        });
-        expect(await service.state(), DesktopAutostartState.enabledExternally);
-        expect(await service.isEnabled(), isTrue);
-        expect((await service.state()).canChange, isFalse);
-        for (final enabled in [true, false]) {
-          await expectLater(service.setEnabled(enabled), throwsStateError);
-        }
-        expect(await Directory(configHome).exists(), isFalse);
-        // The external entry still controls startup even if a Snap entry exists.
-        await writeEntry(configHome, activeEntry);
-        expect(await service.state(), DesktopAutostartState.enabledExternally);
-      },
-    );
+    test('Snap reports the GNOME startup launch as externally managed', () async {
+      environment.addAll({
+        'SNAP': '/snap/busymax/current',
+        'GIO_LAUNCHED_DESKTOP_FILE':
+            '/home/example/.config/autostart/busymax_busymax.desktop',
+        'GIO_LAUNCHED_DESKTOP_FILE_PID': '123',
+      });
+      expect(await service.state(), DesktopAutostartState.enabledExternally);
+      expect(await service.isEnabled(), isTrue);
+      expect((await service.state()).canChange, isFalse);
+      for (final enabled in [true, false]) {
+        await expectLater(service.setEnabled(enabled), throwsStateError);
+      }
+      expect(await Directory(configHome).exists(), isFalse);
+      // The external entry still controls startup even if a Snap entry exists.
+      await writeEntry(configHome, activeEntry);
+      expect(await service.state(), DesktopAutostartState.enabledExternally);
+    });
 
     test('Snap ignores inherited GIO metadata from another process', () async {
       environment.addAll({

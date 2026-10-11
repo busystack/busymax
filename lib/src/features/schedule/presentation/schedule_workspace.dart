@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
@@ -39,7 +40,9 @@ import '../../../schedule/schedule_repository.dart';
 import '../../../schedule/schedule_scope.dart';
 import '../../../schedule/schedule_source_visibility.dart';
 import '../../../schedule/schedule_view_mode.dart';
+
 import 'package:busymax/src/providers/busy_provider.dart';
+
 import '../../calendar/presentation/event_editor.dart';
 import '../../calendar/presentation/event_editor_draft.dart';
 import '../../calendar/presentation/event_guest_delivery_dialog.dart';
@@ -2475,9 +2478,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                 title: context.l10n.singleOccurrence,
                 subtitle: context.l10n.chooseRecurringEventScope,
                 leading: const Icon(Icons.event_outlined),
-                onTap: () => Navigator.of(
-                  dialogContext,
-                ).pop(RecurringEventMutationScope.singleOccurrence),
+                onTap: () =>
+                    Navigator.of(dialogContext)
+                        .pop(RecurringEventMutationScope.singleOccurrence),
               ),
               BusyMaxActionRow(
                 title: context.l10n.thisAndFollowingEvents,
@@ -2491,17 +2494,17 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                 ),
                 enabled: supportsFollowing,
                 onTap: supportsFollowing
-                    ? () => Navigator.of(
-                        dialogContext,
-                      ).pop(RecurringEventMutationScope.thisAndFuture)
+                    ? () =>
+                          Navigator.of(dialogContext)
+                              .pop(RecurringEventMutationScope.thisAndFuture)
                     : null,
               ),
               BusyMaxActionRow(
                 title: context.l10n.entireSeries,
                 leading: const Icon(Icons.repeat),
-                onTap: () => Navigator.of(
-                  dialogContext,
-                ).pop(RecurringEventMutationScope.entireSeries),
+                onTap: () =>
+                    Navigator.of(dialogContext)
+                        .pop(RecurringEventMutationScope.entireSeries),
               ),
             ],
           ),

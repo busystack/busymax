@@ -1,5 +1,6 @@
 import 'package:busymax/src/ui/common/schedule/clock_hours_painter.dart';
 import 'package:busymax/src/l10n/time_format_scope.dart';
+
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 

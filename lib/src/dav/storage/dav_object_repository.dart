@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import '../../features/maps/data/location_resolution_repository.dart';
 
 import 'package:crypto/crypto.dart';
@@ -1217,22 +1218,21 @@ final class DavObjectRepository {
       );
     }
     final projections =
-        IcalEventProjector(
-          recurrenceExpander: _recurrenceExpander,
-        ).projectSemantic(
-          semantic,
-          rangeStartUtc: commit.projectionRangeStartUtc,
-          rangeEndUtc: commit.projectionRangeEndUtc,
-          transport: 'caldav',
-        );
+        IcalEventProjector(recurrenceExpander: _recurrenceExpander)
+            .projectSemantic(
+              semantic,
+              rangeStartUtc: commit.projectionRangeStartUtc,
+              rangeEndUtc: commit.projectionRangeEndUtc,
+              transport: 'caldav',
+            );
     final now = commit.completedAtUtc.toUtc().millisecondsSinceEpoch;
     for (final projected in projections) {
       final attendees = scheduling == null
           ? projected.attendeesJson
           : jsonEncode([
-              for (final raw
-                  in (jsonDecode(projected.attendeesJson) as List)
-                      .whereType<Map>())
+              for (final raw in (jsonDecode(
+                projected.attendeesJson,
+              ) as List).whereType<Map>())
                 nextcloudParticipantProjection(
                   Map<String, Object?>.from(raw),
                   scheduling,
@@ -1603,9 +1603,8 @@ final class DavObjectRepository {
         final baseline = operation.baselineRawIcs;
         final patch = operation.mutationPatchJson;
         if (baseline != null && patch != null) {
-          return DavMutationPatch.fromJsonString(
-            patch,
-          ).applyTo(baseline, nowUtc: nowUtc);
+          return DavMutationPatch.fromJsonString(patch)
+              .applyTo(baseline, nowUtc: nowUtc);
         }
       } else if (operation.operationType == 'dav.move') {
         final baseline = operation.baselineRawIcs;
@@ -1613,9 +1612,8 @@ final class DavObjectRepository {
           final patch = operation.mutationPatchJson;
           return patch == null
               ? baseline
-              : DavMutationPatch.fromJsonString(
-                  patch,
-                ).applyTo(baseline, nowUtc: nowUtc);
+              : DavMutationPatch.fromJsonString(patch)
+                    .applyTo(baseline, nowUtc: nowUtc);
         }
       }
     } on DavException {

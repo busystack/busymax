@@ -65,59 +65,56 @@ void main() {
     await database.close();
   });
 
-  test(
-    'guarded timing edit replays exact endpoints and guest policy without moving ownership',
-    () async {
-      final repository = CalendarRepository(database: database);
-      final id = await _insertEvent(
-        database,
-        providerEventId: 'drag-event',
-        startTimeZone: 'UTC',
-        endTimeZone: 'UTC',
-      );
-      final detail = (await repository.loadEventDetail(id))!;
-      client.remoteEvent = client._event(
-        'drag-event',
-        title: 'Base',
-        organizerJson: const {'self': true},
-      );
-      client.persistEventUpdates = true;
-      await repository.updateLocalEvent(
-        EventEditorDraft.fromEventDetail(detail).copyWith(
-          start: DateTime.utc(2026, 6, 8, 14, 15),
-          end: DateTime.utc(2026, 6, 8, 15, 45),
-        ),
-        timingBaseline: EventTimingBaseline.fromDetail(detail),
-        guestUpdatePolicy: CalendarGuestUpdatePolicy.doNotSend,
-      );
-      final replay = CalendarPendingOpsReplayer(
-        database: database,
-        client: client,
-        accountId: 'account',
-        nowUtc: () => DateTime.utc(2026, 6, 9),
-      );
-      expect(await replay.replayDueOps(), 1);
-      expect(await replay.replayDueOps(), 0);
-      final mutation = client.updatedMutations.single;
-      expect(
-        DateTime.parse(mutation.startDateTime!),
-        DateTime.utc(2026, 6, 8, 14, 15),
-      );
-      expect(
-        DateTime.parse(mutation.endDateTime!),
-        DateTime.utc(2026, 6, 8, 15, 45),
-      );
-      expect(mutation.title, equals(null));
-      expect(client.guestUpdatePolicies, [CalendarGuestUpdatePolicy.doNotSend]);
-      final saved = (await repository.loadEventDetail(id))!;
-      expect(saved.startDateTime, client.remoteEvent!.startDateTime);
-      expect(saved.endDateTime, client.remoteEvent!.endDateTime);
-      expect(saved.sourceId, detail.sourceId);
-      expect(saved.accountId, detail.accountId);
-      expect(saved.providerCalendarId, detail.providerCalendarId);
-      expect(saved.title, 'Base');
-    },
-  );
+  test('guarded timing edit replays exact endpoints and guest policy without moving ownership', () async {
+    final repository = CalendarRepository(database: database);
+    final id = await _insertEvent(
+      database,
+      providerEventId: 'drag-event',
+      startTimeZone: 'UTC',
+      endTimeZone: 'UTC',
+    );
+    final detail = (await repository.loadEventDetail(id))!;
+    client.remoteEvent = client._event(
+      'drag-event',
+      title: 'Base',
+      organizerJson: const {'self': true},
+    );
+    client.persistEventUpdates = true;
+    await repository.updateLocalEvent(
+      EventEditorDraft.fromEventDetail(detail).copyWith(
+        start: DateTime.utc(2026, 6, 8, 14, 15),
+        end: DateTime.utc(2026, 6, 8, 15, 45),
+      ),
+      timingBaseline: EventTimingBaseline.fromDetail(detail),
+      guestUpdatePolicy: CalendarGuestUpdatePolicy.doNotSend,
+    );
+    final replay = CalendarPendingOpsReplayer(
+      database: database,
+      client: client,
+      accountId: 'account',
+      nowUtc: () => DateTime.utc(2026, 6, 9),
+    );
+    expect(await replay.replayDueOps(), 1);
+    expect(await replay.replayDueOps(), 0);
+    final mutation = client.updatedMutations.single;
+    expect(
+      DateTime.parse(mutation.startDateTime!),
+      DateTime.utc(2026, 6, 8, 14, 15),
+    );
+    expect(
+      DateTime.parse(mutation.endDateTime!),
+      DateTime.utc(2026, 6, 8, 15, 45),
+    );
+    expect(mutation.title, equals(null));
+    expect(client.guestUpdatePolicies, [CalendarGuestUpdatePolicy.doNotSend]);
+    final saved = (await repository.loadEventDetail(id))!;
+    expect(saved.startDateTime, client.remoteEvent!.startDateTime);
+    expect(saved.endDateTime, client.remoteEvent!.endDateTime);
+    expect(saved.sourceId, detail.sourceId);
+    expect(saved.accountId, detail.accountId);
+    expect(saved.providerCalendarId, detail.providerCalendarId);
+    expect(saved.title, 'Base');
+  });
 
   for (final throughEngine in [false, true]) {
     for (final failSettings in [false, true]) {
@@ -444,9 +441,8 @@ void main() {
       );
       detail = (await repository.loadEventDetail(local.id))!;
       await repository.updateLocalEvent(
-        EventEditorDraft.fromEventDetail(
-          detail,
-        ).copyWith(location: 'Local room'),
+        EventEditorDraft.fromEventDetail(detail)
+            .copyWith(location: 'Local room'),
       );
       final queued = await database.select(database.pendingOps).get();
       final create = queued.singleWhere(
@@ -860,12 +856,9 @@ void main() {
         draft.copyWith(end: providerCivilDateTime(DateTime.utc(2026, 3, 8, 4))),
       );
 
-      final request =
-          jsonDecode(
-                (await database.select(database.pendingOps).getSingle())
-                    .requestJson,
-              )
-              as Map<String, Object?>;
+      final request = jsonDecode(
+        (await database.select(database.pendingOps).getSingle()).requestJson,
+      ) as Map<String, Object?>;
       expect(request['start'], '2026-03-08T02:30:00.000');
       expect(request['end'], '2026-03-08T04:00:00.000');
     },
@@ -1424,9 +1417,8 @@ void main() {
         sourceId: destination.calendarSourceId,
         itemId: destination.id,
       );
-      final remembered = await LocationResolutionRepository(
-        database,
-      ).load(destinationIdentity, 'Same room');
+      final remembered = await LocationResolutionRepository(database)
+          .load(destinationIdentity, 'Same room');
       expect(remembered, isNull);
       final resolved =
           await LocationDestinationResolver(
@@ -1512,42 +1504,40 @@ void main() {
     },
   );
 
-  test(
-    'recurring Google import keeps its supplemental point after create and expanded sync',
-    () async {
+  test('recurring Google import keeps its supplemental point after create and expanded sync', () async {
+    await database.close();
+    final directory = await createPersistenceTestDirectory(
+      'busymax-google-series-location-',
+    );
+    addTearDown(() async {
       await database.close();
-      final directory = await createPersistenceTestDirectory(
-        'busymax-google-series-location-',
-      );
-      addTearDown(() async {
-        await database.close();
-        database = AppDatabase(NativeDatabase.memory());
-        await directory.delete(recursive: true);
-      });
-      final databaseFile = File('${directory.path}/busymax.sqlite');
-      database = AppDatabase(NativeDatabase(databaseFile));
-      await _insertAccount(database);
-      await CalendarRepository(database: database).upsertSource(
-        accountId: 'account',
-        source: const CalendarSourceDto(
-          provider: BusyProvider.google,
-          providerCalendarId: 'cal-1',
-          summary: 'Work',
-          timeZone: 'America/Vancouver',
-          dataOwner: 'me@example.com',
-        ),
-      );
-      final repository = CalendarRepository(
-        database: database,
-        now: () => DateTime.utc(2026, 8, 29),
-      );
-      final importService = IcalImportService(
-        database: database,
-        calendarRepository: repository,
-      );
-      final preview = importService.parsePreview(
-        utf8.encode(
-          _icalCalendar('''
+      database = AppDatabase(NativeDatabase.memory());
+      await directory.delete(recursive: true);
+    });
+    final databaseFile = File('${directory.path}/busymax.sqlite');
+    database = AppDatabase(NativeDatabase(databaseFile));
+    await _insertAccount(database);
+    await CalendarRepository(database: database).upsertSource(
+      accountId: 'account',
+      source: const CalendarSourceDto(
+        provider: BusyProvider.google,
+        providerCalendarId: 'cal-1',
+        summary: 'Work',
+        timeZone: 'America/Vancouver',
+        dataOwner: 'me@example.com',
+      ),
+    );
+    final repository = CalendarRepository(
+      database: database,
+      now: () => DateTime.utc(2026, 8, 29),
+    );
+    final importService = IcalImportService(
+      database: database,
+      calendarRepository: repository,
+    );
+    final preview = importService.parsePreview(
+      utf8.encode(
+        _icalCalendar('''
 BEGIN:VEVENT
 UID:recurring-location-import
 DTSTART:20260830T160000Z
@@ -1558,225 +1548,222 @@ GEO:49.2827;-123.1207
 RRULE:FREQ=WEEKLY;COUNT=2
 END:VEVENT
 '''),
-        ),
-      );
+      ),
+    );
 
-      final report = await importService.importPreview(
-        preview: preview,
-        destination: (await importService.writableDestinations()).single,
-      );
-      expect(report.queued, 1);
-      expect(
-        await database.select(database.locationResolutions).get(),
-        hasLength(1),
-      );
+    final report = await importService.importPreview(
+      preview: preview,
+      destination: (await importService.writableDestinations()).single,
+    );
+    expect(report.queued, 1);
+    expect(
+      await database.select(database.locationResolutions).get(),
+      hasLength(1),
+    );
 
-      client.createEventOverride = (calendarId, mutation) => CalendarEventDto(
-        provider: BusyProvider.google,
-        providerCalendarId: calendarId,
-        providerEventId: mutation.providerEventId ?? 'imported-master',
-        title: mutation.title!,
-        location: mutation.location,
-        startDateTime: mutation.startDateTime,
-        startTimeZone: mutation.startTimeZone,
-        endDateTime: mutation.endDateTime,
-        endTimeZone: mutation.endTimeZone,
-        recurrenceJson: mutation.recurrence,
-        rawJson: {
-          'id': mutation.providerEventId ?? 'imported-master',
-          'summary': mutation.title,
-          'location': mutation.location,
-          'start': {
-            'dateTime': mutation.startDateTime,
-            'timeZone': mutation.startTimeZone,
-          },
-          'end': {
-            'dateTime': mutation.endDateTime,
-            'timeZone': mutation.endTimeZone,
-          },
-          'recurrence': mutation.recurrence,
+    client.createEventOverride = (calendarId, mutation) => CalendarEventDto(
+      provider: BusyProvider.google,
+      providerCalendarId: calendarId,
+      providerEventId: mutation.providerEventId ?? 'imported-master',
+      title: mutation.title!,
+      location: mutation.location,
+      startDateTime: mutation.startDateTime,
+      startTimeZone: mutation.startTimeZone,
+      endDateTime: mutation.endDateTime,
+      endTimeZone: mutation.endTimeZone,
+      recurrenceJson: mutation.recurrence,
+      rawJson: {
+        'id': mutation.providerEventId ?? 'imported-master',
+        'summary': mutation.title,
+        'location': mutation.location,
+        'start': {
+          'dateTime': mutation.startDateTime,
+          'timeZone': mutation.startTimeZone,
         },
-      );
-      expect(
-        await CalendarPendingOpsReplayer(
-          database: database,
-          client: client,
-          accountId: 'account',
-          nowUtc: () => DateTime.utc(2026, 8, 29),
-        ).replayDueOps(),
-        1,
-      );
-
-      final master = await database.select(database.calendarEvents).getSingle();
-      expect(master.providerRecurringEventId, isNull);
-      expect(master.recurrenceJson, isNotNull);
-      final confirmedResolutions = await database
-          .select(database.locationResolutions)
-          .get();
-      expect(confirmedResolutions, hasLength(2));
-      expect(
-        confirmedResolutions
-            .where((row) => row.kind == LocationItemKind.event.name)
-            .single
-            .itemId,
-        master.id,
-      );
-      expect(
-        confirmedResolutions
-            .where((row) => row.kind == googleSeriesLocationResolutionKind)
-            .single
-            .itemId,
-        master.providerEventId,
-      );
-
-      CalendarEventDto occurrence({
-        required String id,
-        required String originalStart,
-      }) => CalendarEventDto(
-        provider: BusyProvider.google,
-        providerCalendarId: 'cal-1',
-        providerEventId: id,
-        providerRecurringEventId: master.providerEventId,
-        providerOriginalStartKey: originalStart,
-        title: 'Imported series',
-        location: 'Room 2',
-        startDateTime: originalStart,
-        startTimeZone: 'UTC',
-        endDateTime: DateTime.parse(
-          originalStart,
-        ).add(const Duration(hours: 1)).toIso8601String(),
-        endTimeZone: 'UTC',
-        rawJson: {
-          'id': id,
-          'recurringEventId': master.providerEventId,
-          'originalStartTime': {'dateTime': originalStart},
-          'summary': 'Imported series',
-          'location': 'Room 2',
+        'end': {
+          'dateTime': mutation.endDateTime,
+          'timeZone': mutation.endTimeZone,
         },
-      );
-
-      client.syncEventsOverride = [
-        occurrence(
-          id: 'import-instance-1',
-          originalStart: '2026-08-30T16:00:00.000Z',
-        ),
-      ];
-      await CalendarSyncEngine(
+        'recurrence': mutation.recurrence,
+      },
+    );
+    expect(
+      await CalendarPendingOpsReplayer(
         database: database,
         client: client,
         accountId: 'account',
         nowUtc: () => DateTime.utc(2026, 8, 29),
-      ).fullSync();
+      ).replayDueOps(),
+      1,
+    );
 
-      final events = await database.select(database.calendarEvents).get();
-      expect(
-        events.singleWhere((event) => event.id == master.id).isDeleted,
-        isTrue,
-      );
-      final instances = events
-          .where(
-            (event) => event.providerRecurringEventId == master.providerEventId,
-          )
-          .toList();
-      expect(instances, hasLength(1), reason: events.toString());
-      expect(
-        instances,
-        everyElement(
-          isNot(predicate<CalendarEvent>((event) => event.isDeleted)),
+    final master = await database.select(database.calendarEvents).getSingle();
+    expect(master.providerRecurringEventId, isNull);
+    expect(master.recurrenceJson, isNotNull);
+    final confirmedResolutions = await database
+        .select(database.locationResolutions)
+        .get();
+    expect(confirmedResolutions, hasLength(2));
+    expect(
+      confirmedResolutions
+          .where((row) => row.kind == LocationItemKind.event.name)
+          .single
+          .itemId,
+      master.id,
+    );
+    expect(
+      confirmedResolutions
+          .where((row) => row.kind == googleSeriesLocationResolutionKind)
+          .single
+          .itemId,
+      master.providerEventId,
+    );
+
+    CalendarEventDto occurrence({
+      required String id,
+      required String originalStart,
+    }) => CalendarEventDto(
+      provider: BusyProvider.google,
+      providerCalendarId: 'cal-1',
+      providerEventId: id,
+      providerRecurringEventId: master.providerEventId,
+      providerOriginalStartKey: originalStart,
+      title: 'Imported series',
+      location: 'Room 2',
+      startDateTime: originalStart,
+      startTimeZone: 'UTC',
+      endDateTime: DateTime.parse(originalStart)
+          .add(const Duration(hours: 1))
+          .toIso8601String(),
+      endTimeZone: 'UTC',
+      rawJson: {
+        'id': id,
+        'recurringEventId': master.providerEventId,
+        'originalStartTime': {'dateTime': originalStart},
+        'summary': 'Imported series',
+        'location': 'Room 2',
+      },
+    );
+
+    client.syncEventsOverride = [
+      occurrence(
+        id: 'import-instance-1',
+        originalStart: '2026-08-30T16:00:00.000Z',
+      ),
+    ];
+    await CalendarSyncEngine(
+      database: database,
+      client: client,
+      accountId: 'account',
+      nowUtc: () => DateTime.utc(2026, 8, 29),
+    ).fullSync();
+
+    final events = await database.select(database.calendarEvents).get();
+    expect(
+      events.singleWhere((event) => event.id == master.id).isDeleted,
+      isTrue,
+    );
+    final instances = events
+        .where(
+          (event) => event.providerRecurringEventId == master.providerEventId,
+        )
+        .toList();
+    expect(instances, hasLength(1), reason: events.toString());
+    expect(
+      instances,
+      everyElement(isNot(predicate<CalendarEvent>((event) => event.isDeleted))),
+    );
+    final rememberedBeforeResolution = await database
+        .select(database.locationResolutions)
+        .get();
+    expect(
+      rememberedBeforeResolution,
+      hasLength(1),
+      reason: 'calls=${client.calls}, events=$events, master=$master',
+    );
+    expect(
+      rememberedBeforeResolution.single.kind,
+      googleSeriesLocationResolutionKind,
+    );
+    expect(rememberedBeforeResolution.single.itemId, master.providerEventId);
+    expect(
+      rememberedBeforeResolution,
+      everyElement(
+        isA<LocationResolution>()
+            .having((row) => row.latitude, 'latitude', 49.2827)
+            .having((row) => row.longitude, 'longitude', -123.1207)
+            .having((row) => row.source, 'source', 'ical')
+            .having(
+              (row) => row.attribution,
+              'attribution',
+              'Imported iCalendar GEO',
+            ),
+      ),
+    );
+
+    final resolver = LocationDestinationResolver(
+      LocationResolutionRepository(database),
+    );
+    for (final instance in instances) {
+      final resolved = await resolver.resolveSaved(
+        location: instance.location ?? '',
+        identity: LocationItemIdentity(
+          kind: LocationItemKind.event,
+          accountId: instance.accountId,
+          sourceId: instance.calendarSourceId,
+          itemId: instance.id,
         ),
       );
-      final rememberedBeforeResolution = await database
-          .select(database.locationResolutions)
-          .get();
       expect(
-        rememberedBeforeResolution,
-        hasLength(1),
-        reason: 'calls=${client.calls}, events=$events, master=$master',
-      );
-      expect(
-        rememberedBeforeResolution.single.kind,
-        googleSeriesLocationResolutionKind,
-      );
-      expect(rememberedBeforeResolution.single.itemId, master.providerEventId);
-      expect(
-        rememberedBeforeResolution,
-        everyElement(
-          isA<LocationResolution>()
-              .having((row) => row.latitude, 'latitude', 49.2827)
-              .having((row) => row.longitude, 'longitude', -123.1207)
-              .having((row) => row.source, 'source', 'ical')
-              .having(
-                (row) => row.attribution,
-                'attribution',
-                'Imported iCalendar GEO',
-              ),
-        ),
-      );
-
-      final resolver = LocationDestinationResolver(
-        LocationResolutionRepository(database),
-      );
-      for (final instance in instances) {
-        final resolved = await resolver.resolveSaved(
-          location: instance.location ?? '',
-          identity: LocationItemIdentity(
-            kind: LocationItemKind.event,
-            accountId: instance.accountId,
-            sourceId: instance.calendarSourceId,
-            itemId: instance.id,
-          ),
-        );
-        expect(
-          resolved?.point,
-          GeographicPoint(latitude: 49.2827, longitude: -123.1207),
-        );
-      }
-      expect(
-        await database.select(database.locationResolutions).get(),
-        rememberedBeforeResolution,
-      );
-
-      await database.close();
-      database = AppDatabase(NativeDatabase(databaseFile));
-      final reopenedResolver = LocationDestinationResolver(
-        LocationResolutionRepository(database),
-      );
-
-      client.syncEventsOverride = [
-        occurrence(
-          id: 'import-instance-later',
-          originalStart: '2026-09-06T16:00:00.000Z',
-        ),
-      ];
-      await CalendarSyncEngine(
-        database: database,
-        client: client,
-        accountId: 'account',
-        nowUtc: () => DateTime.utc(2026, 9, 5),
-      ).fullSync();
-      final later = (await database.select(database.calendarEvents).get())
-          .singleWhere(
-            (event) => event.providerEventId == 'import-instance-later',
-          );
-      expect(
-        (await reopenedResolver.resolveSaved(
-          location: later.location ?? '',
-          identity: LocationItemIdentity(
-            kind: LocationItemKind.event,
-            accountId: later.accountId,
-            sourceId: later.calendarSourceId,
-            itemId: later.id,
-          ),
-        ))?.point,
+        resolved?.point,
         GeographicPoint(latitude: 49.2827, longitude: -123.1207),
       );
-      expect(
-        await database.select(database.locationResolutions).get(),
-        rememberedBeforeResolution,
-      );
-      expect(await database.select(database.pendingOps).get(), isEmpty);
-    },
-  );
+    }
+    expect(
+      await database.select(database.locationResolutions).get(),
+      rememberedBeforeResolution,
+    );
+
+    await database.close();
+    database = AppDatabase(NativeDatabase(databaseFile));
+    final reopenedResolver = LocationDestinationResolver(
+      LocationResolutionRepository(database),
+    );
+
+    client.syncEventsOverride = [
+      occurrence(
+        id: 'import-instance-later',
+        originalStart: '2026-09-06T16:00:00.000Z',
+      ),
+    ];
+    await CalendarSyncEngine(
+      database: database,
+      client: client,
+      accountId: 'account',
+      nowUtc: () => DateTime.utc(2026, 9, 5),
+    ).fullSync();
+    final later = (await database.select(database.calendarEvents).get())
+        .singleWhere(
+          (event) => event.providerEventId == 'import-instance-later',
+        );
+    expect(
+      (await reopenedResolver.resolveSaved(
+        location: later.location ?? '',
+        identity: LocationItemIdentity(
+          kind: LocationItemKind.event,
+          accountId: later.accountId,
+          sourceId: later.calendarSourceId,
+          itemId: later.id,
+        ),
+      ))?.point,
+      GeographicPoint(latitude: 49.2827, longitude: -123.1207),
+    );
+    expect(
+      await database.select(database.locationResolutions).get(),
+      rememberedBeforeResolution,
+    );
+    expect(await database.select(database.pendingOps).get(), isEmpty);
+  });
 
   test('explicit replacement and clear win while copying an event', () async {
     await _insertMicrosoftAccountAndSource(database);
@@ -1940,9 +1927,8 @@ END:VEVENT
       );
 
       expect(
-        await LocationResolutionRepository(
-          database,
-        ).load(unrelatedIdentity, 'Shared hall'),
+        await LocationResolutionRepository(database)
+            .load(unrelatedIdentity, 'Shared hall'),
         unrelatedSelection,
       );
       final copied =
@@ -2021,9 +2007,8 @@ END:VEVENT
         isEmpty,
       );
       expect(
-        await LocationResolutionRepository(
-          database,
-        ).load(sourceIdentity, 'Source room'),
+        await LocationResolutionRepository(database)
+            .load(sourceIdentity, 'Source room'),
         isNotNull,
       );
       expect(
@@ -2098,9 +2083,8 @@ END:VEVENT
         itemId: destination.id,
       );
       expect(
-        await LocationResolutionRepository(
-          database,
-        ).load(destinationIdentity, 'Mapped room'),
+        await LocationResolutionRepository(database)
+            .load(destinationIdentity, 'Mapped room'),
         isNull,
       );
       final resolved =
@@ -2448,9 +2432,8 @@ END:VEVENT
       );
       final detail = (await repository.loadEventDetail(eventId))!;
       await repository.updateLocalEvent(
-        EventEditorDraft.fromEventDetail(
-          detail,
-        ).copyWith(eventLabelId: 'label-1'),
+        EventEditorDraft.fromEventDetail(detail)
+            .copyWith(eventLabelId: 'label-1'),
       );
       final requests = <http.Request>[];
       final api = GoogleCalendarApiClient(
@@ -2708,9 +2691,8 @@ END:VEVENT
       providerEventId: 'label-conflict',
     );
     await repository.updateLocalEvent(
-      EventEditorDraft.fromEventDetail(
-        (await repository.loadEventDetail(id))!,
-      ).copyWith(eventLabelId: 'label-b'),
+      EventEditorDraft.fromEventDetail((await repository.loadEventDetail(id))!)
+          .copyWith(eventLabelId: 'label-b'),
     );
     final requests = <http.Request>[];
     final api = GoogleCalendarApiClient(
@@ -3077,13 +3059,9 @@ END:VEVENT
         ).replayDueOps(),
         1,
       );
-      final posted =
-          jsonDecode(
-                requests
-                    .singleWhere((request) => request.method == 'POST')
-                    .body,
-              )
-              as Map;
+      final posted = jsonDecode(
+        requests.singleWhere((request) => request.method == 'POST').body,
+      ) as Map;
       expect(posted['eventType'], 'workingLocation');
       expect((posted['workingLocationProperties'] as Map)['customLocation'], {
         'label': 'Library',
@@ -3711,170 +3689,163 @@ END:VEVENT
     },
   );
 
-  test(
-    'Google following title/time split copies the series point once across retry and sync',
-    () async {
-      final repository = CalendarRepository(database: database);
-      final ids = <String>[];
-      for (final day in [1, 8, 15]) {
-        ids.add(
-          await _insertGoogleOccurrence(
-            repository,
-            day: day,
-            location: 'Room 2',
-          ),
-        );
-      }
-      await _insertGoogleSeriesResolution(database);
-      final detail = await repository.loadEventDetail(ids[1]);
-      await repository.updateLocalEvent(
-        EventEditorDraft.fromEventDetail(detail!).copyWith(
-          title: 'New series title',
-          start: DateTime.utc(2026, 6, 8, 10),
-          end: DateTime.utc(2026, 6, 8, 11),
-          recurringMutationScope: RecurringEventMutationScope.thisAndFuture,
-        ),
+  test('Google following title/time split copies the series point once across retry and sync', () async {
+    final repository = CalendarRepository(database: database);
+    final ids = <String>[];
+    for (final day in [1, 8, 15]) {
+      ids.add(
+        await _insertGoogleOccurrence(repository, day: day, location: 'Room 2'),
       );
-      final operation = await database.select(database.pendingOps).getSingle();
-      final splitSeriesId = operation.id.replaceAll('-', '').toLowerCase();
-      client
-        ..remoteEvent = _googleSeriesMaster(location: 'Room 2')
-        ..eventInstances = [
-          _googleSeriesInstance(day: 1, location: 'Room 2'),
-          _googleSeriesInstance(day: 8, location: 'Room 2'),
-          _googleSeriesInstance(day: 15, location: 'Room 2'),
-        ]
-        ..createEventResponseError = StateError('response lost');
-
-      expect(
-        await CalendarPendingOpsReplayer(
-          database: database,
-          client: client,
-          accountId: 'account',
-          nowUtc: () => DateTime.utc(2026, 6, 8),
-        ).replayDueOps(),
-        0,
-      );
-      expect(
-        (await database.select(database.locationResolutions).get()).map(
-          (row) => row.itemId,
-        ),
-        ['series-master'],
-      );
-
-      expect(
-        await CalendarPendingOpsReplayer(
-          database: database,
-          client: client,
-          accountId: 'account',
-          nowUtc: () => DateTime.utc(2026, 6, 9),
-        ).replayDueOps(),
-        1,
-      );
-      expect(client.distinctCreatedEventCount, 1);
-      expect(
-        client.createdMutations.map((mutation) => mutation.providerEventId),
-        [splitSeriesId, splitSeriesId],
-      );
-      final seriesResolutions = await database
-          .select(database.locationResolutions)
-          .get();
-      expect(seriesResolutions, hasLength(2));
-      expect(seriesResolutions.map((row) => row.itemId).toSet(), {
-        'series-master',
-        splitSeriesId,
-      });
-      expect(
-        seriesResolutions,
-        everyElement(
-          isA<LocationResolution>()
-              .having((row) => row.locationText, 'location', 'Room 2')
-              .having((row) => row.latitude, 'latitude', 49.2827)
-              .having((row) => row.longitude, 'longitude', -123.1207)
-              .having((row) => row.source, 'source', 'ical')
-              .having(
-                (row) => row.attribution,
-                'attribution',
-                'Imported iCalendar GEO',
-              ),
-        ),
-      );
-
-      client.syncEventsOverride = [
+    }
+    await _insertGoogleSeriesResolution(database);
+    final detail = await repository.loadEventDetail(ids[1]);
+    await repository.updateLocalEvent(
+      EventEditorDraft.fromEventDetail(detail!).copyWith(
+        title: 'New series title',
+        start: DateTime.utc(2026, 6, 8, 10),
+        end: DateTime.utc(2026, 6, 8, 11),
+        recurringMutationScope: RecurringEventMutationScope.thisAndFuture,
+      ),
+    );
+    final operation = await database.select(database.pendingOps).getSingle();
+    final splitSeriesId = operation.id.replaceAll('-', '').toLowerCase();
+    client
+      ..remoteEvent = _googleSeriesMaster(location: 'Room 2')
+      ..eventInstances = [
         _googleSeriesInstance(day: 1, location: 'Room 2'),
-        _googleSeriesInstance(
-          day: 8,
-          id: 'split-instance-08',
-          seriesId: splitSeriesId,
-          title: 'New series title',
-          location: 'Room 2',
-          startHour: 10,
-        ),
-        _googleSeriesInstance(
-          day: 15,
-          id: 'split-instance-15',
-          seriesId: splitSeriesId,
-          title: 'New series title',
-          location: 'Room 2',
-          startHour: 10,
-        ),
-      ];
-      await CalendarSyncEngine(
+        _googleSeriesInstance(day: 8, location: 'Room 2'),
+        _googleSeriesInstance(day: 15, location: 'Room 2'),
+      ]
+      ..createEventResponseError = StateError('response lost');
+
+    expect(
+      await CalendarPendingOpsReplayer(
         database: database,
         client: client,
         accountId: 'account',
-        nowUtc: () => DateTime.utc(2026, 6, 10),
-      ).fullSync();
+        nowUtc: () => DateTime.utc(2026, 6, 8),
+      ).replayDueOps(),
+      0,
+    );
+    expect(
+      (await database.select(database.locationResolutions).get()).map(
+        (row) => row.itemId,
+      ),
+      ['series-master'],
+    );
 
-      final active = (await database.select(database.calendarEvents).get())
-          .where((event) => !event.isDeleted)
-          .toList();
-      expect(active, hasLength(3));
-      expect(active.map((event) => event.providerRecurringEventId).toSet(), {
-        'series-master',
-        splitSeriesId,
-      });
-      for (final event in active) {
-        final resolved = await LocationResolutionRepository(database).load(
-          LocationItemIdentity(
-            kind: LocationItemKind.event,
-            accountId: event.accountId,
-            sourceId: event.calendarSourceId,
-            itemId: event.id,
-          ),
-          event.location ?? '',
-        );
-        expect(
-          resolved,
-          isA<LocationResult>()
-              .having(
-                (result) => result.point,
-                'point',
-                GeographicPoint(latitude: 49.2827, longitude: -123.1207),
-              )
-              .having((result) => result.source, 'source', 'ical')
-              .having(
-                (result) => result.attribution,
-                'attribution',
-                'Imported iCalendar GEO',
-              ),
-        );
-      }
-      expect(
-        await CalendarPendingOpsReplayer(
-          database: database,
-          client: client,
-          accountId: 'account',
-          nowUtc: () => DateTime.utc(2026, 6, 11),
-        ).replayDueOps(),
-        0,
+    expect(
+      await CalendarPendingOpsReplayer(
+        database: database,
+        client: client,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 9),
+      ).replayDueOps(),
+      1,
+    );
+    expect(client.distinctCreatedEventCount, 1);
+    expect(
+      client.createdMutations.map((mutation) => mutation.providerEventId),
+      [splitSeriesId, splitSeriesId],
+    );
+    final seriesResolutions = await database
+        .select(database.locationResolutions)
+        .get();
+    expect(seriesResolutions, hasLength(2));
+    expect(seriesResolutions.map((row) => row.itemId).toSet(), {
+      'series-master',
+      splitSeriesId,
+    });
+    expect(
+      seriesResolutions,
+      everyElement(
+        isA<LocationResolution>()
+            .having((row) => row.locationText, 'location', 'Room 2')
+            .having((row) => row.latitude, 'latitude', 49.2827)
+            .having((row) => row.longitude, 'longitude', -123.1207)
+            .having((row) => row.source, 'source', 'ical')
+            .having(
+              (row) => row.attribution,
+              'attribution',
+              'Imported iCalendar GEO',
+            ),
+      ),
+    );
+
+    client.syncEventsOverride = [
+      _googleSeriesInstance(day: 1, location: 'Room 2'),
+      _googleSeriesInstance(
+        day: 8,
+        id: 'split-instance-08',
+        seriesId: splitSeriesId,
+        title: 'New series title',
+        location: 'Room 2',
+        startHour: 10,
+      ),
+      _googleSeriesInstance(
+        day: 15,
+        id: 'split-instance-15',
+        seriesId: splitSeriesId,
+        title: 'New series title',
+        location: 'Room 2',
+        startHour: 10,
+      ),
+    ];
+    await CalendarSyncEngine(
+      database: database,
+      client: client,
+      accountId: 'account',
+      nowUtc: () => DateTime.utc(2026, 6, 10),
+    ).fullSync();
+
+    final active = (await database.select(database.calendarEvents).get())
+        .where((event) => !event.isDeleted)
+        .toList();
+    expect(active, hasLength(3));
+    expect(active.map((event) => event.providerRecurringEventId).toSet(), {
+      'series-master',
+      splitSeriesId,
+    });
+    for (final event in active) {
+      final resolved = await LocationResolutionRepository(database).load(
+        LocationItemIdentity(
+          kind: LocationItemKind.event,
+          accountId: event.accountId,
+          sourceId: event.calendarSourceId,
+          itemId: event.id,
+        ),
+        event.location ?? '',
       );
       expect(
-        await database.select(database.locationResolutions).get(),
-        hasLength(2),
+        resolved,
+        isA<LocationResult>()
+            .having(
+              (result) => result.point,
+              'point',
+              GeographicPoint(latitude: 49.2827, longitude: -123.1207),
+            )
+            .having((result) => result.source, 'source', 'ical')
+            .having(
+              (result) => result.attribution,
+              'attribution',
+              'Imported iCalendar GEO',
+            ),
       );
-    },
-  );
+    }
+    expect(
+      await CalendarPendingOpsReplayer(
+        database: database,
+        client: client,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 11),
+      ).replayDueOps(),
+      0,
+    );
+    expect(
+      await database.select(database.locationResolutions).get(),
+      hasLength(2),
+    );
+  });
 
   test(
     'Google following location split keeps only the earlier series point',
@@ -4400,9 +4371,8 @@ END:VEVENT
         address: const {'city': 'First city'},
       );
       await repository.updateLocalEvent(
-        EventEditorDraft.fromEventDetail(
-          detail,
-        ).copyWith(locationChange: LocationChange.replace(first)),
+        EventEditorDraft.fromEventDetail(detail)
+            .copyWith(locationChange: LocationChange.replace(first)),
       );
       detail = (await repository.loadEventDetail(eventId))!;
       final second = LocationResult(
@@ -4411,9 +4381,8 @@ END:VEVENT
         address: const {'city': 'Second city'},
       );
       await repository.updateLocalEvent(
-        EventEditorDraft.fromEventDetail(
-          detail,
-        ).copyWith(locationChange: LocationChange.replace(second)),
+        EventEditorDraft.fromEventDetail(detail)
+            .copyWith(locationChange: LocationChange.replace(second)),
       );
 
       final replayer = CalendarPendingOpsReplayer(
@@ -4714,15 +4683,13 @@ END:VEVENT
 
       var detail = await repository.loadEventDetail(eventId);
       await repository.updateLocalEvent(
-        EventEditorDraft.fromEventDetail(
-          detail!,
-        ).copyWith(title: 'First local title'),
+        EventEditorDraft.fromEventDetail(detail!)
+            .copyWith(title: 'First local title'),
       );
       detail = await repository.loadEventDetail(eventId);
       await repository.updateLocalEvent(
-        EventEditorDraft.fromEventDetail(
-          detail!,
-        ).copyWith(location: 'Second local room'),
+        EventEditorDraft.fromEventDetail(detail!)
+            .copyWith(location: 'Second local room'),
       );
 
       client
@@ -5322,9 +5289,8 @@ END:VEVENT
       providerEventId: 'provider-event',
     );
 
-    final accountId = await CalendarRepository(
-      database: database,
-    ).deleteLocalEvent(eventId);
+    final accountId = await CalendarRepository(database: database)
+        .deleteLocalEvent(eventId);
 
     expect(accountId, 'account');
     final pending = await database.pendingOpsDao.pendingOpsForReplay(
@@ -5670,9 +5636,8 @@ END:VEVENT
       pending = await database.select(database.pendingOps).getSingle();
       expect(pending.attemptCount, 1);
       expect(
-        DateTime.parse(
-          pending.nextAttemptAtUtc!,
-        ).isAfter(DateTime.utc(2026, 6, 8)),
+        DateTime.parse(pending.nextAttemptAtUtc!)
+            .isAfter(DateTime.utc(2026, 6, 8)),
         isTrue,
       );
       expect(
@@ -5903,9 +5868,8 @@ END:VEVENT
       await (database.update(database.calendarSources)
             ..where((row) => row.id.equals('account|google|cal-1')))
           .write(const CalendarSourcesCompanion(hidden: Value(true)));
-      await CalendarRepository(
-        database: database,
-      ).deleteLocalSource('account|google|cal-1');
+      await CalendarRepository(database: database)
+          .deleteLocalSource('account|google|cal-1');
       client.calendarDeleteError = const GoogleCalendarApiError(
         statusCode: 403,
         code: 'forbidden',
@@ -5938,9 +5902,8 @@ END:VEVENT
       )..where((row) => row.id.equals('account|google|cal-1'))).write(
         const CalendarSourcesCompanion(dataOwner: Value('other@example.com')),
       );
-      await CalendarRepository(
-        database: database,
-      ).deleteLocalSource('account|google|cal-1');
+      await CalendarRepository(database: database)
+          .deleteLocalSource('account|google|cal-1');
       client.calendarListDeleteError = const GoogleCalendarApiError(
         statusCode: 403,
         code: 'forbidden',
@@ -5971,9 +5934,8 @@ END:VEVENT
       () async {
         await _insertMicrosoftAccountAndSource(database, isRemovable: true);
         const sourceId = 'microsoft-account|microsoft|ms-cal-1';
-        await CalendarRepository(
-          database: database,
-        ).deleteLocalSource(sourceId);
+        await CalendarRepository(database: database)
+            .deleteLocalSource(sourceId);
         final microsoftClient = _FakeMicrosoftCalendarClient()
           ..calendarDeleteError = MicrosoftCalendarApiError(
             statusCode: statusCode,
@@ -6285,9 +6247,8 @@ Future<String> _insertEvent(
       },
     },
   );
-  await CalendarRepository(
-    database: database,
-  ).upsertEvent(accountId: 'account', event: event);
+  await CalendarRepository(database: database)
+      .upsertEvent(accountId: 'account', event: event);
   return CalendarRepository.eventId(
     accountId: 'account',
     provider: BusyProvider.google,
@@ -6422,9 +6383,9 @@ CalendarEventDto _googleSeriesInstance({
   final start =
       actualStart?.toIso8601String() ??
       '2026-06-${date}T${startHour.toString().padLeft(2, '0')}:00:00.000Z';
-  final end = DateTime.parse(
-    start,
-  ).add(const Duration(hours: 1)).toIso8601String();
+  final end = DateTime.parse(start)
+      .add(const Duration(hours: 1))
+      .toIso8601String();
   final eventId = id ?? 'instance-$date';
   return CalendarEventDto(
     provider: BusyProvider.google,
@@ -6455,9 +6416,8 @@ List<DateTime> _weeklyOccurrenceStarts(CalendarEventMutation mutation) {
   final recurrence = (mutation.recurrence as List?)
       ?.map((value) => value.toString())
       .firstWhere((value) => value.startsWith('RRULE:'), orElse: () => '');
-  final countMatch = RegExp(
-    r'(?:^|;)COUNT=(\d+)(?:;|$)',
-  ).firstMatch(recurrence ?? '');
+  final countMatch = RegExp(r'(?:^|;)COUNT=(\d+)(?:;|$)')
+      .firstMatch(recurrence ?? '');
   final count = int.parse(countMatch!.group(1)!);
   final start = DateTime.parse(mutation.startDateTime!);
   return List.generate(

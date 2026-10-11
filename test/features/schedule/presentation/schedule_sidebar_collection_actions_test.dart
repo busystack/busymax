@@ -241,15 +241,15 @@ void main() {
       BusyMaxMenuButton<String> calendarMenu(String id) =>
           tester.widget(find.byKey(ValueKey(('calendar-options', id))));
       expect(
-        calendarMenu(
-          'c1',
-        ).entries.singleWhere((entry) => entry.value == 'move-up').enabled,
+        calendarMenu('c1').entries
+            .singleWhere((entry) => entry.value == 'move-up')
+            .enabled,
         isFalse,
       );
       expect(
-        calendarMenu(
-          'c2',
-        ).entries.singleWhere((entry) => entry.value == 'move-down').enabled,
+        calendarMenu('c2').entries
+            .singleWhere((entry) => entry.value == 'move-down')
+            .enabled,
         isFalse,
       );
       final beforeElement = tester.element(
@@ -307,9 +307,8 @@ void main() {
         findsNothing,
       );
       expect(
-        AppSettings.fromJson(
-          store.value,
-        ).isTaskListVisibleInSchedule('a', 'l2'),
+        AppSettings.fromJson(store.value)
+            .isTaskListVisibleInSchedule('a', 'l2'),
         isTrue,
       );
       await tester.pumpWidget(const SizedBox.shrink());
@@ -359,15 +358,15 @@ void main() {
       lists.add([_list('a', 'l2'), _list('a', 'l1')]);
       await tester.pumpAndSettle();
       expect(
-        AppSettings.fromJson(
-          store.value,
-        ).sidebarOrder.calendarSourceIdsByAccount['a'],
+        AppSettings.fromJson(store.value)
+            .sidebarOrder
+            .calendarSourceIdsByAccount['a'],
         ['c2', 'c1'],
       );
       expect(
-        AppSettings.fromJson(
-          store.value,
-        ).sidebarOrder.taskListIdsByAccount['a'],
+        AppSettings.fromJson(store.value)
+            .sidebarOrder
+            .taskListIdsByAccount['a'],
         ['l2', 'l1'],
       );
       calendars.add([

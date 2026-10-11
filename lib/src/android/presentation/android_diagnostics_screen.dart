@@ -179,9 +179,8 @@ class AndroidDiagnosticsScreen extends ConsumerWidget {
       }
     } on Object catch (error) {
       if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(redactForLog(error))));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(redactForLog(error))));
       }
     }
   }

@@ -43,9 +43,8 @@ final class MicrosoftSharedCalendarService {
       accountId,
       cancellation: cancellation,
     );
-    final source = await clientForAccount(
-      accountId,
-    ).getSharedPrimaryCalendar(owner);
+    final source = await clientForAccount(accountId)
+        .getSharedPrimaryCalendar(owner);
     await repository.upsertSource(
       accountId: accountId,
       source: source,

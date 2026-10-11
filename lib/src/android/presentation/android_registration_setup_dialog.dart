@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
+
 import '../../app/app_bootstrap.dart';
 import '../../core/auth/oauth_registration.dart';
 import '../../core/auth/registration_setup_controller.dart';
@@ -55,8 +56,7 @@ class _RegistrationDialogState extends State<_RegistrationDialog> {
       onError: (Object _) {
         if (mounted) {
           setState(
-            () => identityError =
-                'The installed package/signature does not match its native redirect. Install a correctly configured build.',
+            () => identityError = 'The installed package/signature does not match its native redirect. Install a correctly configured build.',
           );
         }
       },

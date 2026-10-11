@@ -358,9 +358,9 @@ END:VEVENT
       expect(event.location, isNull);
       expect(event.webLink, isNull);
 
-      final committedSecret =
-          await secrets.readCredential('webcal-account-subscription-1')
-              as WebCalSecretRecord;
+      final committedSecret = await secrets.readCredential(
+        'webcal-account-subscription-1',
+      ) as WebCalSecretRecord;
       expect(committedSecret.validatorTargetUri, nextTarget);
     },
   );
@@ -672,9 +672,8 @@ END:VEVENT
         .getSingle();
     expect(subscription.projectionVersion, webCalProjectionVersion);
     expect(
-      DateTime.parse(
-        subscription.projectionRangeEndUtc!,
-      ).isAfter(DateTime.utc(2031)),
+      DateTime.parse(subscription.projectionRangeEndUtc!)
+          .isAfter(DateTime.utc(2031)),
       isTrue,
     );
     expect(transport.requests.last.uri, uri);

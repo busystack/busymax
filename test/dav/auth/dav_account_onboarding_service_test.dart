@@ -174,9 +174,9 @@ void main() {
       expect(account.authority, 'https://canonical.example.test/cloud');
       expect(account.providerAccountId, 'canonical-user');
       expect(account.tasksEnabled, isTrue);
-      final credential =
-          await secrets.readCredential(result.accountId)
-              as NextcloudSecretRecord;
+      final credential = await secrets.readCredential(
+        result.accountId,
+      ) as NextcloudSecretRecord;
       expect(
         credential.canonicalServer,
         Uri.parse('https://canonical.example.test/cloud'),
@@ -187,213 +187,201 @@ void main() {
     },
   );
 
-  test(
-    'Nextcloud reconnect replaces only the verified credential and preserves local state',
-    () async {
-      final initialService = DavAccountOnboardingService(
-        database: database,
-        secretStore: secrets,
-        nextcloudLoginFlow: _successfulLoginFlow(appPassword: 'old-password'),
-        idFactory: () => 'nextcloud-id',
-        discover:
-            ({
-              required accountId,
-              required provider,
-              required accountAuthority,
-              required credential,
-              cancellationToken,
-            }) async => _discovery(accountId, provider, accountAuthority),
-      );
-      final connected = await initialService.connectNextcloud(
-        enteredServer: 'cloud.example.test',
-      );
-      await _insertNextcloudLocalState(database, connected.accountId);
-      await _markPendingAuthenticationBlocked(database);
+  test('Nextcloud reconnect replaces only the verified credential and preserves local state', () async {
+    final initialService = DavAccountOnboardingService(
+      database: database,
+      secretStore: secrets,
+      nextcloudLoginFlow: _successfulLoginFlow(appPassword: 'old-password'),
+      idFactory: () => 'nextcloud-id',
+      discover: ({
+        required accountId,
+        required provider,
+        required accountAuthority,
+        required credential,
+        cancellationToken,
+      }) async => _discovery(accountId, provider, accountAuthority),
+    );
+    final connected = await initialService.connectNextcloud(
+      enteredServer: 'cloud.example.test',
+    );
+    await _insertNextcloudLocalState(database, connected.accountId);
+    await _markPendingAuthenticationBlocked(database);
 
-      var verifiedBeforeReplacement = false;
-      final reconnectService = DavAccountOnboardingService(
-        database: database,
-        secretStore: secrets,
-        nextcloudLoginFlow: _successfulLoginFlow(appPassword: 'new-password'),
-        discover:
-            ({
-              required accountId,
-              required provider,
-              required accountAuthority,
-              required credential,
-              cancellationToken,
-            }) async {
-              final stored =
-                  await secrets.readCredential(accountId)
-                      as NextcloudSecretRecord;
-              expect(stored.appPassword, 'old-password');
-              expect(credential.password, 'new-password');
-              verifiedBeforeReplacement = true;
-              return _discovery(accountId, provider, accountAuthority);
-            },
-      );
+    var verifiedBeforeReplacement = false;
+    final reconnectService = DavAccountOnboardingService(
+      database: database,
+      secretStore: secrets,
+      nextcloudLoginFlow: _successfulLoginFlow(appPassword: 'new-password'),
+      discover:
+          ({
+            required accountId,
+            required provider,
+            required accountAuthority,
+            required credential,
+            cancellationToken,
+          }) async {
+            final stored = await secrets.readCredential(
+              accountId,
+            ) as NextcloudSecretRecord;
+            expect(stored.appPassword, 'old-password');
+            expect(credential.password, 'new-password');
+            verifiedBeforeReplacement = true;
+            return _discovery(accountId, provider, accountAuthority);
+          },
+    );
 
-      final reconnected = await reconnectService.reconnectNextcloud(
+    final reconnected = await reconnectService.reconnectNextcloud(
+      accountId: connected.accountId,
+      enteredServer: 'cloud.example.test',
+    );
+
+    expect(verifiedBeforeReplacement, isTrue);
+    expect(reconnected.accountId, connected.accountId);
+    final stored = await secrets.readCredential(
+      connected.accountId,
+    ) as NextcloudSecretRecord;
+    expect(stored.appPassword, 'new-password');
+    expect(await database.select(database.accounts).get(), hasLength(1));
+    expect(await database.select(database.taskLists).get(), hasLength(1));
+    final pending = await database.select(database.pendingOps).getSingle();
+    expect(pending.state, 'pending');
+    expect(pending.retryClassification, 'credential_replaced');
+    expect(pending.attemptCount, 0);
+    expect(pending.nextAttemptAtUtc, isNull);
+    expect(pending.lastErrorCode, isNull);
+    expect(
+      (await database.select(database.accounts).getSingle()).authState,
+      'signed_in',
+    );
+  });
+
+  test('Nextcloud reconnect rejects a different identity without touching local state', () async {
+    final initialService = DavAccountOnboardingService(
+      database: database,
+      secretStore: secrets,
+      nextcloudLoginFlow: _successfulLoginFlow(appPassword: 'old-password'),
+      idFactory: () => 'nextcloud-id',
+      discover: ({
+        required accountId,
+        required provider,
+        required accountAuthority,
+        required credential,
+        cancellationToken,
+      }) async => _discovery(accountId, provider, accountAuthority),
+    );
+    final connected = await initialService.connectNextcloud(
+      enteredServer: 'cloud.example.test',
+    );
+    await _insertNextcloudLocalState(database, connected.accountId);
+    await _markPendingAuthenticationBlocked(database);
+    var discoveryCalled = false;
+    final reconnectService = DavAccountOnboardingService(
+      database: database,
+      secretStore: secrets,
+      nextcloudLoginFlow: _successfulLoginFlow(
+        loginName: 'different-user',
+        appPassword: 'untrusted-password',
+      ),
+      discover:
+          ({
+            required accountId,
+            required provider,
+            required accountAuthority,
+            required credential,
+            cancellationToken,
+          }) async {
+            discoveryCalled = true;
+            return _discovery(accountId, provider, accountAuthority);
+          },
+    );
+
+    await expectLater(
+      reconnectService.reconnectNextcloud(
         accountId: connected.accountId,
         enteredServer: 'cloud.example.test',
-      );
-
-      expect(verifiedBeforeReplacement, isTrue);
-      expect(reconnected.accountId, connected.accountId);
-      final stored =
-          await secrets.readCredential(connected.accountId)
-              as NextcloudSecretRecord;
-      expect(stored.appPassword, 'new-password');
-      expect(await database.select(database.accounts).get(), hasLength(1));
-      expect(await database.select(database.taskLists).get(), hasLength(1));
-      final pending = await database.select(database.pendingOps).getSingle();
-      expect(pending.state, 'pending');
-      expect(pending.retryClassification, 'credential_replaced');
-      expect(pending.attemptCount, 0);
-      expect(pending.nextAttemptAtUtc, isNull);
-      expect(pending.lastErrorCode, isNull);
-      expect(
-        (await database.select(database.accounts).getSingle()).authState,
-        'signed_in',
-      );
-    },
-  );
-
-  test(
-    'Nextcloud reconnect rejects a different identity without touching local state',
-    () async {
-      final initialService = DavAccountOnboardingService(
-        database: database,
-        secretStore: secrets,
-        nextcloudLoginFlow: _successfulLoginFlow(appPassword: 'old-password'),
-        idFactory: () => 'nextcloud-id',
-        discover:
-            ({
-              required accountId,
-              required provider,
-              required accountAuthority,
-              required credential,
-              cancellationToken,
-            }) async => _discovery(accountId, provider, accountAuthority),
-      );
-      final connected = await initialService.connectNextcloud(
-        enteredServer: 'cloud.example.test',
-      );
-      await _insertNextcloudLocalState(database, connected.accountId);
-      await _markPendingAuthenticationBlocked(database);
-      var discoveryCalled = false;
-      final reconnectService = DavAccountOnboardingService(
-        database: database,
-        secretStore: secrets,
-        nextcloudLoginFlow: _successfulLoginFlow(
-          loginName: 'different-user',
-          appPassword: 'untrusted-password',
+      ),
+      throwsA(
+        isA<DavException>().having(
+          (error) => error.code,
+          'code',
+          'DavNextcloudReconnectIdentityMismatch',
         ),
-        discover:
-            ({
-              required accountId,
-              required provider,
-              required accountAuthority,
-              required credential,
-              cancellationToken,
-            }) async {
-              discoveryCalled = true;
-              return _discovery(accountId, provider, accountAuthority);
-            },
-      );
+      ),
+    );
 
-      await expectLater(
-        reconnectService.reconnectNextcloud(
-          accountId: connected.accountId,
-          enteredServer: 'cloud.example.test',
-        ),
-        throwsA(
-          isA<DavException>().having(
-            (error) => error.code,
-            'code',
-            'DavNextcloudReconnectIdentityMismatch',
+    expect(discoveryCalled, isFalse);
+    final stored = await secrets.readCredential(
+      connected.accountId,
+    ) as NextcloudSecretRecord;
+    expect(stored.appPassword, 'old-password');
+    expect(await database.select(database.accounts).get(), hasLength(1));
+    expect(await database.select(database.taskLists).get(), hasLength(1));
+    final pending = await database.select(database.pendingOps).getSingle();
+    expect(pending.state, 'auth_blocked');
+    expect(pending.nextAttemptAtUtc, startsWith('9999-12-31'));
+  });
+
+  test('failed Nextcloud reconnect discovery preserves the old credential and local state', () async {
+    final initialService = DavAccountOnboardingService(
+      database: database,
+      secretStore: secrets,
+      nextcloudLoginFlow: _successfulLoginFlow(appPassword: 'old-password'),
+      idFactory: () => 'nextcloud-id',
+      discover: ({
+        required accountId,
+        required provider,
+        required accountAuthority,
+        required credential,
+        cancellationToken,
+      }) async => _discovery(accountId, provider, accountAuthority),
+    );
+    final connected = await initialService.connectNextcloud(
+      enteredServer: 'cloud.example.test',
+    );
+    await _insertNextcloudLocalState(database, connected.accountId);
+    await _markPendingAuthenticationBlocked(database);
+    final reconnectService = DavAccountOnboardingService(
+      database: database,
+      secretStore: secrets,
+      nextcloudLoginFlow: _successfulLoginFlow(appPassword: 'new-password'),
+      discover:
+          ({
+            required accountId,
+            required provider,
+            required accountAuthority,
+            required credential,
+            cancellationToken,
+          }) async => throw const DavException(
+            kind: DavErrorKind.authentication,
+            code: 'DavAuthRejected',
+            safeMessage: 'Credential rejected.',
           ),
-        ),
-      );
+    );
 
-      expect(discoveryCalled, isFalse);
-      final stored =
-          await secrets.readCredential(connected.accountId)
-              as NextcloudSecretRecord;
-      expect(stored.appPassword, 'old-password');
-      expect(await database.select(database.accounts).get(), hasLength(1));
-      expect(await database.select(database.taskLists).get(), hasLength(1));
-      final pending = await database.select(database.pendingOps).getSingle();
-      expect(pending.state, 'auth_blocked');
-      expect(pending.nextAttemptAtUtc, startsWith('9999-12-31'));
-    },
-  );
-
-  test(
-    'failed Nextcloud reconnect discovery preserves the old credential and local state',
-    () async {
-      final initialService = DavAccountOnboardingService(
-        database: database,
-        secretStore: secrets,
-        nextcloudLoginFlow: _successfulLoginFlow(appPassword: 'old-password'),
-        idFactory: () => 'nextcloud-id',
-        discover:
-            ({
-              required accountId,
-              required provider,
-              required accountAuthority,
-              required credential,
-              cancellationToken,
-            }) async => _discovery(accountId, provider, accountAuthority),
-      );
-      final connected = await initialService.connectNextcloud(
+    await expectLater(
+      reconnectService.reconnectNextcloud(
+        accountId: connected.accountId,
         enteredServer: 'cloud.example.test',
-      );
-      await _insertNextcloudLocalState(database, connected.accountId);
-      await _markPendingAuthenticationBlocked(database);
-      final reconnectService = DavAccountOnboardingService(
-        database: database,
-        secretStore: secrets,
-        nextcloudLoginFlow: _successfulLoginFlow(appPassword: 'new-password'),
-        discover:
-            ({
-              required accountId,
-              required provider,
-              required accountAuthority,
-              required credential,
-              cancellationToken,
-            }) async => throw const DavException(
-              kind: DavErrorKind.authentication,
-              code: 'DavAuthRejected',
-              safeMessage: 'Credential rejected.',
-            ),
-      );
-
-      await expectLater(
-        reconnectService.reconnectNextcloud(
-          accountId: connected.accountId,
-          enteredServer: 'cloud.example.test',
+      ),
+      throwsA(
+        isA<DavException>().having(
+          (error) => error.code,
+          'code',
+          'DavAuthRejected',
         ),
-        throwsA(
-          isA<DavException>().having(
-            (error) => error.code,
-            'code',
-            'DavAuthRejected',
-          ),
-        ),
-      );
+      ),
+    );
 
-      final stored =
-          await secrets.readCredential(connected.accountId)
-              as NextcloudSecretRecord;
-      expect(stored.appPassword, 'old-password');
-      expect(await database.select(database.accounts).get(), hasLength(1));
-      expect(await database.select(database.taskLists).get(), hasLength(1));
-      final pending = await database.select(database.pendingOps).getSingle();
-      expect(pending.state, 'auth_blocked');
-      expect(pending.nextAttemptAtUtc, startsWith('9999-12-31'));
-    },
-  );
+    final stored = await secrets.readCredential(
+      connected.accountId,
+    ) as NextcloudSecretRecord;
+    expect(stored.appPassword, 'old-password');
+    expect(await database.select(database.accounts).get(), hasLength(1));
+    expect(await database.select(database.taskLists).get(), hasLength(1));
+    final pending = await database.select(database.pendingOps).getSingle();
+    expect(pending.state, 'auth_blocked');
+    expect(pending.nextAttemptAtUtc, startsWith('9999-12-31'));
+  });
 
   test('Apple replacement validates before replacing the old secret', () async {
     var discoveryCount = 0;
@@ -469,14 +457,13 @@ void main() {
         secretStore: secrets,
         nextcloudLoginFlow: _unusedLoginFlow(),
         idFactory: () => 'apple-remove-id',
-        discover:
-            ({
-              required accountId,
-              required provider,
-              required accountAuthority,
-              required credential,
-              cancellationToken,
-            }) async => _discovery(accountId, provider, accountAuthority),
+        discover: ({
+          required accountId,
+          required provider,
+          required accountAuthority,
+          required credential,
+          cancellationToken,
+        }) async => _discovery(accountId, provider, accountAuthority),
       );
       final connected = await service.connectAppleICloud(
         email: 'person@example.test',
@@ -517,14 +504,13 @@ void main() {
         secretStore: secrets,
         nextcloudLoginFlow: _successfulLoginFlow(),
         idFactory: () => 'nextcloud-id',
-        discover:
-            ({
-              required accountId,
-              required provider,
-              required accountAuthority,
-              required credential,
-              cancellationToken,
-            }) async => _discovery(accountId, provider, accountAuthority),
+        discover: ({
+          required accountId,
+          required provider,
+          required accountAuthority,
+          required credential,
+          cancellationToken,
+        }) async => _discovery(accountId, provider, accountAuthority),
         nextcloudCredentialRevoker:
             ({required accountId, required credential}) async {
               throw const DavException(

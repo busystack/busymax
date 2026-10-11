@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:busymax/src/schedule/schedule_search_match.dart';
 import 'package:busymax/src/schedule/schedule_search_criteria.dart';
 
@@ -182,46 +183,40 @@ void main() {
         expect(snippet.length, lessThanOrEqualTo(142));
       }
     });
-    test(
-      'identity extraction ignores response metadata and handles organizer emailAddress',
-      () {
-        expect(matchesScheduleQuery(event, 'accepted'), isFalse);
-        expect(matchesScheduleQuery(event, 'tentative'), isFalse);
-        const nested = CalendarScheduleItem(
-          id: 'nested',
-          accountId: 'a',
-          provider: BusyProvider.microsoft,
-          sourceId: 's',
-          providerCalendarId: 's',
-          title: 'Meeting',
-          allDay: true,
-          organizer: {
-            'emailAddress': {
-              'name': 'Chris Green',
-              'address': 'chris@example.com',
-            },
+    test('identity extraction ignores response metadata and handles organizer emailAddress', () {
+      expect(matchesScheduleQuery(event, 'accepted'), isFalse);
+      expect(matchesScheduleQuery(event, 'tentative'), isFalse);
+      const nested = CalendarScheduleItem(
+        id: 'nested',
+        accountId: 'a',
+        provider: BusyProvider.microsoft,
+        sourceId: 's',
+        providerCalendarId: 's',
+        title: 'Meeting',
+        allDay: true,
+        organizer: {
+          'emailAddress': {
+            'name': 'Chris Green',
+            'address': 'chris@example.com',
           },
-        );
-        expect(
-          matchesScheduleQuery(nested, 'Chris Green chris@example.com'),
-          isTrue,
-        );
-        expect(
-          matches(event, const ScheduleFilters(person: 'unknown')),
-          isFalse,
-        );
-        expect(
-          matches(
-            task(),
-            const ScheduleFilters(
-              includeCalendarEvents: false,
-              person: 'ignored',
-            ),
+        },
+      );
+      expect(
+        matchesScheduleQuery(nested, 'Chris Green chris@example.com'),
+        isTrue,
+      );
+      expect(matches(event, const ScheduleFilters(person: 'unknown')), isFalse);
+      expect(
+        matches(
+          task(),
+          const ScheduleFilters(
+            includeCalendarEvents: false,
+            person: 'ignored',
           ),
-          isTrue,
-        );
-      },
-    );
+        ),
+        isTrue,
+      );
+    });
     test('task location and cross-field words remain searchable', () {
       expect(matchesScheduleQuery(task(), 'REPORT office appendix'), isTrue);
       expect(matchesScheduleQuery(event, 'review north alex planning'), isTrue);
@@ -318,44 +313,41 @@ void main() {
         contains('Morgan'),
       );
     });
-    test(
-      'criteria copy sets, have value equality and respect week start and inclusive custom end',
-      () {
-        final ids = {'a', 'b'};
-        final first = ScheduleSearchCriteria(
-          referenceDate: today,
-          firstWeekday: DateTime.sunday,
-          sourceIds: ids,
-          taskListKeys: {},
-        );
-        ids.clear();
-        expect(first.sourceIds, {'a', 'b'});
-        final equal = first.copyWith(sourceIds: {'b', 'a'});
-        expect(first, equal);
-        expect(first.hashCode, equal.hashCode);
-        expect(first.copyWith(person: 'Alex'), isNot(first));
-        expect(
-          first
-              .copyWith(person: 'Alex')
-              .copyWith(type: ScheduleSearchType.tasks)
-              .person,
-          isEmpty,
-        );
-        expect(
-          first.copyWith(date: ScheduleSearchDate.thisWeek).range!.start,
-          DateTime(2026, 6, 7),
-        );
-        final custom = first
-            .copyWith(
-              date: ScheduleSearchDate.custom,
-              customStart: today,
-              customEnd: DateTime(2026, 6, 14),
-            )
-            .range!;
-        expect(custom.start, today);
-        expect(custom.end, DateTime(2026, 6, 15));
-      },
-    );
+    test('criteria copy sets, have value equality and respect week start and inclusive custom end', () {
+      final ids = {'a', 'b'};
+      final first = ScheduleSearchCriteria(
+        referenceDate: today,
+        firstWeekday: DateTime.sunday,
+        sourceIds: ids,
+        taskListKeys: {},
+      );
+      ids.clear();
+      expect(first.sourceIds, {'a', 'b'});
+      final equal = first.copyWith(sourceIds: {'b', 'a'});
+      expect(first, equal);
+      expect(first.hashCode, equal.hashCode);
+      expect(first.copyWith(person: 'Alex'), isNot(first));
+      expect(
+        first
+            .copyWith(person: 'Alex')
+            .copyWith(type: ScheduleSearchType.tasks)
+            .person,
+        isEmpty,
+      );
+      expect(
+        first.copyWith(date: ScheduleSearchDate.thisWeek).range!.start,
+        DateTime(2026, 6, 7),
+      );
+      final custom = first
+          .copyWith(
+            date: ScheduleSearchDate.custom,
+            customStart: today,
+            customEnd: DateTime(2026, 6, 14),
+          )
+          .range!;
+      expect(custom.start, today);
+      expect(custom.end, DateTime(2026, 6, 15));
+    });
   });
 
   for (final completion in ScheduleTaskCompletion.values) {
@@ -383,43 +375,40 @@ void main() {
       });
     });
   }
-  test(
-    'repository Microsoft due uses later due day and due timezone rather than start',
-    () async {
-      final db = AppDatabase.memoryForTests();
-      addTearDown(db.close);
-      await _insertScheduleAccount(db, provider: BusyProvider.microsoft);
-      await _insertTaskList(db);
-      await _insertTask(db, id: 'ms', title: 'Report');
-      await db
-          .update(db.tasks)
-          .write(
-            const TasksCompanion(
-              microsoftStartDateTime: Value('2026-06-10T09:00:00'),
-              microsoftDueDateTime: Value('2026-06-12T12:00:00'),
-              microsoftDueTimeZone: Value('Pacific Standard Time'),
-            ),
-          );
-      final repo = ScheduleRepository(db);
-      const filters = ScheduleFilters(useTaskDueDate: true, query: 'report');
-      expect(
-        await repo.listItems(
-          range: ScheduleRange.day(DateTime(2026, 6, 10)),
-          filters: filters,
-        ),
-        isEmpty,
-      );
-      final items = await repo.listItems(
-        range: ScheduleRange.day(DateTime(2026, 6, 12)),
+  test('repository Microsoft due uses later due day and due timezone rather than start', () async {
+    final db = AppDatabase.memoryForTests();
+    addTearDown(db.close);
+    await _insertScheduleAccount(db, provider: BusyProvider.microsoft);
+    await _insertTaskList(db);
+    await _insertTask(db, id: 'ms', title: 'Report');
+    await db
+        .update(db.tasks)
+        .write(
+          const TasksCompanion(
+            microsoftStartDateTime: Value('2026-06-10T09:00:00'),
+            microsoftDueDateTime: Value('2026-06-12T12:00:00'),
+            microsoftDueTimeZone: Value('Pacific Standard Time'),
+          ),
+        );
+    final repo = ScheduleRepository(db);
+    const filters = ScheduleFilters(useTaskDueDate: true, query: 'report');
+    expect(
+      await repo.listItems(
+        range: ScheduleRange.day(DateTime(2026, 6, 10)),
         filters: filters,
-      );
-      expect(items, hasLength(1));
-      expect(
-        (items.single as TaskScheduleItem).due,
-        DateTime.utc(2026, 6, 12, 19).toLocal(),
-      );
-    },
-  );
+      ),
+      isEmpty,
+    );
+    final items = await repo.listItems(
+      range: ScheduleRange.day(DateTime(2026, 6, 12)),
+      filters: filters,
+    );
+    expect(items, hasLength(1));
+    expect(
+      (items.single as TaskScheduleItem).due,
+      DateTime.utc(2026, 6, 12, 19).toLocal(),
+    );
+  });
   test(
     'repository DAV DTSTART-only legacy dueUtc does not become an actual due',
     () async {
@@ -456,64 +445,61 @@ void main() {
       );
     },
   );
-  test(
-    'repository bounded text does not leak and Any date skips projection coverage',
-    () async {
-      final db = AppDatabase.memoryForTests();
-      addTearDown(db.close);
-      await _seedSearchDatabase(db);
-      var calls = 0;
-      var cloudCalls = 0;
-      final repo = ScheduleRepository(
-        db,
-        ensureCloudCoverage: (_, filters) async {
-          cloudCalls++;
-          expect(filters.sourceIds, isEmpty);
-          return false;
-        },
-        ensureProjectionCoverage: (_) async {
-          calls++;
-        },
-      );
-      final range = ScheduleRange.day(DateTime(2026, 1, 1));
-      final coverageFinished = repo.watchChanges().firstWhere(
-        (_) => repo.cloudCoverageCompleteFor(range) == false,
-      );
-      expect(
-        await repo.listItems(
-          range: range,
-          filters: const ScheduleFilters(query: 'future budget'),
+  test('repository bounded text does not leak and Any date skips projection coverage', () async {
+    final db = AppDatabase.memoryForTests();
+    addTearDown(db.close);
+    await _seedSearchDatabase(db);
+    var calls = 0;
+    var cloudCalls = 0;
+    final repo = ScheduleRepository(
+      db,
+      ensureCloudCoverage: (_, filters) async {
+        cloudCalls++;
+        expect(filters.sourceIds, isEmpty);
+        return false;
+      },
+      ensureProjectionCoverage: (_) async {
+        calls++;
+      },
+    );
+    final range = ScheduleRange.day(DateTime(2026, 1, 1));
+    final coverageFinished = repo.watchChanges().firstWhere(
+      (_) => repo.cloudCoverageCompleteFor(range) == false,
+    );
+    expect(
+      await repo.listItems(
+        range: range,
+        filters: const ScheduleFilters(query: 'future budget'),
+      ),
+      isEmpty,
+    );
+    await coverageFinished;
+    expect(calls, 1);
+    expect(cloudCalls, 1);
+    expect(repo.cloudCoverageCompleteFor(range), isFalse);
+    expect(
+      await repo.listItems(
+        range: range,
+        filters: const ScheduleFilters(
+          query: 'future budget',
+          ignoreDateRange: true,
         ),
-        isEmpty,
-      );
-      await coverageFinished;
-      expect(calls, 1);
-      expect(cloudCalls, 1);
-      expect(repo.cloudCoverageCompleteFor(range), isFalse);
-      expect(
-        await repo.listItems(
-          range: range,
-          filters: const ScheduleFilters(
-            query: 'future budget',
-            ignoreDateRange: true,
-          ),
+      ),
+      hasLength(1),
+    );
+    expect(calls, 1);
+    expect(cloudCalls, 1);
+    expect(
+      await repo.listItems(
+        range: ScheduleRange.day(DateTime(2026, 2, 15)),
+        filters: const ScheduleFilters(
+          query: 'future budget',
+          useTaskDueDate: true,
         ),
-        hasLength(1),
-      );
-      expect(calls, 1);
-      expect(cloudCalls, 1);
-      expect(
-        await repo.listItems(
-          range: ScheduleRange.day(DateTime(2026, 2, 15)),
-          filters: const ScheduleFilters(
-            query: 'future budget',
-            useTaskDueDate: true,
-          ),
-        ),
-        hasLength(1),
-      );
-    },
-  );
+      ),
+      hasLength(1),
+    );
+  });
   test('range completion is keyed to requested search sources', () async {
     final db = AppDatabase.memoryForTests();
     addTearDown(db.close);
@@ -601,47 +587,44 @@ void main() {
       expect(calls, 2);
     },
   );
-  test(
-    'repository date filter includes spanning events and excludes boundary and outside events',
-    () async {
-      final db = AppDatabase.memoryForTests();
-      addTearDown(db.close);
-      await _insertScheduleAccount(db, provider: BusyProvider.google);
-      final calendar = CalendarRepository(database: db);
-      await calendar.upsertSource(
+  test('repository date filter includes spanning events and excludes boundary and outside events', () async {
+    final db = AppDatabase.memoryForTests();
+    addTearDown(db.close);
+    await _insertScheduleAccount(db, provider: BusyProvider.google);
+    final calendar = CalendarRepository(database: db);
+    await calendar.upsertSource(
+      accountId: 'account',
+      source: const CalendarSourceDto(
+        provider: BusyProvider.google,
+        providerCalendarId: 'calendar',
+        summary: 'Work',
+      ),
+    );
+    for (final entry in [
+      ('inside', '2026-06-12', '2026-06-13'),
+      ('overlap', '2026-06-11', '2026-06-14'),
+      ('outside', '2026-06-13', '2026-06-14'),
+      ('ends-at-start', '2026-06-11', '2026-06-12'),
+    ]) {
+      await calendar.upsertEvent(
         accountId: 'account',
-        source: const CalendarSourceDto(
+        event: CalendarEventDto(
           provider: BusyProvider.google,
           providerCalendarId: 'calendar',
-          summary: 'Work',
+          providerEventId: entry.$1,
+          title: entry.$1,
+          allDay: true,
+          startDate: entry.$2,
+          endDate: entry.$3,
         ),
       );
-      for (final entry in [
-        ('inside', '2026-06-12', '2026-06-13'),
-        ('overlap', '2026-06-11', '2026-06-14'),
-        ('outside', '2026-06-13', '2026-06-14'),
-        ('ends-at-start', '2026-06-11', '2026-06-12'),
-      ]) {
-        await calendar.upsertEvent(
-          accountId: 'account',
-          event: CalendarEventDto(
-            provider: BusyProvider.google,
-            providerCalendarId: 'calendar',
-            providerEventId: entry.$1,
-            title: entry.$1,
-            allDay: true,
-            startDate: entry.$2,
-            endDate: entry.$3,
-          ),
-        );
-      }
-      final items = await ScheduleRepository(db).listItems(
-        range: ScheduleRange.day(DateTime(2026, 6, 12)),
-        filters: const ScheduleFilters(includeTasks: false),
-      );
-      expect(items.map((i) => i.title).toSet(), {'inside', 'overlap'});
-    },
-  );
+    }
+    final items = await ScheduleRepository(db).listItems(
+      range: ScheduleRange.day(DateTime(2026, 6, 12)),
+      filters: const ScheduleFilters(includeTasks: false),
+    );
+    expect(items.map((i) => i.title).toSet(), {'inside', 'overlap'});
+  });
 
   test(
     'search matches event title, location, description, and calendar name',

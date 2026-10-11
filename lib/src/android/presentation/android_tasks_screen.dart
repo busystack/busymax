@@ -1,6 +1,8 @@
 import 'package:busymax/src/core/auth/authorization_attempt.dart';
+
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:busymax_android_platform/busymax_android_platform.dart';
 import 'package:drift/drift.dart' hide Column;
 import 'package:flutter/material.dart';
@@ -327,9 +329,8 @@ class _AndroidTasksScreenState extends ConsumerState<AndroidTasksScreen> {
     } on Object catch (error) {
       if (mounted) {
         setState(() => _mutationIntent = null);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('$error')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$error')));
       }
     }
   }
@@ -363,9 +364,8 @@ class _AndroidTasksScreenState extends ConsumerState<AndroidTasksScreen> {
           .clearCompleted(listId);
     } on Object catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('$error')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$error')));
       }
     }
   }
@@ -1527,9 +1527,8 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       }
     } on Object catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('$error')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$error')));
       }
     }
   }
@@ -1578,9 +1577,8 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
           );
     } on Object catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('$error')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$error')));
       }
     }
   }
@@ -1981,9 +1979,8 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
         widget.onMutationFailed?.call();
       }
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('$error')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$error')));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -2188,9 +2185,8 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
     } on Object catch (error) {
       if (!mutationPersisted) widget.onMutationFailed?.call();
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('$error')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$error')));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -2212,15 +2208,13 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
         ),
       );
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(context.l10n.duplicateTask)));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(context.l10n.duplicateTask)));
       }
     } on Object catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('$error')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$error')));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -2238,9 +2232,8 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
               .toList();
     } on Object catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('$error')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$error')));
       }
       return;
     }
@@ -2314,9 +2307,8 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
     } on Object catch (error) {
       if (!mutationPersisted) widget.onMutationFailed?.call();
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('$error')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$error')));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -2335,15 +2327,13 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
             ),
           );
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(context.l10n.moveToTop)));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(context.l10n.moveToTop)));
       }
     } on Object catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('$error')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$error')));
       }
     } finally {
       if (mounted) setState(() => _saving = false);

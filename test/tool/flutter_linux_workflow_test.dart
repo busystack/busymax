@@ -11,9 +11,8 @@ const _ciCondition =
 
 void main() {
   test('Linux builds installable strict Snaps with the pinned SDK', () {
-    final workflow = File(
-      '.github/workflows/flutter-linux.yml',
-    ).readAsStringSync();
+    final workflow = File('.github/workflows/flutter-linux.yml')
+        .readAsStringSync();
 
     expect(workflow, contains('runs-on: ubuntu-24.04'));
     expect(workflow, contains("flutter-version: '3.47.5'"));
@@ -102,9 +101,8 @@ void main() {
   test(
     'Linux CI has main-only triggers, cancellation, and short Snap retention',
     () {
-      final workflow = File(
-        '.github/workflows/flutter-linux.yml',
-      ).readAsStringSync();
+      final workflow = File('.github/workflows/flutter-linux.yml')
+          .readAsStringSync();
       final triggers = workflow.substring(
         workflow.indexOf('on:'),
         workflow.indexOf('\nconcurrency:'),
@@ -149,9 +147,8 @@ void main() {
   test(
     'routine Linux CI needs no production credentials and verifies its Snap',
     () {
-      final workflow = File(
-        '.github/workflows/flutter-linux.yml',
-      ).readAsStringSync();
+      final workflow = File('.github/workflows/flutter-linux.yml')
+          .readAsStringSync();
 
       for (final name in [
         'Resolve dependencies',
@@ -207,9 +204,8 @@ void main() {
   test(
     'production validation, build and artifact require explicit main dispatch',
     () {
-      final workflow = File(
-        '.github/workflows/flutter-linux.yml',
-      ).readAsStringSync();
+      final workflow = File('.github/workflows/flutter-linux.yml')
+          .readAsStringSync();
       final guard = _stepBlock(workflow, 'Require main for manual runs');
       expect(
         guard,
@@ -381,9 +377,8 @@ String _stepBlock(String workflow, String name) {
 String _triggerBlock(String triggers, String event) {
   final start = triggers.indexOf('  $event:');
   expect(start, isNonNegative, reason: 'Missing workflow trigger: $event');
-  final nextEvent = RegExp(
-    r'\n  [a-z_]+:',
-  ).firstMatch(triggers.substring(start + 1));
+  final nextEvent = RegExp(r'\n  [a-z_]+:')
+      .firstMatch(triggers.substring(start + 1));
   final end = nextEvent == null ? null : start + 1 + nextEvent.start;
   return triggers.substring(start, end).trim();
 }

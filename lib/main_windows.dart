@@ -63,9 +63,8 @@ Future<void> main(List<String> arguments) async {
           : DesktopNotificationReadinessState.unavailableUnpackaged,
       diagnosticCode: 'windows-notifications/package-identity-query-failed',
     );
-    Logger(
-      'busymax.windows.notifications',
-    ).severe('Windows notification package identity could not be queried.');
+    Logger('busymax.windows.notifications')
+        .severe('Windows notification package identity could not be queried.');
   }
   if (notificationReadiness != null) {
     // The failed identity probe above already selected the only safe backend.
@@ -111,18 +110,16 @@ Future<void> main(List<String> arguments) async {
         DesktopNotificationReadinessState.failedInstalledPackage,
         diagnosticCode: 'windows-notifications/${error.code}',
       );
-      Logger(
-        'busymax.windows.notifications',
-      ).severe('Windows notification initialization failed: ${error.code}.');
+      Logger('busymax.windows.notifications')
+          .severe('Windows notification initialization failed: ${error.code}.');
       notificationBackend = const DisabledDesktopNotificationBackend();
     } on Object {
       notificationReadiness = const DesktopNotificationReadiness(
         DesktopNotificationReadinessState.failedInstalledPackage,
         diagnosticCode: 'windows-notifications/initialization-failed',
       );
-      Logger(
-        'busymax.windows.notifications',
-      ).severe('Windows notification initialization failed.');
+      Logger('busymax.windows.notifications')
+          .severe('Windows notification initialization failed.');
       notificationBackend = const DisabledDesktopNotificationBackend();
     }
   }

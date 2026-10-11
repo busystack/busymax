@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:drift/native.dart';
 import 'package:busymax/src/calendar_providers/cloud_calendar_client.dart';
 import 'package:busymax/src/features/sync/calendar_sync_engine.dart';
@@ -6,8 +7,10 @@ import 'package:busymax/src/google_calendar/google_calendar_api_client.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_api_client.dart';
 import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_client.dart';
 import 'package:busymax/src/microsoft_todo/api/microsoft_todo_task_remote_client.dart';
+
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/sync/account_sync_operations.dart';
@@ -263,58 +266,52 @@ void main() {
     }
   }
 
-  test(
-    'concurrent cooldown writers retain the longest value and stale success cannot clear it',
-    () async {
-      final entered = Completer<void>(), release = Completer<void>();
-      final pull = policy.run(
+  test('concurrent cooldown writers retain the longest value and stale success cannot clear it', () async {
+    final entered = Completer<void>(), release = Completer<void>();
+    final pull = policy.run(
+      'a',
+      SyncDomain.tasks,
+      pull: () async {
+        entered.complete();
+        await release.future;
+      },
+      deferred: () async {},
+    );
+    final rejected = expectLater(pull, throwsA(isA<DomainCooldownException>()));
+    await entered.future;
+    await Future.wait([
+      policy.recordFailureCooldown(
         'a',
         SyncDomain.tasks,
-        pull: () async {
-          entered.complete();
-          await release.future;
-        },
-        deferred: () async {},
-      );
-      final rejected = expectLater(
-        pull,
-        throwsA(isA<DomainCooldownException>()),
-      );
-      await entered.future;
-      await Future.wait([
-        policy.recordFailureCooldown(
-          'a',
-          SyncDomain.tasks,
-          const TaskRemoteError(
-            statusCode: 429,
-            code: 'throttled',
-            message: 'synthetic',
-            retryable: true,
-            retryAfter: Duration(hours: 4),
-          ),
+        const TaskRemoteError(
+          statusCode: 429,
+          code: 'throttled',
+          message: 'synthetic',
+          retryable: true,
+          retryAfter: Duration(hours: 4),
         ),
-        DomainSyncPolicy(db, nowUtc: () => now).recordFailureCooldown(
-          'a',
-          SyncDomain.tasks,
-          const TaskRemoteError(
-            statusCode: 429,
-            code: 'throttled',
-            message: 'synthetic',
-            retryable: true,
-            retryAfter: Duration(seconds: 1),
-          ),
+      ),
+      DomainSyncPolicy(db, nowUtc: () => now).recordFailureCooldown(
+        'a',
+        SyncDomain.tasks,
+        const TaskRemoteError(
+          statusCode: 429,
+          code: 'throttled',
+          message: 'synthetic',
+          retryable: true,
+          retryAfter: Duration(seconds: 1),
         ),
-      ]);
-      release.complete();
-      await rejected;
-      final row = await db.select(db.domainSyncSchedules).getSingle();
-      expect(
-        row.cooldownUntilUtc,
-        now.add(const Duration(hours: 4)).toIso8601String(),
-      );
-      expect(row.lastSuccessfulPullUtc, isNull);
-    },
-  );
+      ),
+    ]);
+    release.complete();
+    await rejected;
+    final row = await db.select(db.domainSyncSchedules).getSingle();
+    expect(
+      row.cooldownUntilUtc,
+      now.add(const Duration(hours: 4)).toIso8601String(),
+    );
+    expect(row.lastSuccessfulPullUtc, isNull);
+  });
   for (final quota in [false, true]) {
     for (final retryHeader in [null, 'malformed']) {
       test(
@@ -439,211 +436,200 @@ void main() {
       },
     );
   }
-  test(
-    'changed paginated workload preserves pages and dispatches local creation without passive polling',
-    () async {
-      final requests = <http.Request>[];
-      final client = GoogleTasksRestApiClient(
-        httpClient: MockClient((r) async {
-          requests.add(r);
-          if (r.method == 'POST') {
-            return http.Response(
-              jsonEncode({'id': 'remote-created', 'title': 'Offline'}),
-              200,
-            );
-          }
-          if (r.url.path.endsWith('/lists')) {
-            return http.Response(
-              jsonEncode({
-                'items': r.url.queryParameters['pageToken'] == null
-                    ? []
-                    : [
-                        {'id': 'l', 'title': 'List'},
-                      ],
-                if (r.url.queryParameters['pageToken'] == null)
-                  'nextPageToken': 'lists-next',
-              }),
-              200,
-            );
-          }
+  test('changed paginated workload preserves pages and dispatches local creation without passive polling', () async {
+    final requests = <http.Request>[];
+    final client = GoogleTasksRestApiClient(
+      httpClient: MockClient((r) async {
+        requests.add(r);
+        if (r.method == 'POST') {
+          return http.Response(
+            jsonEncode({'id': 'remote-created', 'title': 'Offline'}),
+            200,
+          );
+        }
+        if (r.url.path.endsWith('/lists')) {
           return http.Response(
             jsonEncode({
-              'items': [
-                {
-                  'id': r.url.queryParameters['pageToken'] == null
-                      ? 't1'
-                      : 't2',
-                  'title': 'Changed',
-                  'status': 'needsAction',
-                },
-              ],
+              'items': r.url.queryParameters['pageToken'] == null
+                  ? []
+                  : [
+                      {'id': 'l', 'title': 'List'},
+                    ],
               if (r.url.queryParameters['pageToken'] == null)
-                'nextPageToken': 'tasks-next',
+                'nextPageToken': 'lists-next',
             }),
             200,
           );
-        }),
-        baseUri: Uri.https('tasks.googleapis.com', '/'),
-      );
-      final engine = SyncEngine(
-        database: db,
-        apiClient: client,
-        accountId: 'a',
-        nowUtc: () => now,
-      );
-      await withSyncTrigger(
-        SyncTrigger.background,
-        () => policy.run(
-          'a',
-          SyncDomain.tasks,
-          pull: engine.incrementalSync,
-          deferred: engine.dispatchPendingWrites,
-        ),
-      );
-      expect(requests.length, 4);
-      expect(await db.select(db.tasks).get(), hasLength(2));
-      await db
-          .into(db.pendingOps)
-          .insert(
-            PendingOpsCompanion.insert(
-              id: 'op',
-              accountId: 'a',
-              entityType: 'task',
-              operation: 'create_task',
-              taskListId: const Value('l'),
-              taskId: const Value('local'),
-              localTempId: const Value('local'),
-              requestJson: jsonEncode({
-                'body': {'title': 'Offline'},
-              }),
-              createdAtUtc: now.toIso8601String(),
-              updatedAtUtc: now.toIso8601String(),
-            ),
-          );
-      await withSyncTrigger(
-        SyncTrigger.localMutation,
-        () => policy.run(
-          'a',
-          SyncDomain.tasks,
-          pull: engine.incrementalSync,
-          deferred: engine.dispatchPendingWrites,
-        ),
-      );
-      expect(requests.length, 5);
-      expect(requests.last.method, 'POST');
-      expect(await db.select(db.pendingOps).get(), isEmpty);
-    },
-  );
-  test(
-    'foreground and background overlap consume one window under production account coordination',
-    () async {
-      final coordinator = AccountSyncCoordinator();
-      addTearDown(coordinator.dispose);
-      final started = Completer<void>(), release = Completer<void>();
-      var pulls = 0, reminders = 0;
-      Future<void> run(SyncTrigger trigger) => withSyncTrigger(
-        trigger,
-        () => coordinator.run(
-          'a',
-          () => policy.run(
-            'a',
-            SyncDomain.tasks,
-            pull: () async {
-              pulls++;
-              started.complete();
-              await release.future;
-            },
-            deferred: () async {
-              reminders++;
-            },
+        }
+        return http.Response(
+          jsonEncode({
+            'items': [
+              {
+                'id': r.url.queryParameters['pageToken'] == null ? 't1' : 't2',
+                'title': 'Changed',
+                'status': 'needsAction',
+              },
+            ],
+            if (r.url.queryParameters['pageToken'] == null)
+              'nextPageToken': 'tasks-next',
+          }),
+          200,
+        );
+      }),
+      baseUri: Uri.https('tasks.googleapis.com', '/'),
+    );
+    final engine = SyncEngine(
+      database: db,
+      apiClient: client,
+      accountId: 'a',
+      nowUtc: () => now,
+    );
+    await withSyncTrigger(
+      SyncTrigger.background,
+      () => policy.run(
+        'a',
+        SyncDomain.tasks,
+        pull: engine.incrementalSync,
+        deferred: engine.dispatchPendingWrites,
+      ),
+    );
+    expect(requests.length, 4);
+    expect(await db.select(db.tasks).get(), hasLength(2));
+    await db
+        .into(db.pendingOps)
+        .insert(
+          PendingOpsCompanion.insert(
+            id: 'op',
+            accountId: 'a',
+            entityType: 'task',
+            operation: 'create_task',
+            taskListId: const Value('l'),
+            taskId: const Value('local'),
+            localTempId: const Value('local'),
+            requestJson: jsonEncode({
+              'body': {'title': 'Offline'},
+            }),
+            createdAtUtc: now.toIso8601String(),
+            updatedAtUtc: now.toIso8601String(),
           ),
-        ),
-      );
-      final background = run(SyncTrigger.background);
-      await started.future;
-      final foreground = run(SyncTrigger.foreground);
-      release.complete();
-      await Future.wait([background, foreground]);
-      expect(pulls, 1);
-      expect(reminders, 1);
-      policy = DomainSyncPolicy(
-        db,
-        nowUtc: () => now,
-      ); // restart retains eligibility
-      await run(SyncTrigger.background);
-      expect(pulls, 1);
-    },
-  );
-  test(
-    'Tasks quota defers its domain through restart while Calendar and cached reminders continue',
-    () async {
-      var tasks = 0, calendar = 0, reminders = 0;
-      final operations = RoutingAccountSyncOperations(
-        providerForAccount: (_) async => BusyProvider.google,
-        syncDav: (_, {required full}) async {},
-        syncWebCal: (_, {required full}) async {},
-        syncTasksRest: (_, {required full}) => policy.run(
+        );
+    await withSyncTrigger(
+      SyncTrigger.localMutation,
+      () => policy.run(
+        'a',
+        SyncDomain.tasks,
+        pull: engine.incrementalSync,
+        deferred: engine.dispatchPendingWrites,
+      ),
+    );
+    expect(requests.length, 5);
+    expect(requests.last.method, 'POST');
+    expect(await db.select(db.pendingOps).get(), isEmpty);
+  });
+  test('foreground and background overlap consume one window under production account coordination', () async {
+    final coordinator = AccountSyncCoordinator();
+    addTearDown(coordinator.dispose);
+    final started = Completer<void>(), release = Completer<void>();
+    var pulls = 0, reminders = 0;
+    Future<void> run(SyncTrigger trigger) => withSyncTrigger(
+      trigger,
+      () => coordinator.run(
+        'a',
+        () => policy.run(
           'a',
           SyncDomain.tasks,
           pull: () async {
-            tasks++;
-            throw const TaskRemoteError(
-              statusCode: 403,
-              code: 'quota',
-              message: 'Rate limit',
-              retryable: true,
-              retryAfter: Duration(hours: 2),
-            );
-          },
-          deferred: () async {},
-          maintainCached: () async {
-            reminders++;
-          },
-        ),
-        syncCalendarRest: (_, {required full}) => policy.run(
-          'a',
-          SyncDomain.calendar,
-          pull: () async {
-            calendar++;
+            pulls++;
+            started.complete();
+            await release.future;
           },
           deferred: () async {
             reminders++;
           },
         ),
-      );
-      // Use the actual remote error classification, including a long server hint.
-      await expectLater(
-        operations.syncAccount('a', full: false),
-        throwsA(isA<PartialAccountSyncException>()),
-      );
-      expect(tasks, 1);
-      expect(calendar, 1);
-      policy = DomainSyncPolicy(db, nowUtc: () => now);
-      await expectLater(
-        withSyncTrigger(
-          SyncTrigger.manual,
-          () => operations.syncAccount('a', full: false),
-        ),
-        throwsA(isA<PartialAccountSyncException>()),
-      );
-      expect(tasks, 1);
-      expect(calendar, 2);
-      expect(reminders, 1);
-      final row = await (db.select(
-        db.domainSyncSchedules,
-      )..where((r) => r.domain.equals('tasks'))).getSingle();
-      expect(
-        DateTime.parse(row.cooldownUntilUtc!),
-        now.add(const Duration(hours: 2)),
-      );
-      now = now.subtract(const Duration(hours: 3));
-      await expectLater(
-        operations.syncTasks('a', full: false),
-        throwsA(isA<DomainCooldownException>()),
-      );
-      expect(tasks, 1);
-    },
-  );
+      ),
+    );
+    final background = run(SyncTrigger.background);
+    await started.future;
+    final foreground = run(SyncTrigger.foreground);
+    release.complete();
+    await Future.wait([background, foreground]);
+    expect(pulls, 1);
+    expect(reminders, 1);
+    policy = DomainSyncPolicy(
+      db,
+      nowUtc: () => now,
+    ); // restart retains eligibility
+    await run(SyncTrigger.background);
+    expect(pulls, 1);
+  });
+  test('Tasks quota defers its domain through restart while Calendar and cached reminders continue', () async {
+    var tasks = 0, calendar = 0, reminders = 0;
+    final operations = RoutingAccountSyncOperations(
+      providerForAccount: (_) async => BusyProvider.google,
+      syncDav: (_, {required full}) async {},
+      syncWebCal: (_, {required full}) async {},
+      syncTasksRest: (_, {required full}) => policy.run(
+        'a',
+        SyncDomain.tasks,
+        pull: () async {
+          tasks++;
+          throw const TaskRemoteError(
+            statusCode: 403,
+            code: 'quota',
+            message: 'Rate limit',
+            retryable: true,
+            retryAfter: Duration(hours: 2),
+          );
+        },
+        deferred: () async {},
+        maintainCached: () async {
+          reminders++;
+        },
+      ),
+      syncCalendarRest: (_, {required full}) => policy.run(
+        'a',
+        SyncDomain.calendar,
+        pull: () async {
+          calendar++;
+        },
+        deferred: () async {
+          reminders++;
+        },
+      ),
+    );
+    // Use the actual remote error classification, including a long server hint.
+    await expectLater(
+      operations.syncAccount('a', full: false),
+      throwsA(isA<PartialAccountSyncException>()),
+    );
+    expect(tasks, 1);
+    expect(calendar, 1);
+    policy = DomainSyncPolicy(db, nowUtc: () => now);
+    await expectLater(
+      withSyncTrigger(
+        SyncTrigger.manual,
+        () => operations.syncAccount('a', full: false),
+      ),
+      throwsA(isA<PartialAccountSyncException>()),
+    );
+    expect(tasks, 1);
+    expect(calendar, 2);
+    expect(reminders, 1);
+    final row = await (db.select(
+      db.domainSyncSchedules,
+    )..where((r) => r.domain.equals('tasks'))).getSingle();
+    expect(
+      DateTime.parse(row.cooldownUntilUtc!),
+      now.add(const Duration(hours: 2)),
+    );
+    now = now.subtract(const Duration(hours: 3));
+    await expectLater(
+      operations.syncTasks('a', full: false),
+      throwsA(isA<DomainCooldownException>()),
+    );
+    expect(tasks, 1);
+  });
   test(
     'clock reversal permits stale work and disabled domains issue no requests',
     () async {

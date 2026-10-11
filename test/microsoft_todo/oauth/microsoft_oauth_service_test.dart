@@ -1,5 +1,7 @@
 import 'package:busymax/src/core/auth/authorization_attempt.dart';
+
 import '../../support/oauth_binding_fixture.dart';
+
 import 'dart:async';
 import 'dart:convert';
 
@@ -14,6 +16,91 @@ import 'package:busymax/src/microsoft_todo/oauth/microsoft_oauth_service.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 
 void main() {
+  for (final responseMode in ['omitted', 'read', 'partial', 'revoked']) {
+    test(
+      'contacts claims renewal $responseMode omits scope and honors actual returned authorization',
+      () async {
+        final store = InMemorySecretStore();
+        final priorScopes = {
+          ...microsoftTodoOAuthScopes.split(' '),
+          microsoftContactsWriteScope,
+          microsoftSharedCalendarScope,
+          microsoftCategoryScope,
+        };
+        final prior = OAuthTokenSet(
+          accessToken: 'old',
+          refreshToken: 'working-refresh',
+          expiresAtUtc: DateTime.utc(2026, 6, 7),
+          tokenType: 'Bearer',
+          scopes: priorScopes,
+        );
+        await store.saveOAuthTokenSet(
+          'microsoft:user',
+          BusyProvider.microsoft,
+          prior,
+        );
+        final persistence = await seedBoundFixtures(store);
+        late http.Request captured;
+        final service = MicrosoftOAuthService(
+          config: _config,
+          tokenStore: store,
+          persistence: persistence,
+          loopbackFlow: OAuthLoopbackFlow(
+            authorizationLauncher: (_) async => throw StateError('No browser'),
+          ),
+          nowUtc: () => DateTime.utc(2026, 6, 6),
+          httpClient: MockClient((request) async {
+            captured = request;
+            if (responseMode == 'revoked') {
+              return http.Response(jsonEncode({'error': 'invalid_grant'}), 400);
+            }
+            return http.Response(
+              jsonEncode({
+                'access_token': 'renewed',
+                'refresh_token': 'rotated',
+                'expires_in': 3600,
+                'id_token': fixtureMicrosoftIdToken,
+                if (responseMode != 'omitted')
+                  'scope':
+                      '$microsoftTodoOAuthScopes '
+                      '${responseMode == 'read' ? microsoftContactsReadScope : ''}',
+              }),
+              200,
+            );
+          }),
+        );
+        final operation = service.microsoftContactsAuthorizationHeader(
+          'microsoft:user',
+          claims: 'synthetic-claims',
+        );
+        if (responseMode == 'partial' || responseMode == 'revoked') {
+          await expectLater(operation, throwsA(isA<OAuthException>()));
+        } else {
+          expect(await operation, 'Bearer renewed');
+        }
+        final requested = Uri.splitQueryString(captured.body);
+        expect(requested, isNot(contains('scope')));
+        expect(requested['claims'], 'synthetic-claims');
+        expect(requested['client_id'], fixtureMicrosoftClient);
+        expect(requested['refresh_token'], 'working-refresh');
+        final saved = (await store.readOAuthTokenSet(
+          'microsoft:user',
+          BusyProvider.microsoft,
+        ))!;
+        if (responseMode == 'revoked') {
+          expect(saved.refreshToken, prior.refreshToken);
+          expect(saved.scopes, priorScopes);
+        } else {
+          expect(saved.refreshToken, 'rotated');
+          if (responseMode == 'omitted') {
+            expect(saved.scopes, priorScopes);
+          } else {
+            expect(saved.scopes, isNot(contains(microsoftContactsWriteScope)));
+          }
+        }
+      },
+    );
+  }
   test(
     'short Graph optional scopes authorize their existing account',
     () async {
@@ -32,6 +119,7 @@ void main() {
             'Calendars.ReadWrite',
             'Calendars.ReadWrite.Shared',
             'MailboxSettings.Read',
+            'Contacts.ReadWrite',
           },
         ),
       );
@@ -57,8 +145,13 @@ void main() {
         await service.categoryAuthorizationHeaderForAccount('microsoft:user'),
         'Bearer short-access',
       );
+      expect(
+        await service.microsoftContactsAuthorizationHeader('microsoft:user'),
+        'Bearer short-access',
+      );
       await service.authorizeSharedCalendarAccess('microsoft:user');
       await service.authorizeCategoryAccess('microsoft:user');
+      await service.authorizeMicrosoftContacts('microsoft:user');
       expect(
         (await store.readOAuthTokenSet(
           'microsoft:user',
@@ -70,7 +163,7 @@ void main() {
   );
 
   test(
-    'short optional grants are requested on refresh but loss is honored',
+    'refresh omits requested scopes and honors loss of optional grants',
     () async {
       late http.Request captured;
       final service = _service((request) async {
@@ -97,89 +190,90 @@ void main() {
             'Calendars.ReadWrite',
             'Calendars.ReadWrite.Shared',
             'MailboxSettings.Read',
+            'Contacts.ReadWrite',
           },
         ),
       );
-      final requested = Uri.splitQueryString(captured.body)['scope']!;
-      expect(requested, contains(microsoftSharedCalendarScope));
-      expect(requested, contains(microsoftCategoryScope));
+      expect(Uri.splitQueryString(captured.body), isNot(contains('scope')));
       expect(token.refreshToken, 'keep-refresh');
       expect(token.scopes, isNot(contains('Calendars.ReadWrite.Shared')));
       expect(token.scopes, isNot(contains('MailboxSettings.Read')));
+      expect(token.scopes, isNot(contains('Contacts.ReadWrite')));
     },
   );
   for (final optional in [
     microsoftSharedCalendarScope,
     microsoftCategoryScope,
+    microsoftContactsReadScope,
+    microsoftContactsWriteScope,
   ]) {
-    test(
-      'desktop consent accepts short and mixed Graph grants for $optional',
-      () async {
-        final store = InMemorySecretStore();
-        final flow = _ConsentFlow();
-        final prior = optional == microsoftSharedCalendarScope
-            ? microsoftCategoryScope
-            : microsoftSharedCalendarScope;
-        final priorShort = prior.substring(
-          'https://graph.microsoft.com/'.length,
-        );
-        final optionalShort = optional.substring(
-          'https://graph.microsoft.com/'.length,
-        );
-        await store.saveOAuthTokenSet(
-          'microsoft:user',
-          BusyProvider.microsoft,
-          OAuthTokenSet(
-            accessToken: 'old',
-            refreshToken: 'old-refresh',
-            expiresAtUtc: DateTime.utc(2026, 6, 7),
-            tokenType: 'Bearer',
-            scopes: {
-              'User.Read',
-              'Tasks.ReadWrite',
-              'Calendars.ReadWrite',
-              priorShort,
-            },
-          ),
-        );
-        final service = MicrosoftOAuthService(
-          config: _config,
-          persistence: await seedBoundFixtures(store),
-          httpClient: MockClient(
-            (request) async => request.method == 'GET'
-                ? http.Response(jsonEncode({'id': 'user'}), 200)
-                : http.Response(
-                    jsonEncode({
-                      'id_token': fixtureMicrosoftIdToken,
-                      'access_token': 'consented',
-                      'expires_in': 3600,
-                      'scope':
-                          'User.Read https://graph.microsoft.com/Tasks.ReadWrite '
-                          'Calendars.ReadWrite $optionalShort $priorShort',
-                    }),
-                    200,
-                  ),
-          ),
-          tokenStore: store,
-          loopbackFlow: flow,
-          nowUtc: () => DateTime.utc(2026, 6, 6),
-        );
-        if (optional == microsoftSharedCalendarScope) {
-          await service.authorizeSharedCalendarAccess('microsoft:user');
-        } else {
-          await service.authorizeCategoryAccess('microsoft:user');
-        }
-        expect(flow.requestedScope, contains(optional));
-        expect(flow.requestedScope, contains(prior));
-        final saved = (await store.readOAuthTokenSet(
-          'microsoft:user',
-          BusyProvider.microsoft,
-        ))!;
-        expect(saved.accessToken, 'consented');
-        expect(saved.refreshToken, 'old-refresh');
-        expect(saved.scopes, containsAll([optionalShort, priorShort]));
-      },
-    );
+    test('desktop consent accepts short and mixed Graph grants for $optional', () async {
+      final store = InMemorySecretStore();
+      final flow = _ConsentFlow();
+      final prior = optional == microsoftSharedCalendarScope
+          ? microsoftCategoryScope
+          : microsoftSharedCalendarScope;
+      final priorShort = prior.substring('https://graph.microsoft.com/'.length);
+      final optionalShort = optional.substring(
+        'https://graph.microsoft.com/'.length,
+      );
+      await store.saveOAuthTokenSet(
+        'microsoft:user',
+        BusyProvider.microsoft,
+        OAuthTokenSet(
+          accessToken: 'old',
+          refreshToken: 'old-refresh',
+          expiresAtUtc: DateTime.utc(2026, 6, 7),
+          tokenType: 'Bearer',
+          scopes: {
+            'User.Read',
+            'Tasks.ReadWrite',
+            'Calendars.ReadWrite',
+            priorShort,
+          },
+        ),
+      );
+      final service = MicrosoftOAuthService(
+        config: _config,
+        persistence: await seedBoundFixtures(store),
+        httpClient: MockClient(
+          (request) async => request.method == 'GET'
+              ? http.Response(jsonEncode({'id': 'user'}), 200)
+              : http.Response(
+                  jsonEncode({
+                    'id_token': fixtureMicrosoftIdToken,
+                    'access_token': 'consented',
+                    'expires_in': 3600,
+                    'scope':
+                        'User.Read https://graph.microsoft.com/Tasks.ReadWrite '
+                        'Calendars.ReadWrite $optionalShort $priorShort',
+                  }),
+                  200,
+                ),
+        ),
+        tokenStore: store,
+        loopbackFlow: flow,
+        nowUtc: () => DateTime.utc(2026, 6, 6),
+      );
+      await _authorizeOptional(service, optional);
+      expect(
+        flow.requestedScope,
+        contains(
+          optional == microsoftContactsWriteScope
+              ? microsoftContactsReadScope
+              : optional,
+        ),
+      );
+      expect(flow.requestedScope, isNot(contains(microsoftContactsWriteScope)));
+      expect(flow.requestedScope, contains(prior));
+      final saved = (await store.readOAuthTokenSet(
+        'microsoft:user',
+        BusyProvider.microsoft,
+      ))!;
+      expect(saved.accessToken, 'consented');
+      expect(saved.refreshToken, 'old-refresh');
+      expect(saved.scopes, containsAll([optionalShort, priorShort]));
+    });
   }
 
   test(
@@ -197,6 +291,8 @@ void main() {
           scopes: const {
             'https://example.test/Calendars.ReadWrite.Shared',
             'https://example.test/MailboxSettings.Read',
+            'https://example.test/Contacts.Read',
+            'https://example.test/Contacts.ReadWrite',
           },
         ),
       );
@@ -218,12 +314,22 @@ void main() {
         service.categoryAuthorizationHeaderForAccount('microsoft:user'),
         throwsA(isA<OAuthException>()),
       );
+      await expectLater(
+        service.microsoftContactsAuthorizationHeader('microsoft:user'),
+        throwsA(isA<OAuthException>()),
+      );
+      await expectLater(
+        service.microsoftContactsAuthorizationHeader('microsoft:user'),
+        throwsA(isA<OAuthException>()),
+      );
     },
   );
 
   for (final optional in [
     microsoftSharedCalendarScope,
     microsoftCategoryScope,
+    microsoftContactsReadScope,
+    microsoftContactsWriteScope,
   ]) {
     for (final denial in [
       'cancelled',
@@ -283,9 +389,7 @@ void main() {
           nowUtc: () => DateTime.utc(2026, 6, 6),
         );
         await expectLater(
-          optional == microsoftSharedCalendarScope
-              ? service.authorizeSharedCalendarAccess('microsoft:user')
-              : service.authorizeCategoryAccess('microsoft:user'),
+          _authorizeOptional(service, optional),
           throwsA(isA<OAuthException>()),
         );
         final saved = (await store.readOAuthTokenSet(
@@ -355,7 +459,7 @@ void main() {
     expect(tokenSet.refreshToken, 'refresh');
   });
 
-  test('refresh does not send client_secret and sends scopes', () async {
+  test('refresh omits client_secret and optional scope', () async {
     late http.Request captured;
     final service = _service((request) async {
       captured = request;
@@ -376,7 +480,7 @@ void main() {
     expect(body['client_id'], fixtureMicrosoftClient);
     expect(body['grant_type'], 'refresh_token');
     expect(body['refresh_token'], 'refresh');
-    expect(body['scope'], microsoftTodoOAuthScopes);
+    expect(body, isNot(contains('scope')));
     expect(body.containsKey('client_secret'), isFalse);
   });
 
@@ -407,10 +511,7 @@ void main() {
           scopes: const {microsoftSharedCalendarScope},
         ),
       );
-      expect(
-        Uri.splitQueryString(captured.body)['scope'],
-        contains(microsoftSharedCalendarScope),
-      );
+      expect(Uri.splitQueryString(captured.body), isNot(contains('scope')));
       expect(token.scopes, contains(microsoftSharedCalendarScope));
     },
   );
@@ -457,40 +558,34 @@ void main() {
     },
   );
 
-  test(
-    'category consent remains account-scoped and survives refresh scope selection',
-    () async {
-      late http.Request captured;
-      final service = _service((request) async {
-        captured = request;
-        return http.Response(
-          jsonEncode({
-            'id_token': fixtureMicrosoftIdToken,
-            'access_token': 'renewed',
-            'refresh_token': 'refresh',
-            'expires_in': 3600,
-            'token_type': 'Bearer',
-            'scope': '$microsoftTodoOAuthScopes $microsoftCategoryScope',
-          }),
-          200,
-        );
-      });
-      final token = await service.refreshToken(
-        OAuthTokenSet(
-          accessToken: 'access',
-          refreshToken: 'refresh',
-          expiresAtUtc: DateTime.utc(2026, 6, 6),
-          tokenType: 'Bearer',
-          scopes: const {microsoftCategoryScope},
-        ),
+  test('category consent remains account-scoped and survives refresh scope selection', () async {
+    late http.Request captured;
+    final service = _service((request) async {
+      captured = request;
+      return http.Response(
+        jsonEncode({
+          'id_token': fixtureMicrosoftIdToken,
+          'access_token': 'renewed',
+          'refresh_token': 'refresh',
+          'expires_in': 3600,
+          'token_type': 'Bearer',
+          'scope': '$microsoftTodoOAuthScopes $microsoftCategoryScope',
+        }),
+        200,
       );
-      expect(
-        Uri.splitQueryString(captured.body)['scope'],
-        contains(microsoftCategoryScope),
-      );
-      expect(token.scopes, contains(microsoftCategoryScope));
-    },
-  );
+    });
+    final token = await service.refreshToken(
+      OAuthTokenSet(
+        accessToken: 'access',
+        refreshToken: 'refresh',
+        expiresAtUtc: DateTime.utc(2026, 6, 6),
+        tokenType: 'Bearer',
+        scopes: const {microsoftCategoryScope},
+      ),
+    );
+    expect(Uri.splitQueryString(captured.body), isNot(contains('scope')));
+    expect(token.scopes, contains(microsoftCategoryScope));
+  });
 
   test('refresh failure preserves the token endpoint status', () async {
     final service = _service((request) async {
@@ -600,6 +695,23 @@ void main() {
     },
   );
 }
+
+Future<void> _authorizeOptional(MicrosoftOAuthService service, String scope) =>
+    switch (scope) {
+      microsoftSharedCalendarScope => service.authorizeSharedCalendarAccess(
+        'microsoft:user',
+      ),
+      microsoftCategoryScope => service.authorizeCategoryAccess(
+        'microsoft:user',
+      ),
+      microsoftContactsReadScope => service.authorizeMicrosoftContacts(
+        'microsoft:user',
+      ),
+      microsoftContactsWriteScope => service.authorizeMicrosoftContacts(
+        'microsoft:user',
+      ),
+      _ => throw ArgumentError.value(scope, 'scope'),
+    };
 
 MicrosoftOAuthService _service(
   Future<http.Response> Function(http.Request request) handler,

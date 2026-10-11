@@ -35,5 +35,6 @@ class TaskMutationResult {
   final bool? completed;
 }
 
-typedef TaskMutationCommittedCallback =
-    FutureOr<void> Function(TaskMutationResult result);
+typedef TaskMutationCommittedCallback = FutureOr<void> Function(
+  TaskMutationResult result,
+);

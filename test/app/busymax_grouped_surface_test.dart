@@ -279,9 +279,9 @@ void main() {
           isEmpty,
         );
         expect(
-          DefaultTextStyle.of(
-            tester.element(find.text('Personal account')),
-          ).style.color,
+          DefaultTextStyle.of(tester.element(find.text('Personal account')))
+              .style
+              .color,
           colors.mutedForeground,
         );
         expect(
@@ -391,9 +391,9 @@ void main() {
     );
 
     expect(
-      DefaultTextStyle.of(
-        tester.element(find.text('Account unavailable')),
-      ).style.color,
+      DefaultTextStyle.of(tester.element(find.text('Account unavailable')))
+          .style
+          .color,
       colors.disabledForeground,
     );
   });
@@ -453,9 +453,9 @@ void main() {
         colors.disabledForeground,
       );
       expect(
-        DefaultTextStyle.of(
-          tester.element(find.text('Disabled text action')),
-        ).style.color,
+        DefaultTextStyle.of(tester.element(find.text('Disabled text action')))
+            .style
+            .color,
         colors.disabledForeground,
       );
       expect(

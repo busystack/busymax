@@ -1,3 +1,5 @@
+import 'package:busystack_dav/busystack_dav.dart' as shared;
+
 import '../providers/busy_provider.dart';
 
 const davProviderProfileVersion = 4;
@@ -44,6 +46,24 @@ final class DavProviderProfile {
     };
   }
 }
+
+/// Narrows BusyMax's provider-capability profile to the credential-destination
+/// policy consumed by the shared DAV mechanics.
+shared.DavProviderProfile sharedDavProviderProfile(
+  DavProviderProfile profile,
+) => switch (profile.provider) {
+  BusyProvider.appleICloud => const shared.DavProviderProfile.iCloudCalDav(),
+  BusyProvider.nextcloud => shared.DavProviderProfile.nextcloud(
+    allowInsecureLoopback: profile.allowInsecureLoopbackForTesting,
+  ),
+  BusyProvider.google ||
+  BusyProvider.microsoft ||
+  BusyProvider.webCal => throw ArgumentError.value(
+    profile.provider,
+    'profile',
+    'The provider does not use the DAV transport.',
+  ),
+};
 
 bool _isInsecureLoopbackUri(Uri uri) =>
     uri.scheme.toLowerCase() == 'http' &&

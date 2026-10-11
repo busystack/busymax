@@ -7,8 +7,10 @@ import '../../../app/app_bootstrap.dart';
 import '../../../app/busymax_dialogs.dart';
 import '../../../google_tasks/api/google_tasks_json.dart';
 import '../../../l10n/l10n.dart';
+
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
+
 import '../../accounts/data/accounts_repository.dart';
 import '../../task_lists/data/task_lists_repository.dart';
 import '../data/tasks_repository.dart';
@@ -31,8 +33,9 @@ class NewTaskDraft {
   List<String> get categories => input.categories;
 }
 
-typedef TaskCategorySuggestionsStreamForAccount =
-    Stream<List<String>> Function(String accountId);
+typedef TaskCategorySuggestionsStreamForAccount = Stream<List<String>> Function(
+  String accountId,
+);
 
 Future<NewTaskDraft?> showBusyMaxNewTaskDialog(
   BuildContext context, {

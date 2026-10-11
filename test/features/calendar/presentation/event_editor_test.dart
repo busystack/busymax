@@ -115,9 +115,8 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          calendarRemoteApiClientForAccountProvider(
-            'account',
-          ).overrideWithValue(client),
+          calendarRemoteApiClientForAccountProvider('account')
+              .overrideWithValue(client),
         ],
         child: localizedTestApp(
           theme: BusyMaxYaruTheme.build(
@@ -178,9 +177,8 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          calendarRemoteApiClientForAccountProvider(
-            'account',
-          ).overrideWithValue(client),
+          calendarRemoteApiClientForAccountProvider('account')
+              .overrideWithValue(client),
         ],
         child: localizedTestApp(
           theme: BusyMaxYaruTheme.build(
@@ -321,9 +319,8 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          calendarRemoteApiClientForAccountProvider(
-            'account',
-          ).overrideWithValue(client),
+          calendarRemoteApiClientForAccountProvider('account')
+              .overrideWithValue(client),
         ],
         child: localizedTestApp(
           child: Scaffold(
@@ -505,9 +502,9 @@ void main() {
     expect(saveButton.style?.minimumSize, isNull);
     final cancelContext = tester.element(find.text('Cancel'));
     expect(
-      Theme.of(
-        cancelContext,
-      ).filledButtonTheme.style?.textStyle?.resolve(const {})?.fontWeight,
+      Theme.of(cancelContext).filledButtonTheme.style?.textStyle
+          ?.resolve(const {})
+          ?.fontWeight,
       FontWeight.bold,
     );
   });

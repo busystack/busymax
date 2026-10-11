@@ -810,18 +810,16 @@ void main() {
     expect(planner.offTimesParam.offTimesAllDaysRanges.first.end.hour, 8);
     expect(planner.offTimesParam.offTimesAllDaysRanges.last.start.hour, 18);
     expect(planner.offTimesParam.offTimesAllDaysRanges.last.end.hour, 24);
-    final painter =
-        planner.offTimesParam.offTimesAllDaysPainter!(
-              0,
-              selectedDate,
-              true,
-              0.9,
-              planner.offTimesParam.offTimesAllDaysRanges,
-              Theme.of(
-                tester.element(find.byType(ScheduleDayWeekView)),
-              ).colorScheme.surface,
-            )
-            as icv.OffSetAllDaysPainter;
+    final painter = planner.offTimesParam.offTimesAllDaysPainter!(
+      0,
+      selectedDate,
+      true,
+      0.9,
+      planner.offTimesParam.offTimesAllDaysRanges,
+      Theme.of(tester.element(find.byType(ScheduleDayWeekView)))
+          .colorScheme
+          .surface,
+    ) as icv.OffSetAllDaysPainter;
     expect(painter.paintToday, isTrue);
   });
 
@@ -829,9 +827,9 @@ void main() {
     tester,
   ) async {
     final selectedDate = DateTime(2026, 1, 15);
-    final item = _itemsFor(
-      selectedDate,
-    ).whereType<CalendarScheduleItem>().first;
+    final item = _itemsFor(selectedDate)
+        .whereType<CalendarScheduleItem>()
+        .first;
 
     await tester.pumpWidget(
       localizedTestApp(
@@ -851,9 +849,9 @@ void main() {
     tester,
   ) async {
     final selectedDate = DateTime(2026, 1, 15);
-    final item = _itemsFor(
-      selectedDate,
-    ).whereType<CalendarScheduleItem>().first;
+    final item = _itemsFor(selectedDate)
+        .whereType<CalendarScheduleItem>()
+        .first;
     var activationCount = 0;
     Offset? activationPosition = Offset.zero;
 
@@ -917,9 +915,9 @@ void main() {
   testWidgets('interactive task chip uses the event click cursor', (
     tester,
   ) async {
-    final task = _itemsFor(
-      DateTime(2026, 1, 15),
-    ).whereType<TaskScheduleItem>().first;
+    final task = _itemsFor(DateTime(2026, 1, 15))
+        .whereType<TaskScheduleItem>()
+        .first;
 
     await tester.pumpWidget(
       localizedTestApp(
@@ -1431,9 +1429,9 @@ void main() {
     final selectedDate = DateTime(2026, 1, 15);
     ScheduleItem? selectedItem;
     Offset? pointerPosition;
-    final event = _itemsFor(
-      selectedDate,
-    ).whereType<CalendarScheduleItem>().first;
+    final event = _itemsFor(selectedDate)
+        .whereType<CalendarScheduleItem>()
+        .first;
 
     await tester.pumpWidget(
       localizedTestApp(
@@ -1476,9 +1474,9 @@ void main() {
     tester,
   ) async {
     final selectedDate = DateTime(2026, 1, 15);
-    final event = _itemsFor(
-      selectedDate,
-    ).whereType<CalendarScheduleItem>().first;
+    final event = _itemsFor(selectedDate)
+        .whereType<CalendarScheduleItem>()
+        .first;
     Future<ScheduleItemDetailsAction?>? action;
 
     await tester.pumpWidget(
@@ -1887,9 +1885,9 @@ void main() {
         addTearDown(tester.view.reset);
 
         final selectedDate = DateTime(2026, 1, 15);
-        final event = _itemsFor(
-          selectedDate,
-        ).whereType<CalendarScheduleItem>().first;
+        final event = _itemsFor(selectedDate)
+            .whereType<CalendarScheduleItem>()
+            .first;
         final theme = BusyMaxYaruTheme.build(
           brightness: baseline.brightness,
           accentColor: const Color(0xFF3584E4),
@@ -1900,9 +1898,8 @@ void main() {
             theme: theme,
             child: Builder(
               builder: (context) {
-                final mediaQuery = MediaQuery.of(
-                  context,
-                ).copyWith(disableAnimations: true);
+                final mediaQuery = MediaQuery.of(context)
+                    .copyWith(disableAnimations: true);
                 return MediaQuery(
                   data: mediaQuery,
                   child: Scaffold(
@@ -2096,9 +2093,9 @@ void main() {
     tester,
   ) async {
     final selectedDate = DateTime(2026, 1, 15);
-    final event = _itemsFor(
-      selectedDate,
-    ).whereType<CalendarScheduleItem>().first;
+    final event = _itemsFor(selectedDate)
+        .whereType<CalendarScheduleItem>()
+        .first;
     final controller = ScheduleAnchoredPopoverController();
 
     await tester.pumpWidget(
@@ -2139,9 +2136,9 @@ void main() {
     tester,
   ) async {
     final selectedDate = DateTime(2026, 1, 15);
-    final event = _itemsFor(
-      selectedDate,
-    ).whereType<CalendarScheduleItem>().first;
+    final event = _itemsFor(selectedDate)
+        .whereType<CalendarScheduleItem>()
+        .first;
     Future<ScheduleItemDetailsAction?>? action;
 
     await tester.pumpWidget(
@@ -2700,9 +2697,9 @@ void main() {
     tester,
   ) async {
     final selectedDate = DateTime(2026, 1, 15);
-    final event = _itemsFor(
-      selectedDate,
-    ).whereType<CalendarScheduleItem>().first;
+    final event = _itemsFor(selectedDate)
+        .whereType<CalendarScheduleItem>()
+        .first;
 
     await tester.pumpWidget(
       localizedTestApp(
@@ -2769,9 +2766,9 @@ void main() {
     tester,
   ) async {
     final selectedDate = DateTime(2026, 1, 15);
-    final event = _itemsFor(
-      selectedDate,
-    ).whereType<CalendarScheduleItem>().first;
+    final event = _itemsFor(selectedDate)
+        .whereType<CalendarScheduleItem>()
+        .first;
 
     await tester.pumpWidget(
       localizedTestApp(
@@ -2817,9 +2814,9 @@ void main() {
     tester,
   ) async {
     final selectedDate = DateTime(2026, 1, 15);
-    final event = _itemsFor(
-      selectedDate,
-    ).whereType<CalendarScheduleItem>().first;
+    final event = _itemsFor(selectedDate)
+        .whereType<CalendarScheduleItem>()
+        .first;
 
     await tester.pumpWidget(
       localizedTestApp(
@@ -3737,9 +3734,9 @@ void main() {
   });
 
   test('schedule presentation does not use banned package final UI', () {
-    final files = Directory(
-      'lib/src/features/schedule/presentation',
-    ).listSync().whereType<File>();
+    final files = Directory('lib/src/features/schedule/presentation')
+        .listSync()
+        .whereType<File>();
     for (final file in files) {
       final source = file.readAsStringSync();
       expect(source, isNot(contains('EventsMonths')));
@@ -3967,9 +3964,8 @@ void main() {
     final linux = File(
       'lib/src/features/schedule/presentation/schedule_agenda_view.dart',
     ).readAsStringSync();
-    final windows = File(
-      'lib/src/ui/windows/windows_schedule_page.dart',
-    ).readAsStringSync();
+    final windows = File('lib/src/ui/windows/windows_schedule_page.dart')
+        .readAsStringSync();
     final android = File(
       'lib/src/android/presentation/android_schedule_screen.dart',
     ).readAsStringSync();
@@ -3988,13 +3984,11 @@ void main() {
     final sidebar = File(
       'lib/src/features/schedule/presentation/schedule_sidebar.dart',
     ).readAsStringSync();
-    final nativeRunner = File(
-      'linux/runner/my_application.cc',
-    ).readAsStringSync();
+    final nativeRunner = File('linux/runner/my_application.cc')
+        .readAsStringSync();
 
-    final pageFrame = File(
-      'lib/src/app/linux/linux_page_frame.dart',
-    ).readAsStringSync();
+    final pageFrame = File('lib/src/app/linux/linux_page_frame.dart')
+        .readAsStringSync();
 
     expect(pageFrame, contains('class BusyMaxLinuxBrandHeader'));
     expect(pageFrame, contains("'BusyMax'"));
@@ -4771,12 +4765,10 @@ void main() {
       final workspace = File(
         'lib/src/features/schedule/presentation/schedule_workspace.dart',
       ).readAsStringSync();
-      final nativeRunner = File(
-        'linux/runner/my_application.cc',
-      ).readAsStringSync();
-      final headerActions = File(
-        'lib/src/app/busymax_header_actions.dart',
-      ).readAsStringSync();
+      final nativeRunner = File('linux/runner/my_application.cc')
+          .readAsStringSync();
+      final headerActions = File('lib/src/app/busymax_header_actions.dart')
+          .readAsStringSync();
       final sidebar = File(
         'lib/src/features/schedule/presentation/schedule_sidebar.dart',
       ).readAsStringSync();
@@ -4856,9 +4848,8 @@ void main() {
     final taskChip = File(
       'lib/src/features/schedule/presentation/schedule_task_chip.dart',
     ).readAsStringSync();
-    final projection = File(
-      'lib/src/schedule/schedule_projection.dart',
-    ).readAsStringSync();
+    final projection = File('lib/src/schedule/schedule_projection.dart')
+        .readAsStringSync();
 
     expect(eventBlock, contains('color: surfaceColors.control'));
     expect(eventBlock, contains('sourceAccent'));
@@ -5005,9 +4996,8 @@ void main() {
     final toolbar = File(
       'lib/src/features/schedule/presentation/schedule_toolbar.dart',
     ).readAsStringSync();
-    final nativeRunner = File(
-      'linux/runner/my_application.cc',
-    ).readAsStringSync();
+    final nativeRunner = File('linux/runner/my_application.cc')
+        .readAsStringSync();
 
     expect(
       toolbar,
@@ -5077,9 +5067,8 @@ void main() {
     final workspace = File(
       'lib/src/features/schedule/presentation/schedule_workspace.dart',
     ).readAsStringSync();
-    final scheduleItem = File(
-      'lib/src/schedule/schedule_item.dart',
-    ).readAsStringSync();
+    final scheduleItem = File('lib/src/schedule/schedule_item.dart')
+        .readAsStringSync();
     final repository = File(
       'lib/src/features/calendar/data/calendar_repository.dart',
     ).readAsStringSync();
@@ -5097,12 +5086,10 @@ void main() {
   });
 
   test('year mode uses existing schedule primitives', () {
-    final mode = File(
-      'lib/src/schedule/schedule_view_mode.dart',
-    ).readAsStringSync();
-    final range = File(
-      'lib/src/schedule/schedule_range.dart',
-    ).readAsStringSync();
+    final mode = File('lib/src/schedule/schedule_view_mode.dart')
+        .readAsStringSync();
+    final range = File('lib/src/schedule/schedule_range.dart')
+        .readAsStringSync();
     final workspace = File(
       'lib/src/features/schedule/presentation/schedule_workspace.dart',
     ).readAsStringSync();

@@ -8,13 +8,11 @@ void main() {
     () {
       final pubspec = File('pubspec.yaml').readAsStringSync();
       final snap = File('snap/snapcraft.yaml').readAsStringSync();
-      final metainfo = File(
-        'linux/io.busystack.busymax.metainfo.xml',
-      ).readAsStringSync();
+      final metainfo = File('linux/io.busystack.busymax.metainfo.xml')
+          .readAsStringSync();
       final windowsRunner = File('windows/runner/Runner.rc').readAsStringSync();
-      final androidBuild = File(
-        'android/app/build.gradle.kts',
-      ).readAsStringSync();
+      final androidBuild = File('android/app/build.gradle.kts')
+          .readAsStringSync();
 
       final pubspecVersion = _capture(
         pubspec,
@@ -29,12 +27,12 @@ void main() {
         RegExp(r'<release version="([^"]+)"'),
       );
 
-      expect(pubspecVersion, '0.2.4');
+      expect(pubspecVersion, '0.3.0');
       expect(snapVersion, pubspecVersion);
       expect(metainfoVersion, pubspecVersion);
-      expect(windowsRunner, contains('#define VERSION_AS_NUMBER 0,2,4,0'));
-      expect(windowsRunner, contains('#define VERSION_AS_STRING "0.2.4"'));
-      expect(androidBuild, contains('versionCode = 4'));
+      expect(windowsRunner, contains('#define VERSION_AS_NUMBER 0,3,0,0'));
+      expect(windowsRunner, contains('#define VERSION_AS_STRING "0.3.0"'));
+      expect(androidBuild, contains('versionCode = 5'));
       expect(androidBuild, contains('versionName = flutter.versionName'));
 
       for (final document in [snap, metainfo]) {

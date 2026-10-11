@@ -48,73 +48,57 @@ void main() {
         grantedScopes: '',
       );
 
-  test(
-    'session-only reconciliation selects the persisted first connection without sync',
-    () async {
-      expect(controller.state.isSignedIn, isFalse);
-      await persist('apple:first', BusyProvider.appleICloud);
-      await controller.reconcileConnectedAccount('apple:first');
-      expect(controller.state.isSignedIn, isTrue);
-      expect(controller.state.accountId, 'apple:first');
-      expect(syncs, isEmpty);
-    },
-  );
+  test('session-only reconciliation selects the persisted first connection without sync', () async {
+    expect(controller.state.isSignedIn, isFalse);
+    await persist('apple:first', BusyProvider.appleICloud);
+    await controller.reconcileConnectedAccount('apple:first');
+    expect(controller.state.isSignedIn, isTrue);
+    expect(controller.state.accountId, 'apple:first');
+    expect(syncs, isEmpty);
+  });
 
-  test(
-    'session-only reconciliation preserves a valid session ahead of repository ordering',
-    () async {
-      await persist('microsoft:existing', BusyProvider.microsoft);
-      await controller.load();
-      final original = controller.state;
-      syncs.clear();
-      await persist('google:new', BusyProvider.google);
-      await controller.reconcileConnectedAccount('google:new');
-      expect(controller.state, same(original));
-      expect(controller.state.accountId, 'microsoft:existing');
-      expect(syncs, isEmpty);
-    },
-  );
+  test('session-only reconciliation preserves a valid session ahead of repository ordering', () async {
+    await persist('microsoft:existing', BusyProvider.microsoft);
+    await controller.load();
+    final original = controller.state;
+    syncs.clear();
+    await persist('google:new', BusyProvider.google);
+    await controller.reconcileConnectedAccount('google:new');
+    expect(controller.state, same(original));
+    expect(controller.state.accountId, 'microsoft:existing');
+    expect(syncs, isEmpty);
+  });
 
-  test(
-    'missing, subscription and reconnect-required rows cannot manufacture a session',
-    () async {
-      final original = controller.state;
-      await controller.reconcileConnectedAccount('missing');
-      await persist('webcal:only', BusyProvider.webCal);
-      await controller.reconcileConnectedAccount('webcal:only');
-      await persist('google:invalid', BusyProvider.google);
-      await (database.update(
-        database.accounts,
-      )..where((row) => row.id.equals('google:invalid'))).write(
-        const AccountsCompanion(
-          authState: Value(accountAuthStateReauthRequired),
-        ),
-      );
-      await controller.reconcileConnectedAccount('google:invalid');
-      expect(controller.state, same(original));
-      expect(syncs, isEmpty);
-    },
-  );
+  test('missing, subscription and reconnect-required rows cannot manufacture a session', () async {
+    final original = controller.state;
+    await controller.reconcileConnectedAccount('missing');
+    await persist('webcal:only', BusyProvider.webCal);
+    await controller.reconcileConnectedAccount('webcal:only');
+    await persist('google:invalid', BusyProvider.google);
+    await (database.update(
+      database.accounts,
+    )..where((row) => row.id.equals('google:invalid'))).write(
+      const AccountsCompanion(authState: Value(accountAuthStateReauthRequired)),
+    );
+    await controller.reconcileConnectedAccount('google:invalid');
+    expect(controller.state, same(original));
+    expect(syncs, isEmpty);
+  });
 
-  test(
-    'reconciliation repairs an invalid current account using the committed reconnection',
-    () async {
-      await persist('microsoft:old', BusyProvider.microsoft);
-      await controller.load();
-      syncs.clear();
-      await (database.update(
-        database.accounts,
-      )..where((row) => row.id.equals('microsoft:old'))).write(
-        const AccountsCompanion(
-          authState: Value(accountAuthStateReauthRequired),
-        ),
-      );
-      await persist('nextcloud:connected', BusyProvider.nextcloud);
-      await controller.reconcileConnectedAccount('nextcloud:connected');
-      expect(controller.state.accountId, 'nextcloud:connected');
-      expect(syncs, isEmpty);
-    },
-  );
+  test('reconciliation repairs an invalid current account using the committed reconnection', () async {
+    await persist('microsoft:old', BusyProvider.microsoft);
+    await controller.load();
+    syncs.clear();
+    await (database.update(
+      database.accounts,
+    )..where((row) => row.id.equals('microsoft:old'))).write(
+      const AccountsCompanion(authState: Value(accountAuthStateReauthRequired)),
+    );
+    await persist('nextcloud:connected', BusyProvider.nextcloud);
+    await controller.reconcileConnectedAccount('nextcloud:connected');
+    expect(controller.state.accountId, 'nextcloud:connected');
+    expect(syncs, isEmpty);
+  });
 
   test('session-only reconciliation remains inert after disposal', () async {
     controller.dispose();

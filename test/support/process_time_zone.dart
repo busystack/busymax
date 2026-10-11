@@ -5,10 +5,16 @@ typedef _MallocNative = Pointer<Void> Function(IntPtr size);
 typedef _MallocDart = Pointer<Void> Function(int size);
 typedef _FreeNative = Void Function(Pointer<Void> pointer);
 typedef _FreeDart = void Function(Pointer<Void> pointer);
-typedef _SetEnvNative =
-    Int32 Function(Pointer<Char> name, Pointer<Char> value, Int32 overwrite);
-typedef _SetEnvDart =
-    int Function(Pointer<Char> name, Pointer<Char> value, int overwrite);
+typedef _SetEnvNative = Int32 Function(
+  Pointer<Char> name,
+  Pointer<Char> value,
+  Int32 overwrite,
+);
+typedef _SetEnvDart = int Function(
+  Pointer<Char> name,
+  Pointer<Char> value,
+  int overwrite,
+);
 typedef _UnsetEnvNative = Int32 Function(Pointer<Char> name);
 typedef _UnsetEnvDart = int Function(Pointer<Char> name);
 typedef _TimeZoneSetNative = Void Function();

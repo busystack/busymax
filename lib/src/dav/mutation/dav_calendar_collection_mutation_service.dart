@@ -368,6 +368,7 @@ bool _calendarCreationMayHaveCommitted(DavException error) =>
     switch (error.kind) {
       DavErrorKind.timeout ||
       DavErrorKind.network ||
+      DavErrorKind.unknownOutcome ||
       DavErrorKind.server => true,
       _ => false,
     };

@@ -20,8 +20,10 @@ final class DesktopNotificationReadiness {
   bool get canNotify => state == DesktopNotificationReadinessState.available;
 }
 
-typedef DesktopNotificationActionHandler =
-    Future<void> Function(String action, Map<String, String>? payload);
+typedef DesktopNotificationActionHandler = Future<void> Function(
+  String action,
+  Map<String, String>? payload,
+);
 
 enum BusyMaxNotificationCategory {
   general,

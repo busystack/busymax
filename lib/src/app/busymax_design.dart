@@ -645,9 +645,8 @@ ButtonStyle busyMaxHeaderTextButtonStyle(
   WidgetStateProperty<Color?>? backgroundColor,
   WidgetStateProperty<Color?>? overlayColor,
 }) {
-  final disabledForeground = BusyMaxSurfaceColors.of(
-    context,
-  ).disabledForeground;
+  final disabledForeground = BusyMaxSurfaceColors.of(context)
+      .disabledForeground;
   return ButtonStyle(
     minimumSize: const WidgetStatePropertyAll(
       Size(BusyMaxSizes.headerIconButton, BusyMaxSizes.headerIconButton),
@@ -1293,9 +1292,8 @@ InputDecoration busyMaxGroupedTextFieldDecoration(
   if (errorText == null) {
     return resolved;
   }
-  final errorLabelStyle = Theme.of(
-    context,
-  ).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.error);
+  final errorLabelStyle = Theme.of(context).textTheme.bodyMedium
+      ?.copyWith(color: Theme.of(context).colorScheme.error);
   return resolved.copyWith(
     labelStyle: errorLabelStyle,
     floatingLabelStyle: errorLabelStyle,
@@ -1509,9 +1507,8 @@ class BusyMaxGroupedList extends StatelessWidget {
                 padding: padding,
                 child: Text(
                   description!,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(color: colorScheme.onSurfaceVariant),
                 ),
               ),
             ],
@@ -1756,8 +1753,10 @@ class _BusyMaxGroupedListSurface extends StatelessWidget {
   }
 }
 
-typedef BusyMaxRowActivationCallback =
-    void Function(BuildContext context, Offset? globalPosition);
+typedef BusyMaxRowActivationCallback = void Function(
+  BuildContext context,
+  Offset? globalPosition,
+);
 
 class BusyMaxActionRow extends StatefulWidget {
   const BusyMaxActionRow({
@@ -2365,9 +2364,8 @@ class BusyMaxComboRow<T> extends StatelessWidget {
         final subtitleWidget = hasError
             ? Text(
                 errorText!,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.error,
-                ),
+                style: Theme.of(context).textTheme.bodySmall
+                    ?.copyWith(color: Theme.of(context).colorScheme.error),
               )
             : subtitle == null
             ? null
@@ -2434,9 +2432,8 @@ class BusyMaxComboRow<T> extends StatelessWidget {
                     child: ConstrainedBox(
                       constraints: BoxConstraints(maxWidth: maximumValueWidth),
                       child: DefaultTextStyle.merge(
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: valueForeground,
-                        ),
+                        style: Theme.of(context).textTheme.bodyMedium
+                            ?.copyWith(color: valueForeground),
                         child: IconTheme.merge(
                           data: IconThemeData(
                             color: valueForeground,
@@ -2559,8 +2556,10 @@ class BusyMaxComboRow<T> extends StatelessWidget {
   }
 }
 
-typedef BusyMaxYaruFocusedControlBuilder =
-    Widget Function(BuildContext context, FocusNode focusNode);
+typedef BusyMaxYaruFocusedControlBuilder = Widget Function(
+  BuildContext context,
+  FocusNode focusNode,
+);
 
 /// Presents Yaru's outline around the existing focus target during keyboard
 /// navigation without adding another focus node or interaction handler.
@@ -3152,8 +3151,10 @@ Widget _busyMaxFallbackMenuEntry<T>(
   return Tooltip(message: entry.tooltip!, child: content);
 }
 
-typedef BusyMaxMenuTriggerBuilder =
-    Widget Function(BuildContext context, BusyMaxMenuTriggerDetails trigger);
+typedef BusyMaxMenuTriggerBuilder = Widget Function(
+  BuildContext context,
+  BusyMaxMenuTriggerDetails trigger,
+);
 
 /// Interaction and geometry supplied to a custom [BusyMaxMenuButton] trigger.
 ///
@@ -4001,9 +4002,8 @@ class BusyMaxInlineBadge extends StatelessWidget {
         vertical: BusyMaxSpacing.xxs,
       ),
       borderRadius: BorderRadius.circular(BusyMaxRadius.sm),
-      style: Theme.of(
-        context,
-      ).textTheme.labelSmall?.copyWith(color: colorScheme.onSurfaceVariant),
+      style: Theme.of(context).textTheme.labelSmall
+          ?.copyWith(color: colorScheme.onSurfaceVariant),
       title: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
     );
     return tooltip == null ? badge : Tooltip(message: tooltip!, child: badge);

@@ -759,9 +759,8 @@ class PendingOpResolutionService {
   }
 
   Future<void> _requireAccountSyncEligible() async {
-    final account = await AccountsRepository(
-      database: _database,
-    ).accountById(_accountId);
+    final account = await AccountsRepository(database: _database)
+        .accountById(_accountId);
     if (account?.isSyncEligible == true) {
       return;
     }

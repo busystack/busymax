@@ -1,4 +1,5 @@
 import 'package:busymax/src/providers/busy_provider.dart';
+
 import 'dart:async';
 
 import 'package:busymax/l10n/generated/app_localizations.dart';
