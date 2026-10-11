@@ -19,6 +19,7 @@ final class ContactsFixture implements ContactsAuthorizationBroker {
     this.database, {
     Duration syncInterval = const Duration(days: 1),
     bool realDav = false,
+    BusyMaxLinkedDavCredential? linkedDavCredential,
   }) : accounts = AccountsRepository(database: database),
        store = BusyMaxContactsStore(database) {
     controller = BusyMaxContactsController(
@@ -33,7 +34,7 @@ final class ContactsFixture implements ContactsAuthorizationBroker {
       deleteDavSecret: (id) async {
         davSecrets.remove(id);
       },
-      readLinkedDavCredential: (_) async => null,
+      readLinkedDavCredential: (_) async => linkedDavCredential,
       launchBrowser: (_) async => true,
       syncInterval: syncInterval,
       providerFactory: realDav ? null : provider,

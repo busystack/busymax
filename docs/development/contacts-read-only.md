@@ -30,7 +30,7 @@ AuthRepository, AuthorizationPersistence, C1 lock ordering and C2 removal receip
 
 ## Settings and localization
 
-Linux/Yaru, Windows/Fluent and Android Settings retain account/source controls and platform routes. Editing/upgrade actions, writable badges and DAV mode switches were removed. All ARBs contain a contacts-specific read-only attendee description, and the three unused editing keys were removed through normal `flutter gen-l10n`. Shared calendar/task editing strings remain. Manual attendee input, source-qualified cached suggestions, exclusions, limits, draft selections and stale-result fencing use the existing implementation. The embedded provider setup guides label contacts as optional and make no claim that prior grants were revoked or verification approved.
+Linux/Yaru, Windows/Fluent and Android Settings retain account/source controls and platform routes. Editing/upgrade actions, writable badges and DAV mode switches were removed. Every supported locale contains a contacts-specific read-only attendee description, and the three unused editing keys were removed through normal `flutter gen-l10n`. The generic Portuguese alias remains empty; the existing European Portuguese locale carries its translation. Shared calendar/task editing strings remain. Manual attendee input, source-qualified cached suggestions, exclusions, limits, draft selections and stale-result fencing use the existing implementation. The embedded provider setup guides label contacts as optional and make no claim that prior grants were revoked or verification approved.
 
 ## Verification and delivery
 

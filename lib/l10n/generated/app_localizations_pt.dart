@@ -3556,7 +3556,7 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get contactsReadOnlyUse =>
-      'Contatos somente para leitura para sugestões de participantes';
+      'Read-only contacts for attendee suggestions';
 
   @override
   String get contactsReadPermissionDescription =>

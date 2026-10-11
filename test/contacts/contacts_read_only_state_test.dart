@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:busystack_contacts/google.dart';
 import 'package:busystack_contacts/microsoft.dart';
+import 'package:busymax/src/contacts/busymax_contacts_controller.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -11,6 +12,86 @@ import '../support/dav_contacts_fixture.dart';
 import 'read_only_contacts_provider_test.dart' show effective;
 
 void main() {
+  test('linked Nextcloud reconnect preserves legacy markers and the parent app password', () async {
+    final db = AppDatabase.memoryForTests();
+    final credential = BusyMaxLinkedDavCredential(
+      server: server,
+      username: 'actual-user',
+      password: 'original-app-password',
+    );
+    final f = ContactsFixture(
+      db,
+      realDav: true,
+      linkedDavCredential: credential,
+    );
+    addTearDown(f.close);
+    final dav = DavFixture();
+    f.respondDav = dav.respond;
+    await f.accounts.upsertSignedInAccount(
+      id: 'nextcloud',
+      provider: BusyProvider.nextcloud,
+      providerAccountId: 'actual-user',
+      authority: server.toString(),
+      displayName: 'Parent Nextcloud',
+      grantedScopes: '',
+    );
+    const id = 'contacts:nextcloud';
+    await f.store.saveLinkedAccount(
+      account: ContactAccount(
+        id: id,
+        provider: ContactProviderKind.carddav,
+        displayName: 'Legacy Nextcloud',
+        subject: credential.username,
+        grantedScopes: const {'carddav:write'},
+        generation: 4,
+      ),
+      busyMaxAccountId: 'nextcloud',
+      reuseAuthorization: true,
+    );
+    await f.controller.start();
+    await f.controller.synchronizeAccount(id);
+    final source = (await f.controller.sourceSettings()).first.source;
+    await f.store.setSourceEnabled(source.key, enabled: false);
+    final queued = ContactMutation(
+      id: 'legacy-linked-queued',
+      accountId: id,
+      sourceKey: source.key,
+      kind: ContactMutationKind.providerAction,
+      state: ContactMutationState.queued,
+      createdAt: DateTime.utc(2026),
+      payload: const {'type': 'historical', 'evidence': 'retain'},
+    );
+    await f.store.write((tx) => tx.putMutation(queued));
+    await f.controller.reconnectContactsAccount(id);
+    await f.controller.synchronizeAccount(id);
+    final account = (await f.store.read((tx) => tx.account(id)))!;
+    expect(account.id, id);
+    expect(account.subject, credential.username);
+    expect(account.generation, 5);
+    expect(account.grantedScopes, {'carddav:write'});
+    expect(await f.store.sourceEnabled(source.key), isFalse);
+    expect(
+      (await f.store.read((tx) => tx.mutations(accountId: id)))
+          .singleWhere((mutation) => mutation.id == queued.id)
+          .toJson(),
+      queued.toJson(),
+    );
+    for (final setting in await f.controller.sourceSettings()) {
+      effective(setting.source);
+    }
+    expect(f.davSecrets, isEmpty);
+    await f.controller.removeContactsAccount(id);
+    expect(await f.accounts.accountById('nextcloud'), isNotNull);
+    expect(
+      dav.requests.where(
+        (r) =>
+            ['PUT', 'DELETE', 'MKCOL', 'PROPPATCH', 'POST'].contains(r.method),
+      ),
+      isEmpty,
+    );
+    expect(dav.card, rawCard);
+    expect(credential.password, 'original-app-password');
+  });
   for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
     for (final factory in [true, false]) {
       test(

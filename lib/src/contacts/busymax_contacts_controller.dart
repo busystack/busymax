@@ -444,7 +444,7 @@ final class BusyMaxContactsController {
           provider: ContactProviderKind.carddav,
           displayName: parent.displayLabel,
           subject: credential.username,
-          grantedScopes: <String>{'carddav:read'},
+          grantedScopes: previous?.grantedScopes ?? <String>{'carddav:read'},
           generation: (previous?.generation ?? -1) + 1,
         );
         await store.saveLinkedAccount(
