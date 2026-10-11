@@ -14,7 +14,7 @@ import '../support/contacts_fixture.dart';
 void main() {
   for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
     test(
-      '$provider first enrollment, enabled upgrade and reconnect synchronize',
+      '$provider first enrollment, enabled read-only reconnect and reconnect synchronize',
       () async {
         final fixture = ContactsFixture(AppDatabase.memoryForTests());
         addTearDown(fixture.close);
@@ -23,11 +23,8 @@ void main() {
         final id = BusyMaxContactsController.linkedContactAccountId(
           provider.name,
         );
-        for (final writable in [false, true, true]) {
-          await fixture.controller.enableLinkedContacts(
-            provider.name,
-            writable: writable,
-          );
+        for (var reconnect = 0; reconnect < 3; reconnect++) {
+          await fixture.controller.enableLinkedContacts(provider.name);
           await fixture.controller.synchronizeAccount(id);
           final account = await fixture.store.read((tx) => tx.account(id));
           expect(account!.enabled, isTrue);
@@ -45,8 +42,8 @@ void main() {
           account.grantedScopes,
           contains(
             provider == BusyProvider.google
-                ? 'https://www.googleapis.com/auth/contacts'
-                : 'Contacts.ReadWrite',
+                ? 'https://www.googleapis.com/auth/contacts.readonly'
+                : 'Contacts.Read',
           ),
         );
         final before = account.toJson();
@@ -54,10 +51,7 @@ void main() {
           'cancelled or invalid consent',
         );
         await expectLater(
-          fixture.controller.enableLinkedContacts(
-            provider.name,
-            writable: true,
-          ),
+          fixture.controller.enableLinkedContacts(provider.name),
           throwsStateError,
         );
         expect(
@@ -133,7 +127,7 @@ void main() {
   for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
     for (final failure in ['identity', 'grant', 'persistence']) {
       test(
-        '$provider $failure upgrade preserves enabled account, scopes and cache',
+        '$provider $failure read-only reconnect preserves enabled account, scopes and cache',
         () async {
           final f = ContactsFixture(AppDatabase.memoryForTests());
           addTearDown(f.close);
@@ -146,14 +140,18 @@ void main() {
           final parentBefore = (await f.accounts.accountById(provider.name))!
               .grantedScopes;
           if (failure == 'identity') f.consentSubject = 'wrong-person';
-          if (failure == 'grant') f.consentScopes = parentBefore;
+          if (failure == 'grant') {
+            f.consentScopes = provider == BusyProvider.google
+                ? 'calendar tasks'
+                : 'Calendars.ReadWrite Tasks.ReadWrite';
+          }
           if (failure == 'persistence') {
             await f.database.customStatement(
               "CREATE TRIGGER reject_contacts_update BEFORE UPDATE ON bm_contact_accounts BEGIN SELECT RAISE(ABORT, 'fixture durable write rejected'); END",
             );
           }
           await expectLater(
-            f.controller.enableLinkedContacts(provider.name, writable: true),
+            f.controller.enableLinkedContacts(provider.name),
             throwsA(isA<Object>()),
           );
           if (failure == 'persistence') {
@@ -183,7 +181,7 @@ void main() {
       );
     }
     test(
-      '$provider disk restart retains enabled upgraded account and source preference',
+      '$provider disk restart retains enabled reconnected read-only account and source preference',
       () async {
         final profile = await Directory.systemTemp.createTemp(
           'busymax-enrollment-restart-',
@@ -194,7 +192,7 @@ void main() {
         );
         var f = open();
         await f.addParent(provider);
-        await f.controller.enableLinkedContacts(provider.name, writable: true);
+        await f.controller.enableLinkedContacts(provider.name);
         await f.controller.synchronizeAccount('contacts:${provider.name}');
         final source = (await f.controller.sourceSettings()).single.source;
         await f.controller.setSourceEnabled(source.key, enabled: false);

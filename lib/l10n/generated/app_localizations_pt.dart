@@ -3555,24 +3555,18 @@ class AppLocalizationsPt extends AppLocalizations {
   String get contactsEnableSuggestions => 'Enable contact suggestions';
 
   @override
+  String get contactsReadOnlyUse =>
+      'Contatos somente para leitura para sugestões de participantes';
+
+  @override
   String get contactsReadPermissionDescription =>
       'Requests read-only contact access';
-
-  @override
-  String get contactsEnableEditing => 'Enable contact editing';
-
-  @override
-  String get contactsWritePermissionDescription =>
-      'Requests contact read and write access';
 
   @override
   String get contactsSuggestionsEnabled => 'Contact suggestions enabled';
 
   @override
   String get contactsNeedsAttention => 'Contacts need attention';
-
-  @override
-  String get contactsReadWriteAccess => 'Read and write access';
 
   @override
   String get contactsDisableForAccount => 'Disable contacts for this account';
@@ -7144,24 +7138,18 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
   String get contactsEnableSuggestions => 'Ativar sugestões de contactos';
 
   @override
+  String get contactsReadOnlyUse =>
+      'Contactos só de leitura para sugestões de participantes';
+
+  @override
   String get contactsReadPermissionDescription =>
       'Pede acesso só de leitura aos contactos';
-
-  @override
-  String get contactsEnableEditing => 'Ativar edição de contactos';
-
-  @override
-  String get contactsWritePermissionDescription =>
-      'Pede acesso de leitura e escrita aos contactos';
 
   @override
   String get contactsSuggestionsEnabled => 'Sugestões de contactos ativadas';
 
   @override
   String get contactsNeedsAttention => 'Os contactos precisam de atenção';
-
-  @override
-  String get contactsReadWriteAccess => 'Acesso de leitura e escrita';
 
   @override
   String get contactsDisableForAccount => 'Desativar contactos para esta conta';

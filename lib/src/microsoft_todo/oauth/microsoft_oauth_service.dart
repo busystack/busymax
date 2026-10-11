@@ -58,14 +58,12 @@ abstract interface class MicrosoftSharedCalendarAuthorization {
 abstract interface class MicrosoftContactsAuthorization {
   Future<void> authorizeMicrosoftContacts(
     String accountId, {
-    required bool writable,
     AuthorizationCancellation? cancellation,
     Future<void> Function()? persistContacts,
   });
 
   Future<String> microsoftContactsAuthorizationHeader(
     String accountId, {
-    required bool writable,
     String? claims,
   });
 }
@@ -226,7 +224,7 @@ class MicrosoftOAuthService
             previous.tokenSet.scopes,
             microsoftContactsWriteScope,
           ))
-        microsoftContactsWriteScope
+        microsoftContactsReadScope
       else if (previous != null &&
           hasMicrosoftGraphScope(
             previous.tokenSet.scopes,
@@ -258,11 +256,22 @@ class MicrosoftOAuthService
       cancellation: attempt.cancellation,
     );
     if (!hasMicrosoftGraphScopes(tokens.scopes, {
-      'User.Read',
-      'Tasks.ReadWrite',
-      'Calendars.ReadWrite',
-      ...optionalScopes,
-    })) {
+          'User.Read',
+          'Tasks.ReadWrite',
+          'Calendars.ReadWrite',
+          ...optionalScopes.where(
+            (scope) => scope != microsoftContactsReadScope,
+          ),
+        }) ||
+        optionalScopes.contains(microsoftContactsReadScope) &&
+            !hasMicrosoftGraphScope(
+              tokens.scopes,
+              microsoftContactsReadScope,
+            ) &&
+            !hasMicrosoftGraphScope(
+              tokens.scopes,
+              microsoftContactsWriteScope,
+            )) {
       throw const OAuthException(
         'MicrosoftOAuthMissingRequiredScope',
         'Grant Microsoft Tasks and Calendar permissions.',
@@ -554,12 +563,11 @@ class MicrosoftOAuthService
   @override
   Future<void> authorizeMicrosoftContacts(
     String accountId, {
-    required bool writable,
     AuthorizationCancellation? cancellation,
     Future<void> Function()? persistContacts,
   }) => _optionalConsent(
     accountId,
-    writable ? microsoftContactsWriteScope : microsoftContactsReadScope,
+    microsoftContactsReadScope,
     cancellation,
     persistContacts: persistContacts,
   );
@@ -567,7 +575,6 @@ class MicrosoftOAuthService
   @override
   Future<String> microsoftContactsAuthorizationHeader(
     String accountId, {
-    required bool writable,
     String? claims,
   }) async {
     final tokenSet = claims == null || claims.isEmpty
@@ -581,7 +588,7 @@ class MicrosoftOAuthService
       tokenSet.scopes,
       microsoftContactsWriteScope,
     );
-    if (writable ? !hasWrite : !hasRead && !hasWrite) {
+    if (!hasRead && !hasWrite) {
       throw const OAuthException(
         'MicrosoftOAuthContactsConsentRequired',
         'Microsoft Contacts permission must be granted for this account.',
@@ -601,7 +608,12 @@ class MicrosoftOAuthService
     try {
       final active = await attempt.wait(boundCredentialForAccount(id));
       current = active;
-      if (hasMicrosoftGraphScope(active.tokenSet.scopes, scope)) {
+      if (hasMicrosoftGraphScope(active.tokenSet.scopes, scope) ||
+          scope == microsoftContactsReadScope &&
+              hasMicrosoftGraphScope(
+                active.tokenSet.scopes,
+                microsoftContactsWriteScope,
+              )) {
         if (persistContacts != null) {
           final persistence = _persistence!;
           final generation = active.generation;
@@ -790,26 +802,8 @@ class MicrosoftOAuthService
         'client_id': clientId,
         'grant_type': 'refresh_token',
         'refresh_token': current.refreshToken!,
-        'scope': [
-          microsoftTodoOAuthScopes,
-          if (hasMicrosoftGraphScope(
-            current.scopes,
-            microsoftSharedCalendarScope,
-          ))
-            microsoftSharedCalendarScope,
-          if (hasMicrosoftGraphScope(current.scopes, microsoftCategoryScope))
-            microsoftCategoryScope,
-          if (hasMicrosoftGraphScope(
-            current.scopes,
-            microsoftContactsWriteScope,
-          ))
-            microsoftContactsWriteScope
-          else if (hasMicrosoftGraphScope(
-            current.scopes,
-            microsoftContactsReadScope,
-          ))
-            microsoftContactsReadScope,
-        ].join(' '),
+        // Omit optional scope to renew the existing grant without requesting
+        // a contacts write permission or inventing a reduced provider grant.
         if (claims != null && claims.isNotEmpty) 'claims': claims,
       },
     );

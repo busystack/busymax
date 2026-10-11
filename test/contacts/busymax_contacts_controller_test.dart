@@ -117,7 +117,7 @@ final class _UnusedAuthorization implements ContactsAuthorizationBroker {
   Future<void> authorizeContacts(
     BusyProvider provider,
     String accountId, {
-    required bool writable,
+
     AuthorizationCancellation? cancellation,
     Future<void> Function()? persistContacts,
   }) => throw StateError('authorization is not used by cached lookup');
@@ -126,7 +126,7 @@ final class _UnusedAuthorization implements ContactsAuthorizationBroker {
   Future<String> contactsAuthorizationHeader(
     BusyProvider provider,
     String accountId, {
-    required bool writable,
+
     String? claims,
   }) => throw StateError('authorization is not used by cached lookup');
 }

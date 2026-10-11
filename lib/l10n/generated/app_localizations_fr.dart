@@ -3542,15 +3542,12 @@ class AppLocalizationsFr extends AppLocalizations {
   String get contactsEnableSuggestions => 'Activer les suggestions de contacts';
 
   @override
+  String get contactsReadOnlyUse =>
+      'Contacts en lecture seule pour suggérer des invités';
+
+  @override
   String get contactsReadPermissionDescription =>
       'Demande un accès en lecture seule aux contacts';
-
-  @override
-  String get contactsEnableEditing => 'Activer la modification des contacts';
-
-  @override
-  String get contactsWritePermissionDescription =>
-      'Demande un accès en lecture et en écriture aux contacts';
 
   @override
   String get contactsSuggestionsEnabled => 'Suggestions de contacts activées';
@@ -3558,9 +3555,6 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get contactsNeedsAttention =>
       'Les contacts nécessitent votre attention';
-
-  @override
-  String get contactsReadWriteAccess => 'Accès en lecture et en écriture';
 
   @override
   String get contactsDisableForAccount =>

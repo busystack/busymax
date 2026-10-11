@@ -3555,24 +3555,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get contactsEnableSuggestions => 'Enable contact suggestions';
 
   @override
+  String get contactsReadOnlyUse =>
+      'Read-only contacts for attendee suggestions';
+
+  @override
   String get contactsReadPermissionDescription =>
       'Requests read-only contact access';
-
-  @override
-  String get contactsEnableEditing => 'Enable contact editing';
-
-  @override
-  String get contactsWritePermissionDescription =>
-      'Requests contact read and write access';
 
   @override
   String get contactsSuggestionsEnabled => 'Contact suggestions enabled';
 
   @override
   String get contactsNeedsAttention => 'Contacts need attention';
-
-  @override
-  String get contactsReadWriteAccess => 'Read and write access';
 
   @override
   String get contactsDisableForAccount => 'Disable contacts for this account';

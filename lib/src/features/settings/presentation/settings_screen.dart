@@ -207,8 +207,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         contactAccounts: contactAccounts,
         contactSources: contactSources,
         busyContactAccountIds: _busyContactAccountIds,
-        onEnableContacts: (account, writable) =>
-            unawaited(_enableContacts(account, writable: writable)),
+        onEnableContacts: (account) => unawaited(_enableContacts(account)),
         onDisableContacts: (account) => unawaited(_disableContacts(account.id)),
         onSourceEnabled: (sourceKey, enabled) => ref
             .read(busyMaxContactsControllerProvider)
@@ -612,20 +611,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
-  Future<void> _enableContacts(
-    AccountEntity account, {
-    required bool writable,
-  }) => _runContactOperation(account.id, () async {
-    final controller = ref.read(busyMaxContactsControllerProvider);
-    if (account.provider == BusyProvider.nextcloud) {
-      await controller.enableLinkedNextcloudContacts(
-        account.id,
-        writable: writable,
-      );
-    } else {
-      await controller.enableLinkedContacts(account.id, writable: writable);
-    }
-  });
+  Future<void> _enableContacts(AccountEntity account) =>
+      _runContactOperation(account.id, () async {
+        final controller = ref.read(busyMaxContactsControllerProvider);
+        if (account.provider == BusyProvider.nextcloud) {
+          await controller.enableLinkedNextcloudContacts(account.id);
+        } else {
+          await controller.enableLinkedContacts(account.id);
+        }
+      });
 
   Future<void> _disableContacts(String id) => _runContactOperation(
     id,
@@ -656,7 +650,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             server: input.server,
             username: input.username,
             password: input.password,
-            readOnly: input.readOnly,
           );
     });
   }
@@ -1569,7 +1562,7 @@ class _AccountManagementSection extends StatelessWidget {
   final List<ContactAccount> contactAccounts;
   final List<BusyMaxContactSourceSetting> contactSources;
   final Set<String> busyContactAccountIds;
-  final void Function(AccountEntity account, bool writable) onEnableContacts;
+  final void Function(AccountEntity account) onEnableContacts;
   final void Function(ContactAccount account) onDisableContacts;
   final Future<void> Function(String sourceKey, bool enabled) onSourceEnabled;
   final VoidCallback onAddCardDavContacts;
@@ -1698,8 +1691,7 @@ class _AccountManagementSection extends StatelessWidget {
                           account.id,
                         ),
                       ),
-                  onEnableRead: () => onEnableContacts(account, false),
-                  onEnableWrite: () => onEnableContacts(account, true),
+                  onEnableRead: () => onEnableContacts(account),
                   onDisable: () {
                     final contact = contactAccounts
                         .where(
@@ -1887,7 +1879,6 @@ class _ContactsSettingsCard extends StatelessWidget {
     required this.sources,
     required this.busy,
     required this.onEnableRead,
-    required this.onEnableWrite,
     required this.onDisable,
     required this.onSourceEnabled,
   });
@@ -1897,7 +1888,6 @@ class _ContactsSettingsCard extends StatelessWidget {
   final List<BusyMaxContactSourceSetting> sources;
   final bool busy;
   final VoidCallback onEnableRead;
-  final VoidCallback onEnableWrite;
   final VoidCallback onDisable;
   final Future<void> Function(String sourceKey, bool enabled) onSourceEnabled;
 
@@ -1919,35 +1909,25 @@ class _ContactsSettingsCard extends StatelessWidget {
                 leading: const Icon(YaruIcons.user),
                 onTap: busy ? null : onEnableRead,
               ),
-              BusyMaxActionRow(
-                key: ValueKey('enable-contacts-write-${account.id}'),
-                title: l10n.contactsEnableEditing,
-                subtitle: l10n.contactsWritePermissionDescription,
-                leading: const Icon(Icons.edit_outlined),
-                onTap: busy ? null : onEnableWrite,
-              ),
             ]
           : [
               BusyMaxActionRow(
                 title: contact.errorCode == null
                     ? l10n.contactsSuggestionsEnabled
                     : l10n.contactsNeedsAttention,
-                subtitle: _contactsWritable(contact)
-                    ? l10n.contactsReadWriteAccess
-                    : l10n.readOnlySharedCollection,
+                subtitle: l10n.contactsReadOnlyUse,
                 leading: Icon(
                   contact.errorCode == null
                       ? YaruIcons.checkmark
                       : YaruIcons.warning,
                 ),
               ),
-              if (!_contactsWritable(contact))
-                BusyMaxActionRow(
-                  key: ValueKey('upgrade-contacts-write-${account.id}'),
-                  title: l10n.contactsEnableEditing,
-                  leading: const Icon(Icons.edit_outlined),
-                  onTap: busy ? null : onEnableWrite,
-                ),
+              BusyMaxActionRow(
+                key: ValueKey('reconnect-contacts-${account.id}'),
+                title: l10n.connectAccountAction,
+                leading: const Icon(YaruIcons.sync),
+                onTap: busy ? null : onEnableRead,
+              ),
               for (final setting in sources)
                 _ContactSourceSettingsRow(
                   setting: setting,
@@ -2012,9 +1992,7 @@ class _ContactsOnlySettingsCard extends StatelessWidget {
         for (final account in accounts) ...[
           BusyMaxActionRow(
             title: account.displayName,
-            subtitle: _contactsWritable(account)
-                ? l10n.contactsReadWriteAccess
-                : l10n.readOnlySharedCollection,
+            subtitle: l10n.contactsReadOnlyUse,
             leading: const Icon(YaruIcons.user),
           ),
           for (final setting in sources)
@@ -2102,14 +2080,6 @@ class _ContactSourceSettingsRowState extends State<_ContactSourceSettingsRow> {
           ),
   );
 }
-
-bool _contactsWritable(ContactAccount account) =>
-    account.grantedScopes.any((scope) {
-      final normalized = scope.toLowerCase();
-      return normalized == 'contacts.readwrite' ||
-          normalized == 'carddav:write' ||
-          normalized == 'https://www.googleapis.com/auth/contacts';
-    });
 
 TextStyle? _settingsAccountSubsectionStyle(BuildContext context) {
   final theme = Theme.of(context);
@@ -2508,14 +2478,12 @@ final class _CardDavContactsInput {
     required this.server,
     required this.username,
     required this.password,
-    required this.readOnly,
   });
 
   final String label;
   final Uri server;
   final String username;
   final String password;
-  final bool readOnly;
 }
 
 class _CardDavContactsDialog extends StatefulWidget {
@@ -2530,7 +2498,6 @@ class _CardDavContactsDialogState extends State<_CardDavContactsDialog> {
   final _server = TextEditingController();
   final _username = TextEditingController();
   final _password = TextEditingController();
-  bool _readOnly = false;
 
   @override
   void initState() {
@@ -2608,12 +2575,7 @@ class _CardDavContactsDialogState extends State<_CardDavContactsDialog> {
           decoration: InputDecoration(labelText: l10n.contactsPasswordLabel),
         ),
         const SizedBox(height: BusyMaxSpacing.md),
-        SwitchListTile.adaptive(
-          value: _readOnly,
-          title: Text(l10n.readOnlySharedCollection),
-          contentPadding: EdgeInsets.zero,
-          onChanged: (value) => setState(() => _readOnly = value),
-        ),
+        Text(l10n.contactsReadOnlyUse),
       ],
       actions: [
         BusyMaxPushButton.standard(
@@ -2630,7 +2592,6 @@ class _CardDavContactsDialogState extends State<_CardDavContactsDialog> {
                     server: _validServer!,
                     username: _username.text,
                     password: _password.text,
-                    readOnly: _readOnly,
                   ),
                 ),
           child: Text(l10n.connectAccountAction),

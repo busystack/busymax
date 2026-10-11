@@ -3448,22 +3448,16 @@ class AppLocalizationsJa extends AppLocalizations {
   String get contactsEnableSuggestions => '連絡先の候補を有効にする';
 
   @override
+  String get contactsReadOnlyUse => '参加者候補のための読み取り専用連絡先';
+
+  @override
   String get contactsReadPermissionDescription => '連絡先への読み取り専用アクセスを要求します';
-
-  @override
-  String get contactsEnableEditing => '連絡先の編集を有効にする';
-
-  @override
-  String get contactsWritePermissionDescription => '連絡先への読み取りおよび書き込みアクセスを要求します';
 
   @override
   String get contactsSuggestionsEnabled => '連絡先の候補が有効です';
 
   @override
   String get contactsNeedsAttention => '連絡先の確認が必要です';
-
-  @override
-  String get contactsReadWriteAccess => '読み取りおよび書き込みアクセス';
 
   @override
   String get contactsDisableForAccount => 'このアカウントの連絡先を無効にする';

@@ -3396,22 +3396,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get contactsEnableSuggestions => '启用联系人建议';
 
   @override
+  String get contactsReadOnlyUse => '用于与会者建议的只读联系人';
+
+  @override
   String get contactsReadPermissionDescription => '请求联系人只读权限';
-
-  @override
-  String get contactsEnableEditing => '启用联系人编辑';
-
-  @override
-  String get contactsWritePermissionDescription => '请求联系人读写权限';
 
   @override
   String get contactsSuggestionsEnabled => '联系人建议已启用';
 
   @override
   String get contactsNeedsAttention => '联系人需要处理';
-
-  @override
-  String get contactsReadWriteAccess => '读写权限';
 
   @override
   String get contactsDisableForAccount => '停用此账号的联系人';
@@ -6825,22 +6819,16 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get contactsEnableSuggestions => '启用联系人建议';
 
   @override
+  String get contactsReadOnlyUse => '用于与会者建议的只读联系人';
+
+  @override
   String get contactsReadPermissionDescription => '请求联系人只读权限';
-
-  @override
-  String get contactsEnableEditing => '启用联系人编辑';
-
-  @override
-  String get contactsWritePermissionDescription => '请求联系人读写权限';
 
   @override
   String get contactsSuggestionsEnabled => '联系人建议已启用';
 
   @override
   String get contactsNeedsAttention => '联系人需要处理';
-
-  @override
-  String get contactsReadWriteAccess => '读写权限';
 
   @override
   String get contactsDisableForAccount => '停用此账号的联系人';
@@ -10255,22 +10243,16 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get contactsEnableSuggestions => '啟用聯絡人建議';
 
   @override
+  String get contactsReadOnlyUse => '用於與會者建議的唯讀聯絡人';
+
+  @override
   String get contactsReadPermissionDescription => '要求聯絡人的唯讀權限';
-
-  @override
-  String get contactsEnableEditing => '啟用聯絡人編輯';
-
-  @override
-  String get contactsWritePermissionDescription => '要求聯絡人的讀寫權限';
 
   @override
   String get contactsSuggestionsEnabled => '已啟用聯絡人建議';
 
   @override
   String get contactsNeedsAttention => '聯絡人需要處理';
-
-  @override
-  String get contactsReadWriteAccess => '讀寫權限';
 
   @override
   String get contactsDisableForAccount => '停用此帳號的聯絡人';

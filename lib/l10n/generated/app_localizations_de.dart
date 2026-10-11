@@ -3532,24 +3532,18 @@ class AppLocalizationsDe extends AppLocalizations {
   String get contactsEnableSuggestions => 'Kontaktvorschläge aktivieren';
 
   @override
+  String get contactsReadOnlyUse =>
+      'Schreibgeschützte Kontakte für Gästervorschläge';
+
+  @override
   String get contactsReadPermissionDescription =>
       'Fordert schreibgeschützten Zugriff auf Kontakte an';
-
-  @override
-  String get contactsEnableEditing => 'Kontaktbearbeitung aktivieren';
-
-  @override
-  String get contactsWritePermissionDescription =>
-      'Fordert Lese- und Schreibzugriff auf Kontakte an';
 
   @override
   String get contactsSuggestionsEnabled => 'Kontaktvorschläge aktiviert';
 
   @override
   String get contactsNeedsAttention => 'Kontakte erfordern Aufmerksamkeit';
-
-  @override
-  String get contactsReadWriteAccess => 'Lese- und Schreibzugriff';
 
   @override
   String get contactsDisableForAccount =>

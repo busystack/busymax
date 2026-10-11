@@ -32,7 +32,6 @@ abstract interface class ContactsAuthorizationBroker {
   Future<void> authorizeContacts(
     BusyProvider provider,
     String accountId, {
-    required bool writable,
     AuthorizationCancellation? cancellation,
     Future<void> Function()? persistContacts,
   });
@@ -40,7 +39,6 @@ abstract interface class ContactsAuthorizationBroker {
   Future<String> contactsAuthorizationHeader(
     BusyProvider provider,
     String accountId, {
-    required bool writable,
     String? claims,
   });
 }
@@ -62,19 +60,16 @@ final class DesktopAccountTokenBroker
   Future<void> authorizeContacts(
     BusyProvider provider,
     String accountId, {
-    required bool writable,
     AuthorizationCancellation? cancellation,
     Future<void> Function()? persistContacts,
   }) => switch (provider) {
     BusyProvider.google => google.authorizeGoogleContacts(
       accountId,
-      writable: writable,
       cancellation: cancellation,
       persistContacts: persistContacts,
     ),
     BusyProvider.microsoft => microsoft.authorizeMicrosoftContacts(
       accountId,
-      writable: writable,
       cancellation: cancellation,
       persistContacts: persistContacts,
     ),
@@ -85,16 +80,11 @@ final class DesktopAccountTokenBroker
   Future<String> contactsAuthorizationHeader(
     BusyProvider provider,
     String accountId, {
-    required bool writable,
     String? claims,
   }) => switch (provider) {
-    BusyProvider.google => google.googleContactsAuthorizationHeader(
-      accountId,
-      writable: writable,
-    ),
+    BusyProvider.google => google.googleContactsAuthorizationHeader(accountId),
     BusyProvider.microsoft => microsoft.microsoftContactsAuthorizationHeader(
       accountId,
-      writable: writable,
       claims: claims,
     ),
     _ => throw StateError('$provider does not use OAuth contacts access.'),

@@ -36,3 +36,9 @@ These match the existing `microsoftTodoOAuthScopes`. Shared-calendar (`Calendars
 Instructions use the same setup modal with a fixed header and one scrolling body. Back preserves the form; Close cancels the whole setup. Audience changes clear the tenant both visibly and in submitted state. Valid staged configuration expires after ten minutes and is single-use. Re-enter/edit after expiry. Ordinary Reconnect, refresh, and optional consent use the registration saved with that account after restart. Explicit Replace registration preserves identity checks, rollback, and local data.
 
 Android's native MSAL flow remains separate. The production app ID, audience, redirect, delegated permissions, and applicable consent are owner-controlled release prerequisites.
+
+## Optional read-only contacts
+
+Contacts are optional and are not requested during first Calendar/Tasks sign-in. For cached attendee suggestions, add the Microsoft Graph **delegated** permission `Contacts.Read` separately from the required scopes above. Desktop requests use `https://graph.microsoft.com/Contacts.Read`; native Android MSAL requests use `Contacts.Read`.
+
+BusyMax synchronizes contacts for read-only attendee lookup, including offline suggestions. It does not edit contacts or folders. Existing `Contacts.ReadWrite` grants can satisfy read access and remain accurately recorded. BusyMax's policy does not revoke prior server-side grants. Explicit reconnect and optional consent request only contacts read access while retaining enabled calendar/category permissions. Refresh omits the optional scope parameter to renew the existing authorization; it does not claim a reduced grant. See [Microsoft's refresh contract](https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-auth-code-flow#refresh-the-access-token).

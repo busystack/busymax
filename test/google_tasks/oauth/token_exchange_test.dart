@@ -149,7 +149,7 @@ void main() {
 
     await service.authorizeGoogleContacts(
       'google:subject',
-      writable: true,
+
       persistContacts: () async {
         contactsCommits++;
       },
@@ -157,10 +157,7 @@ void main() {
 
     expect(contactsCommits, 1);
     expect(
-      await service.googleContactsAuthorizationHeader(
-        'google:subject',
-        writable: true,
-      ),
+      await service.googleContactsAuthorizationHeader('google:subject'),
       'Bearer access',
     );
     final credential = await persistence.readCurrentCredential(
@@ -197,10 +194,7 @@ void main() {
       );
 
       await expectLater(
-        service.googleContactsAuthorizationHeader(
-          'google:subject',
-          writable: false,
-        ),
+        service.googleContactsAuthorizationHeader('google:subject'),
         throwsA(
           isA<OAuthException>().having(
             (error) => error.code,

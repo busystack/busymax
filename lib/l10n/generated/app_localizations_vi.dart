@@ -3523,24 +3523,17 @@ class AppLocalizationsVi extends AppLocalizations {
   String get contactsEnableSuggestions => 'Bật gợi ý liên hệ';
 
   @override
+  String get contactsReadOnlyUse => 'Danh bạ chỉ đọc để gợi ý người tham dự';
+
+  @override
   String get contactsReadPermissionDescription =>
       'Yêu cầu quyền chỉ đọc danh bạ';
-
-  @override
-  String get contactsEnableEditing => 'Bật chỉnh sửa liên hệ';
-
-  @override
-  String get contactsWritePermissionDescription =>
-      'Yêu cầu quyền đọc và ghi danh bạ';
 
   @override
   String get contactsSuggestionsEnabled => 'Đã bật gợi ý liên hệ';
 
   @override
   String get contactsNeedsAttention => 'Danh bạ cần được chú ý';
-
-  @override
-  String get contactsReadWriteAccess => 'Quyền đọc và ghi';
 
   @override
   String get contactsDisableForAccount => 'Tắt danh bạ cho tài khoản này';

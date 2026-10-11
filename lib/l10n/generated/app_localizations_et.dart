@@ -3507,24 +3507,18 @@ class AppLocalizationsEt extends AppLocalizations {
   String get contactsEnableSuggestions => 'Luba kontaktisoovitused';
 
   @override
+  String get contactsReadOnlyUse =>
+      'Kirjutuskaitstud kontaktid osalejate soovitamiseks';
+
+  @override
   String get contactsReadPermissionDescription =>
       'Taotleb kontaktidele kirjutuskaitstud juurdepääsu';
-
-  @override
-  String get contactsEnableEditing => 'Luba kontaktide muutmine';
-
-  @override
-  String get contactsWritePermissionDescription =>
-      'Taotleb kontaktidele lugemis- ja kirjutusõigust';
 
   @override
   String get contactsSuggestionsEnabled => 'Kontaktisoovitused on lubatud';
 
   @override
   String get contactsNeedsAttention => 'Kontaktid vajavad tähelepanu';
-
-  @override
-  String get contactsReadWriteAccess => 'Lugemis- ja kirjutusõigus';
 
   @override
   String get contactsDisableForAccount => 'Keela selle konto kontaktid';

@@ -3584,24 +3584,17 @@ class AppLocalizationsAr extends AppLocalizations {
   String get contactsEnableSuggestions => 'تفعيل اقتراحات جهات الاتصال';
 
   @override
+  String get contactsReadOnlyUse => 'جهات اتصال للقراءة فقط لاقتراح الحضور';
+
+  @override
   String get contactsReadPermissionDescription =>
       'يطلب إذن قراءة جهات الاتصال فقط';
-
-  @override
-  String get contactsEnableEditing => 'تفعيل تعديل جهات الاتصال';
-
-  @override
-  String get contactsWritePermissionDescription =>
-      'يطلب إذن قراءة جهات الاتصال وكتابتها';
 
   @override
   String get contactsSuggestionsEnabled => 'تم تفعيل اقتراحات جهات الاتصال';
 
   @override
   String get contactsNeedsAttention => 'تحتاج جهات الاتصال إلى الانتباه';
-
-  @override
-  String get contactsReadWriteAccess => 'إذن القراءة والكتابة';
 
   @override
   String get contactsDisableForAccount => 'تعطيل جهات الاتصال لهذا الحساب';

@@ -3539,24 +3539,18 @@ class AppLocalizationsEs extends AppLocalizations {
   String get contactsEnableSuggestions => 'Activar sugerencias de contactos';
 
   @override
+  String get contactsReadOnlyUse =>
+      'Contactos de solo lectura para sugerir asistentes';
+
+  @override
   String get contactsReadPermissionDescription =>
       'Solicita acceso de solo lectura a los contactos';
-
-  @override
-  String get contactsEnableEditing => 'Activar edición de contactos';
-
-  @override
-  String get contactsWritePermissionDescription =>
-      'Solicita acceso de lectura y escritura a los contactos';
 
   @override
   String get contactsSuggestionsEnabled => 'Sugerencias de contactos activadas';
 
   @override
   String get contactsNeedsAttention => 'Los contactos requieren atención';
-
-  @override
-  String get contactsReadWriteAccess => 'Acceso de lectura y escritura';
 
   @override
   String get contactsDisableForAccount =>

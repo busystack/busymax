@@ -3557,24 +3557,18 @@ class AppLocalizationsFi extends AppLocalizations {
   String get contactsEnableSuggestions => 'Ota yhteystietoehdotukset käyttöön';
 
   @override
+  String get contactsReadOnlyUse =>
+      'Vain luku -yhteystiedot osallistujaehdotuksiin';
+
+  @override
   String get contactsReadPermissionDescription =>
       'Pyytää yhteystietoihin vain luku -oikeuden';
-
-  @override
-  String get contactsEnableEditing => 'Ota yhteystietojen muokkaus käyttöön';
-
-  @override
-  String get contactsWritePermissionDescription =>
-      'Pyytää yhteystietoihin luku- ja kirjoitusoikeuden';
 
   @override
   String get contactsSuggestionsEnabled => 'Yhteystietoehdotukset käytössä';
 
   @override
   String get contactsNeedsAttention => 'Yhteystiedot vaativat huomiota';
-
-  @override
-  String get contactsReadWriteAccess => 'Luku- ja kirjoitusoikeus';
 
   @override
   String get contactsDisableForAccount =>

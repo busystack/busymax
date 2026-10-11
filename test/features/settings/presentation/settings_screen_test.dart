@@ -95,6 +95,16 @@ void main() {
         tester,
         f.controller.sourceSettings,
       )).single.source;
+      expect(find.text('Enable contact editing'), findsNothing);
+      expect(find.text('Read and write access'), findsNothing);
+      expect(
+        find.text('Read-only contacts for attendee suggestions'),
+        findsWidgets,
+      );
+      expect(
+        find.byKey(const ValueKey('reconnect-contacts-google')),
+        findsOneWidget,
+      );
       final toggle = find.byKey(ValueKey('contact-source-${source.key}'));
       await tester.ensureVisible(toggle);
       await tester.tap(toggle);
