@@ -17,7 +17,9 @@ final class BusyMaxGraphTransport {
     required BusyMaxGraphAuthorizationHeader authorizationHeader,
     Future<void> Function()? recoverUnauthorized,
     int maximumResponseBytes = 32 * 1024 * 1024,
-  }) : graph = GraphClient(
+    DateTime Function()? nowUtc,
+  }) : _nowUtc = nowUtc ?? DateTime.now,
+       graph = GraphClient(
          httpClient: httpClient,
          maximumResponseBytes: maximumResponseBytes,
          authenticationRecovery: recoverUnauthorized == null
@@ -61,6 +63,7 @@ final class BusyMaxGraphTransport {
        );
 
   final GraphClient graph;
+  final DateTime Function() _nowUtc;
 
   Future<http.Response> request(
     String method,
@@ -112,11 +115,18 @@ final class BusyMaxGraphTransport {
           if (error.clientRequestId != null)
             'client-request-id': error.clientRequestId!,
           if (error.retryAfterProvided && error.retryAt != null)
-            'retry-after':
-                '${error.retryAt!.difference(DateTime.now().toUtc()).inSeconds + 1}',
+            'retry-after': '${_retryAfterSeconds(error.retryAt!)}',
         },
       );
     }
+  }
+
+  int _retryAfterSeconds(DateTime retryAt) {
+    final remaining = retryAt.difference(_nowUtc().toUtc()).inMicroseconds;
+    if (remaining <= 0) return 0;
+    // Round up fractional seconds without extending an exact server delay.
+    return (remaining + Duration.microsecondsPerSecond - 1) ~/
+        Duration.microsecondsPerSecond;
   }
 
   Future<List<int>> download(Uri uri, {required int maximumBytes}) async {

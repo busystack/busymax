@@ -107,7 +107,11 @@ void main() {
     final directory = await createPersistenceTestDirectory(
       'busymax-contacts-migration-',
     );
-    addTearDown(() => directory.delete(recursive: true));
+    addTearDown(() async {
+      await database.close();
+      database = AppDatabase(NativeDatabase.memory());
+      await directory.delete(recursive: true);
+    });
     final file = File('${directory.path}/busymax.sqlite');
     database = AppDatabase(NativeDatabase(file));
     await _insertAccount(database);
