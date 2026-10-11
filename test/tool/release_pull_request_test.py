@@ -1,11 +1,13 @@
 """Release validation regressions using real Git refs and merge histories."""
 
+import importlib.util
 import json
 import os
 import pathlib
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 
 SCRIPT = pathlib.Path(__file__).resolve().parents[2] / "tool/check_release_pull_request.py"
@@ -36,13 +38,13 @@ class ReleasePullRequestTest(unittest.TestCase):
     def run_git(self, *arguments, cwd=None):
         return subprocess.run(
             ["git", *arguments], cwd=cwd or self.repo, check=True,
-            text=True, capture_output=True,
+            text=True, encoding="utf-8", capture_output=True,
         ).stdout.strip()
 
     def write(self, path, content):
         destination = self.repo / path
         destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_text(content)
+        destination.write_text(content, encoding="utf-8")
 
     def metadata(self, version, code):
         self.write("pubspec.yaml", f"version: {version}\n")
@@ -101,6 +103,57 @@ class ReleasePullRequestTest(unittest.TestCase):
 
     def test_valid_matching_uppercase_release(self):
         self.assert_allowed(self.check(source="Release/v0.3.0"))
+
+    def load_validator(self):
+        spec = importlib.util.spec_from_file_location("release_validator", SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    def test_utf8_git_metadata_with_windows_default_encoding(self):
+        self.write("linux/io.busystack.busymax.metainfo.xml", (
+            '<component><name>日历与任务管理器</name><releases>'
+            '<release version="0.3.0" /></releases></component>\n'
+        ))
+        self.commit("Localized AppStream metadata")
+        validator = self.load_validator()
+        original_run = subprocess.run
+
+        def windows_default(*args, **kwargs):
+            if kwargs.get("text"):
+                kwargs.setdefault("encoding", "cp1252")
+            return original_run(*args, **kwargs)
+
+        with mock.patch.object(validator.subprocess, "run", side_effect=windows_default):
+            self.assertEqual(validator.validate_versions(
+                lambda path: validator.git(self.repo, "show", f"HEAD:{path}"), "0.3.0"
+            ), 5)
+
+    def test_utf8_github_event_with_windows_default_encoding(self):
+        event = self.root / "utf8-event.json"
+        event.write_text(json.dumps({
+            "number": 29,
+            "pull_request": {
+                "head": {"ref": "release/v0.3.0", "sha": self.head},
+                "base": {"ref": "main"},
+                "body": "日历与任务管理器",
+            },
+        }, ensure_ascii=False), encoding="utf-8")
+        validator = self.load_validator()
+        original_read = pathlib.Path.read_text
+
+        def windows_default(path, *args, **kwargs):
+            kwargs.setdefault("encoding", "cp1252")
+            return original_read(path, *args, **kwargs)
+
+        environment = dict(RELEASE_PR_TITLE="Release/v0.3.0",
+                           GITHUB_HEAD_REF="release/v0.3.0", GITHUB_EVENT_PATH=str(event))
+        with mock.patch.dict(os.environ, environment), mock.patch.object(
+            pathlib.Path, "read_text", windows_default
+        ), mock.patch.object(
+            pathlib.Path, "cwd", return_value=self.repo
+        ):
+            self.assertEqual(validator.main(), 0)
 
     def test_outdated_release(self):
         self.advance_main()

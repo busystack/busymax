@@ -12,7 +12,7 @@ void main() {
       );
       expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
     },
-    // This runs 17 regressions that each create real Git repositories; process
+    // This runs 19 regressions that each create real Git repositories; process
     // startup is more expensive on Windows CI than on a local Linux checkout.
     timeout: const Timeout(Duration(minutes: 2)),
   );

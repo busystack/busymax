@@ -20,7 +20,8 @@ RELEASE = re.compile(r"release/v(\d+\.\d+\.\d+)", re.IGNORECASE)
 
 def git(root: pathlib.Path, *arguments: str) -> str:
     result = subprocess.run(
-        ["git", *arguments], cwd=root, text=True, capture_output=True, check=True
+        ["git", *arguments], cwd=root, text=True, encoding="utf-8",
+        capture_output=True, check=True
     )
     return result.stdout.strip()
 
@@ -81,7 +82,7 @@ def main() -> int:
         )
         return 1
     try:
-        event = json.loads(pathlib.Path(os.environ["GITHUB_EVENT_PATH"]).read_text())
+        event = json.loads(pathlib.Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))
         pr = event["pull_request"]
         number = int(event["number"])
         if number <= 0 or pr["head"]["ref"] != source or pr["base"]["ref"] != "main":
