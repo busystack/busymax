@@ -6,12 +6,17 @@ Official desktop releases support explicitly active BusyMax-managed registration
 
 - The owner must supply a real production Desktop OAuth client ID/secret and its actual project ID through `BUSYMAX_GOOGLE_OAUTH_CLIENT_ID`, `BUSYMAX_GOOGLE_OAUTH_CLIENT_SECRET`, and `BUSYMAX_GOOGLE_OAUTH_PROJECT_ID`.
 - Configure branding, support/contact details, Calendar and Tasks APIs, and the existing five scopes. Complete In production publishing and any applicable branding/domain and scope approval/verification. Publishing alone is not verification; tests cannot establish either.
+- Optional contacts lookup also needs People API and `contacts.readonly` as
+  described in [Google setup](google_setup.md); it remains separate from initial
+  Calendar/Tasks authorization. Do not request contacts write access.
 - BusyStack-owned production branding uses `https://busystack.org/privacy-busymax`. Other project owners must satisfy their own domain and policy obligations.
 
 ## Microsoft external prerequisites
 
 - The owner must supply a real public app ID through `BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID`. The managed registration must support personal and organizational Microsoft accounts; its authority is always `common` and is not configurable. Custom registrations retain their own audience and tenant selections.
 - Configure Mobile and desktop applications with `http://localhost`, existing mandatory delegated permissions, and applicable administrator consent. Optional shared-calendar/category consent stays optional. No client secret is used.
+- Optional contacts lookup uses delegated `Contacts.Read`, including Android;
+  see [Microsoft setup](microsoft_setup.md). Preserve existing grants accurately.
 
 ## Preserve existing registrations and data
 

@@ -20,6 +20,8 @@ grep -nE '^version:|<release version=' \
 
 The `pubspec.yaml` version, Snapcraft version, and newest metainfo release
 must match. Older metainfo entries are release history.
+For v0.3.0 they are `0.3.0`; `tool/package_source.py` derives the source
+filename `busymax-0.3.0-source.tar.gz` from `pubspec.yaml`.
 
 For a configured release, create the ignored file
 `.snap-local/busymax-dart-defines.json` with mode `0600`:

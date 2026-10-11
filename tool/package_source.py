@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import pathlib
+import re
 import subprocess
 import tarfile
 
@@ -76,7 +77,14 @@ for dependency in manifest["dependencies"]:
 
 output = ROOT / "dist/source"
 output.mkdir(parents=True, exist_ok=True)
-destination = output / "busymax-0.2.4-source.tar.gz"
+version_match = re.search(
+    r"^version:\s*(\d+\.\d+\.\d+)\s*$",
+    (ROOT / "pubspec.yaml").read_text(),
+    re.MULTILINE,
+)
+if not version_match:
+    raise SystemExit("Expected a three-part application version in pubspec.yaml")
+destination = output / f"busymax-{version_match[1]}-source.tar.gz"
 with destination.open("wb") as raw, gzip.GzipFile(
     filename="", mode="wb", fileobj=raw, mtime=EPOCH
 ) as zipped, tarfile.open(fileobj=zipped, mode="w") as archive:

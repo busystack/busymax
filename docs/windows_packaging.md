@@ -14,8 +14,10 @@ owner's registered values:
 - package identity name, Publisher CN, and publisher display name;
 - four-part Store package version and optional previous version;
 - privacy-policy, support, and homepage HTTPS URLs;
-- Google desktop OAuth client ID and client secret;
-- Microsoft public client ID and authority tenant; and
+- Explicitly active BusyMax-managed Google desktop client ID, secret, and
+  project ID, and Microsoft public client ID (managed authority is `common`);
+- protected original Google/Microsoft registrations and original authority,
+  separately from the active values; and
 - `production=true`, `fakeData=false`, and `developmentBackend=false`.
 
 Never commit the local file. Identity and desktop client values are embedded

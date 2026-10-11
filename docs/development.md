@@ -172,11 +172,19 @@ evidence are retained for seven days only after a successful `main` push or manu
 The workflows do not deploy Windows packages.
 
 Release PRs originate from the existing release branch for that version.
-For v0.2.4, squash feature and fix PRs into `Release/v0.2.4`, then open
-`Release/v0.2.4` into `main` with the title `Release/v0.2.4` and squash it.
-Verify both the PR title and its source branch when checking release CI.
-The workflows reject release titles that do not match the source release
-branch; comparison permits intentionally lowercase release branch names.
+Start each release branch from current `main`. Before final review, fetch and
+merge any later `origin/main` commits into the release branch with a normal
+merge commit. A squash of a feature containing main changes preserves its
+source but does not preserve that ancestry.
+Open `release/v0.3.0` into `main` with the title `Release/v0.3.0`.
+`tool/check_release_pull_request.py` checks the title and branch (including
+intentional lowercase naming), matching application/Snap/AppStream/Windows
+resource versions, Android's increasing version code, and current target
+ancestry. CI fetches the actual `refs/pull/<number>/head` and target branch;
+the synthetic PR merge checkout does not prove release-branch ancestry.
+The owner reviews and manually merges the open release PR.
+Historically, v0.2.4 feature/fix PRs were squashed into `Release/v0.2.4`,
+followed by a squash of that release PR into `main`.
 
 For release artifacts, follow [Snap beta release](beta_snap_release.md) or
 [Windows packaging](windows_packaging.md) and the

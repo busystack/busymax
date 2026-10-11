@@ -4,19 +4,19 @@
   "dependencies": [
     {
       "name": "busystack_contacts",
-      "repository": "https://github.com/ChenZhenIO/busystack_contacts.git",
+      "repository": "https://github.com/busystack/busystack_contacts.git",
       "revision": "cf399b9af0b7bf8a315e8c5d6123e601c90b7bd2",
       "path": "../busystack_contacts"
     },
     {
       "name": "busystack_dav",
-      "repository": "https://github.com/ChenZhenIO/busystack_dav.git",
+      "repository": "https://github.com/busystack/busystack_dav.git",
       "revision": "18f636f3227e3df8c1406bafd85b45e7f12cf8bd",
       "path": "../busystack_dav"
     },
     {
       "name": "busystack_graph",
-      "repository": "https://github.com/ChenZhenIO/busystack_graph.git",
+      "repository": "https://github.com/busystack/busystack_graph.git",
       "revision": "6572ee14ae992d4cd4f8c2218babaff5051bc132",
       "path": "../busystack_graph"
     }
