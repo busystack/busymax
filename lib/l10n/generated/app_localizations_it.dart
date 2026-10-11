@@ -4,6 +4,7 @@
 
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
+
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -3539,4 +3540,61 @@ class AppLocalizationsIt extends AppLocalizations {
   @override
   String get registrationGuideWorkspaceAudience =>
       'Vai a Google Auth Platform → Branding. Se la configurazione non è iniziata, seleziona Get started. Inserisci BusyMax in App name, scegli la tua User support email e seleziona Next. In Audience scegli Internal. Seleziona Next, inserisci la tua email in Contact Information e seleziona Next. Accetta User Data Policy e seleziona Continue e Create. Se è già configurato, controlla Branding e Audience.\n\nInternal consente solo account dell’organizzazione principale del progetto, soggetti ai controlli amministrativi. Non serve un elenco di utenti di test. BusyMax non può verificare queste impostazioni dal JSON.';
+
+  @override
+  String get contactsTitle => 'Contatti';
+
+  @override
+  String get contactsLinkedDescription =>
+      'Usa i contatti memorizzati di questo account quando aggiungi invitati agli eventi.';
+
+  @override
+  String get contactsEnableSuggestions => 'Attiva i suggerimenti dei contatti';
+
+  @override
+  String get contactsReadPermissionDescription =>
+      'Richiede l’accesso ai contatti in sola lettura';
+
+  @override
+  String get contactsEnableEditing => 'Attiva la modifica dei contatti';
+
+  @override
+  String get contactsWritePermissionDescription =>
+      'Richiede l’accesso ai contatti in lettura e scrittura';
+
+  @override
+  String get contactsSuggestionsEnabled => 'Suggerimenti dei contatti attivati';
+
+  @override
+  String get contactsNeedsAttention => 'I contatti richiedono attenzione';
+
+  @override
+  String get contactsReadWriteAccess => 'Accesso in lettura e scrittura';
+
+  @override
+  String get contactsDisableForAccount =>
+      'Disattiva i contatti per questo account';
+
+  @override
+  String get contactsOnlyDescription =>
+      'Queste fonti sono indipendenti dagli account di calendario e attività.';
+
+  @override
+  String get contactsAddCardDav => 'Aggiungi contatti CardDAV';
+
+  @override
+  String get contactsAddNextcloud => 'Aggiungi contatti Nextcloud';
+
+  @override
+  String get contactsUseForAttendees =>
+      'Usa per i suggerimenti dei partecipanti';
+
+  @override
+  String get contactsServerUrlLabel => 'URL del server HTTPS';
+
+  @override
+  String get contactsUsernameLabel => 'Nome utente';
+
+  @override
+  String get contactsPasswordLabel => 'Parola d’accesso';
 }

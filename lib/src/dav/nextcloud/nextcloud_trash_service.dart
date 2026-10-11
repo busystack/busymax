@@ -221,9 +221,8 @@ final class NextcloudTrashService {
         if ((row.statusCode ?? 200) >= 400 || types == null) {
           throw nextcloudOperationError(502, 'DavTrashReadIncomplete');
         }
-        if (!nextcloudPropertyNames(
-          types,
-        ).contains('{$nextcloudNamespace}deleted-calendar')) {
+        if (!nextcloudPropertyNames(types)
+            .contains('{$nextcloudNamespace}deleted-calendar')) {
           continue;
         }
         final href = context.resolve(row.href, home);
@@ -325,6 +324,7 @@ final class NextcloudTrashService {
       }
     } on DavException catch (error) {
       if (!{
+        DavErrorKind.unknownOutcome,
         DavErrorKind.timeout,
         DavErrorKind.network,
         DavErrorKind.server,

@@ -4,6 +4,7 @@
 
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
+
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -3435,4 +3436,56 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get registrationGuideWorkspaceAudience =>
       'Google Auth Platform → Branding に移動します。未設定の場合は Get started を選択します。App name に BusyMax を入力し、ご自身の User support email を選んで Next を選択します。Audience ではInternal を選びます。Next を選び、Contact Information にメールアドレスを入力して Next を選択します。User Data Policy に同意し、Continue、Create の順に選択します。設定済みの場合は Branding と Audience を確認します。\n\nInternal はプロジェクトの親組織のアカウントのみ利用でき、管理者の制限も適用されます。テストユーザーの一覧は不要です。BusyMax はダウンロードした JSON からこれらの設定を確認できません。';
+
+  @override
+  String get contactsTitle => '連絡先';
+
+  @override
+  String get contactsLinkedDescription =>
+      '予定のゲストを追加するときに、このアカウントのキャッシュ済み連絡先を使用します。';
+
+  @override
+  String get contactsEnableSuggestions => '連絡先の候補を有効にする';
+
+  @override
+  String get contactsReadPermissionDescription => '連絡先への読み取り専用アクセスを要求します';
+
+  @override
+  String get contactsEnableEditing => '連絡先の編集を有効にする';
+
+  @override
+  String get contactsWritePermissionDescription => '連絡先への読み取りおよび書き込みアクセスを要求します';
+
+  @override
+  String get contactsSuggestionsEnabled => '連絡先の候補が有効です';
+
+  @override
+  String get contactsNeedsAttention => '連絡先の確認が必要です';
+
+  @override
+  String get contactsReadWriteAccess => '読み取りおよび書き込みアクセス';
+
+  @override
+  String get contactsDisableForAccount => 'このアカウントの連絡先を無効にする';
+
+  @override
+  String get contactsOnlyDescription => 'これらのソースはカレンダーおよびタスクのアカウントから独立しています。';
+
+  @override
+  String get contactsAddCardDav => 'CardDAV の連絡先を追加';
+
+  @override
+  String get contactsAddNextcloud => 'Nextcloud の連絡先を追加';
+
+  @override
+  String get contactsUseForAttendees => '出席者の候補に使用';
+
+  @override
+  String get contactsServerUrlLabel => 'HTTPS サーバーの URL';
+
+  @override
+  String get contactsUsernameLabel => 'ユーザー名';
+
+  @override
+  String get contactsPasswordLabel => 'パスワード';
 }

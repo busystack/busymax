@@ -28632,54 +28632,52 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   ]);
 }
 
-typedef $$AccountsTableCreateCompanionBuilder =
-    AccountsCompanion Function({
-      required String id,
-      required String provider,
-      required String authority,
-      required String providerAccountId,
-      required String credentialKind,
-      Value<int> providerProfileVersion,
-      Value<String?> displayName,
-      Value<String?> email,
-      Value<String?> tenantId,
-      Value<String?> accountAvatarUrl,
-      Value<String?> providerMetadataJson,
-      Value<String> authState,
-      Value<bool> calendarsEnabled,
-      Value<bool> tasksEnabled,
-      Value<String> grantedScopes,
-      required String createdAtUtc,
-      required String updatedAtUtc,
-      Value<String?> lastSuccessfulSyncAtUtc,
-      Value<String?> lastFullSyncAtUtc,
-      Value<bool> taskImportIncomplete,
-      Value<int> rowid,
-    });
-typedef $$AccountsTableUpdateCompanionBuilder =
-    AccountsCompanion Function({
-      Value<String> id,
-      Value<String> provider,
-      Value<String> authority,
-      Value<String> providerAccountId,
-      Value<String> credentialKind,
-      Value<int> providerProfileVersion,
-      Value<String?> displayName,
-      Value<String?> email,
-      Value<String?> tenantId,
-      Value<String?> accountAvatarUrl,
-      Value<String?> providerMetadataJson,
-      Value<String> authState,
-      Value<bool> calendarsEnabled,
-      Value<bool> tasksEnabled,
-      Value<String> grantedScopes,
-      Value<String> createdAtUtc,
-      Value<String> updatedAtUtc,
-      Value<String?> lastSuccessfulSyncAtUtc,
-      Value<String?> lastFullSyncAtUtc,
-      Value<bool> taskImportIncomplete,
-      Value<int> rowid,
-    });
+typedef $$AccountsTableCreateCompanionBuilder = AccountsCompanion Function({
+  required String id,
+  required String provider,
+  required String authority,
+  required String providerAccountId,
+  required String credentialKind,
+  Value<int> providerProfileVersion,
+  Value<String?> displayName,
+  Value<String?> email,
+  Value<String?> tenantId,
+  Value<String?> accountAvatarUrl,
+  Value<String?> providerMetadataJson,
+  Value<String> authState,
+  Value<bool> calendarsEnabled,
+  Value<bool> tasksEnabled,
+  Value<String> grantedScopes,
+  required String createdAtUtc,
+  required String updatedAtUtc,
+  Value<String?> lastSuccessfulSyncAtUtc,
+  Value<String?> lastFullSyncAtUtc,
+  Value<bool> taskImportIncomplete,
+  Value<int> rowid,
+});
+typedef $$AccountsTableUpdateCompanionBuilder = AccountsCompanion Function({
+  Value<String> id,
+  Value<String> provider,
+  Value<String> authority,
+  Value<String> providerAccountId,
+  Value<String> credentialKind,
+  Value<int> providerProfileVersion,
+  Value<String?> displayName,
+  Value<String?> email,
+  Value<String?> tenantId,
+  Value<String?> accountAvatarUrl,
+  Value<String?> providerMetadataJson,
+  Value<String> authState,
+  Value<bool> calendarsEnabled,
+  Value<bool> tasksEnabled,
+  Value<String> grantedScopes,
+  Value<String> createdAtUtc,
+  Value<String> updatedAtUtc,
+  Value<String?> lastSuccessfulSyncAtUtc,
+  Value<String?> lastFullSyncAtUtc,
+  Value<bool> taskImportIncomplete,
+  Value<int> rowid,
+});
 
 final class $$AccountsTableReferences
     extends BaseReferences<_$AppDatabase, $AccountsTable, Account> {
@@ -31137,19 +31135,17 @@ class $$OAuthTransitionAccountsTableTableManager
                     >
                   >(state) {
                     if (accountId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.accountId,
-                                referencedTable:
-                                    $$OAuthTransitionAccountsTableReferences
-                                        ._accountIdTable(db),
-                                referencedColumn:
-                                    $$OAuthTransitionAccountsTableReferences
-                                        ._accountIdTable(db)
-                                        .id,
-                              )
-                              as T;
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.accountId,
+                        referencedTable:
+                            $$OAuthTransitionAccountsTableReferences
+                                ._accountIdTable(db),
+                        referencedColumn:
+                            $$OAuthTransitionAccountsTableReferences
+                                ._accountIdTable(db)
+                                .id,
+                      ) as T;
                     }
 
                     return state;
@@ -31445,19 +31441,15 @@ class $$AccountAuthorizationsTableTableManager
                     >
                   >(state) {
                     if (accountId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.accountId,
-                                referencedTable:
-                                    $$AccountAuthorizationsTableReferences
-                                        ._accountIdTable(db),
-                                referencedColumn:
-                                    $$AccountAuthorizationsTableReferences
-                                        ._accountIdTable(db)
-                                        .id,
-                              )
-                              as T;
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.accountId,
+                        referencedTable: $$AccountAuthorizationsTableReferences
+                            ._accountIdTable(db),
+                        referencedColumn: $$AccountAuthorizationsTableReferences
+                            ._accountIdTable(db)
+                            .id,
+                      ) as T;
                     }
 
                     return state;
@@ -32200,19 +32192,15 @@ class $$DomainSyncSchedulesTableTableManager
                     >
                   >(state) {
                     if (accountId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.accountId,
-                                referencedTable:
-                                    $$DomainSyncSchedulesTableReferences
-                                        ._accountIdTable(db),
-                                referencedColumn:
-                                    $$DomainSyncSchedulesTableReferences
-                                        ._accountIdTable(db)
-                                        .id,
-                              )
-                              as T;
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.accountId,
+                        referencedTable: $$DomainSyncSchedulesTableReferences
+                            ._accountIdTable(db),
+                        referencedColumn: $$DomainSyncSchedulesTableReferences
+                            ._accountIdTable(db)
+                            .id,
+                      ) as T;
                     }
 
                     return state;
@@ -32732,19 +32720,15 @@ class $$DavAccountServicesTableTableManager
                     >
                   >(state) {
                     if (accountId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.accountId,
-                                referencedTable:
-                                    $$DavAccountServicesTableReferences
-                                        ._accountIdTable(db),
-                                referencedColumn:
-                                    $$DavAccountServicesTableReferences
-                                        ._accountIdTable(db)
-                                        .id,
-                              )
-                              as T;
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.accountId,
+                        referencedTable: $$DavAccountServicesTableReferences
+                            ._accountIdTable(db),
+                        referencedColumn: $$DavAccountServicesTableReferences
+                            ._accountIdTable(db)
+                            .id,
+                      ) as T;
                     }
 
                     return state;
@@ -34193,19 +34177,15 @@ class $$DavCollectionsTableTableManager
                         >
                       >(state) {
                         if (accountId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.accountId,
-                                    referencedTable:
-                                        $$DavCollectionsTableReferences
-                                            ._accountIdTable(db),
-                                    referencedColumn:
-                                        $$DavCollectionsTableReferences
-                                            ._accountIdTable(db)
-                                            .id,
-                                  )
-                                  as T;
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.accountId,
+                            referencedTable: $$DavCollectionsTableReferences
+                                ._accountIdTable(db),
+                            referencedColumn: $$DavCollectionsTableReferences
+                                ._accountIdTable(db)
+                                .id,
+                          ) as T;
                         }
 
                         return state;
@@ -34390,56 +34370,54 @@ typedef $$DavCollectionsTableProcessedTableManager =
         bool syncCursorsRefs,
       })
     >;
-typedef $$DavObjectsTableCreateCompanionBuilder =
-    DavObjectsCompanion Function({
-      required String id,
-      required String accountId,
-      required String collectionId,
-      required String hrefKey,
-      required String requestUri,
-      Value<String?> etag,
-      Value<String?> contentType,
-      Value<String?> dominantComponentType,
-      Value<int> componentMask,
-      Value<String?> primaryUid,
-      required String rawIcsBody,
-      required String rawBodyHash,
-      Value<String?> semanticHash,
-      Value<bool> serverDeleted,
-      Value<int> baselineGeneration,
-      required String firstSeenAtUtc,
-      required String lastFetchedAtUtc,
-      required String lastChangedAtUtc,
-      Value<String> lastParseStatus,
-      Value<String?> lastParseErrorCode,
-      Value<int> parserVersion,
-      Value<int> rowid,
-    });
-typedef $$DavObjectsTableUpdateCompanionBuilder =
-    DavObjectsCompanion Function({
-      Value<String> id,
-      Value<String> accountId,
-      Value<String> collectionId,
-      Value<String> hrefKey,
-      Value<String> requestUri,
-      Value<String?> etag,
-      Value<String?> contentType,
-      Value<String?> dominantComponentType,
-      Value<int> componentMask,
-      Value<String?> primaryUid,
-      Value<String> rawIcsBody,
-      Value<String> rawBodyHash,
-      Value<String?> semanticHash,
-      Value<bool> serverDeleted,
-      Value<int> baselineGeneration,
-      Value<String> firstSeenAtUtc,
-      Value<String> lastFetchedAtUtc,
-      Value<String> lastChangedAtUtc,
-      Value<String> lastParseStatus,
-      Value<String?> lastParseErrorCode,
-      Value<int> parserVersion,
-      Value<int> rowid,
-    });
+typedef $$DavObjectsTableCreateCompanionBuilder = DavObjectsCompanion Function({
+  required String id,
+  required String accountId,
+  required String collectionId,
+  required String hrefKey,
+  required String requestUri,
+  Value<String?> etag,
+  Value<String?> contentType,
+  Value<String?> dominantComponentType,
+  Value<int> componentMask,
+  Value<String?> primaryUid,
+  required String rawIcsBody,
+  required String rawBodyHash,
+  Value<String?> semanticHash,
+  Value<bool> serverDeleted,
+  Value<int> baselineGeneration,
+  required String firstSeenAtUtc,
+  required String lastFetchedAtUtc,
+  required String lastChangedAtUtc,
+  Value<String> lastParseStatus,
+  Value<String?> lastParseErrorCode,
+  Value<int> parserVersion,
+  Value<int> rowid,
+});
+typedef $$DavObjectsTableUpdateCompanionBuilder = DavObjectsCompanion Function({
+  Value<String> id,
+  Value<String> accountId,
+  Value<String> collectionId,
+  Value<String> hrefKey,
+  Value<String> requestUri,
+  Value<String?> etag,
+  Value<String?> contentType,
+  Value<String?> dominantComponentType,
+  Value<int> componentMask,
+  Value<String?> primaryUid,
+  Value<String> rawIcsBody,
+  Value<String> rawBodyHash,
+  Value<String?> semanticHash,
+  Value<bool> serverDeleted,
+  Value<int> baselineGeneration,
+  Value<String> firstSeenAtUtc,
+  Value<String> lastFetchedAtUtc,
+  Value<String> lastChangedAtUtc,
+  Value<String> lastParseStatus,
+  Value<String?> lastParseErrorCode,
+  Value<int> parserVersion,
+  Value<int> rowid,
+});
 
 final class $$DavObjectsTableReferences
     extends BaseReferences<_$AppDatabase, $DavObjectsTable, DavObject> {
@@ -35458,32 +35436,26 @@ class $$DavObjectsTableTableManager
                         >
                       >(state) {
                         if (accountId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.accountId,
-                                    referencedTable: $$DavObjectsTableReferences
-                                        ._accountIdTable(db),
-                                    referencedColumn:
-                                        $$DavObjectsTableReferences
-                                            ._accountIdTable(db)
-                                            .id,
-                                  )
-                                  as T;
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.accountId,
+                            referencedTable: $$DavObjectsTableReferences
+                                ._accountIdTable(db),
+                            referencedColumn: $$DavObjectsTableReferences
+                                ._accountIdTable(db)
+                                .id,
+                          ) as T;
                         }
                         if (collectionId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.collectionId,
-                                    referencedTable: $$DavObjectsTableReferences
-                                        ._collectionIdTable(db),
-                                    referencedColumn:
-                                        $$DavObjectsTableReferences
-                                            ._collectionIdTable(db)
-                                            .id,
-                                  )
-                                  as T;
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.collectionId,
+                            referencedTable: $$DavObjectsTableReferences
+                                ._collectionIdTable(db),
+                            referencedColumn: $$DavObjectsTableReferences
+                                ._collectionIdTable(db)
+                                .id,
+                          ) as T;
                         }
 
                         return state;
@@ -36179,19 +36151,17 @@ class $$DavObjectComponentsTableTableManager
                         >
                       >(state) {
                         if (davObjectId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.davObjectId,
-                                    referencedTable:
-                                        $$DavObjectComponentsTableReferences
-                                            ._davObjectIdTable(db),
-                                    referencedColumn:
-                                        $$DavObjectComponentsTableReferences
-                                            ._davObjectIdTable(db)
-                                            .id,
-                                  )
-                                  as T;
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.davObjectId,
+                            referencedTable:
+                                $$DavObjectComponentsTableReferences
+                                    ._davObjectIdTable(db),
+                            referencedColumn:
+                                $$DavObjectComponentsTableReferences
+                                    ._davObjectIdTable(db)
+                                    .id,
+                          ) as T;
                         }
 
                         return state;
@@ -36960,49 +36930,43 @@ class $$DavConflictSnapshotsTableTableManager
                         >
                       >(state) {
                         if (accountId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.accountId,
-                                    referencedTable:
-                                        $$DavConflictSnapshotsTableReferences
-                                            ._accountIdTable(db),
-                                    referencedColumn:
-                                        $$DavConflictSnapshotsTableReferences
-                                            ._accountIdTable(db)
-                                            .id,
-                                  )
-                                  as T;
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.accountId,
+                            referencedTable:
+                                $$DavConflictSnapshotsTableReferences
+                                    ._accountIdTable(db),
+                            referencedColumn:
+                                $$DavConflictSnapshotsTableReferences
+                                    ._accountIdTable(db)
+                                    .id,
+                          ) as T;
                         }
                         if (davCollectionId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.davCollectionId,
-                                    referencedTable:
-                                        $$DavConflictSnapshotsTableReferences
-                                            ._davCollectionIdTable(db),
-                                    referencedColumn:
-                                        $$DavConflictSnapshotsTableReferences
-                                            ._davCollectionIdTable(db)
-                                            .id,
-                                  )
-                                  as T;
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.davCollectionId,
+                            referencedTable:
+                                $$DavConflictSnapshotsTableReferences
+                                    ._davCollectionIdTable(db),
+                            referencedColumn:
+                                $$DavConflictSnapshotsTableReferences
+                                    ._davCollectionIdTable(db)
+                                    .id,
+                          ) as T;
                         }
                         if (davObjectId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.davObjectId,
-                                    referencedTable:
-                                        $$DavConflictSnapshotsTableReferences
-                                            ._davObjectIdTable(db),
-                                    referencedColumn:
-                                        $$DavConflictSnapshotsTableReferences
-                                            ._davObjectIdTable(db)
-                                            .id,
-                                  )
-                                  as T;
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.davObjectId,
+                            referencedTable:
+                                $$DavConflictSnapshotsTableReferences
+                                    ._davObjectIdTable(db),
+                            referencedColumn:
+                                $$DavConflictSnapshotsTableReferences
+                                    ._davObjectIdTable(db)
+                                    .id,
+                          ) as T;
                         }
 
                         return state;
@@ -37057,56 +37021,54 @@ typedef $$DavConflictSnapshotsTableProcessedTableManager =
         bool pendingOpsRefs,
       })
     >;
-typedef $$TaskListsTableCreateCompanionBuilder =
-    TaskListsCompanion Function({
-      required String accountId,
-      required String id,
-      Value<String?> davCollectionId,
-      Value<String?> kind,
-      Value<String?> etag,
-      required String title,
-      Value<String?> updatedUtc,
-      Value<String?> selfLink,
-      required String rawJson,
-      Value<String?> providerListKind,
-      Value<bool?> isOwner,
-      Value<bool?> isShared,
-      Value<String?> deltaLink,
-      Value<String?> providerMetadataJson,
-      Value<bool> serverMissing,
-      Value<bool> localDirty,
-      Value<bool> pendingDelete,
-      Value<bool> remindersEnabled,
-      Value<String?> lastSyncedAtUtc,
-      required String createdLocalAtUtc,
-      required String updatedLocalAtUtc,
-      Value<int> rowid,
-    });
-typedef $$TaskListsTableUpdateCompanionBuilder =
-    TaskListsCompanion Function({
-      Value<String> accountId,
-      Value<String> id,
-      Value<String?> davCollectionId,
-      Value<String?> kind,
-      Value<String?> etag,
-      Value<String> title,
-      Value<String?> updatedUtc,
-      Value<String?> selfLink,
-      Value<String> rawJson,
-      Value<String?> providerListKind,
-      Value<bool?> isOwner,
-      Value<bool?> isShared,
-      Value<String?> deltaLink,
-      Value<String?> providerMetadataJson,
-      Value<bool> serverMissing,
-      Value<bool> localDirty,
-      Value<bool> pendingDelete,
-      Value<bool> remindersEnabled,
-      Value<String?> lastSyncedAtUtc,
-      Value<String> createdLocalAtUtc,
-      Value<String> updatedLocalAtUtc,
-      Value<int> rowid,
-    });
+typedef $$TaskListsTableCreateCompanionBuilder = TaskListsCompanion Function({
+  required String accountId,
+  required String id,
+  Value<String?> davCollectionId,
+  Value<String?> kind,
+  Value<String?> etag,
+  required String title,
+  Value<String?> updatedUtc,
+  Value<String?> selfLink,
+  required String rawJson,
+  Value<String?> providerListKind,
+  Value<bool?> isOwner,
+  Value<bool?> isShared,
+  Value<String?> deltaLink,
+  Value<String?> providerMetadataJson,
+  Value<bool> serverMissing,
+  Value<bool> localDirty,
+  Value<bool> pendingDelete,
+  Value<bool> remindersEnabled,
+  Value<String?> lastSyncedAtUtc,
+  required String createdLocalAtUtc,
+  required String updatedLocalAtUtc,
+  Value<int> rowid,
+});
+typedef $$TaskListsTableUpdateCompanionBuilder = TaskListsCompanion Function({
+  Value<String> accountId,
+  Value<String> id,
+  Value<String?> davCollectionId,
+  Value<String?> kind,
+  Value<String?> etag,
+  Value<String> title,
+  Value<String?> updatedUtc,
+  Value<String?> selfLink,
+  Value<String> rawJson,
+  Value<String?> providerListKind,
+  Value<bool?> isOwner,
+  Value<bool?> isShared,
+  Value<String?> deltaLink,
+  Value<String?> providerMetadataJson,
+  Value<bool> serverMissing,
+  Value<bool> localDirty,
+  Value<bool> pendingDelete,
+  Value<bool> remindersEnabled,
+  Value<String?> lastSyncedAtUtc,
+  Value<String> createdLocalAtUtc,
+  Value<String> updatedLocalAtUtc,
+  Value<int> rowid,
+});
 
 final class $$TaskListsTableReferences
     extends BaseReferences<_$AppDatabase, $TaskListsTable, TaskList> {
@@ -37735,30 +37697,26 @@ class $$TaskListsTableTableManager
                         >
                       >(state) {
                         if (accountId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.accountId,
-                                    referencedTable: $$TaskListsTableReferences
-                                        ._accountIdTable(db),
-                                    referencedColumn: $$TaskListsTableReferences
-                                        ._accountIdTable(db)
-                                        .id,
-                                  )
-                                  as T;
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.accountId,
+                            referencedTable: $$TaskListsTableReferences
+                                ._accountIdTable(db),
+                            referencedColumn: $$TaskListsTableReferences
+                                ._accountIdTable(db)
+                                .id,
+                          ) as T;
                         }
                         if (davCollectionId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.davCollectionId,
-                                    referencedTable: $$TaskListsTableReferences
-                                        ._davCollectionIdTable(db),
-                                    referencedColumn: $$TaskListsTableReferences
-                                        ._davCollectionIdTable(db)
-                                        .id,
-                                  )
-                                  as T;
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.davCollectionId,
+                            referencedTable: $$TaskListsTableReferences
+                                ._davCollectionIdTable(db),
+                            referencedColumn: $$TaskListsTableReferences
+                                ._davCollectionIdTable(db)
+                                .id,
+                          ) as T;
                         }
 
                         return state;
@@ -37786,148 +37744,146 @@ typedef $$TaskListsTableProcessedTableManager =
       TaskList,
       PrefetchHooks Function({bool accountId, bool davCollectionId})
     >;
-typedef $$TasksTableCreateCompanionBuilder =
-    TasksCompanion Function({
-      required String accountId,
-      required String taskListId,
-      required String id,
-      Value<String?> davCollectionId,
-      Value<String?> davObjectId,
-      Value<String?> davComponentId,
-      Value<String?> icalUid,
-      Value<String?> recurrenceIdKey,
-      Value<int?> icalPriority,
-      Value<int?> percentComplete,
-      Value<String?> taskLocation,
-      Value<double?> locationLatitude,
-      Value<double?> locationLongitude,
-      Value<String?> taskUrl,
-      Value<String?> taskClassification,
-      Value<bool?> taskPinned,
-      Value<bool?> taskHideSubtasks,
-      Value<bool?> taskHideCompletedSubtasks,
-      Value<String?> taskAlarmsJson,
-      Value<String?> parentUid,
-      Value<int?> sortOrder,
-      Value<String?> providerExtensionProjectionJson,
-      Value<int> projectionVersion,
-      Value<String?> kind,
-      Value<String?> etag,
-      required String title,
-      Value<String?> updatedUtc,
-      Value<String?> selfLink,
-      Value<String?> parent,
-      Value<String?> position,
-      Value<String?> notes,
-      Value<String?> status,
-      Value<String?> dueUtc,
-      Value<String?> completedUtc,
-      Value<String?> providerStatus,
-      Value<String?> bodyContent,
-      Value<String?> bodyContentType,
-      Value<String?> microsoftDueDateTime,
-      Value<String?> microsoftDueTimeZone,
-      Value<String?> microsoftStartDateTime,
-      Value<String?> microsoftStartTimeZone,
-      Value<String?> microsoftReminderDateTime,
-      Value<String?> microsoftReminderTimeZone,
-      Value<bool?> microsoftIsReminderOn,
-      Value<String?> microsoftCompletedDateTime,
-      Value<String?> microsoftCompletedTimeZone,
-      Value<String?> microsoftChecklistItemsJson,
-      Value<String?> recurrenceJson,
-      Value<String?> importance,
-      Value<String?> categoriesJson,
-      Value<bool?> hasAttachments,
-      Value<String?> providerMetadataJson,
-      Value<bool?> deleted,
-      Value<bool?> hidden,
-      Value<String?> linksJson,
-      Value<String?> webViewLink,
-      Value<String?> assignmentInfoJson,
-      required String rawJson,
-      Value<bool> serverMissing,
-      Value<bool> localDirty,
-      Value<bool> pendingDelete,
-      Value<bool> pendingMove,
-      Value<bool> localCreated,
-      Value<String?> syncBaseUpdatedUtc,
-      Value<String?> lastSyncedAtUtc,
-      required String createdLocalAtUtc,
-      required String updatedLocalAtUtc,
-      Value<int> rowid,
-    });
-typedef $$TasksTableUpdateCompanionBuilder =
-    TasksCompanion Function({
-      Value<String> accountId,
-      Value<String> taskListId,
-      Value<String> id,
-      Value<String?> davCollectionId,
-      Value<String?> davObjectId,
-      Value<String?> davComponentId,
-      Value<String?> icalUid,
-      Value<String?> recurrenceIdKey,
-      Value<int?> icalPriority,
-      Value<int?> percentComplete,
-      Value<String?> taskLocation,
-      Value<double?> locationLatitude,
-      Value<double?> locationLongitude,
-      Value<String?> taskUrl,
-      Value<String?> taskClassification,
-      Value<bool?> taskPinned,
-      Value<bool?> taskHideSubtasks,
-      Value<bool?> taskHideCompletedSubtasks,
-      Value<String?> taskAlarmsJson,
-      Value<String?> parentUid,
-      Value<int?> sortOrder,
-      Value<String?> providerExtensionProjectionJson,
-      Value<int> projectionVersion,
-      Value<String?> kind,
-      Value<String?> etag,
-      Value<String> title,
-      Value<String?> updatedUtc,
-      Value<String?> selfLink,
-      Value<String?> parent,
-      Value<String?> position,
-      Value<String?> notes,
-      Value<String?> status,
-      Value<String?> dueUtc,
-      Value<String?> completedUtc,
-      Value<String?> providerStatus,
-      Value<String?> bodyContent,
-      Value<String?> bodyContentType,
-      Value<String?> microsoftDueDateTime,
-      Value<String?> microsoftDueTimeZone,
-      Value<String?> microsoftStartDateTime,
-      Value<String?> microsoftStartTimeZone,
-      Value<String?> microsoftReminderDateTime,
-      Value<String?> microsoftReminderTimeZone,
-      Value<bool?> microsoftIsReminderOn,
-      Value<String?> microsoftCompletedDateTime,
-      Value<String?> microsoftCompletedTimeZone,
-      Value<String?> microsoftChecklistItemsJson,
-      Value<String?> recurrenceJson,
-      Value<String?> importance,
-      Value<String?> categoriesJson,
-      Value<bool?> hasAttachments,
-      Value<String?> providerMetadataJson,
-      Value<bool?> deleted,
-      Value<bool?> hidden,
-      Value<String?> linksJson,
-      Value<String?> webViewLink,
-      Value<String?> assignmentInfoJson,
-      Value<String> rawJson,
-      Value<bool> serverMissing,
-      Value<bool> localDirty,
-      Value<bool> pendingDelete,
-      Value<bool> pendingMove,
-      Value<bool> localCreated,
-      Value<String?> syncBaseUpdatedUtc,
-      Value<String?> lastSyncedAtUtc,
-      Value<String> createdLocalAtUtc,
-      Value<String> updatedLocalAtUtc,
-      Value<int> rowid,
-    });
+typedef $$TasksTableCreateCompanionBuilder = TasksCompanion Function({
+  required String accountId,
+  required String taskListId,
+  required String id,
+  Value<String?> davCollectionId,
+  Value<String?> davObjectId,
+  Value<String?> davComponentId,
+  Value<String?> icalUid,
+  Value<String?> recurrenceIdKey,
+  Value<int?> icalPriority,
+  Value<int?> percentComplete,
+  Value<String?> taskLocation,
+  Value<double?> locationLatitude,
+  Value<double?> locationLongitude,
+  Value<String?> taskUrl,
+  Value<String?> taskClassification,
+  Value<bool?> taskPinned,
+  Value<bool?> taskHideSubtasks,
+  Value<bool?> taskHideCompletedSubtasks,
+  Value<String?> taskAlarmsJson,
+  Value<String?> parentUid,
+  Value<int?> sortOrder,
+  Value<String?> providerExtensionProjectionJson,
+  Value<int> projectionVersion,
+  Value<String?> kind,
+  Value<String?> etag,
+  required String title,
+  Value<String?> updatedUtc,
+  Value<String?> selfLink,
+  Value<String?> parent,
+  Value<String?> position,
+  Value<String?> notes,
+  Value<String?> status,
+  Value<String?> dueUtc,
+  Value<String?> completedUtc,
+  Value<String?> providerStatus,
+  Value<String?> bodyContent,
+  Value<String?> bodyContentType,
+  Value<String?> microsoftDueDateTime,
+  Value<String?> microsoftDueTimeZone,
+  Value<String?> microsoftStartDateTime,
+  Value<String?> microsoftStartTimeZone,
+  Value<String?> microsoftReminderDateTime,
+  Value<String?> microsoftReminderTimeZone,
+  Value<bool?> microsoftIsReminderOn,
+  Value<String?> microsoftCompletedDateTime,
+  Value<String?> microsoftCompletedTimeZone,
+  Value<String?> microsoftChecklistItemsJson,
+  Value<String?> recurrenceJson,
+  Value<String?> importance,
+  Value<String?> categoriesJson,
+  Value<bool?> hasAttachments,
+  Value<String?> providerMetadataJson,
+  Value<bool?> deleted,
+  Value<bool?> hidden,
+  Value<String?> linksJson,
+  Value<String?> webViewLink,
+  Value<String?> assignmentInfoJson,
+  required String rawJson,
+  Value<bool> serverMissing,
+  Value<bool> localDirty,
+  Value<bool> pendingDelete,
+  Value<bool> pendingMove,
+  Value<bool> localCreated,
+  Value<String?> syncBaseUpdatedUtc,
+  Value<String?> lastSyncedAtUtc,
+  required String createdLocalAtUtc,
+  required String updatedLocalAtUtc,
+  Value<int> rowid,
+});
+typedef $$TasksTableUpdateCompanionBuilder = TasksCompanion Function({
+  Value<String> accountId,
+  Value<String> taskListId,
+  Value<String> id,
+  Value<String?> davCollectionId,
+  Value<String?> davObjectId,
+  Value<String?> davComponentId,
+  Value<String?> icalUid,
+  Value<String?> recurrenceIdKey,
+  Value<int?> icalPriority,
+  Value<int?> percentComplete,
+  Value<String?> taskLocation,
+  Value<double?> locationLatitude,
+  Value<double?> locationLongitude,
+  Value<String?> taskUrl,
+  Value<String?> taskClassification,
+  Value<bool?> taskPinned,
+  Value<bool?> taskHideSubtasks,
+  Value<bool?> taskHideCompletedSubtasks,
+  Value<String?> taskAlarmsJson,
+  Value<String?> parentUid,
+  Value<int?> sortOrder,
+  Value<String?> providerExtensionProjectionJson,
+  Value<int> projectionVersion,
+  Value<String?> kind,
+  Value<String?> etag,
+  Value<String> title,
+  Value<String?> updatedUtc,
+  Value<String?> selfLink,
+  Value<String?> parent,
+  Value<String?> position,
+  Value<String?> notes,
+  Value<String?> status,
+  Value<String?> dueUtc,
+  Value<String?> completedUtc,
+  Value<String?> providerStatus,
+  Value<String?> bodyContent,
+  Value<String?> bodyContentType,
+  Value<String?> microsoftDueDateTime,
+  Value<String?> microsoftDueTimeZone,
+  Value<String?> microsoftStartDateTime,
+  Value<String?> microsoftStartTimeZone,
+  Value<String?> microsoftReminderDateTime,
+  Value<String?> microsoftReminderTimeZone,
+  Value<bool?> microsoftIsReminderOn,
+  Value<String?> microsoftCompletedDateTime,
+  Value<String?> microsoftCompletedTimeZone,
+  Value<String?> microsoftChecklistItemsJson,
+  Value<String?> recurrenceJson,
+  Value<String?> importance,
+  Value<String?> categoriesJson,
+  Value<bool?> hasAttachments,
+  Value<String?> providerMetadataJson,
+  Value<bool?> deleted,
+  Value<bool?> hidden,
+  Value<String?> linksJson,
+  Value<String?> webViewLink,
+  Value<String?> assignmentInfoJson,
+  Value<String> rawJson,
+  Value<bool> serverMissing,
+  Value<bool> localDirty,
+  Value<bool> pendingDelete,
+  Value<bool> pendingMove,
+  Value<bool> localCreated,
+  Value<String?> syncBaseUpdatedUtc,
+  Value<String?> lastSyncedAtUtc,
+  Value<String> createdLocalAtUtc,
+  Value<String> updatedLocalAtUtc,
+  Value<int> rowid,
+});
 
 final class $$TasksTableReferences
     extends BaseReferences<_$AppDatabase, $TasksTable, Task> {
@@ -39579,56 +39535,48 @@ class $$TasksTableTableManager
                         >
                       >(state) {
                         if (accountId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.accountId,
-                                    referencedTable: $$TasksTableReferences
-                                        ._accountIdTable(db),
-                                    referencedColumn: $$TasksTableReferences
-                                        ._accountIdTable(db)
-                                        .id,
-                                  )
-                                  as T;
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.accountId,
+                            referencedTable: $$TasksTableReferences
+                                ._accountIdTable(db),
+                            referencedColumn: $$TasksTableReferences
+                                ._accountIdTable(db)
+                                .id,
+                          ) as T;
                         }
                         if (davCollectionId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.davCollectionId,
-                                    referencedTable: $$TasksTableReferences
-                                        ._davCollectionIdTable(db),
-                                    referencedColumn: $$TasksTableReferences
-                                        ._davCollectionIdTable(db)
-                                        .id,
-                                  )
-                                  as T;
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.davCollectionId,
+                            referencedTable: $$TasksTableReferences
+                                ._davCollectionIdTable(db),
+                            referencedColumn: $$TasksTableReferences
+                                ._davCollectionIdTable(db)
+                                .id,
+                          ) as T;
                         }
                         if (davObjectId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.davObjectId,
-                                    referencedTable: $$TasksTableReferences
-                                        ._davObjectIdTable(db),
-                                    referencedColumn: $$TasksTableReferences
-                                        ._davObjectIdTable(db)
-                                        .id,
-                                  )
-                                  as T;
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.davObjectId,
+                            referencedTable: $$TasksTableReferences
+                                ._davObjectIdTable(db),
+                            referencedColumn: $$TasksTableReferences
+                                ._davObjectIdTable(db)
+                                .id,
+                          ) as T;
                         }
                         if (davComponentId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.davComponentId,
-                                    referencedTable: $$TasksTableReferences
-                                        ._davComponentIdTable(db),
-                                    referencedColumn: $$TasksTableReferences
-                                        ._davComponentIdTable(db)
-                                        .id,
-                                  )
-                                  as T;
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.davComponentId,
+                            referencedTable: $$TasksTableReferences
+                                ._davComponentIdTable(db),
+                            referencedColumn: $$TasksTableReferences
+                                ._davComponentIdTable(db)
+                                .id,
+                          ) as T;
                         }
 
                         return state;
@@ -39661,94 +39609,92 @@ typedef $$TasksTableProcessedTableManager =
         bool davComponentId,
       })
     >;
-typedef $$PendingOpsTableCreateCompanionBuilder =
-    PendingOpsCompanion Function({
-      required String id,
-      required String accountId,
-      Value<String?> provider,
-      required String entityType,
-      required String operation,
-      Value<String?> operationType,
-      Value<String?> taskListId,
-      Value<String?> taskId,
-      Value<String?> calendarSourceId,
-      Value<String?> providerCalendarId,
-      Value<String?> eventId,
-      Value<String?> davCollectionId,
-      Value<String?> davCollectionHref,
-      Value<String?> davObjectId,
-      Value<String?> davMemberHref,
-      Value<String?> baselineEtag,
-      Value<String?> baselineRawIcs,
-      Value<String?> mutationPatchJson,
-      Value<int?> mutationPatchSchemaVersion,
-      Value<String?> targetComponentKey,
-      Value<String?> mutationScope,
-      Value<String?> destinationCollectionId,
-      Value<String?> destinationCollectionHref,
-      Value<String?> destinationMemberHref,
-      Value<String?> conflictState,
-      Value<String?> conflictSnapshotId,
-      Value<String?> retryClassification,
-      Value<String?> localTempId,
-      Value<String?> dependsOnOpId,
-      required String requestJson,
-      Value<String?> baselineUpdatedUtc,
-      Value<String?> baselineRawJson,
-      Value<int> attemptCount,
-      Value<String?> nextAttemptAtUtc,
-      Value<String?> lastErrorCode,
-      Value<String?> lastErrorMessage,
-      Value<String> state,
-      Value<String?> lastError,
-      required String createdAtUtc,
-      required String updatedAtUtc,
-      Value<int> rowid,
-    });
-typedef $$PendingOpsTableUpdateCompanionBuilder =
-    PendingOpsCompanion Function({
-      Value<String> id,
-      Value<String> accountId,
-      Value<String?> provider,
-      Value<String> entityType,
-      Value<String> operation,
-      Value<String?> operationType,
-      Value<String?> taskListId,
-      Value<String?> taskId,
-      Value<String?> calendarSourceId,
-      Value<String?> providerCalendarId,
-      Value<String?> eventId,
-      Value<String?> davCollectionId,
-      Value<String?> davCollectionHref,
-      Value<String?> davObjectId,
-      Value<String?> davMemberHref,
-      Value<String?> baselineEtag,
-      Value<String?> baselineRawIcs,
-      Value<String?> mutationPatchJson,
-      Value<int?> mutationPatchSchemaVersion,
-      Value<String?> targetComponentKey,
-      Value<String?> mutationScope,
-      Value<String?> destinationCollectionId,
-      Value<String?> destinationCollectionHref,
-      Value<String?> destinationMemberHref,
-      Value<String?> conflictState,
-      Value<String?> conflictSnapshotId,
-      Value<String?> retryClassification,
-      Value<String?> localTempId,
-      Value<String?> dependsOnOpId,
-      Value<String> requestJson,
-      Value<String?> baselineUpdatedUtc,
-      Value<String?> baselineRawJson,
-      Value<int> attemptCount,
-      Value<String?> nextAttemptAtUtc,
-      Value<String?> lastErrorCode,
-      Value<String?> lastErrorMessage,
-      Value<String> state,
-      Value<String?> lastError,
-      Value<String> createdAtUtc,
-      Value<String> updatedAtUtc,
-      Value<int> rowid,
-    });
+typedef $$PendingOpsTableCreateCompanionBuilder = PendingOpsCompanion Function({
+  required String id,
+  required String accountId,
+  Value<String?> provider,
+  required String entityType,
+  required String operation,
+  Value<String?> operationType,
+  Value<String?> taskListId,
+  Value<String?> taskId,
+  Value<String?> calendarSourceId,
+  Value<String?> providerCalendarId,
+  Value<String?> eventId,
+  Value<String?> davCollectionId,
+  Value<String?> davCollectionHref,
+  Value<String?> davObjectId,
+  Value<String?> davMemberHref,
+  Value<String?> baselineEtag,
+  Value<String?> baselineRawIcs,
+  Value<String?> mutationPatchJson,
+  Value<int?> mutationPatchSchemaVersion,
+  Value<String?> targetComponentKey,
+  Value<String?> mutationScope,
+  Value<String?> destinationCollectionId,
+  Value<String?> destinationCollectionHref,
+  Value<String?> destinationMemberHref,
+  Value<String?> conflictState,
+  Value<String?> conflictSnapshotId,
+  Value<String?> retryClassification,
+  Value<String?> localTempId,
+  Value<String?> dependsOnOpId,
+  required String requestJson,
+  Value<String?> baselineUpdatedUtc,
+  Value<String?> baselineRawJson,
+  Value<int> attemptCount,
+  Value<String?> nextAttemptAtUtc,
+  Value<String?> lastErrorCode,
+  Value<String?> lastErrorMessage,
+  Value<String> state,
+  Value<String?> lastError,
+  required String createdAtUtc,
+  required String updatedAtUtc,
+  Value<int> rowid,
+});
+typedef $$PendingOpsTableUpdateCompanionBuilder = PendingOpsCompanion Function({
+  Value<String> id,
+  Value<String> accountId,
+  Value<String?> provider,
+  Value<String> entityType,
+  Value<String> operation,
+  Value<String?> operationType,
+  Value<String?> taskListId,
+  Value<String?> taskId,
+  Value<String?> calendarSourceId,
+  Value<String?> providerCalendarId,
+  Value<String?> eventId,
+  Value<String?> davCollectionId,
+  Value<String?> davCollectionHref,
+  Value<String?> davObjectId,
+  Value<String?> davMemberHref,
+  Value<String?> baselineEtag,
+  Value<String?> baselineRawIcs,
+  Value<String?> mutationPatchJson,
+  Value<int?> mutationPatchSchemaVersion,
+  Value<String?> targetComponentKey,
+  Value<String?> mutationScope,
+  Value<String?> destinationCollectionId,
+  Value<String?> destinationCollectionHref,
+  Value<String?> destinationMemberHref,
+  Value<String?> conflictState,
+  Value<String?> conflictSnapshotId,
+  Value<String?> retryClassification,
+  Value<String?> localTempId,
+  Value<String?> dependsOnOpId,
+  Value<String> requestJson,
+  Value<String?> baselineUpdatedUtc,
+  Value<String?> baselineRawJson,
+  Value<int> attemptCount,
+  Value<String?> nextAttemptAtUtc,
+  Value<String?> lastErrorCode,
+  Value<String?> lastErrorMessage,
+  Value<String> state,
+  Value<String?> lastError,
+  Value<String> createdAtUtc,
+  Value<String> updatedAtUtc,
+  Value<int> rowid,
+});
 
 final class $$PendingOpsTableReferences
     extends BaseReferences<_$AppDatabase, $PendingOpsTable, PendingOp> {
@@ -40976,75 +40922,59 @@ class $$PendingOpsTableTableManager
                         >
                       >(state) {
                         if (accountId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.accountId,
-                                    referencedTable: $$PendingOpsTableReferences
-                                        ._accountIdTable(db),
-                                    referencedColumn:
-                                        $$PendingOpsTableReferences
-                                            ._accountIdTable(db)
-                                            .id,
-                                  )
-                                  as T;
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.accountId,
+                            referencedTable: $$PendingOpsTableReferences
+                                ._accountIdTable(db),
+                            referencedColumn: $$PendingOpsTableReferences
+                                ._accountIdTable(db)
+                                .id,
+                          ) as T;
                         }
                         if (davCollectionId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.davCollectionId,
-                                    referencedTable: $$PendingOpsTableReferences
-                                        ._davCollectionIdTable(db),
-                                    referencedColumn:
-                                        $$PendingOpsTableReferences
-                                            ._davCollectionIdTable(db)
-                                            .id,
-                                  )
-                                  as T;
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.davCollectionId,
+                            referencedTable: $$PendingOpsTableReferences
+                                ._davCollectionIdTable(db),
+                            referencedColumn: $$PendingOpsTableReferences
+                                ._davCollectionIdTable(db)
+                                .id,
+                          ) as T;
                         }
                         if (davObjectId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.davObjectId,
-                                    referencedTable: $$PendingOpsTableReferences
-                                        ._davObjectIdTable(db),
-                                    referencedColumn:
-                                        $$PendingOpsTableReferences
-                                            ._davObjectIdTable(db)
-                                            .id,
-                                  )
-                                  as T;
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.davObjectId,
+                            referencedTable: $$PendingOpsTableReferences
+                                ._davObjectIdTable(db),
+                            referencedColumn: $$PendingOpsTableReferences
+                                ._davObjectIdTable(db)
+                                .id,
+                          ) as T;
                         }
                         if (destinationCollectionId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn:
-                                        table.destinationCollectionId,
-                                    referencedTable: $$PendingOpsTableReferences
-                                        ._destinationCollectionIdTable(db),
-                                    referencedColumn:
-                                        $$PendingOpsTableReferences
-                                            ._destinationCollectionIdTable(db)
-                                            .id,
-                                  )
-                                  as T;
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.destinationCollectionId,
+                            referencedTable: $$PendingOpsTableReferences
+                                ._destinationCollectionIdTable(db),
+                            referencedColumn: $$PendingOpsTableReferences
+                                ._destinationCollectionIdTable(db)
+                                .id,
+                          ) as T;
                         }
                         if (conflictSnapshotId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.conflictSnapshotId,
-                                    referencedTable: $$PendingOpsTableReferences
-                                        ._conflictSnapshotIdTable(db),
-                                    referencedColumn:
-                                        $$PendingOpsTableReferences
-                                            ._conflictSnapshotIdTable(db)
-                                            .id,
-                                  )
-                                  as T;
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.conflictSnapshotId,
+                            referencedTable: $$PendingOpsTableReferences
+                                ._conflictSnapshotIdTable(db),
+                            referencedColumn: $$PendingOpsTableReferences
+                                ._conflictSnapshotIdTable(db)
+                                .id,
+                          ) as T;
                         }
 
                         return state;
@@ -41078,38 +41008,36 @@ typedef $$PendingOpsTableProcessedTableManager =
         bool conflictSnapshotId,
       })
     >;
-typedef $$SyncRunsTableCreateCompanionBuilder =
-    SyncRunsCompanion Function({
-      required String id,
-      required String accountId,
-      Value<String?> provider,
-      required String mode,
-      required String startedAtUtc,
-      Value<String?> finishedAtUtc,
-      required String status,
-      Value<int> taskListsSeen,
-      Value<int> tasksSeen,
-      Value<int> pendingOpsApplied,
-      Value<String?> errorCode,
-      Value<String?> errorMessage,
-      Value<int> rowid,
-    });
-typedef $$SyncRunsTableUpdateCompanionBuilder =
-    SyncRunsCompanion Function({
-      Value<String> id,
-      Value<String> accountId,
-      Value<String?> provider,
-      Value<String> mode,
-      Value<String> startedAtUtc,
-      Value<String?> finishedAtUtc,
-      Value<String> status,
-      Value<int> taskListsSeen,
-      Value<int> tasksSeen,
-      Value<int> pendingOpsApplied,
-      Value<String?> errorCode,
-      Value<String?> errorMessage,
-      Value<int> rowid,
-    });
+typedef $$SyncRunsTableCreateCompanionBuilder = SyncRunsCompanion Function({
+  required String id,
+  required String accountId,
+  Value<String?> provider,
+  required String mode,
+  required String startedAtUtc,
+  Value<String?> finishedAtUtc,
+  required String status,
+  Value<int> taskListsSeen,
+  Value<int> tasksSeen,
+  Value<int> pendingOpsApplied,
+  Value<String?> errorCode,
+  Value<String?> errorMessage,
+  Value<int> rowid,
+});
+typedef $$SyncRunsTableUpdateCompanionBuilder = SyncRunsCompanion Function({
+  Value<String> id,
+  Value<String> accountId,
+  Value<String?> provider,
+  Value<String> mode,
+  Value<String> startedAtUtc,
+  Value<String?> finishedAtUtc,
+  Value<String> status,
+  Value<int> taskListsSeen,
+  Value<int> tasksSeen,
+  Value<int> pendingOpsApplied,
+  Value<String?> errorCode,
+  Value<String?> errorMessage,
+  Value<int> rowid,
+});
 
 final class $$SyncRunsTableReferences
     extends BaseReferences<_$AppDatabase, $SyncRunsTable, SyncRun> {
@@ -41500,17 +41428,15 @@ class $$SyncRunsTableTableManager
                     >
                   >(state) {
                     if (accountId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.accountId,
-                                referencedTable: $$SyncRunsTableReferences
-                                    ._accountIdTable(db),
-                                referencedColumn: $$SyncRunsTableReferences
-                                    ._accountIdTable(db)
-                                    .id,
-                              )
-                              as T;
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.accountId,
+                        referencedTable: $$SyncRunsTableReferences
+                            ._accountIdTable(db),
+                        referencedColumn: $$SyncRunsTableReferences
+                            ._accountIdTable(db)
+                            .id,
+                      ) as T;
                     }
 
                     return state;
@@ -42571,34 +42497,26 @@ class $$CalendarSourcesTableTableManager
                         >
                       >(state) {
                         if (accountId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.accountId,
-                                    referencedTable:
-                                        $$CalendarSourcesTableReferences
-                                            ._accountIdTable(db),
-                                    referencedColumn:
-                                        $$CalendarSourcesTableReferences
-                                            ._accountIdTable(db)
-                                            .id,
-                                  )
-                                  as T;
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.accountId,
+                            referencedTable: $$CalendarSourcesTableReferences
+                                ._accountIdTable(db),
+                            referencedColumn: $$CalendarSourcesTableReferences
+                                ._accountIdTable(db)
+                                .id,
+                          ) as T;
                         }
                         if (davCollectionId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.davCollectionId,
-                                    referencedTable:
-                                        $$CalendarSourcesTableReferences
-                                            ._davCollectionIdTable(db),
-                                    referencedColumn:
-                                        $$CalendarSourcesTableReferences
-                                            ._davCollectionIdTable(db)
-                                            .id,
-                                  )
-                                  as T;
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.davCollectionId,
+                            referencedTable: $$CalendarSourcesTableReferences
+                                ._davCollectionIdTable(db),
+                            referencedColumn: $$CalendarSourcesTableReferences
+                                ._davCollectionIdTable(db)
+                                .id,
+                          ) as T;
                         }
 
                         return state;
@@ -44440,79 +44358,59 @@ class $$CalendarEventsTableTableManager
                         >
                       >(state) {
                         if (accountId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.accountId,
-                                    referencedTable:
-                                        $$CalendarEventsTableReferences
-                                            ._accountIdTable(db),
-                                    referencedColumn:
-                                        $$CalendarEventsTableReferences
-                                            ._accountIdTable(db)
-                                            .id,
-                                  )
-                                  as T;
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.accountId,
+                            referencedTable: $$CalendarEventsTableReferences
+                                ._accountIdTable(db),
+                            referencedColumn: $$CalendarEventsTableReferences
+                                ._accountIdTable(db)
+                                .id,
+                          ) as T;
                         }
                         if (calendarSourceId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.calendarSourceId,
-                                    referencedTable:
-                                        $$CalendarEventsTableReferences
-                                            ._calendarSourceIdTable(db),
-                                    referencedColumn:
-                                        $$CalendarEventsTableReferences
-                                            ._calendarSourceIdTable(db)
-                                            .id,
-                                  )
-                                  as T;
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.calendarSourceId,
+                            referencedTable: $$CalendarEventsTableReferences
+                                ._calendarSourceIdTable(db),
+                            referencedColumn: $$CalendarEventsTableReferences
+                                ._calendarSourceIdTable(db)
+                                .id,
+                          ) as T;
                         }
                         if (davCollectionId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.davCollectionId,
-                                    referencedTable:
-                                        $$CalendarEventsTableReferences
-                                            ._davCollectionIdTable(db),
-                                    referencedColumn:
-                                        $$CalendarEventsTableReferences
-                                            ._davCollectionIdTable(db)
-                                            .id,
-                                  )
-                                  as T;
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.davCollectionId,
+                            referencedTable: $$CalendarEventsTableReferences
+                                ._davCollectionIdTable(db),
+                            referencedColumn: $$CalendarEventsTableReferences
+                                ._davCollectionIdTable(db)
+                                .id,
+                          ) as T;
                         }
                         if (davObjectId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.davObjectId,
-                                    referencedTable:
-                                        $$CalendarEventsTableReferences
-                                            ._davObjectIdTable(db),
-                                    referencedColumn:
-                                        $$CalendarEventsTableReferences
-                                            ._davObjectIdTable(db)
-                                            .id,
-                                  )
-                                  as T;
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.davObjectId,
+                            referencedTable: $$CalendarEventsTableReferences
+                                ._davObjectIdTable(db),
+                            referencedColumn: $$CalendarEventsTableReferences
+                                ._davObjectIdTable(db)
+                                .id,
+                          ) as T;
                         }
                         if (davComponentId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.davComponentId,
-                                    referencedTable:
-                                        $$CalendarEventsTableReferences
-                                            ._davComponentIdTable(db),
-                                    referencedColumn:
-                                        $$CalendarEventsTableReferences
-                                            ._davComponentIdTable(db)
-                                            .id,
-                                  )
-                                  as T;
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.davComponentId,
+                            referencedTable: $$CalendarEventsTableReferences
+                                ._davComponentIdTable(db),
+                            referencedColumn: $$CalendarEventsTableReferences
+                                ._davComponentIdTable(db)
+                                .id,
+                          ) as T;
                         }
 
                         return state;
@@ -44871,19 +44769,15 @@ class $$IcalImportReceiptsTableTableManager
                     >
                   >(state) {
                     if (calendarSourceId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.calendarSourceId,
-                                referencedTable:
-                                    $$IcalImportReceiptsTableReferences
-                                        ._calendarSourceIdTable(db),
-                                referencedColumn:
-                                    $$IcalImportReceiptsTableReferences
-                                        ._calendarSourceIdTable(db)
-                                        .id,
-                              )
-                              as T;
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.calendarSourceId,
+                        referencedTable: $$IcalImportReceiptsTableReferences
+                            ._calendarSourceIdTable(db),
+                        referencedColumn: $$IcalImportReceiptsTableReferences
+                            ._calendarSourceIdTable(db)
+                            .id,
+                      ) as T;
                     }
 
                     return state;
@@ -45772,34 +45666,30 @@ class $$WebCalSubscriptionsTableTableManager
                         >
                       >(state) {
                         if (accountId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.accountId,
-                                    referencedTable:
-                                        $$WebCalSubscriptionsTableReferences
-                                            ._accountIdTable(db),
-                                    referencedColumn:
-                                        $$WebCalSubscriptionsTableReferences
-                                            ._accountIdTable(db)
-                                            .id,
-                                  )
-                                  as T;
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.accountId,
+                            referencedTable:
+                                $$WebCalSubscriptionsTableReferences
+                                    ._accountIdTable(db),
+                            referencedColumn:
+                                $$WebCalSubscriptionsTableReferences
+                                    ._accountIdTable(db)
+                                    .id,
+                          ) as T;
                         }
                         if (calendarSourceId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.calendarSourceId,
-                                    referencedTable:
-                                        $$WebCalSubscriptionsTableReferences
-                                            ._calendarSourceIdTable(db),
-                                    referencedColumn:
-                                        $$WebCalSubscriptionsTableReferences
-                                            ._calendarSourceIdTable(db)
-                                            .id,
-                                  )
-                                  as T;
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.calendarSourceId,
+                            referencedTable:
+                                $$WebCalSubscriptionsTableReferences
+                                    ._calendarSourceIdTable(db),
+                            referencedColumn:
+                                $$WebCalSubscriptionsTableReferences
+                                    ._calendarSourceIdTable(db)
+                                    .id,
+                          ) as T;
                         }
 
                         return state;
@@ -46211,19 +46101,16 @@ class $$CalendarEventAttendeesTableTableManager
                     >
                   >(state) {
                     if (calendarEventId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.calendarEventId,
-                                referencedTable:
-                                    $$CalendarEventAttendeesTableReferences
-                                        ._calendarEventIdTable(db),
-                                referencedColumn:
-                                    $$CalendarEventAttendeesTableReferences
-                                        ._calendarEventIdTable(db)
-                                        .id,
-                              )
-                              as T;
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.calendarEventId,
+                        referencedTable: $$CalendarEventAttendeesTableReferences
+                            ._calendarEventIdTable(db),
+                        referencedColumn:
+                            $$CalendarEventAttendeesTableReferences
+                                ._calendarEventIdTable(db)
+                                .id,
+                      ) as T;
                     }
 
                     return state;
@@ -46616,19 +46503,16 @@ class $$CalendarEventRemindersTableTableManager
                     >
                   >(state) {
                     if (calendarEventId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.calendarEventId,
-                                referencedTable:
-                                    $$CalendarEventRemindersTableReferences
-                                        ._calendarEventIdTable(db),
-                                referencedColumn:
-                                    $$CalendarEventRemindersTableReferences
-                                        ._calendarEventIdTable(db)
-                                        .id,
-                              )
-                              as T;
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.calendarEventId,
+                        referencedTable: $$CalendarEventRemindersTableReferences
+                            ._calendarEventIdTable(db),
+                        referencedColumn:
+                            $$CalendarEventRemindersTableReferences
+                                ._calendarEventIdTable(db)
+                                .id,
+                      ) as T;
                     }
 
                     return state;
@@ -47359,49 +47243,37 @@ class $$SyncCursorsTableTableManager
                         >
                       >(state) {
                         if (accountId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.accountId,
-                                    referencedTable:
-                                        $$SyncCursorsTableReferences
-                                            ._accountIdTable(db),
-                                    referencedColumn:
-                                        $$SyncCursorsTableReferences
-                                            ._accountIdTable(db)
-                                            .id,
-                                  )
-                                  as T;
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.accountId,
+                            referencedTable: $$SyncCursorsTableReferences
+                                ._accountIdTable(db),
+                            referencedColumn: $$SyncCursorsTableReferences
+                                ._accountIdTable(db)
+                                .id,
+                          ) as T;
                         }
                         if (projectionSourceId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.projectionSourceId,
-                                    referencedTable:
-                                        $$SyncCursorsTableReferences
-                                            ._projectionSourceIdTable(db),
-                                    referencedColumn:
-                                        $$SyncCursorsTableReferences
-                                            ._projectionSourceIdTable(db)
-                                            .id,
-                                  )
-                                  as T;
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.projectionSourceId,
+                            referencedTable: $$SyncCursorsTableReferences
+                                ._projectionSourceIdTable(db),
+                            referencedColumn: $$SyncCursorsTableReferences
+                                ._projectionSourceIdTable(db)
+                                .id,
+                          ) as T;
                         }
                         if (davCollectionId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.davCollectionId,
-                                    referencedTable:
-                                        $$SyncCursorsTableReferences
-                                            ._davCollectionIdTable(db),
-                                    referencedColumn:
-                                        $$SyncCursorsTableReferences
-                                            ._davCollectionIdTable(db)
-                                            .id,
-                                  )
-                                  as T;
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.davCollectionId,
+                            referencedTable: $$SyncCursorsTableReferences
+                                ._davCollectionIdTable(db),
+                            referencedColumn: $$SyncCursorsTableReferences
+                                ._davCollectionIdTable(db)
+                                .id,
+                          ) as T;
                         }
 
                         return state;
@@ -48015,19 +47887,15 @@ class $$ScheduleItemOverridesTableTableManager
                     >
                   >(state) {
                     if (accountId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.accountId,
-                                referencedTable:
-                                    $$ScheduleItemOverridesTableReferences
-                                        ._accountIdTable(db),
-                                referencedColumn:
-                                    $$ScheduleItemOverridesTableReferences
-                                        ._accountIdTable(db)
-                                        .id,
-                              )
-                              as T;
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.accountId,
+                        referencedTable: $$ScheduleItemOverridesTableReferences
+                            ._accountIdTable(db),
+                        referencedColumn: $$ScheduleItemOverridesTableReferences
+                            ._accountIdTable(db)
+                            .id,
+                      ) as T;
                     }
 
                     return state;
@@ -48612,19 +48480,17 @@ class $$NotificationScheduleTableTableManager
                         >
                       >(state) {
                         if (accountId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.accountId,
-                                    referencedTable:
-                                        $$NotificationScheduleTableReferences
-                                            ._accountIdTable(db),
-                                    referencedColumn:
-                                        $$NotificationScheduleTableReferences
-                                            ._accountIdTable(db)
-                                            .id,
-                                  )
-                                  as T;
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.accountId,
+                            referencedTable:
+                                $$NotificationScheduleTableReferences
+                                    ._accountIdTable(db),
+                            referencedColumn:
+                                $$NotificationScheduleTableReferences
+                                    ._accountIdTable(db)
+                                    .id,
+                          ) as T;
                         }
 
                         return state;
@@ -49013,19 +48879,17 @@ class $$AndroidNotificationMappingsTableTableManager
                     >
                   >(state) {
                     if (scheduleId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.scheduleId,
-                                referencedTable:
-                                    $$AndroidNotificationMappingsTableReferences
-                                        ._scheduleIdTable(db),
-                                referencedColumn:
-                                    $$AndroidNotificationMappingsTableReferences
-                                        ._scheduleIdTable(db)
-                                        .id,
-                              )
-                              as T;
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.scheduleId,
+                        referencedTable:
+                            $$AndroidNotificationMappingsTableReferences
+                                ._scheduleIdTable(db),
+                        referencedColumn:
+                            $$AndroidNotificationMappingsTableReferences
+                                ._scheduleIdTable(db)
+                                .id,
+                      ) as T;
                     }
 
                     return state;
@@ -49730,19 +49594,15 @@ class $$LocationResolutionsTableTableManager
                     >
                   >(state) {
                     if (accountId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.accountId,
-                                referencedTable:
-                                    $$LocationResolutionsTableReferences
-                                        ._accountIdTable(db),
-                                referencedColumn:
-                                    $$LocationResolutionsTableReferences
-                                        ._accountIdTable(db)
-                                        .id,
-                              )
-                              as T;
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.accountId,
+                        referencedTable: $$LocationResolutionsTableReferences
+                            ._accountIdTable(db),
+                        referencedColumn: $$LocationResolutionsTableReferences
+                            ._accountIdTable(db)
+                            .id,
+                      ) as T;
                     }
 
                     return state;

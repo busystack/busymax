@@ -21,7 +21,6 @@ BeforeAll {
       busyMaxGoogleOAuthClientSecret = 'fixture-public-secret'
       busyMaxGoogleOAuthProjectId = 'fixture-owner-project'
       busyMaxMicrosoftOAuthClientId = '66666666-6666-6666-6666-666666666666'
-      busyMaxMicrosoftOAuthAuthorityTenant = 'organizations'
       fakeData = $false
       developmentBackend = $false
     }
@@ -40,7 +39,6 @@ BeforeAll {
     $config.busyMaxGoogleOAuthClientSecret = 'synthetic-ci-public-secret'
     $config.busyMaxGoogleOAuthProjectId = 'busymax-ci-managed'
     $config.busyMaxMicrosoftOAuthClientId = '44444444-4444-4444-4444-444444444444'
-    $config.busyMaxMicrosoftOAuthAuthorityTenant = 'common'
     return $config
   }
 }
@@ -95,11 +93,28 @@ Describe 'BusyMax Store configuration validation modes' {
       Should -Throw -ExpectedMessage '*External prerequisite: Google*External prerequisite: Microsoft*'
   }
 
-  It 'rejects an implicit Microsoft audience and synthetic CI registration in production' {
+  It 'rejects invalid managed Microsoft IDs in production' {
+    foreach ($invalid in @('', 'not-a-client-id')) {
+      $config = New-ValidConfig
+      $config.busyMaxMicrosoftOAuthClientId = $invalid
+      { Assert-BusyMaxStoreConfig -Config $config -Mode ProductionStore } |
+        Should -Throw -ExpectedMessage '*External prerequisite: Microsoft*'
+    }
+  }
+
+  It 'preserves the independent original Microsoft authority' {
     $config = New-ValidConfig
-    $config.busyMaxMicrosoftOAuthAuthorityTenant = ''
+    $config.microsoftOAuthAuthorityTenant = 'organizations'
     { Assert-BusyMaxStoreConfig -Config $config -Mode ProductionStore } |
-      Should -Throw -ExpectedMessage '*External prerequisite: Microsoft*'
+      Should -Not -Throw
+    $config.microsoftOAuthAuthorityTenant | Should -Be 'organizations'
+  }
+
+  It 'rejects synthetic CI registrations in production' {
+    $config = New-ValidConfig
+    $config.busyMaxMicrosoftOAuthClientId = '44444444-4444-4444-4444-444444444444'
+    { Assert-BusyMaxStoreConfig -Config $config -Mode ProductionStore } |
+      Should -Throw -ExpectedMessage '*Synthetic CI*'
     $config = New-ValidConfig
     $config.busyMaxGoogleOAuthClientId = 'busymax-ci-managed.apps.googleusercontent.com'
     { Assert-BusyMaxStoreConfig -Config $config -Mode ProductionStore } |

@@ -67,12 +67,12 @@ void main(List<String> args) {
   }
   if (!validMicrosoftDesktopConfiguration(
     clientId: value('BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID'),
-    authorityTenant: value('BUSYMAX_MICROSOFT_OAUTH_AUTHORITY_TENANT'),
   )) {
     stderr.writeln(
       'External prerequisite: Microsoft production public app ID '
-      'and explicit supported-account authority are missing or invalid. '
-      'The owner must configure the desktop redirect, delegated permissions '
+      'is missing or invalid. '
+      'The owner must support personal and organizational accounts and '
+      'configure the desktop redirect, delegated permissions '
       'and applicable consent before enabling Connect with BusyMax.',
     );
     missing = true;

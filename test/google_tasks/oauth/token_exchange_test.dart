@@ -1,7 +1,10 @@
 import 'package:busymax/src/core/auth/authorization_attempt.dart';
+
 import '../../support/oauth_binding_fixture.dart';
+
 import 'package:busymax/src/core/auth/oauth_registration.dart';
 import 'package:busymax/src/core/auth/registration_staging.dart';
+
 import 'dart:async';
 import 'dart:convert';
 
@@ -75,9 +78,8 @@ void main() {
               .get();
           expect(rows, hasLength(1));
           expect(
-            DateTime.parse(
-              rows.single.cooldownUntilUtc!,
-            ).difference(DateTime.now().toUtc()),
+            DateTime.parse(rows.single.cooldownUntilUtc!)
+                .difference(DateTime.now().toUtc()),
             greaterThan(const Duration(minutes: 119)),
           );
         }
@@ -122,51 +124,136 @@ void main() {
     expect(userInfo?.email, 'google@example.com');
   });
 
+  test('existing Google contacts grant enables contacts without replacing the credential', () async {
+    final store = InMemorySecretStore();
+    final tokenSet = const OAuthTokenSetFixture().tokenSet.copyWith(
+      scopes: {...googleBusyMaxOAuthScopes, googleContactsWriteScope},
+    );
+    await store.saveOAuthTokenSet(
+      'google:subject',
+      BusyProvider.google,
+      tokenSet,
+    );
+    final persistence = await seedBoundFixtures(store);
+    final service = OAuthService(
+      config: _config,
+      tokenStore: store,
+      persistence: persistence,
+      loopbackFlow: OAuthLoopbackFlow(),
+      httpClient: MockClient(
+        (_) async => throw StateError('No network request allowed'),
+      ),
+      nowUtc: () => DateTime.utc(2026, 6, 4),
+    );
+    var contactsCommits = 0;
+
+    await service.authorizeGoogleContacts(
+      'google:subject',
+      writable: true,
+      persistContacts: () async {
+        contactsCommits++;
+      },
+    );
+
+    expect(contactsCommits, 1);
+    expect(
+      await service.googleContactsAuthorizationHeader(
+        'google:subject',
+        writable: true,
+      ),
+      'Bearer access',
+    );
+    final credential = await persistence.readCurrentCredential(
+      'google:subject',
+    );
+    expect(credential, isA<GoogleDesktopCredential>());
+    final googleCredential = credential! as GoogleDesktopCredential;
+    expect(googleCredential.tokenSet.refreshToken, 'refresh');
+    expect(
+      googleCredential.tokenSet.scopes,
+      contains(googleContactsWriteScope),
+    );
+  });
+
   test(
-    'token exchange without configured client secret does not send client_secret',
+    'Google contacts header rejects an account without a contacts grant',
     () async {
-      late http.Request captured;
+      final store = InMemorySecretStore();
+      await store.saveOAuthTokenSet(
+        'google:subject',
+        BusyProvider.google,
+        const OAuthTokenSetFixture().tokenSet,
+      );
+      final persistence = await seedBoundFixtures(store);
       final service = OAuthService(
         config: _config,
-        httpClient: MockClient((request) async {
-          captured = request;
-          return http.Response(
-            jsonEncode({
-              'access_token': 'access',
-              'refresh_token': 'refresh',
-              'expires_in': 3600,
-              'scope': 'https://www.googleapis.com/auth/tasks',
-              'token_type': 'Bearer',
-            }),
-            200,
-          );
-        }),
-        tokenStore: InMemorySecretStore(),
+        tokenStore: store,
+        persistence: persistence,
         loopbackFlow: OAuthLoopbackFlow(),
+        httpClient: MockClient(
+          (_) async => throw StateError('No network request allowed'),
+        ),
         nowUtc: () => DateTime.utc(2026, 6, 4),
       );
 
-      final tokenSet = await service.exchangeAuthorizationCode(
-        code: 'code',
-        codeVerifier: 'verifier',
-        redirectUri: 'http://127.0.0.1:1234/',
+      await expectLater(
+        service.googleContactsAuthorizationHeader(
+          'google:subject',
+          writable: false,
+        ),
+        throwsA(
+          isA<OAuthException>().having(
+            (error) => error.code,
+            'code',
+            'OAuthContactsConsentRequired',
+          ),
+        ),
       );
-
-      expect(
-        captured.headers['Content-Type'],
-        'application/x-www-form-urlencoded',
-      );
-      expect(Uri.splitQueryString(captured.body), {
-        'client_id': 'client-id.apps.googleusercontent.com',
-        'code': 'code',
-        'code_verifier': 'verifier',
-        'grant_type': 'authorization_code',
-        'redirect_uri': 'http://127.0.0.1:1234/',
-      });
-      expect(captured.body, isNot(contains('client_secret')));
-      expect(tokenSet.refreshToken, 'refresh');
     },
   );
+
+  test('token exchange without configured client secret does not send client_secret', () async {
+    late http.Request captured;
+    final service = OAuthService(
+      config: _config,
+      httpClient: MockClient((request) async {
+        captured = request;
+        return http.Response(
+          jsonEncode({
+            'access_token': 'access',
+            'refresh_token': 'refresh',
+            'expires_in': 3600,
+            'scope': 'https://www.googleapis.com/auth/tasks',
+            'token_type': 'Bearer',
+          }),
+          200,
+        );
+      }),
+      tokenStore: InMemorySecretStore(),
+      loopbackFlow: OAuthLoopbackFlow(),
+      nowUtc: () => DateTime.utc(2026, 6, 4),
+    );
+
+    final tokenSet = await service.exchangeAuthorizationCode(
+      code: 'code',
+      codeVerifier: 'verifier',
+      redirectUri: 'http://127.0.0.1:1234/',
+    );
+
+    expect(
+      captured.headers['Content-Type'],
+      'application/x-www-form-urlencoded',
+    );
+    expect(Uri.splitQueryString(captured.body), {
+      'client_id': 'client-id.apps.googleusercontent.com',
+      'code': 'code',
+      'code_verifier': 'verifier',
+      'grant_type': 'authorization_code',
+      'redirect_uri': 'http://127.0.0.1:1234/',
+    });
+    expect(captured.body, isNot(contains('client_secret')));
+    expect(tokenSet.refreshToken, 'refresh');
+  });
 
   test(
     'token exchange uses fallback scopes when response omits scope',

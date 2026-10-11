@@ -5903,6 +5903,108 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Go to Google Auth Platform → Branding. If setup has not started, select Get started. Enter BusyMax as the App name, choose your own User support email and select Next. In Audience, choose Internal. Select Next, enter your email under Contact Information and select Next. Accept the User Data Policy, then select Continue and Create. If already configured, review Branding and Audience.\n\nInternal allows only accounts in the project’s parent organization, subject to administrator controls. No test-user list is needed. BusyMax cannot verify these console settings from the downloaded JSON.'**
   String get registrationGuideWorkspaceAudience;
+
+  /// No description provided for @contactsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Contacts'**
+  String get contactsTitle;
+
+  /// No description provided for @contactsLinkedDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Use cached contacts from this account when adding event guests.'**
+  String get contactsLinkedDescription;
+
+  /// No description provided for @contactsEnableSuggestions.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable contact suggestions'**
+  String get contactsEnableSuggestions;
+
+  /// No description provided for @contactsReadPermissionDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Requests read-only contact access'**
+  String get contactsReadPermissionDescription;
+
+  /// No description provided for @contactsEnableEditing.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable contact editing'**
+  String get contactsEnableEditing;
+
+  /// No description provided for @contactsWritePermissionDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Requests contact read and write access'**
+  String get contactsWritePermissionDescription;
+
+  /// No description provided for @contactsSuggestionsEnabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Contact suggestions enabled'**
+  String get contactsSuggestionsEnabled;
+
+  /// No description provided for @contactsNeedsAttention.
+  ///
+  /// In en, this message translates to:
+  /// **'Contacts need attention'**
+  String get contactsNeedsAttention;
+
+  /// No description provided for @contactsReadWriteAccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Read and write access'**
+  String get contactsReadWriteAccess;
+
+  /// No description provided for @contactsDisableForAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Disable contacts for this account'**
+  String get contactsDisableForAccount;
+
+  /// No description provided for @contactsOnlyDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'These sources are independent of calendar and task accounts.'**
+  String get contactsOnlyDescription;
+
+  /// No description provided for @contactsAddCardDav.
+  ///
+  /// In en, this message translates to:
+  /// **'Add CardDAV contacts'**
+  String get contactsAddCardDav;
+
+  /// No description provided for @contactsAddNextcloud.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Nextcloud contacts'**
+  String get contactsAddNextcloud;
+
+  /// No description provided for @contactsUseForAttendees.
+  ///
+  /// In en, this message translates to:
+  /// **'Use for attendee suggestions'**
+  String get contactsUseForAttendees;
+
+  /// No description provided for @contactsServerUrlLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'HTTPS server URL'**
+  String get contactsServerUrlLabel;
+
+  /// No description provided for @contactsUsernameLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Username'**
+  String get contactsUsernameLabel;
+
+  /// No description provided for @contactsPasswordLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Password'**
+  String get contactsPasswordLabel;
 }
 
 class _AppLocalizationsDelegate

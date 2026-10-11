@@ -159,10 +159,12 @@ mark unexecuted cases as passed.
 
 Official packages require separate `busyMaxGoogleOAuthClientId`,
 `busyMaxGoogleOAuthClientSecret`, `busyMaxGoogleOAuthProjectId`,
-`busyMaxMicrosoftOAuthClientId`, and `busyMaxMicrosoftOAuthAuthorityTenant`
-values in the owner-controlled Store configuration. Preserve the protected
-original `googleOAuth*`/`microsoftOAuth*` values for existing bindings; never
-replace them with a newly designated client. Use
+and `busyMaxMicrosoftOAuthClientId` values in the owner-controlled Store
+configuration. Managed Microsoft connections always use `common`; the approved
+registration must support personal and organizational Microsoft accounts.
+Custom registrations retain their own audience and tenant selections.
+Preserve the protected original `googleOAuth*`/`microsoftOAuth*` values for
+existing bindings; never replace them with a newly designated client. Use
 `https://busystack.org/privacy-busymax` as the product privacy URL.
 
 The validator reports missing Google and Microsoft configuration separately

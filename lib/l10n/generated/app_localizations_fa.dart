@@ -4,6 +4,7 @@
 
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
+
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -3549,4 +3550,59 @@ class AppLocalizationsFa extends AppLocalizations {
   @override
   String get registrationGuideWorkspaceAudience =>
       'به Google Auth Platform → Branding بروید. اگر راه‌اندازی شروع نشده، Get started را بزنید. در App name مقدار BusyMax را وارد کنید، User support email خود را انتخاب کنید و Next را بزنید. در Audience گزینهٔ Internal را انتخاب کنید. Next را بزنید، ایمیل خود را در Contact Information وارد کنید و Next را بزنید. User Data Policy را بپذیرید و Continue و Create را بزنید. اگر قبلاً تنظیم شده، Branding و Audience را بررسی کنید.\n\nInternal فقط حساب‌های سازمان مادر پروژه را با محدودیت‌های مدیر می‌پذیرد. فهرست کاربران آزمایشی لازم نیست. BusyMax نمی‌تواند این تنظیمات کنسول را از JSON دانلودشده تأیید کند.';
+
+  @override
+  String get contactsTitle => 'مخاطبان';
+
+  @override
+  String get contactsLinkedDescription =>
+      'هنگام افزودن مهمانان رویداد از مخاطبان ذخیره‌شدهٔ این حساب استفاده شود.';
+
+  @override
+  String get contactsEnableSuggestions => 'فعال‌کردن پیشنهادهای مخاطبان';
+
+  @override
+  String get contactsReadPermissionDescription =>
+      'درخواست دسترسی فقط‌خواندنی به مخاطبان';
+
+  @override
+  String get contactsEnableEditing => 'فعال‌کردن ویرایش مخاطبان';
+
+  @override
+  String get contactsWritePermissionDescription =>
+      'درخواست دسترسی خواندن و نوشتن مخاطبان';
+
+  @override
+  String get contactsSuggestionsEnabled => 'پیشنهادهای مخاطبان فعال است';
+
+  @override
+  String get contactsNeedsAttention => 'مخاطبان نیاز به توجه دارند';
+
+  @override
+  String get contactsReadWriteAccess => 'دسترسی خواندن و نوشتن';
+
+  @override
+  String get contactsDisableForAccount => 'غیرفعال‌کردن مخاطبان برای این حساب';
+
+  @override
+  String get contactsOnlyDescription =>
+      'این منابع از حساب‌های تقویم و وظایف مستقل هستند.';
+
+  @override
+  String get contactsAddCardDav => 'افزودن مخاطبان CardDAV';
+
+  @override
+  String get contactsAddNextcloud => 'افزودن مخاطبان Nextcloud';
+
+  @override
+  String get contactsUseForAttendees => 'استفاده برای پیشنهاد شرکت‌کنندگان';
+
+  @override
+  String get contactsServerUrlLabel => 'نشانی سرور HTTPS';
+
+  @override
+  String get contactsUsernameLabel => 'نام کاربری';
+
+  @override
+  String get contactsPasswordLabel => 'گذرواژه';
 }

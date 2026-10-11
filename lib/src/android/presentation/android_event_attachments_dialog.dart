@@ -286,8 +286,10 @@ class _AndroidEventAttachmentsDialogState
             contentType: document.mimeType ?? 'application/octet-stream',
             bytes: document.bytes,
           );
+      if (!mounted) return;
       _refresh();
     } on Object catch (error) {
+      if (!mounted) return;
       _refresh();
       _error(error);
     } finally {

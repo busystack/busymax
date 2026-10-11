@@ -1,5 +1,6 @@
 import '../../../core/auth/authorization_attempt.dart';
 import '../../../core/http/request_dispatch_exception.dart';
+
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -16,11 +17,16 @@ import '../../../db/app_database.dart';
 import '../../../features/accounts/data/accounts_repository.dart';
 import '../../../google_tasks/api/google_tasks_api_surface.dart';
 import '../../../google_tasks/oauth/oauth_loopback_flow.dart';
+
 import 'package:busymax/src/core/auth/oauth_models.dart';
+
 import '../../../google_tasks/oauth/oauth_service.dart';
+
 import 'package:busymax/src/core/secrets/secret_store.dart';
+
 import '../../../microsoft_todo/oauth/microsoft_oauth_service.dart';
 import '../../sync/sync_auth_error.dart';
+
 import 'package:busymax/src/providers/busy_provider.dart';
 
 enum AuthSessionStatus {
@@ -115,6 +121,12 @@ class AuthRepository {
     MicrosoftOAuthGateway? microsoftOAuth,
     DateTime Function()? nowUtc,
     AuthorizationPersistence? authorizationPersistence,
+    this.onAccountRemoving,
+    this.persistLinkedAccountRemoval,
+    this.onAccountRemovalFailed,
+    this.onAccountRemoved,
+    this.onAccountRemovalFinished,
+    this.onAccountRemovalStarting,
   }) : _authorizationPersistence = authorizationPersistence,
        _oAuth = oAuth,
        _accountsRepository =
@@ -126,6 +138,13 @@ class AuthRepository {
   final OAuthGateway _oAuth;
   final AccountsRepository _accountsRepository;
   final MicrosoftOAuthGateway? _microsoftOAuth;
+  final Future<void> Function(String accountId)? onAccountRemoving;
+  final Future<void> Function(String accountId)? persistLinkedAccountRemoval;
+  final Future<void> Function(String accountId)? onAccountRemovalFailed;
+  final void Function()? onAccountRemoved;
+  final void Function(String accountId)? onAccountRemovalFinished;
+  final void Function(String accountId)? onAccountRemovalStarting;
+  final Map<String, Future<AccountRemovalResult>> _removing = {};
   final RedactingLogger _logger = RedactingLogger(Logger('AuthRepository'));
 
   Future<AuthSessionState> loadSession() async {
@@ -265,21 +284,66 @@ class AuthRepository {
     required String accountId,
     bool revokeAuthorization = false,
   }) {
+    final existing = _removing[accountId];
+    if (existing != null) return existing;
+    try {
+      onAccountRemovalStarting?.call(accountId);
+    } on Object catch (error, stack) {
+      return Future<AccountRemovalResult>.error(error, stack);
+    }
+    late final Future<AccountRemovalResult> operation;
+    operation =
+        Future<AccountRemovalResult>.sync(
+          () => _runRemoval(accountId, revokeAuthorization),
+        ).whenComplete(() {
+          if (identical(_removing[accountId], operation)) {
+            _removing.remove(accountId);
+          }
+          onAccountRemovalFinished?.call(accountId);
+        });
+    _removing[accountId] = operation;
+    return operation;
+  }
+
+  Future<AccountRemovalResult> _runRemoval(
+    String accountId,
+    bool revokeAuthorization,
+  ) async {
     final persistence = _authorizationPersistence;
     if (persistence == null) {
+      await onAccountRemoving?.call(accountId);
       return _removeAccount(
         accountId: accountId,
         revokeAuthorization: revokeAuthorization,
       );
     }
-    return persistence.runRemoval(
-      accountId,
-      (snapshot) => _removeAccount(
-        accountId: accountId,
-        revokeAuthorization: revokeAuthorization,
-        snapshot: snapshot,
-      ),
-    );
+    var entered = false;
+    try {
+      return await persistence.runRemoval(accountId, (snapshot) {
+        entered = true;
+        return _removeAccount(
+          accountId: accountId,
+          revokeAuthorization: revokeAuthorization,
+          snapshot: snapshot,
+        );
+      }, prepare: () async => onAccountRemoving?.call(accountId));
+    } on Object catch (error, stack) {
+      if (!entered) {
+        try {
+          await persistence.run(accountId, () async {
+            if (await persistence.removalRecoveryAvailable(accountId)) {
+              await onAccountRemovalFailed?.call(accountId);
+            }
+          });
+        } on Object catch (recovery, recoveryStack) {
+          _logger.warning(
+            'Account removal preparation recovery failed: '
+            '$recovery\n$recoveryStack',
+          );
+        }
+      }
+      Error.throwWithStackTrace(error, stack);
+    }
   }
 
   Future<AccountRemovalResult> _removeAccount({
@@ -321,24 +385,42 @@ class AuthRepository {
       }
     }
 
-    if (_authorizationPersistence case final persistence?) {
-      try {
-        await persistence.removeCoherently(
-          accountId,
-          clearAuthorization,
-          () => _accountsRepository.deleteAccount(accountId),
-        );
-      } on Object {
-        if (revocationStatus ==
-            AccountAuthorizationRevocationStatus.succeeded) {
-          throw const AccountRemovalPersistenceException();
+    try {
+      if (_authorizationPersistence case final persistence?) {
+        try {
+          await persistence.removeCoherently(
+            accountId,
+            clearAuthorization,
+            () async {
+              await persistLinkedAccountRemoval?.call(accountId);
+              await _accountsRepository.deleteAccount(accountId);
+            },
+          );
+        } on Object {
+          if (revocationStatus ==
+              AccountAuthorizationRevocationStatus.succeeded) {
+            throw const AccountRemovalPersistenceException();
+          }
+          rethrow;
         }
-        rethrow;
+      } else {
+        await clearAuthorization();
+        await persistLinkedAccountRemoval?.call(accountId);
+        await _accountsRepository.deleteAccount(accountId);
       }
-    } else {
-      await clearAuthorization();
-      await _accountsRepository.deleteAccount(accountId);
+    } on Object {
+      if (revocationStatus != AccountAuthorizationRevocationStatus.succeeded &&
+          (_authorizationPersistence == null ||
+              snapshot != null &&
+                  await _authorizationPersistence.canRestoreRemoval(
+                    snapshot,
+                  ))) {
+        await onAccountRemovalFailed?.call(accountId);
+      }
+      rethrow;
     }
+
+    onAccountRemoved?.call();
 
     return AccountRemovalResult(
       authorizationRevocationStatus: revocationStatus,

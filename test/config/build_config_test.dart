@@ -1,42 +1,58 @@
 import '../support/desktop_registration_config.dart';
+
 import 'package:busymax/src/config/desktop_oauth_configuration.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:busymax/src/config/build_config.dart';
 
 void main() {
-  test(
-    'managed desktop registrations are explicit and original values remain separate',
-    () {
-      final originalsOnly = syntheticDesktopConfig(managed: false);
-      expect(originalsOnly.hasBusyMaxGoogleRegistration, isFalse);
-      expect(originalsOnly.hasBusyMaxMicrosoftRegistration, isFalse);
-      final configured = syntheticDesktopConfig();
-      expect(configured.hasBusyMaxGoogleRegistration, isTrue);
-      expect(configured.hasBusyMaxMicrosoftRegistration, isTrue);
-      expect(configured.googleOAuthClientId, originalsOnly.googleOAuthClientId);
-      expect(
-        configured.microsoftOAuthClientId,
-        originalsOnly.microsoftOAuthClientId,
-      );
-      expect(
-        validGoogleDesktopConfiguration(
-          clientId: configured.busyMaxGoogleOAuthClientId,
-          clientSecret: configured.busyMaxGoogleOAuthClientSecret,
-          projectId: '',
-        ),
-        isFalse,
-      );
-      expect(
-        validMicrosoftDesktopConfiguration(
-          clientId: configured.busyMaxMicrosoftOAuthClientId,
-          authorityTenant: '',
-        ),
-        isFalse,
-      );
-      expect(BuildConfig.forAndroid().hasBusyMaxGoogleRegistration, isFalse);
-      expect(BuildConfig.forAndroid().hasBusyMaxMicrosoftRegistration, isFalse);
-    },
-  );
+  test('managed desktop registrations are explicit and original values remain separate', () {
+    final originalsOnly = syntheticDesktopConfig(managed: false);
+    expect(originalsOnly.hasBusyMaxGoogleRegistration, isFalse);
+    expect(originalsOnly.hasBusyMaxMicrosoftRegistration, isFalse);
+    final configured = syntheticDesktopConfig();
+    expect(configured.hasBusyMaxGoogleRegistration, isTrue);
+    expect(configured.hasBusyMaxMicrosoftRegistration, isTrue);
+    expect(configured.googleOAuthClientId, originalsOnly.googleOAuthClientId);
+    expect(
+      configured.microsoftOAuthClientId,
+      originalsOnly.microsoftOAuthClientId,
+    );
+    expect(
+      validGoogleDesktopConfiguration(
+        clientId: configured.busyMaxGoogleOAuthClientId,
+        clientSecret: configured.busyMaxGoogleOAuthClientSecret,
+        projectId: '',
+      ),
+      isFalse,
+    );
+    expect(
+      validMicrosoftDesktopConfiguration(
+        clientId: configured.busyMaxMicrosoftOAuthClientId,
+      ),
+      isTrue,
+    );
+    for (final invalid in ['', 'not-a-client-id']) {
+      expect(validMicrosoftDesktopConfiguration(clientId: invalid), isFalse);
+    }
+    expect(BuildConfig.forAndroid().hasBusyMaxGoogleRegistration, isFalse);
+    expect(BuildConfig.forAndroid().hasBusyMaxMicrosoftRegistration, isFalse);
+  });
+
+  test('managed Microsoft needs only its own valid client ID', () {
+    const config = BuildConfig(
+      googleOAuthClientId: '',
+      googleOAuthClientSecret: '',
+      busyMaxMicrosoftOAuthClientId: '33333333-3333-3333-3333-333333333333',
+      microsoftOAuthAuthorityTenant: 'organizations',
+      oauthAuthorizationEndpoint: 'https://accounts.example/authorize',
+      oauthTokenEndpoint: 'https://accounts.example/token',
+      oauthRevocationEndpoint: 'https://accounts.example/revoke',
+    );
+    expect(config.hasBusyMaxMicrosoftRegistration, isTrue);
+    expect(config.hasBusyMaxGoogleRegistration, isFalse);
+    expect(config.microsoftOAuthClientId, isEmpty);
+    expect(config.microsoftOAuthAuthorityTenant, 'organizations');
+  });
 
   test('fromEnvironment uses Google endpoint defaults', () {
     final config = BuildConfig.fromEnvironment();

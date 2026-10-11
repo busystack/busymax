@@ -4,6 +4,7 @@
 
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
+
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -3510,4 +3511,59 @@ class AppLocalizationsVi extends AppLocalizations {
   @override
   String get registrationGuideWorkspaceAudience =>
       'Vào Google Auth Platform → Branding. Nếu chưa bắt đầu thiết lập, chọn Get started. Nhập BusyMax vào App name, chọn User support email của bạn rồi chọn Next. Trong Audience, chọn Internal. Chọn Next, nhập email vào Contact Information rồi chọn Next. Chấp nhận User Data Policy rồi chọn Continue và Create. Nếu đã thiết lập, kiểm tra Branding và Audience.\n\nInternal chỉ cho phép tài khoản thuộc tổ chức mẹ của dự án, chịu kiểm soát của quản trị viên. Không cần danh sách người dùng thử. BusyMax không thể xác minh các thiết lập này từ JSON tải xuống.';
+
+  @override
+  String get contactsTitle => 'Danh bạ';
+
+  @override
+  String get contactsLinkedDescription =>
+      'Dùng các liên hệ đã lưu đệm của tài khoản này khi thêm khách vào sự kiện.';
+
+  @override
+  String get contactsEnableSuggestions => 'Bật gợi ý liên hệ';
+
+  @override
+  String get contactsReadPermissionDescription =>
+      'Yêu cầu quyền chỉ đọc danh bạ';
+
+  @override
+  String get contactsEnableEditing => 'Bật chỉnh sửa liên hệ';
+
+  @override
+  String get contactsWritePermissionDescription =>
+      'Yêu cầu quyền đọc và ghi danh bạ';
+
+  @override
+  String get contactsSuggestionsEnabled => 'Đã bật gợi ý liên hệ';
+
+  @override
+  String get contactsNeedsAttention => 'Danh bạ cần được chú ý';
+
+  @override
+  String get contactsReadWriteAccess => 'Quyền đọc và ghi';
+
+  @override
+  String get contactsDisableForAccount => 'Tắt danh bạ cho tài khoản này';
+
+  @override
+  String get contactsOnlyDescription =>
+      'Các nguồn này độc lập với tài khoản lịch và công việc.';
+
+  @override
+  String get contactsAddCardDav => 'Thêm danh bạ CardDAV';
+
+  @override
+  String get contactsAddNextcloud => 'Thêm danh bạ Nextcloud';
+
+  @override
+  String get contactsUseForAttendees => 'Dùng để gợi ý người tham dự';
+
+  @override
+  String get contactsServerUrlLabel => 'URL máy chủ HTTPS';
+
+  @override
+  String get contactsUsernameLabel => 'Tên người dùng';
+
+  @override
+  String get contactsPasswordLabel => 'Mật khẩu';
 }

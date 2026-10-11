@@ -287,6 +287,7 @@ final class NextcloudSharingService {
       }
     } on DavException catch (error) {
       if (!{
+        DavErrorKind.unknownOutcome,
         DavErrorKind.network,
         DavErrorKind.timeout,
         DavErrorKind.server,
@@ -343,6 +344,7 @@ final class NextcloudSharingService {
       }
     } on DavException catch (error) {
       if (!{
+        DavErrorKind.unknownOutcome,
         DavErrorKind.network,
         DavErrorKind.timeout,
         DavErrorKind.server,

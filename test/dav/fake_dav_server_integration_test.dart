@@ -29,48 +29,45 @@ void main() {
 
   tearDown(() => server.close());
 
-  test(
-    'socket discovery follows well-known redirect and observes ACL/removal changes',
-    () async {
-      var result = await _discover(server);
+  test('socket discovery follows well-known redirect and observes ACL/removal changes', () async {
+    var result = await _discover(server);
 
-      expect(result.service.principalHref.path, server.principalPath);
-      expect(result.service.calendarHomeHref.path, server.calendarHomePath);
-      expect(result.collections, hasLength(1));
-      expect(result.collections.single.hrefKey, server.collectionPath);
-      expect(result.collections.single.eventProjectionEnabled, isTrue);
-      expect(result.collections.single.taskProjectionEnabled, isTrue);
-      expect(result.collections.single.capabilities.canCreateEvent, isTrue);
-      expect(result.collections.single.capabilities.canCreateTask, isTrue);
-      expect(server.requests.map((request) => request.method).take(6), [
-        'OPTIONS',
-        'OPTIONS',
-        'PROPFIND',
-        'PROPFIND',
-        'PROPFIND',
-      ]);
-      expect(
-        server.requests,
-        everyElement(
-          isA<FakeDavRequestRecord>().having(
-            (request) => request.hasBasicAuthorization,
-            'Basic authorization present',
-            isTrue,
-          ),
+    expect(result.service.principalHref.path, server.principalPath);
+    expect(result.service.calendarHomeHref.path, server.calendarHomePath);
+    expect(result.collections, hasLength(1));
+    expect(result.collections.single.hrefKey, server.collectionPath);
+    expect(result.collections.single.eventProjectionEnabled, isTrue);
+    expect(result.collections.single.taskProjectionEnabled, isTrue);
+    expect(result.collections.single.capabilities.canCreateEvent, isTrue);
+    expect(result.collections.single.capabilities.canCreateTask, isTrue);
+    expect(server.requests.map((request) => request.method).take(6), [
+      'OPTIONS',
+      'OPTIONS',
+      'PROPFIND',
+      'PROPFIND',
+      'PROPFIND',
+    ]);
+    expect(
+      server.requests,
+      everyElement(
+        isA<FakeDavRequestRecord>().having(
+          (request) => request.hasBasicAuthorization,
+          'Basic authorization present',
+          isTrue,
         ),
-      );
+      ),
+    );
 
-      server.collectionReadOnly = true;
-      result = await _discover(server);
-      expect(result.collections.single.capabilities.isReadOnly, isTrue);
-      expect(result.collections.single.capabilities.canCreateEvent, isFalse);
-      expect(result.collections.single.capabilities.canCreateTask, isFalse);
+    server.collectionReadOnly = true;
+    result = await _discover(server);
+    expect(result.collections.single.capabilities.isReadOnly, isTrue);
+    expect(result.collections.single.capabilities.canCreateEvent, isFalse);
+    expect(result.collections.single.capabilities.canCreateTask, isFalse);
 
-      server.collectionRemoved = true;
-      result = await _discover(server);
-      expect(result.collections, isEmpty);
-    },
-  );
+    server.collectionRemoved = true;
+    result = await _discover(server);
+    expect(result.collections, isEmpty);
+  });
 
   test('RFC 6578 pages and multiget commit mixed VEVENT/VTODO data', () async {
     final database = AppDatabase(NativeDatabase.memory());
@@ -132,9 +129,8 @@ void main() {
       '1',
     );
 
-    final inventory = await _collectionClient(
-      server,
-    ).listMemberEtags(correlationId: 'fake-inventory');
+    final inventory = await _collectionClient(server)
+        .listMemberEtags(correlationId: 'fake-inventory');
     expect(inventory.members, hasLength(2));
   });
 
@@ -221,107 +217,109 @@ void main() {
     },
   );
 
-  test(
-    'status, per-resource, malformed, invalid-token, delay, and drop matrix',
-    () async {
-      final statusCases = <(int, DavErrorCategory)>[
-        (401, DavErrorCategory.davAuthRejected),
-        (403, DavErrorCategory.davPermissionDenied),
-        (404, DavErrorCategory.davCollectionRemoved),
-        (409, DavErrorCategory.davResourceConflict),
-        (412, DavErrorCategory.davResourceConflict),
-        (423, DavErrorCategory.davResourceConflict),
-        (429, DavErrorCategory.davRateLimited),
-        (507, DavErrorCategory.davQuotaOrSizeLimit),
-        (500, DavErrorCategory.davServerUnavailable),
-        (503, DavErrorCategory.davServerUnavailable),
-      ];
-      for (final entry in statusCases) {
-        server.enqueueFault(
-          FakeDavFault(
-            method: 'PROPFIND',
-            path: server.collectionPath,
-            statusCode: entry.$1,
-            headers: entry.$1 == 429 ? const {'retry-after': '17'} : const {},
-          ),
-        );
-        final error = await _captureDavError(
-          _collectionClient(
-            server,
-            limits: const DavTransportLimits(maximumReadAttempts: 1),
-          ).listMemberEtags(correlationId: 'status-${entry.$1}'),
-        );
-        expect(error.category, entry.$2, reason: 'HTTP ${entry.$1}');
-        if (entry.$1 == 429) {
-          expect(error.retryAfter, const Duration(seconds: 17));
-        }
-      }
-
-      server.resources[server.eventPath]!.multistatusStatus = 403;
-      var error = await _captureDavError(
-        _collectionClient(
-          server,
-        ).listMemberEtags(correlationId: 'member-status'),
-      );
-      expect(error.category, DavErrorCategory.davPermissionDenied);
-      server.resources[server.eventPath]!.multistatusStatus = null;
-
+  test('status, per-resource, malformed, invalid-token, delay, and drop matrix', () async {
+    final statusCases = <(int, DavErrorCategory)>[
+      (401, DavErrorCategory.davAuthRejected),
+      (403, DavErrorCategory.davPermissionDenied),
+      (404, DavErrorCategory.davCollectionRemoved),
+      (409, DavErrorCategory.davResourceConflict),
+      (412, DavErrorCategory.davResourceConflict),
+      (423, DavErrorCategory.davResourceConflict),
+      (429, DavErrorCategory.davRateLimited),
+      (507, DavErrorCategory.davQuotaOrSizeLimit),
+      (500, DavErrorCategory.davServerUnavailable),
+      (503, DavErrorCategory.davServerUnavailable),
+    ];
+    for (final entry in statusCases) {
       server.enqueueFault(
         FakeDavFault(
           method: 'PROPFIND',
           path: server.collectionPath,
-          statusCode: 207,
-          body: '<d:multistatus xmlns:d="DAV:"><broken>',
+          statusCode: entry.$1,
+          headers: entry.$1 == 429 ? const {'retry-after': '17'} : const {},
         ),
       );
-      error = await _captureDavError(
-        _collectionClient(server).listMemberEtags(correlationId: 'malformed'),
-      );
-      expect(error.category, DavErrorCategory.davProtocolViolation);
-
-      error = await _captureDavError(
-        _collectionClient(server).syncCollectionPage(
-          syncToken: 'invalid-token',
-          correlationId: 'invalid-token',
-        ),
-      );
-      expect(error.category, DavErrorCategory.davSyncTokenInvalid);
-
-      server.enqueueFault(
-        FakeDavFault(
-          method: 'PROPFIND',
-          path: server.collectionPath,
-          delay: const Duration(milliseconds: 80),
-          statusCode: 207,
-        ),
-      );
-      error = await _captureDavError(
-        _collectionClient(
-          server,
-          limits: const DavTransportLimits(
-            connectTimeout: Duration(milliseconds: 10),
-            maximumReadAttempts: 1,
-          ),
-        ).listMemberEtags(correlationId: 'delay'),
-      );
-      expect(error.category, DavErrorCategory.davTransientNetwork);
-
-      server.enqueueFault(
-        FakeDavFault(
-          method: 'PROPFIND',
-          path: server.collectionPath,
-          dropConnection: true,
-        ),
-      );
-      error = await _captureDavError(
+      final error = await _captureDavError(
         _collectionClient(
           server,
           limits: const DavTransportLimits(maximumReadAttempts: 1),
-        ).listMemberEtags(correlationId: 'drop'),
+        ).listMemberEtags(correlationId: 'status-${entry.$1}'),
       );
-      expect(error.category, DavErrorCategory.davTransientNetwork);
-    },
-  );
+      expect(error.category, entry.$2, reason: 'HTTP ${entry.$1}');
+      if (entry.$1 == 429) {
+        expect(error.retryAfter, const Duration(seconds: 17));
+      }
+    }
+
+    server.resources[server.eventPath]!.multistatusStatus = 403;
+    var error = await _captureDavError(
+      _collectionClient(server).listMemberEtags(correlationId: 'member-status'),
+    );
+    expect(error.category, DavErrorCategory.davPermissionDenied);
+    server.resources[server.eventPath]!.multistatusStatus = null;
+
+    server.enqueueFault(
+      FakeDavFault(
+        method: 'PROPFIND',
+        path: server.collectionPath,
+        statusCode: 207,
+        body: '<d:multistatus xmlns:d="DAV:"><broken>',
+      ),
+    );
+    error = await _captureDavError(
+      _collectionClient(server).listMemberEtags(correlationId: 'malformed'),
+    );
+    expect(error.category, DavErrorCategory.davProtocolViolation);
+
+    error = await _captureDavError(
+      _collectionClient(server).syncCollectionPage(
+        syncToken: 'invalid-token',
+        correlationId: 'invalid-token',
+      ),
+    );
+    expect(error.category, DavErrorCategory.davSyncTokenInvalid);
+
+    // A timeout can expire before its request reaches the server. Keep that
+    // server separate so an unconsumed delay fault cannot answer the following
+    // connection-drop request with an empty 207 response.
+    final timeoutServer = FakeDavServer();
+    await timeoutServer.start();
+    addTearDown(timeoutServer.close);
+    timeoutServer.enqueueFault(
+      FakeDavFault(
+        method: 'PROPFIND',
+        path: timeoutServer.collectionPath,
+        delay: const Duration(milliseconds: 80),
+        statusCode: 207,
+      ),
+    );
+    error = await _captureDavError(
+      _collectionClient(
+        timeoutServer,
+        limits: const DavTransportLimits(
+          connectTimeout: Duration(milliseconds: 10),
+          maximumReadAttempts: 1,
+        ),
+      ).listMemberEtags(correlationId: 'delay'),
+    );
+    expect(error.category, DavErrorCategory.davTransientNetwork);
+    await timeoutServer.close();
+
+    server.enqueueFault(
+      FakeDavFault(
+        method: 'PROPFIND',
+        path: server.collectionPath,
+        dropConnection: true,
+      ),
+    );
+    error = await _captureDavError(
+      _collectionClient(
+        server,
+        limits: const DavTransportLimits(maximumReadAttempts: 1),
+      ).listMemberEtags(correlationId: 'drop'),
+    );
+    expect(error.category, DavErrorCategory.davTransientNetwork);
+  });
 }
 
 Future<DavDiscoveryResult> _discover(FakeDavServer server) =>

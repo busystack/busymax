@@ -38,6 +38,7 @@ import com.microsoft.identity.client.IAuthenticationResult
 import com.microsoft.identity.client.IMultipleAccountPublicClientApplication
 import com.microsoft.identity.client.Prompt
 import com.microsoft.identity.client.PublicClientApplication
+import com.microsoft.identity.client.claims.ClaimsRequest
 import com.microsoft.identity.client.exception.MsalClientException
 import com.microsoft.identity.client.exception.MsalException
 import com.microsoft.identity.client.exception.MsalServiceException
@@ -511,8 +512,12 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
                         try {
                             val account = application.accounts.firstOrNull { it.id == nativeId }
                                 ?: throw MicrosoftAccountMissingException()
-                            val parameters = AcquireTokenSilentParameters.Builder()
-                                .withScopes(scopes).forAccount(account).fromAuthority(selectedAuthority ?: account.authority).build()
+                            val parametersBuilder = AcquireTokenSilentParameters.Builder()
+                                .withScopes(scopes).forAccount(account).fromAuthority(selectedAuthority ?: account.authority)
+                            call.argument<String>("claims")?.takeIf { it.isNotBlank() }?.let {
+                                parametersBuilder.withClaims(ClaimsRequest.getClaimsRequestFromJsonString(it))
+                            }
+                            val parameters = parametersBuilder.build()
                             postSuccess(result, msalResult(application.acquireTokenSilent(parameters)))
                         } catch (error: Exception) {
                             val failure = classifyMicrosoftSilentFailure(error)

@@ -89,39 +89,115 @@ void main() {
   );
 
   test(
-    'allows Nextcloud root well-known discovery only until its installation redirect',
+    'rejects an operational redirect without replaying credentials',
     () async {
-      final requested = <http.Request>[];
+      var calls = 0;
       final transport = _nextcloudTransport(
-        MockClient((request) async {
-          requested.add(request);
-          if (requested.length == 1) {
-            return http.Response(
-              '',
-              302,
-              headers: {
-                'location':
-                    'https://cloud.example.test/nextcloud/remote.php/dav/',
-              },
-            );
-          }
-          return http.Response('', 200);
+        MockClient((_) async {
+          calls++;
+          return http.Response(
+            '',
+            302,
+            headers: {
+              'location':
+                  'https://cloud.example.test/nextcloud/remote.php/dav/other',
+            },
+          );
         }),
       );
 
-      final response = await transport.send(
-        _propfind(Uri.parse('https://cloud.example.test/.well-known/caldav')),
-        credential: credential,
+      await expectLater(
+        transport.send(
+          DavRequest.xml(
+            method: 'PROPFIND',
+            uri: Uri.parse(
+              'https://cloud.example.test/nextcloud/remote.php/dav/current',
+            ),
+            accountId: accountId,
+            correlationId: correlationId,
+            body: '<d:propfind xmlns:d="DAV:"/>',
+          ),
+          credential: credential,
+        ),
+        throwsA(
+          isA<DavException>()
+              .having(
+                (error) => error.kind,
+                'kind',
+                DavErrorKind.redirectRejected,
+              )
+              .having(
+                (error) => error.code,
+                'code',
+                'DavOperationalRedirectRejected',
+              ),
+        ),
       );
-
-      expect(response.requestUri.path, '/nextcloud/remote.php/dav/');
-      expect(requested, hasLength(2));
-      expect(
-        requested.map((request) => request.headers['authorization']),
-        everyElement(startsWith('Basic ')),
-      );
+      expect(calls, 1);
     },
   );
+
+  test('lost mutation response is classified for reconciliation', () async {
+    final transport = _nextcloudTransport(
+      MockClient((request) async {
+        throw http.ClientException('response unavailable', request.url);
+      }),
+    );
+
+    await expectLater(
+      transport.send(
+        DavRequest.icalendar(
+          method: 'PUT',
+          uri: Uri.parse(
+            'https://cloud.example.test/nextcloud/remote.php/dav/a.ics',
+          ),
+          accountId: accountId,
+          collectionId: 'collection',
+          correlationId: correlationId,
+          body: 'BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n',
+          headers: const {'if-match': '"etag"'},
+        ),
+        credential: credential,
+      ),
+      throwsA(
+        isA<DavException>()
+            .having((error) => error.kind, 'kind', DavErrorKind.unknownOutcome)
+            .having((error) => error.code, 'code', 'DavUnknownMutationOutcome'),
+      ),
+    );
+  });
+
+  test('allows Nextcloud root well-known discovery only until its installation redirect', () async {
+    final requested = <http.Request>[];
+    final transport = _nextcloudTransport(
+      MockClient((request) async {
+        requested.add(request);
+        if (requested.length == 1) {
+          return http.Response(
+            '',
+            302,
+            headers: {
+              'location':
+                  'https://cloud.example.test/nextcloud/remote.php/dav/',
+            },
+          );
+        }
+        return http.Response('', 200);
+      }),
+    );
+
+    final response = await transport.send(
+      _propfind(Uri.parse('https://cloud.example.test/.well-known/caldav')),
+      credential: credential,
+    );
+
+    expect(response.requestUri.path, '/nextcloud/remote.php/dav/');
+    expect(requested, hasLength(2));
+    expect(
+      requested.map((request) => request.headers['authorization']),
+      everyElement(startsWith('Basic ')),
+    );
+  });
 
   test(
     'allows approved iCloud shards but rejects look-alike domains',
@@ -676,4 +752,5 @@ DavRequest _propfind(Uri uri) => DavRequest.xml(
   correlationId: 'correlation-1',
   body: '<d:propfind xmlns:d="DAV:"><d:prop/></d:propfind>',
   headers: const {'depth': '0'},
+  redirectPolicy: DavRedirectPolicy.discovery,
 );

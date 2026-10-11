@@ -352,11 +352,11 @@ bool _matchesProperty(
   DavPropertyName name,
   String value,
 ) => name.localName == 'schedule-calendar-transp'
-    ? nextcloudPropertyNames(
-        state.properties[name],
-      ).contains('{$caldavNamespace}$value')
+    ? nextcloudPropertyNames(state.properties[name])
+          .contains('{$caldavNamespace}$value')
     : state.properties[name]?.text.trim() == value.trim();
 bool _uncertain(DavException error) => const {
+  DavErrorKind.unknownOutcome,
   DavErrorKind.timeout,
   DavErrorKind.network,
   DavErrorKind.server,

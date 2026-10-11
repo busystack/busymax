@@ -4,6 +4,7 @@
 
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
+
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -3571,4 +3572,59 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get registrationGuideWorkspaceAudience =>
       'انتقل إلى Google Auth Platform → Branding. إن لم يبدأ الإعداد، اختر Get started. أدخل BusyMax في App name واختر بريدك في User support email ثم Next. في Audience، اختر Internal. اختر Next وأدخل بريدك ضمن Contact Information ثم Next. وافق على User Data Policy ثم اختر Continue وCreate. إذا كان الإعداد موجودًا، راجع Branding وAudience.\n\nيسمح Internal فقط بحسابات المؤسسة الأم للمشروع، مع الخضوع لقيود المسؤول. لا حاجة لقائمة مستخدمي اختبار. لا يستطيع BusyMax التحقق من إعدادات وحدة التحكم عبر ملف JSON.';
+
+  @override
+  String get contactsTitle => 'جهات الاتصال';
+
+  @override
+  String get contactsLinkedDescription =>
+      'استخدم جهات الاتصال المخزنة مؤقتًا من هذا الحساب عند إضافة مدعوين إلى الأحداث.';
+
+  @override
+  String get contactsEnableSuggestions => 'تفعيل اقتراحات جهات الاتصال';
+
+  @override
+  String get contactsReadPermissionDescription =>
+      'يطلب إذن قراءة جهات الاتصال فقط';
+
+  @override
+  String get contactsEnableEditing => 'تفعيل تعديل جهات الاتصال';
+
+  @override
+  String get contactsWritePermissionDescription =>
+      'يطلب إذن قراءة جهات الاتصال وكتابتها';
+
+  @override
+  String get contactsSuggestionsEnabled => 'تم تفعيل اقتراحات جهات الاتصال';
+
+  @override
+  String get contactsNeedsAttention => 'تحتاج جهات الاتصال إلى الانتباه';
+
+  @override
+  String get contactsReadWriteAccess => 'إذن القراءة والكتابة';
+
+  @override
+  String get contactsDisableForAccount => 'تعطيل جهات الاتصال لهذا الحساب';
+
+  @override
+  String get contactsOnlyDescription =>
+      'هذه المصادر مستقلة عن حسابات التقويم والمهام.';
+
+  @override
+  String get contactsAddCardDav => 'إضافة جهات اتصال CardDAV';
+
+  @override
+  String get contactsAddNextcloud => 'إضافة جهات اتصال Nextcloud';
+
+  @override
+  String get contactsUseForAttendees => 'استخدامها لاقتراحات الحضور';
+
+  @override
+  String get contactsServerUrlLabel => 'عنوان URL لخادم HTTPS';
+
+  @override
+  String get contactsUsernameLabel => 'اسم المستخدم';
+
+  @override
+  String get contactsPasswordLabel => 'كلمة المرور';
 }

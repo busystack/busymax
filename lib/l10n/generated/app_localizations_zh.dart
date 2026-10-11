@@ -4,6 +4,7 @@
 
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
+
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -3384,6 +3385,57 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get registrationGuideWorkspaceAudience =>
       '进入 Google Auth Platform → Branding。如果尚未开始设置，选择 Get started。在 App name 中输入 BusyMax，选择您自己的 User support email，然后选择 Next。在 Audience 中，请选择 Internal。选择 Next，在 Contact Information 中输入您的邮箱，再选择 Next。接受 User Data Policy，然后选择 Continue 和 Create。如果已完成设置，请检查 Branding 和 Audience。\n\nInternal 仅允许项目父组织中的帐号，并受管理员控制。不需要测试用户列表。BusyMax 无法从下载的 JSON 验证这些控制台设置。';
+
+  @override
+  String get contactsTitle => '联系人';
+
+  @override
+  String get contactsLinkedDescription => '添加日程参与者时使用此账号缓存的联系人。';
+
+  @override
+  String get contactsEnableSuggestions => '启用联系人建议';
+
+  @override
+  String get contactsReadPermissionDescription => '请求联系人只读权限';
+
+  @override
+  String get contactsEnableEditing => '启用联系人编辑';
+
+  @override
+  String get contactsWritePermissionDescription => '请求联系人读写权限';
+
+  @override
+  String get contactsSuggestionsEnabled => '联系人建议已启用';
+
+  @override
+  String get contactsNeedsAttention => '联系人需要处理';
+
+  @override
+  String get contactsReadWriteAccess => '读写权限';
+
+  @override
+  String get contactsDisableForAccount => '停用此账号的联系人';
+
+  @override
+  String get contactsOnlyDescription => '这些来源独立于日历和任务账号。';
+
+  @override
+  String get contactsAddCardDav => '添加 CardDAV 联系人';
+
+  @override
+  String get contactsAddNextcloud => '添加 Nextcloud 联系人';
+
+  @override
+  String get contactsUseForAttendees => '用于参与者建议';
+
+  @override
+  String get contactsServerUrlLabel => 'HTTPS 服务器网址';
+
+  @override
+  String get contactsUsernameLabel => '用户名';
+
+  @override
+  String get contactsPasswordLabel => '密码';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -6762,6 +6814,57 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   @override
   String get registrationGuideWorkspaceAudience =>
       '进入 Google Auth Platform → Branding。如果尚未开始设置，选择 Get started。在 App name 中输入 BusyMax，选择您自己的 User support email，然后选择 Next。在 Audience 中，请选择 Internal。选择 Next，在 Contact Information 中输入您的邮箱，再选择 Next。接受 User Data Policy，然后选择 Continue 和 Create。如果已完成设置，请检查 Branding 和 Audience。\n\nInternal 仅允许项目父组织中的帐号，并受管理员控制。不需要测试用户列表。BusyMax 无法从下载的 JSON 验证这些控制台设置。';
+
+  @override
+  String get contactsTitle => '联系人';
+
+  @override
+  String get contactsLinkedDescription => '添加日程参与者时使用此账号缓存的联系人。';
+
+  @override
+  String get contactsEnableSuggestions => '启用联系人建议';
+
+  @override
+  String get contactsReadPermissionDescription => '请求联系人只读权限';
+
+  @override
+  String get contactsEnableEditing => '启用联系人编辑';
+
+  @override
+  String get contactsWritePermissionDescription => '请求联系人读写权限';
+
+  @override
+  String get contactsSuggestionsEnabled => '联系人建议已启用';
+
+  @override
+  String get contactsNeedsAttention => '联系人需要处理';
+
+  @override
+  String get contactsReadWriteAccess => '读写权限';
+
+  @override
+  String get contactsDisableForAccount => '停用此账号的联系人';
+
+  @override
+  String get contactsOnlyDescription => '这些来源独立于日历和任务账号。';
+
+  @override
+  String get contactsAddCardDav => '添加 CardDAV 联系人';
+
+  @override
+  String get contactsAddNextcloud => '添加 Nextcloud 联系人';
+
+  @override
+  String get contactsUseForAttendees => '用于参与者建议';
+
+  @override
+  String get contactsServerUrlLabel => 'HTTPS 服务器网址';
+
+  @override
+  String get contactsUsernameLabel => '用户名';
+
+  @override
+  String get contactsPasswordLabel => '密码';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -10141,4 +10244,55 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   @override
   String get registrationGuideWorkspaceAudience =>
       '進入 Google Auth Platform → Branding。如果尚未開始設定，選擇 Get started。在 App name 中輸入 BusyMax，選擇您自己的 User support email，然後選擇 Next。在 Audience 中，請選擇 Internal。選擇 Next，在 Contact Information 中輸入您的電子郵件，再選擇 Next。接受 User Data Policy，然後選擇 Continue 和 Create。如果已完成設定，請檢查 Branding 和 Audience。\n\nInternal 僅允許專案父組織中的帳號，並受管理員控制。不需要測試使用者清單。BusyMax 無法從下載的 JSON 驗證這些主控台設定。';
+
+  @override
+  String get contactsTitle => '聯絡人';
+
+  @override
+  String get contactsLinkedDescription => '新增活動來賓時使用此帳號快取的聯絡人。';
+
+  @override
+  String get contactsEnableSuggestions => '啟用聯絡人建議';
+
+  @override
+  String get contactsReadPermissionDescription => '要求聯絡人的唯讀權限';
+
+  @override
+  String get contactsEnableEditing => '啟用聯絡人編輯';
+
+  @override
+  String get contactsWritePermissionDescription => '要求聯絡人的讀寫權限';
+
+  @override
+  String get contactsSuggestionsEnabled => '已啟用聯絡人建議';
+
+  @override
+  String get contactsNeedsAttention => '聯絡人需要處理';
+
+  @override
+  String get contactsReadWriteAccess => '讀寫權限';
+
+  @override
+  String get contactsDisableForAccount => '停用此帳號的聯絡人';
+
+  @override
+  String get contactsOnlyDescription => '這些來源獨立於行事曆和工作帳號。';
+
+  @override
+  String get contactsAddCardDav => '新增 CardDAV 聯絡人';
+
+  @override
+  String get contactsAddNextcloud => '新增 Nextcloud 聯絡人';
+
+  @override
+  String get contactsUseForAttendees => '用於參與者建議';
+
+  @override
+  String get contactsServerUrlLabel => 'HTTPS 伺服器網址';
+
+  @override
+  String get contactsUsernameLabel => '使用者名稱';
+
+  @override
+  String get contactsPasswordLabel => '密碼';
 }
