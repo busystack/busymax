@@ -327,15 +327,22 @@ class AuthRepository {
           snapshot: snapshot,
         );
       }, prepare: () async => onAccountRemoving?.call(accountId));
-    } on Object {
+    } on Object catch (error, stack) {
       if (!entered) {
-        await persistence.run(accountId, () async {
-          if (await persistence.removalRecoveryAvailable(accountId)) {
-            await onAccountRemovalFailed?.call(accountId);
-          }
-        });
+        try {
+          await persistence.run(accountId, () async {
+            if (await persistence.removalRecoveryAvailable(accountId)) {
+              await onAccountRemovalFailed?.call(accountId);
+            }
+          });
+        } on Object catch (recovery, recoveryStack) {
+          _logger.warning(
+            'Account removal preparation recovery failed: '
+            '$recovery\n$recoveryStack',
+          );
+        }
       }
-      rethrow;
+      Error.throwWithStackTrace(error, stack);
     }
   }
 

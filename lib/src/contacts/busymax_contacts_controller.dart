@@ -102,6 +102,7 @@ final class BusyMaxContactsController {
   final Set<Future<void>> _background = {};
   final Map<String, _ContactsEnrollment> _enrollments = {};
   final Map<String, _LinkedAccountRemoval> _linkedRemovals = {};
+  final Map<String, int> _boundGenerations = {};
   final Logger _log = Logger('busymax.contacts');
 
   void _launch(Future<void> Function() action) {
@@ -406,7 +407,7 @@ final class BusyMaxContactsController {
   });
 
   Future<void> _detachForReplacement(String id) async {
-    await directory.detach(id);
+    await _detachBinding(id);
     final running = _syncing[id];
     if (running != null) {
       try {
@@ -538,6 +539,7 @@ final class BusyMaxContactsController {
     } on Object catch (error, stack) {
       try {
         if (durable) {
+          _boundGenerations.remove(id);
           await directory.disconnect(id);
           await store.write((tx) async {
             final current = await tx.account(id);
@@ -614,6 +616,18 @@ final class BusyMaxContactsController {
   Future<void> _synchronize(String id) async {
     final captured = await store.read((tx) => tx.account(id));
     try {
+      if (_linkedRemovals[id] case final removal? when !removal.recovered) {
+        throw const ContactsException(
+          ContactsFailure.cancelled,
+          'account-removal-in-progress',
+        );
+      }
+      if (captured?.errorCode == 'contacts-removal-recovery-required') {
+        throw const ContactsException(
+          ContactsFailure.unknownOutcome,
+          'contacts-removal-recovery-required',
+        );
+      }
       final sources = await directory.discover(id);
       await directory.resumeQueued(id);
       for (final source in sources) {
@@ -675,6 +689,7 @@ final class BusyMaxContactsController {
         providerFactory!(account),
         accountGeneration: account.generation,
       );
+      _boundGenerations[account.id] = account.generation;
       return;
     }
     switch (account.provider) {
@@ -757,6 +772,12 @@ final class BusyMaxContactsController {
           accountGeneration: account.generation,
         );
     }
+    _boundGenerations[account.id] = account.generation;
+  }
+
+  Future<void> _detachBinding(String id) {
+    _boundGenerations.remove(id);
+    return directory.detach(id);
   }
 
   CardDavContactsProvider _davProvider(
@@ -801,6 +822,7 @@ final class BusyMaxContactsController {
     await _cancelEnrollment(id);
     final account = await store.read((tx) => tx.account(id));
     if (account == null) return;
+    _boundGenerations.remove(id);
     await directory.disconnect(id, remove: true);
   }
 
@@ -837,12 +859,18 @@ final class BusyMaxContactsController {
     );
     await _cancelEnrollment(id);
     final account = await store.read((tx) => tx.account(id));
+    removal.original = account;
+    removal.hadBinding = _boundGenerations[id] == account?.generation;
     if (account?.enabled == true) {
       // Detach/drain network work first. Change the setting only if this attempt
       // still owns the exact account that it observed.
-      await directory.detach(id);
+      removal.detachmentStarted = true;
+      await _detachBinding(id);
       await _drain([if (_syncing[id] case final running?) running]);
-      await store.write((tx) async {
+      removal.detachmentCompleted = true;
+      // A successful statement is not a committed transaction. Keep the
+      // original binding receipt even if this write or its COMMIT rolls back.
+      removal.changed = await store.write<ContactAccount?>((tx) async {
         final current = await tx.account(id);
         if (removal.recoverable &&
             identical(_linkedRemovals[id], removal) &&
@@ -853,8 +881,9 @@ final class BusyMaxContactsController {
             generation: current.generation + 1,
           );
           await tx.putAccount(disabled);
-          removal.changed = disabled;
+          return disabled;
         }
+        return null;
       });
     }
   }
@@ -868,11 +897,13 @@ final class BusyMaxContactsController {
   ) async {
     final id = linkedContactAccountId(busyMaxAccountId);
     final removal = _linkedRemovals[id];
-    final changed = removal?.changed;
+    final original = removal?.original;
     if (removal == null ||
         !removal.recoverable ||
         removal.recovered ||
-        changed == null) {
+        _closed ||
+        original?.enabled != true ||
+        !removal.detachmentStarted) {
       return;
     }
     final parent = await accounts.accountById(busyMaxAccountId);
@@ -888,33 +919,63 @@ final class BusyMaxContactsController {
             removal.authorizationGeneration) {
       return;
     }
-    ContactAccount? restored;
-    await store.write((tx) async {
-      final current = await tx.account(id);
-      if (!removal.recoverable ||
-          !identical(_linkedRemovals[id], removal) ||
-          current == null ||
-          current.enabled ||
-          jsonEncode(current.toJson()) != jsonEncode(changed.toJson())) {
-        return;
+    final expected = removal.changed ?? original!;
+    bool owns(ContactAccount? current) =>
+        removal.recoverable &&
+        identical(_linkedRemovals[id], removal) &&
+        current != null &&
+        jsonEncode(current.toJson()) == jsonEncode(expected.toJson());
+    if (!owns(await store.read((tx) => tx.account(id)))) return;
+    // detach removes the runtime binding before its journal transaction. If
+    // that transaction failed, finish its existing uncertain-outcome handling
+    // before allowing any provider work; never replay an executing mutation.
+    if (!removal.detachmentCompleted) {
+      try {
+        await _detachBinding(id);
+        await _drain([if (_syncing[id] case final running?) running]);
+        removal.detachmentCompleted = true;
+      } on Object {
+        await store.write((tx) async {
+          final current = await tx.account(id);
+          if (owns(current)) {
+            await tx.putAccount(
+              current!.copy(errorCode: 'contacts-removal-recovery-required'),
+            );
+          }
+        });
+        rethrow;
       }
-      restored = current.copy(
+    }
+    final restored = await store.write<ContactAccount?>((tx) async {
+      final current = await tx.account(id);
+      if (!owns(current)) return null;
+      if (removal.changed == null) {
+        // SQL rollback already retained the enabled setting and generation.
+        return current;
+      }
+      final restored = current!.copy(
         enabled: true,
         generation: current.generation + 1,
+        errorCode: original?.errorCode,
       );
-      await tx.putAccount(restored!);
-      removal.recovered = true;
+      await tx.putAccount(restored);
+      return restored;
     });
     if (restored == null) return;
     // A newer user action may run while the write completes. Never rebind it.
     final current = await store.read((tx) => tx.account(id));
     if (!removal.recoverable ||
-        current?.generation != restored!.generation ||
+        !identical(_linkedRemovals[id], removal) ||
+        current?.generation != restored.generation ||
         current?.enabled != true) {
       return;
     }
+    if (!removal.hadBinding) {
+      removal.recovered = true;
+      return;
+    }
     await _bind(
-      restored!,
+      restored,
       validateBinding: () {
         if (!removal.recoverable || !identical(_linkedRemovals[id], removal)) {
           throw const ContactsException(
@@ -925,6 +986,7 @@ final class BusyMaxContactsController {
       },
     );
     if (!removal.recoverable) return;
+    removal.recovered = true;
     _ensureScheduling();
     _launch(() => synchronizeAccount(id));
   }
@@ -940,6 +1002,7 @@ final class BusyMaxContactsController {
     await _cancelEnrollment(id);
     final account = await store.read((tx) => tx.account(id));
     if (account == null) return;
+    _boundGenerations.remove(id);
     await directory.disconnect(id, remove: true);
     if (account.provider == ContactProviderKind.carddav) {
       await deleteDavSecret(id);
@@ -949,6 +1012,7 @@ final class BusyMaxContactsController {
   Future<void> disableContactsAccount(String id) async {
     _linkedRemovals[id]?.recoverable = false;
     await _cancelEnrollment(id);
+    _boundGenerations.remove(id);
     await directory.disconnect(id);
   }
 
@@ -1070,7 +1134,7 @@ final class BusyMaxContactsController {
         if (!durable) {
           await writeDavSecret(id, encoded);
         } else {
-          await directory.detach(id);
+          await _detachBinding(id);
           await store.write(
             (tx) => tx.putAccount(
               replacement.copy(enabled: false, errorCode: 'reconnect-required'),
@@ -1137,7 +1201,11 @@ final class BusyMaxContactsController {
 final class _LinkedAccountRemoval {
   AccountEntity? parent;
   int? authorizationGeneration;
+  ContactAccount? original;
   ContactAccount? changed;
+  bool hadBinding = false;
+  bool detachmentStarted = false;
+  bool detachmentCompleted = false;
   bool recoverable = true;
   bool prepared = false;
   bool recovered = false;

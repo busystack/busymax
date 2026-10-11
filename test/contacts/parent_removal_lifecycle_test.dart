@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:drift/drift.dart'
+    show QueryInterceptor, QueryExecutor, TransactionExecutor, ApplyInterceptor;
 import 'package:drift/native.dart';
 import 'package:busymax/src/db/app_database.dart';
 
@@ -44,6 +46,75 @@ class RemovalGate implements CrossEngineAccountGate {
       await releaseRemoval.future;
     }
     return operation();
+  }
+}
+
+/// Faults only the real preparation SQL/COMMIT, never parent deletion or secrets.
+class PreparationFault extends QueryInterceptor {
+  String? contactId;
+  String? phase;
+  bool persistent = false;
+  final failure = StateError('original-preparation-failure');
+  final recoveryFailure = StateError('unresolved-detach-journal');
+  QueryExecutor? disableTransaction;
+  int hits = 0;
+
+  void fail() {
+    hits++;
+    if (!persistent) phase = null;
+    throw hits == 1 ? failure : recoveryFailure;
+  }
+
+  @override
+  Future<void> runCustom(
+    QueryExecutor executor,
+    String statement,
+    List<Object?> args,
+  ) async {
+    final data = args
+        .whereType<String>()
+        .where((s) => s.startsWith('{'))
+        .map((s) => jsonDecode(s) as Map)
+        .firstOrNull;
+    if (data != null &&
+        data['id'] == contactId &&
+        data['enabled'] == false &&
+        statement.startsWith('INSERT INTO bm_contact_accounts')) {
+      if (phase == 'disable-write') {
+        fail();
+      }
+      if (phase == 'disable-commit') disableTransaction = executor;
+    }
+    if (phase == 'detach-journal' &&
+        data?['account'] == contactId &&
+        data?['state'] == 'unknown' &&
+        statement.startsWith('INSERT INTO bm_contact_mutations')) {
+      fail();
+    }
+    await super.runCustom(executor, statement, args);
+  }
+
+  @override
+  Future<void> commitTransaction(TransactionExecutor inner) async {
+    if (identical(inner, disableTransaction)) {
+      disableTransaction = null;
+      fail();
+    }
+    await super.commitTransaction(inner);
+  }
+
+  @override
+  Future<List<Map<String, Object?>>> runSelect(
+    QueryExecutor executor,
+    String statement,
+    List<Object?> args,
+  ) async {
+    if (phase == 'account-read' &&
+        statement == 'SELECT data FROM bm_contact_accounts WHERE id = ?' &&
+        args.singleOrNull == contactId) {
+      fail();
+    }
+    return super.runSelect(executor, statement, args);
   }
 }
 
@@ -181,6 +252,30 @@ class LifecycleFixture {
     h.staging.dispose();
     await h.db.close();
   }
+
+  Future<void> seedUncertainMutations({bool queued = false}) async {
+    final source = (await store.read((tx) => tx.sources(accountId: contactId)))
+        .first;
+    await store.write((tx) async {
+      for (final state in [
+        ContactMutationState.executing,
+        ContactMutationState.unknown,
+        if (queued) ContactMutationState.queued,
+      ]) {
+        await tx.putMutation(
+          ContactMutation(
+            id: state.name,
+            accountId: contactId,
+            sourceKey: source.key,
+            kind: ContactMutationKind.update,
+            state: state,
+            createdAt: DateTime.utc(2026, 10, 11),
+            payload: const {'fixture': 'unresolved-work'},
+          ),
+        );
+      }
+    });
+  }
 }
 
 void main() {
@@ -210,6 +305,261 @@ void main() {
     },
   );
   for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
+    for (final phase in ['disable-commit', 'detach-journal']) {
+      test(
+        '$provider preparation $phase failure repairs partial detachment',
+        () async {
+          final fault = PreparationFault();
+          final f = LifecycleFixture(
+            provider,
+            database: AppDatabase(NativeDatabase.memory().interceptWith(fault)),
+          );
+          addTearDown(f.close);
+          await f.seed(enabled: true);
+          if (phase == 'detach-journal') await f.seedUncertainMutations();
+          final before = (await f.store.read((tx) => tx.account(f.contactId)))!
+              .toJson();
+          final credential = (await f.h.secrets.readCredential(f.id))!.toJson();
+          final requests = f.requests.length;
+          fault
+            ..contactId = f.contactId
+            ..phase = phase;
+          await expectLater(
+            f.repository.removeAccount(accountId: f.id),
+            throwsA(same(fault.failure)),
+          );
+          expect(fault.hits, 1);
+          expect(
+            (await f.store.read((tx) => tx.account(f.contactId)))!.toJson(),
+            before,
+          );
+          expect(
+            (await f.h.secrets.readCredential(f.id))!.toJson(),
+            credential,
+          );
+          expect(await f.h.accounts.accountById(f.id), isNotNull);
+          await f.controller.synchronizeAccount(f.contactId);
+          expect(f.requests.length, greaterThan(requests));
+          expect(f.h.flow.clients, isEmpty);
+          if (phase == 'detach-journal') {
+            final mutations = await f.store.read(
+              (tx) => tx.mutations(accountId: f.contactId),
+            );
+            expect(mutations, hasLength(2));
+            expect(
+              mutations.map((m) => m.state),
+              everyElement(ContactMutationState.unknown),
+            );
+            expect(
+              mutations.singleWhere((m) => m.id == 'executing').errorCode,
+              'disconnected-after-dispatch',
+            );
+            expect(f.requests.every((r) => r.method == 'GET'), isTrue);
+          }
+        },
+      );
+    }
+    test(
+      '$provider preparation unresolved detach journal retains work and original error',
+      () async {
+        final fault = PreparationFault();
+        final f = LifecycleFixture(
+          provider,
+          database: AppDatabase(NativeDatabase.memory().interceptWith(fault)),
+        );
+        addTearDown(f.close);
+        await f.seed(enabled: true);
+        await f.seedUncertainMutations(queued: true);
+        final requests = f.requests.length;
+        fault
+          ..contactId = f.contactId
+          ..phase = 'detach-journal'
+          ..persistent = true;
+        await expectLater(
+          f.repository.removeAccount(accountId: f.id),
+          throwsA(same(fault.failure)),
+        );
+        expect(fault.hits, 2);
+        expect(
+          (await f.store.read((tx) => tx.account(f.contactId)))!.errorCode,
+          'contacts-removal-recovery-required',
+        );
+        await expectLater(
+          f.controller.synchronizeAccount(f.contactId),
+          throwsA(
+            isA<ContactsException>().having(
+              (e) => e.code,
+              'actionable recovery',
+              'contacts-removal-recovery-required',
+            ),
+          ),
+        );
+        expect(f.requests.length, requests);
+        final mutations = await f.store.read(
+          (tx) => tx.mutations(accountId: f.contactId),
+        );
+        expect(
+          {for (final m in mutations) m.id: m.state},
+          {
+            'executing': ContactMutationState.executing,
+            'unknown': ContactMutationState.unknown,
+            'queued': ContactMutationState.queued,
+          },
+        );
+        expect(await f.h.accounts.accountById(f.id), isNotNull);
+        expect(await f.h.secrets.readCredential(f.id), isNotNull);
+        fault.phase = null;
+        await f.controller.close().timeout(const Duration(seconds: 3));
+        final restartedStore = BusyMaxContactsStore(f.h.db);
+        expect(
+          (await restartedStore.read((tx) => tx.account(f.contactId)))!
+              .errorCode,
+          'contacts-removal-recovery-required',
+        );
+        expect(
+          await restartedStore.read(
+            (tx) => tx.mutations(accountId: f.contactId),
+          ),
+          hasLength(3),
+        );
+        await restartedStore.close();
+      },
+    );
+    for (final enabled in [false, null]) {
+      test(
+        '$provider preparation read failure leaves disabled/absent contacts enabled=$enabled',
+        () async {
+          final fault = PreparationFault();
+          final f = LifecycleFixture(
+            provider,
+            database: AppDatabase(NativeDatabase.memory().interceptWith(fault)),
+          );
+          addTearDown(f.close);
+          await f.seed(enabled: enabled);
+          final before = await f.store.read((tx) => tx.account(f.contactId));
+          final credential = (await f.h.secrets.readCredential(f.id))!.toJson();
+          final requests = f.requests.length;
+          fault
+            ..contactId = f.contactId
+            ..phase = 'account-read';
+          await expectLater(
+            f.repository.removeAccount(accountId: f.id),
+            throwsA(same(fault.failure)),
+          );
+          expect(
+            (await f.store.read((tx) => tx.account(f.contactId)))?.toJson(),
+            before?.toJson(),
+          );
+          expect(
+            (await f.h.secrets.readCredential(f.id))!.toJson(),
+            credential,
+          );
+          expect(f.requests.length, requests);
+          expect(f.h.flow.clients, isEmpty);
+          expect(await f.h.accounts.accountById(f.id), isNotNull);
+        },
+      );
+    }
+    for (final newer in ['disable', 'remove', 'replacement']) {
+      test('$provider preparation recovery respects newer $newer', () async {
+        final fault = PreparationFault();
+        final f = LifecycleFixture(
+          provider,
+          database: AppDatabase(NativeDatabase.memory().interceptWith(fault)),
+        );
+        addTearDown(f.close);
+        await f.seed(enabled: true);
+        final waiting = Completer<void>(), resume = Completer<void>();
+        f.beforeRecovery = () async {
+          waiting.complete();
+          await resume.future;
+        };
+        fault
+          ..contactId = f.contactId
+          ..phase = 'disable-write';
+        final removed = f.repository.removeAccount(accountId: f.id);
+        final observed = expectLater(removed, throwsA(same(fault.failure)));
+        await waiting.future;
+        final requests = f.requests.length;
+        if (newer == 'disable') {
+          await f.controller.disableContactsAccount(f.contactId);
+        } else if (newer == 'remove') {
+          await f.controller.removeContactsAccount(f.contactId);
+        } else {
+          await f.store.write((tx) async {
+            final current = (await tx.account(f.contactId))!;
+            await tx.putAccount(
+              ContactAccount(
+                id: current.id,
+                provider: current.provider,
+                displayName: 'replacement',
+                subject: 'new-subject',
+                grantedScopes: current.grantedScopes,
+                enabled: false,
+                generation: current.generation + 1,
+                errorCode: 'newer-state',
+              ),
+            );
+          });
+        }
+        final newerState = (await f.store.read((tx) => tx.account(f.contactId)))
+            ?.toJson();
+        resume.complete();
+        await observed;
+        expect(
+          (await f.store.read((tx) => tx.account(f.contactId)))?.toJson(),
+          newerState,
+        );
+        expect(f.requests.length, requests);
+        expect(await f.h.accounts.accountById(f.id), isNotNull);
+      });
+    }
+    for (final phase in ['before-write', 'after-write']) {
+      test('$provider preparation disable failure $phase restores running binding', () async {
+        final f = LifecycleFixture(provider);
+        addTearDown(f.close);
+        await f.seed(enabled: true);
+        final parent = (await (f.h.db.select(
+          f.h.db.accounts,
+        )..where((row) => row.id.equals(f.id))).getSingle()).toJson();
+        final credential = (await f.h.secrets.readCredential(f.id))!.toJson();
+        final before = (await f.store.read((tx) => tx.account(f.contactId)))!;
+        final generation = await f.h.persistence.generation(f.id);
+        final requests = f.requests.length;
+        expect(requests, greaterThan(0));
+        await f.h.db.customStatement(
+          'CREATE TRIGGER reject_contact_disable '
+          '${phase == 'before-write' ? 'BEFORE' : 'AFTER'} UPDATE ON bm_contact_accounts '
+          "WHEN NEW.id = '${f.contactId}' AND json_extract(NEW.data, '\$.enabled') = 0 "
+          "BEGIN SELECT RAISE(ABORT, 'preparation-disable-failure'); END",
+        );
+        await expectLater(
+          f.repository.removeAccount(accountId: f.id),
+          throwsA(
+            predicate<Object>(
+              (error) =>
+                  error.toString().contains('preparation-disable-failure'),
+            ),
+          ),
+        );
+        expect(
+          (await (f.h.db.select(
+            f.h.db.accounts,
+          )..where((row) => row.id.equals(f.id))).getSingle()).toJson(),
+          parent,
+        );
+        expect((await f.h.secrets.readCredential(f.id))!.toJson(), credential);
+        expect(await f.h.persistence.generation(f.id), generation);
+        final after = (await f.store.read((tx) => tx.account(f.contactId)))!;
+        expect(after.toJson(), before.toJson());
+        await f.h.db.customStatement('DROP TRIGGER reject_contact_disable');
+        await f.controller.synchronizeAccount(f.contactId);
+        expect(f.requests.length, greaterThan(requests));
+        expect(f.h.flow.clients, isEmpty);
+        await f.controller.close().timeout(const Duration(seconds: 3));
+        expect(await f.h.accounts.accountById(f.id), isNotNull);
+      });
+    }
     test(
       '$provider fresh consent positive commits parent grants and contacts together',
       () async {
