@@ -1,6 +1,8 @@
 import 'package:fake_async/fake_async.dart';
+
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:busymax/src/config/build_config.dart';
 import 'package:busymax/src/core/auth/oauth_models.dart';
 import 'package:busymax/src/core/auth/oauth_registration.dart';

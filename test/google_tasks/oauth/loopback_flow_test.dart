@@ -1,4 +1,5 @@
 import 'package:busymax/src/core/auth/authorization_attempt.dart';
+
 import 'dart:async';
 import 'dart:io';
 
@@ -78,70 +79,67 @@ void main() {
       },
     );
   }
-  test(
-    'cancel during browser launch permits retry and old cleanup cannot close new server',
-    () async {
-      final oldLaunched = Completer<void>(),
-          releaseOld = Completer<bool>(),
-          newLaunched = Completer<Uri>();
-      var launches = 0;
-      final flow = OAuthLoopbackFlow(
-        authorizationLauncher: (uri) {
-          launches++;
-          if (launches == 1) {
-            oldLaunched.complete();
-            return releaseOld.future;
-          }
-          newLaunched.complete(uri);
-          return Future.value(true);
-        },
-      );
-      final a = AuthorizationAttempt(nowUtc: () => DateTime.now().toUtc());
-      final b = AuthorizationAttempt(nowUtc: () => DateTime.now().toUtc());
-      addTearDown(() => a.dispose());
-      addTearDown(() => b.dispose());
-      final old = flow.start(
-        attempt: a,
-        authorizationEndpoint: _authorizationEndpoint,
-        clientId: 'fixture',
-        scope: googleTasksOAuthScope,
-      );
-      final failed = expectLater(
-        old,
-        throwsA(
-          isA<OAuthException>().having(
-            (e) => e.classification,
-            'kind',
-            OAuthFailureKind.cancelled,
-          ),
+  test('cancel during browser launch permits retry and old cleanup cannot close new server', () async {
+    final oldLaunched = Completer<void>(),
+        releaseOld = Completer<bool>(),
+        newLaunched = Completer<Uri>();
+    var launches = 0;
+    final flow = OAuthLoopbackFlow(
+      authorizationLauncher: (uri) {
+        launches++;
+        if (launches == 1) {
+          oldLaunched.complete();
+          return releaseOld.future;
+        }
+        newLaunched.complete(uri);
+        return Future.value(true);
+      },
+    );
+    final a = AuthorizationAttempt(nowUtc: () => DateTime.now().toUtc());
+    final b = AuthorizationAttempt(nowUtc: () => DateTime.now().toUtc());
+    addTearDown(() => a.dispose());
+    addTearDown(() => b.dispose());
+    final old = flow.start(
+      attempt: a,
+      authorizationEndpoint: _authorizationEndpoint,
+      clientId: 'fixture',
+      scope: googleTasksOAuthScope,
+    );
+    final failed = expectLater(
+      old,
+      throwsA(
+        isA<OAuthException>().having(
+          (e) => e.classification,
+          'kind',
+          OAuthFailureKind.cancelled,
         ),
-      );
-      await oldLaunched.future;
-      a.cancel();
-      final next = flow.start(
-        attempt: b,
-        authorizationEndpoint: _authorizationEndpoint,
-        clientId: 'fixture',
-        scope: googleTasksOAuthScope,
-      );
-      final uri = await newLaunched.future;
-      releaseOld.complete(true);
-      await failed;
-      final redirect = Uri.parse(uri.queryParameters['redirect_uri']!);
-      expect(
-        (await http.get(
-          redirect.replace(
-            queryParameters: {
-              'state': uri.queryParameters['state']!,
-              'code': 'fresh',
-            },
-          ),
-        )).statusCode,
-        HttpStatus.ok,
-      );
-      expect((await next).callback.code, 'fresh');
-    },
-  );
+      ),
+    );
+    await oldLaunched.future;
+    a.cancel();
+    final next = flow.start(
+      attempt: b,
+      authorizationEndpoint: _authorizationEndpoint,
+      clientId: 'fixture',
+      scope: googleTasksOAuthScope,
+    );
+    final uri = await newLaunched.future;
+    releaseOld.complete(true);
+    await failed;
+    final redirect = Uri.parse(uri.queryParameters['redirect_uri']!);
+    expect(
+      (await http.get(
+        redirect.replace(
+          queryParameters: {
+            'state': uri.queryParameters['state']!,
+            'code': 'fresh',
+          },
+        ),
+      )).statusCode,
+      HttpStatus.ok,
+    );
+    expect((await next).callback.code, 'fresh');
+  });
   test('cancelSignIn is idempotent after server already closed', () async {
     final started = await _startFlow();
 
@@ -194,9 +192,8 @@ void main() {
   test('mismatched state cannot terminate legitimate consent', () async {
     final started = await _startFlow();
     expect(
-      (await http.get(
-        started.callbackUri(code: 'wrong', state: 'wrong-state'),
-      )).statusCode,
+      (await http.get(started.callbackUri(code: 'wrong', state: 'wrong-state')))
+          .statusCode,
       HttpStatus.badRequest,
     );
     expect(
@@ -317,9 +314,8 @@ void main() {
   }
 
   test('Windows-reachable OAuth implementation contains no xdg-open', () {
-    final source = File(
-      'lib/src/google_tasks/oauth/oauth_loopback_flow.dart',
-    ).readAsStringSync();
+    final source = File('lib/src/google_tasks/oauth/oauth_loopback_flow.dart')
+        .readAsStringSync();
     expect(source, isNot(contains('xdg-open')));
   });
 }

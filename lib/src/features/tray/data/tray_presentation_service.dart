@@ -10,10 +10,13 @@ import '../../connectivity/network_connectivity_service.dart';
 import '../../task_lists/data/task_lists_repository.dart';
 import '../domain/tray_presentation.dart';
 
-typedef TrayTaskListsLoader =
-    Future<List<TaskListEntity>> Function(AccountEntity account);
-typedef TrayTaskListWriteCheck =
-    Future<bool> Function(AccountEntity account, TaskListEntity taskList);
+typedef TrayTaskListsLoader = Future<List<TaskListEntity>> Function(
+  AccountEntity account,
+);
+typedef TrayTaskListWriteCheck = Future<bool> Function(
+  AccountEntity account,
+  TaskListEntity taskList,
+);
 
 final class BusyMaxTrayPresentationService {
   const BusyMaxTrayPresentationService({

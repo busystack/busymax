@@ -33,9 +33,8 @@ final class NextcloudCollectionController extends ChangeNotifier {
     values.clear();
     for (final name in nextcloudWritableProperties) {
       values[name] = name.localName == 'schedule-calendar-transp'
-          ? (nextcloudPropertyNames(
-                  loaded.collection.properties[name],
-                ).contains('{$caldavNamespace}transparent')
+          ? (nextcloudPropertyNames(loaded.collection.properties[name])
+                    .contains('{$caldavNamespace}transparent')
                 ? 'transparent'
                 : 'opaque')
           : loaded.collection.properties[name]?.text.trim() ?? '';

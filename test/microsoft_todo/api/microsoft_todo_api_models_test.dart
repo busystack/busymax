@@ -49,9 +49,8 @@ void main() {
       throwsFormatException,
     );
     expect(
-      MicrosoftTodoLinkedResourcesPageDto.fromJson(const {
-        'value': [],
-      }).resources,
+      MicrosoftTodoLinkedResourcesPageDto.fromJson(const {'value': []})
+          .resources,
       isEmpty,
     );
     expect(

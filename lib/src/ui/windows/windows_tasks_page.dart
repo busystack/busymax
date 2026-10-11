@@ -554,9 +554,8 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
                                             ? TextDecoration.lineThrough
                                             : null,
                                         color: displayedCompleted
-                                            ? FluentTheme.of(
-                                                context,
-                                              ).inactiveColor
+                                            ? FluentTheme.of(context)
+                                                  .inactiveColor
                                             : null,
                                       ),
                               child: Text(task.title),

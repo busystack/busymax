@@ -1,6 +1,8 @@
 import 'dart:convert';
+
 import '../../features/maps/data/location_resolution_repository.dart';
 import '../../features/maps/domain/location_result.dart';
+
 import 'dart:math';
 
 import 'package:drift/drift.dart';
@@ -305,9 +307,8 @@ final class DavPendingOperationQueue {
         existing.baselineEtag == context.object.etag &&
         existing.baselineRawIcs != null;
     if (!safelyEditable) throw _operationAlreadyPending();
-    return _decodePatch(
-      existing,
-    ).applyTo(existing.baselineRawIcs!, nowUtc: _nowUtc().toUtc());
+    return _decodePatch(existing)
+        .applyTo(existing.baselineRawIcs!, nowUtc: _nowUtc().toUtc());
   }
 
   /// Reading an export is safe even while an immutable operation is replaying.
@@ -892,9 +893,8 @@ final class DavPendingOperationQueue {
               ..where((row) => row.id.equals(existing.id)))
             .write(PendingOpsCompanion(dependsOnOpId: Value(dependency)));
       }
-      intendedSourceRaw = _decodePatch(
-        existing,
-      ).applyTo(existing.baselineRawIcs!, nowUtc: _nowUtc().toUtc());
+      intendedSourceRaw = _decodePatch(existing)
+          .applyTo(existing.baselineRawIcs!, nowUtc: _nowUtc().toUtc());
       dependency = existing.id;
     }
     final semantic = IcalSemanticDocument.parse(intendedSourceRaw);
@@ -1108,8 +1108,10 @@ typedef DavMutationServiceFactory =
       required DavCollection collection,
     });
 
-typedef DavPendingOperationFailureHandler =
-    Future<void> Function(PendingOp operation, DavException error);
+typedef DavPendingOperationFailureHandler = Future<void> Function(
+  PendingOp operation,
+  DavException error,
+);
 
 final class DavReplaySummary {
   const DavReplaySummary({
@@ -1213,8 +1215,7 @@ final class DavPendingOperationsReplayer {
         final error = const DavException(
           kind: DavErrorKind.protocol,
           code: 'DavEventCopyNotConfirmed',
-          safeMessage:
-              'The destination event was not confirmed, so the original was kept.',
+          safeMessage: 'The destination event was not confirmed, so the original was kept.',
         );
         await _markFailed(op, error);
         await _reportPermanentFailure(op, error);
@@ -1329,9 +1330,8 @@ final class DavPendingOperationsReplayer {
           policy.validateMoveTo(
             await NextcloudSchedulingPolicy.load(_database, destination),
             baseline,
-            _decodeOptionalMovePatch(
-                  op,
-                )?.applyTo(baseline, nowUtc: _nowUtc()) ??
+            _decodeOptionalMovePatch(op)
+                    ?.applyTo(baseline, nowUtc: _nowUtc()) ??
                 baseline,
           );
       }
@@ -1995,9 +1995,8 @@ final class DavPendingOperationsReplayer {
       return _decodeCreate(op.requestJson).rawIcs;
     }
     if (op.operationType == 'dav.update') {
-      return _decodePatch(
-        op,
-      ).applyTo(_required(op.baselineRawIcs), nowUtc: _nowUtc().toUtc());
+      return _decodePatch(op)
+          .applyTo(_required(op.baselineRawIcs), nowUtc: _nowUtc().toUtc());
     }
     if (op.operationType == 'dav.move') {
       return _moveCandidateRaw(op, _nowUtc().toUtc());

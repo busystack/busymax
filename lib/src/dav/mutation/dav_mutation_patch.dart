@@ -167,9 +167,9 @@ final class DavPatchOperation {
       DavPatchOperationType.replaceRepeatedRaw =>
         DavPatchOperation.replaceRepeatedRaw(
           propertyName,
-          _mapList(
-            json['values'],
-          ).map(DavRawPropertyValue.fromJson).toList(growable: false),
+          _mapList(json['values'])
+              .map(DavRawPropertyValue.fromJson)
+              .toList(growable: false),
         ),
       DavPatchOperationType.setTaskProgress =>
         DavPatchOperation.setTaskProgress(
@@ -279,9 +279,9 @@ final class DavMutationPatch {
           uid: _requiredString(targetJson, 'uid'),
           recurrenceIdKey: targetJson['recurrenceIdKey'] as String?,
         ),
-        operations: _mapList(
-          json['operations'],
-        ).map(DavPatchOperation.fromJson).toList(growable: false),
+        operations: _mapList(json['operations'])
+            .map(DavPatchOperation.fromJson)
+            .toList(growable: false),
       );
     } on DavException {
       rethrow;

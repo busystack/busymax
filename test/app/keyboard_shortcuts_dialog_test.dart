@@ -214,9 +214,8 @@ void main() {
     final toolbar = File(
       'lib/src/features/schedule/presentation/schedule_toolbar.dart',
     ).readAsStringSync();
-    final shortcuts = File(
-      'lib/src/app/busymax_shortcuts.dart',
-    ).readAsStringSync();
+    final shortcuts = File('lib/src/app/busymax_shortcuts.dart')
+        .readAsStringSync();
     final native = File('linux/runner/my_application.cc').readAsStringSync();
 
     expect(app, contains('showBusyMaxKeyboardShortcutsDialog('));

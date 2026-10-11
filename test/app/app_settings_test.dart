@@ -68,9 +68,8 @@ void main() {
       }
       for (final value in [null, 'unknown', 12]) {
         expect(
-          AppSettings.fromJson({
-            'timeFormatPreference': value,
-          }).timeFormatPreference,
+          AppSettings.fromJson({'timeFormatPreference': value})
+              .timeFormatPreference,
           BusyMaxTimeFormatPreference.system,
         );
       }
@@ -93,9 +92,8 @@ void main() {
     }
     for (final invalid in [null, 'Monday', 'unknown', 1]) {
       expect(
-        AppSettings.fromJson({
-          'firstDayOfWeekPreference': invalid,
-        }).firstDayOfWeekPreference,
+        AppSettings.fromJson({'firstDayOfWeekPreference': invalid})
+            .firstDayOfWeekPreference,
         BusyMaxFirstDayOfWeekPreference.system,
       );
     }

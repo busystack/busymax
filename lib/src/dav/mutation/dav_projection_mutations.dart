@@ -740,9 +740,9 @@ DavNewObject buildDavTaskObject(
     dueParameters: due?.parameters ?? const [],
   );
   final target = IcalComponentKey(componentType: 'VTODO', uid: initial.uid);
-  final initialComponent = IcalSemanticDocument.parse(
-    initial.rawIcs,
-  ).components.single;
+  final initialComponent = IcalSemanticDocument.parse(initial.rawIcs)
+      .components
+      .single;
   final operations = <DavPatchOperation>[
     if (_taskTemporal(fields, prefix: 'Start') case final start?)
       DavPatchOperation.setRaw(
@@ -1806,9 +1806,9 @@ DavPatchOperation _taskCategoriesOperation(
   final add = desired.where((value) => !current.contains(value)).toList();
   final retained = <({List<String> values, List<IcalParameter> parameters})>[];
   for (final property in properties) {
-    final values = _categoryValues(
-      property,
-    ).where((value) => !remove.contains(value)).toList();
+    final values = _categoryValues(property)
+        .where((value) => !remove.contains(value))
+        .toList();
     if (values.isNotEmpty) {
       retained.add((values: values, parameters: property.parameters));
     }
@@ -1827,9 +1827,11 @@ DavPatchOperation _taskCategoriesOperation(
   ]);
 }
 
-List<String> _categoryValues(IcalProperty property) => _splitEscapedValues(
-  property.rawValue,
-).map(decodeIcalText).where((value) => value.isNotEmpty).toList();
+List<String> _categoryValues(IcalProperty property) =>
+    _splitEscapedValues(property.rawValue)
+        .map(decodeIcalText)
+        .where((value) => value.isNotEmpty)
+        .toList();
 
 List<String> _splitEscapedValues(String source) {
   final values = <String>[];

@@ -11,17 +11,15 @@ import 'package:infinite_calendar_view/infinite_calendar_view.dart' as icv;
 import '../../../schedule/schedule_event_rescheduling.dart';
 import '../../../schedule/schedule_item.dart';
 
-typedef SchedulePreviewBuilder =
-    Widget Function(
-      BuildContext context,
-      ScheduleInterval interval,
-      bool allDay,
-    );
-typedef ScheduleRescheduleCallback =
-    Future<void> Function(
-      ScheduleRescheduleRequest request,
-      bool Function() isActive,
-    );
+typedef SchedulePreviewBuilder = Widget Function(
+  BuildContext context,
+  ScheduleInterval interval,
+  bool allDay,
+);
+typedef ScheduleRescheduleCallback = Future<void> Function(
+  ScheduleRescheduleRequest request,
+  bool Function() isActive,
+);
 
 final class SchedulePointerTime {
   const SchedulePointerTime(this.wall, {this.dateOnly = false});

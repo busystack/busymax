@@ -6,51 +6,48 @@ import 'package:busymax/src/features/tasks/presentation/task_details_draft.dart'
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test(
-    'creation retains incompatible recurrence until destination validation and save',
-    () {
-      final rule = RecurrenceRule.fromIcalendar(
-        rules: ['FREQ=MONTHLY;BYMONTHDAY=1,15'],
-      );
-      TaskDetailsDraft draft(BusyProvider provider) =>
-          TaskDetailsDraft.forCreation(
-            taskListId: 'list',
-            provider: provider,
-            timeZone: 'UTC',
-            title: 'Twice monthly',
-            due: DateTime(2026, 9, 1),
-            recurrence: rule,
-          );
-      final microsoft = draft(BusyProvider.microsoft);
-      expect(microsoft.creationRecurrence!.rule.byMonthDay, [1, 15]);
-      expect(
-        microsoft.recurrenceIssueFor(microsoftTaskCollectionCapabilities),
-        TaskRecurrenceIssue.unsupportedDestination,
-      );
-      expect(
-        () => microsoft.toCreateInput(
-          microsoftTaskCollectionCapabilities,
-          localTimeZone: 'UTC',
-        ),
-        throwsStateError,
-      );
-      final nextcloud = draft(BusyProvider.nextcloud);
-      expect(
-        nextcloud.recurrenceIssueFor(nextcloudTaskCollectionCapabilities),
-        TaskRecurrenceIssue.none,
-      );
-      expect(
-        (nextcloud
-                .toCreateInput(
-                  nextcloudTaskCollectionCapabilities,
-                  localTimeZone: 'UTC',
-                )
-                .fields['recurrence']
-            as Map)['rules'],
-        ['FREQ=MONTHLY;INTERVAL=1;BYMONTHDAY=1,15'],
-      );
-    },
-  );
+  test('creation retains incompatible recurrence until destination validation and save', () {
+    final rule = RecurrenceRule.fromIcalendar(
+      rules: ['FREQ=MONTHLY;BYMONTHDAY=1,15'],
+    );
+    TaskDetailsDraft draft(BusyProvider provider) =>
+        TaskDetailsDraft.forCreation(
+          taskListId: 'list',
+          provider: provider,
+          timeZone: 'UTC',
+          title: 'Twice monthly',
+          due: DateTime(2026, 9, 1),
+          recurrence: rule,
+        );
+    final microsoft = draft(BusyProvider.microsoft);
+    expect(microsoft.creationRecurrence!.rule.byMonthDay, [1, 15]);
+    expect(
+      microsoft.recurrenceIssueFor(microsoftTaskCollectionCapabilities),
+      TaskRecurrenceIssue.unsupportedDestination,
+    );
+    expect(
+      () => microsoft.toCreateInput(
+        microsoftTaskCollectionCapabilities,
+        localTimeZone: 'UTC',
+      ),
+      throwsStateError,
+    );
+    final nextcloud = draft(BusyProvider.nextcloud);
+    expect(
+      nextcloud.recurrenceIssueFor(nextcloudTaskCollectionCapabilities),
+      TaskRecurrenceIssue.none,
+    );
+    expect(
+      (nextcloud
+              .toCreateInput(
+                nextcloudTaskCollectionCapabilities,
+                localTimeZone: 'UTC',
+              )
+              .fields['recurrence']
+          as Map)['rules'],
+      ['FREQ=MONTHLY;INTERVAL=1;BYMONTHDAY=1,15'],
+    );
+  });
 
   test(
     'hidden URL and start fields do not invalidate a Google destination',

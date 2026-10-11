@@ -19,9 +19,8 @@ void main() {
     addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
 
     expect(
-      await const GtkAnimationSettingsService(
-        channel: channel,
-      ).getAnimationsEnabled(),
+      await const GtkAnimationSettingsService(channel: channel)
+          .getAnimationsEnabled(),
       isFalse,
     );
   });
@@ -42,9 +41,10 @@ void main() {
     );
     addTearDown(() => messenger.setMockStreamHandler(events, null));
 
-    final values = const GtkAnimationSettingsService(
-      events: events,
-    ).watchAnimationsEnabled().take(2).toList();
+    final values = const GtkAnimationSettingsService(events: events)
+        .watchAnimationsEnabled()
+        .take(2)
+        .toList();
     await pumpEventQueue();
     sink!.success(false);
 
@@ -73,9 +73,8 @@ void main() {
     'native GTK bridge observes and tears down animation preference state',
     () {
       final source = File('linux/runner/my_application.cc').readAsStringSync();
-      final frame = File(
-        'lib/src/app/linux/linux_page_frame.dart',
-      ).readAsStringSync();
+      final frame = File('lib/src/app/linux/linux_page_frame.dart')
+          .readAsStringSync();
 
       expect(source, contains('"notify::gtk-enable-animations"'));
       expect(source, contains('send_gtk_animation_settings_event(self);'));

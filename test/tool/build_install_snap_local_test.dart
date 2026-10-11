@@ -115,9 +115,8 @@ void main() {
         'test binary\n',
       );
       expect(
-        File(
-          '${fixture.validRoot.path}/.busymax-local-snap-root',
-        ).readAsStringSync(),
+        File('${fixture.validRoot.path}/.busymax-local-snap-root')
+            .readAsStringSync(),
         'busymax-local-snap-root-v1\n'
         'project=${fixture.project.resolveSymbolicLinksSync()}\n',
       );
@@ -158,11 +157,10 @@ void main() {
         fixture.validRoot.createSync(recursive: true);
         final sentinel = File('${fixture.validRoot.path}/keep-me')
           ..writeAsStringSync('private data');
-        File(
-          '${fixture.validRoot.path}/.busymax-local-snap-root',
-        ).writeAsStringSync(
-          'busymax-local-snap-root-v1\nproject=/another/project\n',
-        );
+        File('${fixture.validRoot.path}/.busymax-local-snap-root')
+            .writeAsStringSync(
+              'busymax-local-snap-root-v1\nproject=/another/project\n',
+            );
 
         await _expectUnsafeRootRejected(
           fixture,

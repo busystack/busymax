@@ -40,14 +40,11 @@ void main() {
       dstX: (entry.value - inset.width) ~/ 2,
       dstY: (entry.value - inset.height) ~/ 2,
     );
-    File(
-      '${directory.path}/ic_launcher.png',
-    ).writeAsBytesSync(image.encodePng(icon));
-    File(
-      '${directory.path}/ic_launcher_round.png',
-    ).writeAsBytesSync(image.encodePng(icon));
-    File(
-      '${directory.path}/ic_launcher_foreground.png',
-    ).writeAsBytesSync(image.encodePng(foreground));
+    File('${directory.path}/ic_launcher.png')
+        .writeAsBytesSync(image.encodePng(icon));
+    File('${directory.path}/ic_launcher_round.png')
+        .writeAsBytesSync(image.encodePng(icon));
+    File('${directory.path}/ic_launcher_foreground.png')
+        .writeAsBytesSync(image.encodePng(foreground));
   }
 }

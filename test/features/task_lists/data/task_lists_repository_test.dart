@@ -2,7 +2,9 @@ import 'package:busymax/src/app/app_settings.dart';
 import 'package:busymax/src/features/notifications/desktop_notification_service.dart';
 import 'package:busymax/src/features/notifications/notification_schedule_service.dart';
 import 'package:busymax/src/features/notifications/notification_scheduler.dart';
+
 import '../../../support/recording_notification_backend.dart';
+
 import 'dart:convert';
 
 import 'package:drift/drift.dart';
@@ -336,8 +338,7 @@ void main() {
               id: 'collection',
               accountId: 'account',
               hrefKey: '/remote.php/dav/calendars/alex/tasks/',
-              requestUri:
-                  'https://cloud.example.test/remote.php/dav/calendars/alex/tasks/',
+              requestUri: 'https://cloud.example.test/remote.php/dav/calendars/alex/tasks/',
               displayName: 'Tasks',
               supportedComponentMask: const Value(2),
               taskProjectionEnabled: const Value(true),

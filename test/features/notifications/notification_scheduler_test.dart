@@ -668,25 +668,22 @@ void main() {
     },
   );
 
-  test(
-    'an old snooze cannot act on a reminder removed and recreated at the same time',
-    () async {
-      await _insertDueTaskNotification(database, now);
-      await scheduler.checkNow();
-      final old = backend.notifications.single;
-      await database.delete(database.notificationSchedule).go();
-      await _insertDueTaskNotification(database, now);
-      await scheduler.checkNow();
-      final current = await database
-          .select(database.notificationSchedule)
-          .getSingle();
-      await old.invoke('snooze');
-      expect(
-        await database.select(database.notificationSchedule).getSingle(),
-        current,
-      );
-    },
-  );
+  test('an old snooze cannot act on a reminder removed and recreated at the same time', () async {
+    await _insertDueTaskNotification(database, now);
+    await scheduler.checkNow();
+    final old = backend.notifications.single;
+    await database.delete(database.notificationSchedule).go();
+    await _insertDueTaskNotification(database, now);
+    await scheduler.checkNow();
+    final current = await database
+        .select(database.notificationSchedule)
+        .getSingle();
+    await old.invoke('snooze');
+    expect(
+      await database.select(database.notificationSchedule).getSingle(),
+      current,
+    );
+  });
 
   for (final quiet in [false, true]) {
     test('visible snooze uses updated settings (quiet=$quiet)', () async {

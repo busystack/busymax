@@ -303,8 +303,7 @@ final class IcalSemanticDocument {
       throw const DavException(
         kind: DavErrorKind.invalidCalendarData,
         code: 'IcalCalendarObjectInvariantFailed',
-        safeMessage:
-            'A CalDAV object must contain one component type and one UID recurrence set.',
+        safeMessage: 'A CalDAV object must contain one component type and one UID recurrence set.',
       );
     }
     return IcalSemanticDocument._(
@@ -481,9 +480,8 @@ DateTime _parseDate(String source) {
 }
 
 DateTime _parseDateTime(String source) {
-  final match = RegExp(
-    r'^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})$',
-  ).firstMatch(source);
+  final match = RegExp(r'^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})$')
+      .firstMatch(source);
   if (match == null) throw _invalidTemporal();
   return _checkedDateTime(
     int.parse(match.group(1)!),

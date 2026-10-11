@@ -34,9 +34,10 @@ Future<String?> showWindowsTimeZoneDialog(
                   child: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.search)),
                 ),
                 onChanged: (query) => setState(
-                  () => results = BusyMaxTimeZoneCatalog.search(
-                    query,
-                  ).take(100).toList(),
+                  () =>
+                      results = BusyMaxTimeZoneCatalog.search(query)
+                          .take(100)
+                          .toList(),
                 ),
               ),
               const SizedBox(height: 12),

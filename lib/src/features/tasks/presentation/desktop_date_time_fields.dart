@@ -403,9 +403,8 @@ class _DesktopDateValueDialogState extends State<_DesktopDateValueDialog> {
           );
         } else {
           pickerContent = ScrollConfiguration(
-            behavior: ScrollConfiguration.of(
-              context,
-            ).copyWith(scrollbars: false),
+            behavior: ScrollConfiguration.of(context)
+                .copyWith(scrollbars: false),
             child: ConstrainedBox(
               constraints: BoxConstraints(maxHeight: contentHeight),
               child: SingleChildScrollView(child: content),
@@ -1127,9 +1126,8 @@ class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
   @override
   Widget build(BuildContext context) {
     final materialLocalizations = MaterialLocalizations.of(context);
-    final componentWidth = MediaQuery.textScalerOf(
-      context,
-    ).scale(_timePickerInputColumnWidth);
+    final componentWidth = MediaQuery.textScalerOf(context)
+        .scale(_timePickerInputColumnWidth);
     return BusyMaxContentPopoverSurface(
       arrowSide: widget.arrowSide,
       arrowAlignment: widget.arrowAlignment,
@@ -1256,9 +1254,8 @@ class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
                 ),
                 child: Text(
                   MaterialLocalizations.of(context).invalidTimeLabel,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.error,
-                  ),
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(color: Theme.of(context).colorScheme.error),
                 ),
               ),
             const SizedBox(height: BusyMaxSpacing.md),
@@ -1321,10 +1318,8 @@ class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
     );
     final dividerColor = surfaceColors.divider;
     final inputTextStyle =
-        Theme.of(context).textTheme.bodyMedium?.copyWith(
-          fontWeight: FontWeight.normal,
-          height: 1,
-        ) ??
+        Theme.of(context).textTheme.bodyMedium
+            ?.copyWith(fontWeight: FontWeight.normal, height: 1) ??
         const TextStyle(fontWeight: FontWeight.normal, height: 1);
 
     return FocusTraversalOrder(
@@ -1392,9 +1387,8 @@ class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
                           cursorColor: Theme.of(context).colorScheme.primary,
                           backgroundCursorColor:
                               surfaceColors.disabledForeground,
-                          selectionColor: Theme.of(
-                            context,
-                          ).colorScheme.primary.withValues(alpha: 0.28),
+                          selectionColor: Theme.of(context).colorScheme.primary
+                              .withValues(alpha: 0.28),
                           onChanged: (_) => _handleTimeInputChanged(),
                           onSubmitted: (_) => _handleTimeInputChanged(),
                         ),
@@ -1589,9 +1583,8 @@ String formatDesktopDate(BuildContext context, String? date) {
   if (parsed == null) {
     return '';
   }
-  return DateFormat.yMMMd(
-    Localizations.localeOf(context).toLanguageTag(),
-  ).format(parsed);
+  return DateFormat.yMMMd(Localizations.localeOf(context).toLanguageTag())
+      .format(parsed);
 }
 
 @visibleForTesting

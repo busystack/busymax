@@ -89,34 +89,28 @@ void main() {
     expect(source.capabilities.canDeleteCalendar, isTrue);
   });
 
-  test(
-    'shared read-only Google calendar permits personal name, color, and removal',
-    () {
-      const source = CalendarSourceEntity(
-        id: 'shared-calendar',
-        accountId: 'google-account',
-        provider: BusyProvider.google,
-        providerCalendarId: 'shared@example.com',
-        summary: 'Shared',
-        selected: true,
-        hidden: false,
-        readOnly: true,
-        isDeleted: false,
-        dataOwner: 'other@example.com',
-        authenticatedAccountEmail: 'me@example.com',
-      );
+  test('shared read-only Google calendar permits personal name, color, and removal', () {
+    const source = CalendarSourceEntity(
+      id: 'shared-calendar',
+      accountId: 'google-account',
+      provider: BusyProvider.google,
+      providerCalendarId: 'shared@example.com',
+      summary: 'Shared',
+      selected: true,
+      hidden: false,
+      readOnly: true,
+      isDeleted: false,
+      dataOwner: 'other@example.com',
+      authenticatedAccountEmail: 'me@example.com',
+    );
 
-      expect(source.capabilities.canCreateEvents, isFalse);
-      expect(source.capabilities.renameMode, CalendarRenameMode.personal);
-      expect(
-        source.capabilities.removalMode,
-        CalendarRemovalMode.removeFromList,
-      );
-      expect(source.capabilities.canDeleteCalendar, isFalse);
-      expect(source.capabilities.canRemoveCalendar, isTrue);
-      expect(source.capabilities.canChangeCalendarColor, isTrue);
-    },
-  );
+    expect(source.capabilities.canCreateEvents, isFalse);
+    expect(source.capabilities.renameMode, CalendarRenameMode.personal);
+    expect(source.capabilities.removalMode, CalendarRemovalMode.removeFromList);
+    expect(source.capabilities.canDeleteCalendar, isFalse);
+    expect(source.capabilities.canRemoveCalendar, isTrue);
+    expect(source.capabilities.canChangeCalendarColor, isTrue);
+  });
 
   test('Microsoft deletion follows isRemovable rather than canEdit', () {
     const removableReadOnly = CalendarSourceEntity(

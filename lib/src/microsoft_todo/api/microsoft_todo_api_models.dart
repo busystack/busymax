@@ -324,9 +324,9 @@ class MicrosoftTodoChecklistItemsPageDto {
     Map<String, Object?> json,
   ) {
     return MicrosoftTodoChecklistItemsPageDto(
-      items: microsoftJsonObjectList(
-        json['value'],
-      ).map(MicrosoftTodoChecklistItemDto.fromJson).toList(),
+      items: microsoftJsonObjectList(json['value'])
+          .map(MicrosoftTodoChecklistItemDto.fromJson)
+          .toList(),
       nextLink: microsoftStringOrNull(json['@odata.nextLink']),
       rawJson: Map.unmodifiable(json),
     );
@@ -346,9 +346,9 @@ class MicrosoftTodoTaskListsPageDto {
 
   factory MicrosoftTodoTaskListsPageDto.fromJson(Map<String, Object?> json) {
     return MicrosoftTodoTaskListsPageDto(
-      items: microsoftJsonObjectList(
-        json['value'],
-      ).map(MicrosoftTodoTaskListDto.fromJson).toList(),
+      items: microsoftJsonObjectList(json['value'])
+          .map(MicrosoftTodoTaskListDto.fromJson)
+          .toList(),
       nextLink: microsoftStringOrNull(json['@odata.nextLink']),
       rawJson: Map.unmodifiable(json),
     );
@@ -371,9 +371,9 @@ class MicrosoftTodoTaskListsDeltaPageDto extends MicrosoftTodoTaskListsPageDto {
     Map<String, Object?> json,
   ) {
     return MicrosoftTodoTaskListsDeltaPageDto(
-      items: microsoftJsonObjectList(
-        json['value'],
-      ).map(MicrosoftTodoTaskListDto.fromJson).toList(),
+      items: microsoftJsonObjectList(json['value'])
+          .map(MicrosoftTodoTaskListDto.fromJson)
+          .toList(),
       nextLink: microsoftStringOrNull(json['@odata.nextLink']),
       deltaLink: microsoftStringOrNull(json['@odata.deltaLink']),
       rawJson: Map.unmodifiable(json),
@@ -392,9 +392,9 @@ class MicrosoftTodoTasksPageDto {
 
   factory MicrosoftTodoTasksPageDto.fromJson(Map<String, Object?> json) {
     return MicrosoftTodoTasksPageDto(
-      items: microsoftJsonObjectList(
-        json['value'],
-      ).map(MicrosoftTodoTaskDto.fromJson).toList(),
+      items: microsoftJsonObjectList(json['value'])
+          .map(MicrosoftTodoTaskDto.fromJson)
+          .toList(),
       nextLink: microsoftStringOrNull(json['@odata.nextLink']),
       rawJson: Map.unmodifiable(json),
     );
@@ -415,9 +415,9 @@ class MicrosoftTodoTasksDeltaPageDto extends MicrosoftTodoTasksPageDto {
 
   factory MicrosoftTodoTasksDeltaPageDto.fromJson(Map<String, Object?> json) {
     return MicrosoftTodoTasksDeltaPageDto(
-      items: microsoftJsonObjectList(
-        json['value'],
-      ).map(MicrosoftTodoTaskDto.fromJson).toList(),
+      items: microsoftJsonObjectList(json['value'])
+          .map(MicrosoftTodoTaskDto.fromJson)
+          .toList(),
       nextLink: microsoftStringOrNull(json['@odata.nextLink']),
       deltaLink: microsoftStringOrNull(json['@odata.deltaLink']),
       rawJson: Map.unmodifiable(json),

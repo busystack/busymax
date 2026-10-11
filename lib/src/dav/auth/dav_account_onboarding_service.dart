@@ -12,20 +12,18 @@ import '../discovery/dav_discovery_repository.dart';
 import '../http/dav_http_transport.dart';
 import 'nextcloud_login_flow_v2.dart';
 
-typedef DavOnboardingDiscovery =
-    Future<DavDiscoveryResult> Function({
-      required String accountId,
-      required BusyProvider provider,
-      required Uri accountAuthority,
-      required DavBasicCredential credential,
-      DavCancellationToken? cancellationToken,
-    });
+typedef DavOnboardingDiscovery = Future<DavDiscoveryResult> Function({
+  required String accountId,
+  required BusyProvider provider,
+  required Uri accountAuthority,
+  required DavBasicCredential credential,
+  DavCancellationToken? cancellationToken,
+});
 
-typedef NextcloudCredentialRevoker =
-    Future<void> Function({
-      required String accountId,
-      required NextcloudSecretRecord credential,
-    });
+typedef NextcloudCredentialRevoker = Future<void> Function({
+  required String accountId,
+  required NextcloudSecretRecord credential,
+});
 
 final class DavAccountConnectionResult {
   const DavAccountConnectionResult({

@@ -159,9 +159,8 @@ void main() {
       ProviderScope(
         overrides: [
           localSettingsStoreProvider.overrideWithValue(MemorySettingsStore()),
-          nextcloudSharingServiceProvider(
-            'account',
-          ).overrideWithValue(fixture.sharing),
+          nextcloudSharingServiceProvider('account')
+              .overrideWithValue(fixture.sharing),
         ],
         child: localizedTestApp(
           child: const AndroidNextcloudSharingScreen(
@@ -427,9 +426,8 @@ Future<void> _pump(
     ProviderScope(
       overrides: [
         localSettingsStoreProvider.overrideWithValue(MemorySettingsStore()),
-        nextcloudSharingServiceProvider(
-          'account',
-        ).overrideWithValue(fixture.sharing),
+        nextcloudSharingServiceProvider('account')
+            .overrideWithValue(fixture.sharing),
       ],
       child: windows
           ? fluent.FluentApp(
@@ -462,9 +460,8 @@ Future<void> _pumpTrash(
     ProviderScope(
       overrides: [
         localSettingsStoreProvider.overrideWithValue(MemorySettingsStore()),
-        nextcloudTrashServiceProvider(
-          'account',
-        ).overrideWithValue(fixture.trash),
+        nextcloudTrashServiceProvider('account')
+            .overrideWithValue(fixture.trash),
       ],
       child: localizedTestApp(
         theme: BusyMaxYaruTheme.build(

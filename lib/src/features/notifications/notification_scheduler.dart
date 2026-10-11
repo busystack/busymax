@@ -11,11 +11,10 @@ import 'notification_schedule_service.dart';
 
 const defaultReminderSnoozeDuration = Duration(minutes: 10);
 
-typedef ScheduledReminderActionHandler =
-    Future<void> Function(
-      NotificationScheduleData row,
-      ReminderNotificationAction action,
-    );
+typedef ScheduledReminderActionHandler = Future<void> Function(
+  NotificationScheduleData row,
+  ReminderNotificationAction action,
+);
 
 class NotificationScheduler {
   NotificationScheduler({

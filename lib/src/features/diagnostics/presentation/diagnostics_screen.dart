@@ -51,9 +51,8 @@ class DiagnosticsPanel extends ConsumerWidget {
         header: true,
         child: Text(
           l10n.implementedMethods,
-          style: Theme.of(
-            context,
-          ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
+          style: Theme.of(context).textTheme.bodySmall
+              ?.copyWith(fontWeight: FontWeight.w600),
         ),
       ),
       const SizedBox(height: 8),
@@ -76,9 +75,8 @@ class DiagnosticsPanel extends ConsumerWidget {
         header: true,
         child: Text(
           l10n.blockedPendingOperations,
-          style: Theme.of(
-            context,
-          ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
+          style: Theme.of(context).textTheme.bodySmall
+              ?.copyWith(fontWeight: FontWeight.w600),
         ),
       ),
       const SizedBox(height: 8),
@@ -202,9 +200,8 @@ class _BlockedPendingOpTile extends StatelessWidget {
       if (!context.mounted) {
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(context.l10n.retryCompleted)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(context.l10n.retryCompleted)));
     } on Object catch (error) {
       if (!context.mounted) {
         return;

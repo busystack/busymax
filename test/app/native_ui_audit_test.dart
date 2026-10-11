@@ -31,16 +31,13 @@ void main() {
     test(
       'main window delegates four-corner clipping and window states to Handy',
       () {
-        final source = File(
-          'linux/runner/my_application.cc',
-        ).readAsStringSync();
+        final source = File('linux/runner/my_application.cc')
+            .readAsStringSync();
         final linuxCmake = File('linux/CMakeLists.txt').readAsStringSync();
-        final runnerCmake = File(
-          'linux/runner/CMakeLists.txt',
-        ).readAsStringSync();
-        final workflow = File(
-          '.github/workflows/flutter-linux.yml',
-        ).readAsStringSync();
+        final runnerCmake = File('linux/runner/CMakeLists.txt')
+            .readAsStringSync();
+        final workflow = File('.github/workflows/flutter-linux.yml')
+            .readAsStringSync();
         final snapcraft = File('snap/snapcraft.yaml').readAsStringSync();
         final app = File('lib/src/app/busymax_app.dart').readAsStringSync();
         final activateStart = source.indexOf(
@@ -91,9 +88,8 @@ void main() {
 
     test('Yaru GTK3 compatibility replaces legacy decoration rings', () {
       final source = File('linux/runner/my_application.cc').readAsStringSync();
-      final searchTheme = File(
-        'linux/runner/gtk_search_entry_theme.cc',
-      ).readAsStringSync();
+      final searchTheme = File('linux/runner/gtk_search_entry_theme.cc')
+          .readAsStringSync();
       final themeGateStart = source.indexOf(
         'static gboolean current_gtk_theme_uses_legacy_yaru_shadow()',
       );
@@ -169,9 +165,8 @@ void main() {
           'lib/src/features/diagnostics/presentation/diagnostics_screen.dart',
         ).readAsStringSync();
         final router = File('lib/src/app/app_router.dart').readAsStringSync();
-        final design = File(
-          'lib/src/app/busymax_design.dart',
-        ).readAsStringSync();
+        final design = File('lib/src/app/busymax_design.dart')
+            .readAsStringSync();
         final dateTimeFields = File(
           'lib/src/features/tasks/presentation/desktop_date_time_fields.dart',
         ).readAsStringSync();
@@ -281,9 +276,8 @@ void main() {
     );
 
     test('tray DBus menu labels come from its injected presentation', () {
-      final source = File(
-        'lib/src/platform/busymax_tray_service.dart',
-      ).readAsStringSync();
+      final source = File('lib/src/platform/busymax_tray_service.dart')
+          .readAsStringSync();
       final logo = File('assets/branding/busymax-logo.svg').readAsStringSync();
 
       expect(source, contains('BusyMaxTrayMenuPresentation presentation'));
@@ -351,9 +345,8 @@ void main() {
       final runner = File('linux/runner/my_application.cc').readAsStringSync();
       final linuxMain = File('linux/runner/main.cc').readAsStringSync();
       final app = File('lib/src/app/busymax_app.dart').readAsStringSync();
-      final commands = File(
-        'lib/src/schedule/schedule_commands.dart',
-      ).readAsStringSync();
+      final commands = File('lib/src/schedule/schedule_commands.dart')
+          .readAsStringSync();
       final workspace = File(
         'lib/src/features/schedule/presentation/schedule_workspace.dart',
       ).readAsStringSync();
@@ -380,9 +373,8 @@ void main() {
 
     test('one Flutter view owns the main header and full-height sidebar', () {
       final runner = File('linux/runner/my_application.cc').readAsStringSync();
-      final frame = File(
-        'lib/src/app/linux/linux_page_frame.dart',
-      ).readAsStringSync();
+      final frame = File('lib/src/app/linux/linux_page_frame.dart')
+          .readAsStringSync();
       final schedule = File(
         'lib/src/features/schedule/presentation/schedule_workspace.dart',
       ).readAsStringSync();
@@ -420,9 +412,8 @@ void main() {
     });
 
     test('top-level Linux header triggers use semantic GTK icon assets', () {
-      final style = File(
-        'lib/src/app/linux/linux_header_style.dart',
-      ).readAsStringSync();
+      final style = File('lib/src/app/linux/linux_header_style.dart')
+          .readAsStringSync();
       final toolbar = File(
         'lib/src/features/schedule/presentation/schedule_toolbar.dart',
       ).readAsStringSync();
@@ -481,22 +472,18 @@ void main() {
       final toolbar = File(
         'lib/src/features/schedule/presentation/schedule_toolbar.dart',
       ).readAsStringSync();
-      final linuxHeader = File(
-        'lib/src/app/linux/linux_header_style.dart',
-      ).readAsStringSync();
+      final linuxHeader = File('lib/src/app/linux/linux_header_style.dart')
+          .readAsStringSync();
       final workspace = File(
         'lib/src/features/schedule/presentation/schedule_workspace.dart',
       ).readAsStringSync();
-      final iconService = File(
-        'lib/src/platform/gtk_header_icon_service.dart',
-      ).readAsStringSync();
+      final iconService = File('lib/src/platform/gtk_header_icon_service.dart')
+          .readAsStringSync();
       final runner = File('linux/runner/my_application.cc').readAsStringSync();
-      final nativeIcons = File(
-        'linux/runner/gtk_header_icons.cc',
-      ).readAsStringSync();
-      final nativeSearchTheme = File(
-        'linux/runner/gtk_search_entry_theme.cc',
-      ).readAsStringSync();
+      final nativeIcons = File('linux/runner/gtk_header_icons.cc')
+          .readAsStringSync();
+      final nativeSearchTheme = File('linux/runner/gtk_search_entry_theme.cc')
+          .readAsStringSync();
 
       expect(workspace, contains('final header = ScheduleToolbar('));
       expect(workspace, isNot(contains("'schedule-search-close-button'")));
@@ -632,9 +619,8 @@ void main() {
 
     test('native GTK window preferences notify and clean up safely', () {
       final runner = File('linux/runner/my_application.cc').readAsStringSync();
-      final helper = File(
-        'linux/runner/gtk_window_preferences.cc',
-      ).readAsStringSync();
+      final helper = File('linux/runner/gtk_window_preferences.cc')
+          .readAsStringSync();
       for (final property in [
         'gtk-decoration-layout',
         'gtk-titlebar-double-click',
@@ -660,9 +646,8 @@ void main() {
 
     test('Linux content menus use native GTK popup menus on mapped host', () {
       final runner = File('linux/runner/my_application.cc').readAsStringSync();
-      final service = File(
-        'lib/src/platform/native_menu_service.dart',
-      ).readAsStringSync();
+      final service = File('lib/src/platform/native_menu_service.dart')
+          .readAsStringSync();
       final start = runner.indexOf('constexpr char kNativeMenuActionNamespace');
       final end = runner.indexOf('static void respond_success', start);
 
@@ -810,9 +795,8 @@ void main() {
 
     test('confirmations use the shared app dialog surface', () {
       final runner = File('linux/runner/my_application.cc').readAsStringSync();
-      final dialogs = File(
-        'lib/src/app/busymax_dialogs.dart',
-      ).readAsStringSync();
+      final dialogs = File('lib/src/app/busymax_dialogs.dart')
+          .readAsStringSync();
       final design = File('lib/src/app/busymax_design.dart').readAsStringSync();
       final confirmStart = design.indexOf('class BusyMaxConfirmDialog');
       final confirmBody = design.substring(confirmStart);
@@ -841,9 +825,8 @@ void main() {
       final scheduling = File(
         'lib/src/dav/presentation/nextcloud_scheduling_dialog.dart',
       ).readAsStringSync();
-      final accounts = File(
-        'lib/src/dav/auth/dav_account_dialogs.dart',
-      ).readAsStringSync();
+      final accounts = File('lib/src/dav/auth/dav_account_dialogs.dart')
+          .readAsStringSync();
       final settings = File(
         'lib/src/features/settings/presentation/settings_screen.dart',
       ).readAsStringSync();
@@ -889,54 +872,46 @@ void main() {
       expect(preview, isNot(contains('\n          CheckboxListTile(')));
     });
 
-    test(
-      'schedule search filters use BusyMax rows without a dedicated native subsystem',
-      () {
-        final runner = File(
-          'linux/runner/my_application.cc',
-        ).readAsStringSync();
-        final workspace = File(
-          'lib/src/features/schedule/presentation/schedule_workspace.dart',
-        ).readAsStringSync();
-        final filters = File(
-          'lib/src/features/schedule/presentation/schedule_search_filters.dart',
-        ).readAsStringSync();
+    test('schedule search filters use BusyMax rows without a dedicated native subsystem', () {
+      final runner = File('linux/runner/my_application.cc').readAsStringSync();
+      final workspace = File(
+        'lib/src/features/schedule/presentation/schedule_workspace.dart',
+      ).readAsStringSync();
+      final filters = File(
+        'lib/src/features/schedule/presentation/schedule_search_filters.dart',
+      ).readAsStringSync();
 
-        expect(runner, isNot(contains('native_schedule_search_filters')));
-        expect(runner, isNot(contains('NativeScheduleFilter')));
-        expect(runner, isNot(contains('content_overlay')));
-        expect(
-          File(
-            'lib/src/platform/linux_schedule_search_filter_service.dart',
-          ).existsSync(),
-          isFalse,
-        );
-        expect(
-          File(
-            'test/platform/linux_schedule_search_filter_service_test.dart',
-          ).existsSync(),
-          isFalse,
-        );
+      expect(runner, isNot(contains('native_schedule_search_filters')));
+      expect(runner, isNot(contains('NativeScheduleFilter')));
+      expect(runner, isNot(contains('content_overlay')));
+      expect(
+        File('lib/src/platform/linux_schedule_search_filter_service.dart')
+            .existsSync(),
+        isFalse,
+      );
+      expect(
+        File('test/platform/linux_schedule_search_filter_service_test.dart')
+            .existsSync(),
+        isFalse,
+      );
 
-        expect(filters, contains('BusyMaxSidebarSurface('));
-        expect(filters, contains('BusyMaxGroupedList('));
-        expect(filters, contains('BusyMaxComboRow<'));
-        expect(filters, contains('BusyMaxSwitchRow('));
-        expect(filters, contains('BusyMaxActionRow('));
-        expect(filters, contains('DesktopDateValueRow('));
-        expect(filters, contains('busyMaxGroupedTextFieldDecoration('));
-        expect(workspace, contains('ScheduleSearchFilters('));
-        expect(workspace, contains('showBusyMaxModalDialog<void>('));
-        expect(workspace, contains('BusyMaxDialogShell('));
-        expect(workspace, isNot(contains('linux-native-search-filter-spacer')));
-      },
-    );
+      expect(filters, contains('BusyMaxSidebarSurface('));
+      expect(filters, contains('BusyMaxGroupedList('));
+      expect(filters, contains('BusyMaxComboRow<'));
+      expect(filters, contains('BusyMaxSwitchRow('));
+      expect(filters, contains('BusyMaxActionRow('));
+      expect(filters, contains('DesktopDateValueRow('));
+      expect(filters, contains('busyMaxGroupedTextFieldDecoration('));
+      expect(workspace, contains('ScheduleSearchFilters('));
+      expect(workspace, contains('showBusyMaxModalDialog<void>('));
+      expect(workspace, contains('BusyMaxDialogShell('));
+      expect(workspace, isNot(contains('linux-native-search-filter-spacer')));
+    });
 
     test('timezone selection uses native GTK and Handy controls on Linux', () {
       final runner = File('linux/runner/my_application.cc').readAsStringSync();
-      final service = File(
-        'lib/src/platform/native_dialog_service.dart',
-      ).readAsStringSync();
+      final service = File('lib/src/platform/native_dialog_service.dart')
+          .readAsStringSync();
       final selector = File(
         'lib/src/features/tasks/presentation/time_zone_selection_dialog.dart',
       ).readAsStringSync();
@@ -1123,79 +1098,70 @@ void main() {
       expect(restore, isNot(contains('gtk_window_present(self->main_window)')));
     });
 
-    test(
-      'text prompts reuse the shared Yaru grouped form without native reinvention',
-      () {
-        final runner = File(
-          'linux/runner/my_application.cc',
-        ).readAsStringSync();
-        final service = File(
-          'lib/src/platform/native_dialog_service.dart',
-        ).readAsStringSync();
-        final dialogs = File(
-          'lib/src/app/busymax_dialogs.dart',
-        ).readAsStringSync();
-        final design = File(
-          'lib/src/app/busymax_design.dart',
-        ).readAsStringSync();
-        final nativeDialogsStart = runner.indexOf('static void respond_bool(');
-        final nativeDialogsEnd = runner.indexOf(
-          'struct NativeTimeZoneOption',
-          nativeDialogsStart,
-        );
-        final promptStart = design.indexOf('class BusyMaxPromptDialog');
-        final promptEnd = design.indexOf(
-          'class BusyMaxConfirmDialog',
-          promptStart,
-        );
+    test('text prompts reuse the shared Yaru grouped form without native reinvention', () {
+      final runner = File('linux/runner/my_application.cc').readAsStringSync();
+      final service = File('lib/src/platform/native_dialog_service.dart')
+          .readAsStringSync();
+      final dialogs = File('lib/src/app/busymax_dialogs.dart')
+          .readAsStringSync();
+      final design = File('lib/src/app/busymax_design.dart').readAsStringSync();
+      final nativeDialogsStart = runner.indexOf('static void respond_bool(');
+      final nativeDialogsEnd = runner.indexOf(
+        'struct NativeTimeZoneOption',
+        nativeDialogsStart,
+      );
+      final promptStart = design.indexOf('class BusyMaxPromptDialog');
+      final promptEnd = design.indexOf(
+        'class BusyMaxConfirmDialog',
+        promptStart,
+      );
 
-        expect(nativeDialogsStart, isNonNegative);
-        expect(nativeDialogsEnd, greaterThan(nativeDialogsStart));
-        final nativeDialogs = runner.substring(
-          nativeDialogsStart,
-          nativeDialogsEnd,
-        );
-        expect(nativeDialogs, isNot(contains('handle_native_prompt')));
-        expect(nativeDialogs, isNot(contains('respond_native_prompt')));
-        expect(nativeDialogs, isNot(contains('gtk_entry_new()')));
-        expect(nativeDialogs, isNot(contains('gtk_dialog_new_with_buttons(')));
-        expect(nativeDialogs, isNot(contains('gtk_message_dialog_new(')));
-        expect(runner, isNot(contains('strcmp(method, "confirm")')));
-        expect(runner, isNot(contains('strcmp(method, "prompt")')));
+      expect(nativeDialogsStart, isNonNegative);
+      expect(nativeDialogsEnd, greaterThan(nativeDialogsStart));
+      final nativeDialogs = runner.substring(
+        nativeDialogsStart,
+        nativeDialogsEnd,
+      );
+      expect(nativeDialogs, isNot(contains('handle_native_prompt')));
+      expect(nativeDialogs, isNot(contains('respond_native_prompt')));
+      expect(nativeDialogs, isNot(contains('gtk_entry_new()')));
+      expect(nativeDialogs, isNot(contains('gtk_dialog_new_with_buttons(')));
+      expect(nativeDialogs, isNot(contains('gtk_message_dialog_new(')));
+      expect(runner, isNot(contains('strcmp(method, "confirm")')));
+      expect(runner, isNot(contains('strcmp(method, "prompt")')));
 
-        expect(service, isNot(contains('NativeTextPromptResult')));
-        expect(service, isNot(contains('Future<NativeTextPromptResult>')));
-        expect(service, isNot(contains('invokeMapMethod<String, Object?>')));
-        expect(service, isNot(contains("'prompt'")));
-        expect(service, contains('on MissingPluginException'));
-        expect(service, contains('on PlatformException'));
-        expect(dialogs, isNot(contains('nativeDialogService.prompt(')));
-        expect(dialogs, contains('showBusyMaxModalDialog<String>('));
-        expect(dialogs, contains('BusyMaxPromptDialog('));
+      expect(service, isNot(contains('NativeTextPromptResult')));
+      expect(service, isNot(contains('Future<NativeTextPromptResult>')));
+      expect(service, isNot(contains('invokeMapMethod<String, Object?>')));
+      expect(service, isNot(contains("'prompt'")));
+      expect(service, contains('on MissingPluginException'));
+      expect(service, contains('on PlatformException'));
+      expect(dialogs, isNot(contains('nativeDialogService.prompt(')));
+      expect(dialogs, contains('showBusyMaxModalDialog<String>('));
+      expect(dialogs, contains('BusyMaxPromptDialog('));
 
-        expect(promptStart, isNonNegative);
-        expect(promptEnd, greaterThan(promptStart));
-        final prompt = design.substring(promptStart, promptEnd);
-        expect(prompt, contains('BusyMaxDialogShell('));
-        expect(prompt, contains('header: BusyMaxEditorHeader('));
-        expect(prompt, isNot(contains('actions: [')));
-        expect(prompt, isNot(contains('BusyMaxDialogTitleBar(')));
-        expect(prompt, contains('BusyMaxGroupedList('));
-        expect(prompt, contains('filled: true'));
-        expect(prompt, contains('YaruListTile.square('));
-        expect(prompt, contains('busyMaxGroupedTextFieldDecoration('));
-        expect(prompt, contains('TextEditingController('));
-        expect(prompt, contains('_canSubmit ? _submit : null'));
-        expect(prompt, contains('onFieldSubmitted: (_) => _submit()'));
-        expect(
-          design,
-          contains('header ?? BusyMaxDialogTitleBar(title: Text(title))'),
-        );
-        expect(prompt, isNot(contains('maxWidth:')));
-        expect(prompt, isNot(contains('InputDecoration(')));
-        expect(prompt, isNot(contains('AlertDialog(')));
-      },
-    );
+      expect(promptStart, isNonNegative);
+      expect(promptEnd, greaterThan(promptStart));
+      final prompt = design.substring(promptStart, promptEnd);
+      expect(prompt, contains('BusyMaxDialogShell('));
+      expect(prompt, contains('header: BusyMaxEditorHeader('));
+      expect(prompt, isNot(contains('actions: [')));
+      expect(prompt, isNot(contains('BusyMaxDialogTitleBar(')));
+      expect(prompt, contains('BusyMaxGroupedList('));
+      expect(prompt, contains('filled: true'));
+      expect(prompt, contains('YaruListTile.square('));
+      expect(prompt, contains('busyMaxGroupedTextFieldDecoration('));
+      expect(prompt, contains('TextEditingController('));
+      expect(prompt, contains('_canSubmit ? _submit : null'));
+      expect(prompt, contains('onFieldSubmitted: (_) => _submit()'));
+      expect(
+        design,
+        contains('header ?? BusyMaxDialogTitleBar(title: Text(title))'),
+      );
+      expect(prompt, isNot(contains('maxWidth:')));
+      expect(prompt, isNot(contains('InputDecoration(')));
+      expect(prompt, isNot(contains('AlertDialog(')));
+    });
 
     test('modal editors use the semantic window role with themed geometry', () {
       final design = File('lib/src/app/busymax_design.dart').readAsStringSync();
@@ -1235,9 +1201,8 @@ void main() {
     test(
       'retained native surfaces are themed without a native main header',
       () {
-        final source = File(
-          'linux/runner/my_application.cc',
-        ).readAsStringSync();
+        final source = File('linux/runner/my_application.cc')
+            .readAsStringSync();
         final start = source.indexOf('static void refresh_native_surface_css');
         final end = source.indexOf(
           'static void set_native_surface_theme',
@@ -1310,15 +1275,12 @@ void main() {
     test(
       'native GTK theme colors and retained-surface styles stay separate',
       () {
-        final source = File(
-          'linux/runner/my_application.cc',
-        ).readAsStringSync();
-        final nativeStyle = File(
-          'lib/src/platform/native_style.dart',
-        ).readAsStringSync();
-        final gtkFontService = File(
-          'lib/src/platform/gtk_font_service.dart',
-        ).readAsStringSync();
+        final source = File('linux/runner/my_application.cc')
+            .readAsStringSync();
+        final nativeStyle = File('lib/src/platform/native_style.dart')
+            .readAsStringSync();
+        final gtkFontService = File('lib/src/platform/gtk_font_service.dart')
+            .readAsStringSync();
         final app = File('lib/src/app/busymax_app.dart').readAsStringSync();
         final main = File('lib/main_linux.dart').readAsStringSync();
 
@@ -1483,9 +1445,8 @@ void main() {
     });
 
     test('BusyMax text theme does not override Yaru weights globally', () {
-      final source = File(
-        'lib/src/app/busymax_yaru_theme.dart',
-      ).readAsStringSync();
+      final source = File('lib/src/app/busymax_yaru_theme.dart')
+          .readAsStringSync();
       final start = source.indexOf('static TextTheme _busyMaxTextTheme');
       final end = source.indexOf('\n}\n\nclass _TextStyleNormalizer', start);
 

@@ -82,9 +82,8 @@ bool matchesScheduleQuery(ScheduleItem item, String query) {
     item.accountEmail ?? '',
     ..._contextFields(item),
   ].map((value) => value.toLowerCase()).toList();
-  return _terms(
-    query,
-  ).every((term) => fields.any((field) => field.contains(term)));
+  return _terms(query)
+      .every((term) => fields.any((field) => field.contains(term)));
 }
 
 bool matchesTaskCompletion(
@@ -123,9 +122,8 @@ bool matchesScheduleFilters(
     }
     final personTerms = _terms(filters.person);
     if (personTerms.isNotEmpty &&
-        !scheduleEventPeople(
-          item,
-        ).any((identity) => _matchesPerson(identity, personTerms))) {
+        !scheduleEventPeople(item)
+            .any((identity) => _matchesPerson(identity, personTerms))) {
       return false;
     }
   }

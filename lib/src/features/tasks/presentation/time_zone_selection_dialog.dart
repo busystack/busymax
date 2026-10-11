@@ -126,9 +126,8 @@ class _BusyMaxTimeZoneSelectionDialogState
       header: BusyMaxDialogTitleBar(
         title: Text(
           l10n.selectTimeZone,
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+          style: Theme.of(context).textTheme.titleMedium
+              ?.copyWith(fontWeight: FontWeight.w600),
         ),
       ),
       children: [
@@ -158,9 +157,9 @@ class _BusyMaxTimeZoneSelectionDialogState
                                 textAlign: TextAlign.center,
                                 style: Theme.of(context).textTheme.bodyMedium
                                     ?.copyWith(
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.onSurfaceVariant,
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant,
                                     ),
                               ),
                             )
@@ -194,9 +193,9 @@ class _BusyMaxTimeZoneSelectionDialogState
                                               size: BusyMaxSizes.iconSm,
                                             )
                                           : null,
-                                      onTap: () => Navigator.of(
-                                        context,
-                                      ).pop(result.location.id),
+                                      onTap: () =>
+                                          Navigator.of(context)
+                                              .pop(result.location.id),
                                     ),
                                 ],
                               ),

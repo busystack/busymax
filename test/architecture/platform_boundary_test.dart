@@ -18,13 +18,11 @@ void main() {
     );
     addTearDown(() => root.deleteSync(recursive: true));
     Directory('${root.path}/lib/src').createSync(recursive: true);
-    File(
-      '${root.path}/lib/main_android.dart',
-    ).writeAsStringSync("import 'package:busymax/src/bridge.dart';\n");
+    File('${root.path}/lib/main_android.dart')
+        .writeAsStringSync("import 'package:busymax/src/bridge.dart';\n");
     File('${root.path}/lib/src/android_background.dart').writeAsStringSync('');
-    File(
-      '${root.path}/lib/src/bridge.dart',
-    ).writeAsStringSync("export 'package:yaru/yaru.dart';\n");
+    File('${root.path}/lib/src/bridge.dart')
+        .writeAsStringSync("export 'package:yaru/yaru.dart';\n");
 
     final failures = boundary_check.findPlatformBoundaryViolations(root);
 

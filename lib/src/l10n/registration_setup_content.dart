@@ -159,8 +159,7 @@ extension RegistrationSetupContent on AppLocalizations {
         values: 'http://localhost',
         valuesLabel: registrationRedirectUri,
         linkLabel: registrationOpenEntraAuthentication,
-        link:
-            'https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade',
+        link: 'https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade',
       ),
       step(
         registrationPermissions,
@@ -171,8 +170,7 @@ extension RegistrationSetupContent on AppLocalizations {
         valuesLabel: registrationScopes,
         copyAll: true,
         linkLabel: registrationOpenEntraPermissions,
-        link:
-            'https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade',
+        link: 'https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade',
       ),
       step(registrationConnect, registrationGuideMicrosoftConnect),
     ];

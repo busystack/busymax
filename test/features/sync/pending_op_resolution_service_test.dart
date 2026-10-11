@@ -58,9 +58,8 @@ void main() {
         taskId: 'task-1',
       );
       final before = await database.pendingOpsDao.getOp('op-1');
-      await AccountsRepository(
-        database: database,
-      ).markReconnectRequired('account');
+      await AccountsRepository(database: database)
+          .markReconnectRequired('account');
 
       await expectLater(
         service.retryNow('op-1'),
@@ -82,37 +81,31 @@ void main() {
     },
   );
 
-  test(
-    'provider-dependent discard does not read provider state when account needs reconnect',
-    () async {
-      await database.tasksDao.upsertTask(
-        _localTask('task-1', localDirty: true),
-      );
-      await _enqueueBlockedOp(
-        database,
-        operation: 'patch_task',
-        taskListId: 'list-1',
-        taskId: 'task-1',
-      );
-      await AccountsRepository(
-        database: database,
-      ).markReconnectRequired('account');
+  test('provider-dependent discard does not read provider state when account needs reconnect', () async {
+    await database.tasksDao.upsertTask(_localTask('task-1', localDirty: true));
+    await _enqueueBlockedOp(
+      database,
+      operation: 'patch_task',
+      taskListId: 'list-1',
+      taskId: 'task-1',
+    );
+    await AccountsRepository(database: database)
+        .markReconnectRequired('account');
 
-      await expectLater(
-        service.discard('op-1'),
-        throwsA(isA<AccountNotSyncEligibleException>()),
-      );
+    await expectLater(
+      service.discard('op-1'),
+      throwsA(isA<AccountNotSyncEligibleException>()),
+    );
 
-      expect(apiClient.getTaskIds, isEmpty);
-      expect(await database.pendingOpsDao.getOp('op-1'), isNot(equals(null)));
-      expect(
-        await database.tasksDao.listTasks('account', 'list-1'),
-        hasLength(1),
-      );
-      expect(taskSyncCalls, 0);
-      expect(calendarSyncCalls, 0);
-    },
-  );
+    expect(apiClient.getTaskIds, isEmpty);
+    expect(await database.pendingOpsDao.getOp('op-1'), isNot(equals(null)));
+    expect(
+      await database.tasksDao.listTasks('account', 'list-1'),
+      hasLength(1),
+    );
+    expect(taskSyncCalls, 0);
+    expect(calendarSyncCalls, 0);
+  });
 
   test(
     'discard blocked task patch refreshes task and clears dirty flags',
@@ -212,9 +205,8 @@ void main() {
 
       await service.discard('op-1');
 
-      final list = (await database.taskListsDao.listTaskLists(
-        'account',
-      )).single;
+      final list = (await database.taskListsDao.listTaskLists('account'))
+          .single;
       expect(list.title, 'Remote list');
       expect(list.localDirty, isFalse);
       expect(list.pendingDelete, isFalse);
@@ -307,9 +299,8 @@ void main() {
         throwsA(isA<GoogleTasksApiError>()),
       );
 
-      final list = (await database.taskListsDao.listTaskLists(
-        'account',
-      )).single;
+      final list = (await database.taskListsDao.listTaskLists('account'))
+          .single;
       expect(list.localDirty, isTrue);
       expect(await database.pendingOpsDao.getOp('op-1'), isNot(equals(null)));
       expect(taskSyncCalls, 0);
@@ -689,9 +680,8 @@ void main() {
     final event = await database.select(database.calendarEvents).getSingle();
     final detail = await repository.loadEventDetail(event.id);
     await repository.updateLocalEvent(
-      EventEditorDraft.fromEventDetail(
-        detail!,
-      ).copyWith(title: 'Optimistic title'),
+      EventEditorDraft.fromEventDetail(detail!)
+          .copyWith(title: 'Optimistic title'),
     );
     final operation = await database.select(database.pendingOps).getSingle();
     await _blockOperation(database, operation.id);
@@ -863,9 +853,8 @@ void main() {
 
       expect(await database.select(database.pendingOps).get(), isEmpty);
       expect(
-        (await database.taskListsDao.listTaskLists(
-          'account',
-        )).map((taskList) => taskList.id),
+        (await database.taskListsDao.listTaskLists('account'))
+            .map((taskList) => taskList.id),
         isNot(contains(temporaryTaskListId)),
       );
       expect(
@@ -1384,97 +1373,94 @@ void main() {
     },
   );
 
-  test(
-    'discard when no checklist item was created removes only the exact account chain',
-    () async {
-      final localProjection = encodeTaskChecklistItems([
-        TaskChecklistItemEntity.fromJson(const {
-          'id': 'local-step',
-          'displayName': 'Uncertain',
-          'isChecked': true,
-        }),
-      ]);
-      await database.tasksDao.upsertTask(
-        _localTask('task-1', checklistItemsJson: localProjection),
-      );
-      await _enqueueBlockedOp(
-        database,
-        id: 'create-step',
-        entityType: 'task_checklist_item',
-        operation: 'create_task_checklist_item',
-        taskListId: 'list-1',
-        taskId: 'task-1',
-        localTempId: 'local-step',
-        state: 'recovery_required',
-        request: const {'checklistItemId': 'local-step'},
-      );
-      await _enqueueBlockedOp(
-        database,
-        id: 'patch-step',
-        entityType: 'task_checklist_item',
-        operation: 'patch_task_checklist_item',
-        taskListId: 'list-1',
-        taskId: 'task-1',
-        dependsOnOpId: 'create-step',
-        request: const {
-          'checklistItemId': 'local-step',
-          'body': {'isChecked': true},
-        },
-      );
+  test('discard when no checklist item was created removes only the exact account chain', () async {
+    final localProjection = encodeTaskChecklistItems([
+      TaskChecklistItemEntity.fromJson(const {
+        'id': 'local-step',
+        'displayName': 'Uncertain',
+        'isChecked': true,
+      }),
+    ]);
+    await database.tasksDao.upsertTask(
+      _localTask('task-1', checklistItemsJson: localProjection),
+    );
+    await _enqueueBlockedOp(
+      database,
+      id: 'create-step',
+      entityType: 'task_checklist_item',
+      operation: 'create_task_checklist_item',
+      taskListId: 'list-1',
+      taskId: 'task-1',
+      localTempId: 'local-step',
+      state: 'recovery_required',
+      request: const {'checklistItemId': 'local-step'},
+    );
+    await _enqueueBlockedOp(
+      database,
+      id: 'patch-step',
+      entityType: 'task_checklist_item',
+      operation: 'patch_task_checklist_item',
+      taskListId: 'list-1',
+      taskId: 'task-1',
+      dependsOnOpId: 'create-step',
+      request: const {
+        'checklistItemId': 'local-step',
+        'body': {'isChecked': true},
+      },
+    );
 
-      await _insertAccount(database, accountId: 'other');
-      await database.taskListsDao.upsertTaskList(
-        _localTaskList('list-1', accountId: 'other'),
-      );
-      await database.tasksDao.upsertTask(
-        _localTask(
-          'task-1',
-          accountId: 'other',
-          checklistItemsJson: localProjection,
-        ),
-      );
-      await _enqueueBlockedOp(
-        database,
-        id: 'other-create-step',
+    await _insertAccount(database, accountId: 'other');
+    await database.taskListsDao.upsertTaskList(
+      _localTaskList('list-1', accountId: 'other'),
+    );
+    await database.tasksDao.upsertTask(
+      _localTask(
+        'task-1',
         accountId: 'other',
-        entityType: 'task_checklist_item',
-        operation: 'create_task_checklist_item',
-        taskListId: 'list-1',
-        taskId: 'task-1',
-        localTempId: 'local-step',
-        state: 'recovery_required',
-        request: const {'checklistItemId': 'local-step'},
-      );
+        checklistItemsJson: localProjection,
+      ),
+    );
+    await _enqueueBlockedOp(
+      database,
+      id: 'other-create-step',
+      accountId: 'other',
+      entityType: 'task_checklist_item',
+      operation: 'create_task_checklist_item',
+      taskListId: 'list-1',
+      taskId: 'task-1',
+      localTempId: 'local-step',
+      state: 'recovery_required',
+      request: const {'checklistItemId': 'local-step'},
+    );
 
-      await service.discard('create-step');
+    await service.discard('create-step');
 
-      expect(apiClient.checklistPageTokens, [null]);
-      expect(
-        decodeTaskChecklistItems(
-          (await database.tasksDao.listTasks(
-            'account',
-            'list-1',
-          )).single.microsoftChecklistItemsJson,
-        ),
-        isEmpty,
-      );
-      expect(await database.pendingOpsDao.getOp('create-step'), equals(null));
-      expect(await database.pendingOpsDao.getOp('patch-step'), equals(null));
-      expect(
-        await database.pendingOpsDao.getOp('other-create-step'),
-        isNot(equals(null)),
-      );
-      expect(
-        decodeTaskChecklistItems(
-          (await database.tasksDao.listTasks(
-            'other',
-            'list-1',
-          )).single.microsoftChecklistItemsJson,
-        ).single.id,
-        'local-step',
-      );
-    },
-  );
+    expect(apiClient.checklistPageTokens, [null]);
+    expect(
+      decodeTaskChecklistItems(
+        (await database.tasksDao.listTasks(
+          'account',
+          'list-1',
+        )).single.microsoftChecklistItemsJson,
+      ),
+      isEmpty,
+    );
+    expect(await database.pendingOpsDao.getOp('create-step'), equals(null));
+    expect(await database.pendingOpsDao.getOp('patch-step'), equals(null));
+    expect(
+      await database.pendingOpsDao.getOp('other-create-step'),
+      isNot(equals(null)),
+    );
+    expect(
+      decodeTaskChecklistItems(
+        (await database.tasksDao.listTasks(
+          'other',
+          'list-1',
+        )).single.microsoftChecklistItemsJson,
+      ).single.id,
+      'local-step',
+    );
+  });
 
   test('checklist discard remains serialized with replay', () async {
     final started = Completer<void>();

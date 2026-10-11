@@ -14,9 +14,9 @@ void main() {
         ...Platform.environment,
         'XDG_DATA_HOME': dataHome.path,
       };
-      final executable = File(
-        'build/linux/x64/debug/bundle/busymax',
-      ).absolute.path;
+      final executable = File('build/linux/x64/debug/bundle/busymax')
+          .absolute
+          .path;
 
       for (var attempt = 0; attempt < 2; attempt++) {
         final result = await Process.run('bash', <String>[

@@ -9,9 +9,8 @@ MicrosoftAvailabilityAccountType microsoftAvailabilityAccountType(
 ) {
   final normalized = tenantId?.trim().toLowerCase();
   if (normalized == null ||
-      !RegExp(
-        r'^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$',
-      ).hasMatch(normalized)) {
+      !RegExp(r'^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$')
+          .hasMatch(normalized)) {
     return MicrosoftAvailabilityAccountType.unknown;
   }
   return normalized == microsoftPersonalTenantId

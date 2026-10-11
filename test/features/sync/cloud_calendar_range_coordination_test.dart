@@ -139,84 +139,79 @@ void main() {
     },
   );
 
-  test(
-    'opening a Microsoft shared calendar coordinates its initial range with sync',
-    () async {
-      final authorization = _SharedCalendarAuthorization();
-      final discoveryHttp = MockClient((request) async {
-        expect(request.method, 'GET');
-        expect(request.url.pathSegments, [
-          'v1.0',
-          'users',
-          'owner@example.com',
-          'calendar',
-        ]);
-        return http.Response(
-          jsonEncode({
-            'id': 'owner-calendar',
-            'name': 'Owner calendar',
-            'canEdit': true,
-          }),
-          200,
-        );
-      });
-      addTearDown(discoveryHttp.close);
-      final discovery = MicrosoftCalendarApiClient(
-        httpClient: discoveryHttp,
-        baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
-        responseTimeZone: 'UTC',
+  test('opening a Microsoft shared calendar coordinates its initial range with sync', () async {
+    final authorization = _SharedCalendarAuthorization();
+    final discoveryHttp = MockClient((request) async {
+      expect(request.method, 'GET');
+      expect(request.url.pathSegments, [
+        'v1.0',
+        'users',
+        'owner@example.com',
+        'calendar',
+      ]);
+      return http.Response(
+        jsonEncode({
+          'id': 'owner-calendar',
+          'name': 'Owner calendar',
+          'canEdit': true,
+        }),
+        200,
       );
-      final fixture = await _Fixture.create(
+    });
+    addTearDown(discoveryHttp.close);
+    final discovery = MicrosoftCalendarApiClient(
+      httpClient: discoveryHttp,
+      baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+      responseTimeZone: 'UTC',
+    );
+    final fixture = await _Fixture.create(
+      provider: BusyProvider.microsoft,
+      authorization: authorization,
+      discovery: discovery,
+    );
+    addTearDown(fixture.dispose);
+    fixture.client.holdSync = true;
+
+    final sync = fixture.track(
+      fixture.container
+          .read(accountSyncOperationsProvider)
+          .syncCalendar(_accountId, full: true),
+    );
+    await fixture.client.syncStarted.future.timeout(const Duration(seconds: 2));
+    final opening = fixture.track(
+      fixture.container
+          .read(microsoftSharedCalendarServiceProvider)
+          .openPrimaryCalendar(
+            accountId: _accountId,
+            owner: 'owner@example.com',
+          ),
+    );
+    await _waitFor(() => fixture.gate.accountIds.length == 2);
+    final rangeStartedBeforeBaselineCompleted =
+        fixture.client.rangeStarted.isCompleted;
+
+    fixture.client.releaseSync.complete();
+    await sync;
+    final result = await opening;
+
+    expect(result.outcome, MicrosoftSharedCalendarOpenOutcome.ready);
+    expect(authorization.accounts, [_accountId]);
+    expect(rangeStartedBeforeBaselineCompleted, isFalse);
+    expect(fixture.gate.accountIds, [_accountId, _accountId]);
+    final sharedId = const MicrosoftSharedPrimaryCalendarAddress(
+      owner: 'owner@example.com',
+      graphCalendarId: 'owner-calendar',
+    ).sourceCalendarId;
+    expect(fixture.client.rangeCalendarIds, [sharedId]);
+    expect(
+      result.sourceId,
+      CalendarRepository.sourceId(
+        accountId: _accountId,
         provider: BusyProvider.microsoft,
-        authorization: authorization,
-        discovery: discovery,
-      );
-      addTearDown(fixture.dispose);
-      fixture.client.holdSync = true;
-
-      final sync = fixture.track(
-        fixture.container
-            .read(accountSyncOperationsProvider)
-            .syncCalendar(_accountId, full: true),
-      );
-      await fixture.client.syncStarted.future.timeout(
-        const Duration(seconds: 2),
-      );
-      final opening = fixture.track(
-        fixture.container
-            .read(microsoftSharedCalendarServiceProvider)
-            .openPrimaryCalendar(
-              accountId: _accountId,
-              owner: 'owner@example.com',
-            ),
-      );
-      await _waitFor(() => fixture.gate.accountIds.length == 2);
-      final rangeStartedBeforeBaselineCompleted =
-          fixture.client.rangeStarted.isCompleted;
-
-      fixture.client.releaseSync.complete();
-      await sync;
-      final result = await opening;
-
-      expect(result.outcome, MicrosoftSharedCalendarOpenOutcome.ready);
-      expect(authorization.accounts, [_accountId]);
-      expect(rangeStartedBeforeBaselineCompleted, isFalse);
-      expect(fixture.gate.accountIds, [_accountId, _accountId]);
-      final sharedId = const MicrosoftSharedPrimaryCalendarAddress(
-        owner: 'owner@example.com',
-        graphCalendarId: 'owner-calendar',
-      ).sourceCalendarId;
-      expect(fixture.client.rangeCalendarIds, [sharedId]);
-      expect(
-        result.sourceId,
-        CalendarRepository.sourceId(
-          accountId: _accountId,
-          provider: BusyProvider.microsoft,
-          providerCalendarId: sharedId,
-        ),
-      );
-    },
-  );
+        providerCalendarId: sharedId,
+      ),
+    );
+  });
 }
 
 const _accountId = 'account';
@@ -270,9 +265,8 @@ final class _Fixture {
       providerCalendarId: 'calendar',
       summary: 'Calendar',
     );
-    await CalendarRepository(
-      database: database,
-    ).upsertSource(accountId: _accountId, source: source);
+    await CalendarRepository(database: database)
+        .upsertSource(accountId: _accountId, source: source);
     final client = _HeldCalendarClient(
       source: source,
       event: CalendarEventDto(
@@ -318,9 +312,8 @@ final class _Fixture {
             authorization,
           ),
         if (discovery != null)
-          microsoftCalendarApiClientForAccountProvider(
-            _accountId,
-          ).overrideWithValue(discovery),
+          microsoftCalendarApiClientForAccountProvider(_accountId)
+              .overrideWithValue(discovery),
       ],
     );
     return _Fixture(

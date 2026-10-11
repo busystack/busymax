@@ -1,5 +1,7 @@
 import 'package:busymax/src/core/auth/authorization_attempt.dart';
+
 import 'task_recurrence.dart';
+
 import 'dart:async';
 import 'dart:convert';
 
@@ -18,7 +20,9 @@ import '../../../l10n/l10n.dart';
 import '../../../providers/busy_provider.dart';
 import '../../maps/domain/location_result.dart';
 import '../../maps/application/external_location_launcher.dart';
+
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
+
 import '../../task_lists/data/task_lists_repository.dart';
 import '../data/tasks_repository.dart';
 import '../domain/task_source_links.dart';
@@ -1015,9 +1019,8 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
           Expanded(
             child: Text(
               message,
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: color),
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: color),
             ),
           ),
         ],
@@ -1944,9 +1947,8 @@ TextStyle? _taskEditorProminentActionStyle(
   Color? color,
   FontWeight fontWeight = FontWeight.w600,
 }) {
-  return Theme.of(
-    context,
-  ).textTheme.labelLarge?.copyWith(color: color, fontWeight: fontWeight);
+  return Theme.of(context).textTheme.labelLarge
+      ?.copyWith(color: color, fontWeight: fontWeight);
 }
 
 enum _TaskTimeField { due, start, reminder }

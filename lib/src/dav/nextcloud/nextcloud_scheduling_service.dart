@@ -388,9 +388,9 @@ final class NextcloudSchedulingService {
     String collectionId,
     NextcloudInboxMessage message,
   ) async {
-    final current = (await inbox(
-      collectionId,
-    )).where((m) => m.href == message.href).firstOrNull;
+    final current = (await inbox(collectionId))
+        .where((m) => m.href == message.href)
+        .firstOrNull;
     if (current == null) return;
     if (current.etag != message.etag) {
       throw nextcloudOperationError(412, 'DavInboxMessageChanged');

@@ -4,7 +4,9 @@ import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
 
 import '../../core/logging/redacting_logger.dart';
+
 import 'package:busymax/src/core/auth/oauth_models.dart';
+
 import '../oauth/oauth_service.dart';
 
 class AuthenticatedHttpClient extends http.BaseClient {

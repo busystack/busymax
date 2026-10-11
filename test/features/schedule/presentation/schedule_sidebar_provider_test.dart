@@ -1,10 +1,13 @@
 import 'dart:async';
+
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../test_localized_app.dart';
 import '../../../support/memory_settings_store.dart';
+
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_sidebar.dart';

@@ -118,9 +118,8 @@ void main() {
     await _seedAccount(database, BusyProvider.nextcloud);
 
     await expectLater(
-      CalendarRepository(
-        database: database,
-      ).createLocalSource(accountId: 'account', summary: 'Wrong route'),
+      CalendarRepository(database: database)
+          .createLocalSource(accountId: 'account', summary: 'Wrong route'),
       throwsA(isA<CalendarMutationNotAllowed>()),
     );
     expect(await database.select(database.pendingOps).get(), isEmpty);

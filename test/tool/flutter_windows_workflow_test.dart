@@ -30,12 +30,10 @@ void main() {
 
   test('Windows CI retains combined validation and all build stages', () {
     final workflow = _readWorkflow();
-    final buildScript = File(
-      'tool/windows/build_release.ps1',
-    ).readAsStringSync();
-    final prerequisiteScript = File(
-      'tool/windows/check_prerequisites.ps1',
-    ).readAsStringSync();
+    final buildScript = File('tool/windows/build_release.ps1')
+        .readAsStringSync();
+    final prerequisiteScript = File('tool/windows/check_prerequisites.ps1')
+        .readAsStringSync();
 
     expect(workflow, contains("flutter-version: '3.47.5'"));
 
@@ -171,9 +169,8 @@ String _stepBlock(String workflow, String name) {
 String _triggerBlock(String triggers, String event) {
   final start = triggers.indexOf('  $event:');
   expect(start, isNonNegative, reason: 'Missing workflow trigger: $event');
-  final nextEvent = RegExp(
-    r'\n  [a-z_]+:',
-  ).firstMatch(triggers.substring(start + 1));
+  final nextEvent = RegExp(r'\n  [a-z_]+:')
+      .firstMatch(triggers.substring(start + 1));
   final end = nextEvent == null ? null : start + 1 + nextEvent.start;
   return triggers.substring(start, end).trim();
 }

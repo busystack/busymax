@@ -375,9 +375,8 @@ class BusyMaxGtkHeaderIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final effectiveDirection = direction ?? Directionality.of(context);
-    final asset = GtkHeaderIconScope.of(
-      context,
-    ).catalog.assetFor(icon, effectiveDirection);
+    final asset = GtkHeaderIconScope.of(context).catalog
+        .assetFor(icon, effectiveDirection);
     final color = IconTheme.of(context).color;
     return ExcludeSemantics(
       child: SizedBox.square(
@@ -990,9 +989,8 @@ class _BusyMaxLinuxHeaderSearchFieldState
                               Semantics(
                                 container: true,
                                 button: true,
-                                label: MaterialLocalizations.of(
-                                  context,
-                                ).clearButtonTooltip,
+                                label: MaterialLocalizations.of(context)
+                                    .clearButtonTooltip,
                                 onTap: _clear,
                                 child: ExcludeSemantics(
                                   key: BusyMaxLinuxHeaderSearchField

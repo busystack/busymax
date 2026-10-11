@@ -124,9 +124,8 @@ void main() {
       final pendingBefore = await database.select(database.pendingOps).get();
       final launched = <Uri>[];
 
-      final destination = await LocationDestinationResolver(
-        repository,
-      ).resolveSaved(location: 'Hall', identity: identity);
+      final destination = await LocationDestinationResolver(repository)
+          .resolveSaved(location: 'Hall', identity: identity);
       final result = await ExternalLocationLauncher(
         platform: () => ExternalLocationPlatform.windows,
         launcher: (uri, {mode = LaunchMode.platformDefault}) async {
@@ -161,13 +160,11 @@ void main() {
       source: 'legacy-provider',
       attribution: 'City result attribution',
     );
-    await LocationResolutionRepository(
-      database,
-    ).apply(identity, 'Hall', LocationChange.replace(coarse));
+    await LocationResolutionRepository(database)
+        .apply(identity, 'Hall', LocationChange.replace(coarse));
 
-    final remembered = await LocationResolutionRepository(
-      database,
-    ).load(identity, 'Hall');
+    final remembered = await LocationResolutionRepository(database)
+        .load(identity, 'Hall');
 
     expect(remembered?.source, 'legacy-provider');
     expect(remembered?.attribution, 'City result attribution');
@@ -659,9 +656,9 @@ void main() {
             title: 'Occurrence',
             location: location,
             startDateTime: start,
-            endDateTime: DateTime.parse(
-              start,
-            ).add(const Duration(hours: 1)).toIso8601String(),
+            endDateTime: DateTime.parse(start)
+                .add(const Duration(hours: 1))
+                .toIso8601String(),
             isCancelled: cancelled,
           ),
         );
@@ -819,9 +816,8 @@ void main() {
       ),
     );
 
-    final destination = await LocationDestinationResolver(
-      repository,
-    ).resolveSaved(location: '', identity: occurrence);
+    final destination = await LocationDestinationResolver(repository)
+        .resolveSaved(location: '', identity: occurrence);
 
     expect(destination?.point, _selection.point);
   });

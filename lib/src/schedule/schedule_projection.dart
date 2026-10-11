@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:busymax/src/providers/busy_provider.dart';
+
 import 'schedule_item.dart';
 import 'schedule_range.dart';
 import 'schedule_scope.dart';

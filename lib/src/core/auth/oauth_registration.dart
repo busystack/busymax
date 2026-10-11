@@ -181,9 +181,9 @@ final class MicrosoftPublicRegistration extends OAuthRegistration {
       );
 }
 
-bool isUuid(String value) => RegExp(
-  r'^[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$',
-).hasMatch(value);
+bool isUuid(String value) =>
+    RegExp(r'^[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$')
+        .hasMatch(value);
 
 /// Opaque, single-use reference to configuration held by the auth layer.
 final class RegistrationHandle {
@@ -228,5 +228,6 @@ final class AuthorizationRequest {
       };
 }
 
-typedef AuthorizationCommit =
-    Future<void> Function(Future<void> Function() persistAccount);
+typedef AuthorizationCommit = Future<void> Function(
+  Future<void> Function() persistAccount,
+);

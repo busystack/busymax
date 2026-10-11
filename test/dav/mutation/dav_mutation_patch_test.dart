@@ -56,9 +56,9 @@ void main() {
         operations: [DavPatchOperation.setTaskProgress(percent)],
       ).applyTo(_task, nowUtc: DateTime.utc(2026, 8, 8, 12, 34, 56));
 
-      final completed = IcalSemanticDocument.parse(
-        apply(100),
-      ).components.single;
+      final completed = IcalSemanticDocument.parse(apply(100))
+          .components
+          .single;
       expect(completed.status, 'COMPLETED');
       expect(completed.percentComplete, 100);
       expect(completed.completed?.rawValue, '20260808T123456Z');
@@ -194,43 +194,40 @@ void main() {
     expect(result, contains('X-ALARM-UNKNOWN:keep'));
   });
 
-  test(
-    'editing one DAV reminder preserves the other editable alarm verbatim',
-    () {
-      final baseline = _baselineEvent.replaceFirst(
-        'BEGIN:VALARM\r\nACTION:AUDIO',
-        'BEGIN:VALARM\r\nACTION:DISPLAY\r\nTRIGGER:-PT30M\r\n'
-            'DESCRIPTION:Second reminder\r\nX-ALARM-KEEP:second\r\nEND:VALARM\r\n'
-            'BEGIN:VALARM\r\nACTION:AUDIO',
-      );
-      final patch = buildDavEventUpdatePatch(
-        target: target,
-        baselineRawIcs: baseline,
-        input: DavEventMutationInput(
-          title: 'Baseline',
-          allDay: false,
-          start: DateTime(2026, 8, 3, 9),
-          end: DateTime(2026, 8, 3, 10),
-          startTimeZone: 'America/Vancouver',
-          endTimeZone: 'America/Vancouver',
-          description: 'Baseline details',
-          location: 'Room one',
-          reminders: const {
-            'davEditableRows': [
-              {'originalIndex': 0, 'minutes': 15},
-              {'originalIndex': 1, 'minutes': 45},
-            ],
-          },
-          remindersChanged: true,
-        ),
-      );
-      final result = patch!.applyTo(baseline, nowUtc: DateTime.utc(2026, 8, 8));
-      expect(result, contains('TRIGGER:-PT15M'));
-      expect(result, contains('X-ALARM-UNKNOWN:keep'));
-      expect(result, contains('TRIGGER:-PT45M'));
-      expect(result, contains('ACTION:AUDIO'));
-    },
-  );
+  test('editing one DAV reminder preserves the other editable alarm verbatim', () {
+    final baseline = _baselineEvent.replaceFirst(
+      'BEGIN:VALARM\r\nACTION:AUDIO',
+      'BEGIN:VALARM\r\nACTION:DISPLAY\r\nTRIGGER:-PT30M\r\n'
+          'DESCRIPTION:Second reminder\r\nX-ALARM-KEEP:second\r\nEND:VALARM\r\n'
+          'BEGIN:VALARM\r\nACTION:AUDIO',
+    );
+    final patch = buildDavEventUpdatePatch(
+      target: target,
+      baselineRawIcs: baseline,
+      input: DavEventMutationInput(
+        title: 'Baseline',
+        allDay: false,
+        start: DateTime(2026, 8, 3, 9),
+        end: DateTime(2026, 8, 3, 10),
+        startTimeZone: 'America/Vancouver',
+        endTimeZone: 'America/Vancouver',
+        description: 'Baseline details',
+        location: 'Room one',
+        reminders: const {
+          'davEditableRows': [
+            {'originalIndex': 0, 'minutes': 15},
+            {'originalIndex': 1, 'minutes': 45},
+          ],
+        },
+        remindersChanged: true,
+      ),
+    );
+    final result = patch!.applyTo(baseline, nowUtc: DateTime.utc(2026, 8, 8));
+    expect(result, contains('TRIGGER:-PT15M'));
+    expect(result, contains('X-ALARM-UNKNOWN:keep'));
+    expect(result, contains('TRIGGER:-PT45M'));
+    expect(result, contains('ACTION:AUDIO'));
+  });
 
   test('DAV reminder removal and addition preserve unrelated alarms', () {
     final baseline = _baselineEvent.replaceFirst(
@@ -622,9 +619,8 @@ END:VCALENDAR\r
       baseline,
       nowUtc: DateTime.utc(2026, 8, 8, 12),
     );
-    final range = IcalSemanticDocument.parse(
-      candidate,
-    ).components.singleWhere((component) => component.recurrenceRange != null);
+    final range = IcalSemanticDocument.parse(candidate).components
+        .singleWhere((component) => component.recurrenceRange != null);
 
     expect(range.recurrenceRange, 'THISANDFUTURE');
     expect(range.recurrenceId?.rawValue, '20260817T090000');
@@ -677,9 +673,8 @@ END:VCALENDAR\r
       occurrenceKey: 'TZID=America/Vancouver:20260810T090000',
       baselineRawIcs: _baselineEvent,
     ).applyTo(_baselineEvent, nowUtc: DateTime.utc(2026, 8, 8, 12));
-    final exception = IcalSemanticDocument.parse(
-      existing,
-    ).components.singleWhere((component) => component.recurrenceIdKey != null);
+    final exception = IcalSemanticDocument.parse(existing).components
+        .singleWhere((component) => component.recurrenceIdKey != null);
     expect(exception.status, 'CANCELLED');
     expect('BEGIN:VEVENT'.allMatches(existing), hasLength(2));
   });

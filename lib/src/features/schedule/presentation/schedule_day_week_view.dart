@@ -1,5 +1,6 @@
 import 'package:busymax/src/ui/common/schedule/clock_hours_painter.dart';
 import 'package:busymax/src/l10n/time_format_scope.dart';
+
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -173,9 +174,8 @@ class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
           child: Text(
             context.l10n.allDay,
             textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: colorScheme.onSurfaceVariant,
-            ),
+            style: Theme.of(context).textTheme.labelSmall
+                ?.copyWith(color: colorScheme.onSurfaceVariant),
           ),
         ),
         fullDayEventsBarDecoration: BoxDecoration(
@@ -295,9 +295,8 @@ class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
               textPainterBuilder: (time, defaultColor) => TextPainter(
                 text: TextSpan(
                   text: _formatHour(context, time),
-                  style: Theme.of(
-                    context,
-                  ).textTheme.labelSmall?.copyWith(color: defaultColor),
+                  style: Theme.of(context).textTheme.labelSmall
+                      ?.copyWith(color: defaultColor),
                 ),
                 textDirection: Directionality.of(context),
                 textAlign: TextAlign.center,

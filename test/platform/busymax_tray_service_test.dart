@@ -247,9 +247,8 @@ void main() {
 
     expect(shown, 1);
     expect(agendas, 1);
-    final source = File(
-      'lib/src/platform/busymax_tray_service.dart',
-    ).readAsStringSync();
+    final source = File('lib/src/platform/busymax_tray_service.dart')
+        .readAsStringSync();
     expect(source, isNot(contains('onContextMenu:')));
   });
 
@@ -363,9 +362,8 @@ void main() {
   });
 
   test('Linux desktop identity matches the displayed BusyMax window', () {
-    final desktop = File(
-      'linux/io.busystack.busymax.desktop',
-    ).readAsStringSync();
+    final desktop = File('linux/io.busystack.busymax.desktop')
+        .readAsStringSync();
     final cmake = File('linux/CMakeLists.txt').readAsStringSync();
     final runner = File('linux/runner/my_application.cc').readAsStringSync();
 

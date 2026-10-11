@@ -335,9 +335,8 @@ void main() {
   }
 
   test('about links match the BusyStack product metadata', () {
-    final source = File(
-      'lib/src/app/busymax_about_dialog.dart',
-    ).readAsStringSync();
+    final source = File('lib/src/app/busymax_about_dialog.dart')
+        .readAsStringSync();
 
     expect(source, contains('https://busystack.org'));
     expect(source, contains('https://github.com/busystack/busymax'));
@@ -345,9 +344,8 @@ void main() {
   });
 
   test('about dialog uses the shared Flutter modal and close adapter', () {
-    final source = File(
-      'lib/src/app/busymax_about_dialog.dart',
-    ).readAsStringSync();
+    final source = File('lib/src/app/busymax_about_dialog.dart')
+        .readAsStringSync();
     final dialogs = File('lib/src/app/busymax_dialogs.dart').readAsStringSync();
 
     expect(source, contains('showBusyMaxModalDialog'));
@@ -361,9 +359,8 @@ void main() {
   });
 
   test('about logo renders the PNG asset, not the launcher SVG', () {
-    final source = File(
-      'lib/src/app/busymax_about_dialog.dart',
-    ).readAsStringSync();
+    final source = File('lib/src/app/busymax_about_dialog.dart')
+        .readAsStringSync();
     final pubspec = File('pubspec.yaml').readAsStringSync();
 
     expect(source, contains('Image.asset'));

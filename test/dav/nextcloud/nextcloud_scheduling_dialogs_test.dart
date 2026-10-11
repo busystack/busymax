@@ -14,6 +14,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:yaru/yaru.dart';
+
 import '../../support/memory_settings_store.dart';
 import '../../test_localized_app.dart';
 import 'nextcloud_scheduling_fixture.dart';
@@ -271,9 +272,8 @@ Future<void> _pump(
     ProviderScope(
       overrides: [
         localSettingsStoreProvider.overrideWithValue(MemorySettingsStore()),
-        nextcloudSchedulingServiceProvider(
-          'account',
-        ).overrideWithValue(NextcloudSchedulingService(fixture.collections)),
+        nextcloudSchedulingServiceProvider('account')
+            .overrideWithValue(NextcloudSchedulingService(fixture.collections)),
       ],
       child: windows
           ? fluent.FluentApp(

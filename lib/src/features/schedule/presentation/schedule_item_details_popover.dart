@@ -135,9 +135,9 @@ class _ScheduleItemDetailsPopoverCard extends StatelessWidget {
                 SizedBox(
                   width: double.infinity,
                   child: BusyMaxPushButton.suggested(
-                    onPressed: () => Navigator.of(
-                      context,
-                    ).pop(ScheduleItemDetailsAction.joinMeeting),
+                    onPressed: () =>
+                        Navigator.of(context)
+                            .pop(ScheduleItemDetailsAction.joinMeeting),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       mainAxisSize: MainAxisSize.min,
@@ -155,9 +155,9 @@ class _ScheduleItemDetailsPopoverCard extends StatelessWidget {
                       event.providerEventId != null) ...[
                 const SizedBox(height: BusyMaxSpacing.xs),
                 BusyMaxPushButton.standard(
-                  onPressed: () => Navigator.of(
-                    context,
-                  ).pop(ScheduleItemDetailsAction.attachments),
+                  onPressed: () =>
+                      Navigator.of(context)
+                          .pop(ScheduleItemDetailsAction.attachments),
                   child: Text(context.l10n.attachments),
                 ),
               ],
@@ -395,9 +395,8 @@ class _ScheduleDetailRow extends StatelessWidget {
             text,
             maxLines: maxLines,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: colorScheme.onSurfaceVariant,
-            ),
+            style: Theme.of(context).textTheme.bodyMedium
+                ?.copyWith(color: colorScheme.onSurfaceVariant),
           ),
         ),
       ],
@@ -424,9 +423,8 @@ class _ScheduleDetailRichRow extends StatelessWidget {
       return const SizedBox.shrink();
     }
     final colorScheme = Theme.of(context).colorScheme;
-    final baseStyle = Theme.of(
-      context,
-    ).textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant);
+    final baseStyle = Theme.of(context).textTheme.bodyMedium
+        ?.copyWith(color: colorScheme.onSurfaceVariant);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -483,9 +481,8 @@ class _ScheduleLocationDetailRow extends StatelessWidget {
             builder: (context, constraints) {
               final locationText = SelectableText(
                 text,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
+                style: Theme.of(context).textTheme.bodyMedium
+                    ?.copyWith(color: colorScheme.onSurfaceVariant),
               );
               if (constraints.maxWidth < 320) {
                 return Column(

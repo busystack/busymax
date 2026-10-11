@@ -36,8 +36,9 @@ import '../features/calendar/presentation/ical_import_flow.dart';
 import '../core/logging/redacting_logger.dart';
 import 'common/desktop_calendar_open_readiness.dart';
 
-typedef BusyMaxTrayServiceFactory =
-    BusyMaxTrayService Function(BusyMaxTrayServiceConfiguration configuration);
+typedef BusyMaxTrayServiceFactory = BusyMaxTrayService Function(
+  BusyMaxTrayServiceConfiguration configuration,
+);
 
 BusyMaxNativeSurfaceTheme busyMaxNativeSurfaceThemeFor(
   ThemeData theme, {

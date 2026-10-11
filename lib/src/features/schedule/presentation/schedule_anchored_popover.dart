@@ -7,12 +7,11 @@ import 'package:flutter/services.dart';
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_dialogs.dart';
 
-typedef ScheduleAnchoredPopoverBuilder =
-    Widget Function(
-      BuildContext context,
-      BusyMaxPopoverArrowSide arrowSide,
-      double arrowAlignment,
-    );
+typedef ScheduleAnchoredPopoverBuilder = Widget Function(
+  BuildContext context,
+  BusyMaxPopoverArrowSide arrowSide,
+  double arrowAlignment,
+);
 
 /// Coordinates anchored popovers with schedule-owned native header actions.
 class ScheduleAnchoredPopoverController {

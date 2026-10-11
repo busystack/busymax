@@ -253,9 +253,8 @@ Future<void> _pump(
         builder: (context, use24, _) => BusyMaxTimeFormatScope(
           formatter: BusyMaxTimeFormatter(locale: locale, use24Hour: use24),
           child: MediaQuery(
-            data: MediaQuery.of(
-              context,
-            ).copyWith(textScaler: TextScaler.linear(scale)),
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: TextScaler.linear(scale)),
             child: child!,
           ),
         ),

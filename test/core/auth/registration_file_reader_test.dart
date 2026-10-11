@@ -1,12 +1,14 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
+
 import 'package:busymax/src/config/build_config.dart';
 import 'package:busymax/src/core/auth/authorization_attempt.dart';
 import 'package:busymax/src/core/auth/oauth_models.dart';
 import 'package:busymax/src/core/auth/registration_staging.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter_test/flutter_test.dart';
+
 import '../../support/native_registration_reader_fixture.dart';
 
 void main() {

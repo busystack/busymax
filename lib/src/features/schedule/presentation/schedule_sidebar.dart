@@ -1,6 +1,8 @@
 import '../../../core/http/request_dispatch_exception.dart';
+
 import 'dart:async';
 import 'dart:math' as math;
+
 import '../../../dav/presentation/nextcloud_collection_dialog.dart';
 import '../../../dav/nextcloud/nextcloud_dav_context.dart';
 
@@ -33,7 +35,9 @@ import '../../sync/sync_auth_error.dart';
 import '../../sync/sync_failure_notification_policy.dart';
 import '../../task_lists/data/task_lists_repository.dart';
 import '../../tasks/domain/task_capabilities.dart';
+
 import 'package:busymax/src/providers/busy_provider.dart';
+
 import 'mini_calendar.dart';
 
 class ScheduleSidebar extends ConsumerWidget {
@@ -804,11 +808,10 @@ class _AccountHeaderRow extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: hasSecondaryLabel
-                                ? Theme.of(
-                                    context,
-                                  ).textTheme.bodySmall?.copyWith(
-                                    color: colorScheme.onSurfaceVariant,
-                                  )
+                                ? Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(
+                                        color: colorScheme.onSurfaceVariant,
+                                      )
                                 : Theme.of(context).textTheme.labelLarge,
                           ),
                         ),

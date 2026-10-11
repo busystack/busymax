@@ -419,40 +419,37 @@ void main() {
       expect((await fixture.sharing.load('collection')).publishUrl, isNull);
     },
   );
-  test(
-    'trash queries events and tasks and restores the returned VTODO href',
-    () async {
-      final listing = await fixture.trash.list();
-      expect(listing.items, hasLength(2));
-      final task = listing.items.singleWhere(
-        (i) => i.kind == NextcloudTrashKind.task,
-      );
-      expect(task.href.path, endsWith('/objects/42.ics'));
-      await fixture.trash.restore(task);
-      final move = fixture.requests.singleWhere((r) => r.method == 'MOVE');
-      expect(move.url, task.href);
-      expect(
-        move.headers['destination'],
-        '${NextcloudAdminFixture.origin}${NextcloudAdminFixture.bin}restore/file',
-      );
-      expect(move.headers['if-match'], '"exact-trash-etag"');
-      expect(move.headers['overwrite'], 'F');
-      expect(move.headers['x-nc-caldav-no-trashbin'], isNull);
-      expect((await fixture.trash.list()).items, hasLength(1));
-      expect(
-        await fixture.database.select(fixture.database.pendingOps).get(),
-        isEmpty,
-      );
-      expect(
-        await fixture.database.select(fixture.database.calendarEvents).get(),
-        isEmpty,
-      );
-      expect(
-        await fixture.database.select(fixture.database.tasks).get(),
-        isEmpty,
-      );
-    },
-  );
+  test('trash queries events and tasks and restores the returned VTODO href', () async {
+    final listing = await fixture.trash.list();
+    expect(listing.items, hasLength(2));
+    final task = listing.items.singleWhere(
+      (i) => i.kind == NextcloudTrashKind.task,
+    );
+    expect(task.href.path, endsWith('/objects/42.ics'));
+    await fixture.trash.restore(task);
+    final move = fixture.requests.singleWhere((r) => r.method == 'MOVE');
+    expect(move.url, task.href);
+    expect(
+      move.headers['destination'],
+      '${NextcloudAdminFixture.origin}${NextcloudAdminFixture.bin}restore/file',
+    );
+    expect(move.headers['if-match'], '"exact-trash-etag"');
+    expect(move.headers['overwrite'], 'F');
+    expect(move.headers['x-nc-caldav-no-trashbin'], isNull);
+    expect((await fixture.trash.list()).items, hasLength(1));
+    expect(
+      await fixture.database.select(fixture.database.pendingOps).get(),
+      isEmpty,
+    );
+    expect(
+      await fixture.database.select(fixture.database.calendarEvents).get(),
+      isEmpty,
+    );
+    expect(
+      await fixture.database.select(fixture.database.tasks).get(),
+      isEmpty,
+    );
+  });
   test(
     'expired trash entries cannot produce a second restore request',
     () async {

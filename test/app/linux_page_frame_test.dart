@@ -324,9 +324,8 @@ class _FrameHarnessState extends State<_FrameHarness> {
   @override
   Widget build(BuildContext context) {
     return MediaQuery(
-      data: MediaQuery.of(
-        context,
-      ).copyWith(disableAnimations: disableAnimations),
+      data: MediaQuery.of(context)
+          .copyWith(disableAnimations: disableAnimations),
       child: LinuxPageFrame(
         header: Builder(
           builder: (context) => SizedBox(

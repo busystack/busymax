@@ -1,4 +1,5 @@
 import '../domain/event_property_policy.dart';
+
 import 'dart:convert';
 
 import 'package:busymax/src/providers/busy_provider.dart';
@@ -42,11 +43,10 @@ import 'calendar_event_detail.dart';
 import '../../../dav/nextcloud/nextcloud_scheduling_policy.dart';
 import '../../../dav/nextcloud/nextcloud_meeting_mutations.dart';
 
-typedef CalendarEventRecoveryFetcher =
-    Future<CalendarEventDto> Function({
-      required String calendarId,
-      required String eventId,
-    });
+typedef CalendarEventRecoveryFetcher = Future<CalendarEventDto> Function({
+  required String calendarId,
+  required String eventId,
+});
 
 final class ImportedEventException {
   const ImportedEventException({
@@ -214,12 +214,10 @@ class CalendarSourceCapabilities {
         dav['delegated'] != true &&
         dav['ownerHref'] != null &&
         dav['principalHref'] != null &&
-        Uri.parse(
-              dav['ownerHref']! as String,
-            ).path.replaceFirst(RegExp(r'/+$'), '') !=
-            Uri.parse(
-              dav['principalHref']! as String,
-            ).path.replaceFirst(RegExp(r'/+$'), '');
+        Uri.parse(dav['ownerHref']! as String).path
+                .replaceFirst(RegExp(r'/+$'), '') !=
+            Uri.parse(dav['principalHref']! as String).path
+                .replaceFirst(RegExp(r'/+$'), '');
     final renameMode = switch (source.provider) {
       BusyProvider.nextcloud when davMetadataWritable =>
         CalendarRenameMode.global,
@@ -853,9 +851,8 @@ class CalendarRepository {
     )..where((row) => row.id.equals(sourceId))).getSingle();
     final entity = await _sourceEntity(source);
     if (entity.provider == BusyProvider.nextcloud) {
-      final result = await _requiredNextcloudCollections(
-        source,
-      ).remove(source.davCollectionId!);
+      final result = await _requiredNextcloudCollections(source)
+          .remove(source.davCollectionId!);
       if (result == NextcloudMutationOutcome.refreshPending) {
         throw const NextcloudRefreshPending();
       }
@@ -906,9 +903,8 @@ class CalendarRepository {
         )..where((row) => row.id.equals(sourceId))).go();
         return;
       }
-      final otherWork = (await _pendingCalendarWork(
-        source.id,
-      )).where((operation) => operation.id != createOp?.id);
+      final otherWork = (await _pendingCalendarWork(source.id))
+          .where((operation) => operation.id != createOp?.id);
       if (otherWork.isNotEmpty) {
         throw CalendarMutationNotAllowed(
           operation: removalMode == CalendarRemovalMode.removeFromList
@@ -1057,12 +1053,11 @@ class CalendarRepository {
             ),
           );
       if (source.provider == BusyProvider.google && source.isDeleted) {
-        await LocationResolutionRepository(
-          _database,
-        ).removeGoogleSeriesSourcesForCalendar(
-          accountId: accountId,
-          sourceId: id,
-        );
+        await LocationResolutionRepository(_database)
+            .removeGoogleSeriesSourcesForCalendar(
+              accountId: accountId,
+              sourceId: id,
+            );
       }
     });
   }
@@ -1118,12 +1113,11 @@ class CalendarRepository {
       if (missingSourceIds.isEmpty) return;
 
       for (final sourceId in missingSourceIds) {
-        await LocationResolutionRepository(
-          _database,
-        ).removeGoogleSeriesSourcesForCalendar(
-          accountId: accountId,
-          sourceId: sourceId,
-        );
+        await LocationResolutionRepository(_database)
+            .removeGoogleSeriesSourcesForCalendar(
+              accountId: accountId,
+              sourceId: sourceId,
+            );
       }
 
       final missingEventIds = {
@@ -1704,9 +1698,8 @@ class CalendarRepository {
       _database.calendarEvents,
     )..where((candidate) => candidate.id.equals(eventId))).getSingleOrNull();
     if (row != null) {
-      await LocationResolutionRepository(
-        _database,
-      ).reconcileGoogleSeriesMaster(row);
+      await LocationResolutionRepository(_database)
+          .reconcileGoogleSeriesMaster(row);
     }
   }
 
@@ -2582,9 +2575,9 @@ class CalendarRepository {
     final moveOperationId = const Uuid().v4();
     final patchOperationId = const Uuid().v4();
     final nowUtc = DateTime.now().toUtc().toIso8601String();
-    final patchCreatedAtUtc = DateTime.parse(
-      nowUtc,
-    ).add(const Duration(microseconds: 1)).toIso8601String();
+    final patchCreatedAtUtc = DateTime.parse(nowUtc)
+        .add(const Duration(microseconds: 1))
+        .toIso8601String();
     final now = _now().millisecondsSinceEpoch;
     await _database.transaction(() async {
       if (seriesMutation && _eventRequestHasMutation(patchRequest)) {
@@ -2616,13 +2609,12 @@ class CalendarRepository {
         if (provider == BusyProvider.google &&
             existing.providerRecurringEventId == null &&
             existing.recurrenceJson != null) {
-          await LocationResolutionRepository(
-            _database,
-          ).removeGoogleSeriesSource(
-            accountId: existing.accountId,
-            sourceId: existing.calendarSourceId,
-            providerSeriesId: existing.providerEventId,
-          );
+          await LocationResolutionRepository(_database)
+              .removeGoogleSeriesSource(
+                accountId: existing.accountId,
+                sourceId: existing.calendarSourceId,
+                providerSeriesId: existing.providerEventId,
+              );
         }
       }
       await _database
@@ -2770,18 +2762,17 @@ class CalendarRepository {
         localProjectionId: existing.id,
         postMovePatch: patch,
       );
-      await DavObjectRepository(
-        database: _database,
-      ).projectLocalMutationCandidate(
-        accountId: existing.accountId,
-        collectionId: sourceCollectionId,
-        provider: BusyProviderCodec.requireStorageValue(
-          originalSource.provider,
-        ),
-        objectId: objectId,
-        candidateRawIcs: candidate,
-        projectedAtUtc: _now().toUtc(),
-      );
+      await DavObjectRepository(database: _database)
+          .projectLocalMutationCandidate(
+            accountId: existing.accountId,
+            collectionId: sourceCollectionId,
+            provider: BusyProviderCodec.requireStorageValue(
+              originalSource.provider,
+            ),
+            objectId: objectId,
+            candidateRawIcs: candidate,
+            projectedAtUtc: _now().toUtc(),
+          );
       await (_database.update(_database.calendarEvents)..where(
             (row) =>
                 row.accountId.equals(existing.accountId) &
@@ -3858,16 +3849,15 @@ class CalendarRepository {
         objectId: objectId,
         patch: patch,
       );
-      await DavObjectRepository(
-        database: _database,
-      ).projectLocalMutationCandidate(
-        accountId: existing.accountId,
-        collectionId: source.davCollectionId!,
-        provider: BusyProvider.nextcloud,
-        objectId: objectId,
-        candidateRawIcs: patch.applyTo(baseline, nowUtc: _now().toUtc()),
-        projectedAtUtc: _now().toUtc(),
-      );
+      await DavObjectRepository(database: _database)
+          .projectLocalMutationCandidate(
+            accountId: existing.accountId,
+            collectionId: source.davCollectionId!,
+            provider: BusyProvider.nextcloud,
+            objectId: objectId,
+            candidateRawIcs: patch.applyTo(baseline, nowUtc: _now().toUtc()),
+            projectedAtUtc: _now().toUtc(),
+          );
     });
     await _rebuildEventNotificationsFor({existing.accountId});
     return existing.accountId;
@@ -4176,16 +4166,15 @@ class CalendarRepository {
           endTimeZone: endTimeZone,
         );
       } else {
-        await DavObjectRepository(
-          database: _database,
-        ).projectLocalMutationCandidate(
-          accountId: existing.accountId,
-          collectionId: collectionId,
-          provider: BusyProviderCodec.requireStorageValue(source.provider),
-          objectId: objectId,
-          candidateRawIcs: candidate,
-          projectedAtUtc: _now().toUtc(),
-        );
+        await DavObjectRepository(database: _database)
+            .projectLocalMutationCandidate(
+              accountId: existing.accountId,
+              collectionId: collectionId,
+              provider: BusyProviderCodec.requireStorageValue(source.provider),
+              objectId: objectId,
+              candidateRawIcs: candidate,
+              projectedAtUtc: _now().toUtc(),
+            );
       }
     });
     if (timingOnly || deferNotifications) return;
@@ -4273,9 +4262,8 @@ class CalendarRepository {
         if (!updated) {
           throw StateError('The pending DAV create is no longer editable.');
         }
-        final component = IcalDocumentPatcher(
-          IcalDocument.parse(candidate),
-        ).requireComponent(target);
+        final component = IcalDocumentPatcher(IcalDocument.parse(candidate))
+            .requireComponent(target);
         await (_database.update(
           _database.calendarEvents,
         )..where((row) => row.id.equals(existing.id))).write(
@@ -4297,16 +4285,15 @@ class CalendarRepository {
           objectId: objectId,
           patch: patch,
         );
-        await DavObjectRepository(
-          database: _database,
-        ).projectLocalMutationCandidate(
-          accountId: accountId,
-          collectionId: collectionId,
-          provider: BusyProvider.nextcloud,
-          objectId: objectId,
-          candidateRawIcs: candidate,
-          projectedAtUtc: _now().toUtc(),
-        );
+        await DavObjectRepository(database: _database)
+            .projectLocalMutationCandidate(
+              accountId: accountId,
+              collectionId: collectionId,
+              provider: BusyProvider.nextcloud,
+              objectId: objectId,
+              candidateRawIcs: candidate,
+              projectedAtUtc: _now().toUtc(),
+            );
       }
     });
     return loadEventDetail(eventId);
@@ -4404,16 +4391,15 @@ class CalendarRepository {
           objectId: objectId,
           patch: patch,
         );
-        await DavObjectRepository(
-          database: _database,
-        ).projectLocalMutationCandidate(
-          accountId: existing.accountId,
-          collectionId: collectionId,
-          provider: provider,
-          objectId: objectId,
-          candidateRawIcs: candidate,
-          projectedAtUtc: _now().toUtc(),
-        );
+        await DavObjectRepository(database: _database)
+            .projectLocalMutationCandidate(
+              accountId: existing.accountId,
+              collectionId: collectionId,
+              provider: provider,
+              objectId: objectId,
+              candidateRawIcs: candidate,
+              projectedAtUtc: _now().toUtc(),
+            );
         return;
       }
 
@@ -4492,16 +4478,15 @@ class CalendarRepository {
         objectId: objectId,
         patch: patch,
       );
-      await DavObjectRepository(
-        database: _database,
-      ).projectLocalMutationCandidate(
-        accountId: existing.accountId,
-        collectionId: collectionId,
-        provider: provider,
-        objectId: objectId,
-        candidateRawIcs: candidate,
-        projectedAtUtc: _now().toUtc(),
-      );
+      await DavObjectRepository(database: _database)
+          .projectLocalMutationCandidate(
+            accountId: existing.accountId,
+            collectionId: collectionId,
+            provider: provider,
+            objectId: objectId,
+            candidateRawIcs: candidate,
+            projectedAtUtc: _now().toUtc(),
+          );
     });
     await _notificationScheduleService().rebuildUpcomingEventNotifications(
       existing.accountId,
@@ -4636,9 +4621,8 @@ class CalendarRepository {
     };
     return {
       for (final operation in operations)
-        ..._calendarPendingRequest(
-          operation,
-        ).keys.where(projectedFields.contains),
+        ..._calendarPendingRequest(operation).keys
+            .where(projectedFields.contains),
     };
   }
 
@@ -5178,12 +5162,10 @@ DavEventMutationInput _seriesDavEventInput({
       );
     }
   }
-  final startDelta = providerCivilDateTime(
-    desired.start,
-  ).difference(providerCivilDateTime(projectedStart));
-  final endDelta = providerCivilDateTime(
-    desired.end,
-  ).difference(providerCivilDateTime(projectedEnd));
+  final startDelta = providerCivilDateTime(desired.start)
+      .difference(providerCivilDateTime(projectedStart));
+  final endDelta = providerCivilDateTime(desired.end)
+      .difference(providerCivilDateTime(projectedEnd));
   final startChanged = startDelta != Duration.zero;
   final endChanged = endDelta != Duration.zero;
   final allDayChanged = desired.allDay != existing.allDay;

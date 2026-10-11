@@ -5,6 +5,7 @@ import '../calendar_providers/calendar_sync_dto.dart';
 import '../core/time/provider_date_time.dart';
 import '../features/maps/domain/geographic_point.dart';
 import '../features/maps/domain/location_result.dart';
+
 import 'package:busymax/src/providers/busy_provider.dart';
 
 Map<String, Object?> microsoftStructuredLocation({

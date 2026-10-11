@@ -61,9 +61,8 @@ void main() {
           _FakeResponse(302, headers: {'location': target}),
         ]);
         await expectLater(
-          IoWebCalHttpTransport(
-            clientFactory: () => client,
-          ).get(Uri.parse('https://calendar.example.test/start')),
+          IoWebCalHttpTransport(clientFactory: () => client)
+              .get(Uri.parse('https://calendar.example.test/start')),
           throwsA(
             isA<WebCalHttpException>().having(
               (error) => error.code,
@@ -79,9 +78,8 @@ void main() {
         _FakeResponse(302, headers: {'location': '/start'}),
       ]);
       await expectLater(
-        IoWebCalHttpTransport(
-          clientFactory: () => loop,
-        ).get(Uri.parse('https://calendar.example.test/start')),
+        IoWebCalHttpTransport(clientFactory: () => loop)
+            .get(Uri.parse('https://calendar.example.test/start')),
         throwsA(
           isA<WebCalHttpException>().having(
             (error) => error.code,

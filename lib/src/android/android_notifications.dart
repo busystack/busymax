@@ -542,9 +542,7 @@ final class AndroidNotificationService
       }
     }
 
-    _precisionDiagnostic = exact
-        ? 'Exact reminder alarms are enabled.'
-        : 'Exact alarm access is unavailable; reminders use Android inexact scheduling.';
+    _precisionDiagnostic = exact ? 'Exact reminder alarms are enabled.' : 'Exact alarm access is unavailable; reminders use Android inexact scheduling.';
     if (rows.length > _maximumScheduledAlarms) {
       _precisionDiagnostic =
           '$_precisionDiagnostic ${rows.length - _maximumScheduledAlarms} later reminders are waiting for scheduling capacity.';

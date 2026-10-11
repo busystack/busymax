@@ -5,22 +5,21 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  for (final testCase in <({DesktopNotificationReadiness readiness, String message})>[
-    (
-      readiness: const DesktopNotificationReadiness(
-        DesktopNotificationReadinessState.unavailableUnpackaged,
-      ),
-      message:
-          'This unpackaged development run cannot use Windows notifications. Install the test-signed MSIX to test reminders.',
-    ),
-    (
-      readiness: const DesktopNotificationReadiness(
-        DesktopNotificationReadinessState.failedInstalledPackage,
-      ),
-      message:
-          'BusyMax could not initialize Windows notifications. Reminders will not appear until this installation problem is resolved.',
-    ),
-  ]) {
+  for (final testCase
+      in <({DesktopNotificationReadiness readiness, String message})>[
+        (
+          readiness: const DesktopNotificationReadiness(
+            DesktopNotificationReadinessState.unavailableUnpackaged,
+          ),
+          message: 'This unpackaged development run cannot use Windows notifications. Install the test-signed MSIX to test reminders.',
+        ),
+        (
+          readiness: const DesktopNotificationReadiness(
+            DesktopNotificationReadinessState.failedInstalledPackage,
+          ),
+          message: 'BusyMax could not initialize Windows notifications. Reminders will not appear until this installation problem is resolved.',
+        ),
+      ]) {
     testWidgets(
       'notification failure is visible: ${testCase.readiness.state}',
       (tester) async {

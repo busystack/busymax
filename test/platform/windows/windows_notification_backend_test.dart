@@ -129,41 +129,38 @@ void main() {
     );
   }
 
-  test(
-    'summary routes reject reminder actions, mixed payloads, and mismatched identities',
-    () async {
-      final plugin = _FakeNotificationsPlugin();
-      final activations = <DesktopActivation>[];
-      final backend = await WindowsNotificationBackend.create(
-        appUserModelId: 'BusyStack.BusyMax_test',
-        plugin: plugin,
-        idStore: ids(),
-        onActivation: activations.add,
+  test('summary routes reject reminder actions, mixed payloads, and mismatched identities', () async {
+    final plugin = _FakeNotificationsPlugin();
+    final activations = <DesktopActivation>[];
+    final backend = await WindowsNotificationBackend.create(
+      appUserModelId: 'BusyStack.BusyMax_test',
+      plugin: plugin,
+      idStore: ids(),
+      onActivation: activations.add,
+    );
+    addTearDown(backend.close);
+    for (final extra in [
+      {'action': 'snooze'},
+      {'action': 'dismiss'},
+      {'notificationScheduleId': 'fabricated'},
+      {'stableId': 'different'},
+      {'notificationRoute': 'unknown'},
+    ]) {
+      plugin.response!(
+        NotificationResponse(
+          notificationResponseType:
+              NotificationResponseType.selectedNotification,
+          payload: jsonEncode({
+            'version': 1,
+            'stableId': 'due-today',
+            'notificationRoute': 'due-today',
+            ...extra,
+          }),
+        ),
       );
-      addTearDown(backend.close);
-      for (final extra in [
-        {'action': 'snooze'},
-        {'action': 'dismiss'},
-        {'notificationScheduleId': 'fabricated'},
-        {'stableId': 'different'},
-        {'notificationRoute': 'unknown'},
-      ]) {
-        plugin.response!(
-          NotificationResponse(
-            notificationResponseType:
-                NotificationResponseType.selectedNotification,
-            payload: jsonEncode({
-              'version': 1,
-              'stableId': 'due-today',
-              'notificationRoute': 'due-today',
-              ...extra,
-            }),
-          ),
-        );
-      }
-      expect(activations, isEmpty);
-    },
-  );
+    }
+    expect(activations, isEmpty);
+  });
 
   test('missing AUMID fails initialization', () async {
     await expectLater(

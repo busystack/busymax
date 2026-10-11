@@ -977,9 +977,8 @@ class _AgendaItemSubtitle extends StatelessWidget {
       values,
       maxLines: 2,
       overflow: TextOverflow.ellipsis,
-      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-        color: BusyMaxSurfaceColors.of(context).mutedForeground,
-      ),
+      style: Theme.of(context).textTheme.bodySmall
+          ?.copyWith(color: BusyMaxSurfaceColors.of(context).mutedForeground),
     );
   }
 }

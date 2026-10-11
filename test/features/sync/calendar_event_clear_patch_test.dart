@@ -126,43 +126,39 @@ void main() {
     expect(outgoing['content'], contains('Join Teams meeting'));
   });
 
-  test(
-    'nested Teams HTML is replayed once without stale trailing notes',
-    () async {
-      const meeting =
-          '<div class="teams-meeting"><div><a href="https://teams.microsoft.com/l/meetup-join/example">Join Teams meeting</a></div><p>Meeting ID: 123</p></div>';
-      const original =
-          '<html><body><p>Old before</p>$meeting<p>Old after</p></body></html>';
-      final first = await _editAndReplay(
-        provider: BusyProvider.microsoft,
-        onlineMeeting: true,
-        onlineBodyHtml: original,
-        editedDescription: 'First revision',
-      );
-      final firstHtml =
-          ((jsonDecode(first.patchRequest.body) as Map)['body']
-                  as Map)['content']
-              as String;
-      expect(firstHtml, contains(meeting));
-      expect(firstHtml, isNot(contains('Old before')));
-      expect(firstHtml, isNot(contains('Old after')));
-      expect(first.reopenedDescription, contains('First revision'));
-      final second = await _editAndReplay(
-        provider: BusyProvider.microsoft,
-        onlineMeeting: true,
-        onlineBodyHtml: firstHtml,
-        editedDescription: 'Second revision',
-      );
-      final secondHtml =
-          ((jsonDecode(second.patchRequest.body) as Map)['body']
-                  as Map)['content']
-              as String;
-      expect(meeting.allMatches(secondHtml), hasLength(1));
-      expect(secondHtml, isNot(contains('First revision')));
-      expect(secondHtml, contains('Second revision'));
-      expect(second.reopenedDescription, contains('Second revision'));
-    },
-  );
+  test('nested Teams HTML is replayed once without stale trailing notes', () async {
+    const meeting =
+        '<div class="teams-meeting"><div><a href="https://teams.microsoft.com/l/meetup-join/example">Join Teams meeting</a></div><p>Meeting ID: 123</p></div>';
+    const original =
+        '<html><body><p>Old before</p>$meeting<p>Old after</p></body></html>';
+    final first = await _editAndReplay(
+      provider: BusyProvider.microsoft,
+      onlineMeeting: true,
+      onlineBodyHtml: original,
+      editedDescription: 'First revision',
+    );
+    final firstHtml =
+        ((jsonDecode(first.patchRequest.body) as Map)['body'] as Map)['content']
+            as String;
+    expect(firstHtml, contains(meeting));
+    expect(firstHtml, isNot(contains('Old before')));
+    expect(firstHtml, isNot(contains('Old after')));
+    expect(first.reopenedDescription, contains('First revision'));
+    final second = await _editAndReplay(
+      provider: BusyProvider.microsoft,
+      onlineMeeting: true,
+      onlineBodyHtml: firstHtml,
+      editedDescription: 'Second revision',
+    );
+    final secondHtml =
+        ((jsonDecode(second.patchRequest.body) as Map)['body']
+                as Map)['content']
+            as String;
+    expect(meeting.allMatches(secondHtml), hasLength(1));
+    expect(secondHtml, isNot(contains('First revision')));
+    expect(secondHtml, contains('Second revision'));
+    expect(second.reopenedDescription, contains('Second revision'));
+  });
 }
 
 void _expectUnrelatedOptionalFieldsOmitted(Map<String, Object?> body) {
@@ -280,9 +276,7 @@ _editAndReplay({
         if (onlineMeeting)
           'body': {
             'contentType': 'html',
-            'content':
-                onlineBodyHtml ??
-                '<p>Original agenda</p><div><a href="https://teams.microsoft.com/l/meetup-join/example">Join Teams meeting</a></div>',
+            'content': onlineBodyHtml ?? '<p>Original agenda</p><div><a href="https://teams.microsoft.com/l/meetup-join/example">Join Teams meeting</a></div>',
           },
       },
     ),
@@ -332,9 +326,7 @@ _editAndReplay({
           ? (jsonDecode(request.body) as Map)['body']
           : {
               'contentType': 'html',
-              'content':
-                  onlineBodyHtml ??
-                  '<p>Original agenda</p><div><a href="https://teams.microsoft.com/l/meetup-join/example">Join Teams meeting</a></div>',
+              'content': onlineBodyHtml ?? '<p>Original agenda</p><div><a href="https://teams.microsoft.com/l/meetup-join/example">Join Teams meeting</a></div>',
             };
     }
     return http.Response(
@@ -367,9 +359,8 @@ _editAndReplay({
     applied: applied,
     queuedRequest: queuedRequest,
     patchRequest: patchRequest,
-    reopenedDescription: (await repository.loadEventDetail(
-      eventId,
-    ))?.description,
+    reopenedDescription: (await repository.loadEventDetail(eventId))
+        ?.description,
   );
 }
 

@@ -39,9 +39,8 @@ void main() {
       });
 
       await expectLater(
-        broker(
-          InMemorySecretStore(),
-        ).authorizationHeader(BusyProvider.google, 'google:account'),
+        broker(InMemorySecretStore())
+            .authorizationHeader(BusyProvider.google, 'google:account'),
         throwsA(
           isA<OAuthException>().having(
             (error) => error.code,
@@ -73,9 +72,8 @@ void main() {
       });
 
       await expectLater(
-        broker(
-          InMemorySecretStore(),
-        ).authorizationHeader(BusyProvider.microsoft, 'microsoft:account'),
+        broker(InMemorySecretStore())
+            .authorizationHeader(BusyProvider.microsoft, 'microsoft:account'),
         throwsA(
           isA<OAuthException>().having(
             (error) => error.code,
@@ -105,37 +103,34 @@ void main() {
     expect(removal.arguments, containsPair('revoke', false));
   });
 
-  test(
-    'optional Outlook category header requires the grant even with an opaque token',
-    () async {
-      var includeCategory = false;
-      messenger.setMockMethodCallHandler(channel, (call) async {
-        expect(call.method, 'authorizeMicrosoftSilent');
-        expect(
-          (call.arguments as Map)['scopes'],
-          contains('MailboxSettings.Read'),
-        );
-        return <String, Object?>{
-          'accessToken': 'opaque-token-value',
-          'nativeAccountId': 'native',
-          'scopes': <String>[
-            'User.Read',
-            'Tasks.ReadWrite',
-            'Calendars.ReadWrite',
-            if (includeCategory) 'MailboxSettings.Read',
-          ],
-        };
-      });
-      final subject = broker(InMemorySecretStore());
-      await expectLater(
-        subject.microsoftCategoryAuthorizationHeader('microsoft:account'),
-        throwsA(isA<OAuthException>()),
-      );
-      includeCategory = true;
+  test('optional Outlook category header requires the grant even with an opaque token', () async {
+    var includeCategory = false;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      expect(call.method, 'authorizeMicrosoftSilent');
       expect(
-        await subject.microsoftCategoryAuthorizationHeader('microsoft:account'),
-        'Bearer opaque-token-value',
+        (call.arguments as Map)['scopes'],
+        contains('MailboxSettings.Read'),
       );
-    },
-  );
+      return <String, Object?>{
+        'accessToken': 'opaque-token-value',
+        'nativeAccountId': 'native',
+        'scopes': <String>[
+          'User.Read',
+          'Tasks.ReadWrite',
+          'Calendars.ReadWrite',
+          if (includeCategory) 'MailboxSettings.Read',
+        ],
+      };
+    });
+    final subject = broker(InMemorySecretStore());
+    await expectLater(
+      subject.microsoftCategoryAuthorizationHeader('microsoft:account'),
+      throwsA(isA<OAuthException>()),
+    );
+    includeCategory = true;
+    expect(
+      await subject.microsoftCategoryAuthorizationHeader('microsoft:account'),
+      'Bearer opaque-token-value',
+    );
+  });
 }

@@ -89,11 +89,10 @@ final class BusyMaxTrayServiceConfiguration {
   final BusyMaxTrayActions actions;
 }
 
-typedef BusyMaxTrayMenuUpdater =
-    Future<void> Function(
-      DBusMenuItem menu,
-      BusyMaxTrayMenuPresentation presentation,
-    );
+typedef BusyMaxTrayMenuUpdater = Future<void> Function(
+  DBusMenuItem menu,
+  BusyMaxTrayMenuPresentation presentation,
+);
 
 final class BusyMaxTrayMenuController {
   BusyMaxTrayMenuController({

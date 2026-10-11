@@ -105,11 +105,9 @@ Future<void> _pumpDiagnostics(
 }
 
 void _selectMenuAction(WidgetTester tester, String label) {
-  final menu =
-      tester.widget(
-            find.byWidgetPredicate((widget) => widget is BusyMaxMenuButton),
-          )
-          as dynamic;
+  final menu = tester.widget(
+    find.byWidgetPredicate((widget) => widget is BusyMaxMenuButton),
+  ) as dynamic;
   final entry = (menu.entries as List<dynamic>).singleWhere(
     (candidate) => candidate.label == label,
   );

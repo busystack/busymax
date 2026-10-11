@@ -1,6 +1,8 @@
 import 'package:busymax/src/core/auth/authorization_attempt.dart';
+
 import 'dart:convert';
 import 'dart:async';
+
 import 'package:busymax/src/core/auth/oauth_models.dart';
 import 'package:busymax/src/android/android_authorization.dart';
 import 'package:busymax/src/config/build_config.dart';
@@ -174,42 +176,39 @@ void main() {
     await broker.nativeCredential('opaque', BusyProvider.microsoft);
   }
 
-  test(
-    'Android cancellation captured before recovery prevents later native dispatch and fresh retry succeeds',
-    () async {
-      final cancellation = AuthorizationCancellation();
-      final operation = repository.signInWithMicrosoft(
-        request: AuthorizationRequest.newConnection(
-          own(),
-          cancellation: cancellation,
+  test('Android cancellation captured before recovery prevents later native dispatch and fresh retry succeeds', () async {
+    final cancellation = AuthorizationCancellation();
+    final operation = repository.signInWithMicrosoft(
+      request: AuthorizationRequest.newConnection(
+        own(),
+        cancellation: cancellation,
+      ),
+    );
+    final rejected = expectLater(
+      operation,
+      throwsA(
+        isA<OAuthException>().having(
+          (e) => e.classification,
+          'cancelled',
+          OAuthFailureKind.cancelled,
         ),
-      );
-      final rejected = expectLater(
-        operation,
-        throwsA(
-          isA<OAuthException>().having(
-            (e) => e.classification,
-            'cancelled',
-            OAuthFailureKind.cancelled,
-          ),
-        ),
-      );
-      cancellation.cancel();
-      await rejected;
-      expect(
-        calls.where((c) => c.method == 'authorizeMicrosoftInteractive'),
-        isEmpty,
-      );
-      expect(await db.select(db.accounts).get(), isEmpty);
-      await repository.signInWithMicrosoft(
-        request: AuthorizationRequest.newConnection(own()),
-      );
-      expect(
-        calls.where((c) => c.method == 'authorizeMicrosoftInteractive'),
-        hasLength(1),
-      );
-    },
-  );
+      ),
+    );
+    cancellation.cancel();
+    await rejected;
+    expect(
+      calls.where((c) => c.method == 'authorizeMicrosoftInteractive'),
+      isEmpty,
+    );
+    expect(await db.select(db.accounts).get(), isEmpty);
+    await repository.signInWithMicrosoft(
+      request: AuthorizationRequest.newConnection(own()),
+    );
+    expect(
+      calls.where((c) => c.method == 'authorizeMicrosoftInteractive'),
+      hasLength(1),
+    );
+  });
   for (final shared in [false, true]) {
     for (final phase in ['identity', 'native']) {
       test(
@@ -281,9 +280,9 @@ void main() {
             request: AuthorizationRequest.reconnect('opaque'),
           );
           release.complete();
-          final after =
-              await secrets.readCredential('opaque')
-                  as MicrosoftAndroidCredential;
+          final after = await secrets.readCredential(
+            'opaque',
+          ) as MicrosoftAndroidCredential;
           expect(after.registration.clientId, shared ? clientA : clientB);
           expect(after.summary.showRetirementNotice, shared);
           expect(after.generation, (before['generation'] as int) + 1);
@@ -291,90 +290,84 @@ void main() {
       );
     }
   }
-  test(
-    'original native binding upgrades idempotently and user-owned migration selects its own MSAL registration',
-    () async {
-      await seedShared();
-      final original =
-          await secrets.readCredential('opaque') as MicrosoftAndroidCredential;
-      expect(original.summary.showRetirementNotice, true);
-      await broker.nativeCredential('opaque', BusyProvider.microsoft);
-      await repository.signInWithMicrosoft(
-        request: AuthorizationRequest.replace('opaque', own()),
-      );
-      final migrated =
-          await secrets.readCredential('opaque') as MicrosoftAndroidCredential;
-      expect(migrated.registration.clientId, clientB);
-      expect(migrated.summary.showRetirementNotice, false);
-      expect(bindings['opaque']!['clientId'], clientB);
-      expect(migrated.toJson().keys, isNot(contains('refreshToken')));
-      await broker.authorizationHeader(BusyProvider.microsoft, 'opaque');
-      await broker.authorizeCategoryAccess('opaque');
-      expect(bindings['opaque']!['clientId'], clientB);
-      expect(
-        calls
-            .where((c) => c.method == 'authorizeMicrosoftInteractive')
-            .every((c) => (c.arguments as Map)['clientId'] == clientB),
-        true,
-      );
-      expect(calls.any((c) => c.method == 'removeAuthorization'), false);
-      expect(
-        await AccountsRepository(database: db).accountById('microsoft:subject'),
-        isNull,
-      );
-    },
-  );
-  test(
-    'late original-client silent result cannot replace migrated token selection',
-    () async {
-      await seedShared();
-      silentStarted = Completer<void>();
-      silentRelease = Completer<void>();
-      final pending = broker.authorizationHeader(
-        BusyProvider.microsoft,
-        'opaque',
-      );
-      final rejected = expectLater(
-        pending,
-        throwsA(
-          isA<OAuthException>().having(
-            (error) => error.classification,
-            'kind',
-            OAuthFailureKind.stale,
-          ),
+  test('original native binding upgrades idempotently and user-owned migration selects its own MSAL registration', () async {
+    await seedShared();
+    final original =
+        await secrets.readCredential('opaque') as MicrosoftAndroidCredential;
+    expect(original.summary.showRetirementNotice, true);
+    await broker.nativeCredential('opaque', BusyProvider.microsoft);
+    await repository.signInWithMicrosoft(
+      request: AuthorizationRequest.replace('opaque', own()),
+    );
+    final migrated =
+        await secrets.readCredential('opaque') as MicrosoftAndroidCredential;
+    expect(migrated.registration.clientId, clientB);
+    expect(migrated.summary.showRetirementNotice, false);
+    expect(bindings['opaque']!['clientId'], clientB);
+    expect(migrated.toJson().keys, isNot(contains('refreshToken')));
+    await broker.authorizationHeader(BusyProvider.microsoft, 'opaque');
+    await broker.authorizeCategoryAccess('opaque');
+    expect(bindings['opaque']!['clientId'], clientB);
+    expect(
+      calls
+          .where((c) => c.method == 'authorizeMicrosoftInteractive')
+          .every((c) => (c.arguments as Map)['clientId'] == clientB),
+      true,
+    );
+    expect(calls.any((c) => c.method == 'removeAuthorization'), false);
+    expect(
+      await AccountsRepository(database: db).accountById('microsoft:subject'),
+      isNull,
+    );
+  });
+  test('late original-client silent result cannot replace migrated token selection', () async {
+    await seedShared();
+    silentStarted = Completer<void>();
+    silentRelease = Completer<void>();
+    final pending = broker.authorizationHeader(
+      BusyProvider.microsoft,
+      'opaque',
+    );
+    final rejected = expectLater(
+      pending,
+      throwsA(
+        isA<OAuthException>().having(
+          (error) => error.classification,
+          'kind',
+          OAuthFailureKind.stale,
         ),
-      );
-      await silentStarted!.future;
-      final originalCall = calls.lastWhere(
-        (c) => c.method == 'authorizeMicrosoftSilent',
-      );
-      expect((originalCall.arguments as Map)['clientId'], clientA);
-      expect(
-        (originalCall.arguments as Map)['nativeAccountId'],
-        'original-native',
-      );
-      await repository.signInWithMicrosoft(
-        request: AuthorizationRequest.replace('opaque', own()),
-      );
-      silentRelease!.complete();
-      await rejected;
-      interactiveStarted = null;
-      interactiveRelease = null;
-      identityStarted = null;
-      identityRelease = null;
-      silentStarted = null;
-      silentRelease = null;
-      expect(
-        await broker.authorizationHeader(BusyProvider.microsoft, 'opaque'),
-        'Bearer token-$clientB',
-      );
-      final currentCall = calls.lastWhere(
-        (c) => c.method == 'authorizeMicrosoftSilent',
-      );
-      expect((currentCall.arguments as Map)['clientId'], clientB);
-      expect(calls.any((c) => c.method == 'removeAuthorization'), false);
-    },
-  );
+      ),
+    );
+    await silentStarted!.future;
+    final originalCall = calls.lastWhere(
+      (c) => c.method == 'authorizeMicrosoftSilent',
+    );
+    expect((originalCall.arguments as Map)['clientId'], clientA);
+    expect(
+      (originalCall.arguments as Map)['nativeAccountId'],
+      'original-native',
+    );
+    await repository.signInWithMicrosoft(
+      request: AuthorizationRequest.replace('opaque', own()),
+    );
+    silentRelease!.complete();
+    await rejected;
+    interactiveStarted = null;
+    interactiveRelease = null;
+    identityStarted = null;
+    identityRelease = null;
+    silentStarted = null;
+    silentRelease = null;
+    expect(
+      await broker.authorizationHeader(BusyProvider.microsoft, 'opaque'),
+      'Bearer token-$clientB',
+    );
+    final currentCall = calls.lastWhere(
+      (c) => c.method == 'authorizeMicrosoftSilent',
+    );
+    expect((currentCall.arguments as Map)['clientId'], clientB);
+    expect(calls.any((c) => c.method == 'removeAuthorization'), false);
+  });
   test(
     'native wrong-account migration preserves the previous binding and warning',
     () async {
@@ -388,101 +381,85 @@ void main() {
       );
       expect(bindings['opaque']!['clientId'], clientA);
       expect(
-        (await secrets.readCredential('opaque') as MicrosoftAndroidCredential)
-            .summary
-            .showRetirementNotice,
+        (await secrets.readCredential(
+          'opaque',
+        ) as MicrosoftAndroidCredential).summary.showRetirementNotice,
         true,
       );
     },
   );
-  test(
-    'new Android Microsoft setup cannot disguise the original native registration',
-    () async {
-      final handle = staging.stageMicrosoft(
-        clientId: clientA,
-        audience: MicrosoftAudience.personalAndOrganizations,
-        platform: AuthenticationPlatform.android,
-      );
-      await expectLater(
-        repository.signInWithMicrosoft(
-          request: AuthorizationRequest.newConnection(handle),
-        ),
-        throwsA(isA<Exception>()),
-      );
-      expect(
-        calls.any((c) => c.method == 'authorizeMicrosoftInteractive'),
-        false,
-      );
-      expect(await db.select(db.accounts).get(), isEmpty);
-    },
-  );
-  test(
-    'user-owned Android Microsoft setup needs no shared build client or exported native tokens',
-    () async {
-      await repository.signInWithMicrosoft(
-        request: AuthorizationRequest.newConnection(own()),
-      );
-      final saved =
-          await secrets.readCredential('microsoft:subject')
-              as MicrosoftAndroidCredential;
-      expect(saved.registration.clientId, clientB);
-      expect(saved.summary.showRetirementNotice, false);
-      expect(saved.toJson().keys, isNot(contains('accessToken')));
-      await broker.authorizationHeader(
-        BusyProvider.microsoft,
-        'microsoft:subject',
-      );
-      expect(bindings['microsoft:subject']!['clientId'], clientB);
-    },
-  );
-  test(
-    'native Google origin never offers a Desktop migration or retirement notice',
-    () {
-      const saved = GoogleAndroidCredential(
-        nativeAccountId: 'native',
-        subject: 'subject',
-        generation: 1,
-      );
-      expect(saved.summary.origin, RegistrationOrigin.nativeGoogleAndroid);
-      expect(saved.summary.showRetirementNotice, false);
-      expect(
-        SecretRecord.fromJson(saved.toJson()),
-        isA<GoogleAndroidCredential>(),
-      );
-    },
-  );
-  test(
-    'database failure restores an unresolved native alias after candidate binding',
-    () async {
-      await seedShared();
-      await secrets.deleteCredential('opaque');
-      bindings['opaque']!['originalRegistration'] = false;
-      final previous = Map<String, Object?>.from(bindings['opaque']!);
-      await db.customStatement(
-        "CREATE TRIGGER reject_candidate BEFORE UPDATE ON accounts BEGIN SELECT RAISE(ABORT, 'injected'); END",
-      );
-      await expectLater(
-        repository.signInWithMicrosoft(
-          request: AuthorizationRequest.replace('opaque', own()),
-        ),
-        throwsA(isA<Exception>()),
-      );
-      expect(
-        bindings['opaque']!['nativeAccountId'],
-        previous['nativeAccountId'],
-      );
-      expect(bindings['opaque']!['clientId'], clientA);
-      expect(await secrets.readCredential('opaque'), isNull);
-      expect(await broker.persistence!.generation('opaque'), 0);
-      expect(
-        (await AccountsRepository(
-          database: db,
-        ).accountById('opaque'))!.providerAccountId,
-        'subject',
-      );
-      expect(calls.any((c) => c.method == 'removeAuthorization'), false);
-    },
-  );
+  test('new Android Microsoft setup cannot disguise the original native registration', () async {
+    final handle = staging.stageMicrosoft(
+      clientId: clientA,
+      audience: MicrosoftAudience.personalAndOrganizations,
+      platform: AuthenticationPlatform.android,
+    );
+    await expectLater(
+      repository.signInWithMicrosoft(
+        request: AuthorizationRequest.newConnection(handle),
+      ),
+      throwsA(isA<Exception>()),
+    );
+    expect(
+      calls.any((c) => c.method == 'authorizeMicrosoftInteractive'),
+      false,
+    );
+    expect(await db.select(db.accounts).get(), isEmpty);
+  });
+  test('user-owned Android Microsoft setup needs no shared build client or exported native tokens', () async {
+    await repository.signInWithMicrosoft(
+      request: AuthorizationRequest.newConnection(own()),
+    );
+    final saved = await secrets.readCredential(
+      'microsoft:subject',
+    ) as MicrosoftAndroidCredential;
+    expect(saved.registration.clientId, clientB);
+    expect(saved.summary.showRetirementNotice, false);
+    expect(saved.toJson().keys, isNot(contains('accessToken')));
+    await broker.authorizationHeader(
+      BusyProvider.microsoft,
+      'microsoft:subject',
+    );
+    expect(bindings['microsoft:subject']!['clientId'], clientB);
+  });
+  test('native Google origin never offers a Desktop migration or retirement notice', () {
+    const saved = GoogleAndroidCredential(
+      nativeAccountId: 'native',
+      subject: 'subject',
+      generation: 1,
+    );
+    expect(saved.summary.origin, RegistrationOrigin.nativeGoogleAndroid);
+    expect(saved.summary.showRetirementNotice, false);
+    expect(
+      SecretRecord.fromJson(saved.toJson()),
+      isA<GoogleAndroidCredential>(),
+    );
+  });
+  test('database failure restores an unresolved native alias after candidate binding', () async {
+    await seedShared();
+    await secrets.deleteCredential('opaque');
+    bindings['opaque']!['originalRegistration'] = false;
+    final previous = Map<String, Object?>.from(bindings['opaque']!);
+    await db.customStatement(
+      "CREATE TRIGGER reject_candidate BEFORE UPDATE ON accounts BEGIN SELECT RAISE(ABORT, 'injected'); END",
+    );
+    await expectLater(
+      repository.signInWithMicrosoft(
+        request: AuthorizationRequest.replace('opaque', own()),
+      ),
+      throwsA(isA<Exception>()),
+    );
+    expect(bindings['opaque']!['nativeAccountId'], previous['nativeAccountId']);
+    expect(bindings['opaque']!['clientId'], clientA);
+    expect(await secrets.readCredential('opaque'), isNull);
+    expect(await broker.persistence!.generation('opaque'), 0);
+    expect(
+      (await AccountsRepository(database: db).accountById('opaque'))!
+          .providerAccountId,
+      'subject',
+    );
+    expect(calls.any((c) => c.method == 'removeAuthorization'), false);
+  });
   test(
     'silent acquisition repairs stale alias from secure registration binding',
     () async {

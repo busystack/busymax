@@ -1,7 +1,9 @@
 import 'package:busymax/src/google_tasks/http/retrying_http_client.dart';
 import 'package:flutter_test/flutter_test.dart';
+
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
@@ -76,41 +78,37 @@ void main() {
       },
     );
   }
-  test(
-    'valid short server hint wins over backoff; invalid hint uses bounded backoff',
-    () async {
-      for (final hint in ['5', 'invalid', '-5']) {
-        var calls = 0;
-        final delays = <Duration>[];
-        final client = RetryingHttpClient(
-          inner: MockClient((r) async {
-            calls++;
-            return http.Response(
-              'body',
-              calls == 1 ? 429 : 200,
-              headers: {'retry-after': hint},
-            );
-          }),
-          delay: (d) async {
-            delays.add(d);
-          },
-          maxRetries: 1,
-        );
-        expect(
-          (await client.get(
-            Uri.https('graph.microsoft.com', '/v1.0/me'),
-          )).statusCode,
-          200,
-        );
-        expect(
-          delays.single,
-          hint == '5'
-              ? const Duration(seconds: 5)
-              : lessThan(const Duration(seconds: 2)),
-        );
-      }
-    },
-  );
+  test('valid short server hint wins over backoff; invalid hint uses bounded backoff', () async {
+    for (final hint in ['5', 'invalid', '-5']) {
+      var calls = 0;
+      final delays = <Duration>[];
+      final client = RetryingHttpClient(
+        inner: MockClient((r) async {
+          calls++;
+          return http.Response(
+            'body',
+            calls == 1 ? 429 : 200,
+            headers: {'retry-after': hint},
+          );
+        }),
+        delay: (d) async {
+          delays.add(d);
+        },
+        maxRetries: 1,
+      );
+      expect(
+        (await client.get(Uri.https('graph.microsoft.com', '/v1.0/me')))
+            .statusCode,
+        200,
+      );
+      expect(
+        delays.single,
+        hint == '5'
+            ? const Duration(seconds: 5)
+            : lessThan(const Duration(seconds: 2)),
+      );
+    }
+  });
   test('cancellation aborts waiting for a stalled read transport', () async {
     final abort = Completer<void>();
     final client = RetryingHttpClient(

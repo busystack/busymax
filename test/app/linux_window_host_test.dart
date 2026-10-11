@@ -664,9 +664,8 @@ class _HostHarnessState extends State<_HostHarness> {
       theme: ThemeData(brightness: dark ? Brightness.dark : Brightness.light),
       home: Builder(
         builder: (context) => MediaQuery(
-          data: MediaQuery.of(
-            context,
-          ).copyWith(disableAnimations: disableAnimations),
+          data: MediaQuery.of(context)
+              .copyWith(disableAnimations: disableAnimations),
           child: LinuxApplicationMediaQuery(
             alwaysUse24HourFormat: true,
             gtkAnimationsEnabled: gtkAnimationsEnabled,

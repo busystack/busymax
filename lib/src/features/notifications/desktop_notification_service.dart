@@ -35,8 +35,9 @@ final class ReminderDeliveryResult {
   final DateTime? retryAtUtc;
 }
 
-typedef ReminderNotificationActionHandler =
-    Future<void> Function(ReminderNotificationAction action);
+typedef ReminderNotificationActionHandler = Future<void> Function(
+  ReminderNotificationAction action,
+);
 
 class DesktopNotificationService {
   DesktopNotificationService({

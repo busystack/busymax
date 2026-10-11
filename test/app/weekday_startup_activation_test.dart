@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/app/app_router.dart';
 import 'package:busymax/src/app/busymax_app.dart';

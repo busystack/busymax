@@ -258,8 +258,7 @@ class MicrosoftTodoTaskRemoteClient
       throw const TaskRemoteError(
         statusCode: 400,
         code: 'unsupported_provider_operation',
-        message:
-            'Nested tasks are not supported by Microsoft To Do sync in this version.',
+        message: 'Nested tasks are not supported by Microsoft To Do sync in this version.',
       );
     }
     final dto = await _translateMicrosoftErrors(
@@ -328,8 +327,7 @@ class MicrosoftTodoTaskRemoteClient
     throw const TaskRemoteError(
       statusCode: 400,
       code: 'unsupported_provider_operation',
-      message:
-          'Moving Microsoft To Do tasks between lists is not supported in this version.',
+      message: 'Moving Microsoft To Do tasks between lists is not supported in this version.',
     );
   }
 

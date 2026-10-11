@@ -150,54 +150,49 @@ void main() {
       expect(fixture.requests, isEmpty);
     },
   );
-  test(
-    'silent native import retains rich pending resources and duplicate identities',
-    () async {
-      final results = await import();
-      expect(
-        results.every((r) => r.status == NativeImportItemStatus.queued),
-        isTrue,
-      );
-      final db = fixture.database;
-      final operations = await db.select(db.pendingOps).get();
-      expect(operations, hasLength(3));
-      expect(
-        operations.every(
-          (op) =>
-              (jsonDecode(op.requestJson) as Map)['suppressScheduling'] ==
-                  true &&
-              op.davObjectId != null,
-        ),
-        isTrue,
-      );
-      expect(
-        (await db.select(db.tasks).get()).map((t) => t.parentUid),
-        contains('parent'),
-      );
-      final events = await db.select(db.calendarEvents).get();
-      expect(events, hasLength(2));
-      expect(events.every((e) => e.syncStatus == 'pending'), isTrue);
-      final exported = await CalendarRepository(
-        database: db,
-      ).nativeEventExport(events.last.id);
-      expect(
-        exported,
-        allOf(
-          contains('RECURRENCE-ID'),
-          contains('UID:meeting'),
-          contains('VALARM'),
-          contains('VTIMEZONE'),
-        ),
-      );
-      expect(
-        (await import()).every(
-          (r) => r.status == NativeImportItemStatus.duplicate,
-        ),
-        isTrue,
-      );
-      expect(fixture.requests, isEmpty);
-    },
-  );
+  test('silent native import retains rich pending resources and duplicate identities', () async {
+    final results = await import();
+    expect(
+      results.every((r) => r.status == NativeImportItemStatus.queued),
+      isTrue,
+    );
+    final db = fixture.database;
+    final operations = await db.select(db.pendingOps).get();
+    expect(operations, hasLength(3));
+    expect(
+      operations.every(
+        (op) =>
+            (jsonDecode(op.requestJson) as Map)['suppressScheduling'] == true &&
+            op.davObjectId != null,
+      ),
+      isTrue,
+    );
+    expect(
+      (await db.select(db.tasks).get()).map((t) => t.parentUid),
+      contains('parent'),
+    );
+    final events = await db.select(db.calendarEvents).get();
+    expect(events, hasLength(2));
+    expect(events.every((e) => e.syncStatus == 'pending'), isTrue);
+    final exported = await CalendarRepository(database: db)
+        .nativeEventExport(events.last.id);
+    expect(
+      exported,
+      allOf(
+        contains('RECURRENCE-ID'),
+        contains('UID:meeting'),
+        contains('VALARM'),
+        contains('VTIMEZONE'),
+      ),
+    );
+    expect(
+      (await import()).every(
+        (r) => r.status == NativeImportItemStatus.duplicate,
+      ),
+      isTrue,
+    );
+    expect(fixture.requests, isEmpty);
+  });
   test('new copies rewrite task parent identities together', () async {
     await import(copies: true);
     final tasks = await fixture.database.select(fixture.database.tasks).get();
@@ -217,38 +212,33 @@ void main() {
     );
     expect(childOp.dependsOnOpId, parentOp.id);
   });
-  test(
-    'native collection export snapshots pending raw resources without network or mutations',
-    () async {
-      await import();
-      final db = fixture.database;
-      final before = await db.select(db.pendingOps).get();
-      final snapshot = await NextcloudNativeExportService(
-        db,
-      ).collection('account', 'collection');
-      expect(snapshot, hasLength(3));
-      expect(
-        snapshot.singleWhere((r) => r.uid == 'meeting').rawIcs,
-        allOf(
-          contains('X-UNKNOWN;X-PARAM=keep:opaque'),
-          contains('RECURRENCE-ID'),
-          contains('VTIMEZONE'),
-        ),
-      );
-      expect(
-        snapshot.singleWhere((r) => r.uid == 'child').rawIcs,
-        contains('RELATED-TO:parent'),
-      );
-      expect(await db.select(db.pendingOps).get(), before);
-      expect(fixture.requests, isEmpty);
-      await expectLater(
-        NextcloudNativeExportService(
-          db,
-        ).collection('another-account', 'collection'),
-        throwsStateError,
-      );
-    },
-  );
+  test('native collection export snapshots pending raw resources without network or mutations', () async {
+    await import();
+    final db = fixture.database;
+    final before = await db.select(db.pendingOps).get();
+    final snapshot = await NextcloudNativeExportService(db)
+        .collection('account', 'collection');
+    expect(snapshot, hasLength(3));
+    expect(
+      snapshot.singleWhere((r) => r.uid == 'meeting').rawIcs,
+      allOf(
+        contains('X-UNKNOWN;X-PARAM=keep:opaque'),
+        contains('RECURRENCE-ID'),
+        contains('VTIMEZONE'),
+      ),
+    );
+    expect(
+      snapshot.singleWhere((r) => r.uid == 'child').rawIcs,
+      contains('RELATED-TO:parent'),
+    );
+    expect(await db.select(db.pendingOps).get(), before);
+    expect(fixture.requests, isEmpty);
+    await expectLater(
+      NextcloudNativeExportService(db)
+          .collection('another-account', 'collection'),
+      throwsStateError,
+    );
+  });
   test(
     'collection export uses the final update then move task candidate',
     () async {
@@ -318,18 +308,16 @@ void main() {
       final tasksBefore = await db.select(db.tasks).get();
       final objectsBefore = await db.select(db.davObjects).get();
 
-      final source = await NextcloudNativeExportService(
-        db,
-      ).collection('account', 'collection');
-      final destination = await NextcloudNativeExportService(
-        db,
-      ).collection('account', 'destination');
+      final source = await NextcloudNativeExportService(db)
+          .collection('account', 'collection');
+      final destination = await NextcloudNativeExportService(db)
+          .collection('account', 'destination');
 
       expect(source, isEmpty);
       final exported = destination.single;
-      final component = IcalSemanticDocument.parse(
-        exported.rawIcs,
-      ).components.single;
+      final component = IcalSemanticDocument.parse(exported.rawIcs)
+          .components
+          .single;
       expect(exported.uid, 'moved-task@example.test');
       expect(component.summary, 'Final offline title');
       expect(component.parentUid, isNull);
@@ -340,58 +328,54 @@ void main() {
       expect(fixture.requests, isEmpty);
     },
   );
-  test(
-    'collection export retains an editor event after permanent create rejection',
-    () async {
-      final db = fixture.database;
-      await CalendarRepository(
-        database: db,
-        now: () => now,
-        localTimeZone: 'UTC',
-      ).createLocalEvent(
-        EventEditorDraft.newEvent(
-          accountId: 'account',
-          sourceId: 'dav-calendar-collection',
-          providerCalendarId: NextcloudAdminFixture.collection,
-          start: DateTime.utc(2026, 9, 6, 10),
-          end: DateTime.utc(2026, 9, 6, 11),
-        ).copyWith(
-          title: 'Locally retained event',
-          description: 'Must survive export',
-        ),
-      );
-      final queued = await db.select(db.pendingOps).getSingle();
-      final request = jsonDecode(queued.requestJson) as Map;
-      final uid = request['uid']! as String;
-      expect(queued.davObjectId, isNull);
-      expect(request.containsKey('suppressScheduling'), isFalse);
+  test('collection export retains an editor event after permanent create rejection', () async {
+    final db = fixture.database;
+    await CalendarRepository(
+      database: db,
+      now: () => now,
+      localTimeZone: 'UTC',
+    ).createLocalEvent(
+      EventEditorDraft.newEvent(
+        accountId: 'account',
+        sourceId: 'dav-calendar-collection',
+        providerCalendarId: NextcloudAdminFixture.collection,
+        start: DateTime.utc(2026, 9, 6, 10),
+        end: DateTime.utc(2026, 9, 6, 11),
+      ).copyWith(
+        title: 'Locally retained event',
+        description: 'Must survive export',
+      ),
+    );
+    final queued = await db.select(db.pendingOps).getSingle();
+    final request = jsonDecode(queued.requestJson) as Map;
+    final uid = request['uid']! as String;
+    expect(queued.davObjectId, isNull);
+    expect(request.containsKey('suppressScheduling'), isFalse);
 
-      final providerRequests = await permanentlyRejectPendingMutation();
-      final failedBefore = await db.select(db.pendingOps).getSingle();
-      final eventBefore = await db.select(db.calendarEvents).getSingle();
-      expect(failedBefore.state, 'failed');
-      expect(failedBefore.lastErrorCode, 'DavMalformedResource');
-      expect(providerRequests, hasLength(1));
+    final providerRequests = await permanentlyRejectPendingMutation();
+    final failedBefore = await db.select(db.pendingOps).getSingle();
+    final eventBefore = await db.select(db.calendarEvents).getSingle();
+    expect(failedBefore.state, 'failed');
+    expect(failedBefore.lastErrorCode, 'DavMalformedResource');
+    expect(providerRequests, hasLength(1));
 
-      final snapshot = await NextcloudNativeExportService(
-        db,
-      ).collection('account', 'collection');
+    final snapshot = await NextcloudNativeExportService(db)
+        .collection('account', 'collection');
 
-      final resource = snapshot.single;
-      final component = IcalSemanticDocument.parse(
-        resource.rawIcs,
-      ).components.single;
-      expect(resource.uid, uid);
-      expect(resource.componentType, 'VEVENT');
-      expect(component.uid, uid);
-      expect(component.summary, 'Locally retained event');
-      expect(component.description, 'Must survive export');
-      expect(await db.select(db.pendingOps).getSingle(), failedBefore);
-      expect(await db.select(db.calendarEvents).getSingle(), eventBefore);
-      expect(await db.select(db.davObjects).get(), isEmpty);
-      expect(providerRequests, hasLength(1));
-    },
-  );
+    final resource = snapshot.single;
+    final component = IcalSemanticDocument.parse(resource.rawIcs)
+        .components
+        .single;
+    expect(resource.uid, uid);
+    expect(resource.componentType, 'VEVENT');
+    expect(component.uid, uid);
+    expect(component.summary, 'Locally retained event');
+    expect(component.description, 'Must survive export');
+    expect(await db.select(db.pendingOps).getSingle(), failedBefore);
+    expect(await db.select(db.calendarEvents).getSingle(), eventBefore);
+    expect(await db.select(db.davObjects).get(), isEmpty);
+    expect(providerRequests, hasLength(1));
+  });
   test(
     'collection export retains an editor task after permanent create rejection',
     () async {
@@ -420,14 +404,13 @@ void main() {
       expect(failedBefore.lastErrorCode, 'DavMalformedResource');
       expect(providerRequests, hasLength(1));
 
-      final snapshot = await NextcloudNativeExportService(
-        db,
-      ).collection('account', 'collection');
+      final snapshot = await NextcloudNativeExportService(db)
+          .collection('account', 'collection');
 
       final resource = snapshot.single;
-      final component = IcalSemanticDocument.parse(
-        resource.rawIcs,
-      ).components.single;
+      final component = IcalSemanticDocument.parse(resource.rawIcs)
+          .components
+          .single;
       expect(resource.uid, uid);
       expect(resource.componentType, 'VTODO');
       expect(component.uid, uid);
@@ -489,9 +472,8 @@ void main() {
       final event = await db.select(db.calendarEvents).getSingle();
       final detail = await repository.loadEventDetail(event.id);
       await repository.updateLocalEvent(
-        EventEditorDraft.fromEventDetail(
-          detail!,
-        ).copyWith(title: 'Retained local event edit'),
+        EventEditorDraft.fromEventDetail(detail!)
+            .copyWith(title: 'Retained local event edit'),
       );
 
       final providerRequests = await permanentlyRejectPendingMutation();
@@ -512,9 +494,8 @@ void main() {
             collectionId: 'collection',
             objectId: objectBefore.id,
           );
-      final collection = await NextcloudNativeExportService(
-        db,
-      ).collection('account', 'collection');
+      final collection = await NextcloudNativeExportService(db)
+          .collection('account', 'collection');
 
       expect(
         IcalSemanticDocument.parse(individual).components.single.summary,
@@ -523,9 +504,10 @@ void main() {
       expect(collection, hasLength(1));
       expect(collection.single.uid, 'existing-event@example.test');
       expect(
-        IcalSemanticDocument.parse(
-          collection.single.rawIcs,
-        ).components.single.summary,
+        IcalSemanticDocument.parse(collection.single.rawIcs)
+            .components
+            .single
+            .summary,
         'Retained local event edit',
       );
       expect(await db.select(db.pendingOps).getSingle(), operationBefore);
@@ -574,9 +556,8 @@ void main() {
             collectionId: 'collection',
             objectId: objectBefore.id,
           );
-      final collection = await NextcloudNativeExportService(
-        db,
-      ).collection('account', 'collection');
+      final collection = await NextcloudNativeExportService(db)
+          .collection('account', 'collection');
 
       expect(
         IcalSemanticDocument.parse(individual).components.single.summary,
@@ -585,9 +566,10 @@ void main() {
       expect(collection, hasLength(1));
       expect(collection.single.uid, 'existing-task@example.test');
       expect(
-        IcalSemanticDocument.parse(
-          collection.single.rawIcs,
-        ).components.single.summary,
+        IcalSemanticDocument.parse(collection.single.rawIcs)
+            .components
+            .single
+            .summary,
         'Retained local task edit',
       );
       expect(await db.select(db.pendingOps).getSingle(), operationBefore);
@@ -638,51 +620,44 @@ void main() {
       );
     },
   );
-  test(
-    'unsent native resources can be edited and exported while replay is pending',
-    () async {
-      await import();
-      final db = fixture.database;
-      final eventObject = (await db.select(db.davObjects).get()).singleWhere(
-        (o) => o.primaryUid == 'meeting',
-      );
-      final queue = DavPendingOperationQueue(database: db, nowUtc: () => now);
-      await queue.enqueueUpdate(
-        accountId: 'account',
-        collectionId: 'collection',
-        objectId: eventObject.id,
-        patch: DavMutationPatch(
-          target: const IcalComponentKey(
-            componentType: 'VEVENT',
-            uid: 'meeting',
-          ),
-          scope: DavMutationScope.recurrenceMaster,
-          operations: [
-            DavPatchOperation.setText('SUMMARY', 'Edited before upload'),
-          ],
-        ),
-      );
-      await (db.update(db.pendingOps)
-            ..where((r) => r.davObjectId.equals(eventObject.id)))
-          .write(const PendingOpsCompanion(state: Value('in_progress')));
-      final raw = await queue.exportRawIcsForObject(
-        accountId: 'account',
-        collectionId: 'collection',
-        objectId: eventObject.id,
-      );
-      expect(raw, contains('SUMMARY:Edited before upload'));
-      expect(
-        (jsonDecode(
-              (await (db.select(db.pendingOps)
-                        ..where((r) => r.davObjectId.equals(eventObject.id)))
-                      .getSingle())
-                  .requestJson,
-            )
-            as Map)['suppressScheduling'],
-        isTrue,
-      );
-    },
-  );
+  test('unsent native resources can be edited and exported while replay is pending', () async {
+    await import();
+    final db = fixture.database;
+    final eventObject = (await db.select(db.davObjects).get()).singleWhere(
+      (o) => o.primaryUid == 'meeting',
+    );
+    final queue = DavPendingOperationQueue(database: db, nowUtc: () => now);
+    await queue.enqueueUpdate(
+      accountId: 'account',
+      collectionId: 'collection',
+      objectId: eventObject.id,
+      patch: DavMutationPatch(
+        target: const IcalComponentKey(componentType: 'VEVENT', uid: 'meeting'),
+        scope: DavMutationScope.recurrenceMaster,
+        operations: [
+          DavPatchOperation.setText('SUMMARY', 'Edited before upload'),
+        ],
+      ),
+    );
+    await (db.update(db.pendingOps)
+          ..where((r) => r.davObjectId.equals(eventObject.id)))
+        .write(const PendingOpsCompanion(state: Value('in_progress')));
+    final raw = await queue.exportRawIcsForObject(
+      accountId: 'account',
+      collectionId: 'collection',
+      objectId: eventObject.id,
+    );
+    expect(raw, contains('SUMMARY:Edited before upload'));
+    expect(
+      (jsonDecode(
+        (await (db.select(
+              db.pendingOps,
+            )..where((r) => r.davObjectId.equals(eventObject.id))).getSingle())
+            .requestJson,
+      ) as Map)['suppressScheduling'],
+      isTrue,
+    );
+  });
   test(
     'a normal inventory cannot erase unuploaded imported resources',
     () async {
@@ -715,89 +690,85 @@ void main() {
       );
     },
   );
-  test(
-    'a reconstructed replayer sends the per-import header and exact create condition',
-    () async {
-      await import();
-      final stored = <String, String>{};
-      final puts = <http.Request>[];
-      // Use the production HTTP mutation client with an injected fake transport.
-      final client = MockClient((request) async {
-        if (request.method == 'PUT') {
-          puts.add(request);
-          stored[request.url.path] = request.body;
-          return http.Response('', 201, headers: {'etag': '"server"'});
-        }
-        if (request.method == 'GET') {
-          final body = stored[request.url.path];
-          return http.Response(
-            body ?? '',
-            body == null ? 404 : 200,
-            headers: {'etag': '"server"'},
-          );
-        }
-        throw StateError('Unexpected test request');
-      });
-      addTearDown(client.close);
-      final context = await fixture.collections.openContext();
-      // Reuse authenticated transport construction, without owning the sync client.
-      final remote = DavMutationHttpClient(
-        transport: DavHttpTransport(
-          client: client,
-          profile: context.profile,
-          accountAuthority: context.authority,
-        ),
-        accountId: 'account',
-        collectionId: 'collection',
-        credential: context.credential,
-      );
-      final result = await DavPendingOperationsReplayer(
-        database: fixture.database,
-        accountId: 'account',
-        objectRepository: DavObjectRepository(database: fixture.database),
-        serviceFactory: ({required account, required collection}) async =>
-            DavConditionalMutationService(remoteClient: remote),
-        nowUtc: () => now,
-      ).replayDueOperations();
-      expect(
-        result.appliedCount,
-        3,
-        reason:
-            (await fixture.database.select(fixture.database.pendingOps).get())
-                .map((op) => '${op.state}: ${op.lastErrorCode}')
-                .join(', '),
-      );
-      expect(puts, hasLength(3));
-      expect(
-        puts.every(
-          (r) =>
-              r.headers['x-nc-scheduling'] == 'false' &&
-              r.headers['if-none-match'] == '*',
-        ),
-        isTrue,
-      );
-      expect(
-        await fixture.database.select(fixture.database.pendingOps).get(),
-        isEmpty,
-      );
-      final confirmed = await fixture.database
-          .select(fixture.database.davObjects)
-          .get();
-      expect(confirmed, hasLength(3));
-      expect(confirmed.every((o) => o.etag == '"server"'), isTrue);
-      await remote.conditionalPut(
-        uri: Uri.parse(confirmed.first.requestUri),
-        rawIcs: confirmed.first.rawIcsBody,
-        correlationId: 'ordinary-edit',
-        ifMatch: '"server"',
-      );
-      expect(
-        puts.last.headers['x-nc-scheduling'],
-        isNull,
-        reason: 'Import suppression must never leak to ordinary edits.',
-      );
-    },
-  );
+  test('a reconstructed replayer sends the per-import header and exact create condition', () async {
+    await import();
+    final stored = <String, String>{};
+    final puts = <http.Request>[];
+    // Use the production HTTP mutation client with an injected fake transport.
+    final client = MockClient((request) async {
+      if (request.method == 'PUT') {
+        puts.add(request);
+        stored[request.url.path] = request.body;
+        return http.Response('', 201, headers: {'etag': '"server"'});
+      }
+      if (request.method == 'GET') {
+        final body = stored[request.url.path];
+        return http.Response(
+          body ?? '',
+          body == null ? 404 : 200,
+          headers: {'etag': '"server"'},
+        );
+      }
+      throw StateError('Unexpected test request');
+    });
+    addTearDown(client.close);
+    final context = await fixture.collections.openContext();
+    // Reuse authenticated transport construction, without owning the sync client.
+    final remote = DavMutationHttpClient(
+      transport: DavHttpTransport(
+        client: client,
+        profile: context.profile,
+        accountAuthority: context.authority,
+      ),
+      accountId: 'account',
+      collectionId: 'collection',
+      credential: context.credential,
+    );
+    final result = await DavPendingOperationsReplayer(
+      database: fixture.database,
+      accountId: 'account',
+      objectRepository: DavObjectRepository(database: fixture.database),
+      serviceFactory: ({required account, required collection}) async =>
+          DavConditionalMutationService(remoteClient: remote),
+      nowUtc: () => now,
+    ).replayDueOperations();
+    expect(
+      result.appliedCount,
+      3,
+      reason: (await fixture.database.select(fixture.database.pendingOps).get())
+          .map((op) => '${op.state}: ${op.lastErrorCode}')
+          .join(', '),
+    );
+    expect(puts, hasLength(3));
+    expect(
+      puts.every(
+        (r) =>
+            r.headers['x-nc-scheduling'] == 'false' &&
+            r.headers['if-none-match'] == '*',
+      ),
+      isTrue,
+    );
+    expect(
+      await fixture.database.select(fixture.database.pendingOps).get(),
+      isEmpty,
+    );
+    final confirmed = await fixture.database
+        .select(fixture.database.davObjects)
+        .get();
+    expect(confirmed, hasLength(3));
+    expect(confirmed.every((o) => o.etag == '"server"'), isTrue);
+    await remote.conditionalPut(
+      uri: Uri.parse(confirmed.first.requestUri),
+      rawIcs: confirmed.first.rawIcsBody,
+      correlationId: 'ordinary-edit',
+      ifMatch: '"server"',
+    );
+    expect(
+      puts.last.headers['x-nc-scheduling'],
+      isNull,
+      reason: 'Import suppression must never leak to ordinary edits.',
+    );
+  });
 }
 
 Future<void> _seedConfirmedResource(

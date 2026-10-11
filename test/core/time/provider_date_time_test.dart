@@ -56,29 +56,26 @@ void main() {
       },
     );
 
-    test(
-      'missing and unknown zones retain host-local fallback and date-only behavior',
-      () {
-        for (final zone in [null, 'Unknown/Zone']) {
-          final local = DateTime(2026, 3, 8, 2, 30);
-          expect(providerDateTimeAsLocal('2026-03-08T02:30:00', zone), local);
-          expect(
-            providerDateTimeAsUtcInstant('2026-03-08T02:30:00', zone),
-            local.toUtc(),
-          );
-        }
+    test('missing and unknown zones retain host-local fallback and date-only behavior', () {
+      for (final zone in [null, 'Unknown/Zone']) {
+        final local = DateTime(2026, 3, 8, 2, 30);
+        expect(providerDateTimeAsLocal('2026-03-08T02:30:00', zone), local);
         expect(
-          providerDateTimeAsLocal('2026-03-08', 'Asia/Tokyo'),
-          DateTime(2026, 3, 8),
+          providerDateTimeAsUtcInstant('2026-03-08T02:30:00', zone),
+          local.toUtc(),
         );
-        expect(
-          providerDateTimeAsUtcInstant('2026-03-08', 'Asia/Tokyo'),
-          DateTime(2026, 3, 8).toUtc(),
-        );
-        expect(providerDateTimeAsLocal('invalid', 'Asia/Tokyo'), isNull);
-        expect(providerDateTimeAsUtcInstant(null, 'Asia/Tokyo'), isNull);
-      },
-    );
+      }
+      expect(
+        providerDateTimeAsLocal('2026-03-08', 'Asia/Tokyo'),
+        DateTime(2026, 3, 8),
+      );
+      expect(
+        providerDateTimeAsUtcInstant('2026-03-08', 'Asia/Tokyo'),
+        DateTime(2026, 3, 8).toUtc(),
+      );
+      expect(providerDateTimeAsLocal('invalid', 'Asia/Tokyo'), isNull);
+      expect(providerDateTimeAsUtcInstant(null, 'Asia/Tokyo'), isNull);
+    });
   }, skip: !(Platform.isLinux || Platform.isMacOS));
 
   test('UTC provider dateTime without offset is treated as a UTC instant', () {

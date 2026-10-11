@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:busymax/src/dav/discovery/dav_discovery_models.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:drift/drift.dart';
 import 'package:http/http.dart' as http;
 import 'package:xml/xml.dart';
+
 import 'nextcloud_admin_fixture.dart';
 
 class SchedulingFixture extends NextcloudAdminFixture {

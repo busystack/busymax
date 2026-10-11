@@ -304,9 +304,8 @@ class ScheduleRepository {
       itemFilter: (item) {
         final start = item.start;
         return start != null &&
-            ScheduleProjection.day(
-              start,
-            ).isBefore(ScheduleProjection.day(before));
+            ScheduleProjection.day(start)
+                .isBefore(ScheduleProjection.day(before));
       },
     );
   }
@@ -912,13 +911,11 @@ class ScheduleRepository {
       notes: task.notes ?? task.bodyContent,
       isAssigned:
           provider == BusyProvider.google &&
-          GoogleTaskAssignmentPolicy.fromJson(
-            task.assignmentInfoJson,
-          ).isAssigned,
+          GoogleTaskAssignmentPolicy.fromJson(task.assignmentInfoJson)
+              .isAssigned,
       originalTaskUrl: provider == BusyProvider.google
-          ? GoogleTaskAssignmentPolicy.fromJson(
-              task.assignmentInfoJson,
-            ).originalTaskUrl
+          ? GoogleTaskAssignmentPolicy.fromJson(task.assignmentInfoJson)
+                .originalTaskUrl
           : null,
       sourceLinks: provider == BusyProvider.google
           ? googleTaskSourceLinks(
@@ -1200,9 +1197,8 @@ DateTime? _taskDue(Task task, BusyProvider provider) {
     final due = _davTaskScheduleTemporal(task, dueOnly: true);
     if (due != null) return _parseDavTaskTemporal(due);
     // DAV's legacy dueUtc projection can contain DTSTART when DUE is absent.
-    if (_jsonMapFromString(
-          task.providerMetadataJson,
-        )?.containsKey('nativeStart') ==
+    if (_jsonMapFromString(task.providerMetadataJson)
+            ?.containsKey('nativeStart') ==
         true) {
       return null;
     }

@@ -22,13 +22,11 @@ int compareScheduleSearchResultPresentation(
 ) {
   final firstDate = scheduleSearchResultDisplayDate(first);
   final secondDate = scheduleSearchResultDisplayDate(second);
-  final dayComparison = _searchResultDay(
-    firstDate,
-  ).compareTo(_searchResultDay(secondDate));
+  final dayComparison = _searchResultDay(firstDate)
+      .compareTo(_searchResultDay(secondDate));
   if (dayComparison != 0) return dayComparison;
-  final timeComparison = _searchResultDate(
-    firstDate,
-  ).compareTo(_searchResultDate(secondDate));
+  final timeComparison = _searchResultDate(firstDate)
+      .compareTo(_searchResultDate(secondDate));
   if (timeComparison != 0) return timeComparison;
   if (first.kind != second.kind) {
     return first.kind == ScheduleItemKind.calendarEvent ? -1 : 1;

@@ -1,7 +1,11 @@
 import 'package:busymax/src/core/auth/authorization_attempt.dart';
+
 import 'windows_time_picker.dart';
+
 import 'package:busymax/src/l10n/time_format_scope.dart';
+
 import '../../features/tasks/presentation/task_recurrence.dart';
+
 import 'dart:async';
 import 'dart:convert';
 
@@ -534,9 +538,8 @@ Future<bool> showWindowsTaskDetailsDialog(
                                     microsoftTaskAttachmentsProvider(key),
                                   );
                                   attachmentsFuture = ref.read(
-                                    microsoftTaskAttachmentsProvider(
-                                      key,
-                                    ).future,
+                                    microsoftTaskAttachmentsProvider(key)
+                                        .future,
                                   );
                                 } on Object catch (failure) {
                                   error = l10n.exportFailed('$failure');
@@ -621,9 +624,8 @@ Future<bool> showWindowsTaskDetailsDialog(
                                     microsoftTaskAttachmentsProvider(key),
                                   );
                                   attachmentsFuture = ref.read(
-                                    microsoftTaskAttachmentsProvider(
-                                      key,
-                                    ).future,
+                                    microsoftTaskAttachmentsProvider(key)
+                                        .future,
                                   );
                                 } on Object catch (failure) {
                                   error = l10n.exportFailed('$failure');
@@ -668,9 +670,8 @@ Future<bool> showWindowsTaskDetailsDialog(
                                       microsoftTaskAttachmentsProvider(key),
                                     );
                                     attachmentsFuture = ref.read(
-                                      microsoftTaskAttachmentsProvider(
-                                        key,
-                                      ).future,
+                                      microsoftTaskAttachmentsProvider(key)
+                                          .future,
                                     );
                                   } on Object catch (failure) {
                                     error = l10n.exportFailed('$failure');
@@ -732,9 +733,8 @@ Future<bool> showWindowsTaskDetailsDialog(
                                       microsoftTaskAttachmentsProvider(key),
                                     );
                                     final future = ref.read(
-                                      microsoftTaskAttachmentsProvider(
-                                        key,
-                                      ).future,
+                                      microsoftTaskAttachmentsProvider(key)
+                                          .future,
                                     );
                                     setState(() {
                                       attachmentsFuture = future;
@@ -1087,9 +1087,8 @@ Future<bool> showWindowsTaskDetailsDialog(
                                     children: [
                                       for (final category in catalog)
                                         ToggleButton(
-                                          checked: _categories(
-                                            categories.text,
-                                          ).contains(category.displayName),
+                                          checked: _categories(categories.text)
+                                              .contains(category.displayName),
                                           onChanged: !enabled
                                               ? null
                                               : (selected) {

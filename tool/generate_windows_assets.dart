@@ -23,9 +23,8 @@ void main() {
   final ico = _encodeIco(iconSource);
   File('${runnerResources.path}/app_icon.ico').writeAsBytesSync(ico);
   File('${flutterAssets.path}/busymax_tray.ico').writeAsBytesSync(ico);
-  File(
-    '${flutterAssets.path}/busymax_tray_offline.ico',
-  ).writeAsBytesSync(_encodeIco(_offlineVariant(iconSource)));
+  File('${flutterAssets.path}/busymax_tray_offline.ico')
+      .writeAsBytesSync(_encodeIco(_offlineVariant(iconSource)));
 
   _writeScaleSet(packageAssets, packageSource, 'Square44x44Logo', const {
     100: 44,
@@ -75,9 +74,8 @@ void _writeScaleSet(
 }
 
 void _writePng(Directory directory, image.Image source, String name, int size) {
-  File(
-    '${directory.path}/$name',
-  ).writeAsBytesSync(image.encodePng(_resize(source, size), level: 9));
+  File('${directory.path}/$name')
+      .writeAsBytesSync(image.encodePng(_resize(source, size), level: 9));
 }
 
 image.Image _resize(image.Image source, int size) => image.copyResize(

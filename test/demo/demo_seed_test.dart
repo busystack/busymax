@@ -42,9 +42,8 @@ void main() {
 
     await seedBusyMaxDemoData(database, now: today);
 
-    final items = await ScheduleRepository(
-      database,
-    ).listItems(range: ScheduleRange.day(today));
+    final items = await ScheduleRepository(database)
+        .listItems(range: ScheduleRange.day(today));
 
     expect(items.map((item) => item.title), contains('Product planning'));
     expect(items.map((item) => item.title), contains('Focus day'));

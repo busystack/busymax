@@ -287,9 +287,11 @@ final class _LiveICloudFixture {
       created.add(canonical);
       _objectsToDelete.add(canonical.requestUri);
       expect(
-        IcalSemanticDocument.parse(
-          canonical.rawIcsBody!,
-        ).components.single.start!.kind,
+        IcalSemanticDocument.parse(canonical.rawIcsBody!)
+            .components
+            .single
+            .start!
+            .kind,
         variant.$2,
       );
     }

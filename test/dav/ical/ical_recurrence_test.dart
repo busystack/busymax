@@ -252,9 +252,8 @@ END:VCALENDAR\r
     expect(raw['startUtc'], '2026-11-01T08:30:00.000Z');
     expect(raw['endUtc'], '2026-11-01T09:30:00.000Z');
     expect(
-      DateTime.parse(
-        raw['endUtc']! as String,
-      ).difference(DateTime.parse(raw['startUtc']! as String)),
+      DateTime.parse(raw['endUtc']! as String)
+          .difference(DateTime.parse(raw['startUtc']! as String)),
       const Duration(hours: 1),
     );
   });

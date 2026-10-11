@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'support/nextcloud_live_versions.dart';
 
 import 'package:busymax/src/dav/dav_errors.dart';
@@ -338,9 +339,11 @@ final class _LiveNextcloudFixture {
       expect(variantResult.outcome, DavMutationOutcome.succeeded);
       final canonical = variantResult.canonicalObject!;
       expect(
-        IcalSemanticDocument.parse(
-          canonical.rawIcsBody!,
-        ).components.single.start!.kind,
+        IcalSemanticDocument.parse(canonical.rawIcsBody!)
+            .components
+            .single
+            .start!
+            .kind,
         variant.$2,
       );
       variants.add(canonical);
@@ -599,9 +602,9 @@ final class _LiveNextcloudFixture {
       );
       expect(result.outcome, DavMutationOutcome.succeeded);
       child = result.canonicalObject!;
-      final semantic = IcalSemanticDocument.parse(
-        child.rawIcsBody!,
-      ).components.single;
+      final semantic = IcalSemanticDocument.parse(child.rawIcsBody!)
+          .components
+          .single;
       expect(semantic.percentComplete, percent);
       if (percent == 100) {
         expect(semantic.status, 'COMPLETED');
@@ -736,9 +739,8 @@ final class _LiveNextcloudFixture {
               updatedAtUtc: seededAt,
             ),
           );
-      await DavDiscoveryRepository(
-        database: database,
-      ).commitSuccessfulInventory(discovery);
+      await DavDiscoveryRepository(database: database)
+          .commitSuccessfulInventory(discovery);
       final storedCollection = await (database.select(
         database.davCollections,
       )..where((row) => row.hrefKey.equals(collection.hrefKey))).getSingle();

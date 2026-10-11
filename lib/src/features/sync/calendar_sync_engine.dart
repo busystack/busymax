@@ -8,8 +8,10 @@ import '../../google_calendar/google_calendar_errors.dart';
 import '../../microsoft_calendar/microsoft_calendar_errors.dart';
 import '../../microsoft_calendar/microsoft_calendar_api_client.dart';
 import '../../microsoft_calendar/microsoft_shared_calendar_address.dart';
+
 import 'package:drift/drift.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
+
 import '../accounts/data/accounts_repository.dart';
 import '../calendar/data/calendar_repository.dart';
 import '../notifications/notification_schedule_service.dart';
@@ -21,13 +23,12 @@ import 'domain_sync_schedule.dart';
 // changing token-compatible event-list parameters so old cursors are rebased.
 const _googleExpandedEventsSyncState = '{"singleEvents":true,"version":1}';
 
-typedef CalendarMonthRetriever =
-    Future<void> Function(
-      String accountId,
-      BusyProvider provider,
-      DateTime month, {
-      required Set<String> sourceIds,
-    });
+typedef CalendarMonthRetriever = Future<void> Function(
+  String accountId,
+  BusyProvider provider,
+  DateTime month, {
+  required Set<String> sourceIds,
+});
 
 class CalendarSyncEngine {
   CalendarSyncEngine({

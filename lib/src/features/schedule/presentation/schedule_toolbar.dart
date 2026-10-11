@@ -151,9 +151,8 @@ class ScheduleToolbar extends StatelessWidget {
                       key: const ValueKey('schedule-header-search-field'),
                       controller: searchController!,
                       focusRequest: searchFocusRequest,
-                      semanticLabel: MaterialLocalizations.of(
-                        context,
-                      ).searchFieldLabel,
+                      semanticLabel: MaterialLocalizations.of(context)
+                          .searchFieldLabel,
                       onChanged: onSearchChanged!,
                       onClear: onClearSearch!,
                     )

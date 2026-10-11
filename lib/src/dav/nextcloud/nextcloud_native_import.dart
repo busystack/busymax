@@ -93,8 +93,7 @@ final class NextcloudNativeImportPreview {
           throw const DavException(
             kind: DavErrorKind.invalidCalendarData,
             code: 'IcalInvalidRecurrenceSet',
-            safeMessage:
-                'A recurrence set must have one master and distinct exceptions.',
+            safeMessage: 'A recurrence set must have one master and distinct exceptions.',
           );
         }
         resources.add(NativeImportResource(uid, type, raw));
@@ -221,9 +220,9 @@ final class NextcloudNativeImportService {
                     ))
                     .get();
             if (!known.any(
-              (r) => IcalSemanticDocument.parse(
-                r.rawIcsBody,
-              ).components.any((c) => c.componentType == 'VTODO'),
+              (r) =>
+                  IcalSemanticDocument.parse(r.rawIcsBody).components
+                      .any((c) => c.componentType == 'VTODO'),
             )) {
               return NativeImportItemResult(
                 resource.uid,

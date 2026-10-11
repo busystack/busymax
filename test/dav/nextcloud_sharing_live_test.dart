@@ -1,5 +1,7 @@
 import 'dart:io';
+
 import 'support/nextcloud_live_versions.dart';
+
 import 'package:busymax/src/dav/xml/dav_xml.dart';
 
 import 'package:busymax/src/dav/dav_errors.dart';
@@ -307,8 +309,7 @@ final class _SharingUser {
         accountId: 'sharing-$username',
         correlationId: 'sharing-reader-metadata',
         retryClass: DavRetryClass.never,
-        body:
-            '<d:propertyupdate xmlns:d="DAV:" xmlns:a="http://apple.com/ns/ical/"><d:set><d:prop><a:calendar-color>#123456FF</a:calendar-color></d:prop></d:set></d:propertyupdate>',
+        body: '<d:propertyupdate xmlns:d="DAV:" xmlns:a="http://apple.com/ns/ical/"><d:set><d:prop><a:calendar-color>#123456FF</a:calendar-color></d:prop></d:set></d:propertyupdate>',
       ),
       credential: credential,
     );

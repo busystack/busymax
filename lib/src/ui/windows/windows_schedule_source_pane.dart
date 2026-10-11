@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'windows_nextcloud_dialogs.dart';
 import '../../dav/nextcloud/nextcloud_dav_context.dart';
 
@@ -975,9 +976,8 @@ class _MiniMonth extends StatelessWidget {
               Expanded(
                 child: Center(
                   child: Text(
-                    DateFormat.E(
-                      locale,
-                    ).format(weekdayBase.add(Duration(days: index))),
+                    DateFormat.E(locale)
+                        .format(weekdayBase.add(Duration(days: index))),
                     maxLines: 1,
                     style: FluentTheme.of(context).typography.caption,
                   ),

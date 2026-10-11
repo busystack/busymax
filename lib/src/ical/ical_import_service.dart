@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+
 import '../features/maps/domain/location_result.dart';
 
 import '../dav/dav_errors.dart';
@@ -162,9 +163,8 @@ final class IcalImportService {
             s.capabilities.canCreateEvents ||
             (s.davCollectionId != null &&
                 native[s.davCollectionId] != null &&
-                collectionCapabilitiesFromStored(
-                  native[s.davCollectionId]!,
-                ).canCreateTask),
+                collectionCapabilitiesFromStored(native[s.davCollectionId]!)
+                    .canCreateTask),
       ),
       for (final collection in collections)
         if (accounts.any((a) => a.id == collection.accountId) &&

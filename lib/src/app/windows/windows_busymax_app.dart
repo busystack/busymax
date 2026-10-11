@@ -312,9 +312,8 @@ class _WindowsBusyMaxAppState extends ConsumerState<WindowsBusyMaxApp>
               preference: settings.firstDayOfWeekPreference,
               systemValueInitialized: _firstWeekdayController.isInitialized,
               child: MediaQuery(
-                data: MediaQuery.of(
-                  context,
-                ).copyWith(alwaysUse24HourFormat: clock.use24Hour),
+                data: MediaQuery.of(context)
+                    .copyWith(alwaysUse24HourFormat: clock.use24Hour),
                 child: WindowsDesktopRuntime(
                   startMinimizedAtLaunch: widget.startMinimizedAtLaunch,
                   child: child ?? const SizedBox.shrink(),
