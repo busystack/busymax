@@ -1,6 +1,6 @@
 # Desktop OAuth release prerequisites
 
-v0.3.1 uses the owner's new Google Desktop client as the BusyMax-managed
+v0.3.2 uses the owner's new Google Desktop client as the BusyMax-managed
 registration for locally built Linux releases. The download has a valid
 `installed` object and project ID `busymax`. Its actual fields are read by the
 [local release command](beta_snap_release.md); no credential JSON is committed.

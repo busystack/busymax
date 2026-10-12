@@ -57,7 +57,7 @@ explicit revision, and incorporate fetched `origin/main`.
 
 ```bash
 tool/release/build_snap_local.sh \
-  --version 0.3.1 \
+  --version 0.3.2 \
   --revision "$(git rev-parse HEAD)" \
   --google-oauth /path/to/google-desktop-download-directory \
   --local-config config/release.local.json \
@@ -72,8 +72,8 @@ retained for inspection; choose a new path for another attempt. No reset,
 forced worktree removal, or destructive cleanup is used.
 
 The command checks all five version files before compiling; it never rewrites
-them. v0.3.1 uses Android code **6**, confirmed available by the owner on
-2026-10-11. It resolves the lockfile, generates/rechecks localization and Drift,
+them. v0.3.2 uses Android code **7**. It resolves the lockfile,
+generates/rechecks localization and Drift,
 runs formatting, analysis, platform boundaries, full Flutter/tool/native tests,
 and compiles a fresh configured bundle. It verifies the actual managed Google
 configuration in `libapp.so`, runs canonical Snapcraft packaging with
@@ -97,11 +97,11 @@ owner's desktop or uploaded automatically.
 Use the exact printed path throughout. In its artifacts directory:
 
 ```bash
-sha256sum --check busymax_0.3.1_amd64.snap.sha256
-unsquashfs -cat busymax_0.3.1_amd64.snap meta/snap.yaml
+sha256sum --check busymax_0.3.2_amd64.snap.sha256
+unsquashfs -cat busymax_0.3.2_amd64.snap meta/snap.yaml
 ```
 
-Confirm `0.3.1`, `core24`, `devel`, `strict`, the BusyMax launcher, its autostart
+Confirm `0.3.2`, `core24`, `devel`, `strict`, the BusyMax launcher, its autostart
 entry, desktop file, icon and AppStream history. Investigate library warnings
 using [the library investigation record](snap_runtime_libraries.md); do not add
 broad linter suppression. The VM evidence must show no unresolved runtime ELF
@@ -113,7 +113,7 @@ preferences, contacts settings, conflicts and pending offline work. Back up
 that test state. Quit BusyMax and upgrade using the exact candidate:
 
 ```bash
-sudo snap install --dangerous /absolute/path/busymax_0.3.1_amd64.snap
+sudo snap install --dangerous /absolute/path/busymax_0.3.2_amd64.snap
 snap connections busymax
 snap run busymax
 ```
@@ -141,7 +141,7 @@ only the verified checksum. The build command never publishes:
 ```bash
 snapcraft login
 snapcraft whoami
-snapcraft upload --release=beta /absolute/path/busymax_0.3.1_amd64.snap
+snapcraft upload --release=beta /absolute/path/busymax_0.3.2_amd64.snap
 snapcraft revisions busymax --arch amd64
 snapcraft status busymax --arch amd64
 ```

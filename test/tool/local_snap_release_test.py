@@ -48,7 +48,7 @@ class LocalReleaseTest(unittest.TestCase):
         if args[1:3] == ['rev-parse', 'HEAD']:
             return 'a' * 40
         if args[1:3] == ['branch', '--show-current']:
-            return 'release/v0.3.1'
+            return 'release/v0.3.2'
         return ''
 
     def bundle(self, root):
@@ -58,7 +58,7 @@ class LocalReleaseTest(unittest.TestCase):
             p = root / name
             p.parent.mkdir(parents=True, exist_ok=True)
             p.write_bytes((' '.join(self.config().values())).encode() if name == 'lib/libapp.so' else b'fixture')
-        (root / 'data/flutter_assets/version.json').write_text('{"app_name":"busymax","version":"0.3.1"}')
+        (root / 'data/flutter_assets/version.json').write_text('{"app_name":"busymax","version":"0.3.2"}')
         os.chmod(root / 'busymax', 0o755)
 
     def test_valid_desktop_derives_only_managed_fields(self):
@@ -113,18 +113,18 @@ class LocalReleaseTest(unittest.TestCase):
             if args[1] == 'ls-files': return 'client_secret_download.json'
             return self.source_runner(args, cwd, **kwargs)
         with patch.object(release, 'run', side_effect=runner):
-            with self.assertRaises(release.ReleaseError): release.source_gate(self.source, 'a'*40, '0.3.1')
+            with self.assertRaises(release.ReleaseError): release.source_gate(self.source, 'a'*40, '0.3.2')
 
     def test_wrong_source_version_rejected(self):
         self.source_files()
         for old in ['0.2.4', '0.3.0']:
             (self.source / 'pubspec.yaml').write_text(f'version: {old}\n')
             with patch.object(release, 'run', side_effect=self.source_runner):
-                with self.assertRaises(release.ReleaseError): release.source_gate(self.source, 'a'*40, '0.3.1')
+                with self.assertRaises(release.ReleaseError): release.source_gate(self.source, 'a'*40, '0.3.2')
 
     def test_wrong_revision_rejected(self):
         with patch.object(release, 'run', side_effect=self.source_runner):
-            with self.assertRaises(release.ReleaseError): release.source_gate(self.source, 'b'*40, '0.3.1')
+            with self.assertRaises(release.ReleaseError): release.source_gate(self.source, 'b'*40, '0.3.2')
 
     def test_existing_workspace_and_shared_repository_untouched(self):
         workspace = self.root / 'existing'; workspace.mkdir()
@@ -145,7 +145,7 @@ class LocalReleaseTest(unittest.TestCase):
     def test_old_flutter_version_is_rejected(self):
         bundle = self.root / 'bundle'; self.bundle(bundle)
         (bundle / 'data/flutter_assets/version.json').write_text('{"app_name":"busymax","version":"0.3.0"}')
-        with self.assertRaises(release.ReleaseError): release.bundle_gate(bundle, self.config(), '0.3.1')
+        with self.assertRaises(release.ReleaseError): release.bundle_gate(bundle, self.config(), '0.3.2')
 
     def test_unconfigured_compilation_rejected(self):
         bundle = self.root / 'bundle'; self.bundle(bundle)
@@ -154,7 +154,7 @@ class LocalReleaseTest(unittest.TestCase):
 
     def test_missing_final_snap_rejected(self):
         with self.assertRaises(release.ReleaseError):
-            release.package_gate(self.root / 'missing.snap', self.root, '0.3.1', self.config(), self.source)
+            release.package_gate(self.root / 'missing.snap', self.root, '0.3.2', self.config(), self.source)
 
     def package_tree(self, tree):
         self.bundle(tree)
@@ -163,24 +163,24 @@ class LocalReleaseTest(unittest.TestCase):
                      'share/icons/hicolor/scalable/apps/io.busystack.busymax.svg']:
             p = tree / name; p.parent.mkdir(parents=True, exist_ok=True); p.write_text('fixture')
         p = tree / 'share/metainfo/io.busystack.busymax.metainfo.xml'; p.parent.mkdir(parents=True)
-        p.write_text('<component><releases><release version="0.3.1"/></releases></component>')
+        p.write_text('<component><releases><release version="0.3.2"/></releases></component>')
         p = tree / 'meta/snap.yaml'; p.parent.mkdir()
         (tree / 'meta/gui').mkdir(); (tree / 'meta/gui/busymax.desktop').write_text('fixture')
-        p.write_text('name: busymax\nversion: 0.3.1\nbase: core24\ngrade: devel\nconfinement: strict\napps:\n  busymax:\n    command: busymax\n    autostart: io.busystack.busymax-autostart.desktop\n')
+        p.write_text('name: busymax\nversion: 0.3.2\nbase: core24\ngrade: devel\nconfinement: strict\napps:\n  busymax:\n    command: busymax\n    autostart: io.busystack.busymax-autostart.desktop\n')
 
     def test_packaged_metadata_verified(self):
         snap = self.root / 'busymax.snap'; snap.touch()
         self.package_tree(self.root / 'inspection')
         with patch.object(release, 'run'):
-            release.package_gate(snap, self.root, '0.3.1', self.config(), self.source)
+            release.package_gate(snap, self.root, '0.3.2', self.config(), self.source)
             with self.assertRaises(release.ReleaseError): release.package_gate(snap, self.root, '0.3.0', self.config(), self.source)
         (self.root / 'inspection/meta/snap.yaml').write_text('confinement: classic')
         with patch.object(release, 'run'):
-            with self.assertRaises(release.ReleaseError): release.package_gate(snap, self.root, '0.3.1', self.config(), self.source)
+            with self.assertRaises(release.ReleaseError): release.package_gate(snap, self.root, '0.3.2', self.config(), self.source)
 
     def test_unexpected_output_artifacts_rejected(self):
         snap = self.root / 'busymax.snap'; snap.touch(); (self.root / 'other.snap').touch()
-        with self.assertRaises(release.ReleaseError): release.package_gate(snap, self.root, '0.3.1', self.config(), self.source)
+        with self.assertRaises(release.ReleaseError): release.package_gate(snap, self.root, '0.3.2', self.config(), self.source)
 
     def test_upload_and_destructive_modes_absent(self):
         script = (ROOT / 'tool/release/build_snap_local.py').read_text()
@@ -192,7 +192,7 @@ class LocalReleaseTest(unittest.TestCase):
         self.source_files()
         workspace = self.root / 'workspace'
         options = argparse.Namespace(source=self.source, workspace=workspace, google_oauth=self.credentials,
-                                     local_config=None, revision='a'*40, version='0.3.1', flutter=self.root/'flutter')
+                                     local_config=None, revision='a'*40, version='0.3.2', flutter=self.root/'flutter')
         seen = []
         def runner(args, cwd, **kwargs):
             seen.append([str(a) for a in args])
@@ -208,7 +208,7 @@ class LocalReleaseTest(unittest.TestCase):
                 self.assertFalse(configuration.is_relative_to(workspace / 'busymax'))
                 self.bundle(workspace/'busymax/build/linux/x64/release/bundle')
             if args[:2] == ['snapcraft', 'pack'] and failure != 'snap':
-                (Path(cwd) / args[-1] / 'busymax_0.3.1_amd64.snap').write_bytes(b'fixture-snap')
+                (Path(cwd) / args[-1] / 'busymax_0.3.2_amd64.snap').write_bytes(b'fixture-snap')
             if args[0] == 'unsquashfs': self.package_tree(Path(args[3]))
             if 'tool/release/verify_snap_runtime.sh' in args:
                 if failure == 'runtime': raise release.ReleaseError('Runtime failure.')

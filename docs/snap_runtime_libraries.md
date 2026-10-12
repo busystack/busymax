@@ -3,8 +3,9 @@
 Checked 2026-10-11 with Snapcraft 9.1.4, core24 revision 2124,
 GNOME 46-2404 revision 168 and mesa-2404 revision 1839. The installed BusyMax
 v0.3.0 revision x3 was used only to establish runtime provenance; it is not
-v0.3.1 acceptance evidence. The local release command repeats resolution in a
-fresh Ubuntu 24.04 VM against the exact new package and its checksum.
+acceptance evidence for a later release. The local release command repeats
+resolution in a fresh Ubuntu 24.04 VM against the exact new package and its
+checksum.
 
 Inside `snap run --shell busymax`, `ldd` on the runner, Flutter engine and
 libgweather resolved the reported libraries as follows:
