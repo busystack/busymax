@@ -8,7 +8,7 @@ and Windows. Release packaging has separate procedures linked below.
 BusyMax development and CI use Flutter **3.47.5** and the Dart **3.13.4** SDK
 bundled with that Flutter installation. Use the bundled `dart` executable; do
 not mix Flutter with a different global Dart SDK. The `pubspec.yaml` constraint
-`sdk: ^3.12.0` is the Dart language/package compatibility constraint. It is not
+`sdk: ^3.13.4` is the Dart language/package compatibility constraint. It is not
 the repository's build-toolchain version.
 
 The workflows verify the selected SDK with `tool/verify_flutter_sdk.dart`.
@@ -155,6 +155,25 @@ unconfigured strict Snap packaging/install smoke test. It has no production
 dispatch, OAuth credentials or artifact uploads. Windows and Android CI remain
 independent. The official Linux build is `tool/release/build_snap_local.sh`;
 `tool/build_install_snap_local.sh` only repacks a development scaffold.
+
+## Repository contents
+
+Keep application and platform source, tests and synthetic fixtures, locked
+dependencies, CI-verified generated sources, vendored code and licenses, build
+recipes, shared launch configurations and maintained documentation in Git.
+Reviewed product screenshots and test golden images are also source inputs.
+The checked-in Google Tasks discovery document is a pinned API contract used by
+tests, not a disposable build cache.
+
+Keep local profiles, credentials, signing material, per-run logs, captures,
+command receipts, delivery manifests and release artifacts outside Git. Use
+ignored `build/` locations or temporary directories for validation evidence;
+summarize results in the relevant pull request. Downloaded Google Desktop JSON
+and local release settings follow the [local Snap release procedure](beta_snap_release.md).
+
+The [read-only contacts integration](development/contacts-read-only.md)
+documents the provider, authorization, storage and lifecycle boundaries and
+their regression coverage.
 
 ## Release branches
 

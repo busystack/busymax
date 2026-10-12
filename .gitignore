@@ -36,6 +36,7 @@ migrate_working_dir/
 
 # Per-run evidence belongs in build/ or a temporary directory.
 /docs/validation/
+/docs/development/evidence/
 
 # Transient Kotlin compiler session state.
 .kotlin/
@@ -68,3 +69,4 @@ config/windows_store.local.json
 
 # Local public release settings; downloaded Google JSON stays outside Git.
 config/release.local.json
+client_secret*.json
