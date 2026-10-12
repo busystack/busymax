@@ -47,6 +47,9 @@ no Microsoft secret or new app is needed. Preserve its existing public-client
 redirect and permissions. Managed `BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID` remains
 optional until a real application is supplied. An explicitly managed Microsoft
 client uses `common`; custom clients retain their own audience/tenant choices.
+When no managed replacement is supplied, **Connect with BusyMax** uses the
+established `MICROSOFT_OAUTH_CLIENT_ID` and its configured authority. That client
+is also accepted in custom setup; it is not retired merely because Google changed.
 Verify expired Microsoft grants receive a clear reconnect instruction. Optional
 contacts retain `Contacts.Read`. Nextcloud, iCloud and read-only contacts flows
 must pass their existing regressions; none use release OAuth secrets.

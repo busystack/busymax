@@ -327,6 +327,53 @@ void main() {
       expect(h.requests, hasLength(1));
     });
   });
+  test('established Microsoft public client authorizes and remains bound after restart', () async {
+    h.staging.dispose();
+    await h.db.close();
+    final established = syntheticDesktopConfig(
+      managed: false,
+      originalMicrosoftAuthority: 'organizations',
+    );
+    h = Harness(buildConfig: established);
+    final selected = h.staging.stageBusyMax(BusyProvider.microsoft);
+    await h.repository.signInWithMicrosoft(
+      request: AuthorizationRequest.newConnection(selected),
+    );
+    const id = 'microsoft:ms-user';
+    final saved =
+        await h.secrets.readCredential(id) as MicrosoftDesktopCredential;
+    await h.secrets.saveCredential(
+      id,
+      SecretRecord.fromJson(jsonDecode(jsonEncode(saved.toJson()))),
+    );
+    final restarted = MicrosoftOAuthService(
+      config: established,
+      httpClient: h.client,
+      tokenStore: h.secrets,
+      loopbackFlow: h.flow,
+      registrations: h.staging,
+      persistence: AuthorizationPersistence(database: h.db, secrets: h.secrets),
+    );
+    await restarted.refreshTokenForAccount(id);
+    expect(h.flow.clients, [established.microsoftOAuthClientId]);
+    expect(
+      h.requests
+          .where((r) => r.method == 'POST')
+          .every(
+            (r) =>
+                r.url.path.startsWith('/organizations/') &&
+                Uri.splitQueryString(r.body)['client_id'] ==
+                    established.microsoftOAuthClientId,
+          ),
+      isTrue,
+    );
+    final current =
+        await h.secrets.readCredential(id) as MicrosoftDesktopCredential;
+    expect(current.registration.clientId, established.microsoftOAuthClientId);
+    expect(current.registration.authorityTenant, 'organizations');
+    expect(await h.db.select(h.db.accounts).get(), hasLength(1));
+  });
+
   for (final origin in [
     RegistrationOrigin.busyMaxManaged,
     RegistrationOrigin.userProvided,

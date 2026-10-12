@@ -109,7 +109,7 @@ class _RegistrationDialogState extends State<_RegistrationDialog> {
 
   bool get sharedAvailable => widget.provider == BusyProvider.google
       ? setup.staging.config.hasBusyMaxGoogleRegistration
-      : setup.staging.config.hasBusyMaxMicrosoftRegistration;
+      : setup.staging.config.hasMicrosoftDesktopConnection;
 
   void connectWithBusyMax() {
     final selected = setup.connectWithBusyMax();

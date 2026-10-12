@@ -169,11 +169,11 @@ class BuildConfig {
   final bool useFakeProviderData;
   final BusyMaxDemoTheme demoTheme;
 
-  /// Protected original registration values serve eligible existing accounts only.
+  /// Google setup uses the managed or user-provided Desktop registration.
   bool get googleSetupAvailable => true;
   bool get microsoftSetupAvailable => !useFakeProviderData;
 
-  /// Explicitly designated desktop registrations. Original values above remain
+  /// Explicitly designated desktop registrations. Original Google values remain
   /// reserved for establishing legacy account bindings, including on Android.
   bool get hasBusyMaxGoogleRegistration =>
       !androidNativeAuthorization &&
@@ -186,6 +186,21 @@ class BuildConfig {
       !androidNativeAuthorization &&
       validMicrosoftDesktopConfiguration(
         clientId: busyMaxMicrosoftOAuthClientId,
+      );
+
+  /// The established Microsoft public client remains usable when no replacement
+  /// managed registration has been supplied. Keep its configured authority.
+  String get microsoftDesktopClientId => hasBusyMaxMicrosoftRegistration
+      ? busyMaxMicrosoftOAuthClientId
+      : microsoftOAuthClientId;
+  String get microsoftDesktopAuthorityTenant => hasBusyMaxMicrosoftRegistration
+      ? 'common'
+      : microsoftOAuthAuthorityTenant;
+  bool get hasMicrosoftDesktopConnection =>
+      !androidNativeAuthorization &&
+      validMicrosoftDesktopConfiguration(
+        clientId: microsoftDesktopClientId,
+        authorityTenant: microsoftDesktopAuthorityTenant,
       );
 
   bool get hasGoogleOAuthClientId =>

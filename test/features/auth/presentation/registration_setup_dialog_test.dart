@@ -211,6 +211,32 @@ void main() {
         );
       }
 
+      testWidgets(
+        'established Microsoft client enables BusyMax connection without a new registration',
+        (tester) async {
+          staging.dispose();
+          final config = syntheticDesktopConfig(
+            managed: false,
+            originalMicrosoftAuthority: 'organizations',
+          );
+          staging = RegistrationStaging(config);
+          harness = _Harness(windows, staging);
+          await harness.open(tester, BusyProvider.microsoft, methods: true);
+          expect(_key('shared-unavailable'), findsNothing);
+          expect(_key('client-id'), findsNothing);
+          await tester.tap(_key('busymax'));
+          await tester.pumpAndSettle();
+          expect(harness.results, hasLength(1));
+          final registration = staging.consume(
+            harness.results.single!,
+          ) as MicrosoftPublicRegistration;
+          expect(registration.clientId, config.microsoftOAuthClientId);
+          expect(registration.authorityTenant, 'organizations');
+          expect(registration.origin, RegistrationOrigin.busyMaxManaged);
+          await tester.pumpWidget(const SizedBox.shrink());
+        },
+      );
+
       testWidgets('native form hierarchy and inline validation', (
         tester,
       ) async {
