@@ -418,6 +418,15 @@ final desktopNotificationServiceProvider = Provider<DesktopNotificationService>(
       cancellationQueue: ref.watch(notificationCancellationQueueProvider),
       settings: settings,
       locale: settings.locale,
+      onReconnectActivated: (id) async {
+        await ref.read(desktopWindowServiceProvider).showWindow();
+        ref
+            .read(desktopNavigationServiceProvider)
+            .open(
+              DesktopNavigationDestination.settings,
+              reconnectAccountId: id,
+            );
+      },
       onDestinationActivated: (destination) async {
         await ref.read(desktopWindowServiceProvider).showWindow();
         ref.read(desktopNavigationServiceProvider).open(destination);
@@ -1782,6 +1791,9 @@ Future<void> _runAccountSyncIfEligible(
       .generation(accountId);
   try {
     await synchronize(ref.read(accountSyncOperationsProvider));
+    ref
+        .read(desktopNotificationServiceProvider)
+        .clearAccountSyncFailure(accountId);
   } on Object catch (error) {
     throw AuthorizationScopedFailure(
       accountId: accountId,

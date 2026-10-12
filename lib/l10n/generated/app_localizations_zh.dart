@@ -3430,6 +3430,30 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get contactsPasswordLabel => '密码';
+
+  @override
+  String get accountReconnectRequired => '请重新连接此账号以恢复同步。';
+
+  @override
+  String get googleReconnectRequired => '请重新连接 Google 账号以恢复日历和任务同步。';
+
+  @override
+  String get reconnectGoogleAccount => '重新连接 Google 账号';
+
+  @override
+  String get reconnectAccount => '重新连接此账号';
+
+  @override
+  String reconnectSelectedAccount(String account) {
+    return '重新连接 $account。日历、任务和待处理的本地更改将保留。';
+  }
+
+  @override
+  String get googleIdentityUnverified =>
+      '无法验证此旧 Google 连接的账号身份。日历、任务和待处理的更改已保留。请添加独立的 Google 连接以安全同步。待处理的更改将保留在原账号中。';
+
+  @override
+  String get addSeparateGoogleAccount => '添加独立的 Google 连接';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -6853,6 +6877,30 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get contactsPasswordLabel => '密码';
+
+  @override
+  String get accountReconnectRequired => '请重新连接此账号以恢复同步。';
+
+  @override
+  String get googleReconnectRequired => '请重新连接 Google 账号以恢复日历和任务同步。';
+
+  @override
+  String get reconnectGoogleAccount => '重新连接 Google 账号';
+
+  @override
+  String get reconnectAccount => '重新连接此账号';
+
+  @override
+  String reconnectSelectedAccount(String account) {
+    return '重新连接 $account。日历、任务和待处理的本地更改将保留。';
+  }
+
+  @override
+  String get googleIdentityUnverified =>
+      '无法验证此旧 Google 连接的账号身份。日历、任务和待处理的更改已保留。请添加独立的 Google 连接以安全同步。待处理的更改将保留在原账号中。';
+
+  @override
+  String get addSeparateGoogleAccount => '添加独立的 Google 连接';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -10277,4 +10325,28 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get contactsPasswordLabel => '密碼';
+
+  @override
+  String get accountReconnectRequired => '請重新連接此帳號以恢復同步。';
+
+  @override
+  String get googleReconnectRequired => '請重新連接 Google 帳號以恢復行事曆和待辦事項同步。';
+
+  @override
+  String get reconnectGoogleAccount => '重新連接 Google 帳號';
+
+  @override
+  String get reconnectAccount => '重新連接此帳號';
+
+  @override
+  String reconnectSelectedAccount(String account) {
+    return '重新連接 $account。行事曆、待辦事項和待處理的本機變更將保留。';
+  }
+
+  @override
+  String get googleIdentityUnverified =>
+      '無法驗證此舊 Google 連線的帳號身分。行事曆、待辦事項和待處理的變更已保留。請新增獨立的 Google 連線以安全同步。待處理的變更將保留在原帳號中。';
+
+  @override
+  String get addSeparateGoogleAccount => '新增獨立的 Google 連線';
 }

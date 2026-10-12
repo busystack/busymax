@@ -1282,5 +1282,19 @@
   "registrationGuideGooglePublishing": "Audience で Publish app を選び、In production を確認します。通常の使用を Testing のままにしないでください。この Calendar/Tasks の認可と更新トークンは 7 日で期限切れになります。公開と確認は別です。100 人未満の個人利用は警告と人数制限付きで確認を免除される場合があります。広い配布にはブランドとスコープの承認が必要な場合があります。本番の認可も期限切れや取り消しになることがあります。",
   "registrationGuideWorkspacePermissions": "管理者とこれらのスコープを確認します。Internal アプリは同意画面へのスコープの記載は不要です。求められた場合は Data Access → Add or remove scopes で値を追加し、Update、Save を選びます。管理者の制限で認可が制限される場合があります。",
   "registrationGuideMicrosoftOptionalPermissions": "共有カレンダーとカテゴリの権限は、これらの任意機能を有効にするときに別途求められます。上の必須設定に追加しないでください。",
-  "registrationGuideWorkspaceAudience": "Google Auth Platform → Branding に移動します。未設定の場合は Get started を選択します。App name に BusyMax を入力し、ご自身の User support email を選んで Next を選択します。Audience ではInternal を選びます。Next を選び、Contact Information にメールアドレスを入力して Next を選択します。User Data Policy に同意し、Continue、Create の順に選択します。設定済みの場合は Branding と Audience を確認します。\n\nInternal はプロジェクトの親組織のアカウントのみ利用でき、管理者の制限も適用されます。テストユーザーの一覧は不要です。BusyMax はダウンロードした JSON からこれらの設定を確認できません。"
+  "registrationGuideWorkspaceAudience": "Google Auth Platform → Branding に移動します。未設定の場合は Get started を選択します。App name に BusyMax を入力し、ご自身の User support email を選んで Next を選択します。Audience ではInternal を選びます。Next を選び、Contact Information にメールアドレスを入力して Next を選択します。User Data Policy に同意し、Continue、Create の順に選択します。設定済みの場合は Branding と Audience を確認します。\n\nInternal はプロジェクトの親組織のアカウントのみ利用でき、管理者の制限も適用されます。テストユーザーの一覧は不要です。BusyMax はダウンロードした JSON からこれらの設定を確認できません。",
+  "accountReconnectRequired": "同期を再開するには、このアカウントを再接続してください。",
+  "googleReconnectRequired": "カレンダーとタスクの同期を再開するには、Google アカウントを再接続してください。",
+  "reconnectGoogleAccount": "Google アカウントを再接続",
+  "reconnectAccount": "このアカウントを再接続",
+  "reconnectSelectedAccount": "{account} を再接続します。カレンダー、タスク、保留中のローカル変更は保持されます。",
+  "@reconnectSelectedAccount": {
+    "placeholders": {
+      "account": {
+        "type": "String"
+      }
+    }
+  },
+  "googleIdentityUnverified": "この古い Google 接続のアカウントを確認できませんでした。カレンダー、タスク、保留中の変更は保持されています。安全に同期するには、別の Google 接続を追加してください。保留中の変更は元のアカウントに残ります。",
+  "addSeparateGoogleAccount": "別の Google 接続を追加"
 }

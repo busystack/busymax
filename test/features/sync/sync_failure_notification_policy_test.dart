@@ -16,6 +16,127 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 
 void main() {
+  test(
+    'calendar and task provider payloads stay out of ordinary sync errors',
+    () {
+      for (final failure in [
+        const GoogleCalendarApiError(
+          statusCode: 500,
+          code: 'raw-code',
+          message: 'private provider response',
+        ),
+        const MicrosoftTodoApiError(
+          statusCode: 403,
+          code: 'raw-code',
+          message: 'private provider response',
+        ),
+        const TaskRemoteError(
+          statusCode: 401,
+          message: 'private provider response',
+        ),
+      ]) {
+        expect(
+          syncFailureMessage(failure),
+          isNot(contains('private provider response')),
+        );
+        expect(
+          syncFailureMessage(failure),
+          isNot(contains(failure.runtimeType.toString())),
+        );
+      }
+    },
+  );
+  test('diagnostics retain distinct safe structured outcomes', () {
+    const failure = OAuthRegistrationUnavailableException(
+      cause: OAuthRefreshException(
+        'OAuthRefreshFailed',
+        'secret provider body',
+        statusCode: 401,
+        oauthError: 'invalid_client',
+      ),
+    );
+    final diagnostic = syncFailureDiagnostic(failure);
+    expect(diagnostic, contains('registrationUnavailable'));
+    expect(diagnostic, contains('clientRejected'));
+    expect(diagnostic, contains('HTTP 401'));
+    expect(diagnostic, isNot(contains('secret provider body')));
+    expect(
+      syncFailureDiagnostic(
+        const OAuthRefreshException(
+          'OAuthRefreshFailed',
+          'raw',
+          statusCode: 400,
+          oauthError: 'invalid_grant',
+        ),
+      ),
+      contains('expiredGrant'),
+    );
+    expect(
+      syncFailureDiagnostic(const OAuthException('OAuthWrongAccount', 'raw')),
+      contains('wrongAccount'),
+    );
+    expect(
+      syncFailureDiagnostic(const SocketException('secret host')),
+      'Network failure',
+    );
+  });
+  test(
+    'structured registration and provider failures drive consistent recovery',
+    () {
+      for (final failure in [
+        const OAuthException('OAuthRegistrationUnresolved', 'Internal details'),
+        const OAuthRegistrationUnavailableException(),
+        const OAuthRefreshException(
+          'OAuthRefreshFailed',
+          'Internal details',
+          statusCode: 401,
+          oauthError: 'invalid_client',
+        ),
+        const OAuthRefreshException(
+          'MicrosoftOAuthRefreshFailed',
+          'Internal details',
+          statusCode: 400,
+          oauthError: 'invalid_grant',
+        ),
+      ]) {
+        expect(
+          syncFailureNotificationDisposition(failure),
+          SyncFailureNotificationDisposition.reconnectRequired,
+        );
+        expect(
+          syncFailureMessage(failure),
+          accountReconnectRequiredSyncMessage,
+        );
+        expect(syncFailureMessage(failure), isNot(contains(failure.code)));
+      }
+      for (final status in [400, 429, 500]) {
+        final failure = OAuthRefreshException(
+          'OAuthRefreshFailed',
+          'raw response',
+          statusCode: status,
+          oauthError: status == 400 ? 'invalid_request' : 'invalid_grant',
+        );
+        expect(isOAuthReconnectRequiredError(failure), false);
+      }
+      expect(
+        syncFailureNotificationDisposition(
+          const OAuthRefreshException(
+            'OAuthRefreshFailed',
+            'raw response',
+            statusCode: 400,
+            oauthError: 'invalid_scope',
+          ),
+        ),
+        SyncFailureNotificationDisposition.permissionChanged,
+      );
+      expect(
+        isOAuthReconnectRequiredError(
+          const OAuthException('OAuthCallbackStateMismatch', 'Callback failed'),
+        ),
+        false,
+      );
+    },
+  );
   group('sync failure notification policy', () {
     test('suppresses transport failures', () {
       final failures = <Object>[

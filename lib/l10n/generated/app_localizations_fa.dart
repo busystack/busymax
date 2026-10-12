@@ -3599,4 +3599,30 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String get contactsPasswordLabel => 'گذرواژه';
+
+  @override
+  String get accountReconnectRequired =>
+      'برای ادامهٔ همگام‌سازی، این حساب را دوباره متصل کنید.';
+
+  @override
+  String get googleReconnectRequired =>
+      'برای ادامهٔ همگام‌سازی تقویم‌ها و کارها، حساب Google خود را دوباره متصل کنید.';
+
+  @override
+  String get reconnectGoogleAccount => 'اتصال دوبارهٔ حساب Google';
+
+  @override
+  String get reconnectAccount => 'اتصال دوبارهٔ این حساب';
+
+  @override
+  String reconnectSelectedAccount(String account) {
+    return 'اتصال دوبارهٔ ⁨$account⁩. تقویم‌ها، کارها و تغییرات محلی در انتظار حفظ می‌شوند.';
+  }
+
+  @override
+  String get googleIdentityUnverified =>
+      'هویت این اتصال قدیمی Google تأیید نشد. تقویم‌ها، کارها و تغییرات در انتظار حفظ شده‌اند. برای همگام‌سازی امن، یک اتصال Google جداگانه اضافه کنید. تغییرات در انتظار در حساب اصلی باقی می‌مانند.';
+
+  @override
+  String get addSeparateGoogleAccount => 'افزودن اتصال Google جداگانه';
 }

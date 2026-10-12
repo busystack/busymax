@@ -17,14 +17,31 @@ in the linked development or release guides.
 against the reviewed source tree, including intentional uncommitted changes.
 Android and Windows local verification use this check; CI also requires checked-in
 generated sources. Windows `-Ci -Unconfigured -Stage WindowsCompile` validates
-setup with the recommended method unavailable. Official packaging requires explicit
-active production registrations and preserves protected originals separately.
+setup with the recommended method unavailable. Official local Linux packaging requires the intended managed Google client from
+an external Desktop JSON; original Google credentials and managed Microsoft are optional.
 See [desktop OAuth release prerequisites](../docs/desktop_oauth_release_checklist.md).
 Android's redirect/signing identity remains required even without the original
 Microsoft client. The pinned Gradle 9.4.1 supports JDK 17–26; use an installed
 supported runtime without downgrading it.
 
 ## Linux and Snap
+
+- `release/build_snap_local.sh --version VERSION --revision SHA --google-oauth FILE_OR_DIRECTORY --local-config config/release.local.json --workspace NEW_DIRECTORY`
+  is the supported official local production command. It builds in new sibling
+  checkouts at the pinned revisions, validates exact SDK/source/version/configuration,
+  runs regression/native checks, builds a fresh bundle, packages with Snapcraft LXD,
+  checks a fresh strict installation and writes a candidate manifest/checksum.
+  It never installs on the owner's desktop or uploads. Credentials are temporary,
+  restricted and excluded from Git and package payloads. See [local release](../docs/beta_snap_release.md).
+- `release/check_linux_native.sh` shares the existing Linux native checks between
+  CI and the local release command.
+- `release/verify_snap_runtime.sh SNAP EVIDENCE_JSON` checks a new tagged Ubuntu
+  24.04 LXD VM with X11 and Wayland. It retains no OAuth account data and never
+  reuses or deletes an unrelated instance.
+- `check_desktop_oauth_config.dart [--config FILE]` validates production managed
+  Google and any supplied optional Microsoft/original settings without printing values.
+- `package_source.py` remains available for explicit deterministic source archive
+  production. GitHub Actions no longer uploads source archives or Snap artifacts.
 
 - `install_linux_dev_desktop.sh` installs or removes a BusyMax desktop entry
   and icon in the current user's XDG data directory, then refreshes the desktop

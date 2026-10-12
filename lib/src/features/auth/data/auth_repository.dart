@@ -680,7 +680,7 @@ class AuthSessionController extends StateNotifier<AuthSessionState> {
       await _onSignedIn(accountId, initial);
     } on Object catch (error) {
       _logger.warning('Signed-in sync failed: initial=$initial error=$error');
-      if (!isMissingOAuthTokenError(error)) {
+      if (!isOAuthReconnectRequiredError(error)) {
         return;
       }
       try {
@@ -718,6 +718,12 @@ String authErrorMessage(Object error) {
         return error.message;
       }
       return googleSignInCallbackNotReceivedMessage;
+    }
+    if (error.requiresReconnect) {
+      return accountReconnectRequiredSyncMessage;
+    }
+    if (error is OAuthRefreshException) {
+      return syncTemporarilyUnavailableMessage;
     }
     return error.message;
   }

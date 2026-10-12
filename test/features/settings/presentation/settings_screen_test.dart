@@ -1,3 +1,4 @@
+import '../../../support/desktop_registration_config.dart';
 import '../../../support/contacts_fixture.dart';
 import '../../../platform/contacts_settings_routes_test.dart'
     show complete, settle;
@@ -206,7 +207,7 @@ void main() {
         'Settings renders typed exchange recovery and enables stored reconnect retry $kind shared=$shared',
         (tester) async {
           await tester.runAsync(() async {
-            final h = Harness();
+            final h = Harness(buildConfig: syntheticDesktopConfig());
             addTearDown(() async {
               h.staging.dispose();
               await h.db.close();
@@ -230,6 +231,8 @@ void main() {
               container,
               logicalSize: const Size(1200, 1200),
             );
+            await container.read(registrationSummariesProvider.future);
+            await tester.pump();
             h.beforeRequest = (r) async => http.Response(
               jsonEncode({
                 'error': kind,
@@ -237,8 +240,11 @@ void main() {
               }),
               kind == 'server_error' ? 503 : 400,
             );
-            await tester.ensureVisible(find.text('Connect').last);
-            await tester.tap(find.text('Connect').last);
+            await _startStoredGoogleReconnect(
+              tester,
+              observing,
+              replacement: shared,
+            );
             await observing.finished;
             await tester.pumpAndSettle();
             final message = kind == 'invalid_client'
@@ -254,8 +260,11 @@ void main() {
             );
             expect((await h.summary('opaque')).showRetirementNotice, shared);
             h.beforeRequest = null;
-            await tester.ensureVisible(find.text('Connect').last);
-            await tester.tap(find.text('Connect').last);
+            await _startStoredGoogleReconnect(
+              tester,
+              observing,
+              replacement: shared,
+            );
             await observing.finished;
             await tester.pumpAndSettle();
             expect(
@@ -1326,9 +1335,11 @@ void main() {
 
     await _pumpSettings(tester, container);
 
-    expect(find.text(accountReconnectRequiredActionLabel), findsOneWidget);
+    expect(find.text('Reconnect Google account'), findsWidgets);
     expect(
-      find.text('Reconnect this account to resume synchronization.'),
+      find.text(
+        'Your Google account needs to be reconnected to resume calendar and task synchronization.',
+      ),
       findsOneWidget,
     );
     expect(find.text('New task list'), findsNothing);
@@ -2235,6 +2246,9 @@ ProviderContainer _container({
       ],
       if (productionHarness != null) ...[
         databaseProvider.overrideWithValue(productionHarness.db),
+        registrationStagingProvider.overrideWithValue(
+          productionHarness.staging,
+        ),
         authorizationPersistenceProvider.overrideWithValue(
           productionHarness.persistence,
         ),
@@ -2670,8 +2684,10 @@ class _ObservedAuthRepository extends AuthRepository {
         authorizationPersistence: h.persistence,
       );
   Future<void>? finished;
+  Completer<void> started = Completer<void>();
   @override
   Future<AuthSessionState> signIn({AuthorizationRequest? request}) {
+    if (!started.isCompleted) started.complete();
     final operation = super.signIn(request: request);
     finished = operation.then<void>(
       (_) {},
@@ -2691,7 +2707,7 @@ void registerSettingsAuthorizationCancellationRegressions() {
             // The production database/transport futures run in the real I/O zone.
             // Rendering pumps cannot be used as a substitute for their barriers.
             await tester.runAsync(() async {
-              final h = Harness();
+              final h = Harness(buildConfig: syntheticDesktopConfig());
               addTearDown(() async {
                 h.staging.dispose();
                 await h.db.close();
@@ -2741,9 +2757,11 @@ void registerSettingsAuthorizationCancellationRegressions() {
                   return null;
                 };
               }
-              final reconnect = find.text('Connect');
-              await tester.ensureVisible(reconnect.last);
-              await tester.tap(reconnect.last);
+              await _startStoredGoogleReconnect(
+                tester,
+                observing,
+                replacement: shared,
+              );
               if (pause == 'browser') {
                 await h.flow.started.future;
               } else if (pause != 'binding') {
@@ -2777,8 +2795,11 @@ void registerSettingsAuthorizationCancellationRegressions() {
               }
               h.beforeRequest = null;
               h.flow.barrier = null;
-              await tester.ensureVisible(find.text('Connect').last);
-              await tester.tap(find.text('Connect').last);
+              await _startStoredGoogleReconnect(
+                tester,
+                observing,
+                replacement: shared,
+              );
               await observing.finished;
               await tester.pumpAndSettle();
               expect(
@@ -2787,7 +2808,7 @@ void registerSettingsAuthorizationCancellationRegressions() {
                 ) as GoogleDesktopCredential).tokenSet.accessToken,
                 'candidate-access',
               );
-              expect((await h.summary('opaque')).showRetirementNotice, shared);
+              expect((await h.summary('opaque')).showRetirementNotice, false);
               await tester.pumpWidget(const SizedBox());
             });
           },
@@ -2795,4 +2816,31 @@ void registerSettingsAuthorizationCancellationRegressions() {
       }
     }
   }
+}
+
+Future<void> _startStoredGoogleReconnect(
+  WidgetTester tester,
+  _ObservedAuthRepository observing, {
+  required bool replacement,
+}) async {
+  observing.started = Completer<void>();
+  final action = find
+      .text(replacement ? 'Reconnect Google account' : 'Connect')
+      .last;
+  await tester.ensureVisible(action);
+  await tester.tap(action);
+  if (replacement) {
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('registration-reconnect-account')),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const ValueKey('registration-busymax')));
+    // Start the reverse animation before advancing its frame timestamp.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+  }
+  await tester.pump();
+  await observing.started.future.timeout(const Duration(seconds: 3));
+  await tester.pump();
 }

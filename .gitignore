@@ -65,3 +65,6 @@ config/windows_store.local.json
 *.pem
 *.key
 *.crt
+
+# Local public release settings; downloaded Google JSON stays outside Git.
+config/release.local.json

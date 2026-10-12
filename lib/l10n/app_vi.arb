@@ -1282,5 +1282,19 @@
   "registrationGuideGooglePublishing": "Trong Audience, chọn Publish app và xác nhận In production. Không để sử dụng thông thường ở Testing: các ủy quyền Calendar/Tasks và mã làm mới này hết hạn sau bảy ngày. Xuất bản và xác minh là hai việc riêng. Sử dụng cá nhân dưới 100 người có thể được miễn xác minh, với cảnh báo và giới hạn người dùng; phân phối rộng hơn có thể cần phê duyệt thương hiệu và phạm vi. Ủy quyền sản xuất vẫn có thể hết hạn hoặc bị thu hồi.",
   "registrationGuideWorkspacePermissions": "Xem các phạm vi này với quản trị viên. Ứng dụng Internal không cần liệt kê phạm vi trên màn hình đồng ý. Nếu được yêu cầu, mở Data Access → Add or remove scopes, thêm giá trị rồi Update và Save. Kiểm soát quản trị vẫn có thể hạn chế ủy quyền.",
   "registrationGuideMicrosoftOptionalPermissions": "Quyền lịch dùng chung và danh mục được yêu cầu riêng khi bật các tính năng tùy chọn; không thêm chúng vào thiết lập bắt buộc ở trên.",
-  "registrationGuideWorkspaceAudience": "Vào Google Auth Platform → Branding. Nếu chưa bắt đầu thiết lập, chọn Get started. Nhập BusyMax vào App name, chọn User support email của bạn rồi chọn Next. Trong Audience, chọn Internal. Chọn Next, nhập email vào Contact Information rồi chọn Next. Chấp nhận User Data Policy rồi chọn Continue và Create. Nếu đã thiết lập, kiểm tra Branding và Audience.\n\nInternal chỉ cho phép tài khoản thuộc tổ chức mẹ của dự án, chịu kiểm soát của quản trị viên. Không cần danh sách người dùng thử. BusyMax không thể xác minh các thiết lập này từ JSON tải xuống."
+  "registrationGuideWorkspaceAudience": "Vào Google Auth Platform → Branding. Nếu chưa bắt đầu thiết lập, chọn Get started. Nhập BusyMax vào App name, chọn User support email của bạn rồi chọn Next. Trong Audience, chọn Internal. Chọn Next, nhập email vào Contact Information rồi chọn Next. Chấp nhận User Data Policy rồi chọn Continue và Create. Nếu đã thiết lập, kiểm tra Branding và Audience.\n\nInternal chỉ cho phép tài khoản thuộc tổ chức mẹ của dự án, chịu kiểm soát của quản trị viên. Không cần danh sách người dùng thử. BusyMax không thể xác minh các thiết lập này từ JSON tải xuống.",
+  "accountReconnectRequired": "Kết nối lại tài khoản này để tiếp tục đồng bộ.",
+  "googleReconnectRequired": "Kết nối lại tài khoản Google để tiếp tục đồng bộ lịch và công việc.",
+  "reconnectGoogleAccount": "Kết nối lại tài khoản Google",
+  "reconnectAccount": "Kết nối lại tài khoản này",
+  "reconnectSelectedAccount": "Kết nối lại {account}. Lịch, công việc và thay đổi cục bộ đang chờ sẽ được giữ lại.",
+  "@reconnectSelectedAccount": {
+    "placeholders": {
+      "account": {
+        "type": "String"
+      }
+    }
+  },
+  "googleIdentityUnverified": "Không thể xác minh danh tính của kết nối Google cũ này. Lịch, công việc và thay đổi đang chờ được giữ lại. Thêm một kết nối Google riêng để đồng bộ an toàn. Thay đổi đang chờ vẫn thuộc tài khoản gốc.",
+  "addSeparateGoogleAccount": "Thêm kết nối Google riêng"
 }

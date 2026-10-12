@@ -97,6 +97,34 @@ void main() {
         addTearDown(() => staging.dispose());
       });
 
+      testWidgets(
+        'reconnection identifies the existing account and supports keyboard cancellation',
+        (tester) async {
+          staging.dispose();
+          staging = RegistrationStaging(
+            syntheticDesktopConfig(originalGoogle: false),
+          );
+          harness = _Harness(windows, staging);
+          await harness.open(
+            tester,
+            BusyProvider.google,
+            methods: true,
+            accountLabel: 'existing@example.invalid',
+          );
+          expect(
+            find.byKey(const ValueKey('registration-reconnect-account')),
+            findsOneWidget,
+          );
+          expect(
+            find.textContaining('existing@example.invalid'),
+            findsOneWidget,
+          );
+          expect(_callback(tester, 'busymax'), isNotNull);
+          await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+          await tester.pumpAndSettle();
+          expect(harness.results, [null]);
+        },
+      );
       for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
         testWidgets(
           '$provider methods expose unavailable shared and usable custom paths',
@@ -778,6 +806,7 @@ class _Harness {
     WidgetTester tester,
     BusyProvider provider, {
     bool methods = false,
+    String? accountLabel,
   }) async {
     tester.view.physicalSize = const Size(1100, 950);
     tester.view.devicePixelRatio = 1;
@@ -787,8 +816,18 @@ class _Harness {
       builder: (context, ref, _) {
         void open() {
           final result = windows
-              ? showWindowsRegistrationSetup(context, ref, provider)
-              : showRegistrationSetup(context, ref, provider);
+              ? showWindowsRegistrationSetup(
+                  context,
+                  ref,
+                  provider,
+                  accountLabel: accountLabel,
+                )
+              : showRegistrationSetup(
+                  context,
+                  ref,
+                  provider,
+                  accountLabel: accountLabel,
+                );
           unawaited(result.then(results.add));
         }
 

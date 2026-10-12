@@ -154,6 +154,17 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
   }
 
   Future<void> _handleExternalCalendarOpen(DesktopActivation request) async {
+    if (request.kind == DesktopActivationKind.notification &&
+        request.isValid &&
+        request.notificationDestination != null) {
+      _handleNavigationRequest(
+        DesktopNavigationRequest(
+          request.notificationDestination!,
+          reconnectAccountId: request.payload?['accountId'],
+        ),
+      );
+      return;
+    }
     if (request.kind != DesktopActivationKind.webCal &&
         request.kind != DesktopActivationKind.icsFile) {
       return;
@@ -220,6 +231,15 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
   void _handleNavigationRequest(DesktopNavigationRequest request) {
     if (!mounted) return;
     final router = ref.read(appRouterProvider);
+    if (request.reconnectAccountId case final id?) {
+      router.go(
+        Uri(
+          path: '/settings',
+          queryParameters: {'page': 'accounts', 'reconnect': id},
+        ).toString(),
+      );
+      return;
+    }
     router.go(switch (request.destination) {
       DesktopNavigationDestination.schedule => '/schedule',
       DesktopNavigationDestination.tasks => '/tasks',

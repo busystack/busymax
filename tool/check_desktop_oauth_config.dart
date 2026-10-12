@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:busymax/src/config/desktop_oauth_configuration.dart';
 
-/// Official desktop builds must explicitly supply both recommended clients.
+/// Official local Linux builds require the intended managed Google client.
 /// Never print configuration values: they may contain protected client secrets.
 void main(List<String> args) {
   Map<String, Object?> values;
@@ -32,6 +32,17 @@ void main(List<String> args) {
       values[key] is String ? values[key] as String : '';
   var missing = false;
   const syntheticCiValues = {
+    'managed.apps.googleusercontent.com',
+    'later.apps.googleusercontent.com',
+    'fixture.apps.googleusercontent.com',
+    'original.apps.googleusercontent.com',
+    'owned.apps.googleusercontent.com',
+    'synthetic-public-secret',
+    'synthetic-managed-project',
+    '11111111-1111-1111-1111-111111111111',
+    '33333333-3333-3333-3333-333333333333',
+    '55555555-5555-5555-5555-555555555555',
+
     'busymax-ci-managed.apps.googleusercontent.com',
     'synthetic-ci-public-secret',
     'busymax-ci-managed',
@@ -45,6 +56,8 @@ void main(List<String> args) {
     'BUSYMAX_GOOGLE_OAUTH_PROJECT_ID',
     'BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID',
     'GOOGLE_OAUTH_CLIENT_ID',
+    'GOOGLE_OAUTH_CLIENT_SECRET',
+    'GOOGLE_OAUTH_PROJECT_ID',
     'MICROSOFT_OAUTH_CLIENT_ID',
   ].any((key) => syntheticCiValues.contains(value(key).trim()))) {
     stderr.writeln(
@@ -65,24 +78,66 @@ void main(List<String> args) {
     );
     missing = true;
   }
-  if (!validMicrosoftDesktopConfiguration(
-    clientId: value('BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID'),
-  )) {
-    stderr.writeln(
-      'External prerequisite: Microsoft production public app ID '
-      'is missing or invalid. '
-      'The owner must support personal and organizational accounts and '
-      'configure the desktop redirect, delegated permissions '
-      'and applicable consent before enabling Connect with BusyMax.',
-    );
+  for (final key in [
+    'MICROSOFT_OAUTH_CLIENT_ID',
+    'BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID',
+  ]) {
+    if (values.containsKey(key) &&
+        !validMicrosoftDesktopConfiguration(clientId: value(key))) {
+      stderr.writeln(
+        'Supplied Microsoft public client configuration is invalid.',
+      );
+      missing = true;
+    }
+  }
+  // Original Google values are optional, never a substitute for managed values.
+  if (values.containsKey('GOOGLE_OAUTH_CLIENT_ID') &&
+      !RegExp(r'^[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$')
+          .hasMatch(value('GOOGLE_OAUTH_CLIENT_ID').trim())) {
+    stderr.writeln('Supplied original Google client configuration is invalid.');
     missing = true;
   }
-  if (value('GOOGLE_OAUTH_CLIENT_ID').trim().isEmpty ||
-      value('MICROSOFT_OAUTH_CLIENT_ID').trim().isEmpty) {
+  for (final key in [
+    'GOOGLE_OAUTH_CLIENT_SECRET',
+    'GOOGLE_OAUTH_PROJECT_ID',
+    'MICROSOFT_OAUTH_AUTHORITY_TENANT',
+  ]) {
+    if (values.containsKey(key) && value(key).trim().isEmpty) {
+      stderr.writeln(
+        'Supplied optional registration configuration is incomplete.',
+      );
+      missing = true;
+    }
+  }
+  if (values.containsKey('MICROSOFT_OAUTH_AUTHORITY_TENANT') &&
+      !{
+        'common',
+        'consumers',
+        'organizations',
+      }.contains(value('MICROSOFT_OAUTH_AUTHORITY_TENANT')) &&
+      !validMicrosoftDesktopConfiguration(
+        clientId: value('MICROSOFT_OAUTH_AUTHORITY_TENANT'),
+      )) {
+    stderr.writeln('Supplied Microsoft authority configuration is invalid.');
+    missing = true;
+  }
+  if (values.containsKey('GOOGLE_OAUTH_PROJECT_ID') &&
+      !RegExp(r'^[a-z][a-z0-9-]{4,62}[a-z0-9]$')
+          .hasMatch(value('GOOGLE_OAUTH_PROJECT_ID'))) {
+    stderr.writeln('Supplied original Google project metadata is invalid.');
+    missing = true;
+  }
+  if ((values.containsKey('GOOGLE_OAUTH_CLIENT_SECRET') ||
+          values.containsKey('GOOGLE_OAUTH_PROJECT_ID')) &&
+      !values.containsKey('GOOGLE_OAUTH_CLIENT_ID')) {
+    stderr.writeln('Supplied original Google configuration is incomplete.');
+    missing = true;
+  }
+  if (value('GOOGLE_OAUTH_CLIENT_ID').isNotEmpty &&
+      value('GOOGLE_OAUTH_CLIENT_ID').trim() ==
+          value('BUSYMAX_GOOGLE_OAUTH_CLIENT_ID').trim()) {
     stderr.writeln(
-      'Protected original registration IDs must be retained '
-      'separately for existing account bindings. Do not substitute the new '
-      'production registrations for these values.',
+      'The active Google registration must not be substituted for the retiring registration.',
     );
     missing = true;
   }

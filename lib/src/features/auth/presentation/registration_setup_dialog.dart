@@ -17,8 +17,9 @@ import '../../../app/busymax_design.dart';
 Future<RegistrationHandle?> showRegistrationSetup(
   BuildContext context,
   WidgetRef ref,
-  BusyProvider provider,
-) {
+  BusyProvider provider, {
+  String? accountLabel,
+}) {
   final controller = RegistrationSetupController(
     ref.read(registrationStagingProvider),
     provider,
@@ -26,15 +27,23 @@ Future<RegistrationHandle?> showRegistrationSetup(
   );
   return showBusyMaxModalDialog<RegistrationHandle>(
     context,
-    builder: (_) =>
-        _RegistrationDialog(provider: provider, controller: controller),
+    builder: (_) => _RegistrationDialog(
+      provider: provider,
+      controller: controller,
+      accountLabel: accountLabel,
+    ),
   );
 }
 
 enum _SetupPage { methods, configuration, instructions }
 
 class _RegistrationDialog extends StatefulWidget {
-  const _RegistrationDialog({required this.provider, required this.controller});
+  const _RegistrationDialog({
+    required this.provider,
+    required this.controller,
+    this.accountLabel,
+  });
+  final String? accountLabel;
   final BusyProvider provider;
   final RegistrationSetupController controller;
   @override
@@ -235,6 +244,13 @@ class _RegistrationDialogState extends State<_RegistrationDialog> {
   }
 
   List<Widget> _methods(AppLocalizations l10n) => [
+    if (widget.accountLabel case final label?) ...[
+      Text(
+        l10n.reconnectSelectedAccount(label),
+        key: const ValueKey('registration-reconnect-account'),
+      ),
+      const SizedBox(height: 12),
+    ],
     Text(l10n.registrationMethodsIntroduction),
     const SizedBox(height: BusyMaxSpacing.md),
     Align(

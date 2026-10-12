@@ -72,7 +72,13 @@ final _settingsLogger = RedactingLogger(Logger('SettingsScreen'));
 const _systemLocaleTag = 'system';
 
 class SettingsScreen extends ConsumerStatefulWidget {
-  const SettingsScreen({super.key, this.initialPage = SettingsPage.system});
+  const SettingsScreen({
+    super.key,
+    this.initialPage = SettingsPage.system,
+    this.reconnectAccountId,
+  });
+
+  final String? reconnectAccountId;
 
   final SettingsPage initialPage;
 
@@ -91,9 +97,31 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final _busyContactAccountIds = <String>{};
   late final LaunchAtLoginRefreshObserver _autostartRefresh;
 
+  String? _handledRecovery;
+  Future<void> _openRequestedRecovery() async {
+    final id = widget.reconnectAccountId;
+    if (id == null || id == _handledRecovery) return;
+    _handledRecovery = id;
+    final account = await ref.read(accountsRepositoryProvider).accountById(id);
+    if (mounted && account != null) {
+      await _connectAccount(account.provider, reconnecting: account);
+    }
+    if (!mounted) return;
+    final router = GoRouter.maybeOf(context);
+    if (router == null) return;
+    final uri = GoRouterState.of(context).uri;
+    if (uri.path == '/settings' && uri.queryParameters['reconnect'] == id) {
+      final query = {...uri.queryParameters}..remove('reconnect');
+      unawaited(router.replace(uri.replace(queryParameters: query).toString()));
+    }
+  }
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _openRequestedRecovery(),
+    );
     _autostartRefresh = LaunchAtLoginRefreshObserver(
       () => ref.invalidate(launchAtLoginStateProvider),
     );
@@ -111,6 +139,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   void didUpdateWidget(covariant SettingsScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.reconnectAccountId != oldWidget.reconnectAccountId) {
+      if (widget.reconnectAccountId == null) _handledRecovery = null;
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _openRequestedRecovery(),
+      );
+    }
     if (oldWidget.initialPage != widget.initialPage) {
       _page = widget.initialPage;
     }
@@ -869,6 +903,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         _authorizationCancellation?.isCancelled == false) {
       return;
     }
+    var addSeparate = false;
     final ownedCancellation = AuthorizationCancellation();
     _authorizationCancellation = ownedCancellation;
     try {
@@ -890,10 +925,30 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       AuthorizationRequest? request;
       if (provider == BusyProvider.google ||
           provider == BusyProvider.microsoft) {
-        if (reconnecting != null && !replaceRegistration) {
+        final summary = reconnecting == null
+            ? null
+            : ref
+                  .read(registrationSummariesProvider)
+                  .valueOrNull?[reconnecting.id];
+        final googleRecovery =
+            provider == BusyProvider.google &&
+            reconnecting != null &&
+            (reconnecting.needsReconnect ||
+                summary == null ||
+                summary.origin == RegistrationOrigin.retiringShared);
+        if (reconnecting != null && !replaceRegistration && !googleRecovery) {
           request = AuthorizationRequest.reconnect(reconnecting.id);
         } else {
-          final handle = await showRegistrationSetup(context, ref, provider);
+          final handle = await showRegistrationSetup(
+            context,
+            ref,
+            provider,
+            accountLabel: reconnecting == null
+                ? null
+                : reconnecting.email ??
+                      reconnecting.displayName ??
+                      reconnecting.id,
+          );
           if (handle == null || !mounted) return;
           request = reconnecting == null
               ? AuthorizationRequest.newConnection(handle)
@@ -960,7 +1015,39 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             (error is DavException && error.kind == DavErrorKind.cancelled)) {
           return;
         }
-        if (mounted) {
+        if (mounted &&
+            error is OAuthException &&
+            error.classification == OAuthFailureKind.identityUnverified) {
+          addSeparate =
+              await showBusyMaxModalDialog<bool>(
+                context,
+                builder: (dialogContext) => BusyMaxDialogShell(
+                  title: context.l10n.reconnectGoogleAccount,
+                  maxWidth: 560,
+                  actions: [
+                    BusyMaxPushButton.standard(
+                      onPressed: () => Navigator.pop(dialogContext, false),
+                      child: Text(context.l10n.cancel),
+                    ),
+                    BusyMaxPushButton.suggested(
+                      onPressed: () => Navigator.pop(dialogContext, true),
+                      child: Text(context.l10n.addSeparateGoogleAccount),
+                    ),
+                  ],
+                  children: [
+                    Text(
+                      context.l10n.reconnectSelectedAccount(
+                        reconnecting!.email ??
+                            reconnecting.displayName ??
+                            reconnecting.id,
+                      ),
+                    ),
+                    Text(context.l10n.googleIdentityUnverified),
+                  ],
+                ),
+              ) ??
+              false;
+        } else if (mounted) {
           _showMessage(context, _accountConnectionErrorMessage(context, error));
         }
       } finally {
@@ -979,6 +1066,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         if (mounted) setState(() => _connectingProvider = null);
       }
     }
+    if (addSeparate && mounted) await _connectAccount(BusyProvider.google);
   }
 
   void _cancelAccountConnection() {
@@ -1002,7 +1090,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         _showMessage(
           context,
           context.l10n.syncFailed(
-            syncFailureMessage(
+            localizedSyncFailureMessage(
+              context.l10n,
               error,
               networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
             ),
@@ -1101,7 +1190,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         _showMessage(
           context,
           context.l10n.syncFailed(
-            syncFailureMessage(
+            localizedSyncFailureMessage(
+              context.l10n,
               error,
               networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
             ),
@@ -1132,7 +1222,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         _showMessage(
           context,
           context.l10n.syncFailed(
-            syncFailureMessage(
+            localizedSyncFailureMessage(
+              context.l10n,
               error,
               networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
             ),
@@ -1227,7 +1318,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         _showMessage(
           context,
           context.l10n.calendarUpdateFailed(
-            syncFailureMessage(
+            localizedSyncFailureMessage(
+              context.l10n,
               error,
               networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
             ),
@@ -2854,7 +2946,9 @@ class _AccountManagementCard extends StatelessWidget {
         if (account.hasConnectionIssue)
           BusyMaxActionRow(
             title: account.needsReconnect
-                ? accountReconnectRequiredActionLabel
+                ? (account.provider == BusyProvider.google
+                      ? l10n.reconnectGoogleAccount
+                      : l10n.reconnectAccount)
                 : _accountConnectionIssueMessage(context, account),
             subtitle: _accountConnectionIssueMessage(context, account),
             leading: Icon(
@@ -3211,7 +3305,9 @@ String _accountConnectionIssueMessage(
   AccountEntity account,
 ) => switch (account.connectionState) {
   AccountConnectionState.reauthenticationRequired =>
-    context.l10n.davReauthenticationRequired,
+    account.provider == BusyProvider.google
+        ? context.l10n.googleReconnectRequired
+        : context.l10n.accountReconnectRequired,
   AccountConnectionState.temporarilyUnavailable =>
     context.l10n.davTemporarilyUnavailable,
   AccountConnectionState.permissionChanged => context.l10n.davPermissionChanged,
@@ -3322,7 +3418,18 @@ class _RegistrationAccountCard extends ConsumerWidget {
               : l10n.registrationReplace,
           onTap: onMigrate,
         ),
-        BusyMaxActionRow(title: l10n.connectAccountAction, onTap: onReconnect),
+        BusyMaxActionRow(
+          key: ValueKey('reconnect-account-${account.id}'),
+          title:
+              account.needsReconnect ||
+                  summary == null ||
+                  summary.origin == RegistrationOrigin.retiringShared
+              ? (account.provider == BusyProvider.google
+                    ? l10n.reconnectGoogleAccount
+                    : l10n.reconnectAccount)
+              : l10n.connectAccountAction,
+          onTap: onReconnect,
+        ),
       ],
     );
   }

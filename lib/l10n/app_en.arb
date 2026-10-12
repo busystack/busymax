@@ -1977,5 +1977,19 @@
   "contactsUseForAttendees": "Use for attendee suggestions",
   "contactsServerUrlLabel": "HTTPS server URL",
   "contactsUsernameLabel": "Username",
-  "contactsPasswordLabel": "Password"
+  "contactsPasswordLabel": "Password",
+  "accountReconnectRequired": "This account needs to be reconnected to resume synchronization.",
+  "googleReconnectRequired": "Your Google account needs to be reconnected to resume calendar and task synchronization.",
+  "reconnectGoogleAccount": "Reconnect Google account",
+  "reconnectAccount": "Reconnect this account",
+  "reconnectSelectedAccount": "Reconnect {account}. Your calendars, tasks and pending local changes will be preserved.",
+  "@reconnectSelectedAccount": {
+    "placeholders": {
+      "account": {
+        "type": "String"
+      }
+    }
+  },
+  "googleIdentityUnverified": "The identity of this older Google connection could not be verified. Its calendars, tasks and pending changes are preserved. Add a separate Google connection to synchronize safely. Pending changes will remain with the original account.",
+  "addSeparateGoogleAccount": "Add a separate Google connection"
 }

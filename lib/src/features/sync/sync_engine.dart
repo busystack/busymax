@@ -1,3 +1,5 @@
+import 'sync_auth_error.dart';
+
 import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
@@ -163,8 +165,8 @@ class SyncEngine {
         status: 'failed',
         taskListsSeen: taskListsSeen,
         tasksSeen: tasksSeen,
-        errorCode: error.runtimeType.toString(),
-        errorMessage: error.toString(),
+        errorCode: syncFailureDiagnostic(error),
+        errorMessage: syncFailureDiagnostic(error),
       );
       rethrow;
     }

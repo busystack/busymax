@@ -3559,4 +3559,30 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get contactsPasswordLabel => 'Mật khẩu';
+
+  @override
+  String get accountReconnectRequired =>
+      'Kết nối lại tài khoản này để tiếp tục đồng bộ.';
+
+  @override
+  String get googleReconnectRequired =>
+      'Kết nối lại tài khoản Google để tiếp tục đồng bộ lịch và công việc.';
+
+  @override
+  String get reconnectGoogleAccount => 'Kết nối lại tài khoản Google';
+
+  @override
+  String get reconnectAccount => 'Kết nối lại tài khoản này';
+
+  @override
+  String reconnectSelectedAccount(String account) {
+    return 'Kết nối lại $account. Lịch, công việc và thay đổi cục bộ đang chờ sẽ được giữ lại.';
+  }
+
+  @override
+  String get googleIdentityUnverified =>
+      'Không thể xác minh danh tính của kết nối Google cũ này. Lịch, công việc và thay đổi đang chờ được giữ lại. Thêm một kết nối Google riêng để đồng bộ an toàn. Thay đổi đang chờ vẫn thuộc tài khoản gốc.';
+
+  @override
+  String get addSeparateGoogleAccount => 'Thêm kết nối Google riêng';
 }

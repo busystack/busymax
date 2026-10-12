@@ -123,6 +123,9 @@ class OAuthCallbackResult {
 }
 
 enum OAuthFailureKind {
+  registrationUnavailable,
+  identityUnverified,
+  clientRejected,
   configuration,
   wrongAccount,
   permission,
@@ -144,6 +147,8 @@ class OAuthException implements Exception {
   final String code;
   final String message;
   OAuthFailureKind get classification => switch (code) {
+    'OAuthRegistrationUnresolved' => OAuthFailureKind.registrationUnavailable,
+    'OAuthIdentityUnverified' => OAuthFailureKind.identityUnverified,
     'OAuthWrongAccount' => OAuthFailureKind.wrongAccount,
     'OAuthSignInCancelled' => OAuthFailureKind.cancelled,
     'OAuthStaleAuthorization' => OAuthFailureKind.stale,
@@ -154,7 +159,6 @@ class OAuthException implements Exception {
     'MicrosoftOAuthMissingRefreshToken' => OAuthFailureKind.permission,
     'OAuthCallbackTimeout' || 'OAuthRequestTimeout' => OAuthFailureKind.timeout,
     'OAuthSetupRequired' ||
-    'OAuthRegistrationUnresolved' ||
     'OAuthConfigurationRejected' ||
     'OAuthConfigurationExpired' ||
     'OAuthWrongClientType' ||
@@ -164,6 +168,16 @@ class OAuthException implements Exception {
     'OAuthConfigurationUnreadable' => OAuthFailureKind.configuration,
     _ => OAuthFailureKind.temporary,
   };
+
+  /// Only failures of an existing authorization can require reconnection.
+  bool get requiresReconnect =>
+      code == 'OAuthRegistrationUnresolved' ||
+      const {
+        'OAuthMissingToken',
+        'OAuthMissingRefreshToken',
+        'MicrosoftOAuthMissingToken',
+        'MicrosoftOAuthMissingRefreshToken',
+      }.contains(code);
 
   @override
   String toString() => '$code: $message';
@@ -190,18 +204,38 @@ class OAuthRefreshException extends OAuthException {
     return switch (oauthError) {
       'invalid_grant' => OAuthFailureKind.expiredGrant,
       'invalid_client' ||
-      'unauthorized_client' ||
-      'invalid_scope' => OAuthFailureKind.configuration,
+      'unauthorized_client' => OAuthFailureKind.clientRejected,
+      'invalid_scope' => OAuthFailureKind.permission,
       'access_denied' => OAuthFailureKind.permission,
       _ => OAuthFailureKind.temporary,
     };
   }
+
+  @override
+  bool get requiresReconnect =>
+      classification == OAuthFailureKind.expiredGrant ||
+      classification == OAuthFailureKind.clientRejected;
 
   /// The structured OAuth `error` value returned by the provider.
   final String? oauthError;
 
   /// The provider's redacted OAuth `error_description`, when present.
   final String? oauthErrorDescription;
+}
+
+/// The retiring registration cannot establish a usable authorization. Keep the
+/// structured provider failure for redacted diagnostics, never its UI text.
+class OAuthRegistrationUnavailableException extends OAuthException {
+  const OAuthRegistrationUnavailableException({this.cause})
+    : super(
+        'OAuthRegistrationUnresolved',
+        'Your Google account needs to be reconnected to resume calendar and task synchronization.',
+      );
+  final OAuthException? cause;
+  @override
+  String toString() =>
+      '$code: registration unavailable'
+      '${cause == null ? '' : ' (${cause!.classification.name})'}';
 }
 
 /// A failed candidate authorization never describes the existing refresh grant.
@@ -212,10 +246,12 @@ class OAuthAuthorizationException extends OAuthException {
     super.message, {
     required this.kind,
     this.statusCode,
+    this.providerError,
     this.retryAfter,
   });
   final OAuthFailureKind kind;
   final int? statusCode;
+  final String? providerError;
   final Duration? retryAfter;
   @override
   OAuthFailureKind get classification => kind;
@@ -259,6 +295,20 @@ OAuthAuthorizationException authorizationOutcomeFailure({
     code,
     '$message${statusCode == null ? '' : ' (HTTP $statusCode)'}',
     kind: kind,
+    providerError:
+        const {
+          'invalid_client',
+          'unauthorized_client',
+          'invalid_scope',
+          'invalid_grant',
+          'access_denied',
+          'consent_required',
+          'interaction_required',
+          'login_required',
+          'invalid_request',
+        }.contains(providerError)
+        ? providerError
+        : null,
     statusCode: statusCode,
     retryAfter: retryAfter,
   );

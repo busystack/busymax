@@ -72,6 +72,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => NoTransitionPage<void>(
           key: state.pageKey,
           child: SettingsScreen(
+            reconnectAccountId: state.uri.queryParameters['reconnect'],
             initialPage: settingsPageFromRouteValue(
               state.uri.queryParameters['page'],
             ),

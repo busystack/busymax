@@ -1282,5 +1282,19 @@
   "registrationGuideGooglePublishing": "In Audience scegli Publish app e conferma In production. Non lasciare l’uso normale in Testing: queste autorizzazioni Calendar/Tasks e i token di aggiornamento scadono dopo sette giorni. Pubblicazione e verifica sono separate. L’uso personale con meno di 100 utenti può essere esente da verifica, con avvisi e un limite utenti; una distribuzione più ampia può richiedere approvazione del marchio e degli ambiti. Le autorizzazioni in produzione possono comunque scadere o essere revocate.",
   "registrationGuideWorkspacePermissions": "Esamina questi ambiti con l’amministratore. Le app Internal non devono elencarli nella schermata di consenso. Se richiesto, apri Data Access → Add or remove scopes, aggiungi i valori, poi Update e Save. I controlli amministrativi possono ancora limitare l’autorizzazione.",
   "registrationGuideMicrosoftOptionalPermissions": "I permessi per calendari condivisi e categorie sono richiesti separatamente quando si attivano queste funzioni facoltative; non aggiungerli alla configurazione obbligatoria.",
-  "registrationGuideWorkspaceAudience": "Vai a Google Auth Platform → Branding. Se la configurazione non è iniziata, seleziona Get started. Inserisci BusyMax in App name, scegli la tua User support email e seleziona Next. In Audience scegli Internal. Seleziona Next, inserisci la tua email in Contact Information e seleziona Next. Accetta User Data Policy e seleziona Continue e Create. Se è già configurato, controlla Branding e Audience.\n\nInternal consente solo account dell’organizzazione principale del progetto, soggetti ai controlli amministrativi. Non serve un elenco di utenti di test. BusyMax non può verificare queste impostazioni dal JSON."
+  "registrationGuideWorkspaceAudience": "Vai a Google Auth Platform → Branding. Se la configurazione non è iniziata, seleziona Get started. Inserisci BusyMax in App name, scegli la tua User support email e seleziona Next. In Audience scegli Internal. Seleziona Next, inserisci la tua email in Contact Information e seleziona Next. Accetta User Data Policy e seleziona Continue e Create. Se è già configurato, controlla Branding e Audience.\n\nInternal consente solo account dell’organizzazione principale del progetto, soggetti ai controlli amministrativi. Non serve un elenco di utenti di test. BusyMax non può verificare queste impostazioni dal JSON.",
+  "accountReconnectRequired": "Ricollega questo account per riprendere la sincronizzazione.",
+  "googleReconnectRequired": "Ricollega il tuo account Google per riprendere la sincronizzazione di calendari e attività.",
+  "reconnectGoogleAccount": "Ricollega account Google",
+  "reconnectAccount": "Ricollega questo account",
+  "reconnectSelectedAccount": "Ricollega {account}. Calendari, attività e modifiche locali in sospeso verranno conservati.",
+  "@reconnectSelectedAccount": {
+    "placeholders": {
+      "account": {
+        "type": "String"
+      }
+    }
+  },
+  "googleIdentityUnverified": "Non è stato possibile verificare l’identità di questa vecchia connessione Google. Calendari, attività e modifiche in sospeso sono conservati. Aggiungi una connessione Google separata per sincronizzare in sicurezza. Le modifiche in sospeso rimarranno nell’account originale.",
+  "addSeparateGoogleAccount": "Aggiungi connessione Google separata"
 }

@@ -96,6 +96,9 @@
   </screenshots>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="0.3.1" date="2026-10-11" type="development">
+      <description><p>Recover Google account authorization while preserving local data, and build official Linux Snaps in an isolated local workspace.</p></description>
+    </release>
     <release version="0.3.0" date="2026-10-11" type="development">
       <description>
         <p>Adds synchronized read-only contacts and attendee suggestions on Linux, Windows, and Android using shared contacts, DAV, and Graph integrations.</p>

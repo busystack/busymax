@@ -1,3 +1,6 @@
+import '../../core/auth/oauth_models.dart';
+import '../../core/http/request_dispatch_exception.dart';
+
 import 'dart:async';
 import 'dart:ui';
 
@@ -45,6 +48,7 @@ class DesktopNotificationService {
     required AppSettings settings,
     NotificationCancellationQueue? cancellationQueue,
     Locale? locale,
+    this.onReconnectActivated,
     Duration syncFailureDebounce = const Duration(minutes: 5),
     Duration reminderFailureRetryDelay = const Duration(minutes: 1),
     DateTime Function()? now,
@@ -72,15 +76,26 @@ class DesktopNotificationService {
   final Future<void> Function(DesktopNavigationDestination destination)?
   _onDestinationActivated;
 
+  final Future<void> Function(String accountId)? onReconnectActivated;
+  final Set<String> _reconnectFailures = {};
+
   DateTime? _lastSyncFailureAt;
   String? _lastSyncFailureBody;
 
   Future<void> notifySyncFailure(Object error) async {
+    final accountId = switch (error) {
+      AuthorizationScopedFailure(:final accountId) => accountId,
+      AuthorizationScopedOAuthException(:final accountId) => accountId,
+      _ => null,
+    };
     final disposition = syncFailureNotificationDisposition(error);
     final message = switch (disposition) {
       SyncFailureNotificationDisposition.suppressed => null,
       SyncFailureNotificationDisposition.reconnectRequired =>
-        _strings.reconnectRequired,
+        resolveEffectiveSyncFailure(error)
+                is OAuthRegistrationUnavailableException
+            ? _strings.googleReconnectRequired
+            : _strings.reconnectRequired,
       SyncFailureNotificationDisposition.permissionChanged =>
         _strings.permissionChanged,
       SyncFailureNotificationDisposition.unsupportedProvider =>
@@ -91,11 +106,16 @@ class DesktopNotificationService {
     if (message == null || !_settings.notifySyncFailures || _isQuietHours()) {
       return;
     }
+    if (disposition == SyncFailureNotificationDisposition.reconnectRequired &&
+        !_reconnectFailures.add(accountId ?? 'unknown')) {
+      return;
+    }
     final body = _showsNotificationDetails
         ? _strings.syncFailureBody(message)
         : _strings.syncFailureBody(_strings.detailsHidden);
     final now = _now();
-    if (_lastSyncFailureBody == body &&
+    if (disposition != SyncFailureNotificationDisposition.reconnectRequired &&
+        _lastSyncFailureBody == body &&
         _lastSyncFailureAt != null &&
         now.difference(_lastSyncFailureAt!) < _syncFailureDebounce) {
       return;
@@ -107,9 +127,18 @@ class DesktopNotificationService {
       body,
       BusyMaxNotificationCategory.networkError,
       stableId: 'sync-failure',
-      payload: const {'notificationRoute': 'sync-failure'},
+      payload: {
+        'notificationRoute': 'sync-failure',
+        if (accountId != null) 'accountId': accountId,
+      },
+      onActivated: accountId == null || onReconnectActivated == null
+          ? null
+          : () => onReconnectActivated!(accountId),
     );
   }
+
+  void clearAccountSyncFailure(String accountId) =>
+      _reconnectFailures.remove(accountId);
 
   Future<void> notifyConflict(String summary) async {
     if (!_settings.notifyConflicts || _isQuietHours()) {
@@ -366,6 +395,7 @@ class NotificationStrings {
     required this.taskReminderTitle,
     required this.detailsHidden,
     required this.reconnectRequired,
+    required this.googleReconnectRequired,
     required this.permissionChanged,
     required this.unsupportedProvider,
     required this.temporarilyUnavailable,
@@ -402,6 +432,7 @@ class NotificationStrings {
       taskReminderTitle: l10n.taskReminderNotificationTitle,
       detailsHidden: l10n.notificationDetailsHidden,
       reconnectRequired: l10n.davReauthenticationRequired,
+      googleReconnectRequired: l10n.googleReconnectRequired,
       permissionChanged: l10n.davPermissionChanged,
       unsupportedProvider: l10n.davUnsupportedServer,
       temporarilyUnavailable: l10n.davTemporarilyUnavailable,
@@ -423,6 +454,7 @@ class NotificationStrings {
   final String taskReminderTitle;
   final String detailsHidden;
   final String reconnectRequired;
+  final String googleReconnectRequired;
   final String permissionChanged;
   final String unsupportedProvider;
   final String temporarilyUnavailable;

@@ -3591,4 +3591,30 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get contactsPasswordLabel => 'Parola d’accesso';
+
+  @override
+  String get accountReconnectRequired =>
+      'Ricollega questo account per riprendere la sincronizzazione.';
+
+  @override
+  String get googleReconnectRequired =>
+      'Ricollega il tuo account Google per riprendere la sincronizzazione di calendari e attività.';
+
+  @override
+  String get reconnectGoogleAccount => 'Ricollega account Google';
+
+  @override
+  String get reconnectAccount => 'Ricollega questo account';
+
+  @override
+  String reconnectSelectedAccount(String account) {
+    return 'Ricollega $account. Calendari, attività e modifiche locali in sospeso verranno conservati.';
+  }
+
+  @override
+  String get googleIdentityUnverified =>
+      'Non è stato possibile verificare l’identità di questa vecchia connessione Google. Calendari, attività e modifiche in sospeso sono conservati. Aggiungi una connessione Google separata per sincronizzare in sicurezza. Le modifiche in sospeso rimarranno nell’account originale.';
+
+  @override
+  String get addSeparateGoogleAccount => 'Aggiungi connessione Google separata';
 }

@@ -75,16 +75,15 @@ SyncFailureNotificationDisposition syncFailureNotificationDisposition(
   if (effectiveError is MicrosoftTodoApiError) {
     return _httpDisposition(effectiveError.statusCode);
   }
-  if (effectiveError is OAuthRefreshException) {
-    if ((effectiveError.statusCode == 400 ||
-            effectiveError.statusCode == 401) &&
-        effectiveError.oauthError == 'invalid_grant') {
-      return SyncFailureNotificationDisposition.reconnectRequired;
-    }
-    return _oauthRefreshHttpDisposition(effectiveError.statusCode);
-  }
-  if (isMissingOAuthTokenError(effectiveError)) {
+  if (isOAuthReconnectRequiredError(effectiveError)) {
     return SyncFailureNotificationDisposition.reconnectRequired;
+  }
+  if (effectiveError is OAuthException &&
+      effectiveError.classification == OAuthFailureKind.permission) {
+    return SyncFailureNotificationDisposition.permissionChanged;
+  }
+  if (effectiveError is OAuthRefreshException) {
+    return _oauthRefreshHttpDisposition(effectiveError.statusCode);
   }
   return SyncFailureNotificationDisposition.temporarilyUnavailable;
 }

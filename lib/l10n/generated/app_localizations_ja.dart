@@ -3482,4 +3482,29 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get contactsPasswordLabel => 'パスワード';
+
+  @override
+  String get accountReconnectRequired => '同期を再開するには、このアカウントを再接続してください。';
+
+  @override
+  String get googleReconnectRequired =>
+      'カレンダーとタスクの同期を再開するには、Google アカウントを再接続してください。';
+
+  @override
+  String get reconnectGoogleAccount => 'Google アカウントを再接続';
+
+  @override
+  String get reconnectAccount => 'このアカウントを再接続';
+
+  @override
+  String reconnectSelectedAccount(String account) {
+    return '$account を再接続します。カレンダー、タスク、保留中のローカル変更は保持されます。';
+  }
+
+  @override
+  String get googleIdentityUnverified =>
+      'この古い Google 接続のアカウントを確認できませんでした。カレンダー、タスク、保留中の変更は保持されています。安全に同期するには、別の Google 接続を追加してください。保留中の変更は元のアカウントに残ります。';
+
+  @override
+  String get addSeparateGoogleAccount => '別の Google 接続を追加';
 }

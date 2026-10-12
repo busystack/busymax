@@ -3603,4 +3603,31 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get contactsPasswordLabel => 'Пароль';
+
+  @override
+  String get accountReconnectRequired =>
+      'Подключите этот аккаунт заново, чтобы возобновить синхронизацию.';
+
+  @override
+  String get googleReconnectRequired =>
+      'Подключите аккаунт Google заново, чтобы возобновить синхронизацию календарей и задач.';
+
+  @override
+  String get reconnectGoogleAccount => 'Подключить аккаунт Google заново';
+
+  @override
+  String get reconnectAccount => 'Подключить этот аккаунт заново';
+
+  @override
+  String reconnectSelectedAccount(String account) {
+    return 'Подключить $account заново. Календари, задачи и ожидающие локальные изменения будут сохранены.';
+  }
+
+  @override
+  String get googleIdentityUnverified =>
+      'Не удалось подтвердить личность владельца этого старого подключения Google. Календари, задачи и ожидающие изменения сохранены. Добавьте отдельное подключение Google для безопасной синхронизации. Ожидающие изменения останутся в исходном аккаунте.';
+
+  @override
+  String get addSeparateGoogleAccount =>
+      'Добавить отдельное подключение Google';
 }

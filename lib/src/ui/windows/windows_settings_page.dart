@@ -53,7 +53,13 @@ const _apacheLicenseUrl = 'https://www.apache.org/licenses/LICENSE-2.0';
 const _systemLocaleTag = 'system';
 
 class WindowsSettingsPage extends ConsumerStatefulWidget {
-  const WindowsSettingsPage({super.key, this.initialPage});
+  const WindowsSettingsPage({
+    super.key,
+    this.initialPage,
+    this.reconnectAccountId,
+  });
+
+  final String? reconnectAccountId;
 
   final String? initialPage;
 
@@ -678,7 +684,12 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                 for (var index = 0; index < values.length; index++) ...[
                   if (values[index].provider == BusyProvider.google ||
                       values[index].provider == BusyProvider.microsoft)
-                    _WindowsRegistrationCard(account: values[index]),
+                    _WindowsRegistrationCard(
+                      account: values[index],
+                      startRecovery:
+                          widget.reconnectAccountId == values[index].id,
+                      onAddSeparate: () => _setup(BusyProvider.google),
+                    ),
                   ListTile(
                     leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.account)),
                     title: Semantics(
@@ -1783,8 +1794,14 @@ Future<void> showWindowsLicensesDialog(BuildContext context) async {
 }
 
 class _WindowsRegistrationCard extends ConsumerStatefulWidget {
-  const _WindowsRegistrationCard({required this.account});
+  const _WindowsRegistrationCard({
+    required this.account,
+    this.startRecovery = false,
+    required this.onAddSeparate,
+  });
   final AccountEntity account;
+  final bool startRecovery;
+  final VoidCallback onAddSeparate;
   @override
   ConsumerState<_WindowsRegistrationCard> createState() =>
       _WindowsRegistrationCardState();
@@ -1793,11 +1810,23 @@ class _WindowsRegistrationCard extends ConsumerStatefulWidget {
 class _WindowsRegistrationCardState
     extends ConsumerState<_WindowsRegistrationCard> {
   bool connecting = false;
+  bool recoveryStarted = false;
   AuthorizationCancellation? _authorizationCancellation;
   @override
   void dispose() {
     _authorizationCancellation?.cancel();
     super.dispose();
+  }
+
+  void _clearRequestedRecovery() {
+    if (!mounted) return;
+    final router = GoRouter.maybeOf(context);
+    if (router == null) return;
+    final uri = GoRouterState.of(context).uri;
+    if (uri.queryParameters['reconnect'] == account.id) {
+      final query = {...uri.queryParameters}..remove('reconnect');
+      unawaited(router.replace(uri.replace(queryParameters: query).toString()));
+    }
   }
 
   AccountEntity get account => widget.account;
@@ -1814,11 +1843,16 @@ class _WindowsRegistrationCardState
       _authorizationCancellation = cancellation;
       try {
         AuthorizationRequest request;
-        if (replace) {
+        if (replace ||
+            account.provider == BusyProvider.google &&
+                (account.needsReconnect ||
+                    summary == null ||
+                    summary.origin == RegistrationOrigin.retiringShared)) {
           final handle = await showWindowsRegistrationSetup(
             context,
             ref,
             account.provider,
+            accountLabel: account.email ?? account.displayName ?? account.id,
           );
           if (handle == null) return;
           request = AuthorizationRequest.replace(account.id, handle);
@@ -1839,7 +1873,30 @@ class _WindowsRegistrationCardState
             error.classification == OAuthFailureKind.cancelled) {
           return;
         }
-        if (context.mounted) {
+        if (context.mounted &&
+            error is OAuthException &&
+            error.classification == OAuthFailureKind.identityUnverified) {
+          final addSeparate = await showDialog<bool>(
+            context: context,
+            builder: (dialogContext) => ContentDialog(
+              title: Text(l10n.reconnectGoogleAccount),
+              content: Text(
+                '${l10n.reconnectSelectedAccount(account.email ?? account.displayName ?? account.id)}\n\n${l10n.googleIdentityUnverified}',
+              ),
+              actions: [
+                Button(
+                  onPressed: () => Navigator.pop(dialogContext, false),
+                  child: Text(l10n.cancel),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(dialogContext, true),
+                  child: Text(l10n.addSeparateGoogleAccount),
+                ),
+              ],
+            ),
+          );
+          if (addSeparate == true && mounted) widget.onAddSeparate();
+        } else if (context.mounted) {
           await displayInfoBar(
             context,
             builder: (_, close) => InfoBar(
@@ -1858,15 +1915,34 @@ class _WindowsRegistrationCardState
         cancellation.cancel();
         if (identical(_authorizationCancellation, cancellation)) {
           _authorizationCancellation = null;
-          if (mounted) setState(() => connecting = false);
+          if (mounted) {
+            setState(() => connecting = false);
+            _clearRequestedRecovery();
+          }
         }
       }
     }
 
+    if (!widget.startRecovery) recoveryStarted = false;
+    if (widget.startRecovery && !recoveryStarted) {
+      recoveryStarted = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(connect(false));
+      });
+    }
     return Card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (account.needsReconnect)
+            InfoBar(
+              severity: InfoBarSeverity.warning,
+              title: Text(
+                account.provider == BusyProvider.google
+                    ? l10n.googleReconnectRequired
+                    : l10n.accountReconnectRequired,
+              ),
+            ),
           Text(
             summary == null
                 ? l10n.registrationUnresolved
@@ -1902,7 +1978,15 @@ class _WindowsRegistrationCardState
             ),
           Button(
             onPressed: connecting ? null : () => connect(false),
-            child: Text(l10n.connectAccountAction),
+            child: Text(
+              account.needsReconnect ||
+                      summary == null ||
+                      summary.origin == RegistrationOrigin.retiringShared
+                  ? (account.provider == BusyProvider.google
+                        ? l10n.reconnectGoogleAccount
+                        : l10n.reconnectAccount)
+                  : l10n.connectAccountAction,
+            ),
           ),
         ],
       ),

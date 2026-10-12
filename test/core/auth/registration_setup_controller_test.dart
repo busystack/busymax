@@ -19,6 +19,29 @@ const clientId = '11223344-5566-7788-99aa-bbccddeeff00';
 const tenantId = 'aabbccdd-1122-3344-5566-77889900aabb';
 
 void main() {
+  test(
+    'Google managed setup needs neither original Google nor managed Microsoft',
+    () {
+      final staging = RegistrationStaging(
+        syntheticDesktopConfig(originalGoogle: false),
+      );
+      final controller = RegistrationSetupController(
+        staging,
+        BusyProvider.google,
+      );
+      addTearDown(() {
+        controller.dispose();
+        staging.dispose();
+      });
+      final handle = controller.connectWithBusyMax()!;
+      expect(handle.summary.origin, RegistrationOrigin.busyMaxManaged);
+      expect(
+        staging.consume(handle).clientId,
+        staging.config.busyMaxGoogleOAuthClientId,
+      );
+    },
+  );
+
   for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
     test(
       '$provider shared connection is explicit, validated and single use',

@@ -3485,4 +3485,29 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get contactsPasswordLabel => '비밀번호';
+
+  @override
+  String get accountReconnectRequired => '동기화를 재개하려면 이 계정을 다시 연결하세요.';
+
+  @override
+  String get googleReconnectRequired =>
+      '캘린더와 할 일 동기화를 재개하려면 Google 계정을 다시 연결하세요.';
+
+  @override
+  String get reconnectGoogleAccount => 'Google 계정 다시 연결';
+
+  @override
+  String get reconnectAccount => '이 계정 다시 연결';
+
+  @override
+  String reconnectSelectedAccount(String account) {
+    return '$account 계정을 다시 연결합니다. 캘린더, 할 일 및 대기 중인 로컬 변경 사항은 유지됩니다.';
+  }
+
+  @override
+  String get googleIdentityUnverified =>
+      '이 오래된 Google 연결의 계정 신원을 확인할 수 없습니다. 캘린더, 할 일 및 대기 중인 변경 사항은 유지됩니다. 안전한 동기화를 위해 별도의 Google 연결을 추가하세요. 대기 중인 변경 사항은 원래 계정에 남습니다.';
+
+  @override
+  String get addSeparateGoogleAccount => '별도의 Google 연결 추가';
 }

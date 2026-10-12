@@ -63,6 +63,8 @@ final class AuthorizationScopedOAuthException extends OAuthException {
   final OAuthException cause;
   @override
   OAuthFailureKind get classification => cause.classification;
+  @override
+  bool get requiresReconnect => cause.requiresReconnect;
 }
 
 int? failureAuthorizationGeneration(Object error, String id) {

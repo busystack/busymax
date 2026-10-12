@@ -1282,5 +1282,19 @@
   "registrationGuideGooglePublishing": "在 Audience 中选择 Publish app 并确认 In production。日常使用不要停留在 Testing：这些 Calendar/Tasks 授权和刷新令牌会在七天后过期。发布与验证是两回事。少于 100 人的个人使用可能免于验证，但仍有未验证警告和人数限制；更广泛分发可能需要品牌和权限范围批准。生产授权仍可能过期或被撤销。",
   "registrationGuideWorkspacePermissions": "与管理员检查以下权限范围。Internal 应用不需要在同意屏幕中列出权限范围。如管理员要求，请打开 Data Access → Add or remove scopes，添加这些值，然后选择 Update 和 Save。管理员控制仍可能限制授权。",
   "registrationGuideMicrosoftOptionalPermissions": "共享日历和类别权限会在启用相应可选功能时单独请求；不要将其添加到上述必需设置中。",
-  "registrationGuideWorkspaceAudience": "进入 Google Auth Platform → Branding。如果尚未开始设置，选择 Get started。在 App name 中输入 BusyMax，选择您自己的 User support email，然后选择 Next。在 Audience 中，请选择 Internal。选择 Next，在 Contact Information 中输入您的邮箱，再选择 Next。接受 User Data Policy，然后选择 Continue 和 Create。如果已完成设置，请检查 Branding 和 Audience。\n\nInternal 仅允许项目父组织中的帐号，并受管理员控制。不需要测试用户列表。BusyMax 无法从下载的 JSON 验证这些控制台设置。"
+  "registrationGuideWorkspaceAudience": "进入 Google Auth Platform → Branding。如果尚未开始设置，选择 Get started。在 App name 中输入 BusyMax，选择您自己的 User support email，然后选择 Next。在 Audience 中，请选择 Internal。选择 Next，在 Contact Information 中输入您的邮箱，再选择 Next。接受 User Data Policy，然后选择 Continue 和 Create。如果已完成设置，请检查 Branding 和 Audience。\n\nInternal 仅允许项目父组织中的帐号，并受管理员控制。不需要测试用户列表。BusyMax 无法从下载的 JSON 验证这些控制台设置。",
+  "accountReconnectRequired": "请重新连接此账号以恢复同步。",
+  "googleReconnectRequired": "请重新连接 Google 账号以恢复日历和任务同步。",
+  "reconnectGoogleAccount": "重新连接 Google 账号",
+  "reconnectAccount": "重新连接此账号",
+  "reconnectSelectedAccount": "重新连接 {account}。日历、任务和待处理的本地更改将保留。",
+  "@reconnectSelectedAccount": {
+    "placeholders": {
+      "account": {
+        "type": "String"
+      }
+    }
+  },
+  "googleIdentityUnverified": "无法验证此旧 Google 连接的账号身份。日历、任务和待处理的更改已保留。请添加独立的 Google 连接以安全同步。待处理的更改将保留在原账号中。",
+  "addSeparateGoogleAccount": "添加独立的 Google 连接"
 }

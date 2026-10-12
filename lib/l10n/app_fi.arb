@@ -1282,5 +1282,19 @@
   "registrationGuideGooglePublishing": "Valitse Audience-kohdassa Publish app ja vahvista In production. Älä jätä normaalia käyttöä Testing-tilaan: nämä Calendar/Tasks-valtuutukset ja päivitystunnukset vanhenevat seitsemässä päivässä. Julkaiseminen ja vahvistaminen ovat eri asioita. Alle 100 käyttäjän henkilökohtainen käyttö voi olla vapautettu vahvistuksesta varoituksin ja käyttäjärajoin; laajempi jakelu voi edellyttää brändin ja käyttöoikeuksien hyväksyntää. Tuotantovaltuutukset voivat silti vanhentua tai tulla perutuiksi.",
   "registrationGuideWorkspacePermissions": "Tarkista nämä käyttöoikeudet ylläpitäjän kanssa. Internal-sovellusten ei tarvitse luetella niitä suostumusnäytössä. Jos luetteloa pyydetään, avaa Data Access → Add or remove scopes, lisää arvot ja valitse Update ja Save. Ylläpitäjän rajoitukset voivat estää valtuutuksen.",
   "registrationGuideMicrosoftOptionalPermissions": "Jaettujen kalenterien ja luokkien käyttöoikeuksia pyydetään erikseen valinnaisten toimintojen käyttöönotossa; älä lisää niitä yllä olevaan pakolliseen määritykseen.",
-  "registrationGuideWorkspaceAudience": "Avaa Google Auth Platform → Branding. Aloita uusi määritys valitsemalla Get started. Anna App name -kenttään BusyMax, valitse oma User support email ja valitse Next. Valitse Audience-kohdassa Internal. Valitse Next, anna sähköpostiosoitteesi Contact Information -kohdassa ja valitse Next. Hyväksy User Data Policy ja valitse Continue ja Create. Tarkista aiemmassa määrityksessä Branding ja Audience.\n\nInternal sallii vain projektin emo-organisaation tilit ylläpitäjän rajoitusten mukaisesti. Testikäyttäjäluetteloa ei tarvita. BusyMax ei voi vahvistaa näitä konsoliasetuksia JSON-tiedostosta."
+  "registrationGuideWorkspaceAudience": "Avaa Google Auth Platform → Branding. Aloita uusi määritys valitsemalla Get started. Anna App name -kenttään BusyMax, valitse oma User support email ja valitse Next. Valitse Audience-kohdassa Internal. Valitse Next, anna sähköpostiosoitteesi Contact Information -kohdassa ja valitse Next. Hyväksy User Data Policy ja valitse Continue ja Create. Tarkista aiemmassa määrityksessä Branding ja Audience.\n\nInternal sallii vain projektin emo-organisaation tilit ylläpitäjän rajoitusten mukaisesti. Testikäyttäjäluetteloa ei tarvita. BusyMax ei voi vahvistaa näitä konsoliasetuksia JSON-tiedostosta.",
+  "accountReconnectRequired": "Yhdistä tämä tili uudelleen jatkaaksesi synkronointia.",
+  "googleReconnectRequired": "Yhdistä Google-tilisi uudelleen jatkaaksesi kalenterien ja tehtävien synkronointia.",
+  "reconnectGoogleAccount": "Yhdistä Google-tili uudelleen",
+  "reconnectAccount": "Yhdistä tämä tili uudelleen",
+  "reconnectSelectedAccount": "Yhdistä {account} uudelleen. Kalenterit, tehtävät ja odottavat paikalliset muutokset säilytetään.",
+  "@reconnectSelectedAccount": {
+    "placeholders": {
+      "account": {
+        "type": "String"
+      }
+    }
+  },
+  "googleIdentityUnverified": "Tämän vanhan Google-yhteyden henkilöllisyyttä ei voitu vahvistaa. Kalenterit, tehtävät ja odottavat muutokset säilytetään. Lisää erillinen Google-yhteys turvallista synkronointia varten. Odottavat muutokset jäävät alkuperäiseen tiliin.",
+  "addSeparateGoogleAccount": "Lisää erillinen Google-yhteys"
 }
