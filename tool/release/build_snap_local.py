@@ -265,7 +265,16 @@ def build(options):
     output = workspace / 'artifacts'
     output.mkdir(mode=0o700)
     artifact = output / f'busymax_{options.version}_amd64.snap'
-    step(['snapcraft', 'pack', '--use-lxd', '--output', output], 'Packaging the canonical Snap in isolated Ubuntu 24.04 LXD')
+    # Snapcraft's LXD provider requires output paths inside the project tree.
+    # Move only the exact resulting package to the external artifact directory.
+    pack_output = root / 'build/snap-output'
+    pack_output.mkdir(mode=0o700)
+    step(['snapcraft', 'pack', '--use-lxd', '--output', 'build/snap-output'],
+         'Packaging the canonical Snap in isolated Ubuntu 24.04 LXD')
+    packed = pack_output / artifact.name
+    require(packed.is_file(), 'Snapcraft did not produce the final Snap.')
+    require(list(pack_output.iterdir()) == [packed], 'Unexpected package artifacts were produced.')
+    shutil.move(packed, artifact)
     package_gate(artifact, output, options.version, configuration, root)
     step(['bash', 'tool/release/verify_snap_runtime.sh', artifact, output / 'runtime.json'], 'Verifying a fresh isolated strict Snap installation')
     runtime = read_object(output / 'runtime.json')

@@ -208,7 +208,7 @@ class LocalReleaseTest(unittest.TestCase):
                 self.assertFalse(configuration.is_relative_to(workspace / 'busymax'))
                 self.bundle(workspace/'busymax/build/linux/x64/release/bundle')
             if args[:2] == ['snapcraft', 'pack'] and failure != 'snap':
-                (workspace/'artifacts/busymax_0.3.1_amd64.snap').write_bytes(b'fixture-snap')
+                (Path(cwd) / args[-1] / 'busymax_0.3.1_amd64.snap').write_bytes(b'fixture-snap')
             if args[0] == 'unsquashfs': self.package_tree(Path(args[3]))
             if 'tool/release/verify_snap_runtime.sh' in args:
                 if failure == 'runtime': raise release.ReleaseError('Runtime failure.')
@@ -233,6 +233,9 @@ class LocalReleaseTest(unittest.TestCase):
         self.assertNotIn(self.installed['client_secret'], json.dumps(manifest))
         self.assertTrue(any('tool/checkout_shared_dependencies.py' in cmd for cmd in seen))
         self.assertTrue(any(cmd[:2] == ['snapcraft','pack'] and '--use-lxd' in cmd for cmd in seen))
+        packing = next(cmd for cmd in seen if cmd[:2] == ['snapcraft','pack'])
+        self.assertEqual(packing[-1], 'build/snap-output')
+        self.assertFalse(Path(packing[-1]).is_absolute())
 
     def test_failed_build_never_emits_success_manifest(self):
         for failure in ['dependency','stale','snap','runtime']:

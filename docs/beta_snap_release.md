@@ -77,7 +77,9 @@ them. v0.3.1 uses Android code **6**, confirmed available by the owner on
 runs formatting, analysis, platform boundaries, full Flutter/tool/native tests,
 and compiles a fresh configured bundle. It verifies the actual managed Google
 configuration in `libapp.so`, runs canonical Snapcraft packaging with
-`--use-lxd`, and checks the package's version, strict confinement, launchers and
+`--use-lxd`. Its output stays inside the checkout during the LXD pack step,
+then the exact package moves to `artifacts/`. The command checks version,
+strict confinement, launchers and
 assets. An old bundle cannot enter the new checkout. The recipe remains
 `base: core24`, `grade: devel`, `confinement: strict`.
 
