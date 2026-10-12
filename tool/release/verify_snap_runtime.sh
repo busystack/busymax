@@ -75,7 +75,7 @@ run_x11() {
       sleep 1
     done
     wait "$app_pid"
-  ' 
+  '
   status=$?
   set -e
   test "$status" = 124
