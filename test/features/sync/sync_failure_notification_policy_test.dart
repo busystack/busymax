@@ -2,6 +2,9 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:busymax/src/core/auth/oauth_models.dart';
+import 'package:busymax/l10n/generated/app_localizations.dart';
+import 'package:busymax/src/l10n/oauth_error_description.dart';
+import 'package:flutter/widgets.dart';
 import 'package:busymax/src/core/http/request_dispatch_exception.dart';
 import 'package:busymax/src/dav/dav_errors.dart';
 import 'package:busymax/src/dav/sync/dav_account_sync_engine.dart';
@@ -16,6 +19,35 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 
 void main() {
+  test('OAuth transport failures retain network diagnostics and localized offline recovery', () {
+    const failure = OAuthException(
+      'OAuthTemporaryTransport',
+      'provider request details',
+    );
+    final l10n = lookupAppLocalizations(const Locale('en'));
+    expect(syncFailureDiagnostic(failure), 'OAuth.network');
+    expect(
+      syncFailureNotificationDisposition(failure),
+      SyncFailureNotificationDisposition.suppressed,
+    );
+    expect(isOAuthReconnectRequiredError(failure), isFalse);
+    expect(
+      localizedAuthorizationError(l10n, failure),
+      l10n.networkOfflineTryAgain,
+    );
+    expect(
+      localizedSyncFailureMessage(l10n, failure),
+      l10n.networkOfflineTryAgain,
+    );
+    expect(
+      syncFailureMessage(
+        failure,
+        networkUnavailableMessage: 'Offline; try again',
+      ),
+      'Offline; try again',
+    );
+  });
+
   test(
     'calendar and task provider payloads stay out of ordinary sync errors',
     () {

@@ -135,6 +135,7 @@ enum OAuthFailureKind {
   cancelled,
   timeout,
   throttled,
+  network,
   temporary,
   stale,
   alreadyConnected,
@@ -158,6 +159,7 @@ class OAuthException implements Exception {
     'OAuthMissingRefreshToken' ||
     'MicrosoftOAuthMissingRefreshToken' => OAuthFailureKind.permission,
     'OAuthCallbackTimeout' || 'OAuthRequestTimeout' => OAuthFailureKind.timeout,
+    'OAuthTemporaryTransport' => OAuthFailureKind.network,
     'OAuthSetupRequired' ||
     'OAuthConfigurationRejected' ||
     'OAuthConfigurationExpired' ||

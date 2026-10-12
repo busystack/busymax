@@ -110,7 +110,7 @@ void main() {
     await database.close();
   });
 
-  for (final mode in ['wrong-account', 'cancel', 'unverified']) {
+  for (final mode in ['wrong-account', 'cancel', 'unverified', 'offline']) {
     testWidgets(
       'targeted Google recovery $mode retains the old account and offers safe recovery',
       (tester) async {
@@ -144,6 +144,7 @@ void main() {
             : 'fixture-user';
         fixture.flow.cancelAttempt = mode == 'cancel';
         fixture.legacyAccessUnavailable = mode == 'unverified';
+        fixture.tokenExchangeOffline = mode == 'offline';
         await _pumpApp(
           tester,
           database: database,
@@ -229,6 +230,13 @@ void main() {
           );
           await tester.tap(find.byKey(const ValueKey('registration-close')));
           await tester.pumpAndSettle();
+        } else if (mode == 'offline') {
+          expect(find.textContaining('You’re offline.'), findsOneWidget);
+          expect(
+            find.textContaining('temporary provider problem'),
+            findsNothing,
+          );
+          expect(find.textContaining('OAuthTemporaryTransport'), findsNothing);
         } else if (mode == 'unverified') {
           expect(find.textContaining('could not be verified'), findsOneWidget);
           await tester.tap(find.text('Add a separate Google connection'));

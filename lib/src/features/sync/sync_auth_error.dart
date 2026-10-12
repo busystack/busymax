@@ -76,6 +76,10 @@ String syncFailureMessage(
   }
   if (effectiveError is OAuthException ||
       effectiveError is RequestNotDispatchedException) {
+    if (effectiveError is OAuthException &&
+        effectiveError.classification == OAuthFailureKind.network) {
+      return networkUnavailableMessage;
+    }
     return effectiveError is OAuthException &&
             effectiveError.classification == OAuthFailureKind.permission
         ? 'Account permissions need to be updated to resume synchronization.'

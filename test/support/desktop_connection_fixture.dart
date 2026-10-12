@@ -53,7 +53,12 @@ class DesktopConnectionFixture {
           200,
         );
       }
-      final client = Uri.splitQueryString(request.body)['client_id'];
+      final parameters = Uri.splitQueryString(request.body);
+      if (tokenExchangeOffline &&
+          parameters['grant_type'] == 'authorization_code') {
+        throw const SocketException('synthetic network unavailable');
+      }
+      final client = parameters['client_id'];
       return http.Response(
         jsonEncode({
           'access_token': 'synthetic-access',
@@ -90,6 +95,7 @@ class DesktopConnectionFixture {
   final BuildConfig config;
   String googleSubject = 'fixture-user';
   bool legacyAccessUnavailable = false;
+  bool tokenExchangeOffline = false;
   final secrets = InMemorySecretStore();
   final flow = _FixtureBrowser();
   late final AuthorizationPersistence persistence;

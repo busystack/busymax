@@ -2,6 +2,7 @@ import 'package:fake_async/fake_async.dart';
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:busymax/src/config/build_config.dart';
 import 'package:busymax/src/core/auth/oauth_models.dart';
@@ -67,6 +68,35 @@ void main() {
           projectId: 'synthetic-project',
         ),
         cancellation: cancellation,
+      );
+    }
+
+    for (final failure in [
+      http.ClientException('sensitive transport details'),
+      const SocketException('sensitive transport details'),
+    ]) {
+      test(
+        'code exchange distinguishes network failure without exposing transport details microsoft=$microsoft failure=${failure.runtimeType}',
+        () async {
+          final client = ControlledResponseClient(() async => throw failure);
+          await expectLater(
+            exchange(client),
+            throwsA(
+              isA<OAuthException>()
+                  .having(
+                    (e) => e.classification,
+                    'network',
+                    OAuthFailureKind.network,
+                  )
+                  .having((e) => e.requiresReconnect, 'reconnect', isFalse)
+                  .having(
+                    (e) => e.toString(),
+                    'redacted',
+                    isNot(contains('sensitive')),
+                  ),
+            ),
+          );
+        },
       );
     }
 

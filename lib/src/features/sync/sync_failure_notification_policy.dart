@@ -54,7 +54,9 @@ SyncFailureNotificationDisposition syncFailureNotificationDisposition(
   if (effectiveError is NetworkUnavailableException ||
       effectiveError is TimeoutException ||
       effectiveError is SocketException ||
-      effectiveError is http.ClientException) {
+      effectiveError is http.ClientException ||
+      effectiveError is OAuthException &&
+          effectiveError.classification == OAuthFailureKind.network) {
     return SyncFailureNotificationDisposition.suppressed;
   }
   if (effectiveError is TaskRemoteError) {

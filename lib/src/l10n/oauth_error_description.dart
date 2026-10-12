@@ -35,6 +35,7 @@ String localizedOAuthFailure(
   OAuthFailureKind.authorizationCode => l10n.oauthAuthorizationCodeUnusable,
   OAuthFailureKind.permission => l10n.oauthPermissionRefused,
   OAuthFailureKind.throttled => l10n.oauthProviderThrottled,
+  OAuthFailureKind.network => l10n.networkOfflineTryAgain,
   OAuthFailureKind.temporary => l10n.oauthProviderTemporaryFailure,
   OAuthFailureKind.timeout => l10n.oauthAuthorizationTimedOut,
   OAuthFailureKind.wrongAccount => l10n.oauthWrongAccount,
