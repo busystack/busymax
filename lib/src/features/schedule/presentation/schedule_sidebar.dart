@@ -1,3 +1,5 @@
+import '../../sync/account_recovery_feedback.dart';
+import '../../../l10n/oauth_error_description.dart';
 import '../../../core/http/request_dispatch_exception.dart';
 
 import 'dart:async';
@@ -32,7 +34,6 @@ import '../../calendar/data/calendar_repository.dart';
 import '../../connectivity/network_connectivity_service.dart';
 import '../../calendar/presentation/calendar_color_dialog.dart';
 import '../../sync/sync_auth_error.dart';
-import '../../sync/sync_failure_notification_policy.dart';
 import '../../task_lists/data/task_lists_repository.dart';
 import '../../tasks/domain/task_capabilities.dart';
 
@@ -1350,37 +1351,7 @@ Future<void> _handleRefreshFailure(
   String accountId,
   Object error,
 ) async {
-  try {
-    if (syncFailureNotificationDisposition(error) ==
-        SyncFailureNotificationDisposition.reconnectRequired) {
-      await ref
-          .read(authRepositoryProvider)
-          .markReconnectRequired(
-            accountId,
-            authorizationGeneration: failureAuthorizationGeneration(
-              error,
-              accountId,
-            ),
-          );
-    }
-  } on Object {
-    // Keep the original refresh failure visible even if cleanup fails.
-  }
-  if (!context.mounted) {
-    return;
-  }
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Text(
-        context.l10n.refreshFailed(
-          syncFailureMessage(
-            error,
-            networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
-          ),
-        ),
-      ),
-    ),
-  );
+  await showAccountSyncFailure(context, ref, accountId, error);
 }
 
 Future<bool> _manualRefreshAccountIsEligible(
@@ -1395,12 +1366,11 @@ Future<bool> _manualRefreshAccountIsEligible(
     return true;
   }
   if (account?.needsReconnect == true && context.mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          context.l10n.refreshFailed(accountReconnectRequiredSyncMessage),
-        ),
-      ),
+    await showAccountSyncFailure(
+      context,
+      ref,
+      accountId,
+      const AccountNotSyncEligibleException(needsReconnect: true),
     );
   }
   return false;
@@ -1585,7 +1555,8 @@ Future<void> _createAccountCalendar(
       _showCalendarMutationFailure(
         context,
         context.l10n.calendarCreateFailed(
-          syncFailureMessage(
+          localizedSyncFailureMessage(
+            context.l10n,
             error,
             networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
           ),
@@ -1617,7 +1588,8 @@ Future<void> _createAccountTaskList(
         SnackBar(
           content: Text(
             context.l10n.taskListCreateFailed(
-              syncFailureMessage(
+              localizedSyncFailureMessage(
+                context.l10n,
                 error,
                 networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
               ),
@@ -1690,7 +1662,8 @@ Future<void> _changeCalendarColor(
       _showCalendarMutationFailure(
         context,
         context.l10n.calendarUpdateFailed(
-          syncFailureMessage(
+          localizedSyncFailureMessage(
+            context.l10n,
             error,
             networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
           ),
@@ -1739,7 +1712,8 @@ Future<void> _renameCalendar(
       _showCalendarMutationFailure(
         context,
         context.l10n.calendarUpdateFailed(
-          syncFailureMessage(
+          localizedSyncFailureMessage(
+            context.l10n,
             error,
             networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
           ),
@@ -1796,7 +1770,8 @@ Future<void> _deleteCalendar(
               isDavCollectionPendingChangesError(error)
           ? context.l10n.calendarPendingChangesPreventRemoval
           : context.l10n.calendarDeleteFailed(
-              syncFailureMessage(
+              localizedSyncFailureMessage(
+                context.l10n,
                 error,
                 networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
               ),
@@ -1844,7 +1819,8 @@ Future<void> _renameTaskList(
         SnackBar(
           content: Text(
             context.l10n.taskListRenameFailed(
-              syncFailureMessage(
+              localizedSyncFailureMessage(
+                context.l10n,
                 error,
                 networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
               ),
@@ -1893,7 +1869,8 @@ Future<void> _deleteTaskList(
             isDavCollectionPendingChangesError(error)
                 ? context.l10n.taskListPendingChangesPreventRemoval
                 : context.l10n.taskListDeleteFailed(
-                    syncFailureMessage(
+                    localizedSyncFailureMessage(
+                      context.l10n,
                       error,
                       networkUnavailableMessage:
                           context.l10n.networkOfflineTryAgain,

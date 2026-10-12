@@ -3620,4 +3620,30 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get contactsPasswordLabel => 'كلمة المرور';
+
+  @override
+  String get accountReconnectRequired =>
+      'أعد ربط هذا الحساب لاستئناف المزامنة.';
+
+  @override
+  String get googleReconnectRequired =>
+      'أعد ربط حساب Google لاستئناف مزامنة التقويمات والمهام.';
+
+  @override
+  String get reconnectGoogleAccount => 'إعادة ربط حساب Google';
+
+  @override
+  String get reconnectAccount => 'إعادة ربط هذا الحساب';
+
+  @override
+  String reconnectSelectedAccount(String account) {
+    return 'إعادة ربط ⁨$account⁩. سيتم الاحتفاظ بالتقويمات والمهام والتغييرات المحلية المعلقة.';
+  }
+
+  @override
+  String get googleIdentityUnverified =>
+      'تعذر التحقق من هوية اتصال Google القديم هذا. تم الاحتفاظ بالتقويمات والمهام والتغييرات المعلقة. أضف اتصال Google منفصلًا للمزامنة بأمان. ستبقى التغييرات المعلقة مع الحساب الأصلي.';
+
+  @override
+  String get addSeparateGoogleAccount => 'إضافة اتصال Google منفصل';
 }

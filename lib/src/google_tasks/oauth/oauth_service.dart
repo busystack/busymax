@@ -106,6 +106,8 @@ class OAuthService
   final Duration _authorizationRevocationTimeout;
   final RedactingLogger _logger = RedactingLogger(Logger('OAuthService'));
   final Map<String, int> _credentialGenerations = {};
+  final Map<String, (int, OAuthRegistrationUnavailableException)>
+  _unavailableRegistrations = {};
 
   @override
   Future<String?> get activeAccountId => _tokenStore.readActiveAccountId();
@@ -144,6 +146,20 @@ class OAuthService
       _logger.warning(
         'Google userinfo request failed with HTTP ${response.statusCode}.',
       );
+      if (response.statusCode == 429 || response.statusCode >= 500) {
+        throw OAuthAuthorizationException(
+          'OAuthIdentityRequestFailed',
+          'Account identity verification is temporarily unavailable. Try again.',
+          kind: response.statusCode == 429
+              ? OAuthFailureKind.throttled
+              : OAuthFailureKind.temporary,
+          statusCode: response.statusCode,
+          retryAfter: parseHttpRetryAfter(
+            response.headers['retry-after'],
+            now: _nowUtc(),
+          ),
+        );
+      }
       return null;
     }
     final decoded = decodeOAuthProviderObject(response.body);
@@ -244,14 +260,19 @@ class OAuthService
       );
     }
     attempt.check();
+    final previousRecord = target == null
+        ? null
+        : await attempt.wait(persistence.readCurrentCredential(target));
+    final previousScopes = previousRecord is OAuthSecretRecord
+        ? previousRecord.tokenSet.scopes
+        : const <String>{};
     final requestedScopes = <String>{
       ...googleBusyMaxOAuthScope.split(' '),
       ...optionalScopes,
-      if (previous != null)
-        for (final scope in previous.tokenSet.scopes)
-          if (scope == googleContactsReadScope ||
-              scope == googleContactsWriteScope)
-            googleContactsReadScope,
+      for (final scope in previousScopes)
+        if (scope == googleContactsReadScope ||
+            scope == googleContactsWriteScope)
+          googleContactsReadScope,
     };
     final result = await _loopbackFlow.start(
       attempt: attempt,
@@ -488,8 +509,8 @@ class OAuthService
       }
     }
     throw const OAuthException(
-      'OAuthRegistrationUnresolved',
-      'This account lacks a verified Google identity. Its data and credentials are preserved; restore its original configuration before reconnecting.',
+      'OAuthIdentityUnverified',
+      'The identity of this older Google connection could not be verified. Its calendars, tasks and pending changes are preserved. Add a separate Google connection to synchronize safely; existing pending changes will remain with this account.',
     );
   }
 
@@ -520,12 +541,17 @@ class OAuthService
         persistence == null ||
         !await persistence.wasPreexisting(id) ||
         _config.googleOAuthClientId.trim().isEmpty) {
-      throw const OAuthException(
-        'OAuthRegistrationUnresolved',
-        'The original Google registration is unavailable or unidentified. Account data is preserved; configure this account explicitly.',
-      );
+      throw const OAuthRegistrationUnavailableException();
+    }
+    final localAccount = await (persistence.database.select(
+      persistence.database.accounts,
+    )..where((row) => row.id.equals(id))).getSingleOrNull();
+    if (localAccount?.authState == 'reauth_required') {
+      throw const OAuthRegistrationUnavailableException();
     }
     final expected = await persistence.generation(id);
+    final unavailable = _unavailableRegistrations[id];
+    if (unavailable != null && unavailable.$1 == expected) throw unavailable.$2;
     final registration = GoogleDesktopRegistration(
       clientId: _config.googleOAuthClientId.trim(),
       clientSecret: _config.googleOAuthClientSecret.trim().isEmpty
@@ -541,11 +567,12 @@ class OAuthService
     try {
       tokens = await refreshToken(record.tokenSet, registration: registration);
     } on OAuthRefreshException catch (failure) {
-      if (failure.statusCode == 400 || failure.statusCode == 401) {
-        throw const OAuthException(
-          'OAuthRegistrationUnresolved',
-          'The original Google registration could not be established. Account data and credentials are preserved; configure this account explicitly.',
+      if (failure.requiresReconnect) {
+        final unavailable = OAuthRegistrationUnavailableException(
+          cause: failure,
         );
+        _unavailableRegistrations[id] = (expected, unavailable);
+        throw unavailable;
       }
       await persistence.recordTokenRequestCooldown(
         id,

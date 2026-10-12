@@ -149,9 +149,12 @@ void main() {
       expect(auth.markedAccountIds, ['account']);
       expect(accounts.account.needsReconnect, isTrue);
       expect(
-        find.text('Refresh failed: This account needs to be reconnected.'),
+        find.text(
+          'Your Google account needs to be reconnected to resume calendar and task synchronization.',
+        ),
         findsOneWidget,
       );
+      expect(find.text('Reconnect Google account'), findsOneWidget);
       menu = tester.widget<BusyMaxMenuButton<String>>(
         find.byKey(const ValueKey(('calendar-options', 'calendar'))),
       );
@@ -198,9 +201,12 @@ void main() {
       expect(auth.markedAccountIds, ['account']);
       expect(accounts.account.needsReconnect, isTrue);
       expect(
-        find.text('Refresh failed: This account needs to be reconnected.'),
+        find.text(
+          'Your Google account needs to be reconnected to resume calendar and task synchronization.',
+        ),
         findsOneWidget,
       );
+      expect(find.text('Reconnect Google account'), findsOneWidget);
       menu = tester.widget<BusyMaxMenuButton<String>>(
         find.byKey(const ValueKey(('task-list-options', 'account', 'tasks'))),
       );

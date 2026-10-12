@@ -1460,5 +1460,19 @@
   "registrationGuideGooglePublishing": "Vali jaotises Audience Publish app ja kinnita In production. Ära jäta tavakasutust olekusse Testing: need Calendar/Tasksi volitused ja värskendustõendid aeguvad seitsme päevaga. Avaldamine ja kinnitamine on eraldi. Alla 100 kasutajaga isiklik kasutus võib kinnitamisest vabastatud olla, hoiatuste ja kasutajapiiranguga; laiem levitamine võib nõuda brändi ja õiguste kinnitamist. Ka tootmisvolitused võivad aeguda või tühistatud saada.",
   "registrationGuideWorkspacePermissions": "Vaata need õigused administraatoriga üle. Internal-rakendused ei pea neid nõusolekukuval loetlema. Kui seda nõutakse, ava Data Access → Add or remove scopes, lisa väärtused ning vali Update ja Save. Administraatori piirangud võivad volitust siiski takistada.",
   "registrationGuideMicrosoftOptionalPermissions": "Jagatud kalendrite ja kategooriate õigusi küsitakse eraldi vastavate valikuliste funktsioonide lubamisel; ära lisa neid ülaltoodud kohustuslikku seadistusse.",
-  "registrationGuideWorkspaceAudience": "Ava Google Auth Platform → Branding. Kui seadistust pole alustatud, vali Get started. Sisesta väljale App name BusyMax, vali oma User support email ja vali Next. Vali jaotises Audience Internal. Vali Next, sisesta oma e-post jaotises Contact Information ning vali Next. Nõustu User Data Policyga ja vali Continue ning Create. Olemasoleva seadistuse puhul vaata üle Branding ja Audience.\n\nInternal lubab vaid projekti emaorganisatsiooni kontosid administraatori piirangute kohaselt. Testkasutajate loendit pole vaja. BusyMax ei saa neid konsoolisätteid JSON-faili põhjal kontrollida."
+  "registrationGuideWorkspaceAudience": "Ava Google Auth Platform → Branding. Kui seadistust pole alustatud, vali Get started. Sisesta väljale App name BusyMax, vali oma User support email ja vali Next. Vali jaotises Audience Internal. Vali Next, sisesta oma e-post jaotises Contact Information ning vali Next. Nõustu User Data Policyga ja vali Continue ning Create. Olemasoleva seadistuse puhul vaata üle Branding ja Audience.\n\nInternal lubab vaid projekti emaorganisatsiooni kontosid administraatori piirangute kohaselt. Testkasutajate loendit pole vaja. BusyMax ei saa neid konsoolisätteid JSON-faili põhjal kontrollida.",
+  "accountReconnectRequired": "Sünkroonimise jätkamiseks ühenda see konto uuesti.",
+  "googleReconnectRequired": "Kalendrite ja ülesannete sünkroonimise jätkamiseks ühenda Google’i konto uuesti.",
+  "reconnectGoogleAccount": "Ühenda Google’i konto uuesti",
+  "reconnectAccount": "Ühenda see konto uuesti",
+  "reconnectSelectedAccount": "Ühenda {account} uuesti. Kalendrid, ülesanded ja ootel kohalikud muudatused säilitatakse.",
+  "@reconnectSelectedAccount": {
+    "placeholders": {
+      "account": {
+        "type": "String"
+      }
+    }
+  },
+  "googleIdentityUnverified": "Selle vana Google’i ühenduse identiteeti ei saanud kinnitada. Kalendrid, ülesanded ja ootel muudatused säilitatakse. Lisa turvaliseks sünkroonimiseks eraldi Google’i ühendus. Ootel muudatused jäävad algse konto juurde.",
+  "addSeparateGoogleAccount": "Lisa eraldi Google’i ühendus"
 }

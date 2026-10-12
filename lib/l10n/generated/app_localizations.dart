@@ -5993,6 +5993,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Password'**
   String get contactsPasswordLabel;
+
+  /// No description provided for @accountReconnectRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'This account needs to be reconnected to resume synchronization.'**
+  String get accountReconnectRequired;
+
+  /// No description provided for @googleReconnectRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Your Google account needs to be reconnected to resume calendar and task synchronization.'**
+  String get googleReconnectRequired;
+
+  /// No description provided for @reconnectGoogleAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Reconnect Google account'**
+  String get reconnectGoogleAccount;
+
+  /// No description provided for @reconnectAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Reconnect this account'**
+  String get reconnectAccount;
+
+  /// No description provided for @reconnectSelectedAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Reconnect {account}. Your calendars, tasks and pending local changes will be preserved.'**
+  String reconnectSelectedAccount(String account);
+
+  /// No description provided for @googleIdentityUnverified.
+  ///
+  /// In en, this message translates to:
+  /// **'The identity of this older Google connection could not be verified. Its calendars, tasks and pending changes are preserved. Add a separate Google connection to synchronize safely. Pending changes will remain with the original account.'**
+  String get googleIdentityUnverified;
+
+  /// No description provided for @addSeparateGoogleAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a separate Google connection'**
+  String get addSeparateGoogleAccount;
 }
 
 class _AppLocalizationsDelegate

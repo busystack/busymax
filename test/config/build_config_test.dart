@@ -9,6 +9,11 @@ void main() {
     final originalsOnly = syntheticDesktopConfig(managed: false);
     expect(originalsOnly.hasBusyMaxGoogleRegistration, isFalse);
     expect(originalsOnly.hasBusyMaxMicrosoftRegistration, isFalse);
+    expect(originalsOnly.hasMicrosoftDesktopConnection, isTrue);
+    expect(
+      originalsOnly.microsoftDesktopClientId,
+      originalsOnly.microsoftOAuthClientId,
+    );
     final configured = syntheticDesktopConfig();
     expect(configured.hasBusyMaxGoogleRegistration, isTrue);
     expect(configured.hasBusyMaxMicrosoftRegistration, isTrue);
@@ -36,7 +41,26 @@ void main() {
     }
     expect(BuildConfig.forAndroid().hasBusyMaxGoogleRegistration, isFalse);
     expect(BuildConfig.forAndroid().hasBusyMaxMicrosoftRegistration, isFalse);
+    expect(BuildConfig.forAndroid().hasMicrosoftDesktopConnection, isFalse);
   });
+
+  test(
+    'Microsoft desktop connection rejects invalid established authority',
+    () {
+      final config = syntheticDesktopConfig(
+        managed: false,
+        originalMicrosoftAuthority: 'not-a-tenant',
+      );
+      expect(config.hasMicrosoftDesktopConnection, isFalse);
+      expect(
+        validMicrosoftDesktopConfiguration(
+          clientId: config.microsoftOAuthClientId,
+          authorityTenant: '',
+        ),
+        isFalse,
+      );
+    },
+  );
 
   test('managed Microsoft needs only its own valid client ID', () {
     const config = BuildConfig(

@@ -1,39 +1,83 @@
-# Desktop OAuth release checklist
+# Desktop OAuth release prerequisites
 
-Official desktop releases support explicitly active BusyMax-managed registrations and optional organization/custom registrations. Shared-client retirement is not a prerequisite or a scheduled action.
+v0.3.1 uses the owner's new Google Desktop client as the BusyMax-managed
+registration for locally built Linux releases. The download has a valid
+`installed` object and project ID `busymax`. Its actual fields are read by the
+[local release command](beta_snap_release.md); no credential JSON is committed.
+Original Google credentials are not required, restored, or fetched from GitHub.
 
-## Google external prerequisites
+## Google Console evidence
 
-- The owner must supply a real production Desktop OAuth client ID/secret and its actual project ID through `BUSYMAX_GOOGLE_OAUTH_CLIENT_ID`, `BUSYMAX_GOOGLE_OAUTH_CLIENT_SECRET`, and `BUSYMAX_GOOGLE_OAUTH_PROJECT_ID`.
-- Configure branding, support/contact details, Calendar and Tasks APIs, and the existing five scopes. Complete In production publishing and any applicable branding/domain and scope approval/verification. Publishing alone is not verification; tests cannot establish either.
-- Optional contacts lookup also needs People API and `contacts.readonly` as
-  described in [Google setup](google_setup.md); it remains separate from initial
-  Calendar/Tasks authorization. Do not request contacts write access.
-- BusyStack-owned production branding uses `https://busystack.org/privacy-busymax`. Other project owners must satisfy their own domain and policy obligations.
+On 2026-10-11 the owner reported **External / In production; verification
+complete** for the new project. This is owner-reported Console evidence, not an
+inference from the download or a successful login. This task has not changed
+the cloud project. Before distribution record/check in that exact project's
+Google Auth Platform and API Library:
 
-## Microsoft external prerequisites
+- Calendar API (`calendar-json.googleapis.com`) and Tasks API
+  (`tasks.googleapis.com`) enabled.
+- The existing required scopes: `openid`, `email`, `profile`,
+  `https://www.googleapis.com/auth/calendar` and
+  `https://www.googleapis.com/auth/tasks`.
+- Optional read-only contacts: People API (`people.googleapis.com`) enabled and
+  `https://www.googleapis.com/auth/contacts.readonly` listed/approved when
+  applicable. Contacts consent remains separate; no write access is requested.
+- Audience External for a public BusyMax registration, publishing In production,
+  actual verification status and scope approval for the scopes above. Internal
+  Workspace registrations remain a separate custom setup choice.
+- BusyMax branding/logo, user-support and developer-contact emails, application
+  homepage, verified policy domain and
+  `https://busystack.org/privacy-busymax`, plus required consent-screen
+  disclosures. Confirm that the supplied Desktop client belongs to this project.
 
-- The owner must supply a real public app ID through `BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID`. The managed registration must support personal and organizational Microsoft accounts; its authority is always `common` and is not configurable. Custom registrations retain their own audience and tenant selections.
-- Configure Mobile and desktop applications with `http://localhost`, existing mandatory delegated permissions, and applicable administrator consent. Optional shared-calendar/category consent stays optional. No client secret is used.
-- Optional contacts lookup uses delegated `Contacts.Read`, including Android;
-  see [Microsoft setup](microsoft_setup.md). Preserve existing grants accurately.
+A read-only `gcloud services list --enabled --project=busymax` check on
+2026-10-11 verified Calendar and Tasks APIs enabled. People API was absent at
+that check; enabling it requires owner authorization. Individual approved scopes
+and branding/support details cannot be read from a Desktop JSON and still
+require Console evidence and real provider round trips. Google's [audience guidance](https://support.google.com/cloud/answer/15549945?hl=en)
+describes Testing's test-user restrictions and seven-day authorizations.
+[Consent configuration](https://developers.google.com/workspace/guides/configure-oauth-consent)
+and [sensitive-scope verification](https://developers.google.com/identity/protocols/oauth2/production-readiness/sensitive-scope-verification)
+explain the additional approval requirements. Publishing alone is not verification.
 
-## Preserve existing registrations and data
+## Microsoft and other providers
 
-- Retain protected `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `MICROSOFT_OAUTH_CLIENT_ID`, and original Microsoft authority separately. Supply `GOOGLE_OAUTH_PROJECT_ID` only when known truthfully; unknown legacy project metadata is omitted rather than fabricated.
-- Do not overwrite original values with a new production registration. They resolve only eligible accounts actually issued under them. They never enable Connect with BusyMax or act as an implicit fallback.
-- Account envelopes persist the issuing registration, origin, audience, secret where applicable, and tokens. After restart/build changes, refresh, ordinary Reconnect, and Microsoft optional consent use that account's binding. Active registrations do not receive retirement notices.
-- Explicit Replace registration retains identity checks, transactional rollback, generations, secure storage, local data, and session reconciliation. Audit unresolved provenance separately; preserve unknown/corrupt records for repair.
-- Do not retire/delete any Cloud project, Entra registration, or native Android configuration without separate owner authorization. Android GIS/MSAL and signing/distribution identities remain unchanged.
+Supply the established `MICROSOFT_OAUTH_CLIENT_ID` in ignored local public settings;
+no Microsoft secret or new app is needed. Preserve its existing public-client
+redirect and permissions. Managed `BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID` remains
+optional until a real application is supplied. An explicitly managed Microsoft
+client uses `common`; custom clients retain their own audience/tenant choices.
+When no managed replacement is supplied, **Connect with BusyMax** uses the
+established `MICROSOFT_OAUTH_CLIENT_ID` and its configured authority. That client
+is also accepted in custom setup; it is not retired merely because Google changed.
+Verify expired Microsoft grants receive a clear reconnect instruction. Optional
+contacts retain `Contacts.Read`. Nextcloud, iCloud and read-only contacts flows
+must pass their existing regressions; none use release OAuth secrets.
 
-## Build and acceptance gates
+## Existing accounts and build gates
 
-- `dart run tool/check_desktop_oauth_config.dart` validates environment values; `--config <dart-defines.json>` validates a define file. Missing production registrations fail official release validation and are reported as separate external prerequisites. Syntactic validity does not mean provider approval.
-- Routine Linux pull-request and main-push CI requires no production registrations. It builds, installs, and verifies an unconfigured strict Snap and labels its artifact as non-production; it must not be published. Unconfigured validation builds display the recommended action as unavailable and retain custom setup.
-- Official Linux packaging requires a manual `Flutter Linux` dispatch on `main` with `production_release` selected. It validates and injects active and original values separately, rejects missing/invalid or synthetic registrations, and uploads the production Snap only after installation and verification. CI success does not prove production readiness or provider approval.
-- Windows official configuration validates the same prerequisites; synthetic CI values are restricted to explicitly nonproduction CI packages. `-Ci -Unconfigured -Stage WindowsCompile` exercises the unavailable state only.
-- Run locked dependency resolution, localization generation, formatting, analysis, full tests, platform boundaries, Linux release build and diff checks. Run Windows release/native/MSIX validation on Windows and affected Android regressions.
-- Inspect actual production Settings dialogs, native menus, all instruction pages and errors in light/dark, narrow, enlarged-text, long-label and keyboard cases. Use isolated synthetic configurations; owner-authorized accounts are required for real provider authorization.
-- Review cancellation, invalid/cancelled replacement, expiry, disposal/stale work, duplicate submits, wrong account, missing scopes, secure-storage failure, restart/reconnect and optional-consent evidence before publication.
+The new Google client must only populate `BUSYMAX_GOOGLE_OAUTH_*`. Account-bound
+credentials record their issuing registration and authorization generation.
+For an unavailable legacy client, synchronization marks the existing account
+reconnect-required without opening a browser. The user initiates a targeted
+replacement flow; verified Google subjects must match. Unverifiable identities
+retain their accounts and pending work and offer a separate connection, never
+an email-based merge. Failed/cancelled attempts preserve the prior state.
 
-Enable recommended Google and Microsoft connections only after the owner supplies production configuration and completes the respective external prerequisites.
+`tool/check_desktop_oauth_config.dart` validates environment values or `--config`
+JSON. Managed Google ID/secret/real project metadata and fixed privacy policy
+are required. Original Google credentials and managed Microsoft are optional.
+Supplied incomplete/invalid optional values and known CI fixtures are rejected;
+values are never printed. Syntax cannot prove external Console approval.
+
+Linux CI validates source without credentials or artifact uploads. Official
+Linux packaging uses `tool/release/build_snap_local.sh`, locked dependencies,
+exact source/version gates, native tests, compiled configuration inspection and
+fresh isolated Snap checks. No new GitHub OAuth variable/secret is needed.
+Windows and Android keep their existing CI/toolchain and native architectures.
+No cloud registration, Android signing identity, or Store record is changed.
+
+Complete interactive upgrade, wrong-account/cancellation, permissions,
+network/rate-limit, browser callback, restart, secret storage and actual
+Calendar/Tasks/contacts acceptance before publishing. Keep cloud prerequisites
+and real provider evidence separate from automated build/test results.

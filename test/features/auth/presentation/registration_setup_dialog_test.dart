@@ -97,6 +97,34 @@ void main() {
         addTearDown(() => staging.dispose());
       });
 
+      testWidgets(
+        'reconnection identifies the existing account and supports keyboard cancellation',
+        (tester) async {
+          staging.dispose();
+          staging = RegistrationStaging(
+            syntheticDesktopConfig(originalGoogle: false),
+          );
+          harness = _Harness(windows, staging);
+          await harness.open(
+            tester,
+            BusyProvider.google,
+            methods: true,
+            accountLabel: 'existing@example.invalid',
+          );
+          expect(
+            find.byKey(const ValueKey('registration-reconnect-account')),
+            findsOneWidget,
+          );
+          expect(
+            find.textContaining('existing@example.invalid'),
+            findsOneWidget,
+          );
+          expect(_callback(tester, 'busymax'), isNotNull);
+          await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+          await tester.pumpAndSettle();
+          expect(harness.results, [null]);
+        },
+      );
       for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
         testWidgets(
           '$provider methods expose unavailable shared and usable custom paths',
@@ -182,6 +210,32 @@ void main() {
           },
         );
       }
+
+      testWidgets(
+        'established Microsoft client enables BusyMax connection without a new registration',
+        (tester) async {
+          staging.dispose();
+          final config = syntheticDesktopConfig(
+            managed: false,
+            originalMicrosoftAuthority: 'organizations',
+          );
+          staging = RegistrationStaging(config);
+          harness = _Harness(windows, staging);
+          await harness.open(tester, BusyProvider.microsoft, methods: true);
+          expect(_key('shared-unavailable'), findsNothing);
+          expect(_key('client-id'), findsNothing);
+          await tester.tap(_key('busymax'));
+          await tester.pumpAndSettle();
+          expect(harness.results, hasLength(1));
+          final registration = staging.consume(
+            harness.results.single!,
+          ) as MicrosoftPublicRegistration;
+          expect(registration.clientId, config.microsoftOAuthClientId);
+          expect(registration.authorityTenant, 'organizations');
+          expect(registration.origin, RegistrationOrigin.busyMaxManaged);
+          await tester.pumpWidget(const SizedBox.shrink());
+        },
+      );
 
       testWidgets('native form hierarchy and inline validation', (
         tester,
@@ -778,6 +832,7 @@ class _Harness {
     WidgetTester tester,
     BusyProvider provider, {
     bool methods = false,
+    String? accountLabel,
   }) async {
     tester.view.physicalSize = const Size(1100, 950);
     tester.view.devicePixelRatio = 1;
@@ -787,8 +842,18 @@ class _Harness {
       builder: (context, ref, _) {
         void open() {
           final result = windows
-              ? showWindowsRegistrationSetup(context, ref, provider)
-              : showRegistrationSetup(context, ref, provider);
+              ? showWindowsRegistrationSetup(
+                  context,
+                  ref,
+                  provider,
+                  accountLabel: accountLabel,
+                )
+              : showRegistrationSetup(
+                  context,
+                  ref,
+                  provider,
+                  accountLabel: accountLabel,
+                );
           unawaited(result.then(results.add));
         }
 

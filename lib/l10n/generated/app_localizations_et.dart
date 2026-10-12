@@ -3544,4 +3544,30 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String get contactsPasswordLabel => 'Parool';
+
+  @override
+  String get accountReconnectRequired =>
+      'Sünkroonimise jätkamiseks ühenda see konto uuesti.';
+
+  @override
+  String get googleReconnectRequired =>
+      'Kalendrite ja ülesannete sünkroonimise jätkamiseks ühenda Google’i konto uuesti.';
+
+  @override
+  String get reconnectGoogleAccount => 'Ühenda Google’i konto uuesti';
+
+  @override
+  String get reconnectAccount => 'Ühenda see konto uuesti';
+
+  @override
+  String reconnectSelectedAccount(String account) {
+    return 'Ühenda $account uuesti. Kalendrid, ülesanded ja ootel kohalikud muudatused säilitatakse.';
+  }
+
+  @override
+  String get googleIdentityUnverified =>
+      'Selle vana Google’i ühenduse identiteeti ei saanud kinnitada. Kalendrid, ülesanded ja ootel muudatused säilitatakse. Lisa turvaliseks sünkroonimiseks eraldi Google’i ühendus. Ootel muudatused jäävad algse konto juurde.';
+
+  @override
+  String get addSeparateGoogleAccount => 'Lisa eraldi Google’i ühendus';
 }

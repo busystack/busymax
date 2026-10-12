@@ -1282,5 +1282,19 @@
   "registrationGuideGooglePublishing": "في Audience، اختر Publish app وأكد In production. لا تترك الاستخدام العادي في Testing: تنتهي تفويضات Calendar/Tasks ورموز تحديثها بعد سبعة أيام. النشر والتحقق منفصلان. قد يُعفى الاستخدام الشخصي لأقل من 100 مستخدم من التحقق مع تحذيرات وحد للمستخدمين؛ وقد يتطلب التوزيع الأوسع اعتماد العلامة والنطاقات. قد تنتهي التفويضات الإنتاجية أو تُلغى أيضًا.",
   "registrationGuideWorkspacePermissions": "راجع هذه النطاقات مع المسؤول. لا تحتاج تطبيقات Internal إلى قائمة نطاقات في شاشة الموافقة. عند طلبها، افتح Data Access → Add or remove scopes وأضف القيم ثم Update وSave. قد تظل قيود المسؤول تمنع التفويض.",
   "registrationGuideMicrosoftOptionalPermissions": "تُطلب أذونات التقويمات المشتركة والفئات بشكل منفصل عند تفعيل هذه الميزات الاختيارية؛ لا تضفها إلى الإعداد الإلزامي أعلاه.",
-  "registrationGuideWorkspaceAudience": "انتقل إلى Google Auth Platform → Branding. إن لم يبدأ الإعداد، اختر Get started. أدخل BusyMax في App name واختر بريدك في User support email ثم Next. في Audience، اختر Internal. اختر Next وأدخل بريدك ضمن Contact Information ثم Next. وافق على User Data Policy ثم اختر Continue وCreate. إذا كان الإعداد موجودًا، راجع Branding وAudience.\n\nيسمح Internal فقط بحسابات المؤسسة الأم للمشروع، مع الخضوع لقيود المسؤول. لا حاجة لقائمة مستخدمي اختبار. لا يستطيع BusyMax التحقق من إعدادات وحدة التحكم عبر ملف JSON."
+  "registrationGuideWorkspaceAudience": "انتقل إلى Google Auth Platform → Branding. إن لم يبدأ الإعداد، اختر Get started. أدخل BusyMax في App name واختر بريدك في User support email ثم Next. في Audience، اختر Internal. اختر Next وأدخل بريدك ضمن Contact Information ثم Next. وافق على User Data Policy ثم اختر Continue وCreate. إذا كان الإعداد موجودًا، راجع Branding وAudience.\n\nيسمح Internal فقط بحسابات المؤسسة الأم للمشروع، مع الخضوع لقيود المسؤول. لا حاجة لقائمة مستخدمي اختبار. لا يستطيع BusyMax التحقق من إعدادات وحدة التحكم عبر ملف JSON.",
+  "accountReconnectRequired": "أعد ربط هذا الحساب لاستئناف المزامنة.",
+  "googleReconnectRequired": "أعد ربط حساب Google لاستئناف مزامنة التقويمات والمهام.",
+  "reconnectGoogleAccount": "إعادة ربط حساب Google",
+  "reconnectAccount": "إعادة ربط هذا الحساب",
+  "reconnectSelectedAccount": "إعادة ربط ⁨{account}⁩. سيتم الاحتفاظ بالتقويمات والمهام والتغييرات المحلية المعلقة.",
+  "@reconnectSelectedAccount": {
+    "placeholders": {
+      "account": {
+        "type": "String"
+      }
+    }
+  },
+  "googleIdentityUnverified": "تعذر التحقق من هوية اتصال Google القديم هذا. تم الاحتفاظ بالتقويمات والمهام والتغييرات المعلقة. أضف اتصال Google منفصلًا للمزامنة بأمان. ستبقى التغييرات المعلقة مع الحساب الأصلي.",
+  "addSeparateGoogleAccount": "إضافة اتصال Google منفصل"
 }

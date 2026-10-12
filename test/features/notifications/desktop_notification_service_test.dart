@@ -11,6 +11,41 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 
 void main() {
+  test(
+    'unchanged registration failure is suppressed until successful recovery',
+    () async {
+      final backend = _FakeNotificationBackend();
+      var now = DateTime(2026);
+      final selected = <String>[];
+      final service = DesktopNotificationService(
+        backend: backend,
+        settings: AppSettings.defaults(),
+        now: () => now,
+        onReconnectActivated: (id) async => selected.add(id),
+      );
+      const failure = AuthorizationScopedFailure(
+        accountId: 'legacy-local',
+        generation: 0,
+        cause: OAuthRegistrationUnavailableException(),
+      );
+      await service.notifySyncFailure(failure);
+      now = now.add(const Duration(days: 1));
+      await service.notifySyncFailure(failure);
+      expect(backend.notifications, hasLength(1));
+      expect(backend.notifications.single.payload, {
+        'notificationRoute': 'sync-failure',
+        'accountId': 'legacy-local',
+      });
+      await backend.notifications.single.onAction?.call(
+        'default',
+        backend.notifications.single.payload,
+      );
+      expect(selected, ['legacy-local']);
+      service.clearAccountSyncFailure('legacy-local');
+      await service.notifySyncFailure(failure);
+      expect(backend.notifications, hasLength(2));
+    },
+  );
   test('unknown sync failure uses a controlled generic message', () async {
     final backend = _FakeNotificationBackend();
     final service = DesktopNotificationService(

@@ -1,3 +1,6 @@
+import '../../sync/account_recovery_feedback.dart';
+import '../../../l10n/oauth_error_description.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -2248,18 +2251,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       if (!mounted) {
         return false;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            context.l10n.refreshFailed(
-              syncFailureMessage(
-                error,
-                networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
-              ),
-            ),
-          ),
-        ),
-      );
+      await showAccountSyncFailure(context, ref, accountId, error);
       return false;
     }
   }
@@ -2697,7 +2689,8 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         SnackBar(
           content: Text(
             context.l10n.syncFailed(
-              syncFailureMessage(
+              localizedSyncFailureMessage(
+                context.l10n,
                 error,
                 networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
               ),
@@ -2731,7 +2724,8 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         SnackBar(
           content: Text(
             context.l10n.refreshFailed(
-              syncFailureMessage(
+              localizedSyncFailureMessage(
+                context.l10n,
                 error,
                 networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
               ),

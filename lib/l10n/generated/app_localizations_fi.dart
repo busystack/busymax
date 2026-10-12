@@ -3595,4 +3595,30 @@ class AppLocalizationsFi extends AppLocalizations {
 
   @override
   String get contactsPasswordLabel => 'Salasana';
+
+  @override
+  String get accountReconnectRequired =>
+      'Yhdistä tämä tili uudelleen jatkaaksesi synkronointia.';
+
+  @override
+  String get googleReconnectRequired =>
+      'Yhdistä Google-tilisi uudelleen jatkaaksesi kalenterien ja tehtävien synkronointia.';
+
+  @override
+  String get reconnectGoogleAccount => 'Yhdistä Google-tili uudelleen';
+
+  @override
+  String get reconnectAccount => 'Yhdistä tämä tili uudelleen';
+
+  @override
+  String reconnectSelectedAccount(String account) {
+    return 'Yhdistä $account uudelleen. Kalenterit, tehtävät ja odottavat paikalliset muutokset säilytetään.';
+  }
+
+  @override
+  String get googleIdentityUnverified =>
+      'Tämän vanhan Google-yhteyden henkilöllisyyttä ei voitu vahvistaa. Kalenterit, tehtävät ja odottavat muutokset säilytetään. Lisää erillinen Google-yhteys turvallista synkronointia varten. Odottavat muutokset jäävät alkuperäiseen tiliin.';
+
+  @override
+  String get addSeparateGoogleAccount => 'Lisää erillinen Google-yhteys';
 }

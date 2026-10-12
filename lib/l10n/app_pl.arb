@@ -1963,5 +1963,19 @@
   "registrationGuideGooglePublishing": "W Audience wybierz Publish app i potwierdź In production. Nie zostawiaj zwykłego użytku w Testing: te autoryzacje Calendar/Tasks i tokeny odświeżania wygasają po siedmiu dniach. Publikacja i weryfikacja są odrębne. Użytek osobisty z mniej niż 100 użytkownikami może być zwolniony z weryfikacji, z ostrzeżeniami i limitem; szersza dystrybucja może wymagać zatwierdzenia marki i zakresów. Autoryzacje produkcyjne nadal mogą wygasnąć lub zostać cofnięte.",
   "registrationGuideWorkspacePermissions": "Omów te zakresy z administratorem. Aplikacje Internal nie muszą ich wyświetlać na ekranie zgody. Na żądanie otwórz Data Access → Add or remove scopes, dodaj wartości, potem Update i Save. Ograniczenia administratora mogą nadal blokować autoryzację.",
   "registrationGuideMicrosoftOptionalPermissions": "Uprawnienia do udostępnionych kalendarzy i kategorii są żądane osobno przy włączaniu opcjonalnych funkcji; nie dodawaj ich do wymaganej konfiguracji powyżej.",
-  "registrationGuideWorkspaceAudience": "Przejdź do Google Auth Platform → Branding. Jeśli konfiguracja nie została rozpoczęta, wybierz Get started. Wpisz BusyMax w App name, wybierz własny User support email i wybierz Next. W Audience wybierz Internal. Wybierz Next, wpisz swój e-mail w Contact Information i wybierz Next. Zaakceptuj User Data Policy, a następnie wybierz Continue i Create. Jeśli konfiguracja już istnieje, sprawdź Branding i Audience.\n\nInternal dopuszcza tylko konta organizacji nadrzędnej projektu, z ograniczeniami administratora. Lista testerów nie jest potrzebna. BusyMax nie potwierdzi tych ustawień konsoli na podstawie JSON."
+  "registrationGuideWorkspaceAudience": "Przejdź do Google Auth Platform → Branding. Jeśli konfiguracja nie została rozpoczęta, wybierz Get started. Wpisz BusyMax w App name, wybierz własny User support email i wybierz Next. W Audience wybierz Internal. Wybierz Next, wpisz swój e-mail w Contact Information i wybierz Next. Zaakceptuj User Data Policy, a następnie wybierz Continue i Create. Jeśli konfiguracja już istnieje, sprawdź Branding i Audience.\n\nInternal dopuszcza tylko konta organizacji nadrzędnej projektu, z ograniczeniami administratora. Lista testerów nie jest potrzebna. BusyMax nie potwierdzi tych ustawień konsoli na podstawie JSON.",
+  "accountReconnectRequired": "Połącz ponownie to konto, aby wznowić synchronizację.",
+  "googleReconnectRequired": "Połącz ponownie konto Google, aby wznowić synchronizację kalendarzy i zadań.",
+  "reconnectGoogleAccount": "Połącz ponownie konto Google",
+  "reconnectAccount": "Połącz ponownie to konto",
+  "reconnectSelectedAccount": "Połącz ponownie {account}. Kalendarze, zadania i oczekujące zmiany lokalne zostaną zachowane.",
+  "@reconnectSelectedAccount": {
+    "placeholders": {
+      "account": {
+        "type": "String"
+      }
+    }
+  },
+  "googleIdentityUnverified": "Nie można zweryfikować tożsamości tego starszego połączenia Google. Kalendarze, zadania i oczekujące zmiany są zachowane. Dodaj osobne połączenie Google, aby bezpiecznie synchronizować. Oczekujące zmiany pozostaną na pierwotnym koncie.",
+  "addSeparateGoogleAccount": "Dodaj osobne połączenie Google"
 }

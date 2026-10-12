@@ -1282,5 +1282,19 @@
   "registrationGuideGooglePublishing": "В Audience выберите Publish app и подтвердите In production. Не оставляйте обычное использование в Testing: эти авторизации Calendar/Tasks и токены обновления истекают через семь дней. Публикация и проверка — отдельные процессы. Личное использование менее чем 100 пользователями может не требовать проверки, с предупреждениями и лимитом; широкое распространение может требовать одобрения бренда и разрешений. Производственные авторизации тоже могут истекать или отзываться.",
   "registrationGuideWorkspacePermissions": "Согласуйте эти разрешения с администратором. Приложения Internal не обязаны перечислять их на экране согласия. По запросу откройте Data Access → Add or remove scopes, добавьте значения, затем Update и Save. Ограничения администратора могут препятствовать авторизации.",
   "registrationGuideMicrosoftOptionalPermissions": "Разрешения для общих календарей и категорий запрашиваются отдельно при включении этих дополнительных функций; не добавляйте их к обязательной настройке выше.",
-  "registrationGuideWorkspaceAudience": "Откройте Google Auth Platform → Branding. Для новой настройки выберите Get started. Введите BusyMax в App name, выберите свой User support email и нажмите Next. В Audience выберите Internal. Нажмите Next, введите свой адрес в Contact Information и нажмите Next. Примите User Data Policy и выберите Continue и Create. Если настройка уже есть, проверьте Branding и Audience.\n\nInternal допускает только аккаунты родительской организации проекта с учётом ограничений администратора. Список тестовых пользователей не нужен. BusyMax не может проверить эти настройки консоли по JSON."
+  "registrationGuideWorkspaceAudience": "Откройте Google Auth Platform → Branding. Для новой настройки выберите Get started. Введите BusyMax в App name, выберите свой User support email и нажмите Next. В Audience выберите Internal. Нажмите Next, введите свой адрес в Contact Information и нажмите Next. Примите User Data Policy и выберите Continue и Create. Если настройка уже есть, проверьте Branding и Audience.\n\nInternal допускает только аккаунты родительской организации проекта с учётом ограничений администратора. Список тестовых пользователей не нужен. BusyMax не может проверить эти настройки консоли по JSON.",
+  "accountReconnectRequired": "Подключите этот аккаунт заново, чтобы возобновить синхронизацию.",
+  "googleReconnectRequired": "Подключите аккаунт Google заново, чтобы возобновить синхронизацию календарей и задач.",
+  "reconnectGoogleAccount": "Подключить аккаунт Google заново",
+  "reconnectAccount": "Подключить этот аккаунт заново",
+  "reconnectSelectedAccount": "Подключить {account} заново. Календари, задачи и ожидающие локальные изменения будут сохранены.",
+  "@reconnectSelectedAccount": {
+    "placeholders": {
+      "account": {
+        "type": "String"
+      }
+    }
+  },
+  "googleIdentityUnverified": "Не удалось подтвердить личность владельца этого старого подключения Google. Календари, задачи и ожидающие изменения сохранены. Добавьте отдельное подключение Google для безопасной синхронизации. Ожидающие изменения останутся в исходном аккаунте.",
+  "addSeparateGoogleAccount": "Добавить отдельное подключение Google"
 }

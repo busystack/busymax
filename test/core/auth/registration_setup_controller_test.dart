@@ -19,6 +19,29 @@ const clientId = '11223344-5566-7788-99aa-bbccddeeff00';
 const tenantId = 'aabbccdd-1122-3344-5566-77889900aabb';
 
 void main() {
+  test(
+    'Google managed setup needs neither original Google nor managed Microsoft',
+    () {
+      final staging = RegistrationStaging(
+        syntheticDesktopConfig(originalGoogle: false),
+      );
+      final controller = RegistrationSetupController(
+        staging,
+        BusyProvider.google,
+      );
+      addTearDown(() {
+        controller.dispose();
+        staging.dispose();
+      });
+      final handle = controller.connectWithBusyMax()!;
+      expect(handle.summary.origin, RegistrationOrigin.busyMaxManaged);
+      expect(
+        staging.consume(handle).clientId,
+        staging.config.busyMaxGoogleOAuthClientId,
+      );
+    },
+  );
+
   for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
     test(
       '$provider shared connection is explicit, validated and single use',
@@ -47,7 +70,7 @@ void main() {
         expect(() => staging.consume(selected), throwsA(isA<OAuthException>()));
       },
     );
-    test('$provider originals do not make shared authorization available', () {
+    test('$provider setup respects the established registration policy', () {
       final staging = RegistrationStaging(
         syntheticDesktopConfig(managed: false),
       );
@@ -56,12 +79,69 @@ void main() {
         setup.dispose();
         staging.dispose();
       });
-      expect(setup.connectWithBusyMax(), isNull);
-      expect(setup.errorCode, 'OAuthSharedUnavailable');
-      expect(setup.handle, isNull);
-      expect(setup.canConnect, isFalse);
+      final selected = setup.connectWithBusyMax();
+      if (provider == BusyProvider.google) {
+        expect(selected, isNull);
+        expect(setup.errorCode, 'OAuthSharedUnavailable');
+        expect(setup.handle, isNull);
+        expect(setup.canConnect, isFalse);
+      } else {
+        expect(selected, isNotNull);
+        expect(
+          staging.consume(selected!).clientId,
+          staging.config.microsoftOAuthClientId,
+        );
+        expect(setup.errorCode, isNull);
+      }
     });
   }
+
+  for (final authority in ['common', 'organizations', 'consumers', tenantId]) {
+    test(
+      'established Microsoft client retains $authority without a new registration',
+      () {
+        final config = syntheticDesktopConfig(
+          managed: false,
+          originalMicrosoftAuthority: authority,
+        );
+        final staging = RegistrationStaging(config);
+        addTearDown(staging.dispose);
+        staging.rememberRetiringClient(config.microsoftOAuthClientId);
+        final registration = staging.consume(
+          staging.stageBusyMax(BusyProvider.microsoft),
+        ) as MicrosoftPublicRegistration;
+        expect(registration.clientId, config.microsoftOAuthClientId);
+        expect(registration.authorityTenant, authority);
+        expect(registration.origin, RegistrationOrigin.busyMaxManaged);
+        expect(registration.summary().showRetirementNotice, isFalse);
+        expect(config.busyMaxMicrosoftOAuthClientId, isEmpty);
+      },
+    );
+  }
+
+  test(
+    'custom setup accepts the configured established Microsoft public client',
+    () {
+      final config = syntheticDesktopConfig(managed: false);
+      final staging = RegistrationStaging(config);
+      final setup = RegistrationSetupController(
+        staging,
+        BusyProvider.microsoft,
+      );
+      addTearDown(() {
+        setup.dispose();
+        staging.dispose();
+      });
+      staging.rememberRetiringClient(config.microsoftOAuthClientId);
+      setup.updateClientId(config.microsoftOAuthClientId);
+      expect(setup.errorCode, isNull);
+      expect(setup.canConnect, isTrue);
+      final registration =
+          staging.consume(setup.accept()!) as MicrosoftPublicRegistration;
+      expect(registration.clientId, config.microsoftOAuthClientId);
+      expect(registration.origin, RegistrationOrigin.userProvided);
+    },
+  );
 
   test('managed Microsoft always uses common independently of originals', () {
     final config = syntheticDesktopConfig(

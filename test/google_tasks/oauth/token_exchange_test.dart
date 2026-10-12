@@ -22,7 +22,7 @@ import 'package:busymax/src/providers/busy_provider.dart';
 
 void main() {
   for (final scenario in [
-    (400, 'invalid_client', OAuthFailureKind.configuration),
+    (400, 'invalid_client', OAuthFailureKind.clientRejected),
     (429, 'invalid_grant', OAuthFailureKind.throttled),
     (503, 'invalid_grant', OAuthFailureKind.temporary),
   ]) {

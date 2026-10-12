@@ -8,7 +8,7 @@ and Windows. Release packaging has separate procedures linked below.
 BusyMax development and CI use Flutter **3.47.5** and the Dart **3.13.4** SDK
 bundled with that Flutter installation. Use the bundled `dart` executable; do
 not mix Flutter with a different global Dart SDK. The `pubspec.yaml` constraint
-`sdk: ^3.12.0` is the Dart language/package compatibility constraint. It is not
+`sdk: ^3.13.4` is the Dart language/package compatibility constraint. It is not
 the repository's build-toolchain version.
 
 The workflows verify the selected SDK with `tool/verify_flutter_sdk.dart`.
@@ -33,20 +33,13 @@ registrations in [`BuildConfig`](../lib/src/config/build_config.dart):
   `common` for personal and organizational Microsoft accounts. Custom
   registrations retain their own audience and tenant selections.
 
-Protected `GOOGLE_OAUTH_*` and `MICROSOFT_OAUTH_*` originals serve eligible
-existing account bindings. Keep them separate from active registrations; they
-do not enable new managed connections or provide an implicit fallback. You can
-build and run offline tests without provider configuration; unconfigured
-desktop builds keep custom registration setup available.
-
-Use the [Google](google_setup.md) and [Microsoft](microsoft_setup.md) registration
-guides for custom setup. Official packages must pass
-`dart run tool/check_desktop_oauth_config.dart --config <dart-defines.json>`;
-the [desktop OAuth release checklist](desktop_oauth_release_checklist.md) owns the
-complete configuration and provider approval requirements.
-
-Apple iCloud Calendar and Nextcloud do not use compile-time OAuth client
-credentials.
+For local Linux releases, select the new external Google Desktop OAuth JSON.
+The release tool derives managed `BUSYMAX_GOOGLE_OAUTH_*` values automatically,
+including project metadata. Original Google credentials are not needed.
+Use ignored local public settings for the established Microsoft client ID;
+managed Microsoft remains optional. Custom provider registrations remain usable
+in unconfigured development builds. See the [local Snap release procedure](beta_snap_release.md)
+and [provider prerequisites](desktop_oauth_release_checklist.md).
 
 ## Linux development
 
@@ -156,39 +149,43 @@ depending on Fluent UI.
 Normal `flutter test` skips credential-gated provider tests. See
 [Live-provider tests](#live-provider-tests) for their setup and safety requirements.
 
-The Linux and Windows workflows run for pull requests targeting `main` and
-pushes to `main`; both also support manual dispatch. Routine Linux CI requires
-no production OAuth configuration: it builds, installs, and verifies an
-unconfigured strict Snap with custom registration available and managed
-connections unavailable. Its verified artifact is explicitly labeled
-`busymax-snap-ci-non-production` and must not be published.
-Manual Linux runs are restricted to `main`; selecting `production_release`
-validates production registrations and builds a verified production Snap,
-uploaded under the established `busymax-snap` artifact name.
-Without that selection, a manual run remains non-production CI.
-A newer run for the same workflow and ref cancels the superseded run. Windows
-test reports are retained for every run, while the unsigned CI MSIX and package
-evidence are retained for seven days only after a successful `main` push or manual run.
-The workflows do not deploy Windows packages.
+Linux GitHub Actions verifies source, locked dependencies, generated files,
+formatting, analysis, platform boundaries, Flutter/native tests and an
+unconfigured strict Snap packaging/install smoke test. It has no production
+dispatch, OAuth credentials or artifact uploads. Windows and Android CI remain
+independent. The official Linux build is `tool/release/build_snap_local.sh`;
+`tool/build_install_snap_local.sh` only repacks a development scaffold.
 
-Release PRs originate from the existing release branch for that version.
-Start each release branch from current `main`. Before final review, fetch and
-merge any later `origin/main` commits into the release branch with a normal
-merge commit. A squash of a feature containing main changes preserves its
-source but does not preserve that ancestry.
-Open `release/v0.3.0` into `main` with the title `Release/v0.3.0`.
-`tool/check_release_pull_request.py` checks the title and branch (including
-intentional lowercase naming), matching application/Snap/AppStream/Windows
-resource versions, Android's increasing version code, and current target
-ancestry. CI fetches the actual `refs/pull/<number>/head` and target branch;
-the synthetic PR merge checkout does not prove release-branch ancestry.
-The owner reviews and manually merges the open release PR.
-Historically, v0.2.4 feature/fix PRs were squashed into `Release/v0.2.4`,
-followed by a squash of that release PR into `main`.
+## Repository contents
 
-For release artifacts, follow [Snap beta release](beta_snap_release.md) or
-[Windows packaging](windows_packaging.md) and the
-[Windows release checklist](windows_release_checklist.md).
+Keep application and platform source, tests and synthetic fixtures, locked
+dependencies, CI-verified generated sources, vendored code and licenses, build
+recipes, shared launch configurations and maintained documentation in Git.
+Reviewed product screenshots and test golden images are also source inputs.
+The checked-in Google Tasks discovery document is a pinned API contract used by
+tests, not a disposable build cache.
+
+Keep local profiles, credentials, signing material, per-run logs, captures,
+command receipts, delivery manifests and release artifacts outside Git. Use
+ignored `build/` locations or temporary directories for validation evidence;
+summarize results in the relevant pull request. Downloaded Google Desktop JSON
+and local release settings follow the [local Snap release procedure](beta_snap_release.md).
+
+The [read-only contacts integration](development/contacts-read-only.md)
+documents the provider, authorization, storage and lifecycle boundaries and
+their regression coverage.
+
+## Release branches
+
+Start `release/v0.3.1` from current `main`, commit reviewed changes, and open it
+into `main` with title `release/v0.3.1`. Fetch before final review and incorporate
+later `origin/main` commits with a normal merge. The existing
+`tool/check_release_pull_request.py` validates the actual PR head, release
+metadata and current-main ancestry. A synthetic PR merge does not establish
+that ancestry. Preserve worktrees and uncommitted work; do not rewrite history
+or repeatedly squash feature branches into long-lived branches. The owner
+reviews and merges the release PR. Official artifact production follows
+[Local Snap beta release](beta_snap_release.md).
 
 ## Live-provider tests
 

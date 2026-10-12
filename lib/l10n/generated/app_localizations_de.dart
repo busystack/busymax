@@ -3570,4 +3570,31 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get contactsPasswordLabel => 'Passwort';
+
+  @override
+  String get accountReconnectRequired =>
+      'Dieses Konto muss erneut verbunden werden, um die Synchronisierung fortzusetzen.';
+
+  @override
+  String get googleReconnectRequired =>
+      'Verbinden Sie Ihr Google-Konto erneut, um Kalender und Aufgaben weiter zu synchronisieren.';
+
+  @override
+  String get reconnectGoogleAccount => 'Google-Konto erneut verbinden';
+
+  @override
+  String get reconnectAccount => 'Dieses Konto erneut verbinden';
+
+  @override
+  String reconnectSelectedAccount(String account) {
+    return '$account erneut verbinden. Kalender, Aufgaben und ausstehende lokale Änderungen bleiben erhalten.';
+  }
+
+  @override
+  String get googleIdentityUnverified =>
+      'Die Identität dieser älteren Google-Verbindung konnte nicht bestätigt werden. Kalender, Aufgaben und ausstehende Änderungen bleiben erhalten. Fügen Sie eine separate Google-Verbindung hinzu. Ausstehende Änderungen bleiben beim ursprünglichen Konto.';
+
+  @override
+  String get addSeparateGoogleAccount =>
+      'Separate Google-Verbindung hinzufügen';
 }

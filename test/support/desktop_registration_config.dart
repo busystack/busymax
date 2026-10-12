@@ -3,10 +3,13 @@ import 'package:busymax/src/config/build_config.dart';
 // Synthetic values used only by tests. Never include these in official packages.
 BuildConfig syntheticDesktopConfig({
   bool managed = true,
+  bool originalGoogle = true,
   bool later = false,
   String originalMicrosoftAuthority = 'common',
 }) => BuildConfig(
-  googleOAuthClientId: 'original.apps.googleusercontent.com',
+  googleOAuthClientId: originalGoogle
+      ? 'original.apps.googleusercontent.com'
+      : '',
   googleOAuthClientSecret: '',
   microsoftOAuthClientId: '22222222-2222-2222-2222-222222222222',
   microsoftOAuthAuthorityTenant: originalMicrosoftAuthority,

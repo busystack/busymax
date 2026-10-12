@@ -97,6 +97,283 @@ void main() {
     h.staging.dispose();
     await h.db.close();
   });
+  group('Google release registration recovery', () {
+    Future<void> seedLegacy({bool verified = true}) async {
+      h.staging.dispose();
+      await h.db.close();
+      h = Harness(buildConfig: syntheticDesktopConfig(originalGoogle: false));
+      await h.accounts.upsertSignedInAccount(
+        id: 'legacy-local',
+        provider: BusyProvider.google,
+        providerAccountId: verified ? 'subject' : 'legacy-local',
+        email: 'previous@example.invalid',
+        tasksEnabled: false,
+        grantedScopes: googleBusyMaxOAuthScope,
+      );
+      await h.secrets.saveCredential(
+        'legacy-local',
+        OAuthSecretRecord(provider: BusyProvider.google, tokenSet: tokens()),
+      );
+      await h.db.customStatement(
+        "INSERT INTO task_lists (account_id,id,title,raw_json,created_local_at_utc,updated_local_at_utc) VALUES ('legacy-local','cached-list','Cached tasks','{}','2026-10-01T00:00:00Z','2026-10-01T00:00:00Z')",
+      );
+      await h.db.customStatement(
+        "INSERT INTO tasks (account_id,task_list_id,id,title,raw_json,local_dirty,created_local_at_utc,updated_local_at_utc) VALUES ('legacy-local','cached-list','cached-task','Offline task','{}',1,'2026-10-01T00:00:00Z','2026-10-01T00:00:00Z')",
+      );
+      await h.db.customStatement(
+        "INSERT INTO calendar_sources (id,account_id,provider,provider_calendar_id,summary,selected,created_at_local,updated_at_local) VALUES ('cached-calendar','legacy-local','google','primary','Cached calendar',0,1,1)",
+      );
+      await h.db.customStatement(
+        "INSERT INTO calendar_events (id,account_id,calendar_source_id,provider,provider_calendar_id,provider_event_id,title,created_at_local,updated_at_local) VALUES ('cached-event','legacy-local','cached-calendar','google','primary','event','Offline event',1,1)",
+      );
+      await h.db.customStatement(
+        "INSERT INTO pending_ops (id,account_id,entity_type,operation,request_json,conflict_state,created_at_utc,updated_at_utc) VALUES ('pending-event','legacy-local','event','update','{}','unresolved','2026-10-01T00:00:00Z','2026-10-01T00:00:00Z')",
+      );
+    }
+
+    Future<List<Object>> localData() async => [
+      ...await h.db.select(h.db.taskLists).get(),
+      ...await h.db.select(h.db.tasks).get(),
+      ...await h.db.select(h.db.calendarSources).get(),
+      ...await h.db.select(h.db.calendarEvents).get(),
+      ...await h.db.select(h.db.pendingOps).get(),
+    ];
+    test('unavailable original preserves local data and reauthorizes with managed issuer across restart', () async {
+      await seedLegacy();
+      final data = await localData();
+      await expectLater(
+        h.google.validTokenForAccount('legacy-local'),
+        throwsA(isA<OAuthRegistrationUnavailableException>()),
+      );
+      expect(h.requests, isEmpty);
+      await h.repository.markReconnectRequired('legacy-local');
+      expect(
+        (await h.accounts.listVisibleAccounts()).single.needsReconnect,
+        true,
+      );
+      expect(await localData(), data);
+      await h.repository.signIn(
+        request: AuthorizationRequest.replace(
+          'legacy-local',
+          h.staging.stageBusyMax(BusyProvider.google),
+        ),
+      );
+      final accepted = await h.secrets.readCredential(
+        'legacy-local',
+      ) as GoogleDesktopCredential;
+      expect(accepted.registration.origin, RegistrationOrigin.busyMaxManaged);
+      expect(
+        accepted.registration.clientId,
+        h.buildConfig.busyMaxGoogleOAuthClientId,
+      );
+      expect(accepted.subject, 'subject');
+      expect(h.flow.clients, [h.buildConfig.busyMaxGoogleOAuthClientId]);
+      expect(
+        h.requests
+            .where((r) => r.method == 'POST')
+            .every(
+              (r) =>
+                  Uri.splitQueryString(r.body)['grant_type'] ==
+                  'authorization_code',
+            ),
+        true,
+      );
+      expect(
+        (await h.accounts.listVisibleAccounts()).single.id,
+        'legacy-local',
+      );
+      expect(
+        (await h.accounts.accountById('legacy-local'))!.tasksEnabled,
+        false,
+      );
+      expect(
+        (await h.accounts.accountById('legacy-local'))!.needsReconnect,
+        false,
+      );
+      expect(await localData(), data);
+      await h.secrets.saveCredential(
+        'legacy-local',
+        SecretRecord.fromJson(jsonDecode(jsonEncode(accepted.toJson()))),
+      );
+      final restarted = OAuthService(
+        config: h.buildConfig,
+        httpClient: h.client,
+        tokenStore: h.secrets,
+        loopbackFlow: h.flow,
+        registrations: h.staging,
+        persistence: AuthorizationPersistence(
+          database: h.db,
+          secrets: h.secrets,
+        ),
+      );
+      await restarted.refreshTokenForAccount('legacy-local');
+      expect(
+        Uri.splitQueryString(h.requests.last.body)['client_id'],
+        h.buildConfig.busyMaxGoogleOAuthClientId,
+      );
+      expect(await localData(), data);
+    });
+    for (final mode in ['wrong-account', 'cancel', 'missing-scope']) {
+      test(
+        '$mode leaves old account, pending operations and credentials intact',
+        () async {
+          await seedLegacy();
+          await h.repository.markReconnectRequired('legacy-local');
+          final data = await localData();
+          final previous = (await h.secrets.readCredential('legacy-local'))!
+              .toJson();
+          h.mode = mode;
+          await expectLater(
+            h.repository.signIn(
+              request: AuthorizationRequest.replace(
+                'legacy-local',
+                h.staging.stageBusyMax(BusyProvider.google),
+              ),
+            ),
+            throwsA(isA<OAuthException>()),
+          );
+          expect(
+            (await h.secrets.readCredential('legacy-local'))!.toJson(),
+            previous,
+          );
+          expect(await localData(), data);
+          expect(
+            (await h.accounts.listVisibleAccounts()).single.needsReconnect,
+            true,
+          );
+        },
+      );
+    }
+    test('unverified legacy identity never refreshes old client or rebinds local work', () async {
+      await seedLegacy(verified: false);
+      final data = await localData();
+      h.beforeRequest = (r) async =>
+          r.method == 'GET' ? http.Response('{}', 401) : null;
+      await expectLater(
+        h.repository.signIn(
+          request: AuthorizationRequest.replace(
+            'legacy-local',
+            h.staging.stageBusyMax(BusyProvider.google),
+          ),
+        ),
+        throwsA(
+          isA<OAuthException>().having(
+            (e) => e.classification,
+            'kind',
+            OAuthFailureKind.identityUnverified,
+          ),
+        ),
+      );
+      expect(h.flow.clients, isEmpty);
+      expect(h.requests.every((r) => r.method == 'GET'), true);
+      expect(
+        (await h.accounts.listVisibleAccounts()).single.id,
+        'legacy-local',
+      );
+      expect(await localData(), data);
+    });
+    for (final status in [429, 500]) {
+      test(
+        'legacy identity HTTP $status remains a temporary provider failure',
+        () async {
+          await seedLegacy(verified: false);
+          h.beforeRequest = (r) async => http.Response('{}', status);
+          await expectLater(
+            h.repository.signIn(
+              request: AuthorizationRequest.replace(
+                'legacy-local',
+                h.staging.stageBusyMax(BusyProvider.google),
+              ),
+            ),
+            throwsA(
+              isA<OAuthAuthorizationException>()
+                  .having((e) => e.statusCode, 'status', status)
+                  .having((e) => e.requiresReconnect, 'reconnect', false),
+            ),
+          );
+          expect(h.flow.clients, isEmpty);
+        },
+      );
+    }
+    test('rejected legacy binding preserves structured cause and avoids repeated refresh', () async {
+      const id = 'rejected-legacy';
+      await h.accounts.upsertSignedInAccount(
+        id: id,
+        provider: BusyProvider.google,
+        providerAccountId: 'subject',
+        grantedScopes: googleBusyMaxOAuthScope,
+      );
+      await h.db
+          .into(h.db.oAuthTransitionAccounts)
+          .insert(OAuthTransitionAccountsCompanion.insert(accountId: id));
+      await h.secrets.saveCredential(
+        id,
+        OAuthSecretRecord(provider: BusyProvider.google, tokenSet: tokens()),
+      );
+      h.beforeRequest = (r) async =>
+          http.Response('{"error":"invalid_client"}', 401);
+      for (var i = 0; i < 2; i++) {
+        await expectLater(
+          h.google.boundCredentialForAccount(id),
+          throwsA(
+            isA<OAuthRegistrationUnavailableException>().having(
+              (e) => e.cause?.classification,
+              'cause',
+              OAuthFailureKind.clientRejected,
+            ),
+          ),
+        );
+      }
+      expect(h.requests, hasLength(1));
+    });
+  });
+  test('established Microsoft public client authorizes and remains bound after restart', () async {
+    h.staging.dispose();
+    await h.db.close();
+    final established = syntheticDesktopConfig(
+      managed: false,
+      originalMicrosoftAuthority: 'organizations',
+    );
+    h = Harness(buildConfig: established);
+    final selected = h.staging.stageBusyMax(BusyProvider.microsoft);
+    await h.repository.signInWithMicrosoft(
+      request: AuthorizationRequest.newConnection(selected),
+    );
+    const id = 'microsoft:ms-user';
+    final saved =
+        await h.secrets.readCredential(id) as MicrosoftDesktopCredential;
+    await h.secrets.saveCredential(
+      id,
+      SecretRecord.fromJson(jsonDecode(jsonEncode(saved.toJson()))),
+    );
+    final restarted = MicrosoftOAuthService(
+      config: established,
+      httpClient: h.client,
+      tokenStore: h.secrets,
+      loopbackFlow: h.flow,
+      registrations: h.staging,
+      persistence: AuthorizationPersistence(database: h.db, secrets: h.secrets),
+    );
+    await restarted.refreshTokenForAccount(id);
+    expect(h.flow.clients, [established.microsoftOAuthClientId]);
+    expect(
+      h.requests
+          .where((r) => r.method == 'POST')
+          .every(
+            (r) =>
+                r.url.path.startsWith('/organizations/') &&
+                Uri.splitQueryString(r.body)['client_id'] ==
+                    established.microsoftOAuthClientId,
+          ),
+      isTrue,
+    );
+    final current =
+        await h.secrets.readCredential(id) as MicrosoftDesktopCredential;
+    expect(current.registration.clientId, established.microsoftOAuthClientId);
+    expect(current.registration.authorityTenant, 'organizations');
+    expect(await h.db.select(h.db.accounts).get(), hasLength(1));
+  });
+
   for (final origin in [
     RegistrationOrigin.busyMaxManaged,
     RegistrationOrigin.userProvided,
@@ -849,7 +1126,7 @@ void main() {
             isA<OAuthException>().having(
               (error) => error.classification,
               'kind',
-              OAuthFailureKind.configuration,
+              OAuthFailureKind.registrationUnavailable,
             ),
           ),
         );

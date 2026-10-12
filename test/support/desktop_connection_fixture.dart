@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:busymax/src/core/auth/authorization_attempt.dart';
+import 'package:busymax/src/config/build_config.dart';
 import 'package:busymax/src/core/auth/authorization_persistence.dart';
 import 'package:busymax/src/core/auth/oauth_models.dart';
 import 'package:busymax/src/core/auth/registration_file_reader.dart';
@@ -21,7 +22,11 @@ import 'desktop_registration_config.dart';
 // Production services and persistence with synthetic provider replies only.
 // Used through real Settings callers; this never opens a live authorization.
 class DesktopConnectionFixture {
-  DesktopConnectionFixture(this.database, RegistrationFileReader reader) {
+  DesktopConnectionFixture(
+    this.database,
+    RegistrationFileReader reader, {
+    bool originalGoogle = true,
+  }) : config = syntheticDesktopConfig(originalGoogle: originalGoogle) {
     persistence = AuthorizationPersistence(
       database: database,
       secrets: secrets,
@@ -35,16 +40,25 @@ class DesktopConnectionFixture {
     );
     final httpClient = MockClient((request) async {
       if (request.method == 'GET') {
+        if (legacyAccessUnavailable &&
+            request.headers['Authorization'] == 'Bearer synthetic-old') {
+          return http.Response('{}', 401);
+        }
         return http.Response(
           jsonEncode(
             request.url.host == 'graph.microsoft.com'
                 ? {'id': 'fixture-user', 'displayName': 'Synthetic account'}
-                : {'sub': 'fixture-user', 'email': 'fixture@example.invalid'},
+                : {'sub': googleSubject, 'email': 'fixture@example.invalid'},
           ),
           200,
         );
       }
-      final client = Uri.splitQueryString(request.body)['client_id'];
+      final parameters = Uri.splitQueryString(request.body);
+      if (tokenExchangeOffline &&
+          parameters['grant_type'] == 'authorization_code') {
+        throw const SocketException('synthetic network unavailable');
+      }
+      final client = parameters['client_id'];
       return http.Response(
         jsonEncode({
           'access_token': 'synthetic-access',
@@ -78,7 +92,10 @@ class DesktopConnectionFixture {
     );
   }
   final AppDatabase database;
-  final config = syntheticDesktopConfig();
+  final BuildConfig config;
+  String googleSubject = 'fixture-user';
+  bool legacyAccessUnavailable = false;
+  bool tokenExchangeOffline = false;
   final secrets = InMemorySecretStore();
   final flow = _FixtureBrowser();
   late final AuthorizationPersistence persistence;
@@ -90,6 +107,7 @@ class DesktopConnectionFixture {
 class _FixtureBrowser extends OAuthLoopbackFlow {
   _FixtureBrowser() : super(authorizationLauncher: (_) async => false);
   final clients = <String>[];
+  bool cancelAttempt = false;
   String scope = '';
   @override
   Future<OAuthLoopbackResult> start({
@@ -106,6 +124,9 @@ class _FixtureBrowser extends OAuthLoopbackFlow {
     AuthorizationAttempt? attempt,
   }) async {
     attempt?.check();
+    if (cancelAttempt) {
+      throw const OAuthException('OAuthSignInCancelled', 'Sign-in cancelled.');
+    }
     clients.add(clientId);
     this.scope = scope;
     return OAuthLoopbackResult(

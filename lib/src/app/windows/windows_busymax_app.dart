@@ -50,6 +50,7 @@ final windowsAppRouter = GoRouter(
         destination: WindowsWorkspaceDestination.settings,
         child: WindowsSettingsPage(
           initialPage: state.uri.queryParameters['page'],
+          reconnectAccountId: state.uri.queryParameters['reconnect'],
         ),
       ),
     ),
@@ -129,7 +130,12 @@ class _WindowsBusyMaxAppState extends ConsumerState<WindowsBusyMaxApp>
       case DesktopActivationKind.notification:
         final destination = activation.notificationDestination;
         if (destination != null) {
-          _handleNavigation(DesktopNavigationRequest(destination));
+          _handleNavigation(
+            DesktopNavigationRequest(
+              destination,
+              reconnectAccountId: activation.payload?['accountId'],
+            ),
+          );
           return;
         }
         final scheduleId = activation.payload?['notificationScheduleId'];
@@ -223,6 +229,15 @@ class _WindowsBusyMaxAppState extends ConsumerState<WindowsBusyMaxApp>
   }
 
   void _handleNavigation(DesktopNavigationRequest request) {
+    if (request.reconnectAccountId case final id?) {
+      windowsAppRouter.go(
+        Uri(
+          path: '/settings',
+          queryParameters: {'page': 'accounts', 'reconnect': id},
+        ).toString(),
+      );
+      return;
+    }
     windowsAppRouter.go(switch (request.destination) {
       DesktopNavigationDestination.schedule => '/schedule',
       DesktopNavigationDestination.tasks => '/tasks',

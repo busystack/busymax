@@ -176,7 +176,10 @@ final class DesktopActivation {
       case DesktopActivationKind.notification:
         if (payload?.containsKey('notificationRoute') ?? false) {
           return const {'default', 'open'}.contains(action) &&
-              payload!.length == 1 &&
+              (payload!.length == 1 ||
+                  payload!.length == 2 &&
+                      payload!['notificationRoute'] == 'sync-failure' &&
+                      (payload!['accountId']?.isNotEmpty ?? false)) &&
               notificationDestination != null;
         }
         const permittedActions = {'default', 'open', 'snooze', 'dismiss'};
@@ -235,7 +238,8 @@ enum DesktopNavigationDestination { schedule, tasks, settings }
 
 @immutable
 final class DesktopNavigationRequest {
-  const DesktopNavigationRequest(this.destination);
+  const DesktopNavigationRequest(this.destination, {this.reconnectAccountId});
+  final String? reconnectAccountId;
 
   final DesktopNavigationDestination destination;
 }
@@ -243,7 +247,10 @@ final class DesktopNavigationRequest {
 abstract interface class DesktopNavigationService {
   Stream<DesktopNavigationRequest> get requests;
 
-  void open(DesktopNavigationDestination destination);
+  void open(
+    DesktopNavigationDestination destination, {
+    String? reconnectAccountId,
+  });
 }
 
 final class QueuedDesktopNavigationService implements DesktopNavigationService {
@@ -255,8 +262,16 @@ final class QueuedDesktopNavigationService implements DesktopNavigationService {
   Stream<DesktopNavigationRequest> get requests => _requests.stream;
 
   @override
-  void open(DesktopNavigationDestination destination) {
-    _requests.add(DesktopNavigationRequest(destination));
+  void open(
+    DesktopNavigationDestination destination, {
+    String? reconnectAccountId,
+  }) {
+    _requests.add(
+      DesktopNavigationRequest(
+        destination,
+        reconnectAccountId: reconnectAccountId,
+      ),
+    );
   }
 
   Future<void> dispose() => _requests.close();

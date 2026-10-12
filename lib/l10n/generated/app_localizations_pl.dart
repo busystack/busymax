@@ -3744,4 +3744,30 @@ class AppLocalizationsPl extends AppLocalizations {
 
   @override
   String get contactsPasswordLabel => 'Hasło';
+
+  @override
+  String get accountReconnectRequired =>
+      'Połącz ponownie to konto, aby wznowić synchronizację.';
+
+  @override
+  String get googleReconnectRequired =>
+      'Połącz ponownie konto Google, aby wznowić synchronizację kalendarzy i zadań.';
+
+  @override
+  String get reconnectGoogleAccount => 'Połącz ponownie konto Google';
+
+  @override
+  String get reconnectAccount => 'Połącz ponownie to konto';
+
+  @override
+  String reconnectSelectedAccount(String account) {
+    return 'Połącz ponownie $account. Kalendarze, zadania i oczekujące zmiany lokalne zostaną zachowane.';
+  }
+
+  @override
+  String get googleIdentityUnverified =>
+      'Nie można zweryfikować tożsamości tego starszego połączenia Google. Kalendarze, zadania i oczekujące zmiany są zachowane. Dodaj osobne połączenie Google, aby bezpiecznie synchronizować. Oczekujące zmiany pozostaną na pierwotnym koncie.';
+
+  @override
+  String get addSeparateGoogleAccount => 'Dodaj osobne połączenie Google';
 }

@@ -1,239 +1,163 @@
-# Snap beta release
+# Local Snap beta release
 
-The canonical Snap build packages an existing Flutter Linux release bundle with
-`snap/snapcraft.yaml`. Snapcraft does not run `flutter build` or read the
-local Dart-defines file, so build the configured Flutter bundle first.
+Official Linux Snaps are built locally from an exact committed revision with
+`tool/release/build_snap_local.sh`. GitHub Actions verifies source, tests and an
+unconfigured packaging smoke build. It supplies no production Snap or source
+archive and requires no OAuth variables or secrets. Source archives remain
+available explicitly through `python3 tool/package_source.py`.
 
-## Prepare
+## Local configuration
 
-Use Linux amd64 with the [BusyMax development toolchain](development.md),
-snapd, Snapcraft with LXD, `libhandy-1-dev`, and `unsquashfs` from
-`squashfs-tools`. Publishing also requires authorization for the BusyMax Snap
-Store listing.
+Keep the downloaded Google **Desktop** OAuth JSON outside the repository.
+Select it with `--google-oauth /path/to/download.json`, or select a directory
+containing exactly one `.json` file. Multiple candidates require an explicit
+filename; the command never guesses. The file must contain `installed.client_id`,
+`installed.client_secret` and `installed.project_id`. Web clients, service
+accounts, malformed/incomplete files and known synthetic CI values are rejected.
 
-Confirm that source versions agree:
+These fields become `BUSYMAX_GOOGLE_OAUTH_CLIENT_ID`,
+`BUSYMAX_GOOGLE_OAUTH_CLIENT_SECRET` and `BUSYMAX_GOOGLE_OAUTH_PROJECT_ID`
+automatically. No separate project-ID entry is needed. They designate the active
+managed registration and enable **Connect with BusyMax**. The retiring
+`GOOGLE_OAUTH_*` configuration is not needed for this local release and the new
+client is never written into those original-registration fields. Custom Desktop
+JSON and Workspace setup remain available in the app.
 
-```bash
-grep -nE '^version:|<release version=' \
-  pubspec.yaml snap/snapcraft.yaml linux/io.busystack.busymax.metainfo.xml
-```
-
-The `pubspec.yaml` version, Snapcraft version, and newest metainfo release
-must match. Older metainfo entries are release history.
-For v0.3.0 they are `0.3.0`; `tool/package_source.py` derives the source
-filename `busymax-0.3.0-source.tar.gz` from `pubspec.yaml`.
-
-For a configured release, create the ignored file
-`.snap-local/busymax-dart-defines.json` with mode `0600`:
+Put additional public configuration in ignored `config/release.local.json`
+(mode `0600`), passed with `--local-config`:
 
 ```json
 {
-  "GOOGLE_OAUTH_CLIENT_ID": "PROTECTED_ORIGINAL_GOOGLE_CLIENT_ID",
-  "GOOGLE_OAUTH_CLIENT_SECRET": "PROTECTED_ORIGINAL_GOOGLE_CLIENT_SECRET",
-  "MICROSOFT_OAUTH_CLIENT_ID": "PROTECTED_ORIGINAL_MICROSOFT_CLIENT_ID",
-  "MICROSOFT_OAUTH_AUTHORITY_TENANT": "PROTECTED_ORIGINAL_AUTHORITY",
-  "BUSYMAX_GOOGLE_OAUTH_CLIENT_ID": "PRODUCTION_GOOGLE_DESKTOP_CLIENT_ID",
-  "BUSYMAX_GOOGLE_OAUTH_CLIENT_SECRET": "PRODUCTION_GOOGLE_DESKTOP_CLIENT_SECRET",
-  "BUSYMAX_GOOGLE_OAUTH_PROJECT_ID": "ACTUAL_PRODUCTION_GOOGLE_PROJECT_ID",
-  "BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID": "PRODUCTION_MICROSOFT_PUBLIC_CLIENT_ID",
-  "BUSYMAX_PRIVACY_POLICY_URL": "https://busystack.org/privacy-busymax"
+  "MICROSOFT_OAUTH_CLIENT_ID": "EXISTING_MICROSOFT_PUBLIC_CLIENT_ID",
+  "MICROSOFT_OAUTH_AUTHORITY_TENANT": "common"
 }
 ```
 
-Follow [Google OAuth registration](google_setup.md) and
-[Microsoft OAuth registration](microsoft_setup.md). These desktop credentials
-are embedded in the bundle and can be extracted. Use only the intended
-desktop/public-client configuration; never use server credentials or commit
-the JSON or generated Snap. Apple iCloud and Nextcloud per-user credentials do
-not belong in this file.
+Use the existing Microsoft public client ID and its actual established authority;
+there is no Microsoft client secret. `BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID` is optional
+and should only be supplied when a real managed registration exists. No new
+Microsoft registration is required. Apple/Nextcloud passwords and account tokens
+never belong in release configuration. The privacy-policy URL is fixed product
+metadata: `https://busystack.org/privacy-busymax`.
 
-Active `BUSYMAX_*` registrations enable new managed connections; protected
-originals serve existing account bindings and must retain their original
-values. Never use CI fixture values as production credentials. The
-[desktop OAuth release checklist](desktop_oauth_release_checklist.md) covers the
-provider publishing, verification, and consent prerequisites. Validate the
-define file with `tool/check_desktop_oauth_config.dart` before building, as
-shown below.
+Generated Flutter defines are written outside the Snapcraft source with mode
+`0600` and removed after compilation/binary inspection, including on failure.
+The downloaded JSON is never copied into the workspace or Snap. Installed-app
+client configuration can be extracted from the distributed binary; it is not a
+server-side credential. See [Google's OAuth overview](https://developers.google.com/identity/protocols/oauth2).
 
-## Build the canonical artifact
+## One supported build command
 
-Complete the shared preparation and normal validation in
-[Development](development.md), supply the real owner-controlled values, then run:
+Prerequisites: Linux amd64, Flutter **3.47.5** and its bundled Dart **3.13.4**,
+Snapcraft **9.1.4**, snapd, configured LXD, `squashfs-tools`, and the Linux native
+build/test dependencies listed in [Development](development.md). The runtime
+verifier creates a new tagged Ubuntu 24.04 VM; the host needs VM-capable LXD.
+The source checkout must be clean on `release/vVERSION` or `main`, match the
+explicit revision, and incorporate fetched `origin/main`.
 
 ```bash
-dart run tool/check_desktop_oauth_config.dart \
-  --config .snap-local/busymax-dart-defines.json
-flutter build linux --release -t lib/main_linux.dart \
-  --dart-define-from-file=.snap-local/busymax-dart-defines.json
-snapcraft pack --use-lxd
+tool/release/build_snap_local.sh \
+  --version 0.3.1 \
+  --revision "$(git rev-parse HEAD)" \
+  --google-oauth /path/to/google-desktop-download-directory \
+  --local-config config/release.local.json \
+  --workspace /path/to/new-release-workspace
 ```
 
-Snapcraft prints the path to `busymax_<version>_amd64.snap`. Use that exact
-artifact for every inspection, installation, checksum, and upload. If BusyMax
-reports that a provider is not configured, the compiled bundle is missing its
-Dart defines and must be rebuilt.
+The workspace must not exist. It contains independent `busymax/`,
+`busystack_contacts/`, `busystack_dav/` and `busystack_graph/` Git checkouts.
+Dependencies are materialized at the exact manifest revisions. Existing sibling
+repositories and earlier worktrees remain untouched. Failed workspaces are
+retained for inspection; choose a new path for another attempt. No reset,
+forced worktree removal, or destructive cleanup is used.
 
-The Flutter Linux workflow performs source validation, builds
-`lib/main_linux.dart`, packages a strict Snap, and installs and verifies it.
-Pull requests and pushes to `main` need no production OAuth credentials.
-They upload the verified `busymax-snap-ci-non-production`
-artifact, containing `busymax-snap-ci-non-production.snap`, for
-seven days. This unconfigured package keeps custom registration available and
-managed connections unavailable. It is not an official release and must not
-be published.
+The command checks all five version files before compiling; it never rewrites
+them. v0.3.1 uses Android code **6**, confirmed available by the owner on
+2026-10-11. It resolves the lockfile, generates/rechecks localization and Drift,
+runs formatting, analysis, platform boundaries, full Flutter/tool/native tests,
+and compiles a fresh configured bundle. It verifies the actual managed Google
+configuration in `libapp.so`, runs canonical Snapcraft packaging with
+`--use-lxd`. Its output stays inside the checkout during the LXD pack step,
+then the exact package moves to `artifacts/`. The command checks version,
+strict confinement, launchers and
+assets. An old bundle cannot enter the new checkout. The recipe remains
+`base: core24`, `grade: devel`, `confinement: strict`.
 
-For an official production artifact, configure the actual managed Google and
-Microsoft registrations plus the protected originals in GitHub Actions, then
-explicitly request the production path from `main`:
+It then checks ELF resolution, X11/Wayland startup, restart and confined network
+access in a fresh Ubuntu 24.04 VM. Runtime failures stop the build. A successful
+command prints the exact Snap path last and writes its SHA-256 file, redacted
+build log, runtime evidence and `artifacts/manifest.json`. The manifest records
+`status: candidate` and `release_ready: false` until interactive/provider
+acceptance is completed. Compilation and packing alone never establish release
+readiness. Failed builds emit no success manifest. Nothing is installed on the
+owner's desktop or uploaded automatically.
+
+## Inspect, verify and test upgrade
+
+Use the exact printed path throughout. In its artifacts directory:
 
 ```bash
-gh workflow run flutter-linux.yml --ref main -f production_release=true
+sha256sum --check busymax_0.3.1_amd64.snap.sha256
+unsquashfs -cat busymax_0.3.1_amd64.snap meta/snap.yaml
 ```
 
-Manual Linux runs from other branches fail. The production path runs the CI
-checks, strictly validates the release configuration, verifies that the
-configured registrations reached the binary, and builds, installs, and
-verifies the strict Snap before uploading the established `busymax-snap` artifact.
-Missing, invalid, or synthetic production registrations fail the run. The
-artifact is retained for seven days; the workflow does not publish to the
-Snap Store. A manual run without `production_release` selected remains
-non-production CI. Managed Microsoft connections always use `common`, and
-the app registration must support both personal and organizational accounts.
+Confirm `0.3.1`, `core24`, `devel`, `strict`, the BusyMax launcher, its autostart
+entry, desktop file, icon and AppStream history. Investigate library warnings
+using [the library investigation record](snap_runtime_libraries.md); do not add
+broad linter suppression. The VM evidence must show no unresolved runtime ELF
+dependencies. Headless startup does not prove interactive native integration.
 
-### Local scaffold helper
-
-For quick local scaffold testing, quit every BusyMax window and tray process,
-then run:
+On a separate test machine/user session, first install the previous v0.3.0
+package and prepare test accounts, cached tasks/events, disabled collection
+preferences, contacts settings, conflicts and pending offline work. Back up
+that test state. Quit BusyMax and upgrade using the exact candidate:
 
 ```bash
-./tool/build_install_snap_local.sh \
-  --dart-define-from-file .snap-local/busymax-dart-defines.json
-```
-
-The helper repacks `/snap/busymax/current`, or the directory passed with
-`--scaffold`, around a newly built bundle. It is not the canonical Snapcraft
-build and must not be published. Leave `--root` at its safe default. The helper
-does not purge application data. Use `--skip-tests` only for a repeat build of
-the same validated revision. **`--no-run` still installs the package; it only
-suppresses launch.**
-
-## Inspect and install the exact artifact
-
-Set the actual artifact path, then record its metadata and checksum:
-
-```bash
-SNAP_FILE=./busymax_RELEASE_VERSION_amd64.snap
-unsquashfs -cat "$SNAP_FILE" meta/snap.yaml |
-  sed -n '/^name:/p;/^version:/p;/^grade:/p;/^confinement:/p'
-sha256sum "$SNAP_FILE"
-```
-
-Confirm that the package is strict and contains one top-level launcher:
-
-```bash
-unsquashfs -ll "$SNAP_FILE" |
-  sed -nE 's#^.*squashfs-root/meta/gui/([^/]+\.desktop)$#\1#p'
-```
-
-The launcher output must contain only `busymax.desktop`.
-`share/applications/io.busystack.busymax.desktop` is the expected internal
-desktop file.
-
-Quit other BusyMax processes before installing:
-
-```bash
-sudo snap install --dangerous "$SNAP_FILE"
+sudo snap install --dangerous /absolute/path/busymax_0.3.1_amd64.snap
 snap connections busymax
 snap run busymax
 ```
 
-`--dangerous` bypasses Store signature checking, not strict confinement. The
-installation command does not request a purge, but preserve a backup of release
-test data before any package operation.
+Do not purge data. Verify that the previous account remains visible and its
+local content can be inspected. Its Google failure must offer **Reconnect
+Google account**, select that account, and authorize through the current client.
+Verify same-subject replacement, wrong-account rejection, cancellation, offline
+failure and callback failure. An unverifiable legacy identity retains its local
+account and offers a separate connection; pending operations must stay with the
+original account. Confirm no duplicate account after successful verified
+replacement, sync resumes, and restart uses the new issuing registration.
 
-## Release verification
+Test real Calendar/Tasks changes, read-only Contacts, Microsoft Calendar/To Do,
+Nextcloud and iCloud, GTK windows and file pickers, browser loopback callbacks,
+tray, Secret portal storage and notifications on X11 and Wayland sessions.
+Record version/revision/checksum and results without tokens or personal content.
+Review the [Google production prerequisites](desktop_oauth_release_checklist.md).
 
-Consolidate results in the release record. At minimum verify:
+## Owner-performed upload
 
-- the installed revision, strict confinement, single desktop launcher, tray
-  actions, notifications, startup, and restart;
-- Google and Microsoft browser sign-in and Apple/Nextcloud connection,
-  reconnect, revocation, read-only permissions, and synchronization;
-- event and provider-supported task create/edit/complete/delete, recurrence,
-  alarms, imports/exports, WebCal, conflict behavior, and offline recovery;
-- external location/link opening as described in the
-  [privacy and data map](privacy_data_map.md), without an embedded map or
-  mapping credential;
-- the strict-Snap Secret portal credential store across quit and desktop
-  restart, followed by account removal;
-- network, DNS, and platform TLS failures;
-- UI, themes, scaling, localization, calendar views, and tray Agenda targeting;
-  and
-- upgrade of a copy of data from the last release plus the supported migration
-  fixture through the complete current migration chain, preserving credentials,
-  provider state, cached content, pending work, conflicts, and supplemental
-  location ownership.
-
-Do not use production personal data for release testing.
-
-## Publish an authorized beta
-
-Authenticate and upload the verified artifact once:
+After interactive acceptance and provider prerequisite review, the owner uploads
+only the verified checksum. The build command never publishes:
 
 ```bash
 snapcraft login
 snapcraft whoami
-snapcraft upload --release=beta "$SNAP_FILE"
+snapcraft upload --release=beta /absolute/path/busymax_0.3.1_amd64.snap
 snapcraft revisions busymax --arch amd64
 snapcraft status busymax --arch amd64
 ```
 
-Record the numeric Store revision printed for the verified checksum. It is an
-immutable upload identifier, not the application version. Do not re-upload
-while review or release is pending.
+Record the immutable numeric Store revision. The `busymax-dbus` slot may require
+manual Store review; wait or contact reviewers rather than repeatedly uploading.
+`grade: devel` supports beta/edge only. If review completes without release, the
+owner may release that exact reviewed revision with
+`snapcraft release busymax STORE_REVISION beta`. Verify the Store-delivered
+revision on a separate test machine. These instructions authorize no automatic
+upload, release or merge.
 
-The `busymax-dbus` session D-Bus slot can require manual review. If an older
-obsolete revision blocks the candidate, reject only that obsolete revision;
-otherwise wait or contact the
-[Store reviewers](https://forum.snapcraft.io/c/store-requests/19).
-`resource-not-ready` or inconsistent-state errors do not prove a release.
-Check the publisher dashboard before retrying.
+## Development scaffold helper
 
-If review completes without automatic release, release the exact reviewed
-revision:
-
-```bash
-snapcraft release busymax STORE_REVISION beta
-snapcraft status busymax --arch amd64
-```
-
-The recipe uses `grade: devel`, so it can release only to beta or edge. A
-candidate or stable release requires changing the grade, rebuilding, and
-repeating artifact verification.
-
-## Verify the Store revision
-
-Prefer a separate test machine:
-
-```bash
-sudo snap install busymax --beta
-snap info busymax
-snap run busymax
-```
-
-For an existing beta-tracking install:
-
-```bash
-sudo snap refresh busymax --channel=beta
-snap info busymax
-```
-
-Repeat the installed-package checks against the Store-delivered revision.
-Record its revision, channel, checksum, test machine, and results without
-account identities, credentials, DAV paths, or calendar/task content.
-
-Official references:
-[Snapcraft build environments](https://documentation.ubuntu.com/snapcraft/stable/reference/build-environment-options/),
-[upload](https://documentation.ubuntu.com/snapcraft/stable/reference/commands/upload/),
-and
-[revision management](https://documentation.ubuntu.com/snapcraft/stable/how-to/publishing/manage-revisions-and-releases/).
+`tool/build_install_snap_local.sh` remains development-only: it repacks an
+installed/supplied scaffold and installs it on the local machine. It is not the
+production packager and its output must not be published. `--no-run` still
+installs that development package. Use the dedicated release command above for
+official artifacts.

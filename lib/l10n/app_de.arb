@@ -1345,5 +1345,19 @@
   "registrationGuideGooglePublishing": "Wählen Sie unter Audience Publish app und bestätigen Sie In production. Lassen Sie die normale Nutzung nicht in Testing: Diese Kalender-/Aufgabenautorisierungen und Aktualisierungstokens laufen nach sieben Tagen ab. Veröffentlichung und Verifizierung sind getrennt. Persönliche Nutzung mit weniger als 100 Nutzern kann von der Verifizierung befreit sein, mit Warnungen und Nutzerlimit; größere Verbreitung kann Marken- und Berechtigungsprüfungen erfordern. Produktionsautorisierungen können weiterhin ablaufen oder widerrufen werden.",
   "registrationGuideWorkspacePermissions": "Prüfen Sie diese Berechtigungen mit Ihrem Administrator. Interne Apps benötigen keine Auflistung auf dem Zustimmungsbildschirm. Falls angefordert, öffnen Sie Data Access → Add or remove scopes, fügen Sie die Werte hinzu und wählen Sie Update und Save. Administratorkontrollen können die Autorisierung weiterhin einschränken.",
   "registrationGuideMicrosoftOptionalPermissions": "Berechtigungen für freigegebene Kalender und Kategorien werden separat beim Aktivieren dieser optionalen Funktionen angefordert. Fügen Sie sie nicht zur erforderlichen Einrichtung hinzu.",
-  "registrationGuideWorkspaceAudience": "Öffnen Sie Google Auth Platform → Branding. Wählen Sie bei einer neuen Einrichtung Get started. Geben Sie BusyMax als App name ein, wählen Sie Ihre eigene User support email und anschließend Next. Wählen Sie unter Audience Internal. Wählen Sie Next, geben Sie unter Contact Information Ihre E-Mail-Adresse ein und wählen Sie Next. Akzeptieren Sie die User Data Policy und wählen Sie Continue und Create. Prüfen Sie bei einer vorhandenen Einrichtung Branding und Audience.\n\nInternal erlaubt nur Konten der übergeordneten Projektorganisation und unterliegt Administratorkontrollen. Eine Testnutzerliste ist nicht nötig. BusyMax kann diese Konsoleneinstellungen nicht anhand der JSON prüfen."
+  "registrationGuideWorkspaceAudience": "Öffnen Sie Google Auth Platform → Branding. Wählen Sie bei einer neuen Einrichtung Get started. Geben Sie BusyMax als App name ein, wählen Sie Ihre eigene User support email und anschließend Next. Wählen Sie unter Audience Internal. Wählen Sie Next, geben Sie unter Contact Information Ihre E-Mail-Adresse ein und wählen Sie Next. Akzeptieren Sie die User Data Policy und wählen Sie Continue und Create. Prüfen Sie bei einer vorhandenen Einrichtung Branding und Audience.\n\nInternal erlaubt nur Konten der übergeordneten Projektorganisation und unterliegt Administratorkontrollen. Eine Testnutzerliste ist nicht nötig. BusyMax kann diese Konsoleneinstellungen nicht anhand der JSON prüfen.",
+  "accountReconnectRequired": "Dieses Konto muss erneut verbunden werden, um die Synchronisierung fortzusetzen.",
+  "googleReconnectRequired": "Verbinden Sie Ihr Google-Konto erneut, um Kalender und Aufgaben weiter zu synchronisieren.",
+  "reconnectGoogleAccount": "Google-Konto erneut verbinden",
+  "reconnectAccount": "Dieses Konto erneut verbinden",
+  "reconnectSelectedAccount": "{account} erneut verbinden. Kalender, Aufgaben und ausstehende lokale Änderungen bleiben erhalten.",
+  "@reconnectSelectedAccount": {
+    "placeholders": {
+      "account": {
+        "type": "String"
+      }
+    }
+  },
+  "googleIdentityUnverified": "Die Identität dieser älteren Google-Verbindung konnte nicht bestätigt werden. Kalender, Aufgaben und ausstehende Änderungen bleiben erhalten. Fügen Sie eine separate Google-Verbindung hinzu. Ausstehende Änderungen bleiben beim ursprünglichen Konto.",
+  "addSeparateGoogleAccount": "Separate Google-Verbindung hinzufügen"
 }

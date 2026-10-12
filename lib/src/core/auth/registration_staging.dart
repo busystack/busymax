@@ -90,11 +90,21 @@ final class RegistrationStaging extends ChangeNotifier {
       );
     }
     if (provider == BusyProvider.microsoft &&
-        config.hasBusyMaxMicrosoftRegistration) {
+        config.hasMicrosoftDesktopConnection) {
+      final tenant = config.microsoftDesktopAuthorityTenant
+          .trim()
+          .toLowerCase();
+      final audience = switch (tenant) {
+        'common' => MicrosoftAudience.personalAndOrganizations,
+        'organizations' => MicrosoftAudience.organizations,
+        'consumers' => MicrosoftAudience.personal,
+        _ => MicrosoftAudience.tenant,
+      };
       return stage(
         MicrosoftPublicRegistration(
-          clientId: config.busyMaxMicrosoftOAuthClientId,
-          audience: MicrosoftAudience.personalAndOrganizations,
+          clientId: config.microsoftDesktopClientId,
+          audience: audience,
+          tenantId: audience == MicrosoftAudience.tenant ? tenant : null,
           origin: RegistrationOrigin.busyMaxManaged,
         ),
       );
@@ -111,9 +121,9 @@ final class RegistrationStaging extends ChangeNotifier {
           value.clientId == config.busyMaxGoogleOAuthClientId.trim(),
     MicrosoftPublicRegistration() =>
       value.platform == AuthenticationPlatform.desktop &&
-          config.hasBusyMaxMicrosoftRegistration &&
+          config.hasMicrosoftDesktopConnection &&
           value.clientId ==
-              config.busyMaxMicrosoftOAuthClientId.trim().toLowerCase(),
+              config.microsoftDesktopClientId.trim().toLowerCase(),
   };
 
   Future<RegistrationHandle> importGoogle(
@@ -175,21 +185,19 @@ final class RegistrationStaging extends ChangeNotifier {
     String? tenantId,
     AuthenticationPlatform platform = AuthenticationPlatform.desktop,
   }) {
-    final registration = MicrosoftPublicRegistration(
+    var registration = MicrosoftPublicRegistration(
       clientId: clientId,
       audience: audience,
       tenantId: tenantId,
       platform: platform,
-      origin:
-          clientId.trim().toLowerCase() ==
-                  config.microsoftOAuthClientId.trim().toLowerCase() &&
-              !(platform == AuthenticationPlatform.desktop &&
-                  config.hasBusyMaxMicrosoftRegistration &&
-                  clientId.trim().toLowerCase() ==
-                      config.busyMaxMicrosoftOAuthClientId.trim().toLowerCase())
-          ? RegistrationOrigin.retiringShared
-          : RegistrationOrigin.userProvided,
     );
+    if (!_isConfiguredActive(registration) &&
+        registration.clientId ==
+            config.microsoftOAuthClientId.trim().toLowerCase()) {
+      registration = registration.withOrigin(
+        RegistrationOrigin.retiringShared,
+      ) as MicrosoftPublicRegistration;
+    }
     return stage(registration);
   }
 

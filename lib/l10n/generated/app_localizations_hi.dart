@@ -3565,4 +3565,30 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get contactsPasswordLabel => 'पासवर्ड';
+
+  @override
+  String get accountReconnectRequired =>
+      'सिंक फिर से शुरू करने के लिए यह खाता दोबारा कनेक्ट करें।';
+
+  @override
+  String get googleReconnectRequired =>
+      'कैलेंडर और कार्यों का सिंक फिर से शुरू करने के लिए अपना Google खाता दोबारा कनेक्ट करें।';
+
+  @override
+  String get reconnectGoogleAccount => 'Google खाता दोबारा कनेक्ट करें';
+
+  @override
+  String get reconnectAccount => 'यह खाता दोबारा कनेक्ट करें';
+
+  @override
+  String reconnectSelectedAccount(String account) {
+    return '$account को दोबारा कनेक्ट करें। कैलेंडर, कार्य और लंबित स्थानीय बदलाव सुरक्षित रहेंगे।';
+  }
+
+  @override
+  String get googleIdentityUnverified =>
+      'इस पुराने Google कनेक्शन की पहचान सत्यापित नहीं हो सकी। कैलेंडर, कार्य और लंबित बदलाव सुरक्षित हैं। सुरक्षित सिंक के लिए अलग Google कनेक्शन जोड़ें। लंबित बदलाव मूल खाते में रहेंगे।';
+
+  @override
+  String get addSeparateGoogleAccount => 'अलग Google कनेक्शन जोड़ें';
 }

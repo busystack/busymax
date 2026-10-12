@@ -1282,5 +1282,19 @@
   "registrationGuideGooglePublishing": "Audience에서 Publish app을 선택하고 In production을 확인하세요. 일반 사용을 Testing으로 두지 마세요. 이 Calendar/Tasks 승인과 갱신 토큰은 7일 후 만료됩니다. 게시와 인증은 별개입니다. 100명 미만의 개인 사용은 경고와 사용자 제한을 적용하여 인증 면제가 가능하며, 광범위 배포는 브랜드와 범위 승인이 필요할 수 있습니다. 프로덕션 승인도 만료되거나 취소될 수 있습니다.",
   "registrationGuideWorkspacePermissions": "이 범위를 관리자와 검토하세요. Internal 앱은 동의 화면에 범위를 나열할 필요가 없습니다. 요청받으면 Data Access → Add or remove scopes에서 값을 추가하고 Update와 Save를 선택하세요. 관리자 제어로 승인이 제한될 수 있습니다.",
   "registrationGuideMicrosoftOptionalPermissions": "공유 캘린더와 범주 권한은 선택 기능을 활성화할 때 별도로 요청됩니다. 위의 필수 설정에 추가하지 마세요.",
-  "registrationGuideWorkspaceAudience": "Google Auth Platform → Branding으로 이동하세요. 아직 설정하지 않았다면 Get started를 선택하세요. App name에 BusyMax를 입력하고 본인 User support email을 선택한 뒤 Next를 선택하세요. Audience에서 Internal을 선택하세요. Next를 선택하고 Contact Information에 이메일을 입력한 뒤 Next를 선택하세요. User Data Policy에 동의하고 Continue와 Create를 선택하세요. 이미 설정했다면 Branding과 Audience를 확인하세요.\n\nInternal은 프로젝트의 상위 조직 계정만 허용하며 관리자 제어도 적용됩니다. 테스트 사용자 목록은 필요 없습니다. BusyMax는 다운로드한 JSON으로 이러한 콘솔 설정을 확인할 수 없습니다."
+  "registrationGuideWorkspaceAudience": "Google Auth Platform → Branding으로 이동하세요. 아직 설정하지 않았다면 Get started를 선택하세요. App name에 BusyMax를 입력하고 본인 User support email을 선택한 뒤 Next를 선택하세요. Audience에서 Internal을 선택하세요. Next를 선택하고 Contact Information에 이메일을 입력한 뒤 Next를 선택하세요. User Data Policy에 동의하고 Continue와 Create를 선택하세요. 이미 설정했다면 Branding과 Audience를 확인하세요.\n\nInternal은 프로젝트의 상위 조직 계정만 허용하며 관리자 제어도 적용됩니다. 테스트 사용자 목록은 필요 없습니다. BusyMax는 다운로드한 JSON으로 이러한 콘솔 설정을 확인할 수 없습니다.",
+  "accountReconnectRequired": "동기화를 재개하려면 이 계정을 다시 연결하세요.",
+  "googleReconnectRequired": "캘린더와 할 일 동기화를 재개하려면 Google 계정을 다시 연결하세요.",
+  "reconnectGoogleAccount": "Google 계정 다시 연결",
+  "reconnectAccount": "이 계정 다시 연결",
+  "reconnectSelectedAccount": "{account} 계정을 다시 연결합니다. 캘린더, 할 일 및 대기 중인 로컬 변경 사항은 유지됩니다.",
+  "@reconnectSelectedAccount": {
+    "placeholders": {
+      "account": {
+        "type": "String"
+      }
+    }
+  },
+  "googleIdentityUnverified": "이 오래된 Google 연결의 계정 신원을 확인할 수 없습니다. 캘린더, 할 일 및 대기 중인 변경 사항은 유지됩니다. 안전한 동기화를 위해 별도의 Google 연결을 추가하세요. 대기 중인 변경 사항은 원래 계정에 남습니다.",
+  "addSeparateGoogleAccount": "별도의 Google 연결 추가"
 }

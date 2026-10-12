@@ -50,7 +50,6 @@ import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/auth/data/auth_repository.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_workspace.dart';
 import 'package:busymax/src/features/settings/presentation/settings_screen.dart';
-import 'package:busymax/src/features/sync/sync_auth_error.dart';
 import 'package:busymax/src/google_tasks/api/google_tasks_api_surface.dart';
 import 'package:busymax/src/core/auth/oauth_models.dart';
 import 'package:busymax/src/google_tasks/oauth/oauth_service.dart';
@@ -111,6 +110,152 @@ void main() {
     await database.close();
   });
 
+  for (final mode in ['wrong-account', 'cancel', 'unverified', 'offline']) {
+    testWidgets(
+      'targeted Google recovery $mode retains the old account and offers safe recovery',
+      (tester) async {
+        await _insertAccount(
+          database,
+          id: 'legacy-local',
+          provider: BusyProvider.google,
+          authState: accountAuthStateReauthRequired,
+        );
+        final fixture = DesktopConnectionFixture(
+          database,
+          _nativeReader,
+          originalGoogle: false,
+        );
+        addTearDown(fixture.staging.dispose);
+        await database.customStatement(
+          "UPDATE accounts SET provider_account_id = ? WHERE id = 'legacy-local'",
+          [mode == 'unverified' ? 'legacy-local' : 'fixture-user'],
+        );
+        await fixture.secrets.saveCredential(
+          'legacy-local',
+          OAuthSecretRecord(
+            provider: BusyProvider.google,
+            tokenSet: _tokenSet().copyWith(accessToken: 'synthetic-old'),
+          ),
+        );
+        final prior = (await fixture.secrets.readCredential('legacy-local'))!
+            .toJson();
+        fixture.googleSubject = mode == 'wrong-account'
+            ? 'different-user'
+            : 'fixture-user';
+        fixture.flow.cancelAttempt = mode == 'cancel';
+        fixture.legacyAccessUnavailable = mode == 'unverified';
+        fixture.tokenExchangeOffline = mode == 'offline';
+        await _pumpApp(
+          tester,
+          database: database,
+          oAuth: fixture.google,
+          secrets: fixture.secrets,
+          persistence: fixture.persistence,
+          staging: fixture.staging,
+          onSignedIn: (_, _) async {},
+        );
+        await tester.pumpAndSettle();
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(ScheduleWorkspace)),
+        );
+        container
+            .read(appRouterProvider)
+            .go('/settings?page=accounts&reconnect=legacy-local');
+        for (
+          var i = 0;
+          i < 20 &&
+              find
+                  .byKey(const ValueKey('registration-methods-dialog'))
+                  .evaluate()
+                  .isEmpty;
+          i++
+        ) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 10)),
+          );
+          await tester.pumpAndSettle();
+        }
+        expect(
+          find.byKey(const ValueKey('registration-reconnect-account')),
+          findsOneWidget,
+        );
+        await tester.tap(find.byKey(const ValueKey('registration-busymax')));
+        for (var i = 0; i < 20; i++) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 10)),
+          );
+          await tester.pumpAndSettle();
+        }
+        expect(
+          (await tester.runAsync(
+            () => fixture.secrets.readCredential('legacy-local'),
+          ))!.toJson(),
+          prior,
+        );
+        final accounts = (await tester.runAsync(
+          () => database.select(database.accounts).get(),
+        ))!;
+        expect(accounts, hasLength(1));
+        expect(accounts.single.authState, accountAuthStateReauthRequired);
+        expect(
+          find.textContaining('OAuthRegistrationUnresolved'),
+          findsNothing,
+        );
+        if (mode == 'wrong-account') {
+          expect(
+            find.textContaining('Authorize the account selected'),
+            findsOneWidget,
+          );
+        } else if (mode == 'cancel') {
+          container
+              .read(appRouterProvider)
+              .go('/settings?page=accounts&reconnect=legacy-local');
+          for (
+            var i = 0;
+            i < 20 &&
+                find
+                    .byKey(const ValueKey('registration-methods-dialog'))
+                    .evaluate()
+                    .isEmpty;
+            i++
+          ) {
+            await tester.runAsync(
+              () => Future<void>.delayed(const Duration(milliseconds: 10)),
+            );
+            await tester.pumpAndSettle();
+          }
+          expect(
+            find.byKey(const ValueKey('registration-reconnect-account')),
+            findsOneWidget,
+          );
+          await tester.tap(find.byKey(const ValueKey('registration-close')));
+          await tester.pumpAndSettle();
+        } else if (mode == 'offline') {
+          expect(find.textContaining('You’re offline.'), findsOneWidget);
+          expect(
+            find.textContaining('temporary provider problem'),
+            findsNothing,
+          );
+          expect(find.textContaining('OAuthTemporaryTransport'), findsNothing);
+        } else if (mode == 'unverified') {
+          expect(find.textContaining('could not be verified'), findsOneWidget);
+          await tester.tap(find.text('Add a separate Google connection'));
+          await tester.pumpAndSettle();
+          expect(
+            find.byKey(const ValueKey('registration-methods-dialog')),
+            findsOneWidget,
+          );
+          expect(
+            find.byKey(const ValueKey('registration-reconnect-account')),
+            findsNothing,
+          );
+          await tester.tap(find.byKey(const ValueKey('registration-close')));
+          await tester.pumpAndSettle();
+        }
+        await _disposeApp(tester);
+      },
+    );
+  }
   for (final choice in [
     (BusyProvider.google, DesktopConnectionMethod.busyMax),
     (BusyProvider.google, DesktopConnectionMethod.googleWorkspace),
@@ -608,11 +753,19 @@ void main() {
         provider: BusyProvider.google,
         authState: accountAuthStateReauthRequired,
       );
+      final fixture = DesktopConnectionFixture(database, _nativeReader);
+      addTearDown(fixture.staging.dispose);
+      await database.customStatement(
+        "UPDATE accounts SET provider_account_id = 'fixture-user' WHERE id = 'account-1'",
+      );
       final calls = <({String accountId, bool initial})>[];
       await _pumpApp(
         tester,
         database: database,
-        oAuth: oAuth,
+        oAuth: fixture.google,
+        secrets: fixture.secrets,
+        persistence: fixture.persistence,
+        staging: fixture.staging,
         onSignedIn: (accountId, initial) async =>
             calls.add((accountId: accountId, initial: initial)),
       );
@@ -623,8 +776,32 @@ void main() {
       );
       final original = container.read(authSessionControllerProvider);
       calls.clear();
-      await tester.tap(find.text(accountReconnectRequiredActionLabel));
+      final action = find.byKey(const ValueKey('reconnect-account-account-1'));
+      await tester.ensureVisible(action);
+      await tester.tap(action);
       await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('registration-reconnect-account')),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const ValueKey('registration-close')));
+      await tester.pumpAndSettle();
+      expect(
+        (await tester.runAsync(() => database.select(database.accounts).get()))!
+            .singleWhere((r) => r.id == 'account-1')
+            .authState,
+        accountAuthStateReauthRequired,
+      );
+      await tester.tap(action);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('registration-busymax')));
+      for (var i = 0; i < 40; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 10)),
+        );
+        await tester.pumpAndSettle();
+        if (calls.isNotEmpty) break;
+      }
       final rows = (await tester.runAsync(
         () => database.select(database.accounts).get(),
       ))!;
@@ -1483,7 +1660,13 @@ void main() {
         tester.element(find.byType(SettingsScreen)),
       );
 
-      await tester.tap(find.text(accountReconnectRequiredActionLabel));
+      final action = find.byKey(
+        const ValueKey('reconnect-account-google:reconnect'),
+      );
+      await tester.ensureVisible(action);
+      await tester.tap(action);
+      await tester.pumpAndSettle();
+      await _validateAndAuthorizeGoogleSetup(tester);
       await tester.pump();
 
       final sessionWhileReconnecting = container.read(
@@ -1781,6 +1964,7 @@ Future<void> _authorizeGoogleSetup(WidgetTester tester) async {
 }
 
 Future<void> _validateAndAuthorizeGoogleSetup(WidgetTester tester) async {
+  await tester.ensureVisible(find.byKey(const ValueKey('registration-custom')));
   await tester.tap(find.byKey(const ValueKey('registration-custom')));
   await tester.pumpAndSettle();
   await tester.runAsync(() async {

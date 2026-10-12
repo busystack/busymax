@@ -3582,4 +3582,31 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get contactsPasswordLabel => 'Mot de passe';
+
+  @override
+  String get accountReconnectRequired =>
+      'Reconnectez ce compte pour reprendre la synchronisation.';
+
+  @override
+  String get googleReconnectRequired =>
+      'Reconnectez votre compte Google pour reprendre la synchronisation des calendriers et des tâches.';
+
+  @override
+  String get reconnectGoogleAccount => 'Reconnecter le compte Google';
+
+  @override
+  String get reconnectAccount => 'Reconnecter ce compte';
+
+  @override
+  String reconnectSelectedAccount(String account) {
+    return 'Reconnecter $account. Vos calendriers, tâches et modifications locales en attente seront conservés.';
+  }
+
+  @override
+  String get googleIdentityUnverified =>
+      'L’identité de cette ancienne connexion Google n’a pas pu être vérifiée. Les calendriers, tâches et modifications en attente sont conservés. Ajoutez une connexion Google distincte pour synchroniser en toute sécurité. Les modifications en attente restent dans le compte d’origine.';
+
+  @override
+  String get addSeparateGoogleAccount =>
+      'Ajouter une connexion Google distincte';
 }
