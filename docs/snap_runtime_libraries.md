@@ -35,6 +35,19 @@ because an ELF linter labels them unused. The pre-existing exclusion of
 `libdartjni.so` remains: the Linux runner does not register/use Android JNI and
 there is no JVM in the package.
 
+The other unused warnings were checked separately. The registration-reader library
+is loaded through Dart FFI, and libgweather is explicitly opened at runtime.
+No packaged ELF consumer was found for the staged libdconf or libcolordprivate
+copies. The GNOME content snap also contains both libraries and its dynamically
+loaded GIO dconf settings backend. Retain the package-provided copies in this
+patch until interactive settings/color integration has been checked; an unused
+warning alone is insufficient evidence to remove desktop runtime files.
+
+The verifier runs the desktop checks as an ordinary user with a systemd user
+manager and session bus. Running from LXD's root agent service does not model a
+desktop login and can prevent snapd from creating its application cgroup. See
+the [snapd maintainer's explanation](https://forum.snapcraft.io/t/cannot-launch-snap-applications-with-cgroup-v2/27700).
+
 [Canonical's library-linter guidance](https://ubuntu.com/docs/snapcraft/9/how-to/debugging/use-the-library-linter/)
 requires staging packages for actually missing dependencies and explains why
 dynamically loaded libraries may appear unused. No broad `lint.ignore` entries
