@@ -14,6 +14,10 @@ import 'package:busymax/src/google_calendar/google_calendar_api_client.dart';
 import 'package:busymax/src/google_calendar/google_calendar_mapper.dart';
 import 'package:busymax/src/google_calendar/google_calendar_errors.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
+import 'package:busymax/src/schedule/schedule_event_rescheduling.dart';
+import 'package:busymax/src/schedule/schedule_item.dart';
+import 'package:busymax/src/schedule/schedule_range.dart';
+import 'package:busymax/src/schedule/schedule_repository.dart';
 import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -101,7 +105,46 @@ void main() {
         ),
         throwsA(isA<SeriesTimingConfirmationRequired>()),
       );
-      await repository.updateLocalEvent(approved);
+      final item =
+          (await ScheduleRepository(database).listItems(
+                range: ScheduleRange(
+                  start: DateTime.utc(2026, 1),
+                  end: DateTime.utc(2026, 8),
+                ),
+              ))
+              .whereType<CalendarScheduleItem>()
+              .singleWhere((item) => item.id == original.id);
+      var confirmations = 0;
+      for (final confirm in [false, true]) {
+        expect(
+          await ScheduleReschedulingCoordinator(
+            repository: repository,
+            chooseScope: (_, _) async =>
+                RecurringEventMutationScope.entireSeries,
+            chooseGuestUpdates: (_) async => throw StateError('No guests'),
+            confirmSeriesTimingChange: (change, scope) async {
+              confirmations++;
+              expect(change.requiresConfirmation, isTrue);
+              expect(change.shiftExceptions, isTrue);
+              expect(change.originalRule.byMonthDay, [31]);
+              expect(change.rule.byMonthDay, [1]);
+              expect(change.previewRule(following: false).count, 4);
+              expect(await database.select(database.pendingOps).get(), isEmpty);
+              return confirm;
+            },
+            requestSync: (_) async {},
+          ).commit(
+            ScheduleRescheduleRequest(
+              item: item,
+              interval: ScheduleInterval(draft.start!, draft.end!),
+            ),
+          ),
+          confirm
+              ? ScheduleRescheduleResult.saved
+              : ScheduleRescheduleResult.cancelled,
+        );
+      }
+      expect(confirmations, 2);
       Future<void> check() async {
         final active = (await database.select(database.calendarEvents).get())
             .where(
@@ -188,12 +231,221 @@ void main() {
     },
   );
 
-  for (final scope in ['entire', 'following', 'following-first']) {
+  for (final (drag, interruption) in [
+    (false, 'none'),
+    (false, 'after-create'),
+    (true, 'none'),
+  ]) {
+    test(
+      drag
+          ? 'Google coordinator weekday drag keeps its recurrence through sync and restart'
+          : 'Google following clock edit keeps the final UNTIL occurrence ($interruption)',
+      () async {
+        final directory = await createPersistenceTestDirectory(
+          'busymax-until-',
+        );
+        AppDatabase open() => AppDatabase(
+          NativeDatabase(File('${directory.path}/fixture.sqlite')),
+        );
+        var database = open();
+        addTearDown(() async {
+          await database.close();
+          await directory.delete(recursive: true);
+        });
+        final server = _GoogleSeriesServer(
+          clockOnlyUntil: !drag,
+          noExceptions: drag,
+        );
+        final client = GoogleCalendarApiClient(
+          httpClient: MockClient(server.respond),
+          baseUri: Uri.parse('https://calendar.example.test'),
+        );
+        CalendarRepository repository() => CalendarRepository(
+          database: database,
+          now: () => DateTime.utc(2026, 6, 1),
+        );
+        await database
+            .into(database.accounts)
+            .insert(
+              AccountsCompanion.insert(
+                id: 'account',
+                provider: 'google',
+                authority: 'https://accounts.google.com',
+                providerAccountId: 'fixture',
+                credentialKind: 'oauth',
+                authState: const Value('signed_in'),
+                calendarsEnabled: const Value(true),
+                createdAtUtc: '2026-06-01T00:00:00Z',
+                updatedAtUtc: '2026-06-01T00:00:00Z',
+              ),
+            );
+        await repository().upsertSource(
+          accountId: 'account',
+          source: const CalendarSourceDto(
+            provider: BusyProvider.google,
+            providerCalendarId: 'calendar',
+            summary: 'Fixture',
+            timeZone: 'UTC',
+            accessRole: 'owner',
+          ),
+        );
+        for (final raw in server.resources.values) {
+          await repository().upsertEvent(
+            accountId: 'account',
+            event: googleCalendarEventFromJson('calendar', raw),
+          );
+        }
+        final selected = (await database.select(database.calendarEvents).get())
+            .singleWhere((row) => row.providerEventId == 'old-b');
+        final detail = (await repository().loadEventDetail(selected.id))!;
+        final draft = EventEditorDraft.fromEventDetail(detail).copyWith(
+          start: DateTime.utc(2026, 6, drag ? 9 : 8, drag ? 9 : 10),
+          end: DateTime.utc(2026, 6, drag ? 9 : 8, drag ? 10 : 11),
+          recurringMutationScope: drag
+              ? RecurringEventMutationScope.entireSeries
+              : RecurringEventMutationScope.thisAndFuture,
+        );
+        final plan = (await repository().prepareSeriesTimingChange(draft))!;
+        if (drag) {
+          final item =
+              (await ScheduleRepository(database).listItems(
+                    range: ScheduleRange(
+                      start: DateTime.utc(2026, 6),
+                      end: DateTime.utc(2026, 7),
+                    ),
+                  ))
+                  .whereType<CalendarScheduleItem>()
+                  .singleWhere((item) => item.id == selected.id);
+          expect(
+            await ScheduleReschedulingCoordinator(
+              repository: repository(),
+              chooseScope: (_, _) async =>
+                  RecurringEventMutationScope.entireSeries,
+              chooseGuestUpdates: (_) async => throw StateError('No guests'),
+              requestSync: (_) async {},
+            ).commit(
+              ScheduleRescheduleRequest(
+                item: item,
+                interval: ScheduleInterval(draft.start!, draft.end!),
+              ),
+            ),
+            ScheduleRescheduleResult.saved,
+          );
+        } else {
+          expect(plan.rule.untilRaw, '20260629T100000Z');
+          await repository().updateLocalEvent(draft);
+        }
+        Future<void> check() async {
+          final active = (await database.select(database.calendarEvents).get())
+              .where(
+                (row) =>
+                    row.providerRecurringEventId != null &&
+                    !row.isDeleted &&
+                    !row.isCancelled,
+              );
+          expect(
+            active.map(
+              (row) => providerDateTimeAsUtcInstant(
+                row.startDateTime,
+                row.startTimeZone,
+              ),
+            ),
+            unorderedEquals([
+              if (drag) ...[
+                for (final day in [2, 9, 16, 23, 30])
+                  DateTime.utc(2026, 6, day, 9),
+              ] else ...[
+                DateTime.utc(2026, 6, 1, 9),
+                for (final day in [8, 15, 22, 29])
+                  DateTime.utc(2026, 6, day, 10),
+              ],
+            ]),
+          );
+        }
+
+        await check();
+        await database.close();
+        database = open();
+        if (interruption == 'after-create') {
+          server.loseCreateResponse = true;
+          expect(
+            await CalendarPendingOpsReplayer(
+              database: database,
+              client: client,
+              accountId: 'account',
+              nowUtc: () => DateTime.utc(2026, 6, 1),
+            ).replayDueOps(),
+            0,
+          );
+          expect(
+            await database.select(database.pendingOps).get(),
+            hasLength(1),
+          );
+          await database.close();
+          database = open();
+        }
+        expect(
+          await CalendarPendingOpsReplayer(
+            database: database,
+            client: client,
+            accountId: 'account',
+            nowUtc: () => DateTime.utc(2026, 6, 2),
+          ).replayDueOps(),
+          1,
+          reason: (await database.select(database.pendingOps).get())
+              .map((op) => op.lastErrorMessage)
+              .join('\n'),
+        );
+        final replacement =
+            server.resources[drag ? 'master' : server.newMasterId]!;
+        expect(
+          (replacement['recurrence'] as List).single,
+          contains(drag ? 'BYDAY=TU' : 'UNTIL=20260629T100000Z'),
+        );
+        expect(
+          (replacement['recurrence'] as List).single,
+          drag ? contains('COUNT=5') : isNot(contains('COUNT=')),
+        );
+        expect(server.masterPatchCount, 1);
+        await check();
+        final sync = CalendarSyncEngine(
+          database: database,
+          client: client,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 2),
+        );
+        await sync.fullSync();
+        await sync.incrementalSync();
+        await database.close();
+        database = open();
+        await check();
+        expect(await database.select(database.pendingOps).get(), isEmpty);
+      },
+    );
+  }
+
+  for (final (scope, workflow) in [
+    for (final scope in ['entire', 'following', 'following-first'])
+      (scope, 'editor'),
+    for (final scope in ['entire', 'following']) (scope, 'properties'),
+    for (final scope in ['entire', 'following']) (scope, 'drag'),
+  ]) {
+    final drag = workflow == 'drag';
+    final properties = workflow == 'properties';
     final following = scope != 'entire';
     final split = scope == 'following';
     final first = scope == 'following-first';
     for (final interruption
-        in first
+        in workflow != 'editor'
+            ? [
+                'none',
+                'after-exception',
+                if (properties) ...[
+                  'after-properties',
+                  'after-properties-conflict',
+                ],
+              ]
+            : first
             ? ['after-master']
             : [
                 'none',
@@ -205,7 +457,7 @@ void main() {
                 if (following) 'after-create',
               ]) {
       test(
-        'Google ordinary $scope edit preserves Wednesday, cancellation and association ($interruption)',
+        'Google $workflow $scope edit preserves exception schedules and association ($interruption)',
         () async {
           final directory = await createPersistenceTestDirectory(
             'busymax-series-timing-',
@@ -223,7 +475,7 @@ void main() {
             database = open();
           }
 
-          final server = _GoogleSeriesServer();
+          final server = _GoogleSeriesServer(nonTimingExceptions: properties);
           final client = GoogleCalendarApiClient(
             httpClient: MockClient(server.respond),
             baseUri: Uri.parse('https://calendar.example.test'),
@@ -271,15 +523,40 @@ void main() {
                     (row) => row.providerEventId == (first ? 'old-a' : 'old-b'),
                   );
           final detail = (await repository().loadEventDetail(selected.id))!;
-          await repository().updateLocalEvent(
-            EventEditorDraft.fromEventDetail(detail).copyWith(
-              start: DateTime.utc(2026, 6, first ? 2 : 9, 9),
-              end: DateTime.utc(2026, 6, first ? 2 : 9, 10),
-              recurringMutationScope: following
-                  ? RecurringEventMutationScope.thisAndFuture
-                  : RecurringEventMutationScope.entireSeries,
-            ),
+          final draft = EventEditorDraft.fromEventDetail(detail).copyWith(
+            start: DateTime.utc(2026, 6, first ? 2 : 9, 9),
+            end: DateTime.utc(2026, 6, first ? 2 : 9, 10),
+            recurringMutationScope: following
+                ? RecurringEventMutationScope.thisAndFuture
+                : RecurringEventMutationScope.entireSeries,
           );
+          if (drag) {
+            final item =
+                (await ScheduleRepository(database).listItems(
+                      range: ScheduleRange(
+                        start: DateTime.utc(2026, 6, 1),
+                        end: DateTime.utc(2026, 7, 1),
+                      ),
+                    ))
+                    .whereType<CalendarScheduleItem>()
+                    .singleWhere((item) => item.id == selected.id);
+            expect(
+              await ScheduleReschedulingCoordinator(
+                repository: repository(),
+                chooseScope: (_, _) async => draft.recurringMutationScope,
+                chooseGuestUpdates: (_) async => throw StateError('No guests'),
+                requestSync: (_) async {},
+              ).commit(
+                ScheduleRescheduleRequest(
+                  item: item,
+                  interval: ScheduleInterval(draft.start!, draft.end!),
+                ),
+              ),
+              ScheduleRescheduleResult.saved,
+            );
+          } else {
+            await repository().updateLocalEvent(draft);
+          }
           Future<void> checkOptimistic() async {
             final active =
                 (await database.select(database.calendarEvents).get())
@@ -299,14 +576,14 @@ void main() {
                 exception.startDateTime,
                 exception.startTimeZone,
               ),
-              DateTime.utc(2026, 6, 17, 13),
+              DateTime.utc(2026, 6, drag ? 18 : 17, 13),
             );
             expect(
               providerDateTimeAsUtcInstant(
                 exception.endDateTime,
                 exception.endTimeZone,
               ),
-              DateTime.utc(2026, 6, 17, 15),
+              DateTime.utc(2026, 6, drag ? 18 : 17, 15),
             );
             expect(
               active
@@ -342,6 +619,9 @@ void main() {
             ..failNextExceptionPatch = interruption == 'before-exception'
             ..loseMasterResponse = interruption == 'after-master'
             ..loseExceptionResponse = interruption == 'after-exception'
+            ..loseNonTimingResponse = interruption.startsWith(
+              'after-properties',
+            )
             ..loseCancellationResponse = interruption == 'after-cancellation'
             ..loseCreateResponse = interruption == 'after-create'
             ..failLastIdentity = interruption == 'during-identities';
@@ -398,6 +678,30 @@ void main() {
             }
             await reopen();
           }
+          if (interruption == 'after-properties-conflict') {
+            server.resources['new-b']!.addAll({
+              'summary': 'Further remote edit',
+              'etag': '"new-b-remote"',
+            });
+            expect(await replay(DateTime.utc(2026, 6, 2)), 0);
+            final pending = await database
+                .select(database.pendingOps)
+                .getSingle();
+            expect(pending.lastErrorCode, 'conflict');
+            expect(pending.requestJson, contains('Customized title'));
+            expect(
+              server.resources['new-b']!['summary'],
+              'Further remote edit',
+            );
+            expect(server.resources['new-b']!['etag'], '"new-b-remote"');
+            await reopen();
+            expect(await replay(DateTime.utc(2026, 6, 3)), 0);
+            expect(
+              await database.select(database.pendingOps).get(),
+              hasLength(1),
+            );
+            return;
+          }
           expect(
             await replay(DateTime.utc(2026, 6, 2)),
             1,
@@ -411,8 +715,14 @@ void main() {
                 raw['summary'] == 'Moved Wednesday' &&
                 raw['status'] != 'cancelled',
           );
-          expect((moved['start'] as Map)['dateTime'], '2026-06-17T13:00:00Z');
-          expect((moved['end'] as Map)['dateTime'], '2026-06-17T15:00:00Z');
+          expect(
+            DateTime.parse((moved['start'] as Map)['dateTime'] as String),
+            DateTime.utc(2026, 6, drag ? 18 : 17, 13),
+          );
+          expect(
+            DateTime.parse((moved['end'] as Map)['dateTime'] as String),
+            DateTime.utc(2026, 6, drag ? 18 : 17, 15),
+          );
           expect(
             (moved['originalStartTime'] as Map)['dateTime'],
             '2026-06-16T09:00:00.000Z',
@@ -432,6 +742,34 @@ void main() {
           });
           expect(server.resources['new-d']!['status'], 'cancelled');
           expect(server.masterPatchCount, 1);
+          if (properties) {
+            final title = server.resources['new-b']!;
+            expect(title['summary'], 'Customized title');
+            expect(
+              DateTime.parse((title['start'] as Map)['dateTime'] as String),
+              DateTime.utc(2026, 6, 9, 9),
+            );
+            final reminder = server.resources['new-e']!;
+            expect(
+              reminder['reminders'],
+              server.resources['old-e']!['reminders'],
+            );
+            expect(
+              DateTime.parse((reminder['start'] as Map)['dateTime'] as String),
+              DateTime.utc(2026, 6, 30, 9),
+            );
+            for (final (id, day) in [('new-b', 9), ('new-e', 30)]) {
+              final patch = server.exceptionPatches[id]!;
+              expect(
+                DateTime.parse((patch['start'] as Map)['dateTime'] as String),
+                DateTime.utc(2026, 6, day, 9),
+              );
+              expect(
+                DateTime.parse((patch['end'] as Map)['dateTime'] as String),
+                DateTime.utc(2026, 6, day, 10),
+              );
+            }
+          }
           final sync = CalendarSyncEngine(
             database: database,
             client: client,
@@ -463,7 +801,7 @@ void main() {
               saved.startDateTime,
               saved.startTimeZone,
             ),
-            DateTime.utc(2026, 6, 17, 13),
+            DateTime.utc(2026, 6, drag ? 18 : 17, 13),
           );
           final ordinary = active.where((row) => row.id != saved.id);
           expect(
@@ -482,6 +820,20 @@ void main() {
                 : everyElement(DateTime.tuesday),
           );
           expect(active.map((row) => row.syncStatus), everyElement('synced'));
+          if (properties) {
+            expect(
+              active.singleWhere((row) => row.providerEventId == 'new-b').title,
+              'Customized title',
+            );
+            expect(
+              jsonDecode(
+                active
+                    .singleWhere((row) => row.providerEventId == 'new-e')
+                    .remindersJson!,
+              ),
+              server.resources['old-e']!['reminders'],
+            );
+          }
         },
       );
     }
@@ -492,7 +844,12 @@ void main() {
 /// an instance must go through events.instances; no provider ID encoding is
 /// assumed by either the test or production code.
 class _GoogleSeriesServer {
-  _GoogleSeriesServer({this.monthly = false}) {
+  _GoogleSeriesServer({
+    this.monthly = false,
+    this.clockOnlyUntil = false,
+    this.nonTimingExceptions = false,
+    this.noExceptions = false,
+  }) {
     resources['master'] = {
       'id': 'master',
       'iCalUID': 'series@example.test',
@@ -534,6 +891,22 @@ class _GoogleSeriesServer {
     }.entries) {
       resources[entry.key] = _instance(entry.key, 'master', entry.value);
     }
+    if (clockOnlyUntil) {
+      resources['master']!['recurrence'] = [
+        'RRULE:FREQ=WEEKLY;BYDAY=MO;UNTIL=20260629T090000Z',
+      ];
+      return;
+    }
+    if (noExceptions) return;
+    if (nonTimingExceptions) {
+      resources['old-b']!['summary'] = 'Customized title';
+      resources['old-e']!['reminders'] = {
+        'useDefault': false,
+        'overrides': [
+          {'method': 'popup', 'minutes': 45},
+        ],
+      };
+    }
     resources['old-c']!.addAll({
       'summary': 'Moved Wednesday',
       'start': {'dateTime': '2026-06-17T13:00:00Z', 'timeZone': 'UTC'},
@@ -551,11 +924,16 @@ class _GoogleSeriesServer {
     resources['old-d']!['status'] = 'cancelled';
   }
   final bool monthly;
+  final bool clockOnlyUntil;
+  final bool nonTimingExceptions;
+  final bool noExceptions;
   final resources = <String, Map<String, Object?>>{};
+  final exceptionPatches = <String, Map<String, Object?>>{};
   int masterPatchCount = 0;
   bool failNextExceptionPatch = false;
   bool loseMasterResponse = false;
   bool loseExceptionResponse = false;
+  bool loseNonTimingResponse = false;
   bool loseCancellationResponse = false;
   bool loseCreateResponse = false;
   bool failLastIdentity = false;
@@ -587,6 +965,38 @@ class _GoogleSeriesServer {
   }
 
   void _generate(String series, {required bool following}) {
+    if (clockOnlyUntil) {
+      final master = resources[series]!;
+      final start = DateTime.parse(
+        (master['start'] as Map)['dateTime'] as String,
+      );
+      final rule = (master['recurrence'] as List).single as String;
+      final until = DateTime.parse(
+        RegExp(r'UNTIL=([^;]+)').firstMatch(rule)![1]!,
+      );
+      // An independent bounded fixture for the documented weekly UTC rule:
+      // UNTIL includes candidates equal to the boundary, never later ones.
+      for (final entry in {
+        'new-b': 8,
+        'new-c': 15,
+        'new-d': 22,
+        'new-e': 29,
+      }.entries) {
+        final candidate = DateTime.utc(2026, 6, entry.value, start.hour);
+        if (!candidate.isBefore(start) && !candidate.isAfter(until)) {
+          resources[entry.key] = _instance(
+            entry.key,
+            series,
+            entry.value,
+            date: candidate,
+          );
+        }
+      }
+      for (final id in ['old-b', 'old-c', 'old-d', 'old-e']) {
+        resources[id]!['status'] = 'cancelled';
+      }
+      return;
+    }
     if (monthly) {
       for (final entry in {
         'new-a': 2,
@@ -620,7 +1030,7 @@ class _GoogleSeriesServer {
       if (following && id == 'old-a') continue;
       // Entire-series updates may retain an old detached exception. The
       // replacement must be verified before retiring that exact old resource.
-      if (!following && id == 'old-c') continue;
+      if (!following && id == 'old-c' && !noExceptions) continue;
       resources[id]!['status'] = 'cancelled';
     }
   }
@@ -651,6 +1061,10 @@ class _GoogleSeriesServer {
     if (suffix.isEmpty) {
       if (request.method == 'POST') {
         final body = Map<String, Object?>.from(jsonDecode(request.body) as Map);
+        expect(
+          (body['recurrence'] as List).single,
+          contains(clockOnlyUntil ? 'BYDAY=MO' : 'BYDAY=TU'),
+        );
         newMasterId = body['id'] as String;
         if (resources.containsKey(newMasterId)) {
           return _json({
@@ -675,7 +1089,14 @@ class _GoogleSeriesServer {
         return _json({
           'items': [
             resources['master'],
-            if (!monthly) ...[resources['old-c'], resources['old-d']],
+            if (!monthly && !clockOnlyUntil && !noExceptions) ...[
+              resources['old-c'],
+              resources['old-d'],
+              if (nonTimingExceptions) ...[
+                resources['old-b'],
+                resources['old-e'],
+              ],
+            ],
           ],
         });
       }
@@ -746,6 +1167,7 @@ class _GoogleSeriesServer {
       return _json(resources[id]);
     }
     final body = Map<String, Object?>.from(jsonDecode(request.body) as Map);
+    exceptionPatches[id] = body;
     expect(body, isNot(contains('originalStartTime')));
     expect(body, isNot(contains('recurringEventId')));
     if (failNextExceptionPatch) {
@@ -755,9 +1177,28 @@ class _GoogleSeriesServer {
       }, 500);
     }
     resources[id]!.addAll({...body, 'etag': '"$id-restored"'});
+    // A provider response may normalize equivalent RFC3339 representations.
+    // Preserve the written request separately so retry tests cross this real
+    // transport boundary instead of relying on byte-identical echoed JSON.
+    for (final field in ['start', 'end']) {
+      final temporal = resources[id]![field];
+      if (temporal is Map && temporal['dateTime'] is String) {
+        resources[id]![field] = {
+          ...temporal,
+          'dateTime': DateTime.parse(temporal['dateTime'] as String)
+              .toUtc()
+              .toIso8601String()
+              .replaceFirst('.000Z', 'Z'),
+        };
+      }
+    }
     if (loseExceptionResponse) {
       loseExceptionResponse = false;
       throw http.ClientException('Lost exception response');
+    }
+    if (loseNonTimingResponse && id == 'new-b') {
+      loseNonTimingResponse = false;
+      throw http.ClientException('Lost title-only exception response');
     }
     return _json(resources[id]);
   }

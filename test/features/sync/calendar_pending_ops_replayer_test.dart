@@ -3216,15 +3216,14 @@ END:VEVENT
 
   test('zoned guarded series edit replays the same civil delta', () async {
     final repository = CalendarRepository(database: database);
-    final id = await _insertGoogleOccurrence(repository, day: 8);
-    await database
-        .update(database.calendarEvents)
-        .write(
-          const CalendarEventsCompanion(
-            startTimeZone: Value('America/Vancouver'),
-            endTimeZone: Value('America/Vancouver'),
-          ),
-        );
+    // Ingest the provider's zone together with its timestamps. Rewriting only
+    // the zone columns would turn the master's zone-less 09:00 into 09:00
+    // Vancouver while leaving this 09:00Z occurrence at 02:00 Vancouver.
+    final id = await _insertGoogleOccurrence(
+      repository,
+      day: 8,
+      timeZone: 'America/Vancouver',
+    );
     final detail = (await repository.loadEventDetail(id))!;
     await repository.updateLocalEvent(
       EventEditorDraft.fromEventDetail(detail).copyWith(

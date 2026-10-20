@@ -317,8 +317,11 @@ DavMutationPatch? buildDavEventUpdatePatch({
   }
   if (timingOnly) {
     operations.removeWhere(
-      (operation) =>
-          !{'DTSTART', 'DTEND', 'DURATION'}.contains(operation.propertyName),
+      (operation) => !{
+        'DTSTART', 'DTEND', 'DURATION',
+        // A series timing proposal can reanchor its existing selectors.
+        if (input.recurrenceChanged) ...['RRULE', 'EXRULE', 'RDATE', 'EXDATE'],
+      }.contains(operation.propertyName),
     );
   }
   if (operations.isEmpty) return null;

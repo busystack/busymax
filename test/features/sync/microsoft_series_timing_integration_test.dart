@@ -11,6 +11,10 @@ import 'package:busymax/src/features/sync/calendar_sync_engine.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_api_client.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_mapper.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
+import 'package:busymax/src/schedule/schedule_event_rescheduling.dart';
+import 'package:busymax/src/schedule/schedule_item.dart';
+import 'package:busymax/src/schedule/schedule_range.dart';
+import 'package:busymax/src/schedule/schedule_repository.dart';
 import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -22,6 +26,8 @@ import '../../support/persistence_test_directory.dart';
 void main() {
   for (final limitation in [
     'none',
+    'properties',
+    'drag',
     'cancellation',
     'attachment',
     'meeting',
@@ -90,13 +96,43 @@ void main() {
         final selected = (await database.select(database.calendarEvents).get())
             .singleWhere((row) => row.providerEventId == 'old-b');
         final detail = (await repository().loadEventDetail(selected.id))!;
-        await repository().updateLocalEvent(
-          EventEditorDraft.fromEventDetail(detail).copyWith(
-            start: providerCivilDateTime(DateTime.utc(2026, 6, 9, 9)),
-            end: providerCivilDateTime(DateTime.utc(2026, 6, 9, 10)),
-            recurringMutationScope: RecurringEventMutationScope.entireSeries,
-          ),
+        final draft = EventEditorDraft.fromEventDetail(detail).copyWith(
+          start: providerCivilDateTime(DateTime.utc(2026, 6, 9, 9)),
+          end: providerCivilDateTime(DateTime.utc(2026, 6, 9, 10)),
+          recurringMutationScope: RecurringEventMutationScope.entireSeries,
         );
+        final drag = limitation == 'drag';
+        if (drag) {
+          final item =
+              (await ScheduleRepository(database).listItems(
+                    range: ScheduleRange(
+                      start: DateTime.utc(2026, 6),
+                      end: DateTime.utc(2026, 7),
+                    ),
+                  ))
+                  .whereType<CalendarScheduleItem>()
+                  .singleWhere((item) => item.id == selected.id);
+          expect(
+            await ScheduleReschedulingCoordinator(
+              repository: repository(),
+              chooseScope: (_, _) async =>
+                  RecurringEventMutationScope.entireSeries,
+              chooseGuestUpdates: (_) async => throw StateError('No guests'),
+              requestSync: (_) async {},
+            ).commit(
+              ScheduleRescheduleRequest(
+                item: item,
+                interval: ScheduleInterval(
+                  providerWallTimeToInstant(draft.start!, _zone),
+                  providerWallTimeToInstant(draft.end!, _zone),
+                ),
+              ),
+            ),
+            ScheduleRescheduleResult.saved,
+          );
+        } else {
+          await repository().updateLocalEvent(draft);
+        }
         await reopen();
         final result = await CalendarPendingOpsReplayer(
           database: database,
@@ -104,7 +140,7 @@ void main() {
           accountId: 'account',
           nowUtc: () => DateTime.utc(2026, 6, 2),
         ).replayDueOps();
-        if (limitation != 'none') {
+        if (!['none', 'properties', 'drag'].contains(limitation)) {
           expect(result, 0);
           expect(
             server.patchCount,
@@ -142,14 +178,33 @@ void main() {
         );
         final exception = server.resources['new-c']!;
         expect(exception['originalStart'], '2026-06-16T16:00:00.000Z');
-        expect((exception['start'] as Map)['dateTime'], '2026-06-17T13:00:00');
-        expect((exception['end'] as Map)['dateTime'], '2026-06-17T15:00:00');
+        expect(
+          DateTime.parse((exception['start'] as Map)['dateTime'] as String),
+          DateTime(2026, 6, drag ? 18 : 17, 13),
+        );
+        expect(
+          DateTime.parse((exception['end'] as Map)['dateTime'] as String),
+          DateTime(2026, 6, drag ? 18 : 17, 15),
+        );
         expect(exception['body'], {
           'contentType': 'html',
           'content': '<p>Keep exception details</p>',
         });
         expect(exception['categories'], ['Exception category']);
         expect(server.resources['old-c']!['isCancelled'], isTrue);
+        if (limitation == 'properties') {
+          expect(server.resources['new-b']!['subject'], 'Customized title');
+          expect(
+            (server.resources['new-b']!['start'] as Map)['dateTime'],
+            '2026-06-09T09:00:00.000',
+          );
+          expect(
+            (server.resources['new-e']!['start'] as Map)['dateTime'],
+            '2026-06-30T09:00:00.000',
+          );
+          expect(server.resources['new-e']!['isReminderOn'], isTrue);
+          expect(server.resources['new-e']!['reminderMinutesBeforeStart'], 45);
+        }
         await CalendarSyncEngine(
           database: database,
           client: client,
@@ -175,11 +230,11 @@ void main() {
             moved.startDateTime,
             moved.startTimeZone,
           ),
-          DateTime.utc(2026, 6, 17, 20),
+          DateTime.utc(2026, 6, drag ? 18 : 17, 20),
         );
         expect(
           providerDateTimeAsUtcInstant(moved.endDateTime, moved.endTimeZone),
-          DateTime.utc(2026, 6, 17, 22),
+          DateTime.utc(2026, 6, drag ? 18 : 17, 22),
         );
         expect(
           active
@@ -193,6 +248,20 @@ void main() {
           everyElement(DateTime.tuesday),
         );
         expect(await database.select(database.pendingOps).get(), isEmpty);
+        if (limitation == 'properties') {
+          expect(
+            active.singleWhere((row) => row.providerEventId == 'new-b').title,
+            'Customized title',
+          );
+          expect(
+            jsonDecode(
+              active
+                  .singleWhere((row) => row.providerEventId == 'new-e')
+                  .remindersJson!,
+            ),
+            {'isReminderOn': true, 'reminderMinutesBeforeStart': 45},
+          );
+        }
       },
     );
   }
@@ -236,6 +305,17 @@ class _MicrosoftSeriesServer {
       'old-e': 29,
     }.entries) {
       resources[entry.key] = _instance(entry.key, entry.value);
+    }
+    if (limitation == 'properties') {
+      resources['old-b']!.addAll({
+        'type': 'exception',
+        'subject': 'Customized title',
+      });
+      resources['old-e']!.addAll({
+        'type': 'exception',
+        'isReminderOn': true,
+        'reminderMinutesBeforeStart': 45,
+      });
     }
     resources['old-c']!.addAll({
       'type': 'exception',

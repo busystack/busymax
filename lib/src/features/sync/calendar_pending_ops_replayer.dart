@@ -1053,15 +1053,31 @@ class CalendarPendingOpsReplayer {
           'An exception cannot be associated with the revised pattern safely. The series was not changed.',
         );
       }
+      late final CalendarEventDto desired;
+      try {
+        desired = _seriesExceptionWithResolvedTiming(
+          exception,
+          master,
+          plan,
+          request,
+        );
+      } on SeriesExceptionPreservationUnsupported catch (error) {
+        await _blockOp(
+          op,
+          'series_exception_preservation_required',
+          error.message,
+        );
+        throw const _PendingOpBlocked();
+      }
       if (_client.provider == BusyProvider.microsoft &&
           !exception.isDeleted &&
           !exception.isCancelled) {
         final instant = providerDateTimeAsUtcInstant(
-          exception.startDateTime,
-          exception.startTimeZone,
+          desired.startDateTime,
+          desired.startTimeZone,
         );
         final actual = providerDateTimeAsCivilTime(
-          exception.allDay ? exception.startDate : instant?.toIso8601String(),
+          desired.allDay ? desired.startDate : instant?.toIso8601String(),
           master.startTimeZone,
         );
         final adjacent = plan.adjacentNewOccurrences(mapped!);
@@ -1085,6 +1101,7 @@ class CalendarPendingOpsReplayer {
         'original': exception.providerOriginalStartKey,
         'mapped': mapped!.toIso8601String(),
         'raw': exception.rawJson,
+        'desired': desired.rawJson,
       });
     }
     final cached =
@@ -1171,6 +1188,28 @@ class CalendarPendingOpsReplayer {
         op.providerCalendarId!,
         Map<String, Object?>.from(entry['raw'] as Map),
       );
+      // Staging is durable before the first exception write. An interrupted
+      // operation can also reach this step with only its original snapshot.
+      if (entry['desired'] is! Map) {
+        final checkedMaster = _seriesDto(
+          op.providerCalendarId!,
+          Map<String, Object?>.from(
+            request[calendarEventSeriesCheckedMasterKey] as Map,
+          ),
+        );
+        entry['desired'] = _seriesExceptionWithResolvedTiming(
+          exception,
+          checkedMaster,
+          plan,
+          request,
+        ).rawJson;
+        entries[index] = entry;
+        await _saveSeriesRequest(op, request);
+      }
+      final desired = _seriesDto(
+        op.providerCalendarId!,
+        Map<String, Object?>.from(entry['desired'] as Map),
+      );
       if (entry['restored'] is! Map) {
         final instance = await client.findSeriesInstance(
           calendarId: op.providerCalendarId!,
@@ -1185,7 +1224,7 @@ class CalendarPendingOpsReplayer {
             cancelled && (instance.isDeleted || instance.isCancelled) ||
             _deepEquals(
               _exceptionWritableState(instance.rawJson),
-              _exceptionWritableState(exception.rawJson),
+              _exceptionWritableState(desired.rawJson),
             );
         if (!cancelled && (instance.isDeleted || instance.isCancelled)) {
           await _blockConflict(
@@ -1216,7 +1255,7 @@ class CalendarPendingOpsReplayer {
               : await client.restoreSeriesException(
                   calendarId: op.providerCalendarId!,
                   instance: instance,
-                  exception: exception,
+                  exception: desired,
                   guestUpdatePolicy: _guestUpdatePolicy(request),
                 );
         } on SeriesExceptionPreservationUnsupported catch (error) {
@@ -1231,7 +1270,7 @@ class CalendarPendingOpsReplayer {
             restored.providerRecurringEventId != master.providerEventId ||
             restored.providerOriginalStartKey !=
                 instance.providerOriginalStartKey ||
-            !_sameExceptionSchedule(restored, exception)) {
+            !_sameExceptionSchedule(restored, desired)) {
           await _blockConflict(
             op,
             'The provider did not preserve the exception at its revised recurrence position.',
@@ -1332,11 +1371,30 @@ class CalendarPendingOpsReplayer {
     }
   }
 
-  Map<String, Object?> _exceptionWritableState(Map<String, Object?> raw) =>
-      _client.provider == BusyProvider.google
-      ? (googleEventMutationToJson(CalendarEventMutation(providerRaw: raw))
-          ..['status'] = raw['status'] ?? 'confirmed')
-      : _semanticSnapshot(_client.provider, raw);
+  Map<String, Object?> _exceptionWritableState(Map<String, Object?> raw) {
+    final state = _client.provider == BusyProvider.google
+        ? (googleEventMutationToJson(CalendarEventMutation(providerRaw: raw))
+            ..['status'] = raw['status'] ?? 'confirmed')
+        : _semanticSnapshot(_client.provider, raw);
+    if (state['allDay'] == true) return state;
+    // A checked or acknowledged revision may use different RFC3339 offsets
+    // or fractional precision. Compare instants while retaining zone identity
+    // and every other writable field for concurrent-change detection.
+    for (final field in ['start', 'end']) {
+      final temporal = _mapValue(raw[field]);
+      final value = temporal['dateTime']?.toString();
+      if (value == null) continue;
+      final instant = providerDateTimeAsUtcInstant(
+        value,
+        temporal['timeZone']?.toString(),
+      );
+      if (instant == null) continue;
+      state[field] = _client.provider == BusyProvider.google
+          ? {..._mapValue(state[field]), 'dateTime': instant.toIso8601String()}
+          : instant.toIso8601String();
+    }
+    return state;
+  }
 
   bool _sameExceptionSchedule(
     CalendarEventDto restored,
@@ -1366,6 +1424,92 @@ class CalendarPendingOpsReplayer {
               original.endDateTime,
               original.endTimeZone,
             );
+  }
+
+  CalendarEventDto _seriesExceptionWithResolvedTiming(
+    CalendarEventDto exception,
+    CalendarEventDto master,
+    SeriesTimingChange plan,
+    Map<String, Object?> request,
+  ) {
+    if (exception.isDeleted || exception.isCancelled) return exception;
+    DateTime endpoint(CalendarEventDto event, bool end) {
+      final value = end
+          ? (event.allDay ? event.endDate : event.endDateTime)
+          : (event.allDay ? event.startDate : event.startDateTime);
+      if (event.allDay) return _naiveWallTime(DateTime.parse(value!));
+      final instant = providerDateTimeAsUtcInstant(
+        value,
+        end ? event.endTimeZone : event.startTimeZone,
+      )!;
+      return _naiveWallTime(
+        providerInstantInTimeZone(instant, master.startTimeZone),
+      );
+    }
+
+    final start = endpoint(exception, false);
+    final end = endpoint(exception, true);
+    final baseline = request[calendarEventTimingBaselineKey] as Map;
+    final beforeEnd = providerDateTimeAsCivilTime(
+      baseline['end']?.toString(),
+      baseline['endTimeZone']?.toString(),
+    )!;
+    final desiredEnd = request.containsKey('end')
+        ? providerDateTimeAsCivilTime(
+            request['end']?.toString(),
+            request['endTimeZone']?.toString(),
+          )!
+        : beforeEnd;
+    final resolved = plan.occurrenceTiming(
+      originalStart: providerDateTimeAsCivilTime(
+        exception.providerOriginalStartKey,
+        master.startTimeZone,
+      )!,
+      start: start,
+      end: end,
+      baselineStart: start,
+      baselineEnd: end,
+      masterDuration: endpoint(
+        master,
+        true,
+      ).difference(endpoint(master, false)),
+      endDelta: desiredEnd.difference(beforeEnd),
+      startChanged: request.containsKey('start'),
+      endChanged: request.containsKey('end'),
+    );
+    if (resolved == null || resolved.end.isBefore(resolved.start)) {
+      throw const SeriesExceptionPreservationUnsupported(
+        'An exception has no valid interval in the revised series. The series was not changed.',
+      );
+    }
+    if (resolved.preserved) return exception;
+    Map<String, Object?> temporal(DateTime wall, String? zone) {
+      if (plan.allDay && _client.provider == BusyProvider.google) {
+        return {'date': _isoDate(wall)};
+      }
+      final instant = providerWallTimeToInstant(wall, plan.timeZone);
+      return {
+        'dateTime': _client.provider == BusyProvider.google
+            ? instant.toUtc().toIso8601String()
+            : providerWallTimeIso8601String(
+                providerInstantInTimeZone(instant, zone),
+              ),
+        if (zone != null) 'timeZone': zone,
+      };
+    }
+
+    return _seriesDto(master.providerCalendarId, {
+      ...exception.rawJson,
+      if (_client.provider == BusyProvider.microsoft) 'isAllDay': plan.allDay,
+      'start': temporal(
+        resolved.start,
+        request['startTimeZone']?.toString() ?? plan.timeZone,
+      ),
+      'end': temporal(
+        resolved.end,
+        request['endTimeZone']?.toString() ?? plan.timeZone,
+      ),
+    });
   }
 
   Future<void> _replaceSeriesOccurrence(
@@ -1864,10 +2008,9 @@ class CalendarPendingOpsReplayer {
           'The provider occurrence positions do not agree with the approved following-series count. The series was not changed.',
         );
       }
-      followingRule = plan.rule.copyWith(
-        count: followingRule.count,
-        untilRaw: followingRule.untilRaw,
-      );
+      // Only COUNT is reduced by the split. The approved plan already aligned
+      // UNTIL with the new time on the unchanged ending date.
+      followingRule = plan.rule.copyWith(count: followingRule.count);
     }
     splitRequest[calendarEventRecurrenceField] = EventRecurrenceCodec.encode(
       BusyProvider.google,

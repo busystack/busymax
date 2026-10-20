@@ -2201,6 +2201,7 @@ class CalendarRepository {
           start: draft.start,
           end: draft.end,
           recurringMutationScope: draft.recurringMutationScope,
+          seriesTimingApproval: draft.seriesTimingApproval,
         ),
         guestUpdatePolicy: guestUpdatePolicy,
         timingOnly: true,
@@ -2219,8 +2220,9 @@ class CalendarRepository {
   /// Returns the exact pattern proposal for the editor's confirmation step.
   /// Saving recomputes it, so approval cannot cover a subsequently changed edit.
   Future<SeriesTimingChange?> prepareSeriesTimingChange(
-    EventEditorDraft draft,
-  ) async {
+    EventEditorDraft draft, {
+    bool timingOnly = false,
+  }) async {
     final id = draft.eventId;
     if (id == null ||
         draft.start == null ||
@@ -2273,6 +2275,7 @@ class CalendarRepository {
       existing,
       await _seriesMasterBaseline(existing),
       draft,
+      shiftExceptions: timingOnly,
     );
   }
 
@@ -2426,8 +2429,13 @@ class CalendarRepository {
     final seriesBaseline = seriesMutation
         ? await _seriesMasterBaseline(existing)
         : null;
-    final seriesTiming = seriesMutation && !timingOnly
-        ? _cloudSeriesTimingChange(existing, seriesBaseline!, draft)
+    final seriesTiming = seriesMutation
+        ? _cloudSeriesTimingChange(
+            existing,
+            seriesBaseline!,
+            draft,
+            shiftExceptions: timingOnly,
+          )
         : null;
     _requireSeriesTimingApproval(draft, seriesTiming);
     final request = _eventDeltaRequest(
@@ -3528,22 +3536,28 @@ class CalendarRepository {
         existing.startTimeZone,
       );
       final serverEnd = _rawSeriesWall(rowRaw, 'end', existing.startTimeZone);
-      final rescheduled =
-          seriesTiming != null &&
-          (individuallyEdited.contains(row.id) ||
-              originalStart != null &&
-                  serverStart != null &&
-                  (wall(originalStart) != wall(serverStart) ||
-                      serverEnd != null &&
-                          masterServerStart != null &&
-                          masterServerEnd != null &&
-                          serverEnd.difference(serverStart) !=
-                              masterServerEnd.difference(masterServerStart)));
+      final resolved =
+          seriesTiming != null && rowStart != null && rowEnd != null
+          ? seriesTiming.occurrenceTiming(
+              originalStart: originalStart ?? rowStart,
+              start: rowStart,
+              end: rowEnd,
+              baselineStart: serverStart,
+              baselineEnd: serverEnd,
+              masterDuration:
+                  masterServerStart == null || masterServerEnd == null
+                  ? null
+                  : masterServerEnd.difference(masterServerStart),
+              endDelta: endDelta,
+              pendingTimingEdit: individuallyEdited.contains(row.id),
+              startChanged: startChanged,
+              endChanged: endChanged,
+            )
+          : null;
+      final rescheduled = resolved?.preserved == true;
       final applyStart = startChanged && !rescheduled;
       final applyEnd = endChanged && !rescheduled;
-      final mapped = seriesTiming?.mapOccurrence(
-        rowStart ?? seriesTiming.originalOccurrenceStart,
-      );
+      final mapped = resolved?.start;
       if (applyStart && seriesTiming != null && mapped == null) {
         if (rowStart != null &&
             seriesTiming.removesOrdinaryOccurrence(rowStart)) {
@@ -3565,13 +3579,15 @@ class CalendarRepository {
       final shiftedStart = applyStart && rowStart != null
           ? mapped ?? rowStart.add(startDelta)
           : rowStart;
-      final shiftedEnd = applyEnd && rowEnd != null
-          ? shiftedStart != null && rowStart != null
-                ? shiftedStart.add(
-                    rowEnd.difference(rowStart) + endDelta - startDelta,
-                  )
-                : rowEnd.add(endDelta)
-          : rowEnd;
+      final shiftedEnd =
+          resolved?.end ??
+          (applyEnd && rowEnd != null
+              ? shiftedStart != null && rowStart != null
+                    ? shiftedStart.add(
+                        rowEnd.difference(rowStart) + endDelta - startDelta,
+                      )
+                    : rowEnd.add(endDelta)
+              : rowEnd);
       final companion = CalendarEventsCompanion(
         title: draft.title.trim() != existing.title
             ? Value(draft.title.trim())
@@ -4591,16 +4607,14 @@ class CalendarRepository {
       );
     }
     if (recurringScope == RecurringEventMutationScope.entireSeries) {
-      final seriesTiming = timingOnly
-          ? null
-          : _davSeriesTimingChange(
-              baselineRawIcs,
-              existing,
-              input.start,
-              input.end,
-              input.allDay,
-              draft.startTimeZone,
-            );
+      final seriesTiming = _davSeriesTimingChange(
+        baselineRawIcs,
+        existing,
+        input.start,
+        input.end,
+        input.allDay,
+        draft.startTimeZone,
+      );
       _requireSeriesTimingApproval(draft, seriesTiming);
       final semantic = IcalSemanticDocument.parse(baselineRawIcs);
       final master = semantic.components.singleWhere(
@@ -5710,8 +5724,9 @@ DateTime? _rawSeriesWall(
 SeriesTimingChange? _cloudSeriesTimingChange(
   CalendarEvent existing,
   CalendarEvent master,
-  EventEditorDraft draft,
-) {
+  EventEditorDraft draft, {
+  bool shiftExceptions = false,
+}) {
   final before = _storedEventStartDateTime(existing);
   final after = draft.start;
   if (before == null ||
@@ -5739,6 +5754,7 @@ SeriesTimingChange? _cloudSeriesTimingChange(
     allDay: draft.allDay,
     originalTimeZone: master.startTimeZone,
     timeZone: draft.startTimeZone ?? master.startTimeZone,
+    shiftExceptions: shiftExceptions,
   );
 }
 

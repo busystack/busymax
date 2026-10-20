@@ -8,8 +8,7 @@ import '../../../providers/busy_provider.dart';
 import 'event_recurrence_codec.dart';
 import 'recurrence_rule.dart';
 
-/// The recurrence positions changed by an ordinary series edit. Effective
-/// dates of detached exceptions are deliberately outside this transformation.
+/// Recurrence positions and the exception timing policy of a series edit.
 final class SeriesTimingChange {
   SeriesTimingChange._({
     required this.provider,
@@ -22,6 +21,7 @@ final class SeriesTimingChange {
     required this.requiresConfirmation,
     required this.allDay,
     required this.timeZone,
+    this.shiftExceptions = false,
     String? savedSignature,
     this.civilToUtc,
     this.utcToCivil,
@@ -39,6 +39,7 @@ final class SeriesTimingChange {
     required bool allDay,
     required String? originalTimeZone,
     required String? timeZone,
+    bool shiftExceptions = false,
     DateTime Function(DateTime)? civilToUtc,
     DateTime Function(DateTime)? utcToCivil,
     DateTime Function(DateTime)? originalCivilToUtc,
@@ -84,6 +85,7 @@ final class SeriesTimingChange {
         requiresConfirmation: false,
         allDay: allDay,
         timeZone: timeZone,
+        shiftExceptions: shiftExceptions,
         originalTimeZone: originalTimeZone,
         civilToUtc: civilToUtc,
         utcToCivil: utcToCivil,
@@ -322,6 +324,7 @@ final class SeriesTimingChange {
       requiresConfirmation: confirm,
       allDay: allDay,
       timeZone: timeZone,
+      shiftExceptions: shiftExceptions,
       originalTimeZone: originalTimeZone,
       civilToUtc: civilToUtc,
       utcToCivil: utcToCivil,
@@ -350,6 +353,10 @@ final class SeriesTimingChange {
   final DateTime desiredStart;
   final bool requiresConfirmation;
   final bool allDay;
+
+  /// Cloud pointer rescheduling retains its delta-based exception behavior.
+  /// Ordinary editor saves preserve an individually rescheduled interval.
+  final bool shiftExceptions;
   final String? timeZone;
   final String? originalTimeZone;
   final DateTime Function(DateTime)? civilToUtc;
@@ -367,6 +374,7 @@ final class SeriesTimingChange {
     'occurrenceStart': originalOccurrenceStart.toIso8601String(),
     'desiredStart': desiredStart.toIso8601String(),
     'allDay': allDay,
+    'shiftExceptions': shiftExceptions,
     'timeZone': timeZone,
     'originalTimeZone': originalTimeZone,
     'confirmation': requiresConfirmation,
@@ -409,6 +417,7 @@ final class SeriesTimingChange {
       desiredStart: DateTime.parse(json['desiredStart'] as String),
       requiresConfirmation: json['confirmation'] == true,
       allDay: json['allDay'] == true,
+      shiftExceptions: json['shiftExceptions'] == true,
       timeZone: json['timeZone'] as String?,
       originalTimeZone: json['originalTimeZone'] as String?,
       savedSignature: json['signature'] as String?,
@@ -432,11 +441,56 @@ final class SeriesTimingChange {
         originalOccurrenceStart.toIso8601String(),
         desiredStart.toIso8601String(),
         allDay,
+        if (shiftExceptions) 'shiftExceptions',
         timeZone,
         [
           for (final entry in monthDayMapping.entries) [entry.key, entry.value],
         ],
       ]);
+
+  /// Resolve timing separately from the presence of non-timing overrides.
+  /// [baselineStart] and [baselineEnd] are authoritative values in the series
+  /// zone; [start] and [end] can include pending local edits. Both projection
+  /// and replay use this decision, and replay persists its resolved payload.
+  ({DateTime start, DateTime end, bool preserved})? occurrenceTiming({
+    required DateTime originalStart,
+    required DateTime start,
+    required DateTime end,
+    required DateTime? baselineStart,
+    required DateTime? baselineEnd,
+    required Duration? masterDuration,
+    required Duration endDelta,
+    bool pendingTimingEdit = false,
+    bool startChanged = true,
+    bool endChanged = true,
+  }) {
+    final rescheduled =
+        pendingTimingEdit ||
+        baselineStart != null &&
+            (_wall(baselineStart) != _wall(originalStart) ||
+                baselineEnd != null &&
+                    masterDuration != null &&
+                    baselineEnd.difference(baselineStart) != masterDuration);
+    if (rescheduled && !shiftExceptions) {
+      return (start: start, end: end, preserved: true);
+    }
+    final startDelta = desiredStart.difference(originalOccurrenceStart);
+    final mapped = !startChanged
+        ? start
+        : rescheduled
+        ? start.add(startDelta)
+        : mapOccurrence(start);
+    if (mapped == null) return null;
+    return (
+      start: mapped,
+      end: !endChanged
+          ? end
+          : rescheduled
+          ? end.add(endDelta)
+          : mapped.add(end.difference(start) + endDelta - startDelta),
+      preserved: false,
+    );
+  }
 
   Object encode(Object original) {
     if (!rule.isSupported) return original;
