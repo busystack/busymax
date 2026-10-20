@@ -9,6 +9,8 @@ import 'dav_conditional_mutation_service.dart';
 import 'dav_mutation_patch.dart';
 import '../../features/calendar/presentation/event_editor_draft.dart';
 import '../nextcloud/nextcloud_scheduling_mutations.dart';
+import '../../core/time/provider_date_time.dart';
+import '../../features/recurrence/domain/series_timing_change.dart';
 
 /// Edits only URI ATTACH properties on one concrete VEVENT. Replacing the
 /// component with a deep copy retains untouched binary ATTACH properties,
@@ -338,6 +340,153 @@ DavMutationPatch? buildDavEventUpdatePatch({
         : DavMutationScope.recurrenceException,
     operations: operations,
   );
+}
+
+/// A series timing edit changes recurrence positions, not the actual schedule
+/// authored on a detached exception. Rekey all exceptions in the same PUT as
+/// the master, retaining their complete components (including cancellations).
+DavMutationPatch reanchorDavSeriesExceptions({
+  required DavMutationPatch patch,
+  required String baselineRawIcs,
+  required SeriesTimingChange change,
+  bool preserveDuration = false,
+}) => DavMutationPatch(
+  target: patch.target,
+  scope: patch.scope,
+  operations: [
+    ...patch.operations.where(
+      (operation) =>
+          !preserveDuration ||
+          !{'DTEND', 'DURATION'}.contains(operation.propertyName),
+    ),
+    ...davSeriesTimingExceptionOperations(
+      baselineRawIcs: baselineRawIcs,
+      uid: patch.target.uid,
+      change: change,
+    ),
+  ],
+);
+
+/// Builds and validates the complete identity mapping before the editor closes
+/// or any resource mutation is queued.
+List<DavPatchOperation> davSeriesTimingExceptionOperations({
+  required String baselineRawIcs,
+  required String uid,
+  required SeriesTimingChange change,
+}) {
+  final semantic = IcalSemanticDocument.parse(baselineRawIcs);
+  final master = semantic.components.singleWhere(
+    (component) => component.uid == uid && component.recurrenceId == null,
+  );
+  if (change.masterStart == change.originalMasterStart &&
+      change.timeZone == change.originalTimeZone &&
+      change.allDay == master.start!.isDate &&
+      (!change.rule.isSupported ||
+          change.rule.toRrule() == change.originalRule.toRrule())) {
+    return const [];
+  }
+  final operations = <DavPatchOperation>[];
+  final resolver = IcalTimeZoneResolver.fromDocument(semantic);
+  DateTime asCivil(IcalTemporalValue temporal) {
+    if (temporal.isDate || temporal.kind == IcalTemporalKind.floatingDateTime) {
+      return temporal.localValue;
+    }
+    final instant = resolver.toUtc(temporal);
+    final zone = master.start!.timeZoneId;
+    return zone == null ? instant : resolver.fromUtc(instant, zone);
+  }
+
+  final exclusions = master.documentComponent
+      .propertiesNamed('EXDATE')
+      .toList();
+  if (exclusions.isNotEmpty) {
+    operations.add(
+      DavPatchOperation.replaceRepeatedRaw('EXDATE', [
+        for (final exclusion in exclusions)
+          for (final mapped in change.mapExclusions(
+            exclusion,
+            asCivil: asCivil,
+          ))
+            DavRawPropertyValue(
+              value: mapped.rawValue,
+              parameters: mapped.parameters,
+            ),
+      ]),
+    );
+  }
+  final replacements = <IcalComponent>[];
+  final keys = <String>{};
+  final ranged = semantic.components.any(
+    (component) =>
+        component.uid == uid &&
+        component.documentComponent
+                .firstProperty('RECURRENCE-ID')
+                ?.parameterValue('RANGE') ==
+            'THISANDFUTURE',
+  );
+  if (ranged &&
+      (master.recurrenceDates.isNotEmpty ||
+          change.allDay != master.start!.isDate ||
+          !change.preservesFollowingOverride())) {
+    throw const SeriesTimingDecisionRequired(
+      'The existing following override cannot keep its schedule under this pattern. Choose how to retain that portion before changing the series.',
+    );
+  }
+  for (final exception in semantic.components.where(
+    (component) => component.uid == uid && component.recurrenceId != null,
+  )) {
+    final mapped = change.mapOccurrence(asCivil(exception.recurrenceId!));
+    if (mapped == null || !change.containsNewOccurrence(mapped)) {
+      throw const SeriesTimingDecisionRequired(
+        'An existing exception cannot be associated with the new pattern safely.',
+      );
+    }
+    final value =
+        change.timeZone == null &&
+            master.start!.kind == IcalTemporalKind.utcDateTime
+        ? mapped.toUtc()
+        : providerCivilDateTime(mapped);
+    final temporal = _eventTemporal(
+      value,
+      allDay: change.allDay,
+      timeZone: change.timeZone,
+    );
+    final replacement = exception.documentComponent.deepCopy();
+    final oldId = replacement.firstProperty('RECURRENCE-ID')!;
+    replacement.children[replacement.children.indexOf(oldId)] = IcalProperty(
+      group: oldId.group,
+      name: 'RECURRENCE-ID',
+      parameters: [
+        ...temporal.parameters,
+        ...oldId.parameters.where((parameter) => parameter.name == 'RANGE'),
+      ],
+      rawValue: temporal.value,
+      originalPhysicalLines: const [],
+      isDirty: true,
+    );
+    replacement.structurallyDirty = true;
+    if (!keys.add(
+      icalRecurrenceIdKey(replacement.firstProperty('RECURRENCE-ID'))!,
+    )) {
+      throw const SeriesTimingDecisionRequired(
+        'Two exceptions would acquire the same occurrence identity.',
+      );
+    }
+    operations.add(
+      DavPatchOperation.removeComponent(
+        componentKey: IcalComponentKey(
+          componentType: 'VEVENT',
+          uid: exception.uid!,
+          recurrenceIdKey: exception.recurrenceIdKey,
+        ),
+      ),
+    );
+    replacements.add(replacement);
+  }
+  // Remove all old keys before adding replacements; a shifted key may equal a
+  // sibling's old key without representing the same occurrence.
+  operations.addAll(replacements.map(DavPatchOperation.addComponent));
+  return operations;
 }
 
 /// Creates a detached exception for one generated occurrence while retaining

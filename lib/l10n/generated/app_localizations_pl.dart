@@ -3770,4 +3770,9 @@ class AppLocalizationsPl extends AppLocalizations {
 
   @override
   String get addSeparateGoogleAccount => 'Dodaj osobne połączenie Google';
+
+  @override
+  String seriesPatternChangeConfirmation(String before, String after) {
+    return 'Ta zmiana reguły powtarzania może dodać lub usunąć daty.\n\nObecnie: $before\nPropozycja: $after\n\nZapisać tę regułę?';
+  }
 }

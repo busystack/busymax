@@ -3591,4 +3591,9 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get addSeparateGoogleAccount => 'अलग Google कनेक्शन जोड़ें';
+
+  @override
+  String seriesPatternChangeConfirmation(String before, String after) {
+    return 'दोहराव का यह बदलाव तारीखें जोड़ या हटा सकता है।\n\nवर्तमान: $before\nप्रस्तावित: $after\n\nयह पैटर्न सहेजें?';
+  }
 }

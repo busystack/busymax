@@ -165,6 +165,7 @@ class EventEditorDraft {
     this.googleStatusProperties = const {},
     this.googleStatusChanged = false,
     this.recurringMutationScope,
+    this.seriesTimingApproval,
     this.start,
     this.end,
     this.startTimeZone,
@@ -391,6 +392,7 @@ class EventEditorDraft {
   final Map<String, Object?> googleStatusProperties;
   final bool googleStatusChanged;
   final RecurringEventMutationScope? recurringMutationScope;
+  final String? seriesTimingApproval;
   final String accountId;
   final String sourceId;
   final String providerCalendarId;
@@ -581,6 +583,7 @@ class EventEditorDraft {
     bool? isOrganizer,
     bool? canManageAttendees,
     RecurringEventMutationScope? recurringMutationScope,
+    String? seriesTimingApproval,
     bool clearLocation = false,
     bool clearDescription = false,
     bool clearRecurrence = false,
@@ -674,6 +677,7 @@ class EventEditorDraft {
       recurringMutationScope: clearRecurringMutationScope
           ? null
           : recurringMutationScope ?? this.recurringMutationScope,
+      seriesTimingApproval: seriesTimingApproval ?? this.seriesTimingApproval,
       accountId: accountId ?? this.accountId,
       sourceId: sourceId ?? this.sourceId,
       providerCalendarId: providerCalendarId ?? this.providerCalendarId,
@@ -744,6 +748,7 @@ class EventEditorDraft {
         other.googleStatusProperties == googleStatusProperties &&
         other.googleStatusChanged == googleStatusChanged &&
         other.recurringMutationScope == recurringMutationScope &&
+        other.seriesTimingApproval == seriesTimingApproval &&
         other.accountId == accountId &&
         other.sourceId == sourceId &&
         other.providerCalendarId == providerCalendarId &&
@@ -793,6 +798,7 @@ class EventEditorDraft {
     googleStatusProperties,
     googleStatusChanged,
     recurringMutationScope,
+    seriesTimingApproval,
     accountId,
     sourceId,
     providerCalendarId,

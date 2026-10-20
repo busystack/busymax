@@ -102,6 +102,37 @@ abstract interface class CompleteRecurringInstanceClient {
   });
 }
 
+/// Complete detached state and provider-resolved identities for series edits.
+/// This does not enumerate ordinary instances of an unlimited recurrence.
+abstract interface class SeriesExceptionClient {
+  Future<List<CalendarEventDto>> readSeriesExceptions({
+    required String calendarId,
+    required CalendarEventDto master,
+  });
+
+  Future<CalendarEventDto> findSeriesInstance({
+    required String calendarId,
+    required String recurringEventId,
+    required DateTime originalStart,
+    required bool allDay,
+    required String? timeZone,
+  });
+
+  Future<CalendarEventDto> restoreSeriesException({
+    required String calendarId,
+    required CalendarEventDto instance,
+    required CalendarEventDto exception,
+    required CalendarGuestUpdatePolicy guestUpdatePolicy,
+  });
+}
+
+final class SeriesExceptionPreservationUnsupported implements Exception {
+  const SeriesExceptionPreservationUnsupported(this.message);
+  final String message;
+  @override
+  String toString() => message;
+}
+
 /// Provider-aware private-copy import. A calendar-file import must never fall
 /// back to ordinary event creation, which has different UID and invitation
 /// semantics.

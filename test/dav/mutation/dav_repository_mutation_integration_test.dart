@@ -18,6 +18,7 @@ import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
 import 'package:busymax/src/features/calendar/domain/event_timing_policy.dart';
+import 'package:busymax/src/features/recurrence/domain/series_timing_change.dart';
 import 'package:busymax/src/features/maps/domain/geographic_point.dart';
 import 'package:busymax/src/features/maps/domain/location_result.dart';
 import 'package:busymax/src/features/maps/data/location_resolution_repository.dart';
@@ -1409,6 +1410,338 @@ void main() {
     },
   );
 
+  test('ordinary weekly series edit preserves a rescheduled Wednesday and cancellation through replay, sync and restart', () async {
+    await usePersistentFixture();
+    const href = '${_collectionHref}weekly-timing.ics';
+    final baseline = _ical(const [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//BusyMax integration test//EN',
+      'BEGIN:VEVENT',
+      'UID:weekly@example.test',
+      'DTSTAMP:20260808T110000Z',
+      'DTSTART:20260803T090000Z',
+      'DTEND:20260803T100000Z',
+      'RRULE:FREQ=WEEKLY;BYDAY=MO;COUNT=5',
+      'SUMMARY:Weekly',
+      'X-SERIES-KEEP:opaque',
+      'END:VEVENT',
+      'BEGIN:VEVENT',
+      'UID:weekly@example.test',
+      'RECURRENCE-ID:20260810T090000Z',
+      'DTSTAMP:20260808T110000Z',
+      'DTSTART:20260812T130000Z',
+      'DTEND:20260812T150000Z',
+      'SUMMARY:Moved Wednesday',
+      'X-EXCEPTION-KEEP:opaque',
+      'END:VEVENT',
+      'BEGIN:VEVENT',
+      'UID:weekly@example.test',
+      'RECURRENCE-ID:20260817T090000Z',
+      'DTSTAMP:20260808T110000Z',
+      'DTSTART:20260817T090000Z',
+      'DTEND:20260817T100000Z',
+      'STATUS:CANCELLED',
+      'END:VEVENT',
+      'END:VCALENDAR',
+    ]);
+    await _commitObjects(objectRepository, [
+      _prepared(href: href, etag: '"one"', body: baseline),
+    ]);
+    final row = (await database.select(database.calendarEvents).get())
+        .singleWhere(
+          (event) => event.occurrenceKey!.contains('2026-08-03T09:00:00'),
+        );
+    await calendarRepository.updateLocalEvent(
+      _draftForEvent(row).copyWith(
+        start: DateTime.utc(2026, 8, 4, 9),
+        end: DateTime.utc(2026, 8, 4, 10),
+        recurringMutationScope: RecurringEventMutationScope.entireSeries,
+      ),
+    );
+    final candidate = await _serializedPendingDavMutation(database, baseline);
+    final semantic = IcalSemanticDocument.parse(candidate);
+    final exception = semantic.components.singleWhere(
+      (c) => c.summary == 'Moved Wednesday',
+    );
+    expect(exception.recurrenceId!.rawValue, '20260811T090000Z');
+    expect(exception.start!.rawValue, '20260812T130000Z');
+    expect(exception.end!.rawValue, '20260812T150000Z');
+    expect(
+      semantic.components
+          .singleWhere((c) => c.status == 'CANCELLED')
+          .recurrenceId!
+          .rawValue,
+      '20260818T090000Z',
+    );
+    expect(candidate, contains('X-EXCEPTION-KEEP:opaque'));
+    Future<void> check() async {
+      final events = (await database.select(database.calendarEvents).get())
+          .where((event) => !event.isDeleted && !event.isCancelled)
+          .toList();
+      final moved = events.singleWhere(
+        (event) => event.title == 'Moved Wednesday',
+      );
+      expect(
+        DateTime.parse(moved.startDateTime!),
+        DateTime.utc(2026, 8, 12, 13),
+      );
+      expect(DateTime.parse(moved.endDateTime!), DateTime.utc(2026, 8, 12, 15));
+      expect(
+        events
+            .where((event) => event.title != 'Moved Wednesday')
+            .map((event) => DateTime.parse(event.startDateTime!).weekday),
+        everyElement(DateTime.tuesday),
+      );
+      expect(
+        events.where((event) => DateTime.parse(event.startDateTime!).day == 18),
+        isEmpty,
+      );
+      expect(
+        events.where((event) => DateTime.parse(event.startDateTime!).day == 11),
+        isEmpty,
+      );
+    }
+
+    await check();
+    await reopen();
+    await check();
+    await replayResource(candidate);
+    await _commitObjects(objectRepository, [
+      _prepared(href: href, etag: '"returned"', body: candidate),
+    ]);
+    await reopen();
+    await check();
+    expect(await database.select(database.pendingOps).get(), isEmpty);
+  });
+
+  test('ordinary all-day series edit keeps a rescheduled exception and cancellation dates', () async {
+    await usePersistentFixture();
+    const href = '${_collectionHref}all-day-series.ics';
+    final baseline = _ical(const [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//BusyMax fixture//EN',
+      'BEGIN:VEVENT',
+      'UID:all-day-series',
+      'DTSTAMP:20260101T000000Z',
+      'DTSTART;VALUE=DATE:20260601',
+      'DTEND;VALUE=DATE:20260602',
+      'RRULE:FREQ=WEEKLY;BYDAY=MO;COUNT=3',
+      'SUMMARY:Regular',
+      'END:VEVENT',
+      'BEGIN:VEVENT',
+      'UID:all-day-series',
+      'RECURRENCE-ID;VALUE=DATE:20260608',
+      'DTSTAMP:20260101T000000Z',
+      'DTSTART;VALUE=DATE:20260610',
+      'DTEND;VALUE=DATE:20260612',
+      'SUMMARY:Moved Wednesday',
+      'END:VEVENT',
+      'BEGIN:VEVENT',
+      'UID:all-day-series',
+      'RECURRENCE-ID;VALUE=DATE:20260615',
+      'DTSTAMP:20260101T000000Z',
+      'DTSTART;VALUE=DATE:20260615',
+      'DTEND;VALUE=DATE:20260616',
+      'STATUS:CANCELLED',
+      'END:VEVENT',
+      'END:VCALENDAR',
+    ]);
+    await _commitObjects(objectRepository, [
+      _prepared(href: href, etag: '"one"', body: baseline),
+    ]);
+    final selected = (await database.select(database.calendarEvents).get())
+        .singleWhere((row) => row.startDate == '2026-06-01');
+    await calendarRepository.updateLocalEvent(
+      _draftForEvent(selected).copyWith(
+        start: DateTime.utc(2026, 6, 2),
+        end: DateTime.utc(2026, 6, 3),
+        recurringMutationScope: RecurringEventMutationScope.entireSeries,
+      ),
+    );
+    final candidate = await _serializedPendingDavMutation(database, baseline);
+    final parsed = IcalSemanticDocument.parse(candidate);
+    expect(
+      parsed.components
+          .singleWhere((c) => c.summary == 'Moved Wednesday')
+          .recurrenceId!
+          .rawValue,
+      '20260609',
+    );
+    expect(
+      parsed.components
+          .singleWhere((c) => c.status == 'CANCELLED')
+          .recurrenceId!
+          .rawValue,
+      '20260616',
+    );
+    Future<void> check() async {
+      final active = (await database.select(database.calendarEvents).get())
+          .where((row) => !row.isDeleted && !row.isCancelled)
+          .toList();
+      expect(active, hasLength(2));
+      expect(
+        active.map((row) => row.startDate),
+        unorderedEquals(['2026-06-02', '2026-06-10']),
+      );
+      final moved = active.singleWhere((row) => row.title == 'Moved Wednesday');
+      expect(moved.endDate, '2026-06-12');
+      expect(moved.allDay, isTrue);
+    }
+
+    await check();
+    await replayResource(candidate);
+    await reopen();
+    await check();
+  });
+
+  for (final duration in ['P1D', 'PT24H']) {
+    test(
+      'ordinary zoned series edit preserves $duration and exception schedule across DST and restart',
+      () async {
+        await usePersistentFixture();
+        const href = '${_collectionHref}dst-series.ics';
+        final baseline = _ical([
+          'BEGIN:VCALENDAR',
+          'VERSION:2.0',
+          'PRODID:-//BusyMax fixture//EN',
+          'BEGIN:VEVENT',
+          'UID:dst-series',
+          'DTSTAMP:20260101T000000Z',
+          'DTSTART;TZID=America/Vancouver:20260302T013000',
+          'DURATION:$duration',
+          'RRULE:FREQ=WEEKLY;BYDAY=MO;COUNT=3',
+          'SUMMARY:Regular',
+          'END:VEVENT',
+          'BEGIN:VEVENT',
+          'UID:dst-series',
+          'RECURRENCE-ID;TZID=America/Vancouver:20260316T013000',
+          'DTSTAMP:20260101T000000Z',
+          'DTSTART;TZID=America/Vancouver:20260318T130000',
+          'DTEND;TZID=America/Vancouver:20260318T150000',
+          'SUMMARY:Moved Wednesday',
+          'X-KEEP:opaque',
+          'END:VEVENT',
+          'END:VCALENDAR',
+        ]);
+        await _commitObjects(objectRepository, [
+          _prepared(href: href, etag: '"one"', body: baseline),
+        ]);
+        final selected = (await database.select(database.calendarEvents).get())
+            .singleWhere((row) => row.startDateTime == '2026-03-02T01:30:00');
+        final detail = (await calendarRepository.loadEventDetail(selected.id))!;
+        await calendarRepository.updateLocalEvent(
+          EventEditorDraft.fromEventDetail(detail).copyWith(
+            start: providerCivilDateTime(DateTime.utc(2026, 3, 1, 1, 30)),
+            end: providerCivilDateTime(DateTime.utc(2026, 3, 2, 1, 30)),
+            recurringMutationScope: RecurringEventMutationScope.entireSeries,
+          ),
+        );
+        final candidate = await _serializedPendingDavMutation(
+          database,
+          baseline,
+        );
+        expect(candidate, contains('DURATION:$duration'));
+        final parsed = IcalSemanticDocument.parse(candidate);
+        final exception = parsed.components.singleWhere(
+          (c) => c.recurrenceId != null,
+        );
+        expect(exception.recurrenceId!.rawValue, '20260315T013000');
+        expect(exception.start!.rawValue, '20260318T130000');
+        expect(exception.end!.rawValue, '20260318T150000');
+        Future<void> check() async {
+          final rows = await database.select(database.calendarEvents).get();
+          final dst = rows.singleWhere(
+            (row) => row.startDateTime == '2026-03-08T01:30:00',
+          );
+          expect(dst.startTimeZone, 'America/Vancouver');
+          expect(
+            dst.endDateTime,
+            duration == 'P1D' ? '2026-03-09T01:30:00' : '2026-03-09T02:30:00',
+          );
+          expect(
+            providerDateTimeAsUtcInstant(dst.endDateTime, dst.endTimeZone)!
+                .difference(
+                  providerDateTimeAsUtcInstant(
+                    dst.startDateTime,
+                    dst.startTimeZone,
+                  )!,
+                )
+                .inHours,
+            duration == 'P1D' ? 23 : 24,
+          );
+          expect(
+            rows
+                .singleWhere((row) => row.title == 'Moved Wednesday')
+                .startDateTime,
+            '2026-03-18T13:00:00',
+          );
+        }
+
+        await check();
+        await reopen();
+        await check();
+        await replayResource(candidate);
+        await reopen();
+        await check();
+      },
+    );
+  }
+
+  test('a ranged exception with varying monthly offsets requires a decision before mutation', () async {
+    const href = '${_collectionHref}ranged-series.ics';
+    final baseline = _ical(const [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//BusyMax fixture//EN',
+      'BEGIN:VEVENT',
+      'UID:ranged-series',
+      'DTSTAMP:20260101T000000Z',
+      'DTSTART:20260126T090000Z',
+      'DTEND:20260126T100000Z',
+      'RRULE:FREQ=MONTHLY;BYDAY=-1MO;COUNT=8',
+      'SUMMARY:Regular',
+      'END:VEVENT',
+      'BEGIN:VEVENT',
+      'UID:ranged-series',
+      'RECURRENCE-ID;RANGE=THISANDFUTURE:20260223T090000Z',
+      'DTSTAMP:20260101T000000Z',
+      'DTSTART:20260225T090000Z',
+      'DTEND:20260225T100000Z',
+      'SUMMARY:Following Wednesdays',
+      'END:VEVENT',
+      'END:VCALENDAR',
+    ]);
+    await _commitObjects(objectRepository, [
+      _prepared(href: href, etag: '"one"', body: baseline),
+    ]);
+    final selected = (await database.select(database.calendarEvents).get())
+        .singleWhere(
+          (row) => row.occurrenceKey!.contains('2026-01-26T09:00:00'),
+        );
+    final draft = _draftForEvent(selected).copyWith(
+      start: DateTime.utc(2026, 1, 27, 9),
+      end: DateTime.utc(2026, 1, 27, 10),
+      recurringMutationScope: RecurringEventMutationScope.entireSeries,
+    );
+    await expectLater(
+      calendarRepository.prepareSeriesTimingChange(draft),
+      throwsA(isA<SeriesTimingDecisionRequired>()),
+    );
+    await expectLater(
+      calendarRepository.updateLocalEvent(draft),
+      throwsA(isA<SeriesTimingDecisionRequired>()),
+    );
+    expect(await database.select(database.pendingOps).get(), isEmpty);
+    expect(
+      (await database.select(database.calendarEvents).get())
+          .singleWhere((row) => row.id == selected.id)
+          .startDateTime,
+      '2026-01-26T09:00:00.000Z',
+    );
+  });
+
   test(
     'entire-series edit patches the master anchor and preserves exceptions',
     () async {
@@ -1447,7 +1780,7 @@ void main() {
       final exception = semantic.components.singleWhere(
         (component) => component.recurrenceId != null,
       );
-      expect(exception.recurrenceId?.rawValue, '20260809T090000Z');
+      expect(exception.recurrenceId?.rawValue, '20260809T100000Z');
       expect(exception.start?.rawValue, '20260809T110000Z');
       expect(exception.summary, 'Existing exception');
       expect(candidate, contains('X-SERIES-KEEP:opaque'));

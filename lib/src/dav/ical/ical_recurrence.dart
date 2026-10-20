@@ -102,6 +102,33 @@ final class IcalRecurrenceExpander {
 
   final IcalRecurrenceLimits limits;
 
+  /// Candidates in one rule period, before DTSTART/COUNT/UNTIL truncation.
+  /// Series edits use this to map an existing recurrence position without
+  /// confusing a detached occurrence's effective date with its identity.
+  List<DateTime> rulePeriodCandidates({
+    required String recurrenceRule,
+    required DateTime anchor,
+    required int period,
+  }) {
+    if (period < 0 || period >= limits.maximumPeriods) {
+      throw ArgumentError.value(period, 'period');
+    }
+    return _RecurrenceRule.parse(
+      recurrenceRule,
+      anchor: IcalTemporalValue(
+        rawValue: '',
+        kind: IcalTemporalKind.floatingDateTime,
+        localValue: anchor,
+        timeZoneId: null,
+      ),
+      maximumValues: limits.maximumRuleValues,
+    ).candidatesForPeriod(
+      anchor,
+      period,
+      maximumCandidates: limits.maximumCandidatesPerPeriod,
+    );
+  }
+
   /// Returns the next RRULE occurrence after [current].
   ///
   /// Nextcloud Tasks advances a recurring VTODO from its current DTSTART or

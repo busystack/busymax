@@ -1296,5 +1296,6 @@
     }
   },
   "googleIdentityUnverified": "इस पुराने Google कनेक्शन की पहचान सत्यापित नहीं हो सकी। कैलेंडर, कार्य और लंबित बदलाव सुरक्षित हैं। सुरक्षित सिंक के लिए अलग Google कनेक्शन जोड़ें। लंबित बदलाव मूल खाते में रहेंगे।",
-  "addSeparateGoogleAccount": "अलग Google कनेक्शन जोड़ें"
+  "addSeparateGoogleAccount": "अलग Google कनेक्शन जोड़ें",
+  "seriesPatternChangeConfirmation": "दोहराव का यह बदलाव तारीखें जोड़ या हटा सकता है।\n\nवर्तमान: {before}\nप्रस्तावित: {after}\n\nयह पैटर्न सहेजें?"
 }

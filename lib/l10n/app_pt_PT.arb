@@ -1296,5 +1296,6 @@
     }
   },
   "googleIdentityUnverified": "Não foi possível verificar a identidade desta ligação antiga ao Google. Os calendários, tarefas e alterações pendentes são preservados. Adicione uma ligação Google separada para sincronizar em segurança. As alterações pendentes permanecerão na conta original.",
-  "addSeparateGoogleAccount": "Adicionar ligação Google separada"
+  "addSeparateGoogleAccount": "Adicionar ligação Google separada",
+  "seriesPatternChangeConfirmation": "Esta alteração da recorrência pode adicionar ou remover datas.\n\nAtual: {before}\nProposta: {after}\n\nGuardar esta recorrência?"
 }

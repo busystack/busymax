@@ -1977,5 +1977,6 @@
     }
   },
   "googleIdentityUnverified": "Nie można zweryfikować tożsamości tego starszego połączenia Google. Kalendarze, zadania i oczekujące zmiany są zachowane. Dodaj osobne połączenie Google, aby bezpiecznie synchronizować. Oczekujące zmiany pozostaną na pierwotnym koncie.",
-  "addSeparateGoogleAccount": "Dodaj osobne połączenie Google"
+  "addSeparateGoogleAccount": "Dodaj osobne połączenie Google",
+  "seriesPatternChangeConfirmation": "Ta zmiana reguły powtarzania może dodać lub usunąć daty.\n\nObecnie: {before}\nPropozycja: {after}\n\nZapisać tę regułę?"
 }

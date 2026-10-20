@@ -3585,4 +3585,9 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get addSeparateGoogleAccount => 'Thêm kết nối Google riêng';
+
+  @override
+  String seriesPatternChangeConfirmation(String before, String after) {
+    return 'Thay đổi kiểu lặp có thể thêm hoặc xóa ngày.\n\nHiện tại: $before\nĐề xuất: $after\n\nLưu kiểu lặp này?';
+  }
 }

@@ -3510,4 +3510,9 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get addSeparateGoogleAccount => '별도의 Google 연결 추가';
+
+  @override
+  String seriesPatternChangeConfirmation(String before, String after) {
+    return '반복 패턴을 변경하면 날짜가 추가되거나 삭제될 수 있습니다.\n\n현재: $before\n제안: $after\n\n이 패턴을 저장할까요?';
+  }
 }

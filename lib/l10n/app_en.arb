@@ -1991,5 +1991,17 @@
     }
   },
   "googleIdentityUnverified": "The identity of this older Google connection could not be verified. Its calendars, tasks and pending changes are preserved. Add a separate Google connection to synchronize safely. Pending changes will remain with the original account.",
-  "addSeparateGoogleAccount": "Add a separate Google connection"
+  "addSeparateGoogleAccount": "Add a separate Google connection",
+  "seriesPatternChangeConfirmation": "This changes the recurrence pattern and may add or remove dates.\n\nCurrent: {before}\nProposed: {after}\n\nSave this pattern?",
+  "@seriesPatternChangeConfirmation": {
+    "description": "Explicit approval of an ordinary series date edit that changes recurrence semantics. Both patterns include their termination condition.",
+    "placeholders": {
+      "before": {
+        "type": "String"
+      },
+      "after": {
+        "type": "String"
+      }
+    }
+  }
 }

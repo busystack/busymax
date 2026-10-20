@@ -3625,4 +3625,9 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String get addSeparateGoogleAccount => 'افزودن اتصال Google جداگانه';
+
+  @override
+  String seriesPatternChangeConfirmation(String before, String after) {
+    return 'این تغییر در الگوی تکرار ممکن است تاریخ‌هایی را اضافه یا حذف کند.\n\nفعلی: ⁨$before⁩\nپیشنهادی: ⁨$after⁩\n\nاین الگو ذخیره شود؟';
+  }
 }

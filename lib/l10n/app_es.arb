@@ -1359,5 +1359,6 @@
     }
   },
   "googleIdentityUnverified": "No se pudo verificar la identidad de esta conexión antigua de Google. Se conservan los calendarios, tareas y cambios pendientes. Añade una conexión de Google separada para sincronizar con seguridad. Los cambios pendientes seguirán en la cuenta original.",
-  "addSeparateGoogleAccount": "Añadir conexión de Google separada"
+  "addSeparateGoogleAccount": "Añadir conexión de Google separada",
+  "seriesPatternChangeConfirmation": "Este cambio en la repetición puede añadir o eliminar fechas.\n\nActual: {before}\nPropuesta: {after}\n\n¿Guardar esta repetición?"
 }

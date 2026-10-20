@@ -3621,4 +3621,9 @@ class AppLocalizationsFi extends AppLocalizations {
 
   @override
   String get addSeparateGoogleAccount => 'Lisää erillinen Google-yhteys';
+
+  @override
+  String seriesPatternChangeConfirmation(String before, String after) {
+    return 'Toistumissäännön muuttaminen voi lisätä tai poistaa päivämääriä.\n\nNykyinen: $before\nEhdotettu: $after\n\nTallennetaanko tämä sääntö?';
+  }
 }

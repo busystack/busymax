@@ -1296,5 +1296,6 @@
     }
   },
   "googleIdentityUnverified": "تعذر التحقق من هوية اتصال Google القديم هذا. تم الاحتفاظ بالتقويمات والمهام والتغييرات المعلقة. أضف اتصال Google منفصلًا للمزامنة بأمان. ستبقى التغييرات المعلقة مع الحساب الأصلي.",
-  "addSeparateGoogleAccount": "إضافة اتصال Google منفصل"
+  "addSeparateGoogleAccount": "إضافة اتصال Google منفصل",
+  "seriesPatternChangeConfirmation": "قد تؤدي هذه التغييرات في نمط التكرار إلى إضافة تواريخ أو إزالتها.\n\nالحالي: \u2068{before}\u2069\nالمقترح: \u2068{after}\u2069\n\nهل تريد حفظ هذا النمط؟"
 }

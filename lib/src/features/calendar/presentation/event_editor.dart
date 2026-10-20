@@ -26,6 +26,7 @@ import 'package:busymax/src/providers/busy_provider.dart';
 import '../../accounts/data/accounts_repository.dart';
 import '../../recurrence/domain/event_recurrence_codec.dart';
 import '../../recurrence/domain/recurrence_rule.dart';
+import '../../recurrence/domain/series_timing_change.dart';
 import '../../recurrence/presentation/recurrence_editor.dart';
 import '../../tasks/presentation/desktop_date_time_fields.dart';
 import '../../maps/domain/location_result.dart';
@@ -129,6 +130,62 @@ Future<void> _completeEventEditorSave(
   required List<CalendarSourceEntity> sources,
   required List<AccountEntity> accounts,
 }) async {
+  try {
+    final seriesScope = draft.recurringMutationScope;
+    final change =
+        draft.eventId != null &&
+            (seriesScope == RecurringEventMutationScope.entireSeries ||
+                seriesScope == RecurringEventMutationScope.thisAndFuture)
+        ? await ProviderScope.containerOf(
+            context,
+            listen: false,
+          ).read(calendarRepositoryProvider).prepareSeriesTimingChange(draft)
+        : null;
+    if (!context.mounted) return;
+    if (change?.requiresConfirmation == true) {
+      final confirmed = await showBusyMaxConfirm(
+        context,
+        title: context.l10n.repeat,
+        message: context.l10n.seriesPatternChangeConfirmation(
+          recurrenceRuleSummary(
+            context,
+            change!.previewRule(
+              following:
+                  draft.recurringMutationScope ==
+                  RecurringEventMutationScope.thisAndFuture,
+              original: true,
+            ),
+            timeZone: change.timeZone,
+          ),
+          recurrenceRuleSummary(
+            context,
+            change.previewRule(
+              following:
+                  draft.recurringMutationScope ==
+                  RecurringEventMutationScope.thisAndFuture,
+            ),
+            timeZone: change.timeZone,
+          ),
+        ),
+        confirmLabel: context.l10n.save,
+      );
+      if (!confirmed || !context.mounted) return;
+      draft = draft.copyWith(seriesTimingApproval: change.signature);
+    }
+  } on Object catch (error) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            error is SeriesTimingDecisionRequired
+                ? error.message
+                : context.l10n.operationFailed,
+          ),
+        ),
+      );
+    }
+    return;
+  }
   final move = _eventMoveContext(
     initialDraft: initialDraft,
     draft: draft,

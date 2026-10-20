@@ -3570,4 +3570,9 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String get addSeparateGoogleAccount => 'Lisa eraldi Google’i ühendus';
+
+  @override
+  String seriesPatternChangeConfirmation(String before, String after) {
+    return 'Kordusmustri muutmine võib kuupäevi lisada või eemaldada.\n\nPraegune: $before\nPakutud: $after\n\nKas salvestada see muster?';
+  }
 }

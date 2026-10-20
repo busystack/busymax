@@ -1,3 +1,5 @@
+import '../../features/recurrence/presentation/recurrence_summary.dart';
+
 import 'package:busymax/src/core/auth/authorization_attempt.dart';
 
 import 'dart:async';
@@ -3527,6 +3529,56 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
     }
     setState(() => _saving = true);
     try {
+      final seriesTiming = await ref
+          .read(calendarRepositoryProvider)
+          .prepareSeriesTimingChange(draft);
+      if (!mounted) return;
+      if (seriesTiming?.requiresConfirmation == true) {
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: Text(context.l10n.repeat),
+            content: Text(
+              context.l10n.seriesPatternChangeConfirmation(
+                recurrenceRuleSummary(
+                  dialogContext,
+                  seriesTiming!.previewRule(
+                    following:
+                        draft.recurringMutationScope ==
+                        RecurringEventMutationScope.thisAndFuture,
+                    original: true,
+                  ),
+                  timeZone: seriesTiming.timeZone,
+                ),
+                recurrenceRuleSummary(
+                  dialogContext,
+                  seriesTiming.previewRule(
+                    following:
+                        draft.recurringMutationScope ==
+                        RecurringEventMutationScope.thisAndFuture,
+                  ),
+                  timeZone: seriesTiming.timeZone,
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: Text(context.l10n.cancel),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: Text(context.l10n.save),
+              ),
+            ],
+          ),
+        );
+        if (confirmed != true) {
+          if (mounted) setState(() => _saving = false);
+          return;
+        }
+        draft = draft.copyWith(seriesTimingApproval: seriesTiming!.signature);
+      }
       if ((_reminderMinutes ?? -2) >= 0 ||
           androidGooglePopupReminderRows(_editedGoogleReminders).isNotEmpty ||
           (_editedNextcloudReminders?.isNotEmpty ?? false)) {
