@@ -190,6 +190,7 @@ class NotificationScheduleService {
             ))
             .get();
     for (final task in rows) {
+      if (!isVisibleTaskProjection(task)) continue;
       if (!reminderEnabledTaskListIds.contains(task.taskListId)) {
         continue;
       }

@@ -22,8 +22,12 @@ import 'package:busymax/src/features/maps/domain/geographic_point.dart';
 import 'package:busymax/src/features/maps/domain/location_result.dart';
 import 'package:busymax/src/features/maps/data/location_resolution_repository.dart';
 import 'package:busymax/src/core/time/provider_date_time.dart';
+import 'package:busymax/src/core/time/stored_temporal_projection.dart';
 import 'package:busymax/src/schedule/schedule_event_rescheduling.dart';
 import 'package:busymax/src/schedule/schedule_item.dart';
+import 'package:busymax/src/schedule/schedule_filters.dart';
+import 'package:busymax/src/schedule/schedule_range.dart';
+import 'package:busymax/src/schedule/schedule_repository.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
 import 'package:busymax/src/features/notifications/notification_schedule_service.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
@@ -139,6 +143,72 @@ void main() {
   tearDown(() async {
     await database.close();
     await persistenceDirectory?.delete(recursive: true);
+  });
+
+  for (final deadline in [false, true]) {
+    test(
+      'pending DAV task retains explicit deadline eligibility ($deadline)',
+      () async {
+        await usePersistentFixture();
+        await tasksRepository.createTask(
+          _taskListId,
+          TaskCreateInput(
+            title: 'Pending task',
+            fields: {
+              'microsoftStartDateTime': '2026-08-10',
+              if (deadline) 'microsoftDueDateTime': '2026-08-11',
+            },
+          ),
+        );
+        await reopen();
+        final task = await database.select(database.tasks).getSingle();
+        expect(
+          taskDeadlineAsLocal(task),
+          deadline ? DateTime(2026, 8, 11) : isNull,
+        );
+        expect(await database.select(database.pendingOps).get(), hasLength(1));
+        if (deadline) {
+          await tasksRepository.patchTask(
+            _taskListId,
+            task.id,
+            const TaskPatchInput({'microsoftDueDateTime': null}),
+          );
+          await reopen();
+          final cleared = await database.select(database.tasks).getSingle();
+          expect(taskDeadlineAsLocal(cleared), isNull);
+          expect(taskDueAsLocal(cleared), DateTime(2026, 8, 10));
+        }
+      },
+    );
+  }
+
+  test('pending DAV recurring completion advances the active projection before replay', () async {
+    await usePersistentFixture();
+    await tasksRepository.createTask(
+      _taskListId,
+      const TaskCreateInput(
+        title: 'Pending recurring',
+        fields: {
+          'microsoftDueDateTime': '2026-08-10',
+          'recurrence': {
+            'rules': ['FREQ=DAILY;COUNT=2'],
+            'dates': <String>[],
+            'excludedDates': <String>[],
+          },
+        },
+      ),
+    );
+    final task = await database.select(database.tasks).getSingle();
+    await tasksRepository.patchTask(
+      _taskListId,
+      task.id,
+      const TaskPatchInput({'status': 'completed'}),
+    );
+    await reopen();
+    final next = await database.select(database.tasks).getSingle();
+    expect(next.status, 'needsAction');
+    expect(taskDeadlineAsLocal(next), DateTime(2026, 8, 11));
+    expect(await database.select(database.pendingOps).get(), hasLength(1));
   });
 
   for (final following in [false, true]) {
@@ -272,6 +342,22 @@ void main() {
           exhausted ? 'completed' : 'needsAction',
         );
         if (exhausted) {
+          final editedCompletion = DateTime.utc(2026, 8, 8, 7);
+          await tasksRepository.patchTask(
+            _taskListId,
+            masterId,
+            TaskPatchInput({
+              'completedAtUtc': editedCompletion.toIso8601String(),
+            }),
+          );
+          expect(
+            DateTime.parse(
+              (await database.select(database.tasks).get())
+                  .singleWhere((row) => row.id == masterId)
+                  .completedUtc!,
+            ),
+            editedCompletion,
+          );
           await tasksRepository.patchTask(
             _taskListId,
             masterId,
@@ -283,6 +369,26 @@ void main() {
                 .status,
             isNot('completed'),
           );
+          await reopen();
+          final taskTrees = await database.tasksDao.watchAllTaskTrees([
+            _accountId,
+          ]).first;
+          expect(
+            taskTrees.where(
+              (row) => !['completed', 'cancelled'].contains(row.task.status),
+            ),
+            hasLength(1),
+          );
+          final openItems = await ScheduleRepository(database).listItems(
+            range: ScheduleRange(
+              start: DateTime(2026, 8),
+              end: DateTime(2026, 9),
+            ),
+            filters: const ScheduleFilters(
+              taskCompletion: ScheduleTaskCompletion.open,
+            ),
+          );
+          expect(openItems.whereType<TaskScheduleItem>(), hasLength(1));
           await tasksRepository.patchTask(
             _taskListId,
             masterId,

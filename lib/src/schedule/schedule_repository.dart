@@ -381,7 +381,9 @@ class ScheduleRepository {
       query.where(_taskListFilter(filters.taskListKeys));
     }
 
-    final rows = await query.get();
+    final rows = (await query.get())
+        .where((row) => isVisibleTaskProjection(row.readTable(_database.tasks)))
+        .toList();
     if (rows.isEmpty) return List<ScheduleItem>.of(items);
 
     final tasks = <Task>[];
@@ -735,7 +737,9 @@ class ScheduleRepository {
           _database.tasks.davCollectionId.isNotNull();
       query.where(filters.showNoDateTasks ? inRange | _taskNoDate() : inRange);
     }
-    final rows = await query.get();
+    final rows = (await query.get())
+        .where((row) => isVisibleTaskProjection(row.readTable(_database.tasks)))
+        .toList();
     final hierarchy = await _taskHierarchy(rows);
     final items = <ScheduleItem>[];
     for (final row in rows) {
@@ -851,7 +855,9 @@ class ScheduleRepository {
       OrderingTerm.asc(_database.tasks.title),
     ]);
 
-    final rows = await query.get();
+    final rows = (await query.get())
+        .where((row) => isVisibleTaskProjection(row.readTable(_database.tasks)))
+        .toList();
     final hierarchy = await _taskHierarchy(rows);
     final items = <TaskScheduleItem>[];
     for (final row in rows) {

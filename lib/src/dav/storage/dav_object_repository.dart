@@ -24,6 +24,26 @@ const davRawObjectParserVersion = 1;
 const davProjectionVersion = 6;
 const davSyncStateSchemaVersion = 1;
 
+/// Shared temporal projection for synchronized and queued DAV task resources.
+Map<String, Object?> davTaskTemporalMetadata({
+  required IcalTemporalValue? start,
+  required IcalTemporalValue? due,
+  required IcalTimeZoneResolver timeZoneResolver,
+}) {
+  final startUtc = start == null
+      ? null
+      : _resolvedTemporalUtc(start, timeZoneResolver);
+  final dueUtc = due == null
+      ? null
+      : _resolvedTemporalUtc(due, timeZoneResolver);
+  return {
+    if (start != null) 'nativeStart': _temporalJson(start),
+    if (due != null) 'nativeDue': _temporalJson(due),
+    if (startUtc != null) 'startUtc': startUtc.toIso8601String(),
+    if (dueUtc != null) 'dueUtc': dueUtc.toIso8601String(),
+  };
+}
+
 Map<String, Object?> nextcloudParticipantProjection(
   Map<String, Object?> raw,
   NextcloudSchedulingPolicy policy,
@@ -1376,6 +1396,7 @@ final class DavObjectRepository {
     );
     final timeZoneResolver = IcalTimeZoneResolver.fromDocument(semantic);
     final now = commit.completedAtUtc.toUtc().toIso8601String();
+    final currentHistory = davTaskCurrentInstanceHistory(semantic, master);
     for (final component in semantic.components) {
       final componentId =
           componentIds[_componentKey(
@@ -1415,19 +1436,20 @@ final class DavObjectRepository {
         due: due,
         timeZoneResolver: timeZoneResolver,
       );
-      final startUtc = start == null
-          ? null
-          : _resolvedTemporalUtc(start, timeZoneResolver);
-      final dueUtc = due == null
-          ? null
-          : _resolvedTemporalUtc(due, timeZoneResolver);
       final metadata = {
         'transport': 'caldav',
         'uid': component.uid,
-        if (start != null) 'nativeStart': _temporalJson(start),
-        if (due != null) 'nativeDue': _temporalJson(due),
-        if (startUtc != null) 'startUtc': startUtc.toIso8601String(),
-        if (dueUtc != null) 'dueUtc': dueUtc.toIso8601String(),
+        if (component == currentHistory &&
+            (component.taskUiState == IcalTaskUiState.open ||
+                component.taskUiState == IcalTaskUiState.inProgress) &&
+            (master.taskUiState == IcalTaskUiState.open ||
+                master.taskUiState == IcalTaskUiState.inProgress))
+          'representedByMaster': true,
+        ...davTaskTemporalMetadata(
+          start: start,
+          due: due,
+          timeZoneResolver: timeZoneResolver,
+        ),
         if (component.recurrenceId != null)
           'recurrenceId': _temporalJson(component.recurrenceId!),
         'alarms': _alarmProjection(alarms),

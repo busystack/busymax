@@ -10,6 +10,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../dav/ical/ical_document.dart';
 import '../../../dav/ical/ical_semantics.dart';
+import '../../../dav/ical/ical_timezone.dart';
 import '../../../dav/mutation/dav_conditional_mutation_service.dart';
 import '../../../dav/mutation/dav_mutation_patch.dart';
 import '../../../dav/mutation/dav_pending_operations.dart';
@@ -1128,15 +1129,20 @@ class TasksRepository {
       idFactory: _uuid.v4,
       nowUtc: _nowUtc,
     );
-    final sortOrder = nextcloudTaskSortOrder(
-      IcalSemanticDocument.parse(object.rawIcs).components.single,
-    );
+    final semantic = IcalSemanticDocument.parse(object.rawIcs);
+    final master = semantic.components.single;
+    final sortOrder = nextcloudTaskSortOrder(master);
     final now = _now();
     final localId = 'dav-local-task-${_uuid.v4()}';
     final metadata = jsonEncode({
       'transport': 'caldav',
       'uid': object.uid,
       'localPendingCreate': true,
+      ...davTaskTemporalMetadata(
+        start: master.start,
+        due: master.due,
+        timeZoneResolver: IcalTimeZoneResolver.fromDocument(semantic),
+      ),
     });
     await _database.transaction(() async {
       await _database.tasksDao.upsertTask(
@@ -1245,9 +1251,10 @@ class TasksRepository {
       parentUid: parentUid,
       nowUtc: _nowUtc(),
     );
-    final duplicatedMaster = IcalSemanticDocument.parse(duplicatedRaw)
-        .components
-        .singleWhere((component) => component.recurrenceIdKey == null);
+    final duplicatedSemantic = IcalSemanticDocument.parse(duplicatedRaw);
+    final duplicatedMaster = duplicatedSemantic.components.singleWhere(
+      (component) => component.recurrenceIdKey == null,
+    );
     final sortOrder = nextcloudTaskSortOrder(duplicatedMaster);
     final localId = 'dav-local-task-${_uuid.v4()}';
     final metadata = jsonEncode({
@@ -1255,6 +1262,11 @@ class TasksRepository {
       'uid': newUid,
       'localPendingCreate': true,
       'duplicatedFromUid': sourceUid,
+      ...davTaskTemporalMetadata(
+        start: duplicatedMaster.start,
+        due: duplicatedMaster.due,
+        timeZoneResolver: IcalTimeZoneResolver.fromDocument(duplicatedSemantic),
+      ),
     });
     final now = _now();
     late final String operationId;
@@ -1421,6 +1433,66 @@ class TasksRepository {
       }
       if (objectId == null) {
         await _patchLocalTask(taskList.id, task.id, fields, now);
+        final currentCreate = await _pendingDavCreateForProjection(task.id);
+        if (currentCreate == null) {
+          throw StateError('The pending DAV task create is unavailable.');
+        }
+        final semantic = IcalSemanticDocument.parse(
+          _pendingDavCreateRawIcs(currentCreate),
+        );
+        final master = semantic.components.singleWhere(
+          (component) =>
+              component.componentType == 'VTODO' &&
+              component.uid == uid &&
+              component.recurrenceId == null,
+        );
+        final metadata =
+            Map<String, Object?>.from(
+                jsonDecode(task.providerMetadataJson!) as Map,
+              )
+              ..remove('nativeStart')
+              ..remove('nativeDue')
+              ..remove('startUtc')
+              ..remove('dueUtc');
+        metadata.addAll(
+          davTaskTemporalMetadata(
+            start: master.start,
+            due: master.due,
+            timeZoneResolver: IcalTimeZoneResolver.fromDocument(semantic),
+          ),
+        );
+        final metadataJson = jsonEncode(metadata);
+        final temporal = _davNativeTaskFields(metadataJson);
+        final history = completedDavTaskCurrentInstance(semantic, master);
+        final state = history?.taskUiState ?? master.taskUiState;
+        final completed = history?.completed ?? master.completed;
+        await _writeLocalTask(
+          taskList.id,
+          task.id,
+          TasksCompanion(
+            providerMetadataJson: Value(metadataJson),
+            status: Value(switch (state) {
+              IcalTaskUiState.open => 'needsAction',
+              IcalTaskUiState.inProgress => 'inProcess',
+              IcalTaskUiState.completed => 'completed',
+              IcalTaskUiState.cancelled => 'cancelled',
+            }),
+            providerStatus: Value(
+              history != null ? 'COMPLETED' : master.status,
+            ),
+            percentComplete: Value(
+              history != null ? 100 : master.percentComplete,
+            ),
+            completedUtc: Value(
+              completed?.localValue.toUtc().toIso8601String(),
+            ),
+            dueUtc: Value(temporal.dueDateTime ?? temporal.startDateTime),
+            microsoftDueDateTime: Value(temporal.dueDateTime),
+            microsoftDueTimeZone: Value(temporal.dueTimeZone),
+            microsoftStartDateTime: Value(temporal.startDateTime),
+            microsoftStartTimeZone: Value(temporal.startTimeZone),
+          ),
+        );
       } else {
         final account = await (_database.select(
           _database.accounts,
@@ -2797,6 +2869,7 @@ class TasksRepository {
   }
 
   bool _matchesFilter(Task row, TaskViewFilter filter, {TaskList? taskList}) {
+    if (!isVisibleTaskProjection(row)) return false;
     if (!filter.showCompleted && row.status == 'completed') {
       return false;
     }
@@ -3131,16 +3204,19 @@ DavMutationPatch? _buildDavTaskMutationPatch({
         component.uid == target.uid &&
         component.recurrenceIdKey == null,
   );
-  if (master != null &&
-      completedDavTaskCurrentInstance(prepared, master) != null) {
+  final completedHistory = master == null
+      ? null
+      : completedDavTaskCurrentInstance(prepared, master);
+  final completedAt = _requestedDavCompletionDate(fields);
+  if (completedHistory != null && completedAt == null) {
     return preceding;
   }
   if (master == null ||
       master.recurrenceRules.isEmpty ||
-      master.taskUiState == IcalTaskUiState.completed) {
+      (master.taskUiState == IcalTaskUiState.completed &&
+          completedHistory == null)) {
     return regular(fields);
   }
-  final completedAt = _requestedDavCompletionDate(fields);
   final completion = buildDavRecurringTaskCompletionPatch(
     target: target,
     baselineRawIcs: preparedRawIcs,

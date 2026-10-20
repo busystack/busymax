@@ -1,5 +1,19 @@
 part of '../app_database.dart';
 
+/// A reopened current recurrence uses the master's stable task identity. Its
+/// detached history remains cached, without a second active task or reminder.
+bool isVisibleTaskProjection(Task task) {
+  if (task.recurrenceIdKey == null) return true;
+  final source = task.providerMetadataJson;
+  if (source == null) return true;
+  try {
+    final metadata = jsonDecode(source);
+    return metadata is! Map || metadata['representedByMaster'] != true;
+  } on FormatException {
+    return true;
+  }
+}
+
 @DriftAccessor(tables: [Accounts, DavCollections, TaskLists, Tasks])
 class TasksDao extends DatabaseAccessor<AppDatabase> with _$TasksDaoMixin {
   TasksDao(super.db);
@@ -31,7 +45,11 @@ class TasksDao extends DatabaseAccessor<AppDatabase> with _$TasksDaoMixin {
             OrderingTerm.asc(tasks.title),
           ]);
     return query.watch().map(
-      (rows) => [for (final row in rows) row.readTable(tasks)],
+      (rows) => [
+        for (final row in rows)
+          if (isVisibleTaskProjection(row.readTable(tasks)))
+            row.readTable(tasks),
+      ],
     );
   }
 
@@ -82,11 +100,12 @@ class TasksDao extends DatabaseAccessor<AppDatabase> with _$TasksDaoMixin {
     return query.watch().map((rows) {
       return [
         for (final row in rows)
-          TaskWithContextRow(
-            task: row.readTable(tasks),
-            taskList: row.readTable(taskLists),
-            account: row.readTable(accounts),
-          ),
+          if (isVisibleTaskProjection(row.readTable(tasks)))
+            TaskWithContextRow(
+              task: row.readTable(tasks),
+              taskList: row.readTable(taskLists),
+              account: row.readTable(accounts),
+            ),
       ];
     });
   }

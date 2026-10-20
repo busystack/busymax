@@ -1059,6 +1059,14 @@ IcalSemanticComponent? completedDavTaskCurrentInstance(
   IcalSemanticDocument document,
   IcalSemanticComponent master,
 ) {
+  final history = davTaskCurrentInstanceHistory(document, master);
+  return history?.taskUiState == IcalTaskUiState.completed ? history : null;
+}
+
+IcalSemanticComponent? davTaskCurrentInstanceHistory(
+  IcalSemanticDocument document,
+  IcalSemanticComponent master,
+) {
   if (master.componentType != 'VTODO' ||
       master.recurrenceId != null ||
       master.taskUiState == IcalTaskUiState.cancelled ||
@@ -1071,8 +1079,7 @@ IcalSemanticComponent? completedDavTaskCurrentInstance(
   for (final component in document.components) {
     if (component.componentType == 'VTODO' &&
         component.uid == master.uid &&
-        component.recurrenceIdKey == identity &&
-        component.taskUiState == IcalTaskUiState.completed) {
+        component.recurrenceIdKey == identity) {
       return component;
     }
   }
