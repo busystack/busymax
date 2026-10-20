@@ -65,6 +65,144 @@ void main() {
     await database.close();
   });
 
+  test('a further reminder change between checked GET and PATCH is protected by the checked ETag', () async {
+    Map<String, Object?> reminders(int minutes) => {
+      'useDefault': false,
+      'overrides': [
+        {'method': 'popup', 'minutes': minutes},
+      ],
+    };
+    Map<String, Object?> resource(int minutes, String etag) => {
+      'id': 'reminder-race',
+      'summary': 'Reminder',
+      'organizer': {'self': true},
+      'start': {'dateTime': '2026-06-08T09:00:00Z', 'timeZone': 'UTC'},
+      'end': {'dateTime': '2026-06-08T10:00:00Z', 'timeZone': 'UTC'},
+      'updated': '2026-06-08T00:00:00Z',
+      'etag': etag,
+      'reminders': reminders(minutes),
+    };
+    final repository = CalendarRepository(database: database);
+    await repository.upsertEvent(
+      accountId: 'account',
+      event: googleCalendarEventFromJson('cal-1', resource(10, '"baseline"')),
+    );
+    final local = await database.select(database.calendarEvents).getSingle();
+    await repository.updateLocalEvent(
+      EventEditorDraft.fromEventDetail(
+        (await repository.loadEventDetail(local.id))!,
+      ).copyWith(reminders: reminders(30)),
+    );
+    var remote = resource(10, '"checked"');
+    var patches = 0;
+    final api = GoogleCalendarApiClient(
+      baseUri: Uri.parse('https://www.googleapis.com'),
+      httpClient: MockClient((request) async {
+        if (request.method == 'GET') {
+          return http.Response(jsonEncode(remote), 200);
+        }
+        expect(request.method, 'PATCH');
+        expect(request.headers['if-match'], '"checked"');
+        expect(jsonDecode(request.body)['reminders'], reminders(30));
+        remote = resource(15, '"changed-after-get"');
+        patches++;
+        return http.Response(
+          '{"error":{"status":"PRECONDITION_FAILED","message":"ETag changed"}}',
+          412,
+        );
+      }),
+    );
+    expect(
+      await CalendarPendingOpsReplayer(
+        database: database,
+        client: api,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 8),
+      ).replayDueOps(),
+      0,
+    );
+    expect(patches, 1);
+    expect(remote['reminders'], reminders(15));
+    final pending = await database.select(database.pendingOps).getSingle();
+    expect(pending.lastErrorCode, 'conflict');
+    expect(jsonDecode(pending.requestJson)['remindersJson'], reminders(30));
+  });
+
+  for (final conflictingReminder in [false, true]) {
+    test(
+      'Google reminder edits protect the baseline (remote reminder conflict: $conflictingReminder)',
+      () async {
+        Map<String, Object?> reminders(int minutes) => {
+          'useDefault': false,
+          'overrides': [
+            {'method': 'popup', 'minutes': minutes},
+          ],
+        };
+        final repository = CalendarRepository(database: database);
+        final baseline = client._event(
+          'reminder-event',
+          title: 'Base',
+          organizerJson: {'self': true},
+          remindersJson: reminders(10),
+          etagOrChangeKey: '"baseline"',
+        );
+        await repository.upsertEvent(accountId: 'account', event: baseline);
+        final detail = (await repository.loadEventDetail(
+          CalendarRepository.eventId(
+            accountId: 'account',
+            provider: BusyProvider.google,
+            providerCalendarId: 'cal-1',
+            providerEventId: 'reminder-event',
+          ),
+        ))!;
+        await repository.updateLocalEvent(
+          EventEditorDraft.fromEventDetail(detail)
+              .copyWith(reminders: reminders(30)),
+        );
+        client.remoteEvent = client._event(
+          'reminder-event',
+          title: 'Base',
+          organizerJson: {'self': true},
+          description: conflictingReminder ? null : 'Remote description',
+          remindersJson: reminders(conflictingReminder ? 15 : 10),
+          etagOrChangeKey: '"checked"',
+          updatedAtServer: conflictingReminder
+              ? baseline.updatedAtServer!
+              : '2026-06-08T00:01:00.000Z',
+        );
+        client.persistEventUpdates = true;
+        final applied = await CalendarPendingOpsReplayer(
+          database: database,
+          client: client,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 9),
+        ).replayDueOps();
+        if (conflictingReminder) {
+          expect(applied, 0);
+          expect(client.updatedMutations, isEmpty);
+          expect(
+            (await database.select(database.pendingOps).getSingle())
+                .lastErrorCode,
+            'conflict',
+          );
+          expect(client.remoteEvent!.remindersJson, reminders(15));
+          expect(
+            jsonDecode(
+              (await database.select(database.calendarEvents).getSingle())
+                  .remindersJson!,
+            ),
+            reminders(30),
+          );
+        } else {
+          expect(applied, 1);
+          expect(client.ifMatches, ['"checked"']);
+          expect(client.updatedMutations.single.description, isNull);
+          expect(client.remoteEvent!.description, 'Remote description');
+        }
+      },
+    );
+  }
+
   test('guarded timing edit replays exact endpoints and guest policy without moving ownership', () async {
     final repository = CalendarRepository(database: database);
     final id = await _insertEvent(

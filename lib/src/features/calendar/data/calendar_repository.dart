@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
+import 'package:timezone/timezone.dart' as time_zone;
 
 import '../../../calendar_providers/calendar_colors.dart';
 import '../../../calendar_providers/calendar_description.dart';
@@ -4777,10 +4778,35 @@ class CalendarRepository {
     required String accountId,
     required String providerCalendarId,
     required String providerEventId,
+  }) => _markRemovedEventDeleted(
+    accountId: accountId,
+    provider: BusyProvider.microsoft,
+    providerCalendarId: providerCalendarId,
+    providerEventId: providerEventId,
+  );
+
+  /// Google deleted resources may only carry an ID, without the cached
+  /// occurrence's originalStartTime. Retire that scoped identity in place.
+  Future<void> markGoogleRemovedEventDeleted({
+    required String accountId,
+    required String providerCalendarId,
+    required String providerEventId,
+  }) => _markRemovedEventDeleted(
+    accountId: accountId,
+    provider: BusyProvider.google,
+    providerCalendarId: providerCalendarId,
+    providerEventId: providerEventId,
+  );
+
+  Future<void> _markRemovedEventDeleted({
+    required String accountId,
+    required BusyProvider provider,
+    required String providerCalendarId,
+    required String providerEventId,
   }) async {
     final scopedSourceId = sourceId(
       accountId: accountId,
-      provider: BusyProvider.microsoft,
+      provider: provider,
       providerCalendarId: providerCalendarId,
     );
     await _database.transaction(() async {
@@ -4789,14 +4815,16 @@ class CalendarRepository {
                 (row) =>
                     row.accountId.equals(accountId) &
                     row.calendarSourceId.equals(scopedSourceId) &
-                    row.provider.equals(BusyProvider.microsoft.storageValue) &
+                    row.provider.equals(provider.storageValue) &
                     row.providerEventId.equals(providerEventId) &
                     row.isDeleted.equals(false),
               ))
               .get();
       if (matches.isEmpty) return;
       if (matches.length != 1) {
-        throw StateError('Ambiguous Microsoft event removal identity.');
+        throw StateError(
+          'Ambiguous ${provider.displayName} event removal identity.',
+        );
       }
       final match = matches.single;
       if (match.syncStatus != 'synced') return;
@@ -5597,6 +5625,14 @@ Map<String, Object?> _eventRequest(
 
 String? _eventDateTimeWireValue(DateTime? value, String? timeZone) {
   if (value == null) return null;
+  if (value is time_zone.TZDateTime && value.location.name == timeZone) {
+    // Calculated import endpoints can land in the second autumn hour. A
+    // civil string alone would resolve to the first occurrence of that hour.
+    return value.toIso8601String().replaceFirstMapped(
+      RegExp(r'([+-]\d{2})(\d{2})$'),
+      (match) => '${match[1]}:${match[2]}',
+    );
+  }
   if (isUtcTimeZone(timeZone)) {
     return DateTime.utc(
       value.year,

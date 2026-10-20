@@ -408,6 +408,16 @@ class CalendarSyncEngine {
     final expandedRecurringMasterIds = <String>{};
     while (true) {
       for (final event in page.events) {
+        if (provider == BusyProvider.google &&
+            event.isDeleted &&
+            event.providerOriginalStartKey == null) {
+          await _repository.markGoogleRemovedEventDeleted(
+            accountId: _accountId,
+            providerCalendarId: providerCalendarId,
+            providerEventId: event.providerEventId,
+          );
+          continue;
+        }
         if (provider == BusyProvider.microsoft && event.isDeleted) {
           // A calendar-view delta removal describes membership in this view,
           // not necessarily deletion of the event in the mailbox. Resolve it

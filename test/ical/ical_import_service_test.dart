@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:busymax/src/core/time/provider_date_time.dart';
+
 import 'package:busymax/src/calendar_providers/calendar_mutation.dart';
 import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
 import 'package:busymax/src/calendar_providers/cloud_calendar_client.dart';
@@ -44,6 +46,133 @@ void main() {
   });
 
   tearDown(() async => database.close());
+
+  for (final durationProvider in [
+    BusyProvider.google,
+    BusyProvider.microsoft,
+  ]) {
+    for (final example in [
+      ('20260308T013000', 'PT2H', DateTime.utc(2026, 3, 8, 11, 30)),
+      ('20260308T013000', 'P1D', DateTime.utc(2026, 3, 9, 8, 30)),
+      ('20260308T013000', 'PT24H', DateTime.utc(2026, 3, 9, 9, 30)),
+      ('20261101T003000', 'PT2H', DateTime.utc(2026, 11, 1, 9, 30)),
+      ('20261101T003000', 'P1D', DateTime.utc(2026, 11, 2, 8, 30)),
+      ('20261101T003000', 'PT24H', DateTime.utc(2026, 11, 2, 7, 30)),
+    ]) {
+      test(
+        '$durationProvider conversion import resolves ${example.$1} + ${example.$2} in the event zone',
+        () async {
+          if (durationProvider == BusyProvider.microsoft) {
+            await _seedMicrosoftDestination(database);
+          }
+          final preview = importService.parsePreview(
+            utf8.encode(
+              [
+                'BEGIN:VCALENDAR',
+                'VERSION:2.0',
+                'PRODID:-//BusyMax Test//EN',
+                'BEGIN:VEVENT',
+                'UID:dst-duration',
+                'SUMMARY:Duration',
+                'DTSTART;TZID=America/Vancouver:${example.$1}',
+                'DURATION:${example.$2}',
+                'END:VEVENT',
+                'END:VCALENDAR',
+                '',
+              ].join('\r\n'),
+            ),
+          );
+          final report = await importService.importPreview(
+            preview: preview,
+            destination: (await importService.writableDestinations())
+                .singleWhere((source) => source.provider == durationProvider),
+          );
+          expect(report.queued, 1);
+          final request = jsonDecode(
+            (await database.select(database.pendingOps).getSingle())
+                .requestJson,
+          ) as Map;
+          expect(
+            providerDateTimeAsUtcInstant(
+              request['end'] as String,
+              request['endTimeZone'] as String,
+            ),
+            example.$3,
+          );
+          expect(request['startTimeZone'], 'America/Vancouver');
+          if (durationProvider == BusyProvider.microsoft) {
+            final payload = microsoftEventMutationToJson(
+              CalendarEventMutation(
+                endDateTime: request['end'] as String,
+                endTimeZone: request['endTimeZone'] as String,
+              ),
+            );
+            final wireEnd = payload['end'] as Map;
+            expect(
+              providerDateTimeAsUtcInstant(
+                wireEnd['dateTime'] as String,
+                wireEnd['timeZone'] as String,
+              ),
+              example.$3,
+            );
+          } else {
+            expect(request['endTimeZone'], 'America/Vancouver');
+            Map<String, Object?>? sent;
+            final api = GoogleCalendarApiClient(
+              baseUri: Uri.parse('https://www.googleapis.com'),
+              httpClient: MockClient((httpRequest) async {
+                if (httpRequest.method == 'GET') {
+                  return http.Response('{"items":[]}', 200);
+                }
+                expect(httpRequest.method, 'POST');
+                expect(httpRequest.url.path, endsWith('/events/import'));
+                sent = Map<String, Object?>.from(
+                  jsonDecode(httpRequest.body) as Map,
+                );
+                return http.Response(
+                  jsonEncode({
+                    ...sent!,
+                    'id': 'imported-duration',
+                    'etag': '"created"',
+                    'updated': '2026-08-29T00:00:00Z',
+                  }),
+                  200,
+                );
+              }),
+            );
+            expect(
+              await CalendarPendingOpsReplayer(
+                database: database,
+                client: api,
+                accountId: 'google-account',
+                nowUtc: () => DateTime.utc(2026, 8, 29),
+              ).replayDueOps(),
+              1,
+            );
+            final end = sent!['end'] as Map;
+            // Google permits a wall timestamp when timeZone is supplied;
+            // an explicit numeric offset must still use RFC 3339 syntax.
+            expect(end['timeZone'], 'America/Vancouver');
+            expect(
+              end['dateTime'],
+              matches(
+                RegExp(
+                  r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?$',
+                ),
+              ),
+            );
+            expect(
+              providerDateTimeAsUtcInstant(
+                end['dateTime'] as String,
+                end['timeZone'] as String,
+              ),
+              example.$3,
+            );
+          }
+        },
+      );
+    }
+  }
 
   test(
     'exported sparse Google all-day cancellation imports its original date',

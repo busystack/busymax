@@ -1974,8 +1974,15 @@ class CalendarPendingOpsReplayer {
       eventId: await _providerEventId(op, local),
     );
     final currentUpdatedUtc = _parseUtc(current.updatedAtServer);
-    if (currentUpdatedUtc == null ||
-        !currentUpdatedUtc.isAfter(baselineUpdatedUtc)) {
+    final mainDataAdvanced =
+        currentUpdatedUtc != null &&
+        currentUpdatedUtc.isAfter(baselineUpdatedUtc);
+    // Google reminder changes update the ETag without advancing `updated`.
+    // Compare the fields being written against the user's baseline before
+    // using the fetched ETag to protect the checked revision at PATCH time.
+    if (!mainDataAdvanced &&
+        (_client.provider != BusyProvider.google ||
+            !request.containsKey('remindersJson'))) {
       return current;
     }
     final baseline = _eventBaselineSnapshot(
@@ -1984,7 +1991,7 @@ class CalendarPendingOpsReplayer {
     );
     final remote = _semanticSnapshot(_client.provider, current.rawJson);
     final changed = _changedSemanticFields(
-      request,
+      mainDataAdvanced ? request : {'remindersJson': request['remindersJson']},
       baseline,
       remote,
       _client.provider,
