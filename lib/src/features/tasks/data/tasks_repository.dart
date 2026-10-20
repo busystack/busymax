@@ -3131,6 +3131,10 @@ DavMutationPatch? _buildDavTaskMutationPatch({
         component.uid == target.uid &&
         component.recurrenceIdKey == null,
   );
+  if (master != null &&
+      completedDavTaskCurrentInstance(prepared, master) != null) {
+    return preceding;
+  }
   if (master == null ||
       master.recurrenceRules.isEmpty ||
       master.taskUiState == IcalTaskUiState.completed) {

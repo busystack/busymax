@@ -16,7 +16,7 @@ import 'package:busymax/src/features/notifications/notification_schedule_service
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/schedule/schedule_range.dart';
 import 'package:busymax/src/schedule/schedule_repository.dart';
-import 'package:drift/drift.dart';
+import 'package:drift/drift.dart' hide isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -37,6 +37,107 @@ void main() {
   });
 
   tearDown(() => database.close());
+
+  test('period RDATE survives DAV ingestion, late overlap and end-relative reminders', () async {
+    const href = '/remote.php/dav/calendars/alex/work/period.ics';
+    final raw = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//BusyMax Test//EN',
+      'BEGIN:VEVENT',
+      'UID:period',
+      'SUMMARY:Long occurrence',
+      'DTSTART:20260809T090000Z',
+      'DURATION:PT1H',
+      'RDATE;VALUE=PERIOD:20260810T090000Z/PT3H',
+      'BEGIN:VALARM',
+      'ACTION:DISPLAY',
+      'DESCRIPTION:End reminder',
+      'TRIGGER;RELATED=END:-PT30M',
+      'END:VALARM',
+      'END:VEVENT',
+      'END:VCALENDAR',
+      '',
+    ].join('\r\n');
+    final prepared = DavPreparedObject.parse(
+      hrefKey: href,
+      requestUri: Uri.parse('https://cloud.example.test$href'),
+      etag: '"period"',
+      contentType: 'text/calendar',
+      rawIcsBody: raw,
+    );
+    await repository.commit(
+      _commit(objects: [prepared], membership: {href}, cursor: 'period'),
+    );
+    expect(
+      (await database.select(database.davObjects).getSingle()).rawIcsBody,
+      raw,
+    );
+    final items = await ScheduleRepository(database).listItems(
+      range: ScheduleRange(
+        start: DateTime.utc(2026, 8, 10, 11).toLocal(),
+        end: DateTime.utc(2026, 8, 10, 13).toLocal(),
+      ),
+    );
+    expect(items, hasLength(1));
+    expect(items.single.end?.toUtc(), DateTime.utc(2026, 8, 10, 12));
+    await NotificationScheduleService(
+      database: database,
+      nowUtc: () => DateTime.utc(2026, 8, 8),
+    ).rebuildUpcomingEventNotifications('account');
+    final event = (await database.select(database.calendarEvents).get())
+        .singleWhere((row) => row.startDateTime!.startsWith('2026-08-10'));
+    final notification =
+        (await database.select(database.notificationSchedule).get())
+            .singleWhere((row) => row.sourceId == event.id);
+    expect(
+      DateTime.fromMillisecondsSinceEpoch(
+        notification.scheduledAtUtc,
+        isUtc: true,
+      ),
+      DateTime.utc(2026, 8, 10, 11, 30),
+    );
+  });
+
+  for (final deadlines in [false, true]) {
+    test(
+      'desktop summary distinguishes a real DAV deadline from a start fallback ($deadlines)',
+      () async {
+        await _importNotificationTask(
+          repository,
+          due: deadlines
+              ? 'DTSTART;VALUE=DATE:20260809\r\nDUE;VALUE=DATE:20260809'
+              : 'DTSTART;VALUE=DATE:20260809',
+        );
+        final stored = await database.select(database.tasks).getSingle();
+        expect(stored.dueUtc, isNotNull);
+        expect(
+          jsonDecode(stored.providerMetadataJson!)['nativeStart'],
+          isNotNull,
+        );
+        final backend = RecordingNotificationBackend();
+        final scheduler = DueTodayNotificationScheduler(
+          database: database,
+          settings: () => AppSettings.defaults().copyWith(notifyDueToday: true),
+          activeAccountId: () => 'account',
+          notifications: () => DesktopNotificationService(
+            backend: backend,
+            settings: AppSettings.defaults().copyWith(notifyDueToday: true),
+          ),
+          markNotified: (_) async {},
+          now: () => DateTime(2026, 8, 9, 9),
+        );
+        addTearDown(scheduler.stop);
+        await scheduler.checkNow();
+        expect(backend.requests, hasLength(deadlines ? 1 : 0));
+        expect(
+          await ScheduleRepository(database)
+              .listItems(range: ScheduleRange.day(DateTime(2026, 8, 9))),
+          hasLength(1),
+        );
+      },
+    );
+  }
 
   for (final due in [
     (property: 'DUE;VALUE=DATE:20260809', local: DateTime(2026, 8, 9)),
@@ -169,13 +270,21 @@ void main() {
         isTrue,
       );
       expect(
-        events.every(
-          (event) =>
-              event.remindersJson?.contains('"minutes":[10,5,30]') ?? false,
-        ),
+        events
+            .where((event) => event.title != 'Moved')
+            .every(
+              (event) =>
+                  event.remindersJson?.contains('"minutes":[10,5,30]') ?? false,
+            ),
         isTrue,
       );
       expect(events.first.remindersJson, contains('AUDIO'));
+      expect(
+        jsonDecode(
+          events.singleWhere((event) => event.title == 'Moved').remindersJson!,
+        )['alarms'],
+        isEmpty,
+      );
       expect(
         events.every(
           (event) => event.projectionVersion == davProjectionVersion,

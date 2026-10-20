@@ -974,6 +974,75 @@ DavMutationPatch? buildDavTaskUpdatePatch({
   operations
     ..add(DavPatchOperation.setRaw('LAST-MODIFIED', timestamp))
     ..add(DavPatchOperation.setRaw('DTSTAMP', timestamp));
+  if (target.recurrenceIdKey == null &&
+      fields.keys.any(
+        const {
+          'status',
+          'taskStatus',
+          'percentComplete',
+          'completedAtUtc',
+          'completed',
+        }.contains,
+      )) {
+    final history = completedDavTaskCurrentInstance(semantic, component);
+    if (history != null) {
+      final masterPatch = DavMutationPatch(
+        target: target,
+        scope: DavMutationScope.recurrenceMaster,
+        operations: operations,
+      );
+      final updatedMaster =
+          IcalSemanticDocument.parse(
+            masterPatch.applyTo(
+              baselineRawIcs,
+              nowUtc: (nowUtc ?? DateTime.now)(),
+            ),
+          ).components.singleWhere(
+            (value) =>
+                value.componentType == 'VTODO' &&
+                value.uid == target.uid &&
+                value.recurrenceId == null,
+          );
+      if (updatedMaster.taskUiState == IcalTaskUiState.open ||
+          updatedMaster.taskUiState == IcalTaskUiState.inProgress) {
+        final historyTarget = IcalComponentKey(
+          componentType: 'VTODO',
+          uid: target.uid,
+          recurrenceIdKey: history.recurrenceIdKey,
+        );
+        final historyPatch = buildDavTaskUpdatePatch(
+          target: historyTarget,
+          baselineRawIcs: baselineRawIcs,
+          fields: {
+            for (final key in [
+              'status',
+              'taskStatus',
+              'percentComplete',
+              'completedAtUtc',
+              'completed',
+            ])
+              if (fields.containsKey(key)) key: fields[key],
+          },
+          nowUtc: nowUtc,
+        )!;
+        final reopened =
+            IcalSemanticDocument.parse(
+              historyPatch.applyTo(
+                baselineRawIcs,
+                nowUtc: (nowUtc ?? DateTime.now)(),
+              ),
+            ).components.singleWhere(
+              (value) =>
+                  value.componentType == 'VTODO' &&
+                  value.uid == target.uid &&
+                  value.recurrenceIdKey == history.recurrenceIdKey,
+            );
+        operations
+          ..add(DavPatchOperation.removeComponent(componentKey: historyTarget))
+          ..add(DavPatchOperation.addComponent(reopened.documentComponent));
+      }
+    }
+  }
   return DavMutationPatch(
     target: target,
     scope: target.recurrenceIdKey == null
@@ -981,6 +1050,33 @@ DavMutationPatch? buildDavTaskUpdatePatch({
         : DavMutationScope.recurrenceException,
     operations: operations,
   );
+}
+
+/// Nextcloud retains the exhausted UNTIL master. Its current instance is
+/// already represented by completed history and must not become actionable
+/// again merely because the wire master itself is still open.
+IcalSemanticComponent? completedDavTaskCurrentInstance(
+  IcalSemanticDocument document,
+  IcalSemanticComponent master,
+) {
+  if (master.componentType != 'VTODO' ||
+      master.recurrenceId != null ||
+      master.taskUiState == IcalTaskUiState.cancelled ||
+      master.recurrenceRules.isEmpty) {
+    return null;
+  }
+  final current = master.due ?? master.start;
+  if (current == null) return null;
+  final identity = _nextcloudDetachedTemporal(current).key;
+  for (final component in document.components) {
+    if (component.componentType == 'VTODO' &&
+        component.uid == master.uid &&
+        component.recurrenceIdKey == identity &&
+        component.taskUiState == IcalTaskUiState.completed) {
+      return component;
+    }
+  }
+  return null;
 }
 
 /// Completes the current instance of a recurring VTODO while retaining an
@@ -1026,14 +1122,14 @@ DavMutationPatch buildDavRecurringTaskCompletionPatch({
   }
 
   final recurrenceId = _nextcloudDetachedTemporal(instance);
-  if (semantic.components.any(
-    (component) =>
-        component.componentType == 'VTODO' &&
-        component.uid == target.uid &&
-        component.recurrenceIdKey == recurrenceId.key,
-  )) {
-    throw _invalidMutation();
-  }
+  final existingHistory = semantic.components
+      .where(
+        (component) =>
+            component.componentType == 'VTODO' &&
+            component.uid == target.uid &&
+            component.recurrenceIdKey == recurrenceId.key,
+      )
+      .firstOrNull;
 
   final now = (nowUtc ?? (() => DateTime.now().toUtc()))().toUtc();
   final timestamp = _utcIcal(now);
@@ -1079,9 +1175,39 @@ DavMutationPatch buildDavRecurringTaskCompletionPatch({
     originalEndLine: 'END:VTODO',
     structurallyDirty: true,
   );
-  final operations = <DavPatchOperation>[
-    DavPatchOperation.addComponent(exception),
-  ];
+  final operations = <DavPatchOperation>[];
+  if (existingHistory == null) {
+    operations.add(DavPatchOperation.addComponent(exception));
+  } else {
+    // Re-completing an explicitly reopened final instance updates that same
+    // component, retaining its identity and unsupported provider content.
+    final historyTarget = IcalComponentKey(
+      componentType: 'VTODO',
+      uid: target.uid,
+      recurrenceIdKey: recurrenceId.key,
+    );
+    final historyPatch = buildDavTaskUpdatePatch(
+      target: historyTarget,
+      baselineRawIcs: baselineRawIcs,
+      fields: {'status': 'completed', 'completedAtUtc': completionTimestamp},
+      nowUtc: () => now,
+    )!;
+    final completedHistory =
+        IcalSemanticDocument.parse(
+          historyPatch.applyTo(
+            baselineRawIcs,
+            nowUtc: (nowUtc ?? DateTime.now)(),
+          ),
+        ).components.singleWhere(
+          (value) =>
+              value.componentType == 'VTODO' &&
+              value.uid == target.uid &&
+              value.recurrenceIdKey == recurrenceId.key,
+        );
+    operations
+      ..add(DavPatchOperation.removeComponent(componentKey: historyTarget))
+      ..add(DavPatchOperation.addComponent(completedHistory.documentComponent));
+  }
 
   final firstRule = master.recurrenceRules.first;
   final count = _rruleCount(firstRule);

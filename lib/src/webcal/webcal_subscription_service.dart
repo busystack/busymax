@@ -21,7 +21,7 @@ import 'webcal_http_client.dart';
 import 'webcal_uri.dart';
 
 const webCalParserVersion = 1;
-const webCalProjectionVersion = 2;
+const webCalProjectionVersion = 3;
 
 enum WebCalRefreshMode { automatic, hourly, sixHours, daily }
 

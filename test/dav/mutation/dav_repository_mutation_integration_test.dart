@@ -1,8 +1,13 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:busymax/src/calendar_providers/calendar_mutation.dart';
 
 import 'package:busymax/src/dav/dav_errors.dart';
+import 'package:busymax/src/dav/dav_provider_profile.dart';
+import 'package:busymax/src/dav/http/dav_http_transport.dart';
+import 'package:busymax/src/dav/mutation/dav_conditional_mutation_service.dart';
+import 'package:busymax/src/dav/mutation/dav_pending_operations.dart';
 import 'package:busymax/src/dav/ical/ical_semantics.dart';
 import 'package:busymax/src/dav/ical/ical_recurrence.dart';
 import 'package:busymax/src/dav/ical/ical_document.dart';
@@ -20,10 +25,15 @@ import 'package:busymax/src/core/time/provider_date_time.dart';
 import 'package:busymax/src/schedule/schedule_event_rescheduling.dart';
 import 'package:busymax/src/schedule/schedule_item.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
+import 'package:busymax/src/features/notifications/notification_schedule_service.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+
+import '../../support/persistence_test_directory.dart';
 
 void main() {
   late AppDatabase database;
@@ -31,15 +41,14 @@ void main() {
   late CalendarRepository calendarRepository;
   late TasksRepository tasksRepository;
   late int notificationChanges;
+  Directory? persistenceDirectory;
+  late int objectSequence;
 
-  setUp(() async {
-    database = AppDatabase(NativeDatabase.memory());
-    var objectSequence = 0;
+  void attachRepositories() {
     objectRepository = DavObjectRepository(
       database: database,
       idFactory: () => 'dav-object-${objectSequence += 1}',
     );
-    notificationChanges = 0;
     calendarRepository = CalendarRepository(
       database: database,
       now: () => _now,
@@ -52,10 +61,244 @@ void main() {
       nowUtc: () => _now,
       onNotificationScheduleChanged: () async => notificationChanges += 1,
     );
+  }
+
+  Future<void> reopen() async {
+    await database.close();
+    database = AppDatabase(
+      NativeDatabase(File('${persistenceDirectory!.path}/busymax.sqlite')),
+    );
+    attachRepositories();
+  }
+
+  Future<void> usePersistentFixture() async {
+    persistenceDirectory = await createPersistenceTestDirectory(
+      'busymax-dav-lifecycle-',
+    );
+    await reopen();
+    await _seedDavAccount(database);
+  }
+
+  Future<void> replayResource(String candidate) async {
+    var puts = 0;
+    final transport = DavHttpTransport(
+      client: MockClient((request) async {
+        if (request.method == 'PUT') {
+          expect(request.headers['if-match'], '"one"');
+          expect(request.body, candidate);
+          puts++;
+          return http.Response('', 204, headers: {'etag': '"returned"'});
+        }
+        expect(request.method, 'GET');
+        return http.Response(
+          candidate,
+          200,
+          headers: {'etag': '"returned"', 'content-type': 'text/calendar'},
+        );
+      }),
+      profile: davProviderProfile(
+        BusyProvider.nextcloud,
+        nextcloudServer: Uri.parse('https://cloud.example.test'),
+      ),
+      accountAuthority: Uri.parse('https://cloud.example.test'),
+    );
+    final result = await DavPendingOperationsReplayer(
+      database: database,
+      accountId: _accountId,
+      objectRepository: objectRepository,
+      nowUtc: () => _now,
+      serviceFactory: ({required account, required collection}) async =>
+          DavConditionalMutationService(
+            remoteClient: DavMutationHttpClient(
+              transport: transport,
+              accountId: _accountId,
+              collectionId: _collectionId,
+              credential: DavBasicCredential(
+                username: 'alex',
+                password: 'fixture-password',
+              ),
+            ),
+            nowUtc: () => _now,
+          ),
+    ).replayDueOperations();
+    expect(result.appliedCount, 1);
+    expect(result.conflictCount, 0);
+    expect(puts, 1);
+    expect(await database.select(database.pendingOps).get(), isEmpty);
+  }
+
+  setUp(() async {
+    persistenceDirectory = null;
+    objectSequence = 0;
+    notificationChanges = 0;
+    database = AppDatabase(NativeDatabase.memory());
+    attachRepositories();
     await _seedDavAccount(database);
   });
 
-  tearDown(() => database.close());
+  tearDown(() async {
+    await database.close();
+    await persistenceDirectory?.delete(recursive: true);
+  });
+
+  for (final following in [false, true]) {
+    test(
+      'cleared ${following ? 'following' : 'detached'} occurrence alarms stay cleared through resource projection',
+      () async {
+        await usePersistentFixture();
+        final baseline = _recurringEventResource().replaceFirst(
+          'X-SERIES-KEEP:opaque',
+          'X-SERIES-KEEP:opaque\r\nBEGIN:VALARM\r\nACTION:DISPLAY\r\nTRIGGER:-PT10M\r\nDESCRIPTION:Reminder\r\nEND:VALARM',
+        );
+        const href = '${_collectionHref}alarms.ics';
+        await _commitObjects(objectRepository, [
+          _prepared(href: href, etag: '"one"', body: baseline),
+        ]);
+        final occurrence =
+            (await database.select(database.calendarEvents).get()).singleWhere(
+              (row) => row.occurrenceKey!.contains('2026-08-10T09:00:00'),
+            );
+        await calendarRepository.updateLocalEvent(
+          _draftForEvent(occurrence).copyWith(
+            reminders: {'minutes': <int>[]},
+            recurringMutationScope: following
+                ? RecurringEventMutationScope.thisAndFuture
+                : RecurringEventMutationScope.singleOccurrence,
+          ),
+        );
+        final candidate = await _serializedPendingDavMutation(
+          database,
+          baseline,
+        );
+        final exception = IcalSemanticDocument.parse(candidate).components
+            .singleWhere(
+              (component) =>
+                  component.recurrenceId?.rawValue == '20260810T090000Z',
+            );
+        expect(exception.alarms, isEmpty);
+        Future<void> check() async {
+          final events = await database.select(database.calendarEvents).get();
+          expect(
+            (jsonDecode(
+              events
+                  .singleWhere((row) => row.id == occurrence.id)
+                  .remindersJson!,
+            ) as Map)['alarms'],
+            isEmpty,
+          );
+          await NotificationScheduleService(
+            database: database,
+            nowUtc: () => DateTime.utc(2026, 8, 8, 8),
+          ).rebuildUpcomingEventNotifications(_accountId);
+          final reminders = await database
+              .select(database.notificationSchedule)
+              .get();
+          expect(
+            reminders.where((row) => row.sourceId == occurrence.id),
+            isEmpty,
+          );
+          expect(reminders, isNotEmpty);
+        }
+
+        await check();
+        await reopen();
+        await check();
+        await replayResource(candidate);
+        await reopen();
+        await check();
+      },
+    );
+  }
+
+  for (final rule in [
+    'FREQ=DAILY;UNTIL=20260810',
+    'FREQ=DAILY;COUNT=1',
+    'FREQ=DAILY;COUNT=2',
+  ]) {
+    test(
+      'recurring task completion projects the current actionable state for $rule',
+      () async {
+        await usePersistentFixture();
+        final baseline = _taskResource(
+          uid: 'final-task',
+          summary: 'Recurring',
+          extra: [
+            'DTSTART;VALUE=DATE:20260809',
+            'DUE;VALUE=DATE:20260810',
+            'RRULE:$rule',
+            'STATUS:NEEDS-ACTION',
+          ],
+        );
+        const href = '${_collectionHref}final-task.ics';
+        await _commitObjects(objectRepository, [
+          _prepared(href: href, etag: '"one"', body: baseline),
+        ]);
+        final masterId = (await database.select(database.tasks).getSingle()).id;
+        await tasksRepository.patchTask(
+          _taskListId,
+          masterId,
+          const TaskPatchInput({'status': 'completed'}),
+        );
+        final master = (await database.select(database.tasks).get())
+            .singleWhere((row) => row.recurrenceIdKey == null);
+        final exhausted = !rule.endsWith('COUNT=2');
+        expect(master.status, exhausted ? 'completed' : 'needsAction');
+        final candidate = await _serializedPendingDavMutation(
+          database,
+          baseline,
+        );
+        final semantic = IcalSemanticDocument.parse(candidate);
+        expect(semantic.components, hasLength(2));
+        if (rule.contains('UNTIL')) {
+          expect(
+            semantic.components
+                .singleWhere((row) => row.recurrenceId == null)
+                .status,
+            'NEEDS-ACTION',
+          );
+          await tasksRepository.patchTask(
+            _taskListId,
+            masterId,
+            const TaskPatchInput({'status': 'completed'}),
+          );
+        }
+        await reopen();
+        await replayResource(candidate);
+        await reopen();
+        expect(
+          (await database.select(database.tasks).get())
+              .singleWhere((row) => row.id == masterId)
+              .status,
+          exhausted ? 'completed' : 'needsAction',
+        );
+        if (exhausted) {
+          await tasksRepository.patchTask(
+            _taskListId,
+            masterId,
+            const TaskPatchInput({'status': 'needsAction'}),
+          );
+          expect(
+            (await database.select(database.tasks).get())
+                .singleWhere((row) => row.id == masterId)
+                .status,
+            isNot('completed'),
+          );
+          await tasksRepository.patchTask(
+            _taskListId,
+            masterId,
+            const TaskPatchInput({'status': 'completed'}),
+          );
+          expect(
+            (await database.select(database.tasks).get())
+                .singleWhere((row) => row.id == masterId)
+                .status,
+            'completed',
+          );
+          expect(await database.select(database.tasks).get(), hasLength(2));
+        }
+      },
+    );
+  }
 
   for (final remove in [false, true]) {
     test(

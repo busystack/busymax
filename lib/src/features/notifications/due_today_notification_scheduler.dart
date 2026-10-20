@@ -152,7 +152,7 @@ class DueTodayNotificationScheduler {
       if (task.status == 'completed' || task.status == 'cancelled') {
         return false;
       }
-      final due = taskDueAsLocal(task);
+      final due = taskDeadlineAsLocal(task);
       return due != null && _date(due) == today;
     }).length;
     if (count == 0) return;

@@ -79,6 +79,16 @@ DateTime? taskDueAsLocal(Task task) {
   return providerDateTimeAsLocal(task.dueUtc, null);
 }
 
+/// Deadline eligibility differs from schedule/reminder navigation: CalDAV
+/// stores DTSTART in dueUtc when no DUE exists, but that is not a deadline.
+DateTime? taskDeadlineAsLocal(Task task) {
+  final metadata = _metadata(task.providerMetadataJson);
+  if (metadata?['transport'] == 'caldav' && metadata?['nativeDue'] is! Map) {
+    return null;
+  }
+  return taskDueAsLocal(task);
+}
+
 Map<Object?, Object?>? _metadata(String? json) {
   if (json == null || json.isEmpty) return null;
   try {
