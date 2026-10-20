@@ -15,6 +15,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/sync/pending_ops_replayer.dart';
 import 'package:busymax/src/features/sync/sync_engine.dart';
+import 'package:busymax/src/features/sync/pending_op_resolution_service.dart';
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/app/app_settings.dart';
 import 'package:busymax/src/schedule/schedule_sidebar_order.dart';
@@ -47,6 +48,171 @@ void main() {
   tearDown(() async {
     await database.close();
   });
+
+  for (final chained in [false, true]) {
+    test(
+      'blocked Google move and dependent edit keep one optimistic task during pulls (chain: $chained)',
+      () async {
+        final account = await database.select(database.accounts).getSingle();
+        await database
+            .into(database.accounts)
+            .insert(
+              account
+                  .toCompanion(false)
+                  .copyWith(
+                    id: const Value('other-account'),
+                    providerAccountId: const Value('google-other-account'),
+                  ),
+            );
+        await database.taskListsDao.upsertTaskList(
+          _taskList('list-1').copyWith(accountId: const Value('other-account')),
+        );
+        await database.tasksDao.upsertTask(
+          _task(
+            'list-1',
+            'task-1',
+            title: 'Other account',
+          ).copyWith(accountId: const Value('other-account')),
+        );
+        for (final list in ['list-2', 'list-3', 'unrelated']) {
+          await database.taskListsDao.upsertTaskList(_taskList(list));
+        }
+        final baseline = _taskDto(
+          'task-1',
+          title: 'Original',
+          updated: DateTime.utc(2026, 6, 4),
+        );
+        await database.tasksDao.upsertTask(
+          _task(
+            'list-1',
+            'task-1',
+            title: baseline.title,
+            updatedUtc: baseline.updated!.toIso8601String(),
+            rawJson: jsonEncode(baseline.rawJson),
+          ),
+        );
+        final repository = TasksRepository(
+          database: database,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 4),
+        );
+        await repository.moveTask(
+          const TaskMoveInput(
+            sourceTaskListId: 'list-1',
+            taskId: 'task-1',
+            destinationTaskListId: 'list-2',
+          ),
+        );
+        if (chained) {
+          await repository.moveTask(
+            const TaskMoveInput(
+              sourceTaskListId: 'list-2',
+              taskId: 'task-1',
+              destinationTaskListId: 'list-3',
+            ),
+          );
+        }
+        final destination = chained ? 'list-3' : 'list-2';
+        await repository.patchTask(
+          destination,
+          'task-1',
+          const TaskPatchInput({'title': 'Local dependent edit'}),
+        );
+        apiClient.persistTaskPatches = true;
+        apiClient.remoteTask = _taskDto(
+          'task-1',
+          title: 'Remote edit',
+          updated: DateTime.utc(2026, 6, 4, 0, 5),
+        );
+        apiClient.remoteTaskListsPage = TaskListsPageDto(
+          items: [
+            for (final list in ['list-1', 'list-2', 'list-3', 'unrelated'])
+              _taskListDto(list),
+          ],
+          rawJson: const {},
+        );
+        apiClient.remoteTasksPages['list-1'] = TasksPageDto(
+          items: [apiClient.remoteTask!],
+          rawJson: const {},
+        );
+        apiClient.remoteTasksPages['unrelated'] = TasksPageDto(
+          items: [_taskDto('task-1', title: 'Unrelated')],
+          rawJson: const {},
+        );
+        final engine = SyncEngine(
+          database: database,
+          apiClient: apiClient,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+        );
+        for (var round = 0; round < 2; round++) {
+          await engine.fullSync();
+          final rows = (await database.select(database.tasks).get())
+              .where(
+                (task) =>
+                    task.accountId == 'account' &&
+                    task.taskListId != 'unrelated',
+              )
+              .toList();
+          expect(rows, hasLength(1));
+          expect(rows.single.taskListId, destination);
+          expect(rows.single.title, 'Local dependent edit');
+          expect(rows.single.pendingMove, isTrue);
+          expect(
+            (await database.select(database.tasks).get())
+                .singleWhere((task) => task.accountId == 'other-account')
+                .title,
+            'Other account',
+          );
+          final pending = await database.select(database.pendingOps).get();
+          expect(pending, hasLength(chained ? 3 : 2));
+          expect(
+            pending
+                .singleWhere((op) => op.taskListId == 'list-1')
+                .lastErrorCode,
+            'conflict',
+          );
+        }
+        final move = (await database.select(database.pendingOps).get())
+            .singleWhere((op) => op.taskListId == 'list-1');
+        // The provider returns to the checked baseline; retry through the existing recovery control.
+        apiClient.remoteTask = baseline;
+        await PendingOpResolutionService(
+          database: database,
+          apiClient: apiClient,
+          accountId: 'account',
+          syncTasks: () => PendingOpsReplayer(
+            database: database,
+            apiClient: apiClient,
+            accountId: 'account',
+            nowUtc: () => DateTime.utc(2026, 6, 4, 2),
+          ).replayDueOps(),
+          syncCalendar: () async {},
+          nowUtc: () => DateTime.utc(2026, 6, 4, 2),
+        ).retryNow(move.id);
+        expect(await database.select(database.pendingOps).get(), isEmpty);
+        apiClient.remoteTasksPages['list-1'] = const TasksPageDto(
+          items: [],
+          rawJson: {},
+        );
+        apiClient.remoteTasksPages[destination] = TasksPageDto(
+          items: [apiClient.remoteTask!],
+          rawJson: const {},
+        );
+        await engine.fullSync();
+        final finalRows = (await database.select(database.tasks).get())
+            .where(
+              (task) =>
+                  task.accountId == 'account' && task.taskListId != 'unrelated',
+            )
+            .toList();
+        expect(finalRows, hasLength(1));
+        expect(finalRows.single.taskListId, destination);
+        expect(finalRows.single.localDirty, isFalse);
+        expect(finalRows.single.title, 'Local dependent edit');
+      },
+    );
+  }
 
   test('replay blocks legacy Docs-assigned note mutation', () async {
     await database.tasksDao.upsertTask(
@@ -4894,6 +5060,7 @@ class _CommitInterruption extends QueryInterceptor {
 }
 
 class _FakeTaskRemoteClient implements TaskRemoteClient {
+  final remoteTasksPages = <String, TasksPageDto>{};
   TaskDto? createdTask;
   final List<TaskDto> createdTasks = [];
   final calls = <String>[];
@@ -5131,7 +5298,7 @@ class _FakeTaskRemoteClient implements TaskRemoteClient {
     bool showAssigned = false,
   }) async {
     taskListPageUpdatedMins.add(updatedMin);
-    return remoteTasksPage;
+    return remoteTasksPages[taskListId] ?? remoteTasksPage;
   }
 }
 

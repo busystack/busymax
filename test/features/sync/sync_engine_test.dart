@@ -16,6 +16,8 @@ import 'package:busymax/src/features/notifications/desktop_notification_service.
 import 'package:busymax/src/features/notifications/due_today_notification_scheduler.dart';
 import 'package:busymax/src/features/sync/account_sync_operations.dart';
 import 'package:busymax/src/features/sync/sync_engine.dart';
+import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
+import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/tasks/domain/task_remote_client.dart';
 import 'package:busymax/src/features/tasks/domain/task_remote_models.dart';
 import 'package:busymax/src/features/tasks/domain/task_checklist_item.dart';
@@ -43,6 +45,76 @@ void main() {
       await directory.delete(recursive: true);
     }
   });
+
+  for (final action in [
+    'edit task',
+    'delete task',
+    'rename list',
+    'delete list',
+  ]) {
+    test(
+      'remote import serializes a concurrent $action through the real executor',
+      () async {
+        await database.close();
+        final gate = _ImportInterleaving(
+          action.contains('task') ? 'tasks' : 'task_lists',
+        );
+        database = AppDatabase(NativeDatabase.memory().interceptWith(gate));
+        await _insertAccount(database);
+        await database.taskListsDao.upsertTaskList(_localTaskList('list-1'));
+        await database.tasksDao.upsertTask(_localTask('task-1'));
+        apiClient.taskListsPages = [
+          TaskListsPageDto(items: [_taskListDto('list-1')], rawJson: const {}),
+        ];
+        apiClient.taskPages['list-1'] = [
+          TasksPageDto(
+            items: [_taskDto('task-1', title: 'Remote')],
+            rawJson: const {},
+          ),
+        ];
+        gate.armed = true;
+        final sync = SyncEngine(
+          database: database,
+          apiClient: apiClient,
+          accountId: 'account',
+        ).fullSync();
+        await gate.beforeImport.future;
+        final tasks = TasksRepository(database: database, accountId: 'account');
+        final lists = TaskListsRepository(
+          database: database,
+          accountId: 'account',
+        );
+        final mutation = switch (action) {
+          'edit task' => tasks.patchTask(
+            'list-1',
+            'task-1',
+            const TaskPatchInput({'title': 'Local edit'}),
+          ),
+          'delete task' => tasks.deleteTask('list-1', 'task-1'),
+          'rename list' => lists.renameTaskList('list-1', 'Local rename'),
+          _ => lists.deleteTaskList('list-1'),
+        };
+        await gate.localAttempt.future;
+        // Outside a transaction the local mutation can commit before the stale
+        // import. Inside one, SQLite serializes it behind the paused import.
+        if (!gate.importInTransaction) await mutation;
+        gate.release.complete();
+        await Future.wait([sync, mutation]);
+        expect(await database.select(database.pendingOps).get(), hasLength(1));
+        if (action.contains('task')) {
+          final row = await database.select(database.tasks).getSingle();
+          expect(row.localDirty, isTrue);
+          expect(row.pendingDelete, action == 'delete task');
+          if (action == 'edit task') expect(row.title, 'Local edit');
+        } else {
+          final row = await database.select(database.taskLists).getSingle();
+          expect(row.localDirty, isTrue);
+          expect(row.pendingDelete, action == 'delete list');
+          if (action == 'rename list') expect(row.title, 'Local rename');
+        }
+      },
+    );
+  }
 
   for (final incremental in [false, true]) {
     for (final completed in [false, true]) {
@@ -1022,6 +1094,37 @@ void main() {
       expect(apiClient.checklistPageTokens['list-1/task-1'], [null]);
     },
   );
+}
+
+class _ImportInterleaving extends QueryInterceptor {
+  _ImportInterleaving(this.table);
+  final String table;
+  bool armed = false;
+  bool paused = false;
+  bool importInTransaction = false;
+  final beforeImport = Completer<void>();
+  final localAttempt = Completer<void>();
+  final release = Completer<void>();
+  @override
+  Future<int> runInsert(
+    QueryExecutor executor,
+    String statement,
+    List<Object?> args,
+  ) async {
+    if (armed && !paused && statement.startsWith('INSERT INTO "$table"')) {
+      paused = true;
+      importInTransaction = executor is TransactionExecutor;
+      beforeImport.complete();
+      await release.future;
+    }
+    return executor.runInsert(statement, args);
+  }
+
+  @override
+  Future<bool> ensureOpen(QueryExecutor executor, QueryExecutorUser user) {
+    if (paused && !localAttempt.isCompleted) localAttempt.complete();
+    return executor.ensureOpen(user);
+  }
 }
 
 class FakeTaskRemoteClient
