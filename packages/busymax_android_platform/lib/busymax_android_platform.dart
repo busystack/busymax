@@ -95,6 +95,7 @@ final class BusyMaxAndroidPlatform {
     String? nativeAccountId,
     String? authority,
     String? claims,
+    bool forceRefresh = false,
   }) async => AndroidAuthorizationToken.fromMap(
     _stringMap(
       await _methodChannel.invokeMethod<Object?>('authorizeMicrosoftSilent', {
@@ -105,6 +106,7 @@ final class BusyMaxAndroidPlatform {
         'nativeAccountId': ?nativeAccountId,
         'authority': ?authority,
         'claims': ?claims,
+        'forceRefresh': forceRefresh,
       }),
     ),
   );

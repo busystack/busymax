@@ -33,6 +33,7 @@ import com.google.android.gms.common.GoogleApiAvailability
 import com.google.android.gms.common.api.Scope
 import com.microsoft.identity.client.AcquireTokenParameters
 import com.microsoft.identity.client.AcquireTokenSilentParameters
+import com.microsoft.identity.client.IAccount
 import com.microsoft.identity.client.AuthenticationCallback
 import com.microsoft.identity.client.IAuthenticationResult
 import com.microsoft.identity.client.IMultipleAccountPublicClientApplication
@@ -57,6 +58,21 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
+
+internal fun microsoftSilentParameters(
+    call: MethodCall,
+    scopes: List<String>,
+    account: IAccount,
+    authority: String,
+): AcquireTokenSilentParameters {
+    val builder = AcquireTokenSilentParameters.Builder()
+        .withScopes(scopes).forAccount(account).fromAuthority(authority)
+        .forceRefresh(call.argument<Boolean>("forceRefresh") == true)
+    call.argument<String>("claims")?.takeIf { it.isNotBlank() }?.let {
+        builder.withClaims(ClaimsRequest.getClaimsRequestFromJsonString(it))
+    }
+    return builder.build()
+}
 
 internal object EngineOwnedAccountGateRegistry {
     internal data class Lease(val ownerId: String, val semaphore: Semaphore)
@@ -512,12 +528,7 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
                         try {
                             val account = application.accounts.firstOrNull { it.id == nativeId }
                                 ?: throw MicrosoftAccountMissingException()
-                            val parametersBuilder = AcquireTokenSilentParameters.Builder()
-                                .withScopes(scopes).forAccount(account).fromAuthority(selectedAuthority ?: account.authority)
-                            call.argument<String>("claims")?.takeIf { it.isNotBlank() }?.let {
-                                parametersBuilder.withClaims(ClaimsRequest.getClaimsRequestFromJsonString(it))
-                            }
-                            val parameters = parametersBuilder.build()
+                            val parameters = microsoftSilentParameters(call, scopes, account, selectedAuthority ?: account.authority)
                             postSuccess(result, msalResult(application.acquireTokenSilent(parameters)))
                         } catch (error: Exception) {
                             val failure = classifyMicrosoftSilentFailure(error)
