@@ -40,15 +40,30 @@ class ScheduleProjection {
   }
 
   static Map<DateTime, List<ScheduleItem>> groupByDay(
-    List<ScheduleItem> items,
-  ) {
+    List<ScheduleItem> items, {
+    ScheduleRange? visibleRange,
+    bool repeatCalendarEvents = false,
+  }) {
     final groups = <DateTime, List<ScheduleItem>>{};
     for (final item in items) {
       final start = item.start;
       if (start == null) {
         continue;
       }
-      final key = day(start);
+      var key = day(start);
+      if (item is CalendarScheduleItem && visibleRange != null) {
+        if (!intersects(item, visibleRange)) continue;
+        final firstVisibleDay = day(visibleRange.start);
+        if (key.isBefore(firstVisibleDay)) key = firstVisibleDay;
+        if (repeatCalendarEvents) {
+          final end = item.end ?? start.add(const Duration(minutes: 1));
+          while (key.isBefore(visibleRange.end) && key.isBefore(end)) {
+            groups.putIfAbsent(key, () => <ScheduleItem>[]).add(item);
+            key = DateTime(key.year, key.month, key.day + 1);
+          }
+          continue;
+        }
+      }
       groups.putIfAbsent(key, () => <ScheduleItem>[]).add(item);
     }
     for (final key in groups.keys.toList()) {

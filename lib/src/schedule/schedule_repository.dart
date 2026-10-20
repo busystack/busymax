@@ -370,7 +370,8 @@ class ScheduleRepository {
           )
           ..where(
             _database.taskLists.id.isNull() |
-                _database.taskLists.serverMissing.equals(false),
+                (_database.taskLists.serverMissing.equals(false) &
+                    _database.taskLists.pendingDelete.equals(false)),
           )
           ..where(
             _database.taskLists.davCollectionId.isNull() |
@@ -710,7 +711,8 @@ class ScheduleRepository {
           )
           ..where(
             _database.taskLists.id.isNull() |
-                _database.taskLists.serverMissing.equals(false),
+                (_database.taskLists.serverMissing.equals(false) &
+                    _database.taskLists.pendingDelete.equals(false)),
           )
           ..where(
             _database.taskLists.davCollectionId.isNull() |
@@ -816,7 +818,8 @@ class ScheduleRepository {
           )
           ..where(
             _database.taskLists.id.isNull() |
-                _database.taskLists.serverMissing.equals(false),
+                (_database.taskLists.serverMissing.equals(false) &
+                    _database.taskLists.pendingDelete.equals(false)),
           )
           ..where(
             _database.taskLists.davCollectionId.isNull() |
@@ -1003,9 +1006,17 @@ class ScheduleRepository {
         _database.tasks.microsoftDueDateTime.isNull();
   }
 
+  // Written provider dates are not local dates for timed Microsoft tasks.
+  // SQLite cannot resolve their named zones. Keep these candidates for the
+  // existing instant-aware projection/filter, as we already do for DAV rows.
+  Expression<bool> _providerTimedTask() =>
+      _database.tasks.microsoftStartDateTime.like('%T%') |
+      _database.tasks.microsoftDueDateTime.like('%T%');
+
   Expression<bool> _taskScheduledBefore(DateTime before) {
     final beforeKey = _dateKey(before);
-    return _textBefore(_database.tasks.dueUtc, beforeKey) |
+    return _providerTimedTask() |
+        _textBefore(_database.tasks.dueUtc, beforeKey) |
         _textBefore(_database.tasks.microsoftStartDateTime, beforeKey) |
         _textBefore(_database.tasks.microsoftDueDateTime, beforeKey);
   }
@@ -1013,7 +1024,8 @@ class ScheduleRepository {
   Expression<bool> _taskScheduledInRange(ScheduleRange range) {
     final startKey = _dateKey(range.start);
     final endKey = _dateKey(range.end);
-    return _textInRange(_database.tasks.dueUtc, startKey, endKey) |
+    return _providerTimedTask() |
+        _textInRange(_database.tasks.dueUtc, startKey, endKey) |
         _textInRange(_database.tasks.microsoftStartDateTime, startKey, endKey) |
         _textInRange(_database.tasks.microsoftDueDateTime, startKey, endKey);
   }
@@ -1209,8 +1221,14 @@ DateTime? _taskDue(Task task, BusyProvider provider) {
 
 DateTime? _taskStart(Task task, BusyProvider provider) {
   if (provider == BusyProvider.microsoft) {
-    return _parseDateTime(task.microsoftStartDateTime) ??
-        _parseDateTime(task.microsoftDueDateTime) ??
+    return providerDateTimeAsLocal(
+          task.microsoftStartDateTime,
+          task.microsoftStartTimeZone,
+        ) ??
+        providerDateTimeAsLocal(
+          task.microsoftDueDateTime,
+          task.microsoftDueTimeZone,
+        ) ??
         _parseDate(task.dueUtc);
   }
   if (_isDavProvider(provider)) {
@@ -1226,7 +1244,7 @@ DateTime? _taskEnd(Task task, BusyProvider provider) {
     return null;
   }
   if (_taskAllDay(task, provider)) {
-    return start.add(const Duration(days: 1));
+    return DateTime(start.year, start.month, start.day + 1);
   }
   return start.add(const Duration(minutes: 30));
 }

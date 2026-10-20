@@ -209,7 +209,10 @@ class _ScheduleAgendaViewState extends State<ScheduleAgendaView> {
   ) {
     final dated = items.where((item) => item.start != null).toList();
     final noDateTasks = ScheduleProjection.noDateTasks(items);
-    final groups = ScheduleProjection.groupByDay(dated);
+    final groups = ScheduleProjection.groupByDay(
+      dated,
+      visibleRange: widget.range,
+    );
     final rangeStart = ScheduleProjection.day(widget.range.start);
     final rangeEnd = ScheduleProjection.day(widget.range.end);
     final overdueTasks = dated.whereType<TaskScheduleItem>().where((item) {
