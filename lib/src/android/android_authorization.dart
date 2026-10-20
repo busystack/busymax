@@ -7,6 +7,7 @@ import '../db/app_database.dart' hide AuthorizationCommit;
 import 'android_account_gate.dart';
 
 import 'dart:async';
+import 'dart:convert';
 
 import '../core/http/bounded_http.dart';
 
@@ -116,6 +117,7 @@ final class AndroidAuthorizationBroker
   final SecretStore _secretStore;
   final Map<String, String> _lastAccessTokens = <String, String>{};
   final _microsoftRefreshRequests = <String, int>{};
+  final _microsoftRefreshedRequests = <String, Set<String>>{};
   var _microsoftRefreshSequence = 0;
 
   @override
@@ -1259,6 +1261,18 @@ final class AndroidAuthorizationBroker
     String? claims,
   }) async {
     final refreshRequest = _microsoftRefreshRequests[accountId];
+    final requestKey = jsonEncode([
+      clientId,
+      authorityTenant,
+      nativeAccountId,
+      authority,
+      claims,
+      [...scopes]..sort(),
+    ]);
+    final forceRefresh =
+        refreshRequest != null &&
+        !(_microsoftRefreshedRequests[accountId]?.contains(requestKey) ??
+            false);
     final token = await _platform.authorizeMicrosoftSilently(
       accountId: accountId,
       scopes: scopes,
@@ -1267,11 +1281,11 @@ final class AndroidAuthorizationBroker
       nativeAccountId: nativeAccountId,
       authority: authority,
       claims: claims,
-      forceRefresh: refreshRequest != null,
+      forceRefresh: forceRefresh,
     );
-    if (refreshRequest != null &&
+    if (forceRefresh &&
         _microsoftRefreshRequests[accountId] == refreshRequest) {
-      _microsoftRefreshRequests.remove(accountId);
+      (_microsoftRefreshedRequests[accountId] ??= {}).add(requestKey);
     }
     return token;
   }
@@ -1287,6 +1301,9 @@ final class AndroidAuthorizationBroker
       // and claims. Acquiring an ordinary token here could leave that request
       // using a different rejected cache entry.
       _microsoftRefreshRequests[accountId] = ++_microsoftRefreshSequence;
+      // Scope and claims variants can occupy different MSAL cache entries.
+      // An intervening acquisition must not acknowledge another variant.
+      _microsoftRefreshedRequests.remove(accountId);
       return;
     }
     if (provider == BusyProvider.google && rejected != null) {
@@ -1393,6 +1410,7 @@ final class AndroidAuthorizationBroker
     if (target != null) {
       _lastAccessTokens.remove(target);
       _microsoftRefreshRequests.remove(target);
+      _microsoftRefreshedRequests.remove(target);
       await _secretStore.deleteCredential(target);
       if (target.startsWith('google:')) {
         await _platform.removeAuthorization(
