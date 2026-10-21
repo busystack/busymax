@@ -1,4 +1,5 @@
 import '../../../l10n/oauth_error_description.dart';
+import '../../../l10n/contacts_error_description.dart';
 
 import 'package:busymax/src/core/auth/authorization_attempt.dart';
 
@@ -10,6 +11,11 @@ import 'package:busymax/src/l10n/time_format_scope.dart';
 import 'package:busymax/src/l10n/week_preferences_scope.dart';
 
 import 'dart:async';
+import 'dart:convert';
+
+import '../../../calendar_providers/calendar_mutation.dart';
+import '../../../db/app_database.dart' show PendingOp;
+import '../../../microsoft_calendar/microsoft_shared_calendar_address.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -61,6 +67,7 @@ import '../../connectivity/network_connectivity_service.dart';
 import '../../diagnostics/presentation/diagnostics_screen.dart';
 import '../../feedback/presentation/feedback_dialog.dart';
 import '../../sync/sync_auth_error.dart';
+import 'account_settings_feedback.dart';
 import '../../task_lists/data/task_lists_repository.dart';
 import '../../tasks/presentation/desktop_date_time_fields.dart';
 import '../../tasks/domain/task_capabilities.dart';
@@ -88,11 +95,21 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   late var _page = widget.initialPage;
+  ({String id, bool contactsOnly})? _accountDetails;
+  final _contentScroll = ScrollController();
+  final _headerBackFocus = FocusNode(debugLabel: 'settings-back');
+  final _accountEntryFocus = <String, FocusNode>{};
+  double _accountsOverviewOffset = 0;
+  String? _originatingAccountEntry;
+  int _accountNavigationGeneration = 0;
   BusyProvider? _connectingProvider;
   AuthorizationCancellation? _authorizationCancellation;
   AuthorizationCancellation? _sharedConsentCancellation;
   DavCancellationToken? _davCancellation;
   final _removingAccountIds = <String>{};
+  final _registrationRecoveryIds = <String>{};
+  final _refreshingAccountIds = <String>{};
+  BusyMaxContactsController? _contactOperationsController;
   final _busySubscriptionIds = <String>{};
   final _busyContactAccountIds = <String>{};
   late final LaunchAtLoginRefreshObserver _autostartRefresh;
@@ -102,8 +119,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final id = widget.reconnectAccountId;
     if (id == null || id == _handledRecovery) return;
     _handledRecovery = id;
+    final navigationGeneration = _accountNavigationGeneration;
     final account = await ref.read(accountsRepositoryProvider).accountById(id);
-    if (mounted && account != null) {
+    if (!mounted || navigationGeneration != _accountNavigationGeneration) {
+      return;
+    }
+    if (account != null) {
+      _openAccountDetails(account.id);
       await _connectAccount(account.provider, reconnecting: account);
     }
     if (!mounted) return;
@@ -133,6 +155,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _sharedConsentCancellation?.cancel();
     _autostartRefresh.dispose();
     _davCancellation?.cancel();
+    for (final id in _busyContactAccountIds) {
+      _contactOperationsController?.cancelEnrollment(id);
+    }
+    _contentScroll.dispose();
+    _headerBackFocus.dispose();
+    for (final node in _accountEntryFocus.values) {
+      node.dispose();
+    }
     super.dispose();
   }
 
@@ -145,7 +175,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         (_) => _openRequestedRecovery(),
       );
     }
-    if (oldWidget.initialPage != widget.initialPage) {
+    if (oldWidget.initialPage != widget.initialPage &&
+        _page != widget.initialPage) {
+      _abandonAccountAuthorization();
+      _accountDetails = null;
       _page = widget.initialPage;
     }
   }
@@ -183,7 +216,39 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final settingsController = ref.read(appSettingsControllerProvider.notifier);
     final themeController = ref.read(busyMaxThemeControllerProvider);
     final l10n = context.l10n;
-    final title = _settingsPageLabel(context, _page);
+    final detailAccount = _accountDetails?.contactsOnly == false
+        ? accounts.where((a) => a.id == _accountDetails!.id).firstOrNull
+        : null;
+    final detailContact = _accountDetails?.contactsOnly == true
+        ? contactAccounts.where((a) => a.id == _accountDetails!.id).firstOrNull
+        : null;
+    final title = _page == SettingsPage.accounts && _accountDetails != null
+        ? detailAccount?.displayLabel ??
+              detailContact?.displayName ??
+              l10n.accounts
+        : _settingsPageLabel(context, _page);
+    ref.listen(accountManagementStreamProvider, (_, next) {
+      final target = _accountDetails;
+      if (target != null &&
+          !target.contactsOnly &&
+          next.hasValue &&
+          !next.isLoading &&
+          !next.hasError &&
+          !next.requireValue.any((a) => a.id == target.id)) {
+        _returnAfterAccountDisappeared(target.id);
+      }
+    });
+    ref.listen(busyMaxContactAccountsProvider, (_, next) {
+      final target = _accountDetails;
+      if (target != null &&
+          target.contactsOnly &&
+          next.hasValue &&
+          !next.isLoading &&
+          !next.hasError &&
+          !next.requireValue.any((a) => a.id == target.id)) {
+        _returnAfterAccountDisappeared(target.id);
+      }
+    });
     final hasSyncEligibleAccounts = allAccounts.any(
       (account) => account.isSyncEligible,
     );
@@ -211,6 +276,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     final pageBody = switch (_page) {
       SettingsPage.accounts => _AccountManagementSection(
+        selectedAccountId: _accountDetails?.contactsOnly == false
+            ? _accountDetails?.id
+            : null,
+        selectedContactAccountId: _accountDetails?.contactsOnly == true
+            ? _accountDetails?.id
+            : null,
+        onOpenAccount: _openAccountDetails,
+        onOpenContactAccount: (id) =>
+            _openAccountDetails(id, contactsOnly: true),
+        entryFocusNode: (id) => _accountEntryFocus.putIfAbsent(
+          id,
+          () => FocusNode(debugLabel: 'account-entry-$id'),
+        ),
         accounts: _selectedAccountFirst(accounts, selectedAccount?.id),
         googleConfigured: config.googleSetupAvailable,
         microsoftConfigured: config.microsoftSetupAvailable,
@@ -236,6 +314,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         onReconnect: (account) =>
             unawaited(_connectAccount(account.provider, reconnecting: account)),
         removingAccountIds: _removingAccountIds,
+        registrationRecoveryIds: _registrationRecoveryIds,
+        refreshingAccountIds: _refreshingAccountIds,
+        onRetryContacts: (contact) => unawaited(_retryContacts(contact)),
+        onReconnectContacts: (contact) =>
+            unawaited(_reconnectContacts(contact)),
         onRemoveAccount: (account) =>
             unawaited(_removeAccount(context, ref, account)),
         contactAccounts: contactAccounts,
@@ -612,6 +695,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                   Expanded(
                     child: BusyMaxClamp(
+                      controller: _contentScroll,
                       maxWidth: 760,
                       margin: EdgeInsets.zero,
                       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
@@ -626,6 +710,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               return LinuxPageFrame(
                 header: _SettingsHeader(
                   title: title,
+                  backFocusNode: _headerBackFocus,
                   onBack: _goBack,
                   onMenuSelected: _handleMenuAction,
                 ),
@@ -655,17 +740,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         }
       });
 
-  Future<void> _disableContacts(String id) => _runContactOperation(
-    id,
-    () async {
-      final controller = ref.read(busyMaxContactsControllerProvider);
-      if (id.startsWith('contacts:')) {
-        await controller.removeLinkedAccount(id.substring('contacts:'.length));
-      } else {
-        await controller.removeContactsAccount(id);
-      }
-    },
-  );
+  Future<void> _disableContacts(String id) =>
+      _runContactOperation(id, () async {
+        final controller = ref.read(busyMaxContactsControllerProvider);
+        if (id.startsWith('contacts:')) {
+          await controller.disableContactsAccount(id);
+        } else {
+          final confirmed = await showBusyMaxConfirm(
+            context,
+            title: context.l10n.removeAccount,
+            message: context.l10n.contactsOnlyDescription,
+            confirmLabel: context.l10n.removeAction,
+            destructive: true,
+          );
+          if (!confirmed || !mounted) return;
+          await controller.removeContactsAccount(id);
+        }
+      });
 
   Future<void> _addCardDavContacts() async {
     final input = await showBusyMaxModalDialog<_CardDavContactsInput>(
@@ -703,11 +794,64 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     });
   }
 
+  Future<void> _retryContacts(ContactAccount contact) => _runContactOperation(
+    contact.id,
+    () => ref
+        .read(busyMaxContactsControllerProvider)
+        .synchronizeAccount(contact.id),
+  );
+
+  Future<void> _reconnectContacts(ContactAccount contact) async {
+    // Preparation can outlive its account view before any enrollment exists
+    // for navigation to cancel. Own the intent from the first storage read.
+    final navigationGeneration = _accountNavigationGeneration;
+    bool ownsIntent() =>
+        mounted && navigationGeneration == _accountNavigationGeneration;
+    final controller = ref.read(busyMaxContactsControllerProvider);
+    final parentId = await controller.store.linkedBusyMaxAccount(contact.id);
+    if (!ownsIntent()) return;
+    if (parentId != null && contact.provider == ContactProviderKind.carddav) {
+      final parent = await ref
+          .read(accountsRepositoryProvider)
+          .accountById(parentId);
+      if (!ownsIntent() || parent == null) return;
+      if (await _connectAccount(parent.provider, reconnecting: parent) &&
+          ownsIntent()) {
+        await _enableContacts(parent);
+      }
+      return;
+    }
+    String? password;
+    if (parentId == null) {
+      final nextcloud = await controller.isIndependentNextcloud(contact.id);
+      if (!mounted || !ownsIntent()) return;
+      if (!nextcloud) {
+        password = await showBusyMaxTextPrompt(
+          context,
+          title: context.l10n.reconnectAccount,
+          label: context.l10n.contactsPasswordLabel,
+          actionLabel: context.l10n.reconnectAccount,
+          obscureText: true,
+        );
+        if (!ownsIntent() || password == null) return;
+      }
+    }
+    if (!ownsIntent()) return;
+    await _runContactOperation(
+      contact.id,
+      () => password != null
+          ? controller.reconnectDavContactsOnly(contact.id, password: password)
+          : controller.reconnectContactsAccount(contact.id),
+    );
+  }
+
   Future<void> _runContactOperation(
     String id,
     Future<void> Function() operation,
   ) async {
     if (_busyContactAccountIds.contains(id)) return;
+    final navigationGeneration = _accountNavigationGeneration;
+    _contactOperationsController = ref.read(busyMaxContactsControllerProvider);
     setState(() => _busyContactAccountIds.add(id));
     try {
       await operation();
@@ -715,8 +859,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       _settingsLogger.warning(
         'Contacts configuration failed: ${redactForLog(error)}',
       );
-      if (mounted) {
-        _showMessage(context, context.l10n.operationFailed);
+      if (mounted && navigationGeneration == _accountNavigationGeneration) {
+        final target = _accountDetails;
+        if (target?.contactsOnly == false &&
+            error is OAuthException &&
+            const [
+              OAuthFailureKind.registrationUnavailable,
+              OAuthFailureKind.clientRejected,
+              OAuthFailureKind.configuration,
+            ].contains(error.classification) &&
+            (id == target!.id ||
+                id ==
+                    BusyMaxContactsController.linkedContactAccountId(
+                      target.id,
+                    ))) {
+          setState(() => _registrationRecoveryIds.add(target.id));
+        }
+        _showMessage(context, localizedContactsError(context.l10n, error));
       }
     } finally {
       if (mounted) setState(() => _busyContactAccountIds.remove(id));
@@ -854,6 +1013,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   void _goBack() {
+    if (_page == SettingsPage.accounts && _accountDetails != null) {
+      _showAccountsOverview();
+      return;
+    }
+    _abandonAccountAuthorization();
     if (context.canPop()) {
       context.pop();
       return;
@@ -863,10 +1027,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   void _selectPage(SettingsPage page) {
     if (_page != page) {
+      _abandonAccountAuthorization();
+      _accountDetails = null;
       if (page == SettingsPage.system) {
         ref.invalidate(launchAtLoginStateProvider);
       }
       setState(() => _page = page);
+      _restoreAccountScroll(
+        page == SettingsPage.accounts ? _accountsOverviewOffset : 0,
+      );
     }
     final router = GoRouter.maybeOf(context);
     if (router == null) {
@@ -894,16 +1063,94 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
-  Future<void> _connectAccount(
+  void _abandonAccountAuthorization() {
+    _accountNavigationGeneration++;
+    _cancelAccountConnection();
+    _sharedConsentCancellation?.cancel();
+    for (final id in _busyContactAccountIds) {
+      _contactOperationsController?.cancelEnrollment(id);
+    }
+  }
+
+  void _openAccountDetails(String id, {bool contactsOnly = false}) {
+    if (_page == SettingsPage.accounts &&
+        _accountDetails == null &&
+        _contentScroll.hasClients) {
+      _accountsOverviewOffset = _contentScroll.offset;
+    }
+    _abandonAccountAuthorization();
+    _originatingAccountEntry = '${contactsOnly ? 'contacts' : 'account'}:$id';
+    setState(() {
+      _page = SettingsPage.accounts;
+      _accountDetails = (id: id, contactsOnly: contactsOnly);
+    });
+    _restoreAccountScroll(0, focus: _headerBackFocus);
+  }
+
+  void _showAccountsOverview() {
+    _abandonAccountAuthorization();
+    setState(() => _accountDetails = null);
+    _restoreAccountScroll(
+      _accountsOverviewOffset,
+      focus: _accountEntryFocus[_originatingAccountEntry],
+    );
+  }
+
+  void _returnAfterAccountDisappeared(String id) {
+    final generation = _accountNavigationGeneration;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          generation != _accountNavigationGeneration ||
+          _accountDetails?.id != id) {
+        return;
+      }
+      final remaining =
+          (ref.read(accountManagementStreamProvider).valueOrNull ??
+                  const <AccountEntity>[])
+              .where((a) => a.id != id)
+              .toList();
+      final contacts =
+          ref.read(busyMaxContactAccountsProvider).valueOrNull ??
+          const <ContactAccount>[];
+      final independent =
+          ref.read(independentContactAccountIdsProvider).valueOrNull ??
+          const <String>{};
+      final contact = contacts
+          .where((c) => c.id != id && independent.contains(c.id))
+          .firstOrNull;
+      _originatingAccountEntry = remaining.isNotEmpty
+          ? 'account:${remaining.first.id}'
+          : contact != null
+          ? 'contacts:${contact.id}'
+          : 'add-account';
+      _showAccountsOverview();
+    });
+  }
+
+  void _restoreAccountScroll(double offset, {FocusNode? focus}) {
+    final generation = _accountNavigationGeneration;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || generation != _accountNavigationGeneration) return;
+      if (_contentScroll.hasClients) {
+        _contentScroll.jumpTo(
+          offset.clamp(0, _contentScroll.position.maxScrollExtent).toDouble(),
+        );
+      }
+      if (focus?.context != null) focus!.requestFocus();
+    });
+  }
+
+  Future<bool> _connectAccount(
     BusyProvider provider, {
     AccountEntity? reconnecting,
     bool replaceRegistration = false,
   }) async {
     if (_connectingProvider != null ||
         _authorizationCancellation?.isCancelled == false) {
-      return;
+      return false;
     }
     var addSeparate = false;
+    var connected = false;
     final ownedCancellation = AuthorizationCancellation();
     _authorizationCancellation = ownedCancellation;
     try {
@@ -914,29 +1161,24 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           context,
           fixedEmail: reconnecting?.email ?? reconnecting?.providerAccountId,
         );
-        if (appleInput == null || !mounted) return;
+        if (appleInput == null || !mounted || ownedCancellation.isCancelled) {
+          return false;
+        }
       } else if (provider == BusyProvider.nextcloud) {
         nextcloudServer = await showNextcloudServerDialog(
           context,
           initialServer: reconnecting?.authority,
         );
-        if (nextcloudServer == null || !mounted) return;
+        if (nextcloudServer == null ||
+            !mounted ||
+            ownedCancellation.isCancelled) {
+          return false;
+        }
       }
       AuthorizationRequest? request;
       if (provider == BusyProvider.google ||
           provider == BusyProvider.microsoft) {
-        final summary = reconnecting == null
-            ? null
-            : ref
-                  .read(registrationSummariesProvider)
-                  .valueOrNull?[reconnecting.id];
-        final googleRecovery =
-            provider == BusyProvider.google &&
-            reconnecting != null &&
-            (reconnecting.needsReconnect ||
-                summary == null ||
-                summary.origin == RegistrationOrigin.retiringShared);
-        if (reconnecting != null && !replaceRegistration && !googleRecovery) {
+        if (reconnecting != null && !replaceRegistration) {
           request = AuthorizationRequest.reconnect(reconnecting.id);
         } else {
           final handle = await showRegistrationSetup(
@@ -949,11 +1191,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       reconnecting.displayName ??
                       reconnecting.id,
           );
-          if (handle == null || !mounted) return;
+          if (handle == null || !mounted) return false;
           request = reconnecting == null
               ? AuthorizationRequest.newConnection(handle)
               : AuthorizationRequest.replace(reconnecting.id, handle);
         }
+      }
+      if (!mounted ||
+          !identical(_authorizationCancellation, ownedCancellation) ||
+          ownedCancellation.isCancelled) {
+        return false;
       }
       final repository = ref.read(authRepositoryProvider);
       final runSync = ref.read(signedInSyncRunnerProvider);
@@ -961,7 +1208,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         authSessionControllerProvider.notifier,
       );
       setState(() => _connectingProvider = provider);
-      if (!mounted || ownedCancellation.isCancelled) return;
+      if (!mounted || ownedCancellation.isCancelled) return false;
       request = (request ?? const AuthorizationRequest.newConnection(null))
           .withCancellation(ownedCancellation);
       try {
@@ -1007,16 +1254,24 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             );
         }
         if (accountId != null) {
+          ownedCancellation.committed();
+          connected = true;
+          if (mounted) {
+            setState(() => _registrationRecoveryIds.remove(accountId));
+          }
           unawaited(_syncConnectedAccount(runSync, accountId));
           await sessionController.reconcileConnectedAccount(accountId);
         }
       } on Object catch (error) {
         if ((error is OAuthException && error.code == 'OAuthSignInCancelled') ||
             (error is DavException && error.kind == DavErrorKind.cancelled)) {
-          return;
+          return false;
         }
         if (mounted &&
+            identical(_authorizationCancellation, ownedCancellation) &&
+            !ownedCancellation.isCancelled &&
             error is OAuthException &&
+            provider == BusyProvider.google &&
             error.classification == OAuthFailureKind.identityUnverified) {
           addSeparate =
               await showBusyMaxModalDialog<bool>(
@@ -1047,7 +1302,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
               ) ??
               false;
-        } else if (mounted) {
+        } else if (mounted &&
+            identical(_authorizationCancellation, ownedCancellation) &&
+            !ownedCancellation.isCancelled) {
+          if (reconnecting != null &&
+              error is OAuthException &&
+              (error.classification ==
+                      OAuthFailureKind.registrationUnavailable ||
+                  error.classification == OAuthFailureKind.clientRejected ||
+                  error.classification == OAuthFailureKind.configuration)) {
+            setState(() => _registrationRecoveryIds.add(reconnecting.id));
+          }
           _showMessage(context, _accountConnectionErrorMessage(context, error));
         }
       } finally {
@@ -1066,17 +1331,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         if (mounted) setState(() => _connectingProvider = null);
       }
     }
-    if (addSeparate && mounted) await _connectAccount(BusyProvider.google);
+    if (addSeparate && mounted) return _connectAccount(BusyProvider.google);
+    return connected;
   }
 
   void _cancelAccountConnection() {
-    final provider = _connectingProvider;
+    if (_authorizationCancellation?.wasCommitted == true) return;
     _authorizationCancellation?.cancel();
     setState(() => _connectingProvider = null);
     _davCancellation?.cancel();
-    if (provider == BusyProvider.nextcloud) {
-      ref.read(davAccountOnboardingServiceProvider).cancelNextcloudLogin();
-    }
   }
 
   Future<void> _syncConnectedAccount(
@@ -1086,15 +1349,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     try {
       await runSync(accountId, true);
     } on Object catch (error) {
-      if (mounted) {
+      if (mounted &&
+          _page == SettingsPage.accounts &&
+          (_accountDetails == null || _accountDetails?.id == accountId)) {
         _showMessage(
           context,
           context.l10n.syncFailed(
-            localizedSyncFailureMessage(
-              context.l10n,
-              error,
-              networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
-            ),
+            AccountSettingsFeedback.fromError(context.l10n, error).message,
           ),
         );
       }
@@ -1112,7 +1373,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     final options = await showBusyMaxAccountRemovalDialog(
       context,
-      accountLabel: account.displayLabel,
+      accountLabel: _accountIdentityLabel(context, account),
+      revokeNextcloudAppPassword: account.provider == BusyProvider.nextcloud,
       canRevokeGoogleAuthorization:
           account.provider == BusyProvider.google && account.isSignedIn,
     );
@@ -1139,9 +1401,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 .removeAccount(account.id)
           : null;
       if (context.mounted) {
-        if (result?.authorizationRevocationFailed ?? false) {
+        final presenting =
+            _page == SettingsPage.accounts &&
+            (_accountDetails == null || _accountDetails?.id == account.id);
+        if (presenting && (result?.authorizationRevocationFailed ?? false)) {
           _showMessage(context, context.l10n.accountRemovedGoogleRevokeFailed);
-        } else if (davResult?.remoteRevocationAttempted == true &&
+        } else if (presenting &&
+            davResult?.remoteRevocationAttempted == true &&
             !davResult!.remoteRevocationSucceeded) {
           _showMessage(
             context,
@@ -1149,10 +1415,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           );
         }
         await _afterAccountRemoved(context, ref, account.id);
+        if (mounted && _accountDetails?.id == account.id) {
+          _returnAfterAccountDisappeared(account.id);
+        }
       }
     } on Object catch (error) {
       _settingsLogger.warning('Account removal failed: $error');
-      if (context.mounted) {
+      if (context.mounted &&
+          _page == SettingsPage.accounts &&
+          (_accountDetails == null || _accountDetails?.id == account.id)) {
         _showMessage(
           context,
           localizedAccountRemovalError(context.l10n, error),
@@ -1190,11 +1461,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         _showMessage(
           context,
           context.l10n.syncFailed(
-            localizedSyncFailureMessage(
-              context.l10n,
-              error,
-              networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
-            ),
+            AccountSettingsFeedback.fromError(context.l10n, error).message,
           ),
         );
       }
@@ -1202,10 +1469,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _refreshCollections(AccountEntity account) async {
+    if (_refreshingAccountIds.contains(account.id)) return;
+    final navigationGeneration = _accountNavigationGeneration;
+    setState(() => _refreshingAccountIds.add(account.id));
     try {
-      final current = await ref
+      var current = await ref
           .read(accountsRepositoryProvider)
           .accountById(account.id);
+      if (current?.provider == BusyProvider.nextcloud &&
+          (current?.connectionState ==
+                  AccountConnectionState.permissionChanged ||
+              current?.connectionState ==
+                  AccountConnectionState.unsupportedServerProfile)) {
+        await ref
+            .read(davAccountOnboardingServiceProvider)
+            .revalidateAccount(account.id);
+        if (!mounted) return;
+        current = await ref
+            .read(accountsRepositoryProvider)
+            .accountById(account.id);
+      }
       if (current?.isSyncEligible != true) {
         if (current?.needsReconnect == true && mounted) {
           _showMessage(
@@ -1216,20 +1499,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         return;
       }
       await ref.read(signedInSyncRunnerProvider)(account.id, true);
-      if (mounted) _showMessage(context, context.l10n.syncComplete);
+      if (mounted && navigationGeneration == _accountNavigationGeneration) {
+        _showMessage(context, context.l10n.syncComplete);
+      }
     } on Object catch (error) {
-      if (mounted) {
+      if (mounted && navigationGeneration == _accountNavigationGeneration) {
         _showMessage(
           context,
           context.l10n.syncFailed(
-            localizedSyncFailureMessage(
-              context.l10n,
-              error,
-              networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
-            ),
+            AccountSettingsFeedback.fromError(context.l10n, error).message,
           ),
         );
       }
+    } finally {
+      if (mounted) setState(() => _refreshingAccountIds.remove(account.id));
     }
   }
 
@@ -1242,6 +1525,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         context,
         title: context.l10n.openSharedCalendar,
         label: context.l10n.calendarOwnerEmail,
+        message: context.l10n.openSharedPrimaryDescription,
         actionLabel: context.l10n.openSharedCalendar,
       );
       if (!mounted || owner == null || owner.trim().isEmpty) return;
@@ -1260,7 +1544,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         }
       } on Object catch (error) {
         if (mounted) {
-          _showMessage(context, context.l10n.calendarUpdateFailed('$error'));
+          _showMessage(
+            context,
+            context.l10n.calendarUpdateFailed(
+              AccountSettingsFeedback.fromError(context.l10n, error).message,
+            ),
+          );
         }
       }
     } finally {
@@ -1318,11 +1607,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         _showMessage(
           context,
           context.l10n.calendarUpdateFailed(
-            localizedSyncFailureMessage(
-              context.l10n,
-              error,
-              networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
-            ),
+            AccountSettingsFeedback.fromError(context.l10n, error).message,
           ),
         );
       }
@@ -1438,11 +1723,13 @@ class _SettingsPageSelector extends StatelessWidget {
 class _SettingsHeader extends StatelessWidget {
   const _SettingsHeader({
     required this.title,
+    required this.backFocusNode,
     required this.onBack,
     required this.onMenuSelected,
   });
 
   final String title;
+  final FocusNode backFocusNode;
   final VoidCallback onBack;
   final ValueChanged<ScheduleToolbarMenuAction> onMenuSelected;
 
@@ -1453,6 +1740,7 @@ class _SettingsHeader extends StatelessWidget {
         children: [
           BusyMaxLinuxHeaderIconButton(
             key: const ValueKey('settings-header-back-button'),
+            focusNode: backFocusNode,
             tooltip: MaterialLocalizations.of(context).backButtonTooltip,
             icon: BusyMaxLinuxHeaderIcon.back,
             onPressed: onBack,
@@ -1591,8 +1879,13 @@ List<int> _scheduleDayEndValues(AppSettings settings) {
 String _timeOfDayLabel(BuildContext context, int minute) =>
     formatScheduleBoundary(context, minute);
 
-class _AccountManagementSection extends StatelessWidget {
+class _AccountManagementSection extends ConsumerWidget {
   const _AccountManagementSection({
+    required this.selectedAccountId,
+    required this.selectedContactAccountId,
+    required this.onOpenAccount,
+    required this.onOpenContactAccount,
+    required this.entryFocusNode,
     required this.accounts,
     required this.googleConfigured,
     required this.microsoftConfigured,
@@ -1607,6 +1900,10 @@ class _AccountManagementSection extends StatelessWidget {
     required this.onReconnect,
     required this.onMigrate,
     required this.removingAccountIds,
+    required this.registrationRecoveryIds,
+    required this.refreshingAccountIds,
+    required this.onRetryContacts,
+    required this.onReconnectContacts,
     required this.onRemoveAccount,
     required this.contactAccounts,
     required this.contactSources,
@@ -1637,6 +1934,9 @@ class _AccountManagementSection extends StatelessWidget {
   });
 
   final List<AccountEntity> accounts;
+  final String? selectedAccountId, selectedContactAccountId;
+  final ValueChanged<String> onOpenAccount, onOpenContactAccount;
+  final FocusNode Function(String id) entryFocusNode;
   final bool googleConfigured;
   final bool microsoftConfigured;
   final BusyProvider? connectingProvider;
@@ -1650,6 +1950,8 @@ class _AccountManagementSection extends StatelessWidget {
   final void Function(AccountEntity account) onReconnect;
   final void Function(AccountEntity account) onMigrate;
   final Set<String> removingAccountIds;
+  final Set<String> registrationRecoveryIds, refreshingAccountIds;
+  final void Function(ContactAccount) onRetryContacts, onReconnectContacts;
   final void Function(AccountEntity account) onRemoveAccount;
   final List<ContactAccount> contactAccounts;
   final List<BusyMaxContactSourceSetting> contactSources;
@@ -1689,55 +1991,128 @@ class _AccountManagementSection extends StatelessWidget {
   onChangeSubscriptionColor;
   final void Function(WebCalSubscriptionEntity subscription) onUnsubscribe;
 
+  List<Widget> _contactConnectionOptions(
+    BuildContext context,
+    AccountEntity account,
+  ) {
+    final contact = contactAccounts
+        .where(
+          (c) =>
+              c.id ==
+              BusyMaxContactsController.linkedContactAccountId(account.id),
+        )
+        .firstOrNull;
+    if (contact == null) return const [];
+    final busy =
+        busyContactAccountIds.contains(account.id) ||
+        busyContactAccountIds.contains(contact.id);
+    return [
+      BusyMaxActionRow(
+        title: context.l10n.contactsRetrySync,
+        leading: const Icon(YaruIcons.sync),
+        onTap: busy || !contact.enabled ? null : () => onRetryContacts(contact),
+      ),
+      BusyMaxActionRow(
+        title:
+            '${context.l10n.reconnectAccount} · ${context.l10n.contactsTitle}',
+        leading: const Icon(YaruIcons.refresh),
+        onTap: busy ? null : () => onReconnectContacts(contact),
+      ),
+    ];
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final connecting = connectingProvider != null;
+    final overview =
+        selectedAccountId == null && selectedContactAccountId == null;
     return _SettingsPageLayout(
       children: [
-        BusyMaxGroupedList(
-          filled: true,
-          children: [
-            BusyMaxActionRow(
-              title: connectingProvider == BusyProvider.nextcloud
-                  ? l10n.waitingForNextcloud
-                  : l10n.addNextcloudAccount,
-              leading: const Icon(YaruIcons.plus),
-              onTap: connecting ? null : onAddNextcloud,
-            ),
-            BusyMaxActionRow(
-              title: connectingProvider == BusyProvider.google
-                  ? l10n.waitingForGoogleSignIn
-                  : l10n.addGoogleAccount,
-              subtitle: googleConfigured ? null : l10n.providerNotConfigured,
-              leading: const Icon(YaruIcons.plus),
-              onTap: connecting || !googleConfigured ? null : onAddGoogle,
-            ),
-            BusyMaxActionRow(
-              title: connectingProvider == BusyProvider.microsoft
-                  ? l10n.waitingForMicrosoftSignIn
-                  : l10n.addMicrosoftAccount,
-              subtitle: microsoftConfigured ? null : l10n.providerNotConfigured,
-              leading: const Icon(YaruIcons.plus),
-              onTap: connecting || !microsoftConfigured ? null : onAddMicrosoft,
-            ),
-            BusyMaxActionRow(
-              title: connectingProvider == BusyProvider.appleICloud
-                  ? l10n.waitingForAppleICloud
-                  : l10n.addAppleICloudAccount,
-              leading: const Icon(YaruIcons.plus),
-              onTap: connecting ? null : onAddApple,
-            ),
-            if (connecting)
+        if (!overview && connecting)
+          BusyMaxGroupedList(
+            filled: true,
+            children: [
               BusyMaxActionRow(
                 title: l10n.cancelAccountConnection,
                 leading: const Icon(YaruIcons.window_close),
                 onTap: onCancelConnection,
               ),
-          ],
-        ),
-        for (final account in accounts)
+            ],
+          ),
+        if (overview) ...[
+          BusyMaxGroupedList(
+            title: l10n.addAccount,
+            titleStyle: _settingsAccountSubsectionStyle(context),
+            filled: true,
+            children: [
+              BusyMaxActionRow(
+                key: const ValueKey('add-account-nextcloud'),
+                focusNode: entryFocusNode('add-account'),
+                title: connectingProvider == BusyProvider.nextcloud
+                    ? l10n.waitingForNextcloud
+                    : l10n.addNextcloudAccount,
+                leading: const Icon(YaruIcons.plus),
+                onTap: connecting ? null : onAddNextcloud,
+              ),
+              BusyMaxActionRow(
+                title: connectingProvider == BusyProvider.google
+                    ? l10n.waitingForGoogleSignIn
+                    : l10n.addGoogleAccount,
+                subtitle: googleConfigured ? null : l10n.providerNotConfigured,
+                leading: const Icon(YaruIcons.plus),
+                onTap: connecting || !googleConfigured ? null : onAddGoogle,
+              ),
+              BusyMaxActionRow(
+                title: connectingProvider == BusyProvider.microsoft
+                    ? l10n.waitingForMicrosoftSignIn
+                    : l10n.addMicrosoftAccount,
+                subtitle: microsoftConfigured
+                    ? null
+                    : l10n.providerNotConfigured,
+                leading: const Icon(YaruIcons.plus),
+                onTap: connecting || !microsoftConfigured
+                    ? null
+                    : onAddMicrosoft,
+              ),
+              BusyMaxActionRow(
+                title: connectingProvider == BusyProvider.appleICloud
+                    ? l10n.waitingForAppleICloud
+                    : l10n.addAppleICloudAccount,
+                leading: const Icon(YaruIcons.plus),
+                onTap: connecting ? null : onAddApple,
+              ),
+              if (connecting)
+                BusyMaxActionRow(
+                  title: l10n.cancelAccountConnection,
+                  leading: const Icon(YaruIcons.window_close),
+                  onTap: onCancelConnection,
+                ),
+            ],
+          ),
+          _AccountsLoadState(state: ref.watch(accountManagementStreamProvider)),
+          if (accounts.isNotEmpty)
+            BusyMaxGroupedList(
+              title: l10n.connectedAccounts,
+              titleStyle: _settingsAccountSubsectionStyle(context),
+              filled: true,
+              children: [
+                for (final account in accounts)
+                  _AccountOverviewRow(
+                    key: ValueKey('account-entry-${account.id}'),
+                    account: account,
+                    focusNode: entryFocusNode('account:${account.id}'),
+                    onOpen: () => onOpenAccount(account.id),
+                  ),
+              ],
+            ),
+        ],
+        if (selectedAccountId != null &&
+            !accounts.any((a) => a.id == selectedAccountId))
+          _AccountsLoadState(state: ref.watch(accountManagementStreamProvider)),
+        for (final account in accounts.where((a) => a.id == selectedAccountId))
           _AccountSettingsGroup(
+            key: ValueKey('account-detail-${account.id}'),
             account: account,
             actions: _AccountManagementCard(
               account: account,
@@ -1745,70 +2120,31 @@ class _AccountManagementSection extends StatelessWidget {
               onReconnect: connecting || removingAccountIds.contains(account.id)
                   ? null
                   : () => onReconnect(account),
+              refreshing: refreshingAccountIds.contains(account.id),
               onRefreshCollections:
-                  account.isSyncEligible &&
-                      (account.provider == BusyProvider.appleICloud ||
-                          account.provider == BusyProvider.nextcloud)
+                  !refreshingAccountIds.contains(account.id) &&
+                      (account.isSyncEligible ||
+                          account.provider == BusyProvider.nextcloud &&
+                              (account.connectionState ==
+                                      AccountConnectionState
+                                          .permissionChanged ||
+                                  account.connectionState ==
+                                      AccountConnectionState
+                                          .unsupportedServerProfile))
                   ? () => onRefreshCollections(account)
                   : null,
-              onRemoveAccount: () => onRemoveAccount(account),
+              registrationRecovery: registrationRecoveryIds.contains(
+                account.id,
+              ),
+              onReplaceRegistration: () => onMigrate(account),
             ),
             subsections: [
-              if (account.provider == BusyProvider.google ||
-                  account.provider == BusyProvider.microsoft ||
-                  account.provider == BusyProvider.nextcloud)
-                _ContactsSettingsCard(
-                  account: account,
-                  contactAccount: contactAccounts
-                      .where(
-                        (candidate) =>
-                            candidate.id ==
-                            BusyMaxContactsController.linkedContactAccountId(
-                              account.id,
-                            ),
-                      )
-                      .firstOrNull,
-                  sources: [
-                    for (final setting in contactSources)
-                      if (setting.source.accountId ==
-                          BusyMaxContactsController.linkedContactAccountId(
-                            account.id,
-                          ))
-                        setting,
-                  ],
-                  busy:
-                      busyContactAccountIds.contains(account.id) ||
-                      busyContactAccountIds.contains(
-                        BusyMaxContactsController.linkedContactAccountId(
-                          account.id,
-                        ),
-                      ),
-                  onEnableRead: () => onEnableContacts(account),
-                  onDisable: () {
-                    final contact = contactAccounts
-                        .where(
-                          (candidate) =>
-                              candidate.id ==
-                              BusyMaxContactsController.linkedContactAccountId(
-                                account.id,
-                              ),
-                        )
-                        .firstOrNull;
-                    if (contact != null) onDisableContacts(contact);
-                  },
-                  onSourceEnabled: onSourceEnabled,
-                ),
-              if (account.provider == BusyProvider.google ||
-                  account.provider == BusyProvider.microsoft)
-                _RegistrationAccountCard(
-                  account: account,
-                  onMigrate: () => onMigrate(account),
-                  onReconnect: () => onReconnect(account),
-                ),
+              _AccountSyncStatusCard(account: account),
               if (account.calendarsEnabled &&
                   (account.provider == BusyProvider.google ||
                       account.provider == BusyProvider.microsoft))
                 _CalendarSettingsCard(
+                  account: account,
                   sources: [
                     for (final source in calendarSources)
                       if (source.accountId == account.id) source,
@@ -1817,37 +2153,10 @@ class _AccountManagementSection extends StatelessWidget {
                   onProviderVisibilityChanged:
                       onCalendarProviderVisibilityChanged,
                 ),
-              if (account.provider == BusyProvider.microsoft &&
-                  account.isSignedIn)
-                BusyMaxGroupedList(
-                  filled: true,
-                  children: [
-                    BusyMaxActionRow(
-                      title: context.l10n.openSharedCalendar,
-                      leading: const Icon(YaruIcons.calendar),
-                      onTap: () => onOpenSharedCalendar(account),
-                    ),
-                  ],
-                ),
-              if (account.isSignedIn &&
-                  calendarSources.any(
-                    (source) =>
-                        source.accountId == account.id &&
-                        CloudCalendarSharingService.canManageSource(source),
-                  ))
-                BusyMaxGroupedList(
-                  filled: true,
-                  children: [
-                    BusyMaxActionRow(
-                      title: context.l10n.manageCalendarSharing,
-                      leading: const Icon(YaruIcons.user),
-                      onTap: () => onManageCalendarSharing(account),
-                    ),
-                  ],
-                ),
               if (account.provider == BusyProvider.appleICloud ||
                   account.provider == BusyProvider.nextcloud)
                 _DavCollectionsCard(
+                  account: account,
                   collections: [
                     for (final collection in davCollections)
                       if (collection.accountId == account.id &&
@@ -1882,37 +2191,562 @@ class _AccountManagementSection extends StatelessWidget {
                     ),
                   ],
                 ),
+
+              if (account.provider == BusyProvider.google ||
+                  account.provider == BusyProvider.microsoft ||
+                  account.provider == BusyProvider.nextcloud)
+                _ContactsSettingsCard(
+                  onReplaceRegistration: () => onMigrate(account),
+                  account: account,
+                  contactAccount: contactAccounts
+                      .where(
+                        (candidate) =>
+                            candidate.id ==
+                            BusyMaxContactsController.linkedContactAccountId(
+                              account.id,
+                            ),
+                      )
+                      .firstOrNull,
+                  sources: [
+                    for (final setting in contactSources)
+                      if (setting.source.accountId ==
+                          BusyMaxContactsController.linkedContactAccountId(
+                            account.id,
+                          ))
+                        setting,
+                  ],
+                  busy:
+                      busyContactAccountIds.contains(account.id) ||
+                      busyContactAccountIds.contains(
+                        BusyMaxContactsController.linkedContactAccountId(
+                          account.id,
+                        ),
+                      ),
+                  onEnableRead: () => onEnableContacts(account),
+                  onRetry: onRetryContacts,
+                  onReconnect: onReconnectContacts,
+                  onDisable: () {
+                    final contact = contactAccounts
+                        .where(
+                          (candidate) =>
+                              candidate.id ==
+                              BusyMaxContactsController.linkedContactAccountId(
+                                account.id,
+                              ),
+                        )
+                        .firstOrNull;
+                    if (contact != null) onDisableContacts(contact);
+                  },
+                  onSourceEnabled: onSourceEnabled,
+                ),
+              if (account.provider == BusyProvider.microsoft &&
+                  account.isSignedIn)
+                BusyMaxGroupedList(
+                  filled: true,
+                  children: [
+                    BusyMaxActionRow(
+                      title: context.l10n.openSharedCalendar,
+                      leading: const Icon(YaruIcons.calendar),
+                      onTap: () => onOpenSharedCalendar(account),
+                    ),
+                  ],
+                ),
+              if (account.isSignedIn &&
+                  calendarSources.any(
+                    (source) =>
+                        source.accountId == account.id &&
+                        CloudCalendarSharingService.canManageSource(source),
+                  ))
+                BusyMaxGroupedList(
+                  filled: true,
+                  children: [
+                    BusyMaxActionRow(
+                      title: context.l10n.manageCalendarSharing,
+                      leading: const Icon(YaruIcons.user),
+                      onTap: () => onManageCalendarSharing(account),
+                    ),
+                  ],
+                ),
+              if (account.provider == BusyProvider.google ||
+                  account.provider == BusyProvider.microsoft)
+                _RegistrationAccountCard(
+                  account: account,
+                  onReconnect:
+                      connecting || removingAccountIds.contains(account.id)
+                      ? null
+                      : () => onReconnect(account),
+                  onMigrate: () => onMigrate(account),
+                  additionalRows: _contactConnectionOptions(context, account),
+                ),
+              if (account.provider == BusyProvider.nextcloud ||
+                  account.provider == BusyProvider.appleICloud)
+                Padding(
+                  padding: const EdgeInsets.only(top: BusyMaxSpacing.lg),
+                  child: YaruExpandable(
+                    key: ValueKey('account-advanced-${account.id}'),
+                    header: Text(
+                      l10n.advancedSection,
+                      style: _settingsSectionHeaderStyle(context),
+                    ),
+                    expandIconSemanticLabel: l10n.advancedSection,
+                    child: BusyMaxGroupedList(
+                      filled: true,
+                      children: [
+                        BusyMaxActionRow(
+                          key: ValueKey('reconnect-account-${account.id}'),
+                          title: l10n.reconnectAccount,
+                          leading: const Icon(YaruIcons.refresh),
+                          onTap:
+                              connecting ||
+                                  removingAccountIds.contains(account.id)
+                              ? null
+                              : () => onReconnect(account),
+                        ),
+                        ..._contactConnectionOptions(context, account),
+                      ],
+                    ),
+                  ),
+                ),
+              BusyMaxGroupedList(
+                filled: true,
+                children: [
+                  BusyMaxActionRow(
+                    key: ValueKey('remove-account-${account.id}'),
+                    title: removingAccountIds.contains(account.id)
+                        ? l10n.removingAccount
+                        : l10n.removeAccount,
+                    subtitle: l10n.removeAccountDescription,
+                    leading: Icon(
+                      YaruIcons.trash,
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                    enabled: !removingAccountIds.contains(account.id),
+                    onTap: removingAccountIds.contains(account.id)
+                        ? null
+                        : () => onRemoveAccount(account),
+                  ),
+                ],
+              ),
             ],
           ),
-        _ContactsOnlySettingsCard(
-          accounts: [
-            for (final account in contactAccounts)
-              if (!account.id.startsWith('contacts:')) account,
-          ],
-          sources: contactSources,
-          busyAccountIds: busyContactAccountIds,
-          onAddCardDav: onAddCardDavContacts,
-          onAddNextcloud: onAddNextcloudContacts,
-          onRemove: onRemoveContactsOnly,
-          onSourceEnabled: onSourceEnabled,
-        ),
-        _CalendarImportCard(onImport: onImportIcs),
-        _CalendarSubscriptionsCard(
-          subscriptions: subscriptions,
-          busySubscriptionIds: busySubscriptionIds,
-          onAdd: onAddSubscription,
-          onRefresh: onRefreshSubscription,
-          onRename: onRenameSubscription,
-          onChangeColor: onChangeSubscriptionColor,
-          onUnsubscribe: onUnsubscribe,
-        ),
+        if (selectedAccountId == null)
+          _ContactsOnlySettingsCard(
+            key: ValueKey(
+              'contact-details-${selectedContactAccountId ?? 'overview'}',
+            ),
+            selectedAccountId: selectedContactAccountId,
+            onOpenAccount: onOpenContactAccount,
+            entryFocusNode: entryFocusNode,
+            accountState: ref.watch(busyMaxContactAccountsProvider),
+            independentIds: ref.watch(independentContactAccountIdsProvider),
+            sources: contactSources,
+            busyAccountIds: busyContactAccountIds,
+            onAddCardDav: onAddCardDavContacts,
+            onAddNextcloud: onAddNextcloudContacts,
+            onRemove: onRemoveContactsOnly,
+            onRetry: onRetryContacts,
+            onReconnect: onReconnectContacts,
+            onSourceEnabled: onSourceEnabled,
+          ),
+        if (overview) _CalendarImportCard(onImport: onImportIcs),
+        if (overview)
+          _CalendarSubscriptionsCard(
+            subscriptions: subscriptions,
+            busySubscriptionIds: busySubscriptionIds,
+            onAdd: onAddSubscription,
+            onRefresh: onRefreshSubscription,
+            onRename: onRenameSubscription,
+            onChangeColor: onChangeSubscriptionColor,
+            onUnsubscribe: onUnsubscribe,
+          ),
       ],
+    );
+  }
+}
+
+class _AccountsLoadState extends StatelessWidget {
+  const _AccountsLoadState({required this.state});
+  final AsyncValue<List<AccountEntity>> state;
+  @override
+  Widget build(BuildContext context) => state.hasError
+      ? BusyMaxActionRow(
+          title: context.l10n.accountsLoadFailed,
+          leading: const Icon(YaruIcons.warning),
+        )
+      : state.isLoading
+      ? BusyMaxActionRow(
+          title: context.l10n.accountsLoading,
+          leading: const YaruCircularProgressIndicator(),
+        )
+      : const SizedBox.shrink();
+}
+
+AccountSettingsFeedback? _primaryAccountFeedback(
+  BuildContext context,
+  WidgetRef ref,
+  AccountEntity account,
+) {
+  final l10n = context.l10n;
+  if (account.needsReconnect) {
+    return AccountSettingsFeedback(
+      AccountSettingsFailure.authorization,
+      l10n.accountReconnectRequired,
+      AccountSettingsRecovery.reconnect,
+    );
+  }
+  if (account.connectionState == AccountConnectionState.permissionChanged) {
+    return AccountSettingsFeedback(
+      AccountSettingsFailure.permissions,
+      l10n.davPermissionChanged,
+      account.provider == BusyProvider.nextcloud
+          ? AccountSettingsRecovery.revalidate
+          : AccountSettingsRecovery.reconnect,
+    );
+  }
+  if (account.connectionState ==
+      AccountConnectionState.unsupportedServerProfile) {
+    return AccountSettingsFeedback(
+      AccountSettingsFailure.configuration,
+      l10n.davUnsupportedServer,
+      AccountSettingsRecovery.revalidate,
+    );
+  }
+  if (account.provider == BusyProvider.nextcloud ||
+      account.provider == BusyProvider.appleICloud) {
+    final failure = ref
+        .watch(accountSyncActivityProvider)
+        .failure(account.id, 'dav');
+    if (failure != null) {
+      return AccountSettingsFeedback.fromError(l10n, failure);
+    }
+    final discovery = ref.watch(davAccountDiscoveryProvider(account.id));
+    if (discovery.valueOrNull?.lastDiscoveryErrorCode case final code?) {
+      return AccountSettingsFeedback.fromDavCode(l10n, code);
+    }
+    if (discovery.hasError) {
+      return AccountSettingsFeedback.fromError(l10n, discovery.error!);
+    }
+  }
+  if ((account.provider == BusyProvider.google ||
+          account.provider == BusyProvider.microsoft) &&
+      account.connectionState ==
+          AccountConnectionState.temporarilyUnavailable) {
+    final activity = ref.watch(accountSyncActivityProvider);
+    final calendar = activity.failure(account.id, 'calendar');
+    final tasks = activity.failure(account.id, 'tasks');
+    if (calendar != null || tasks != null) {
+      // Only the same recorded failure establishes a shared account problem.
+      // Independent service outcomes keep their own messages and actions.
+      return calendar != null && identical(calendar, tasks)
+          ? AccountSettingsFeedback.fromError(l10n, calendar)
+          : null;
+    }
+  }
+  return account.connectionState ==
+          AccountConnectionState.temporarilyUnavailable
+      ? AccountSettingsFeedback(
+          AccountSettingsFailure.temporary,
+          l10n.accountSyncProblem,
+          AccountSettingsRecovery.retry,
+        )
+      : null;
+}
+
+class _AccountOverviewRow extends ConsumerWidget {
+  const _AccountOverviewRow({
+    super.key,
+    required this.account,
+    required this.focusNode,
+    required this.onOpen,
+  });
+  final AccountEntity account;
+  final FocusNode focusNode;
+  final VoidCallback onOpen;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final feedback = _primaryAccountFeedback(context, ref, account);
+    final activity = ref.watch(accountSyncActivityProvider);
+    final dav =
+        account.provider == BusyProvider.nextcloud ||
+        account.provider == BusyProvider.appleICloud;
+    final running = [
+      'dav',
+      'calendar',
+      'tasks',
+    ].any((d) => activity.isRunning(account.id, d));
+    final loading = dav
+        ? ref.watch(davCollectionsStreamProvider).isLoading ||
+              ref.watch(davAccountDiscoveryProvider(account.id)).isLoading
+        : ref.watch(calendarSourcesStreamProvider).isLoading ||
+              ref.watch(accountDomainSyncTimesProvider(account.id)).isLoading;
+    final inventoryFailed = dav
+        ? ref.watch(davCollectionsStreamProvider).hasError ||
+              ref.watch(davAccountDiscoveryProvider(account.id)).hasError
+        : ref.watch(calendarSourcesStreamProvider).hasError ||
+              ref.watch(accountDomainSyncTimesProvider(account.id)).hasError;
+    final visibilityFailed =
+        account.provider == BusyProvider.google &&
+        (ref.watch(calendarSourcesStreamProvider).valueOrNull ?? const [])
+            .where((source) => source.accountId == account.id)
+            .any((source) {
+              final state = ref.watch(
+                calendarVisibilityOperationProvider(source.id),
+              );
+              final operation = state.valueOrNull;
+              return state.hasError ||
+                  operation != null &&
+                      (operation.lastErrorCode != null ||
+                          !const [
+                            'pending',
+                            'in_progress',
+                          ].contains(operation.state));
+            });
+    final domainFailure =
+        [
+          'calendar',
+          'tasks',
+        ].any((d) => activity.failure(account.id, d) != null) ||
+        ref
+                .watch(davCollectionsStreamProvider)
+                .valueOrNull
+                ?.any(
+                  (c) => c.accountId == account.id && c.syncErrorCode != null,
+                ) ==
+            true ||
+        ref
+                .watch(calendarSourcesStreamProvider)
+                .valueOrNull
+                ?.any(
+                  (s) =>
+                      s.accountId == account.id &&
+                      s.accessRole == 'unavailable',
+                ) ==
+            true;
+    final status = running
+        ? l10n.traySyncing
+        : feedback != null
+        ? switch (feedback.kind) {
+            AccountSettingsFailure.authorization => l10n.accountReconnectStatus,
+            AccountSettingsFailure.registration =>
+              l10n.accountRegistrationStatus,
+            _ => feedback.message,
+          }
+        : loading
+        ? l10n.collectionsLoading
+        : domainFailure || inventoryFailed || visibilityFailed
+        ? l10n.accountSyncProblem
+        : l10n.accountReadyToSync;
+    return BusyMaxActionRow(
+      focusNode: focusNode,
+      title: _accountIdentityLabel(context, account),
+      titleWidget: Text(_accountIdentityLabel(context, account)),
+      subtitle: '${_accountProviderLabel(context, account.provider)} · $status',
+      subtitleWidget: Text(
+        '${_accountProviderLabel(context, account.provider)} · $status',
+      ),
+      leading: Icon(
+        feedback != null || domainFailure || inventoryFailed || visibilityFailed
+            ? YaruIcons.warning
+            : YaruIcons.user,
+      ),
+      trailing: Icon(
+        Directionality.of(context) == TextDirection.rtl
+            ? YaruIcons.pan_start
+            : YaruIcons.pan_end,
+      ),
+      onTap: onOpen,
+    );
+  }
+}
+
+class _IndependentContactOverviewRow extends ConsumerWidget {
+  const _IndependentContactOverviewRow({
+    super.key,
+    required this.account,
+    required this.focusNode,
+    required this.onOpen,
+    required this.busy,
+  });
+  final ContactAccount account;
+  final FocusNode focusNode;
+  final VoidCallback onOpen;
+  final bool busy;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final server = ref.watch(independentContactServerProvider(account.id));
+    final status = busy
+        ? l10n.traySyncing
+        : server.isLoading
+        ? l10n.accountsLoading
+        : !account.enabled
+        ? l10n.contactsSuggestionsDisabled
+        : account.errorCode != null
+        ? _contactErrorMessage(context, account.errorCode!)
+        : l10n.contactsSuggestionsEnabled;
+    final identity = [
+      account.subject,
+      if (server.valueOrNull != null) server.valueOrNull.toString(),
+      if (server.hasError) l10n.oauthSecureStorageUnavailable,
+      status,
+    ].where((s) => s.isNotEmpty).join(' · ');
+    return BusyMaxActionRow(
+      focusNode: focusNode,
+      title: account.displayName,
+      titleWidget: Text(account.displayName),
+      subtitle: identity,
+      subtitleWidget: Text(identity),
+      leading: const Icon(YaruIcons.user),
+      trailing: Icon(
+        Directionality.of(context) == TextDirection.rtl
+            ? YaruIcons.pan_start
+            : YaruIcons.pan_end,
+      ),
+      onTap: onOpen,
+    );
+  }
+}
+
+class _IndependentContactIdentity extends ConsumerWidget {
+  const _IndependentContactIdentity({required this.account});
+  final ContactAccount account;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final server = ref.watch(independentContactServerProvider(account.id));
+    return server.when(
+      data: (uri) =>
+          uri == null ? const SizedBox.shrink() : Text(uri.toString()),
+      loading: () => Text(context.l10n.accountsLoading),
+      error: (_, _) => Text(context.l10n.oauthSecureStorageUnavailable),
+    );
+  }
+}
+
+class _AccountSyncStatusCard extends ConsumerWidget {
+  const _AccountSyncStatusCard({required this.account});
+  final AccountEntity account;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final activity = ref.watch(accountSyncActivityProvider);
+    final times = ref.watch(accountDomainSyncTimesProvider(account.id));
+    final dav =
+        account.provider == BusyProvider.nextcloud ||
+        account.provider == BusyProvider.appleICloud;
+    final collections = ref.watch(davCollectionsStreamProvider);
+    final discoveryFailed =
+        dav &&
+        ref
+                .watch(davAccountDiscoveryProvider(account.id))
+                .valueOrNull
+                ?.lastDiscoveryErrorCode !=
+            null;
+    Widget domain(String domain, String label) {
+      final selected = collections.valueOrNull
+          ?.where(
+            (c) =>
+                c.accountId == account.id &&
+                (domain == 'calendar'
+                    ? c.supportsEvents && c.eventsSelected
+                    : c.supportsTasks && c.tasksSelected),
+          )
+          .toList();
+      DateTime? last = times.valueOrNull?[domain];
+      if (dav &&
+          selected?.isNotEmpty == true &&
+          selected!.every((c) => c.lastSyncAtUtc != null)) {
+        last = selected
+            .map((c) => c.lastSyncAtUtc!)
+            .reduce((a, b) => a.isBefore(b) ? a : b);
+      }
+      final running = activity.isRunning(account.id, dav ? 'dav' : domain);
+      final error = dav ? null : activity.failure(account.id, domain);
+      final calendarUnavailable =
+          domain == 'calendar' &&
+          ref
+                  .watch(calendarSourcesStreamProvider)
+                  .valueOrNull
+                  ?.any(
+                    (s) =>
+                        s.accountId == account.id &&
+                        s.accessRole == 'unavailable',
+                  ) ==
+              true;
+      final collectionError =
+          discoveryFailed ||
+          dav && selected?.any((c) => c.syncErrorCode != null) == true;
+      final loadFailed =
+          (dav ? collections.hasError : times.hasError) ||
+          domain == 'calendar' &&
+              ref.watch(calendarSourcesStreamProvider).hasError;
+      final loading = dav ? collections.isLoading : times.isLoading;
+      final message = running
+          ? l10n.traySyncing
+          : error != null
+          ? AccountSettingsFeedback.fromError(l10n, error).message
+          : loadFailed
+          ? l10n.collectionsLoadFailed
+          : collectionError || calendarUnavailable
+          ? l10n.cachedSyncError
+          : loading
+          ? l10n.collectionsLoading
+          : l10n.syncNoRecord;
+      final subtitle = [
+        if (running ||
+            loading ||
+            loadFailed ||
+            error != null ||
+            collectionError ||
+            calendarUnavailable ||
+            last == null)
+          message,
+        if (last != null)
+          l10n.davLastSuccessfulSync(_formatDavDateTime(context, last)),
+      ].join('\n');
+      return BusyMaxActionRow(
+        key: ValueKey('account-sync-$domain-${account.id}'),
+        title: label,
+        subtitle: subtitle,
+        subtitleWidget: Text(subtitle),
+        leading: Icon(
+          error != null || collectionError || calendarUnavailable || loadFailed
+              ? YaruIcons.warning
+              : domain == 'calendar'
+              ? YaruIcons.calendar
+              : YaruIcons.checkmark,
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: BusyMaxSpacing.lg),
+      child: YaruExpandable(
+        key: ValueKey('account-sync-details-${account.id}'),
+        header: Text(
+          l10n.accountSyncDetails,
+          style: _settingsSectionHeaderStyle(context),
+        ),
+        expandIconSemanticLabel: l10n.accountSyncDetails,
+        child: BusyMaxGroupedList(
+          filled: true,
+          children: [
+            BusyMaxActionRow(
+              title: l10n.davConnectionState,
+              subtitle: _accountConnectionStateLabel(context, account),
+            ),
+            if (account.calendarsEnabled) domain('calendar', l10n.calendar),
+            if (account.isTaskCapable) domain('tasks', l10n.tasks),
+          ],
+        ),
+      ),
     );
   }
 }
 
 class _AccountSettingsGroup extends StatelessWidget {
   const _AccountSettingsGroup({
+    super.key,
     required this.account,
     required this.actions,
     required this.subsections,
@@ -1924,47 +2758,70 @@ class _AccountSettingsGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: BusyMaxSpacing.lg),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: BusyMaxSpacing.xs),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Semantics(
-                  header: true,
-                  child: Text(
-                    key: ValueKey('settings-account-heading-${account.id}'),
-                    _accountProviderLabel(context, account.provider),
-                    style: _settingsSectionHeaderStyle(context),
-                  ),
-                ),
-                const SizedBox(height: BusyMaxSpacing.xs),
-                Text(
-                  _accountIdentityLabel(context, account),
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Semantics(
+          header: true,
+          child: Text(
+            key: ValueKey('settings-account-heading-${account.id}'),
+            _accountProviderLabel(context, account.provider),
+            style: _settingsSectionHeaderStyle(context),
           ),
-          actions,
-          if (subsections.isNotEmpty)
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: subsections,
-            ),
-        ],
-      ),
+        ),
+        const SizedBox(height: BusyMaxSpacing.xs),
+        Text(_accountIdentityLabel(context, account)),
+        actions,
+        ...subsections,
+      ],
     );
   }
 }
 
-class _ContactsSettingsCard extends StatelessWidget {
+AccountSettingsRecovery _contactRecovery(String? code) {
+  if (code == 'reconnect-required' || code == 'linked-parent-removed') {
+    return AccountSettingsRecovery.reconnect;
+  }
+  final parts = code?.split(':') ?? const <String>[];
+  if (parts.length < 2) return AccountSettingsRecovery.retry;
+  if (parts.first == 'contacts') {
+    return const ['authentication', 'permission'].contains(parts[1])
+        ? AccountSettingsRecovery.reconnect
+        : AccountSettingsRecovery.retry;
+  }
+  if (parts.first == 'oauth') {
+    final kind = OAuthFailureKind.values
+        .where((k) => k.name == parts[1])
+        .firstOrNull;
+    return switch (kind) {
+      OAuthFailureKind.registrationUnavailable ||
+      OAuthFailureKind.clientRejected ||
+      OAuthFailureKind.configuration =>
+        AccountSettingsRecovery.replaceRegistration,
+      OAuthFailureKind.expiredGrant ||
+      OAuthFailureKind.permission ||
+      OAuthFailureKind.wrongAccount ||
+      OAuthFailureKind.identityUnverified => AccountSettingsRecovery.reconnect,
+      _ => AccountSettingsRecovery.retry,
+    };
+  }
+  return AccountSettingsRecovery.retry;
+}
+
+String _contactErrorMessage(BuildContext context, String code) {
+  final parts = code.split(':');
+  if (parts.length >= 2 &&
+      (parts.first == 'contacts' && parts[1] == 'offline' ||
+          parts.first == 'oauth' &&
+              const ['network', 'timeout'].contains(parts[1]))) {
+    return context.l10n.accountServiceUnreachable;
+  }
+  return _contactRecovery(code) == AccountSettingsRecovery.replaceRegistration
+      ? context.l10n.accountRegistrationStatus
+      : localizedContactsStatus(context.l10n, code);
+}
+
+class _ContactsSettingsCard extends ConsumerWidget {
   const _ContactsSettingsCard({
     required this.account,
     required this.contactAccount,
@@ -1973,6 +2830,9 @@ class _ContactsSettingsCard extends StatelessWidget {
     required this.onEnableRead,
     required this.onDisable,
     required this.onSourceEnabled,
+    required this.onRetry,
+    required this.onReconnect,
+    required this.onReplaceRegistration,
   });
 
   final AccountEntity account;
@@ -1980,91 +2840,324 @@ class _ContactsSettingsCard extends StatelessWidget {
   final List<BusyMaxContactSourceSetting> sources;
   final bool busy;
   final VoidCallback onEnableRead;
+  final VoidCallback onReplaceRegistration;
   final VoidCallback onDisable;
   final Future<void> Function(String sourceKey, bool enabled) onSourceEnabled;
+  final void Function(ContactAccount) onRetry, onReconnect;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final contact = contactAccount;
     final l10n = context.l10n;
+    final contactState = ref.watch(busyMaxContactAccountsProvider);
+    final sourceState = ref.watch(busyMaxContactSourceSettingsProvider);
+    if (contactState.isLoading && !contactState.hasValue) {
+      return BusyMaxGroupedList(
+        title: l10n.contactsTitle,
+        filled: true,
+        children: [BusyMaxActionRow(title: l10n.accountsLoading)],
+      );
+    }
+    if (contactState.hasError && !contactState.hasValue) {
+      return BusyMaxGroupedList(
+        title: l10n.contactsTitle,
+        filled: true,
+        children: [
+          BusyMaxActionRow(
+            title: l10n.contactsSyncFailed,
+            onTap: () => ref.invalidate(busyMaxContactAccountsProvider),
+          ),
+        ],
+      );
+    }
+    final recovery = _contactRecovery(contact?.errorCode);
+    final needsRecovery =
+        contact?.enabled == true && contact?.errorCode != null;
     return BusyMaxGroupedList(
       title: l10n.contactsTitle,
       titleStyle: _settingsAccountSubsectionStyle(context),
-      description: l10n.contactsLinkedDescription,
+      description: l10n.accountContactSuggestions,
       filled: true,
-      children: contact == null
-          ? [
-              BusyMaxActionRow(
-                key: ValueKey('enable-contacts-read-${account.id}'),
-                title: l10n.contactsEnableSuggestions,
-                subtitle: l10n.contactsReadPermissionDescription,
-                leading: const Icon(YaruIcons.user),
-                onTap: busy ? null : onEnableRead,
+      children: [
+        if (busy)
+          BusyMaxActionRow(
+            title: l10n.traySyncing,
+            leading: const YaruCircularProgressIndicator(),
+          ),
+        if (contact == null)
+          BusyMaxActionRow(
+            key: ValueKey('enable-contacts-read-${account.id}'),
+            title: l10n.contactsEnableSuggestions,
+            subtitle: account.provider == BusyProvider.nextcloud
+                ? l10n.contactsReadOnlyUse
+                : l10n.contactsReadPermissionDescription,
+            leading: const Icon(YaruIcons.user),
+            onTap: busy ? null : onEnableRead,
+          )
+        else ...[
+          BusyMaxSwitchRow(
+            key: ValueKey('enable-contacts-read-${account.id}'),
+            title: l10n.contactsEnableSuggestions,
+            subtitle: l10n.contactsReadOnlyUse,
+            value: contact.enabled,
+            enabled: !busy,
+            leading: const Icon(YaruIcons.user),
+            onChanged: (enabled) => enabled ? onEnableRead() : onDisable(),
+          ),
+          if (needsRecovery)
+            BusyMaxActionRow(
+              title: _contactErrorMessage(context, contact.errorCode!),
+              titleWidget: Text(
+                _contactErrorMessage(context, contact.errorCode!),
               ),
-            ]
-          : [
-              BusyMaxActionRow(
-                title: contact.errorCode == null
-                    ? l10n.contactsSuggestionsEnabled
-                    : l10n.contactsNeedsAttention,
-                subtitle: l10n.contactsReadOnlyUse,
-                leading: Icon(
-                  contact.errorCode == null
-                      ? YaruIcons.checkmark
-                      : YaruIcons.warning,
-                ),
-              ),
-              BusyMaxActionRow(
+              leading: const Icon(YaruIcons.warning),
+              trailing: BusyMaxPushButton.standard(
                 key: ValueKey('reconnect-contacts-${account.id}'),
-                title: l10n.connectAccountAction,
-                leading: const Icon(YaruIcons.sync),
-                onTap: busy ? null : onEnableRead,
-              ),
-              for (final setting in sources)
-                _ContactSourceSettingsRow(
-                  setting: setting,
-                  onChanged: (enabled) =>
-                      onSourceEnabled(setting.source.key, enabled),
+                onPressed: busy
+                    ? null
+                    : recovery == AccountSettingsRecovery.replaceRegistration
+                    ? onReplaceRegistration
+                    : recovery == AccountSettingsRecovery.reconnect
+                    ? () => onReconnect(contact)
+                    : () => onRetry(contact),
+                child: Text(
+                  recovery == AccountSettingsRecovery.replaceRegistration
+                      ? l10n.registrationReplace
+                      : recovery == AccountSettingsRecovery.reconnect
+                      ? l10n.reconnectAccount
+                      : l10n.contactsRetrySync,
                 ),
-              BusyMaxActionRow(
-                key: ValueKey('disable-contacts-${account.id}'),
-                title: l10n.contactsDisableForAccount,
-                leading: Icon(
-                  YaruIcons.trash,
-                  color: Theme.of(context).colorScheme.error,
-                ),
-                destructive: true,
-                onTap: busy ? null : onDisable,
               ),
-            ],
+            ),
+          if (sourceState.hasError)
+            BusyMaxActionRow(
+              title: l10n.contactsSourcesUnavailable,
+              trailing: BusyMaxPushButton.standard(
+                onPressed: () =>
+                    ref.invalidate(busyMaxContactSourceSettingsProvider),
+                child: Text(l10n.retry),
+              ),
+            ),
+          if (sources.isEmpty && !needsRecovery && !sourceState.hasError)
+            BusyMaxActionRow(
+              title: sourceState.isLoading
+                  ? l10n.collectionsLoading
+                  : l10n.contactsNoAddressBooks,
+            ),
+          for (final setting in sources)
+            _ContactSourceSettingsRow(
+              setting: setting,
+              onChanged: (enabled) =>
+                  onSourceEnabled(setting.source.key, enabled),
+            ),
+        ],
+      ],
     );
   }
 }
 
-class _ContactsOnlySettingsCard extends StatelessWidget {
+class _ContactsOnlySettingsCard extends ConsumerWidget {
   const _ContactsOnlySettingsCard({
-    required this.accounts,
+    super.key,
+    required this.selectedAccountId,
+    required this.onOpenAccount,
+    required this.entryFocusNode,
+    required this.accountState,
+    required this.independentIds,
     required this.sources,
     required this.busyAccountIds,
     required this.onAddCardDav,
     required this.onAddNextcloud,
     required this.onRemove,
     required this.onSourceEnabled,
+    required this.onRetry,
+    required this.onReconnect,
   });
-
-  final List<ContactAccount> accounts;
+  final String? selectedAccountId;
+  final ValueChanged<String> onOpenAccount;
+  final FocusNode Function(String) entryFocusNode;
+  final AsyncValue<List<ContactAccount>> accountState;
+  final AsyncValue<Set<String>> independentIds;
   final List<BusyMaxContactSourceSetting> sources;
   final Set<String> busyAccountIds;
-  final VoidCallback onAddCardDav;
-  final VoidCallback onAddNextcloud;
-  final void Function(ContactAccount account) onRemove;
-  final Future<void> Function(String sourceKey, bool enabled) onSourceEnabled;
+  final VoidCallback onAddCardDav, onAddNextcloud;
+  final void Function(ContactAccount) onRemove, onRetry, onReconnect;
+  final Future<void> Function(String, bool) onSourceEnabled;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
+    // Cached values remain useful during refresh and failure. An unavailable
+    // inventory still has its own status; it is never a successful empty list.
+    final accounts = [
+      for (final account in accountState.valueOrNull ?? <ContactAccount>[])
+        if (independentIds.valueOrNull?.contains(account.id) == true) account,
+    ];
+    final accountsFailed = accountState.hasError && !accountState.isLoading;
+    final independentIdsFailed =
+        independentIds.hasError && !independentIds.isLoading;
+    final inventoryFailed = accountsFailed || independentIdsFailed;
+    final inventoryLoading = accountState.isLoading || independentIds.isLoading;
+    void retryInventory() {
+      if (accountsFailed) {
+        ref.invalidate(busyMaxContactAccountsProvider);
+      }
+      if (independentIdsFailed) {
+        ref.invalidate(independentContactAccountIdsProvider);
+      }
+    }
+
+    Widget inventoryFailure() => BusyMaxActionRow(
+      key: const ValueKey('contacts-inventory-error'),
+      title: l10n.contactsAccountsUnavailable,
+      leading: const Icon(YaruIcons.warning),
+      trailing: BusyMaxPushButton.standard(
+        key: const ValueKey('contacts-inventory-retry'),
+        onPressed: retryInventory,
+        child: Text(l10n.retry),
+      ),
+    );
+    if (selectedAccountId != null) {
+      final sourceState = ref.watch(busyMaxContactSourceSettingsProvider);
+      final account = accounts
+          .where((a) => a.id == selectedAccountId)
+          .firstOrNull;
+      if (account == null) {
+        return inventoryFailed
+            ? inventoryFailure()
+            : BusyMaxActionRow(title: l10n.accountsLoading);
+      }
+      final busy = busyAccountIds.contains(account.id);
+      final recovery = _contactRecovery(account.errorCode);
+      final reconnect =
+          !account.enabled || recovery != AccountSettingsRecovery.retry;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Semantics(
+            header: true,
+            child: Text(
+              account.displayName,
+              style: _settingsSectionHeaderStyle(context),
+            ),
+          ),
+          const SizedBox(height: BusyMaxSpacing.xs),
+          Text(account.subject),
+          _IndependentContactIdentity(account: account),
+          BusyMaxGroupedList(
+            title: l10n.contactsTitle,
+            description: l10n.contactsOnlyDescription,
+            filled: true,
+            children: [
+              if (busy)
+                BusyMaxActionRow(
+                  title: l10n.traySyncing,
+                  leading: const YaruCircularProgressIndicator(),
+                ),
+              if (!account.enabled || account.errorCode != null)
+                BusyMaxActionRow(
+                  title: account.errorCode == null
+                      ? l10n.contactsSuggestionsDisabled
+                      : _contactErrorMessage(context, account.errorCode!),
+                  titleWidget: Text(
+                    account.errorCode == null
+                        ? l10n.contactsSuggestionsDisabled
+                        : _contactErrorMessage(context, account.errorCode!),
+                  ),
+                  leading: Icon(
+                    account.errorCode == null
+                        ? YaruIcons.user
+                        : YaruIcons.warning,
+                  ),
+                  trailing: BusyMaxPushButton.standard(
+                    key: ValueKey('contact-account-recovery-${account.id}'),
+                    onPressed: busy
+                        ? null
+                        : reconnect
+                        ? () => onReconnect(account)
+                        : () => onRetry(account),
+                    child: Text(
+                      reconnect
+                          ? l10n.reconnectAccount
+                          : l10n.contactsRetrySync,
+                    ),
+                  ),
+                ),
+              for (final setting in sources.where(
+                (s) => s.source.accountId == account.id,
+              ))
+                _ContactSourceSettingsRow(
+                  setting: setting,
+                  onChanged: (enabled) =>
+                      onSourceEnabled(setting.source.key, enabled),
+                ),
+              if (sourceState.hasError)
+                BusyMaxActionRow(
+                  title: l10n.contactsSourcesUnavailable,
+                  trailing: BusyMaxPushButton.standard(
+                    onPressed: () =>
+                        ref.invalidate(busyMaxContactSourceSettingsProvider),
+                    child: Text(l10n.retry),
+                  ),
+                ),
+              if (account.enabled &&
+                  account.errorCode == null &&
+                  !sourceState.hasError &&
+                  !sources.any((s) => s.source.accountId == account.id))
+                BusyMaxActionRow(
+                  title: sourceState.isLoading
+                      ? l10n.collectionsLoading
+                      : l10n.contactsNoAddressBooks,
+                ),
+            ],
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: BusyMaxSpacing.lg),
+            child: YaruExpandable(
+              header: Text(
+                l10n.advancedSection,
+                style: _settingsSectionHeaderStyle(context),
+              ),
+              key: ValueKey('contact-account-advanced-${account.id}'),
+              expandIconSemanticLabel: l10n.advancedSection,
+              child: BusyMaxGroupedList(
+                filled: true,
+                children: [
+                  BusyMaxActionRow(
+                    title: l10n.reconnectAccount,
+                    leading: const Icon(YaruIcons.refresh),
+                    onTap: busy ? null : () => onReconnect(account),
+                  ),
+                  BusyMaxActionRow(
+                    title: l10n.contactsRetrySync,
+                    leading: const Icon(YaruIcons.sync),
+                    onTap: busy || !account.enabled
+                        ? null
+                        : () => onRetry(account),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          BusyMaxGroupedList(
+            filled: true,
+            children: [
+              BusyMaxActionRow(
+                key: ValueKey('remove-contacts-only-${account.id}'),
+                title: l10n.removeAction,
+                leading: Icon(
+                  YaruIcons.trash,
+                  color: Theme.of(context).colorScheme.error,
+                ),
+                onTap: busy ? null : () => onRemove(account),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
     return BusyMaxGroupedList(
-      title: l10n.contactsTitle,
+      title: l10n.contactsIndependentAccounts,
       titleStyle: _settingsSectionHeaderStyle(context),
       description: l10n.contactsOnlyDescription,
       filled: true,
@@ -2081,32 +3174,20 @@ class _ContactsOnlySettingsCard extends StatelessWidget {
           leading: const Icon(YaruIcons.plus),
           onTap: onAddNextcloud,
         ),
-        for (final account in accounts) ...[
+        if (inventoryLoading)
           BusyMaxActionRow(
-            title: account.displayName,
-            subtitle: l10n.contactsReadOnlyUse,
-            leading: const Icon(YaruIcons.user),
+            key: const ValueKey('contacts-inventory-loading'),
+            title: l10n.accountsLoading,
           ),
-          for (final setting in sources)
-            if (setting.source.accountId == account.id)
-              _ContactSourceSettingsRow(
-                setting: setting,
-                onChanged: (enabled) =>
-                    onSourceEnabled(setting.source.key, enabled),
-              ),
-          BusyMaxActionRow(
-            key: ValueKey('remove-contacts-only-${account.id}'),
-            title: l10n.removeAction,
-            leading: Icon(
-              YaruIcons.trash,
-              color: Theme.of(context).colorScheme.error,
-            ),
-            destructive: true,
-            onTap: busyAccountIds.contains(account.id)
-                ? null
-                : () => onRemove(account),
+        if (inventoryFailed) inventoryFailure(),
+        for (final account in accounts)
+          _IndependentContactOverviewRow(
+            key: ValueKey('contact-account-entry-${account.id}'),
+            account: account,
+            busy: busyAccountIds.contains(account.id),
+            focusNode: entryFocusNode('contacts:${account.id}'),
+            onOpen: () => onOpenAccount(account.id),
           ),
-        ],
       ],
     );
   }
@@ -2147,7 +3228,7 @@ class _ContactSourceSettingsRowState extends State<_ContactSourceSettingsRow> {
       if (mounted) setState(() => _value = value);
     } on Object {
       if (mounted) {
-        setState(() => _error = 'Could not save contact source preference');
+        setState(() => _error = context.l10n.contactsPreferenceFailed);
       }
     } finally {
       if (mounted) setState(() => _pending = false);
@@ -2181,43 +3262,61 @@ TextStyle? _settingsAccountSubsectionStyle(BuildContext context) {
   );
 }
 
-class _CalendarSettingsCard extends StatelessWidget {
+class _CalendarSettingsCard extends ConsumerWidget {
   const _CalendarSettingsCard({
     required this.sources,
+    required this.account,
     required this.onSelected,
     required this.onProviderVisibilityChanged,
   });
 
   final List<CalendarSourceEntity> sources;
+  final AccountEntity account;
   final void Function(CalendarSourceEntity source, bool selected) onSelected;
   final void Function(CalendarSourceEntity source, bool visible)
   onProviderVisibilityChanged;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
+    final state = ref.watch(calendarSourcesStreamProvider);
     final showsProviderVisibility = sources.any(
-      (source) => source.capabilities.canChangeProviderVisibility,
+      (source) => source.provider == BusyProvider.google,
     );
     return BusyMaxGroupedList(
       title: l10n.calendars,
       titleStyle: _settingsAccountSubsectionStyle(context),
       filled: true,
+      description: showsProviderVisibility ? l10n.googleVisibilityHelp : null,
       children: sources.isEmpty
           ? [
               BusyMaxActionRow(
-                title: l10n.noCalendarsSynced,
+                title: _collectionEmptyMessage(
+                  context,
+                  ref,
+                  account: account,
+                  loading: ref.watch(calendarSourcesStreamProvider).isLoading,
+                  failed: ref.watch(calendarSourcesStreamProvider).hasError,
+                ),
                 leading: const Icon(YaruIcons.calendar),
               ),
             ]
           : [
-              _CalendarSettingsColumnHeader(
-                showsProviderVisibility: showsProviderVisibility,
-              ),
+              if (state.hasError)
+                BusyMaxActionRow(
+                  title: l10n.collectionsLoadFailed,
+                  titleWidget: Text(l10n.collectionsLoadFailed),
+                  leading: const Icon(YaruIcons.warning),
+                ),
+              if (state.isLoading)
+                BusyMaxActionRow(
+                  title: l10n.collectionsLoading,
+                  leading: const YaruCircularProgressIndicator(),
+                ),
               for (final source in sources)
                 _CalendarSettingsRow(
+                  key: ValueKey('settings-calendar-row-${source.id}'),
                   source: source,
-                  showsProviderVisibility: showsProviderVisibility,
                   onSelected: onSelected,
                   onProviderVisibilityChanged: onProviderVisibilityChanged,
                 ),
@@ -2226,197 +3325,331 @@ class _CalendarSettingsCard extends StatelessWidget {
   }
 }
 
-const _calendarSettingsColumnWidth = 92.0;
+class _CalendarSettingsRow extends ConsumerStatefulWidget {
+  const _CalendarSettingsRow({
+    super.key,
+    required this.source,
+    required this.onSelected,
+    required this.onProviderVisibilityChanged,
+  });
+  final CalendarSourceEntity source;
+  final void Function(CalendarSourceEntity, bool) onSelected;
+  final void Function(CalendarSourceEntity, bool) onProviderVisibilityChanged;
+  @override
+  ConsumerState<_CalendarSettingsRow> createState() =>
+      _CalendarSettingsRowState();
+}
 
-class _CalendarSettingsColumnHeader extends StatelessWidget {
-  const _CalendarSettingsColumnHeader({required this.showsProviderVisibility});
-
-  final bool showsProviderVisibility;
-
+class _CalendarSettingsRowState extends ConsumerState<_CalendarSettingsRow> {
+  bool _expanded = false;
   @override
   Widget build(BuildContext context) {
+    final source = widget.source;
     final l10n = context.l10n;
-    final style = Theme.of(context).textTheme.labelSmall?.copyWith(
-      color: Theme.of(context).colorScheme.onSurfaceVariant,
-      fontWeight: FontWeight.w600,
-    );
-    return Padding(
-      padding: const EdgeInsetsDirectional.fromSTEB(
-        BusyMaxSpacing.md,
-        BusyMaxSpacing.sm,
-        BusyMaxSpacing.md,
-        BusyMaxSpacing.xs,
+    final google = source.provider == BusyProvider.google;
+    final operationState = google
+        ? ref.watch(calendarVisibilityOperationProvider(source.id))
+        : null;
+    final pending = operationState?.valueOrNull;
+    final failed =
+        pending != null &&
+        (pending.lastErrorCode != null ||
+            !const ['pending', 'in_progress'].contains(pending.state));
+    var confirmedHidden = source.hidden;
+    if (failed) {
+      final request = jsonDecode(pending.requestJson) as Map;
+      final previous = request[calendarPatchPreviousValuesKey];
+      final baseline = jsonDecode(pending.baselineRawJson ?? '{}') as Map;
+      confirmedHidden = previous is Map && previous['hidden'] is bool
+          ? previous['hidden'] as bool
+          : baseline['hidden'] == true;
+    }
+    final shared =
+        MicrosoftSharedPrimaryCalendarAddress.parse(
+              source.providerCalendarId,
+            ) !=
+            null ||
+        source.dataOwner != null &&
+            source.authenticatedAccountEmail != null &&
+            source.dataOwner!.toLowerCase() !=
+                source.authenticatedAccountEmail!.toLowerCase();
+    final details = [
+      if (shared) l10n.sharedCollection,
+      if (source.readOnly) l10n.readOnlySharedCollection,
+      if (source.accessRole == 'unavailable') l10n.sharedCalendarUnavailable,
+    ].join(' · ');
+    final localValue = source.selected && !source.hidden;
+    void selectLocal(bool value) => widget.onSelected(source, value);
+    Widget localVisibilityControl() => Semantics(
+      label: '${l10n.showInBusyMax} · ${source.summary}',
+      child: BusyMaxYaruFocusBorder(
+        builder: (context, focusNode) => YaruSwitch(
+          key: ValueKey('settings-calendar-schedule-${source.id}'),
+          value: localValue,
+          focusNode: focusNode,
+          hasFocusBorder: false,
+          onChanged: source.hidden ? null : selectLocal,
+        ),
       ),
-      child: Row(
+    );
+    final localRow = BusyMaxActionRow(
+      title: google ? l10n.showInBusyMax : source.summary,
+      titleWidget: Text(google ? l10n.showInBusyMax : source.summary),
+      subtitle: google || details.isEmpty ? null : details,
+      subtitleWidget: google || details.isEmpty ? null : Text(details),
+      leading: google
+          ? null
+          : _DavCollectionIndicator(color: source.backgroundColor),
+      onTap: source.hidden ? null : () => selectLocal(!localValue),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          const Expanded(child: SizedBox()),
-          _CalendarSettingsColumnLabel(
-            key: const ValueKey('settings-calendar-column-schedule'),
-            label: l10n.scheduleSettings,
-            style: style,
-          ),
-          if (showsProviderVisibility)
-            _CalendarSettingsColumnLabel(
-              key: const ValueKey('settings-calendar-column-provider'),
-              label: l10n.googleProvider,
-              style: style,
+          localVisibilityControl(),
+          if (source.provider == BusyProvider.microsoft &&
+              source.capabilities.removalMode ==
+                  CalendarRemovalMode.removeFromList)
+            YaruIconButton(
+              key: ValueKey('settings-calendar-remove-${source.id}'),
+              tooltip: '${l10n.removeFromMyCalendars} · ${source.summary}',
+              icon: const Icon(YaruIcons.trash),
+              onPressed: () => _removeSharedCalendar(context),
             ),
         ],
       ),
     );
-  }
-}
-
-class _CalendarSettingsColumnLabel extends StatelessWidget {
-  const _CalendarSettingsColumnLabel({
-    super.key,
-    required this.label,
-    required this.style,
-  });
-
-  final String label;
-  final TextStyle? style;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: _calendarSettingsColumnWidth,
-      child: Text(
-        label,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        textAlign: TextAlign.center,
-        style: style,
-      ),
-    );
-  }
-}
-
-class _CalendarSettingsRow extends ConsumerWidget {
-  const _CalendarSettingsRow({
-    required this.source,
-    required this.showsProviderVisibility,
-    required this.onSelected,
-    required this.onProviderVisibilityChanged,
-  });
-
-  final CalendarSourceEntity source;
-  final bool showsProviderVisibility;
-  final void Function(CalendarSourceEntity source, bool selected) onSelected;
-  final void Function(CalendarSourceEntity source, bool visible)
-  onProviderVisibilityChanged;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = context.l10n;
-    final canChangeProviderVisibility =
-        source.capabilities.canChangeProviderVisibility;
-    return Semantics(
-      container: true,
-      label: source.summary,
-      explicitChildNodes: true,
-      child: Padding(
-        padding: const EdgeInsetsDirectional.fromSTEB(
-          BusyMaxSpacing.md,
-          BusyMaxSpacing.xs,
-          BusyMaxSpacing.md,
-          BusyMaxSpacing.xs,
-        ),
-        child: Row(
-          children: [
-            _DavCollectionIndicator(color: source.backgroundColor),
-            const SizedBox(width: BusyMaxSpacing.md),
-            Expanded(
-              child: Text(
-                source.summary,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
+    if (!google) return localRow;
+    final busyVisibility =
+        operationState!.isLoading && !operationState.hasValue;
+    final visibilityLoadFailed = operationState.hasError;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Semantics(
+          expanded: _expanded,
+          child: YaruExpandable(
+            key: ValueKey('settings-calendar-expander-${source.id}'),
+            isExpanded: _expanded,
+            onChange: (value) => setState(() => _expanded = value),
+            expandIconSemanticLabel: source.summary,
+            header: BusyMaxActionRow(
+              title: source.summary,
+              titleWidget: Text(source.summary),
+              subtitle: details.isEmpty ? null : details,
+              subtitleWidget: details.isEmpty ? null : Text(details),
+              leading: _DavCollectionIndicator(color: source.backgroundColor),
             ),
-            _CalendarSettingsSwitchCell(
-              message: l10n.showInSchedule,
-              child: BusyMaxYaruFocusBorder(
-                builder: (context, focusNode) => YaruSwitch(
-                  key: ValueKey('settings-calendar-schedule-${source.id}'),
-                  value: source.selected && !source.hidden,
-                  focusNode: focusNode,
-                  hasFocusBorder: false,
-                  onChanged: source.hidden
-                      ? null
-                      : (selected) => onSelected(source, selected),
-                ),
-              ),
-            ),
-            if (showsProviderVisibility)
-              _CalendarSettingsSwitchCell(
-                message: l10n.visibility,
-                child: BusyMaxYaruFocusBorder(
-                  builder: (context, focusNode) => YaruSwitch(
-                    key: ValueKey('settings-calendar-provider-${source.id}'),
-                    value: !source.hidden,
-                    focusNode: focusNode,
-                    hasFocusBorder: false,
-                    onChanged: canChangeProviderVisibility
-                        ? (visible) =>
-                              onProviderVisibilityChanged(source, visible)
-                        : null,
+            child: Column(
+              children: [
+                localRow,
+                BusyMaxActionRow(
+                  title: l10n.showInGoogleCalendarList,
+                  titleWidget: Text(l10n.showInGoogleCalendarList),
+                  subtitle: source.primaryCalendar
+                      ? l10n.primaryCalendarVisibilityExplanation
+                      : null,
+                  subtitleWidget: source.primaryCalendar
+                      ? Text(l10n.primaryCalendarVisibilityExplanation)
+                      : null,
+                  trailing: Semantics(
+                    label:
+                        '${l10n.showInGoogleCalendarList} · ${source.summary}',
+                    child: BusyMaxYaruFocusBorder(
+                      builder: (context, focusNode) => YaruSwitch(
+                        key: ValueKey(
+                          'settings-calendar-provider-${source.id}',
+                        ),
+                        value: !confirmedHidden,
+                        focusNode: focusNode,
+                        hasFocusBorder: false,
+                        onChanged:
+                            source.capabilities.canChangeProviderVisibility &&
+                                !failed &&
+                                !busyVisibility &&
+                                !visibilityLoadFailed
+                            ? (visible) => widget.onProviderVisibilityChanged(
+                                source,
+                                visible,
+                              )
+                            : null,
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            if (source.provider == BusyProvider.microsoft &&
-                source.capabilities.removalMode ==
-                    CalendarRemovalMode.removeFromList)
-              YaruIconButton(
-                key: ValueKey('settings-calendar-remove-${source.id}'),
-                tooltip: l10n.removeFromMyCalendars,
-                icon: const Icon(YaruIcons.trash),
-                onPressed: () async {
-                  final confirmed = await showBusyMaxConfirm(
-                    context,
-                    title: l10n.removeFromMyCalendars,
-                    message: l10n.removeOpenedSharedCalendarConfirmation(
-                      source.summary,
-                    ),
-                    confirmLabel: l10n.removeAction,
-                  );
-                  if (!confirmed || !context.mounted) return;
-                  try {
-                    await ref
-                        .read(calendarRepositoryProvider)
-                        .deleteLocalSource(source.id);
-                  } on Object catch (error) {
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(l10n.calendarUpdateFailed('$error')),
-                        ),
-                      );
-                    }
-                  }
-                },
-              ),
-          ],
+              ],
+            ),
+          ),
         ),
-      ),
+        if (busyVisibility)
+          BusyMaxActionRow(
+            title: l10n.collectionsLoading,
+            leading: const YaruCircularProgressIndicator(),
+          ),
+        if (visibilityLoadFailed)
+          BusyMaxActionRow(
+            title: l10n.accountSyncProblem,
+            trailing: BusyMaxPushButton.standard(
+              onPressed: () => ref.invalidate(
+                calendarVisibilityOperationProvider(source.id),
+              ),
+              child: Text(l10n.retry),
+            ),
+          ),
+        if (pending != null)
+          Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(
+              BusyMaxSpacing.md,
+              BusyMaxSpacing.xs,
+              BusyMaxSpacing.md,
+              BusyMaxSpacing.sm,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  failed
+                      ? l10n.calendarRemoteFailed
+                      : l10n.calendarRemotePending,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                if (failed)
+                  _CalendarVisibilityRecoveryActions(
+                    key: ValueKey('visibility-recovery-${pending.id}'),
+                    source: source,
+                    operation: pending,
+                  ),
+              ],
+            ),
+          ),
+      ],
     );
+  }
+
+  Future<void> _removeSharedCalendar(BuildContext context) async {
+    final source = widget.source;
+    final l10n = context.l10n;
+    final confirmed = await showBusyMaxConfirm(
+      context,
+      title: l10n.removeFromMyCalendars,
+      message: l10n.removeOpenedSharedCalendarConfirmation(source.summary),
+      confirmLabel: l10n.removeAction,
+    );
+    if (!confirmed || !context.mounted) return;
+    try {
+      await ref.read(calendarRepositoryProvider).deleteLocalSource(source.id);
+    } on Object catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              AccountSettingsFeedback.fromError(l10n, error).message,
+            ),
+          ),
+        );
+      }
+    }
   }
 }
 
-class _CalendarSettingsSwitchCell extends StatelessWidget {
-  const _CalendarSettingsSwitchCell({
-    required this.message,
-    required this.child,
+class _CalendarVisibilityRecoveryActions extends ConsumerStatefulWidget {
+  const _CalendarVisibilityRecoveryActions({
+    super.key,
+    required this.source,
+    required this.operation,
   });
+  final CalendarSourceEntity source;
+  final PendingOp operation;
 
-  final String message;
-  final Widget child;
+  @override
+  ConsumerState<_CalendarVisibilityRecoveryActions> createState() =>
+      _CalendarVisibilityRecoveryActionsState();
+}
+
+class _CalendarVisibilityRecoveryActionsState
+    extends ConsumerState<_CalendarVisibilityRecoveryActions> {
+  bool _busy = false;
+
+  Future<void> _resolve({required bool discard}) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    final l10n = context.l10n;
+    try {
+      // Discard restores the entire merged patch. List every affected setting,
+      // including personal settings queued alongside visibility.
+      final request = jsonDecode(widget.operation.requestJson) as Map;
+      final settings = [
+        if (request.containsKey('summary')) l10n.title,
+        if (request.containsKey('backgroundColor') ||
+            request.containsKey('foregroundColor') ||
+            request.containsKey('colorId'))
+          l10n.calendarColor,
+        if (request.containsKey('hidden')) l10n.showInGoogleCalendarList,
+      ];
+      if (discard &&
+          !await showBusyMaxConfirm(
+            context,
+            title: l10n.discardPendingOperation,
+            message: l10n.discardCalendarSettingsConfirmation(
+              widget.source.summary,
+              settings.map((setting) => '• $setting').join('\n'),
+            ),
+            confirmLabel: l10n.discard,
+          )) {
+        return;
+      }
+      if (!mounted) return;
+      final service = ref.read(
+        pendingOpResolutionServiceForAccountProvider(widget.source.accountId),
+      );
+      if (discard) {
+        await service.discard(widget.operation.id);
+      } else {
+        await service.retryNow(widget.operation.id);
+      }
+    } on Object catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              AccountSettingsFeedback.fromError(l10n, error).message,
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: _calendarSettingsColumnWidth,
-      child: Center(
-        child: Tooltip(message: message, child: child),
+    final l10n = context.l10n;
+    return Padding(
+      padding: const EdgeInsets.only(top: BusyMaxSpacing.sm),
+      child: Wrap(
+        spacing: BusyMaxSpacing.sm,
+        runSpacing: BusyMaxSpacing.sm,
+        children: [
+          BusyMaxPushButton.standard(
+            key: ValueKey(
+              'settings-calendar-visibility-retry-${widget.source.id}',
+            ),
+            onPressed: _busy ? null : () => _resolve(discard: false),
+            child: Text(
+              l10n.retry,
+              semanticsLabel: '${l10n.retry} · ${widget.source.summary}',
+            ),
+          ),
+          BusyMaxPushButton.standard(
+            key: ValueKey(
+              'settings-calendar-visibility-discard-${widget.source.id}',
+            ),
+            onPressed: _busy ? null : () => _resolve(discard: true),
+            child: Text(
+              l10n.discard,
+              semanticsLabel: '${l10n.discard} · ${widget.source.summary}',
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -2438,7 +3671,7 @@ class _CalendarImportCard extends StatelessWidget {
         BusyMaxActionRow(
           key: const ValueKey('import-ics-file'),
           title: context.l10n.importIcsFile,
-          leading: const Icon(Icons.file_open_outlined),
+          leading: const Icon(YaruIcons.document_open),
           onTap: onImport,
         ),
       ],
@@ -2498,7 +3731,7 @@ class _CalendarSubscriptionsCard extends StatelessWidget {
               BusyMaxActionRow(
                 title: l10n.subscriptionReadOnly,
                 subtitle: _subscriptionTiming(context, subscription),
-                leading: const Icon(Icons.lock_outline),
+                leading: const Icon(YaruIcons.lock),
               ),
               BusyMaxActionRow(
                 title: subscription.lastFailureCode == null
@@ -2524,14 +3757,14 @@ class _CalendarSubscriptionsCard extends StatelessWidget {
               ),
               BusyMaxActionRow(
                 title: l10n.rename,
-                leading: const Icon(Icons.edit_outlined),
+                leading: const Icon(YaruIcons.pen),
                 onTap: busySubscriptionIds.contains(subscription.id)
                     ? null
                     : () => onRename(subscription),
               ),
               BusyMaxActionRow(
                 title: l10n.calendarColor,
-                leading: const Icon(Icons.palette_outlined),
+                leading: const Icon(YaruIcons.color_select),
                 onTap: busySubscriptionIds.contains(subscription.id)
                     ? null
                     : () => onChangeColor(subscription),
@@ -2890,237 +4123,337 @@ Future<void> showAddCalendarSubscriptionFlow(
   }
 }
 
-class _AccountManagementCard extends StatelessWidget {
+class _AccountManagementCard extends ConsumerWidget {
   const _AccountManagementCard({
     required this.account,
     required this.removing,
+    required this.refreshing,
     required this.onReconnect,
     required this.onRefreshCollections,
-    required this.onRemoveAccount,
+    required this.registrationRecovery,
+    required this.onReplaceRegistration,
   });
-
   final AccountEntity account;
-  final bool removing;
-  final VoidCallback? onReconnect;
-  final VoidCallback? onRefreshCollections;
-  final VoidCallback onRemoveAccount;
+  final bool removing, refreshing, registrationRecovery;
+  final VoidCallback? onReconnect, onRefreshCollections;
+  final VoidCallback onReplaceRegistration;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
-    return BusyMaxGroupedList(
-      filled: true,
-      children: [
-        if (account.provider == BusyProvider.nextcloud)
-          BusyMaxActionRow(
-            title: l10n.nextcloudProvider,
-            subtitle: l10n.nextcloudServerHost(
-              Uri.tryParse(account.authority)?.host ?? account.authority,
-            ),
-            leading: const Icon(Icons.cloud_outlined),
-          ),
-        if (account.provider == BusyProvider.appleICloud ||
-            account.provider == BusyProvider.nextcloud)
-          BusyMaxActionRow(
-            title: l10n.davConnectionState,
-            subtitle: _accountConnectionStateLabel(context, account),
-            leading: Icon(
-              account.hasConnectionIssue
-                  ? YaruIcons.warning
-                  : YaruIcons.checkmark,
-            ),
-          ),
-        if (account.provider == BusyProvider.appleICloud ||
-            account.provider == BusyProvider.nextcloud)
-          BusyMaxActionRow(
-            title: account.lastSuccessfulSyncAtUtc == null
-                ? l10n.davNeverSynced
-                : l10n.davLastSuccessfulSync(
-                    _formatDavDateTime(
-                      context,
-                      account.lastSuccessfulSyncAtUtc!,
-                    ),
-                  ),
-            leading: const Icon(YaruIcons.sync),
-          ),
-        if (account.hasConnectionIssue)
-          BusyMaxActionRow(
-            title: account.needsReconnect
-                ? (account.provider == BusyProvider.google
-                      ? l10n.reconnectGoogleAccount
-                      : l10n.reconnectAccount)
-                : _accountConnectionIssueMessage(context, account),
-            subtitle: _accountConnectionIssueMessage(context, account),
-            leading: Icon(
-              YaruIcons.refresh,
-              color: Theme.of(context).colorScheme.error,
-            ),
-            onTap: account.needsReconnect ? onReconnect : null,
-          ),
-        if (onRefreshCollections != null)
-          BusyMaxActionRow(
-            title: l10n.refreshCollections,
-            leading: const Icon(YaruIcons.sync),
-            onTap: removing ? null : onRefreshCollections,
-          ),
+    final primary = registrationRecovery
+        ? AccountSettingsFeedback(
+            AccountSettingsFailure.registration,
+            l10n.accountRegistrationStatus,
+            AccountSettingsRecovery.replaceRegistration,
+          )
+        : _primaryAccountFeedback(context, ref, account);
+    final activity = ref.watch(accountSyncActivityProvider);
+    VoidCallback? recovery(AccountSettingsRecovery action, {String? domain}) =>
+        switch (action) {
+          AccountSettingsRecovery.reconnect => onReconnect,
+          AccountSettingsRecovery.replaceRegistration => onReplaceRegistration,
+          AccountSettingsRecovery.revalidate =>
+            account.provider == BusyProvider.nextcloud
+                ? onRefreshCollections
+                : onReconnect,
+          AccountSettingsRecovery.retry =>
+            domain == null
+                ? onRefreshCollections
+                : () async {
+                    try {
+                      final operations = ref.read(
+                        accountSyncOperationsProvider,
+                      );
+                      if (domain == 'calendar') {
+                        await operations.syncCalendar(account.id, full: false);
+                      } else {
+                        await operations.syncTasks(account.id, full: false);
+                      }
+                    } on Object catch (error) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              AccountSettingsFeedback.fromError(
+                                context.l10n,
+                                error,
+                              ).message,
+                            ),
+                          ),
+                        );
+                      }
+                    }
+                  },
+        };
+    String recoveryLabel(AccountSettingsRecovery action) => switch (action) {
+      AccountSettingsRecovery.reconnect => l10n.reconnectAccount,
+      AccountSettingsRecovery.replaceRegistration => l10n.registrationReplace,
+      AccountSettingsRecovery.revalidate =>
+        account.provider == BusyProvider.nextcloud
+            ? l10n.revalidateAccount
+            : l10n.reconnectAccount,
+      AccountSettingsRecovery.retry => l10n.retry,
+    };
+    Widget failureRow(AccountSettingsFeedback feedback, {String? domain}) =>
         BusyMaxActionRow(
-          title: removing ? l10n.removingAccount : l10n.removeAccount,
-          subtitle: l10n.removeAccountDescription,
-          leading: Icon(
-            YaruIcons.trash,
-            color: Theme.of(context).colorScheme.error,
+          key: ValueKey(
+            domain == null
+                ? 'account-primary-feedback-${account.id}'
+                : 'account-domain-feedback-$domain-${account.id}',
           ),
-          enabled: !removing,
-          onTap: removing ? null : onRemoveAccount,
-        ),
-      ],
-    );
-  }
-}
-
-class _DavCollectionsCard extends StatelessWidget {
-  const _DavCollectionsCard({
-    required this.collections,
-    required this.onEventsSelected,
-    required this.onTasksSelected,
-  });
-
-  final List<DavCollectionSettingsEntity> collections;
-  final void Function(DavCollectionSettingsEntity collection, bool selected)
-  onEventsSelected;
-  final void Function(DavCollectionSettingsEntity collection, bool selected)
-  onTasksSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    if (collections.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    final l10n = context.l10n;
+          title: domain == null
+              ? feedback.message
+              : domain == 'calendar'
+              ? l10n.calendar
+              : l10n.tasks,
+          titleWidget: domain == null ? Text(feedback.message) : null,
+          subtitle: domain == null ? null : feedback.message,
+          subtitleWidget: domain == null ? null : Text(feedback.message),
+          leading: const Icon(YaruIcons.warning),
+          trailing: BusyMaxPushButton.standard(
+            key: ValueKey(
+              registrationRecovery && domain == null
+                  ? 'replace-registration-recovery-${account.id}'
+                  : domain == null
+                  ? 'account-recovery-${account.id}'
+                  : 'account-domain-recovery-$domain-${account.id}',
+            ),
+            onPressed:
+                removing ||
+                    refreshing ||
+                    domain != null && activity.isRunning(account.id, domain)
+                ? null
+                : recovery(feedback.recovery, domain: domain),
+            child: Text(
+              refreshing ? l10n.traySyncing : recoveryLabel(feedback.recovery),
+            ),
+          ),
+        );
     return BusyMaxGroupedList(
-      title: l10n.collectionSettings,
-      titleStyle: _settingsAccountSubsectionStyle(context),
       filled: true,
       children: [
-        for (final collection in collections) ...[
-          _DavCollectionItem(
-            key: ValueKey('dav-collection-${collection.id}'),
-            collection: collection,
-            onEventsSelected: onEventsSelected,
-            onTasksSelected: onTasksSelected,
+        if (primary != null)
+          failureRow(primary)
+        else ...[
+          BusyMaxActionRow(
+            title: refreshing ? l10n.traySyncing : l10n.refreshNow,
+            leading: const Icon(YaruIcons.sync),
+            onTap: removing || refreshing ? null : onRefreshCollections,
           ),
-          if (collection.provider == BusyProvider.nextcloud)
-            BusyMaxActionRow(
-              key: ValueKey('dav-collection-settings-${collection.id}'),
-              title: l10n.nextcloudCollectionSettings,
-              leading: const Icon(Icons.settings_outlined),
-              onTap: () => showLinuxNextcloudCollectionDialog(
-                context,
-                accountId: collection.accountId,
-                collectionId: collection.id,
-              ),
-            ),
+          if (account.provider == BusyProvider.google ||
+              account.provider == BusyProvider.microsoft)
+            for (final domain in [
+              if (account.calendarsEnabled) 'calendar',
+              if (account.isTaskCapable) 'tasks',
+            ])
+              if (activity.failure(account.id, domain) case final error?)
+                failureRow(
+                  AccountSettingsFeedback.fromError(l10n, error),
+                  domain: domain,
+                ),
         ],
       ],
     );
   }
 }
 
-class _DavCollectionItem extends StatelessWidget {
+String _collectionEmptyMessage(
+  BuildContext context,
+  WidgetRef ref, {
+  required AccountEntity account,
+  required bool loading,
+  required bool failed,
+}) {
+  final activity = ref.watch(accountSyncActivityProvider);
+  final dav =
+      account.provider == BusyProvider.nextcloud ||
+      account.provider == BusyProvider.appleICloud;
+  if (failed) return context.l10n.collectionsLoadFailed;
+  if (loading || activity.isRunning(account.id, dav ? 'dav' : 'calendar')) {
+    return context.l10n.collectionsLoading;
+  }
+  if (account.hasConnectionIssue) {
+    return _accountConnectionIssueMessage(context, account);
+  }
+  final error = activity.failure(account.id, dav ? 'dav' : 'calendar');
+  if (error != null) {
+    return AccountSettingsFeedback.fromError(context.l10n, error).message;
+  }
+  final discovery = dav
+      ? ref.watch(davAccountDiscoveryProvider(account.id))
+      : null;
+  if (discovery?.hasError == true ||
+      discovery?.valueOrNull?.lastDiscoveryErrorCode != null) {
+    return context.l10n.collectionsLoadFailed;
+  }
+  if (discovery?.isLoading == true) return context.l10n.collectionsLoading;
+  final discovered = dav
+      ? discovery?.valueOrNull != null
+      : ref
+                .watch(accountDomainSyncTimesProvider(account.id))
+                .valueOrNull?['calendar'] !=
+            null;
+  return !discovered
+      ? context.l10n.collectionsNotDiscovered
+      : context.l10n.collectionsEmpty;
+}
+
+class _DavCollectionsCard extends ConsumerWidget {
+  const _DavCollectionsCard({
+    required this.account,
+    required this.collections,
+    required this.onEventsSelected,
+    required this.onTasksSelected,
+  });
+  final AccountEntity account;
+  final List<DavCollectionSettingsEntity> collections;
+  final void Function(DavCollectionSettingsEntity, bool) onEventsSelected,
+      onTasksSelected;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(davCollectionsStreamProvider);
+    final feedback = _primaryAccountFeedback(context, ref, account);
+    return BusyMaxGroupedList(
+      title: context.l10n.collectionSettings,
+      titleStyle: _settingsAccountSubsectionStyle(context),
+      filled: true,
+      children: [
+        if (collections.isEmpty)
+          BusyMaxActionRow(
+            title: feedback != null
+                ? context.l10n.collectionsUnavailable
+                : _collectionEmptyMessage(
+                    context,
+                    ref,
+                    account: account,
+                    loading: state.isLoading,
+                    failed: state.hasError,
+                  ),
+            leading: const Icon(YaruIcons.calendar),
+          ),
+        if (collections.isNotEmpty && state.hasError)
+          BusyMaxActionRow(title: context.l10n.collectionsLoadFailed),
+        if (collections.isNotEmpty && state.isLoading)
+          BusyMaxActionRow(title: context.l10n.collectionsLoading),
+        for (final collection in collections)
+          _DavCollectionItem(
+            key: ValueKey('dav-collection-${collection.id}'),
+            collection: collection,
+            sharedFailure: feedback,
+            onEventsSelected: onEventsSelected,
+            onTasksSelected: onTasksSelected,
+          ),
+      ],
+    );
+  }
+}
+
+class _DavCollectionItem extends StatefulWidget {
   const _DavCollectionItem({
     super.key,
     required this.collection,
     required this.onEventsSelected,
     required this.onTasksSelected,
+    this.sharedFailure,
   });
-
   final DavCollectionSettingsEntity collection;
-  final void Function(DavCollectionSettingsEntity collection, bool selected)
-  onEventsSelected;
-  final void Function(DavCollectionSettingsEntity collection, bool selected)
-  onTasksSelected;
+  final AccountSettingsFeedback? sharedFailure;
+  final void Function(DavCollectionSettingsEntity, bool) onEventsSelected,
+      onTasksSelected;
+  @override
+  State<_DavCollectionItem> createState() => _DavCollectionItemState();
+}
 
+class _DavCollectionItemState extends State<_DavCollectionItem> {
+  bool _expanded = false;
   @override
   Widget build(BuildContext context) {
-    final supportsEvents = collection.supportsEvents;
-    final supportsTasks = collection.supportsTasks;
-    final details = _davCollectionDetails(context, collection);
-    final indicator = _DavCollectionIndicator(color: collection.color);
-
-    if (supportsEvents && !supportsTasks) {
-      return BusyMaxSwitchRow(
-        key: ValueKey('dav-events-toggle-${collection.id}'),
-        title: collection.name,
-        subtitle: details,
-        value: collection.eventsSelected,
-        onChanged: (selected) => onEventsSelected(collection, selected),
-        leading: indicator,
-      );
-    }
-
-    if (supportsTasks && !supportsEvents) {
-      return BusyMaxSwitchRow(
-        key: ValueKey('dav-tasks-toggle-${collection.id}'),
-        title: collection.name,
-        subtitle: details,
-        value: collection.tasksSelected,
-        onChanged: (selected) => onTasksSelected(collection, selected),
-        leading: indicator,
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        BusyMaxActionRow(
-          title: collection.name,
-          subtitle: details,
-          leading: indicator,
-        ),
-        Padding(
-          padding: const EdgeInsetsDirectional.only(start: BusyMaxSpacing.xxl),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              border: BorderDirectional(
-                start: BorderSide(
-                  color: Theme.of(context).colorScheme.outlineVariant,
-                ),
-              ),
+    final collection = widget.collection;
+    final l10n = context.l10n;
+    final error = collection.syncErrorCode == null
+        ? null
+        : AccountSettingsFeedback.fromDavCode(l10n, collection.syncErrorCode!);
+    final subtitle = [
+      _davCollectionDetails(context, collection),
+      if (error != null && error.kind != widget.sharedFailure?.kind)
+        error.message,
+    ].join(' · ');
+    final settings = collection.provider != BusyProvider.nextcloud
+        ? null
+        : YaruIconButton(
+            key: ValueKey('dav-collection-settings-${collection.id}'),
+            tooltip: '${l10n.nextcloudCollectionSettings} · ${collection.name}',
+            icon: const Icon(YaruIcons.settings),
+            onPressed: () => showLinuxNextcloudCollectionDialog(
+              context,
+              accountId: collection.accountId,
+              collectionId: collection.id,
             ),
-            child: Padding(
-              padding: const EdgeInsetsDirectional.only(
-                start: BusyMaxSpacing.xs,
+          );
+    if (!(collection.supportsEvents && collection.supportsTasks)) {
+      return Row(
+        children: [
+          Expanded(
+            child: BusyMaxSwitchRow(
+              key: ValueKey(
+                '${collection.supportsEvents ? 'dav-events-toggle' : 'dav-tasks-toggle'}-${collection.id}',
               ),
-              child: Column(
-                children: [
-                  BusyMaxSwitchRow(
-                    key: ValueKey('dav-events-toggle-${collection.id}'),
-                    title: context.l10n.calendarContent,
-                    value: collection.eventsSelected,
-                    onChanged: (selected) =>
-                        onEventsSelected(collection, selected),
-                    leading: const Icon(YaruIcons.calendar),
-                  ),
-                  Divider(
-                    height: 1,
-                    thickness: 1,
-                    color: Theme.of(context).colorScheme.outlineVariant,
-                  ),
-                  BusyMaxSwitchRow(
-                    key: ValueKey('dav-tasks-toggle-${collection.id}'),
-                    title: context.l10n.taskContent,
-                    value: collection.tasksSelected,
-                    onChanged: (selected) =>
-                        onTasksSelected(collection, selected),
-                    leading: const Icon(YaruIcons.checkmark),
-                  ),
-                ],
-              ),
+              title: collection.name,
+              subtitle: subtitle,
+              leading: _DavCollectionIndicator(color: collection.color),
+              value: collection.supportsEvents
+                  ? collection.eventsSelected
+                  : collection.tasksSelected,
+              onChanged: (selected) => collection.supportsEvents
+                  ? widget.onEventsSelected(collection, selected)
+                  : widget.onTasksSelected(collection, selected),
             ),
           ),
+          if (settings != null)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(end: BusyMaxSpacing.md),
+              child: settings,
+            ),
+        ],
+      );
+    }
+    return Semantics(
+      expanded: _expanded,
+      child: YaruExpandable(
+        key: ValueKey('dav-collection-expander-${collection.id}'),
+        isExpanded: _expanded,
+        onChange: (expanded) => setState(() => _expanded = expanded),
+        expandIconSemanticLabel: collection.name,
+        header: BusyMaxActionRow(
+          title: collection.name,
+          titleWidget: Text(collection.name),
+          subtitle: subtitle,
+          subtitleWidget: Text(subtitle),
+          leading: _DavCollectionIndicator(color: collection.color),
+          trailing: settings,
         ),
-      ],
+        child: Column(
+          children: [
+            BusyMaxSwitchRow(
+              key: ValueKey('dav-events-toggle-${collection.id}'),
+              title: l10n.calendarContent,
+              value: collection.eventsSelected,
+              onChanged: (selected) =>
+                  widget.onEventsSelected(collection, selected),
+              leading: const Icon(YaruIcons.calendar),
+            ),
+            BusyMaxSwitchRow(
+              key: ValueKey('dav-tasks-toggle-${collection.id}'),
+              title: l10n.taskContent,
+              value: collection.tasksSelected,
+              onChanged: (selected) =>
+                  widget.onTasksSelected(collection, selected),
+              leading: const Icon(YaruIcons.checkmark),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -3186,21 +4519,21 @@ class _DavConflictsCard extends StatelessWidget {
           if (conflict.canKeepServer)
             BusyMaxActionRow(
               title: l10n.keepServerVersion,
-              leading: const Icon(Icons.cloud_download_outlined),
+              leading: const Icon(YaruIcons.download),
               onTap: () =>
                   onResolve(conflict, DavConflictResolution.keepServer),
             ),
           if (conflict.canReapplyLocal)
             BusyMaxActionRow(
               title: l10n.reapplyLocalChange,
-              leading: const Icon(Icons.cloud_upload_outlined),
+              leading: const Icon(YaruIcons.sync),
               onTap: () =>
                   onResolve(conflict, DavConflictResolution.reapplyLocal),
             ),
           if (conflict.canDuplicate)
             BusyMaxActionRow(
               title: l10n.duplicateLocalItem,
-              leading: const Icon(Icons.copy_outlined),
+              leading: const Icon(YaruIcons.copy),
               onTap: () =>
                   onResolve(conflict, DavConflictResolution.duplicateLocal),
             ),
@@ -3228,7 +4561,10 @@ Future<void> _afterAccountRemoved(
     return;
   }
 
-  ref.read(selectedAccountIdProvider.notifier).state = remaining.first.id;
+  final selected = ref.read(selectedAccountIdProvider);
+  if (selected == removedAccountId || !remaining.any((a) => a.id == selected)) {
+    ref.read(selectedAccountIdProvider.notifier).state = remaining.first.id;
+  }
   await ref.read(authSessionControllerProvider.notifier).load();
 }
 
@@ -3243,6 +4579,12 @@ List<AccountEntity> _selectedAccountFirst(
 }
 
 String _accountConnectionErrorMessage(BuildContext context, Object error) {
+  if (error is DavException && error.code == 'DavAccountAlreadyConnected') {
+    return context.l10n.accountAlreadyConnected;
+  }
+  if (error is DavException) {
+    return AccountSettingsFeedback.fromError(context.l10n, error).message;
+  }
   if (error is NetworkUnavailableException) {
     return context.l10n.networkOfflineTryAgain;
   }
@@ -3278,6 +4620,14 @@ String _notificationDetailLabel(
 String _accountIdentityLabel(BuildContext context, AccountEntity account) {
   final name = account.displayName?.trim();
   final address = account.email?.trim();
+  if (account.provider == BusyProvider.nextcloud) {
+    return [
+      if (name != null && name.isNotEmpty && name != account.providerAccountId)
+        name,
+      account.providerAccountId,
+      account.authority,
+    ].join(' · ');
+  }
   if (name != null && name.isNotEmpty) {
     if (address != null && address.isNotEmpty && address != name) {
       return '$name · $address';
@@ -3355,9 +4705,6 @@ String _davCollectionDetails(
   if (collection.shared) {
     details.add(l10n.sharedCollection);
   }
-  if (collection.syncErrorCode case final errorCode?) {
-    details.add(l10n.collectionSyncError(errorCode));
-  }
   return details.join(' · ');
 }
 
@@ -3386,51 +4733,59 @@ class _RegistrationAccountCard extends ConsumerWidget {
     required this.account,
     required this.onMigrate,
     required this.onReconnect,
+    this.additionalRows = const [],
   });
   final AccountEntity account;
   final VoidCallback onMigrate;
-  final VoidCallback onReconnect;
+  final VoidCallback? onReconnect;
+  final List<Widget> additionalRows;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final summary = ref
-        .watch(registrationSummariesProvider)
-        .valueOrNull?[account.id];
+    final summaries = ref.watch(registrationSummariesProvider);
+    final summary = summaries.valueOrNull?[account.id];
     final l10n = context.l10n;
-    return BusyMaxGroupedList(
-      filled: true,
-      children: [
-        BusyMaxActionRow(
-          title: summary == null
-              ? l10n.registrationUnresolved
-              : l10n.registrationDescription(summary),
-          subtitle: summary?.showRetirementNotice == true
-              ? l10n.registrationRetirementNotice(
-                  account.provider.displayName,
-                  account.provider == BusyProvider.google
-                      ? l10n.registrationGoogleProject
-                      : l10n.registrationMicrosoftApp,
-                )
-              : null,
-        ),
-        BusyMaxActionRow(
-          title: summary?.showRetirementNotice == true
-              ? l10n.registrationMigrate
-              : l10n.registrationReplace,
-          onTap: onMigrate,
-        ),
-        BusyMaxActionRow(
-          key: ValueKey('reconnect-account-${account.id}'),
-          title:
-              account.needsReconnect ||
-                  summary == null ||
-                  summary.origin == RegistrationOrigin.retiringShared
-              ? (account.provider == BusyProvider.google
-                    ? l10n.reconnectGoogleAccount
-                    : l10n.reconnectAccount)
-              : l10n.connectAccountAction,
-          onTap: onReconnect,
-        ),
-      ],
+    return YaruExpandable(
+      key: ValueKey('account-advanced-${account.id}'),
+      header: Text(
+        l10n.advancedSection,
+        style: _settingsSectionHeaderStyle(context),
+      ),
+      expandIconSemanticLabel: l10n.advancedSection,
+      child: BusyMaxGroupedList(
+        filled: true,
+        children: [
+          BusyMaxActionRow(
+            key: ValueKey('reconnect-account-${account.id}'),
+            title: l10n.reconnectAccount,
+            leading: const Icon(YaruIcons.refresh),
+            onTap: onReconnect,
+          ),
+          BusyMaxActionRow(
+            title: summaries.isLoading
+                ? l10n.accountLoadingSignInSettings
+                : summaries.hasError
+                ? l10n.oauthSecureStorageUnavailable
+                : summary == null
+                ? l10n.registrationUnresolved
+                : l10n.registrationDescription(summary),
+            subtitle: summary?.showRetirementNotice == true
+                ? l10n.registrationRetirementNotice(
+                    account.provider.displayName,
+                    account.provider == BusyProvider.google
+                        ? l10n.registrationGoogleProject
+                        : l10n.registrationMicrosoftApp,
+                  )
+                : null,
+          ),
+          BusyMaxActionRow(
+            title: summary?.showRetirementNotice == true
+                ? l10n.registrationMigrate
+                : l10n.registrationReplace,
+            onTap: onMigrate,
+          ),
+          ...additionalRows,
+        ],
+      ),
     );
   }
 }

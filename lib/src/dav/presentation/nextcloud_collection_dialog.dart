@@ -14,6 +14,7 @@ import '../../dav/nextcloud/nextcloud_dav_context.dart';
 import '../../dav/nextcloud/nextcloud_trash_service.dart';
 import '../../dav/xml/dav_xml.dart';
 import '../../l10n/l10n.dart';
+import '../../l10n/nextcloud_collection_error_description.dart';
 import '../../ui/common/schedule/native_collection_export.dart';
 import 'nextcloud_scheduling_dialog.dart';
 
@@ -119,6 +120,10 @@ class _LinuxNextcloudCollectionDialogState
           context,
           labelText: label,
           alignLabelWithHint: multiline,
+          errorText: localizedNextcloudFieldError(
+            context.l10n,
+            model.fieldErrors[property],
+          ),
         ),
         onChanged: (value) => model.change(property, value),
       ),
@@ -189,14 +194,9 @@ class _LinuxNextcloudCollectionDialogState
         ),
         children: [
           if (model.busy) const Center(child: YaruCircularProgressIndicator()),
-          if (model.failed)
-            Text(
-              model.error is DavException &&
-                      (model.error! as DavException).kind ==
-                          DavErrorKind.authorization
-                  ? l10n.nextcloudOperationDenied
-                  : l10n.nextcloudServerUnavailable,
-            ),
+          if (model.failed &&
+              model.error is! NextcloudCollectionValidationException)
+            Text(localizedNextcloudCollectionError(l10n, model.error)),
           if (model.refreshPending) Text(l10n.nextcloudRefreshPending),
           if (state == null && !model.busy)
             BusyMaxGroupedList(
@@ -219,11 +219,6 @@ class _LinuxNextcloudCollectionDialogState
                   title: Text(state.collection.collection.displayName),
                   subtitle: Text(role),
                 ),
-                if (state.collection.collection.ownerHref case final owner?)
-                  YaruListTile.square(
-                    leading: const Icon(Icons.person_outline),
-                    title: SelectableText(owner),
-                  ),
                 if (state.collection.collection.readOnly &&
                     state.collection.canWriteMetadata)
                   YaruListTile.square(
@@ -249,9 +244,29 @@ class _LinuxNextcloudCollectionDialogState
                   ),
                   l10n.description,
                 ),
-                _field(
-                  const DavPropertyName(caldavNamespace, 'calendar-timezone'),
-                  l10n.nextcloudCalendarTimezone,
+                YaruExpandable(
+                  header: Text(l10n.advancedSection),
+                  expandIconSemanticLabel: l10n.advancedSection,
+                  isExpanded: model.fieldErrors.keys.any(
+                    (p) => p.localName == 'calendar-timezone',
+                  ),
+                  child: Column(
+                    children: [
+                      if (state.collection.collection.ownerHref
+                          case final owner?)
+                        YaruListTile.square(
+                          leading: const Icon(Icons.person_outline),
+                          title: SelectableText(owner),
+                        ),
+                      _field(
+                        const DavPropertyName(
+                          caldavNamespace,
+                          'calendar-timezone',
+                        ),
+                        l10n.nextcloudCalendarTimezone,
+                      ),
+                    ],
+                  ),
                 ),
                 _check(
                   const DavPropertyName(owncloudNamespace, 'calendar-enabled'),

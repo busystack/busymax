@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import '../../l10n/nextcloud_collection_error_description.dart';
+
 import '../common/schedule/native_collection_export.dart';
 import 'windows_nextcloud_scheduling_dialog.dart';
 
@@ -118,7 +120,21 @@ class _WindowsNextcloudCollectionDialogState
     );
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: InfoLabel(label: label, child: input),
+      child: InfoLabel(
+        label: label,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            input,
+            if (localizedNextcloudFieldError(
+                  AppLocalizations.of(context),
+                  model.fieldErrors[property],
+                )
+                case final message?)
+              Text(message),
+          ],
+        ),
+      ),
     );
   }
 
@@ -176,11 +192,7 @@ class _WindowsNextcloudCollectionDialogState
                   Padding(
                     padding: const EdgeInsets.only(bottom: 12),
                     child: Text(
-                      model.error is DavException &&
-                              (model.error! as DavException).kind ==
-                                  DavErrorKind.authorization
-                          ? l10n.nextcloudOperationDenied
-                          : l10n.nextcloudServerUnavailable,
+                      localizedNextcloudCollectionError(l10n, model.error),
                     ),
                   ),
                 if (model.refreshPending) Text(l10n.nextcloudRefreshPending),

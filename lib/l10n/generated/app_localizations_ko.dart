@@ -14,6 +14,9 @@ class AppLocalizationsKo extends AppLocalizations {
   AppLocalizationsKo([String locale = 'ko']) : super(locale);
 
   @override
+  String get contactsAccountsUnavailable => '연락처 계정을 불러올 수 없습니다';
+
+  @override
   String get launchAtLoginManagedExternally =>
       '데스크톱의 시작 프로그램 설정에 의해 BusyMax가 실행되었습니다. 이 스위치를 사용하려면 해당 설정에서 BusyMax 항목을 제거한 다음 BusyMax를 완전히 종료하고 다시 여세요.';
 
@@ -2948,7 +2951,7 @@ class AppLocalizationsKo extends AppLocalizations {
   String get searchClearText => '텍스트 지우기';
 
   @override
-  String get openSharedCalendar => '공유 캘린더 열기';
+  String get openSharedCalendar => '공유 기본 캘린더 열기';
 
   @override
   String get manageCalendarSharing => '캘린더 공유 관리';
@@ -3515,4 +3518,148 @@ class AppLocalizationsKo extends AppLocalizations {
   String seriesPatternChangeConfirmation(String before, String after) {
     return '반복 패턴을 변경하면 날짜가 추가되거나 삭제될 수 있습니다.\n\n현재: $before\n제안: $after\n\n이 패턴을 저장할까요?';
   }
+
+  @override
+  String get connectedAccounts => '연결된 계정';
+
+  @override
+  String get contactsIndependentAccounts => '독립 연락처 계정';
+
+  @override
+  String get contactsNextcloudReuse =>
+      '연락처 제안은 읽기 전용 연락처 통합을 통해 이 계정의 기존 자격 증명을 재사용합니다.';
+
+  @override
+  String get contactsRetrySync => '연락처 동기화 다시 시도';
+
+  @override
+  String get contactsPreferenceFailed => '연락처 소스 설정을 저장하지 못했습니다.';
+
+  @override
+  String get contactsSuggestionsDisabled => '연락처 제안 꺼짐';
+
+  @override
+  String get contactsSyncFailed =>
+      '연락처를 동기화하지 못했습니다. 다시 시도하거나 권한이 만료된 경우 계정을 다시 연결하세요.';
+
+  @override
+  String get registrationRecoveryDescription =>
+      '저장된 앱 등록 또는 자격 증명 연결을 사용할 수 없거나 거부되었습니다. 복구하려면 이 계정의 등록을 명시적으로 교체하세요. 기존 데이터는 유지됩니다.';
+
+  @override
+  String get revalidateAccount => '연결 다시 검증';
+
+  @override
+  String get openSharedPrimaryDescription =>
+      '지정한 소유자의 기본 캘린더를 엽니다. 다른 공유 캘린더는 일반 계정 동기화에서 검색됩니다.';
+
+  @override
+  String get showInBusyMax => 'BusyMax에 표시';
+
+  @override
+  String get showInGoogleCalendarList => 'Google 캘린더 목록에 표시';
+
+  @override
+  String get googleVisibilityHelp =>
+      'BusyMax 선택은 로컬 설정입니다. Google 표시 설정은 Google의 목록을 변경하며 숨겨진 캘린더는 BusyMax에 표시할 수 없습니다.';
+
+  @override
+  String get primaryCalendarVisibilityExplanation =>
+      'Google 기본 캘린더는 목록에 유지됩니다.';
+
+  @override
+  String get accountsLoading => '계정 불러오는 중…';
+
+  @override
+  String get accountsLoadFailed => '계정을 불러오지 못했습니다. 계정을 다시 여세요.';
+
+  @override
+  String get collectionsLoading => '컬렉션 불러오는 중…';
+
+  @override
+  String get collectionsLoadFailed =>
+      '컬렉션을 불러오지 못했습니다. 캐시는 유지됩니다. 동기화를 다시 시도하세요.';
+
+  @override
+  String get collectionsNotDiscovered =>
+      '검색이 완료되지 않았습니다. 이 계정을 새로 고치거나 다시 연결하세요.';
+
+  @override
+  String get collectionsEmpty => '컬렉션을 찾지 못했습니다.';
+
+  @override
+  String get accountReadyToSync => '동기화 준비됨';
+
+  @override
+  String get accountSyncProblem => '동기화에 조치가 필요합니다';
+
+  @override
+  String get accountServiceUnreachable => '서비스에 연결할 수 없습니다';
+
+  @override
+  String get accountSyncDetails => '동기화 세부 정보';
+
+  @override
+  String get accountReconnectStatus => '다시 연결해야 합니다';
+
+  @override
+  String get accountRegistrationStatus => '앱 등록에 조치가 필요합니다';
+
+  @override
+  String get collectionsUnavailable => '컬렉션을 사용할 수 없습니다';
+
+  @override
+  String get accountContactSuggestions => '이 계정의 연락처에서 참석자 제안';
+
+  @override
+  String get accountLoadingSignInSettings => '로그인 설정을 불러오는 중…';
+
+  @override
+  String get contactsNoAddressBooks => '사용 가능한 주소록이 없습니다';
+
+  @override
+  String get contactsSourcesUnavailable => '주소록을 불러올 수 없습니다';
+
+  @override
+  String get syncNoRecord => '성공한 동기화 시간이 기록되지 않음';
+
+  @override
+  String get cachedSyncError => '동기화 실패. 캐시 데이터가 오래되었을 수 있습니다.';
+
+  @override
+  String get calendarRemotePending => 'Google 표시 변경 대기 중';
+
+  @override
+  String get calendarRemoteFailed =>
+      'Google 표시 설정 변경에 실패했습니다. 마지막으로 확인된 Google 상태가 표시됩니다. BusyMax는 계속 대기 중인 변경을 따릅니다. 다시 시도하거나 변경을 취소하세요.';
+
+  @override
+  String discardCalendarSettingsConfirmation(String calendar, String settings) {
+    return '“$calendar”의 대기 중인 변경사항을 취소할까요?\n\n다음 설정이 이전 값으로 복원됩니다:\n$settings\n\nBusyMax의 캘린더 선택은 유지됩니다. Google에 변경사항이 전송되지 않습니다.';
+  }
+
+  @override
+  String get sharedCalendarUnavailable =>
+      '접근할 수 없어 캐시를 표시합니다. 동기화를 다시 시도하거나 캘린더를 목록에서 제거하세요.';
+
+  @override
+  String get invalidCollectionColor => '#으로 시작하는 6자리 또는 8자리 16진수 색상을 입력하세요.';
+
+  @override
+  String get invalidCollectionOrder => '정수를 입력하세요.';
+
+  @override
+  String get invalidCollectionTimezone =>
+      'VTIMEZONE 및 TZID를 포함하는 올바른 캘린더 시간대 문서를 입력하세요.';
+
+  @override
+  String get invalidCollectionValue => '저장하기 전에 이 값을 수정하세요.';
+
+  @override
+  String get accountAlreadyConnected =>
+      '이 계정은 이미 연결되어 있습니다. 해당 계정의 다시 연결 작업을 사용하세요.';
+
+  @override
+  String get nextcloudRemovalAuthorizationDescription =>
+      'BusyMax는 이 계정의 Nextcloud 앱 암호 해지도 시도합니다. 해지에 실패해도 로컬 제거는 완료될 수 있습니다.';
 }

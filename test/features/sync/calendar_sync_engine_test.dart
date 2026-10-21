@@ -16,6 +16,7 @@ import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
 import 'package:busymax/src/features/notifications/notification_schedule_service.dart';
 import 'package:busymax/src/features/sync/calendar_sync_engine.dart';
+import 'package:busymax/src/features/sync/domain_sync_schedule.dart';
 import 'package:busymax/src/features/sync/account_sync_operations.dart';
 import 'package:busymax/src/features/sync/cloud_calendar_range_coverage_service.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_api_client.dart';
@@ -41,6 +42,71 @@ void main() {
 
   tearDown(() async {
     await database.close();
+  });
+
+  test('shared primary access loss retains cached events and reports Calendar sync failure', () async {
+    await _insertAccount(database, provider: BusyProvider.microsoft);
+    final repository = CalendarRepository(database: database);
+    final calendarId = const MicrosoftSharedPrimaryCalendarAddress(
+      owner: 'owner@example.test',
+      graphCalendarId: 'qa',
+    ).sourceCalendarId;
+    await repository.upsertSource(
+      accountId: 'account',
+      source: CalendarSourceDto(
+        provider: BusyProvider.microsoft,
+        providerCalendarId: calendarId,
+        summary: 'Cached shared QA calendar',
+        readOnly: false,
+      ),
+    );
+    await repository.upsertEvent(
+      accountId: 'account',
+      event: CalendarEventDto(
+        provider: BusyProvider.microsoft,
+        providerCalendarId: calendarId,
+        providerEventId: 'qa-event',
+        title: 'Cached QA event',
+        startDateTime: '2026-10-20T10:00:00Z',
+        endDateTime: '2026-10-20T11:00:00Z',
+        startTimeZone: 'UTC',
+        endTimeZone: 'UTC',
+      ),
+    );
+    final client = MicrosoftCalendarApiClient(
+      baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+      responseTimeZone: 'UTC',
+      httpClient: MockClient(
+        (request) async => request.url.path.contains('/users/')
+            ? http.Response(
+                '{"error":{"code":"ErrorAccessDenied","message":"synthetic"}}',
+                403,
+              )
+            : http.Response('{"value":[]}', 200),
+      ),
+    );
+    final engine = CalendarSyncEngine(
+      database: database,
+      client: client,
+      accountId: 'account',
+    );
+    await expectLater(
+      DomainSyncPolicy(database).run(
+        'account',
+        SyncDomain.calendar,
+        pull: engine.fullSync,
+        deferred: engine.dispatchPendingWrites,
+      ),
+      throwsA(isA<MicrosoftCalendarApiError>()),
+    );
+    expect(await database.select(database.domainSyncSchedules).get(), isEmpty);
+    final source = await database.select(database.calendarSources).getSingle();
+    expect(source.readOnly, isTrue);
+    expect(source.accessRole, 'unavailable');
+    expect(source.isDeleted, isFalse);
+    final event = await database.select(database.calendarEvents).getSingle();
+    expect(event.title, 'Cached QA event');
+    expect(event.isDeleted, isFalse);
   });
 
   test('Google ID-only removal preserves pending intent and isolates accounts and calendars', () async {

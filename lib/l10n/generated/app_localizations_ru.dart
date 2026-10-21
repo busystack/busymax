@@ -14,6 +14,10 @@ class AppLocalizationsRu extends AppLocalizations {
   AppLocalizationsRu([String locale = 'ru']) : super(locale);
 
   @override
+  String get contactsAccountsUnavailable =>
+      'Не удалось загрузить учётные записи контактов';
+
+  @override
   String get launchAtLoginManagedExternally =>
       'BusyMax запущен через настройки автозапуска рабочего стола. Удалите его запись там, затем полностью завершите и снова откройте BusyMax, чтобы использовать этот переключатель.';
 
@@ -3030,7 +3034,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get searchClearText => 'Очистить текст';
 
   @override
-  String get openSharedCalendar => 'Открыть общий календарь';
+  String get openSharedCalendar => 'Открыть общий основной календарь';
 
   @override
   String get manageCalendarSharing => 'Управление доступом к календарю';
@@ -3635,4 +3639,157 @@ class AppLocalizationsRu extends AppLocalizations {
   String seriesPatternChangeConfirmation(String before, String after) {
     return 'Изменение правила повторения может добавить или удалить даты.\n\nСейчас: $before\nПредложено: $after\n\nСохранить это правило?';
   }
+
+  @override
+  String get connectedAccounts => 'Подключённые аккаунты';
+
+  @override
+  String get contactsIndependentAccounts => 'Независимые аккаунты контактов';
+
+  @override
+  String get contactsNextcloudReuse =>
+      'Подсказки используют существующие учётные данные этого аккаунта через интеграцию контактов только для чтения.';
+
+  @override
+  String get contactsRetrySync => 'Повторить синхронизацию контактов';
+
+  @override
+  String get contactsPreferenceFailed =>
+      'Не удалось сохранить настройку источника контактов.';
+
+  @override
+  String get contactsSuggestionsDisabled => 'Подсказки контактов отключены';
+
+  @override
+  String get contactsSyncFailed =>
+      'Не удалось синхронизировать контакты. Повторите попытку или переподключите аккаунт, если авторизация истекла.';
+
+  @override
+  String get registrationRecoveryDescription =>
+      'Сохранённая регистрация или привязка учётных данных недоступна либо отклонена. Для восстановления явно замените регистрацию этого аккаунта; данные сохранятся.';
+
+  @override
+  String get revalidateAccount => 'Проверить подключение';
+
+  @override
+  String get openSharedPrimaryDescription =>
+      'Открывает основной календарь указанного владельца. Другие общие календари обнаруживаются при обычной синхронизации аккаунта.';
+
+  @override
+  String get showInBusyMax => 'Показывать в BusyMax';
+
+  @override
+  String get showInGoogleCalendarList =>
+      'Показывать в списке календарей Google';
+
+  @override
+  String get googleVisibilityHelp =>
+      'Выбор BusyMax действует локально. Видимость Google меняет ваш список в Google; скрытые календари нельзя показать в BusyMax.';
+
+  @override
+  String get primaryCalendarVisibilityExplanation =>
+      'Основной календарь Google остаётся в списке.';
+
+  @override
+  String get accountsLoading => 'Загрузка аккаунтов…';
+
+  @override
+  String get accountsLoadFailed =>
+      'Не удалось загрузить аккаунты. Откройте раздел «Аккаунты» заново.';
+
+  @override
+  String get collectionsLoading => 'Загрузка коллекций…';
+
+  @override
+  String get collectionsLoadFailed =>
+      'Не удалось загрузить коллекции. Кэш сохранён; повторите синхронизацию.';
+
+  @override
+  String get collectionsNotDiscovered =>
+      'Обнаружение ещё не завершено. Обновите или переподключите аккаунт.';
+
+  @override
+  String get collectionsEmpty => 'Коллекции не найдены.';
+
+  @override
+  String get accountReadyToSync => 'Готово к синхронизации';
+
+  @override
+  String get accountSyncProblem => 'Синхронизация требует внимания';
+
+  @override
+  String get accountServiceUnreachable => 'Не удалось связаться с сервисом';
+
+  @override
+  String get accountSyncDetails => 'Подробности синхронизации';
+
+  @override
+  String get accountReconnectStatus => 'Требуется повторное подключение';
+
+  @override
+  String get accountRegistrationStatus =>
+      'Регистрация приложения требует внимания';
+
+  @override
+  String get collectionsUnavailable => 'Коллекции недоступны';
+
+  @override
+  String get accountContactSuggestions =>
+      'Предлагать гостей из контактов этого аккаунта';
+
+  @override
+  String get accountLoadingSignInSettings => 'Загрузка настроек входа…';
+
+  @override
+  String get contactsNoAddressBooks => 'Нет доступных адресных книг';
+
+  @override
+  String get contactsSourcesUnavailable =>
+      'Не удалось загрузить адресные книги';
+
+  @override
+  String get syncNoRecord => 'Время успешной синхронизации не записано';
+
+  @override
+  String get cachedSyncError =>
+      'Сбой синхронизации; данные в кэше могут быть устаревшими.';
+
+  @override
+  String get calendarRemotePending => 'Ожидается изменение видимости в Google';
+
+  @override
+  String get calendarRemoteFailed =>
+      'Не удалось изменить видимость в Google. Показано последнее подтверждённое состояние Google. BusyMax по-прежнему учитывает ожидающее изменение. Повторите попытку или отмените изменение.';
+
+  @override
+  String discardCalendarSettingsConfirmation(String calendar, String settings) {
+    return 'Отменить ожидающие изменения календаря «$calendar»?\n\nБудут восстановлены предыдущие значения этих настроек:\n$settings\n\nВыбор календарей в BusyMax сохранится. Изменения не будут отправлены в Google.';
+  }
+
+  @override
+  String get sharedCalendarUnavailable =>
+      'Нет доступа; показаны данные из кэша. Повторите синхронизацию или удалите календарь из своего списка.';
+
+  @override
+  String get invalidCollectionColor =>
+      'Введите шестизначный или восьмизначный шестнадцатеричный цвет, начиная с #.';
+
+  @override
+  String get invalidCollectionOrder => 'Введите целое число.';
+
+  @override
+  String get invalidCollectionTimezone =>
+      'Введите корректный документ часового пояса с VTIMEZONE и TZID.';
+
+  @override
+  String get invalidCollectionValue =>
+      'Исправьте это значение перед сохранением.';
+
+  @override
+  String get accountAlreadyConnected =>
+      'Этот аккаунт уже подключён. Используйте его действие переподключения.';
+
+  @override
+  String get nextcloudRemovalAuthorizationDescription =>
+      'BusyMax также попытается отозвать пароль приложения Nextcloud этого аккаунта. Локальное удаление может завершиться, даже если отзыв не удался.';
 }

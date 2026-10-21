@@ -22,6 +22,7 @@ import '../../app/app_bootstrap.dart';
 import '../../calendar_providers/calendar_colors.dart';
 import '../../core/auth/oauth_models.dart';
 import '../../dav/dav_errors.dart';
+import '../../dav/http/dav_http_transport.dart';
 import '../../dav/mutation/dav_conflict_repository.dart';
 import '../../dav/nextcloud/nextcloud_sharing_service.dart';
 import '../../dav/nextcloud/nextcloud_trash_service.dart';
@@ -142,7 +143,7 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                                 account.needsReconnect)
                               PopupMenuItem(
                                 value: 'reconnect',
-                                child: Text(context.l10n.connectAccountAction),
+                                child: Text(context.l10n.reconnectAccount),
                               ),
                             PopupMenuItem(
                               value: 'remove',
@@ -706,7 +707,11 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
     final state = account.isSignedIn
         ? context.l10n.signedInAccount
         : account.authState;
-    final synced = account.lastSuccessfulSyncAtUtc;
+    final synced =
+        account.provider == BusyProvider.nextcloud ||
+            account.provider == BusyProvider.appleICloud
+        ? account.lastSuccessfulSyncAtUtc
+        : null;
     return synced == null
         ? '${account.provider.displayName} · $state'
         : '${account.provider.displayName} · $state\n${context.l10n.davLastSuccessfulSync(DateFormat.yMd().add_jm().format(synced.toLocal()))}';
@@ -723,6 +728,8 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
     }
     final ownedCancellation = AuthorizationCancellation();
     _authorizationCancellation = ownedCancellation;
+    final davCancellation = DavCancellationToken();
+    unawaited(ownedCancellation.signal.then((_) => davCancellation.cancel()));
     try {
       final localNetworkDenied = context.l10n.nextcloudOperationDenied;
       String? email;
@@ -801,24 +808,35 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                 ? (await service.connectAppleICloud(
                     email: email!,
                     appSpecificPassword: password!,
+                    cancellationToken: davCancellation,
                   )).accountId
                 : (await service.replaceAppleAppSpecificPassword(
                     accountId: reconnecting.id,
                     appSpecificPassword: password!,
+                    cancellationToken: davCancellation,
                   )).accountId;
           case BusyProvider.nextcloud:
             final service = ref.read(davAccountOnboardingServiceProvider);
             accountId = reconnecting == null
-                ? (await service.connectNextcloud(enteredServer: server!))
-                      .accountId
+                ? (await service.connectNextcloud(
+                    enteredServer: server!,
+                    cancellationToken: davCancellation,
+                  )).accountId
                 : (await service.reconnectNextcloud(
                     accountId: reconnecting.id,
                     enteredServer: server!,
+                    cancellationToken: davCancellation,
                   )).accountId;
           case BusyProvider.webCal:
             return;
         }
-        if (accountId != null) unawaited(_syncAccount(accountId));
+        if (accountId != null) {
+          ownedCancellation.committed();
+          if (mounted &&
+              identical(_authorizationCancellation, ownedCancellation)) {
+            unawaited(_syncAccount(accountId));
+          }
+        }
       } on Object catch (error) {
         if (error is OAuthException && error.code == 'OAuthSignInCancelled') {
           return;
@@ -826,7 +844,10 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
         if (error is DavException && error.kind == DavErrorKind.cancelled) {
           return;
         }
-        if (mounted) _message(localizedAuthorizationError(context.l10n, error));
+        if (mounted &&
+            identical(_authorizationCancellation, ownedCancellation)) {
+          _message(localizedAuthorizationError(context.l10n, error));
+        }
       } finally {
         if (mounted &&
             identical(_authorizationCancellation, ownedCancellation)) {
@@ -861,6 +882,8 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(context.l10n.removeAccountConfirmation),
+              if (account.provider == BusyProvider.nextcloud)
+                Text(context.l10n.nextcloudRemovalAuthorizationDescription),
               if (account.provider == BusyProvider.google)
                 CheckboxListTile(
                   contentPadding: EdgeInsets.zero,
@@ -888,21 +911,30 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
     if (confirmed != true) return;
     setState(() => _removing.add(account.id));
     try {
-      await ref.read(crossEngineAccountGateProvider).run(account.id, () async {
-        if (account.provider == BusyProvider.appleICloud ||
-            account.provider == BusyProvider.nextcloud) {
-          await ref
-              .read(davAccountOnboardingServiceProvider)
-              .removeAccount(account.id);
-        } else {
-          await ref
-              .read(authRepositoryProvider)
-              .removeAccount(
-                accountId: account.id,
-                revokeAuthorization: revoke,
-              );
+      if (account.provider == BusyProvider.appleICloud ||
+          account.provider == BusyProvider.nextcloud) {
+        // DAV onboarding owns this account gate, including contact preparation.
+        final result = await ref
+            .read(davAccountOnboardingServiceProvider)
+            .removeAccount(account.id);
+        if (mounted &&
+            result.remoteRevocationAttempted &&
+            !result.remoteRevocationSucceeded) {
+          _message(l10n.nextcloudAccountRemovedRevokeFailed);
         }
-      });
+      } else {
+        await ref
+            .read(crossEngineAccountGateProvider)
+            .run(
+              account.id,
+              () => ref
+                  .read(authRepositoryProvider)
+                  .removeAccount(
+                    accountId: account.id,
+                    revokeAuthorization: revoke,
+                  ),
+            );
+      }
       await ref.read(notificationReconcilerProvider).reconcile();
     } on Object catch (error) {
       _message(localizedAccountRemovalError(l10n, error));

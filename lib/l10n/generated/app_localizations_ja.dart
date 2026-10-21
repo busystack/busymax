@@ -14,6 +14,9 @@ class AppLocalizationsJa extends AppLocalizations {
   AppLocalizationsJa([String locale = 'ja']) : super(locale);
 
   @override
+  String get contactsAccountsUnavailable => '連絡先アカウントを読み込めませんでした';
+
+  @override
   String get launchAtLoginManagedExternally =>
       'BusyMax はデスクトップの自動起動設定によって起動されました。このスイッチを使うには、そこで BusyMax の項目を削除してから、BusyMax を終了して開き直してください。';
 
@@ -2943,7 +2946,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get searchClearText => 'テキストを消去';
 
   @override
-  String get openSharedCalendar => '共有カレンダーを開く';
+  String get openSharedCalendar => '共有メインカレンダーを開く';
 
   @override
   String get manageCalendarSharing => 'カレンダーの共有を管理';
@@ -3512,4 +3515,147 @@ class AppLocalizationsJa extends AppLocalizations {
   String seriesPatternChangeConfirmation(String before, String after) {
     return '繰り返しパターンの変更により、日付が追加または削除される場合があります。\n\n現在：$before\n変更案：$after\n\nこのパターンを保存しますか？';
   }
+
+  @override
+  String get connectedAccounts => '接続済みアカウント';
+
+  @override
+  String get contactsIndependentAccounts => '独立した連絡先アカウント';
+
+  @override
+  String get contactsNextcloudReuse =>
+      '連絡先候補は、読み取り専用の連絡先連携を通じて、このアカウントの既存の認証情報を再利用します。';
+
+  @override
+  String get contactsRetrySync => '連絡先の同期を再試行';
+
+  @override
+  String get contactsPreferenceFailed => '連絡先ソースの設定を保存できませんでした。';
+
+  @override
+  String get contactsSuggestionsDisabled => '連絡先候補は無効です';
+
+  @override
+  String get contactsSyncFailed =>
+      '連絡先を同期できませんでした。再試行するか、認可が期限切れの場合はアカウントを再接続してください。';
+
+  @override
+  String get registrationRecoveryDescription =>
+      '保存済みのアプリ登録または認証情報との関連付けが利用できないか、拒否されています。復旧するには、このアカウントの登録を明示的に置き換えてください。既存のデータは保持されます。';
+
+  @override
+  String get revalidateAccount => '接続を再検証';
+
+  @override
+  String get openSharedPrimaryDescription =>
+      '指定した所有者のメインカレンダーを開きます。他の共有カレンダーは通常のアカウント同期で検出されます。';
+
+  @override
+  String get showInBusyMax => 'BusyMax に表示';
+
+  @override
+  String get showInGoogleCalendarList => 'Google のカレンダーリストに表示';
+
+  @override
+  String get googleVisibilityHelp =>
+      'BusyMax の選択はローカル設定です。Google の表示設定は Google 側のリストを変更します。非表示のカレンダーは BusyMax に表示できません。';
+
+  @override
+  String get primaryCalendarVisibilityExplanation =>
+      'Google のメインカレンダーはリストに残ります。';
+
+  @override
+  String get accountsLoading => 'アカウントを読み込み中…';
+
+  @override
+  String get accountsLoadFailed => 'アカウントを読み込めませんでした。「アカウント」を開き直してください。';
+
+  @override
+  String get collectionsLoading => 'コレクションを読み込み中…';
+
+  @override
+  String get collectionsLoadFailed =>
+      'コレクションを読み込めませんでした。キャッシュは保持されています。同期を再試行してください。';
+
+  @override
+  String get collectionsNotDiscovered => '検出が完了していません。このアカウントを更新または再接続してください。';
+
+  @override
+  String get collectionsEmpty => 'コレクションが見つかりません。';
+
+  @override
+  String get accountReadyToSync => '同期の準備完了';
+
+  @override
+  String get accountSyncProblem => '同期への対応が必要';
+
+  @override
+  String get accountServiceUnreachable => 'サービスに接続できませんでした';
+
+  @override
+  String get accountSyncDetails => '同期の詳細';
+
+  @override
+  String get accountReconnectStatus => '再接続が必要';
+
+  @override
+  String get accountRegistrationStatus => 'アプリ登録への対応が必要';
+
+  @override
+  String get collectionsUnavailable => 'コレクションを利用できません';
+
+  @override
+  String get accountContactSuggestions => 'このアカウントの連絡先からゲストを候補に表示';
+
+  @override
+  String get accountLoadingSignInSettings => 'サインイン設定を読み込み中…';
+
+  @override
+  String get contactsNoAddressBooks => '利用できるアドレス帳がありません';
+
+  @override
+  String get contactsSourcesUnavailable => 'アドレス帳を読み込めませんでした';
+
+  @override
+  String get syncNoRecord => '成功した同期時刻の記録がありません';
+
+  @override
+  String get cachedSyncError => '同期に失敗しました。キャッシュのデータが古い可能性があります。';
+
+  @override
+  String get calendarRemotePending => 'Google の表示設定の変更を待機中';
+
+  @override
+  String get calendarRemoteFailed =>
+      'Google での表示設定の変更に失敗しました。Google で最後に確認された状態が表示されています。BusyMax は引き続き保留中の変更に従います。再試行するか、変更を破棄してください。';
+
+  @override
+  String discardCalendarSettingsConfirmation(String calendar, String settings) {
+    return '「$calendar」の保留中の変更を破棄しますか？\n\n次の設定を以前の値に戻します：\n$settings\n\nBusyMaxでのカレンダーの選択は保持されます。Googleに変更は送信されません。';
+  }
+
+  @override
+  String get sharedCalendarUnavailable =>
+      'アクセスできません。キャッシュを表示しています。同期を再試行するか、リストから削除してください。';
+
+  @override
+  String get invalidCollectionColor => '# で始まる6桁または8桁の16進数の色を入力してください。';
+
+  @override
+  String get invalidCollectionOrder => '整数を入力してください。';
+
+  @override
+  String get invalidCollectionTimezone =>
+      'VTIMEZONE と TZID を含む有効なカレンダーのタイムゾーン文書を入力してください。';
+
+  @override
+  String get invalidCollectionValue => '保存する前にこの値を修正してください。';
+
+  @override
+  String get accountAlreadyConnected =>
+      'このアカウントは既に接続されています。このアカウントの再接続操作を使用してください。';
+
+  @override
+  String get nextcloudRemovalAuthorizationDescription =>
+      'BusyMax はこのアカウントの Nextcloud アプリパスワードの失効も試みます。失効に失敗しても、ローカルでの削除は完了する場合があります。';
 }

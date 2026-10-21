@@ -14,6 +14,9 @@ class AppLocalizationsFa extends AppLocalizations {
   AppLocalizationsFa([String locale = 'fa']) : super(locale);
 
   @override
+  String get contactsAccountsUnavailable => 'حساب‌های مخاطبین بارگیری نشدند';
+
+  @override
   String get launchAtLoginManagedExternally =>
       'BusyMax از تنظیمات راه‌اندازی خودکار میزکار شما اجرا شده است. ورودی آن را در آنجا حذف کنید، سپس از BusyMax خارج شوید و دوباره آن را باز کنید تا بتوانید از این کلید استفاده کنید.';
 
@@ -3041,7 +3044,7 @@ class AppLocalizationsFa extends AppLocalizations {
   String get searchClearText => 'پاک کردن متن';
 
   @override
-  String get openSharedCalendar => 'باز کردن تقویم اشتراکی';
+  String get openSharedCalendar => 'باز کردن تقویم اصلی اشتراکی';
 
   @override
   String get manageCalendarSharing => 'مدیریت اشتراک‌گذاری تقویم';
@@ -3630,4 +3633,151 @@ class AppLocalizationsFa extends AppLocalizations {
   String seriesPatternChangeConfirmation(String before, String after) {
     return 'این تغییر در الگوی تکرار ممکن است تاریخ‌هایی را اضافه یا حذف کند.\n\nفعلی: ⁨$before⁩\nپیشنهادی: ⁨$after⁩\n\nاین الگو ذخیره شود؟';
   }
+
+  @override
+  String get connectedAccounts => 'حساب‌های متصل';
+
+  @override
+  String get contactsIndependentAccounts => 'حساب‌های مستقل مخاطبان';
+
+  @override
+  String get contactsNextcloudReuse =>
+      'پیشنهادهای مخاطب از اطلاعات ورود فعلی این حساب از طریق یکپارچه‌سازی فقط‌خواندنی مخاطبان استفاده می‌کنند.';
+
+  @override
+  String get contactsRetrySync => 'تلاش دوباره برای همگام‌سازی مخاطبان';
+
+  @override
+  String get contactsPreferenceFailed => 'ذخیره تنظیم منبع مخاطبان ممکن نشد.';
+
+  @override
+  String get contactsSuggestionsDisabled => 'پیشنهادهای مخاطب غیرفعال است';
+
+  @override
+  String get contactsSyncFailed =>
+      'همگام‌سازی مخاطبان انجام نشد. دوباره تلاش کنید یا اگر مجوز منقضی شده حساب را دوباره متصل کنید.';
+
+  @override
+  String get registrationRecoveryDescription =>
+      'ثبت ذخیره‌شده یا پیوند اطلاعات ورود آن در دسترس نیست یا رد شده است. برای بازیابی، ثبت این حساب را به‌صراحت جایگزین کنید؛ داده‌های فعلی حفظ می‌شوند.';
+
+  @override
+  String get revalidateAccount => 'بررسی دوباره اتصال';
+
+  @override
+  String get openSharedPrimaryDescription =>
+      'تقویم اصلی مالک مشخص‌شده را باز می‌کند. تقویم‌های اشتراکی دیگر از طریق همگام‌سازی عادی حساب پیدا می‌شوند.';
+
+  @override
+  String get showInBusyMax => 'نمایش در BusyMax';
+
+  @override
+  String get showInGoogleCalendarList => 'نمایش در فهرست تقویم Google';
+
+  @override
+  String get googleVisibilityHelp =>
+      'انتخاب BusyMax محلی است. نمایانی Google فهرست شما در Google را تغییر می‌دهد؛ تقویم‌های پنهان در BusyMax نمایش داده نمی‌شوند.';
+
+  @override
+  String get primaryCalendarVisibilityExplanation =>
+      'تقویم اصلی Google در فهرست باقی می‌ماند.';
+
+  @override
+  String get accountsLoading => 'در حال بارگذاری حساب‌ها…';
+
+  @override
+  String get accountsLoadFailed =>
+      'حساب‌ها بارگذاری نشدند. بخش حساب‌ها را دوباره باز کنید.';
+
+  @override
+  String get collectionsLoading => 'در حال بارگذاری مجموعه‌ها…';
+
+  @override
+  String get collectionsLoadFailed =>
+      'مجموعه‌ها بارگذاری نشدند. داده‌های ذخیره‌شده حفظ می‌شوند؛ همگام‌سازی را دوباره امتحان کنید.';
+
+  @override
+  String get collectionsNotDiscovered =>
+      'کشف کامل نشده است. این حساب را تازه‌سازی یا دوباره متصل کنید.';
+
+  @override
+  String get collectionsEmpty => 'مجموعه‌ای پیدا نشد.';
+
+  @override
+  String get accountReadyToSync => 'آمادهٔ همگام‌سازی';
+
+  @override
+  String get accountSyncProblem => 'همگام‌سازی نیاز به رسیدگی دارد';
+
+  @override
+  String get accountServiceUnreachable => 'دسترسی به سرویس ممکن نشد';
+
+  @override
+  String get accountSyncDetails => 'جزئیات همگام‌سازی';
+
+  @override
+  String get accountReconnectStatus => 'اتصال مجدد لازم است';
+
+  @override
+  String get accountRegistrationStatus => 'ثبت برنامه نیاز به رسیدگی دارد';
+
+  @override
+  String get collectionsUnavailable => 'مجموعه‌ها در دسترس نیستند';
+
+  @override
+  String get accountContactSuggestions => 'پیشنهاد مهمان از مخاطبان این حساب';
+
+  @override
+  String get accountLoadingSignInSettings => 'در حال بارگیری تنظیمات ورود…';
+
+  @override
+  String get contactsNoAddressBooks => 'دفترچهٔ نشانی در دسترس نیست';
+
+  @override
+  String get contactsSourcesUnavailable => 'بارگیری دفترچه‌های نشانی ممکن نشد';
+
+  @override
+  String get syncNoRecord => 'زمان همگام‌سازی موفق ثبت نشده است';
+
+  @override
+  String get cachedSyncError =>
+      'همگام‌سازی ناموفق بود؛ داده‌های ذخیره‌شده ممکن است قدیمی باشند.';
+
+  @override
+  String get calendarRemotePending => 'تغییر نمایانی Google در انتظار است';
+
+  @override
+  String get calendarRemoteFailed =>
+      'تغییر نمایش در Google ناموفق بود. آخرین وضعیت تأییدشدهٔ Google نمایش داده می‌شود. BusyMax همچنان از تغییر در انتظار پیروی می‌کند. دوباره تلاش کنید یا تغییر را کنار بگذارید.';
+
+  @override
+  String discardCalendarSettingsConfirmation(String calendar, String settings) {
+    return 'تغییرات در انتظار برای «⁨$calendar⁩» کنار گذاشته شوند؟\n\nاین تنظیمات به مقادیر قبلی بازمی‌گردند:\n⁨$settings⁩\n\nانتخاب تقویم شما در BusyMax حفظ می‌شود. هیچ تغییری به Google ارسال نخواهد شد.';
+  }
+
+  @override
+  String get sharedCalendarUnavailable =>
+      'دسترسی موجود نیست؛ داده‌های ذخیره‌شده نمایش داده می‌شوند. همگام‌سازی را دوباره امتحان کنید یا تقویم را از فهرست حذف کنید.';
+
+  @override
+  String get invalidCollectionColor =>
+      'یک رنگ شانزده‌شانزدهی شش یا هشت رقمی با # در ابتدا وارد کنید.';
+
+  @override
+  String get invalidCollectionOrder => 'یک عدد صحیح وارد کنید.';
+
+  @override
+  String get invalidCollectionTimezone =>
+      'یک سند منطقه زمانی معتبر شامل VTIMEZONE و TZID وارد کنید.';
+
+  @override
+  String get invalidCollectionValue => 'این مقدار را پیش از ذخیره اصلاح کنید.';
+
+  @override
+  String get accountAlreadyConnected =>
+      'این حساب از قبل متصل است. از گزینه اتصال دوباره آن استفاده کنید.';
+
+  @override
+  String get nextcloudRemovalAuthorizationDescription =>
+      'BusyMax تلاش می‌کند گذرواژه برنامه Nextcloud این حساب را نیز لغو کند. حذف محلی حتی در صورت ناموفق بودن لغو می‌تواند انجام شود.';
 }

@@ -66,6 +66,19 @@ final class AuthorizationPersistence {
         'Authorization recovery must complete before this account can be used.',
       );
     }
+    if (record is NextcloudSecretRecord || record is AppleICloudSecretRecord) {
+      final journal = await (database.select(
+        database.authorizationCommits,
+      )..where((r) => r.accountId.equals(id))).getSingleOrNull();
+      if (journal != null &&
+          !AuthorizationRecoveryState.decode(journal.previousNativeBindingJson)
+              .committed) {
+        throw const SecretStoreException(
+          'SecretStoreRecoveryRequired',
+          'Credential recovery must complete before this account can be used.',
+        );
+      }
+    }
     return record;
   }
 
@@ -170,7 +183,9 @@ final class AuthorizationPersistence {
           } else {
             await secrets.deleteCredential(journal.accountId);
           }
-          if (restoreNativeBinding != null) {
+          if (!recovery.manageNativeBinding) {
+            // DAV credentials have no native OAuth binding.
+          } else if (restoreNativeBinding != null) {
             await restoreNativeBinding!(
               journal.accountId,
               recovery.previousNativeBinding,
@@ -186,7 +201,7 @@ final class AuthorizationPersistence {
           final account = await (database.select(
             database.accounts,
           )..where((r) => r.id.equals(journal.accountId))).getSingleOrNull();
-          if (account == null) {
+          if (account == null && recovery.manageNativeBinding) {
             await onRemovalCommitted?.call(
               journal.accountId,
               recovery.previousNativeBinding,
@@ -204,6 +219,7 @@ final class AuthorizationPersistence {
     required SecretRecord candidate,
     required Future<void> Function() persistAccount,
     bool requireExisting = false,
+    bool activateAccount = true,
     void Function()? validateCandidate,
     void Function()? onCommitted,
   }) => run(accountId, () async {
@@ -222,6 +238,12 @@ final class AuthorizationPersistence {
     // Capture the latest accepted record, including refresh-token rotation.
     final previous = await secrets.readCredential(accountId);
     var credential = candidate;
+    final davCredential =
+        candidate is NextcloudSecretRecord ||
+        candidate is AppleICloudSecretRecord;
+    final candidateGeneration = davCredential
+        ? expectedGeneration + 1
+        : _generation(candidate);
     if (credential is BoundOAuthSecretRecord &&
         !credential.tokenSet.canRefresh) {
       if (previous is BoundOAuthSecretRecord &&
@@ -243,7 +265,9 @@ final class AuthorizationPersistence {
       }
     }
     final previousActive = await secrets.readActiveAccountId();
-    final nativeSnapshot = await readNativeBinding?.call(accountId);
+    final nativeSnapshot = davCredential
+        ? null
+        : await readNativeBinding?.call(accountId);
     if (previous != null) {
       await secrets.saveCredential(_backupKey(accountId), previous);
     }
@@ -252,13 +276,14 @@ final class AuthorizationPersistence {
         .insertOnConflictUpdate(
           AuthorizationCommitsCompanion.insert(
             accountId: accountId,
-            generation: _generation(credential),
+            generation: candidateGeneration,
             hadCredential: previous != null,
             previousActiveAccountId: Value(previousActive),
             previousNativeBindingJson: Value(
               AuthorizationRecoveryState(
                 committed: false,
                 previousNativeBinding: nativeSnapshot,
+                manageNativeBinding: !davCredential,
               ).encode(),
             ),
           ),
@@ -273,8 +298,11 @@ final class AuthorizationPersistence {
           'Credential storage could not be verified.',
         );
       }
-      await onCredentialWritten?.call(accountId, credential);
-      await secrets.setActiveAccountId(accountId);
+      validateCandidate?.call();
+      if (!davCredential) {
+        await onCredentialWritten?.call(accountId, credential);
+      }
+      if (activateAccount) await secrets.setActiveAccountId(accountId);
       await database.transaction(() async {
         validateCandidate?.call();
         await persistAccount();
@@ -283,18 +311,20 @@ final class AuthorizationPersistence {
             .insertOnConflictUpdate(
               AuthorizationGenerationsCompanion.insert(
                 accountId: accountId,
-                generation: _generation(credential),
+                generation: candidateGeneration,
               ),
             );
-        await database
-            .into(database.accountAuthorizations)
-            .insertOnConflictUpdate(
-              AccountAuthorizationsCompanion.insert(
-                accountId: accountId,
-                generation: _generation(credential),
-                summaryJson: jsonEncode(summaryJson(_summary(credential))),
-              ),
-            );
+        if (!davCredential) {
+          await database
+              .into(database.accountAuthorizations)
+              .insertOnConflictUpdate(
+                AccountAuthorizationsCompanion.insert(
+                  accountId: accountId,
+                  generation: candidateGeneration,
+                  summaryJson: jsonEncode(summaryJson(_summary(credential))),
+                ),
+              );
+        }
         validateCandidate?.call();
         await (database.update(
           database.authorizationCommits,
@@ -304,6 +334,7 @@ final class AuthorizationPersistence {
               AuthorizationRecoveryState(
                 committed: true,
                 previousNativeBinding: nativeSnapshot,
+                manageNativeBinding: !davCredential,
               ).encode(),
             ),
           ),
@@ -317,7 +348,9 @@ final class AuthorizationPersistence {
       } else {
         await secrets.deleteCredential(accountId);
       }
-      if (restoreNativeBinding != null) {
+      if (davCredential) {
+        // DAV has no native OAuth binding to restore.
+      } else if (restoreNativeBinding != null) {
         await restoreNativeBinding!(accountId, nativeSnapshot);
       } else {
         await onCredentialWritten?.call(accountId, previous);
@@ -451,11 +484,14 @@ final class AuthorizationPersistence {
   Future<void> removeCoherently(
     String id,
     Future<void> Function() clearAuthorization,
-    Future<void> Function() deleteAccount,
-  ) async {
+    Future<void> Function() deleteAccount, {
+    bool manageNativeBinding = true,
+  }) async {
     final previous = await secrets.readCredential(id);
     final active = await secrets.readActiveAccountId();
-    final nativeSnapshot = await readNativeBinding?.call(id);
+    final nativeSnapshot = manageNativeBinding
+        ? await readNativeBinding?.call(id)
+        : null;
     final nextGeneration = await generation(id) + 1;
     if (previous != null) {
       await secrets.saveCredential(_backupKey(id), previous);
@@ -472,6 +508,7 @@ final class AuthorizationPersistence {
               AuthorizationRecoveryState(
                 committed: false,
                 previousNativeBinding: nativeSnapshot,
+                manageNativeBinding: manageNativeBinding,
               ).encode(),
             ),
           ),
@@ -490,6 +527,7 @@ final class AuthorizationPersistence {
               AuthorizationRecoveryState(
                 committed: true,
                 previousNativeBinding: nativeSnapshot,
+                manageNativeBinding: manageNativeBinding,
               ).encode(),
             ),
           ),
@@ -501,7 +539,9 @@ final class AuthorizationPersistence {
       } else {
         await secrets.deleteCredential(id);
       }
-      if (restoreNativeBinding != null) {
+      if (!manageNativeBinding) {
+        // Local DAV rollback needs only the secure record.
+      } else if (restoreNativeBinding != null) {
         await restoreNativeBinding!(id, nativeSnapshot);
       } else {
         await onCredentialWritten?.call(id, previous);
@@ -512,7 +552,7 @@ final class AuthorizationPersistence {
     }
     // Failed native cleanup retains the journal for retry on restart. Account
     // deletion and generation invalidation are already durable.
-    if (onRemovalCommitted != null) {
+    if (manageNativeBinding && onRemovalCommitted != null) {
       await onRemovalCommitted!(id, nativeSnapshot);
     } else {
       await clearAuthorization();
@@ -562,12 +602,15 @@ final class AuthorizationRecoveryState {
   const AuthorizationRecoveryState({
     required this.committed,
     this.previousNativeBinding,
+    this.manageNativeBinding = true,
   });
+  final bool manageNativeBinding;
   final bool committed;
   final NativeBindingSnapshot? previousNativeBinding;
   String encode() => jsonEncode({
     'version': 1,
     'committed': committed,
+    'manageNativeBinding': manageNativeBinding,
     'previousNativeBinding': previousNativeBinding?.toJson(),
   });
   factory AuthorizationRecoveryState.decode(String? serialized) {
@@ -579,6 +622,7 @@ final class AuthorizationRecoveryState {
       final binding = value['previousNativeBinding'];
       return AuthorizationRecoveryState(
         committed: value['committed'] as bool,
+        manageNativeBinding: value['manageNativeBinding'] as bool? ?? true,
         previousNativeBinding: binding == null
             ? null
             : NativeBindingSnapshot.fromJson(binding as Map<String, dynamic>),

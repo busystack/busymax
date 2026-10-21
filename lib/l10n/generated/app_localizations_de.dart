@@ -14,6 +14,10 @@ class AppLocalizationsDe extends AppLocalizations {
   AppLocalizationsDe([String locale = 'de']) : super(locale);
 
   @override
+  String get contactsAccountsUnavailable =>
+      'Kontaktkonten konnten nicht geladen werden';
+
+  @override
   String get launchAtLoginManagedExternally =>
       'BusyMax wurde durch die Autostart-Einstellungen Ihres Desktops gestartet. Entfernen Sie dort den Eintrag, beenden Sie BusyMax und öffnen Sie es erneut, um diesen Schalter zu verwenden.';
 
@@ -3006,7 +3010,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get searchClearText => 'Text löschen';
 
   @override
-  String get openSharedCalendar => 'Freigegebenen Kalender öffnen';
+  String get openSharedCalendar => 'Freigegebenen Hauptkalender öffnen';
 
   @override
   String get manageCalendarSharing => 'Kalenderfreigabe verwalten';
@@ -3602,4 +3606,158 @@ class AppLocalizationsDe extends AppLocalizations {
   String seriesPatternChangeConfirmation(String before, String after) {
     return 'Dies ändert das Wiederholungsmuster und kann Termine hinzufügen oder entfernen.\n\nAktuell: $before\nVorschlag: $after\n\nDieses Muster speichern?';
   }
+
+  @override
+  String get connectedAccounts => 'Verbundene Konten';
+
+  @override
+  String get contactsIndependentAccounts => 'Unabhängige Kontaktkonten';
+
+  @override
+  String get contactsNextcloudReuse =>
+      'Kontaktvorschläge verwenden die vorhandenen Zugangsdaten dieses Kontos über die schreibgeschützte Kontaktintegration.';
+
+  @override
+  String get contactsRetrySync => 'Kontaktsynchronisierung wiederholen';
+
+  @override
+  String get contactsPreferenceFailed =>
+      'Die Kontaktquelleneinstellung konnte nicht gespeichert werden.';
+
+  @override
+  String get contactsSuggestionsDisabled => 'Kontaktvorschläge deaktiviert';
+
+  @override
+  String get contactsSyncFailed =>
+      'Kontakte konnten nicht synchronisiert werden. Erneut versuchen oder bei abgelaufener Autorisierung das Konto neu verbinden.';
+
+  @override
+  String get registrationRecoveryDescription =>
+      'Die gespeicherte Registrierung oder ihre Zugangsdatenbindung fehlt oder wurde abgelehnt. Ersetzen Sie die Registrierung dieses Kontos ausdrücklich, um den Zugriff wiederherzustellen. Vorhandene Daten bleiben erhalten.';
+
+  @override
+  String get revalidateAccount => 'Verbindung erneut prüfen';
+
+  @override
+  String get openSharedPrimaryDescription =>
+      'Öffnet den Hauptkalender des angegebenen Besitzers. Andere freigegebene Kalender werden bei der normalen Kontosynchronisierung gefunden.';
+
+  @override
+  String get showInBusyMax => 'In BusyMax anzeigen';
+
+  @override
+  String get showInGoogleCalendarList => 'In Googles Kalenderliste anzeigen';
+
+  @override
+  String get googleVisibilityHelp =>
+      'Die BusyMax-Auswahl gilt lokal. Die Google-Sichtbarkeit ändert Ihre Kalenderliste bei Google; ausgeblendete Kalender können in BusyMax nicht angezeigt werden.';
+
+  @override
+  String get primaryCalendarVisibilityExplanation =>
+      'Der Google-Hauptkalender bleibt in der Kalenderliste.';
+
+  @override
+  String get accountsLoading => 'Konten werden geladen…';
+
+  @override
+  String get accountsLoadFailed =>
+      'Konten konnten nicht geladen werden. Öffnen Sie Konten erneut.';
+
+  @override
+  String get collectionsLoading => 'Sammlungen werden geladen…';
+
+  @override
+  String get collectionsLoadFailed =>
+      'Sammlungen konnten nicht geladen werden. Zwischengespeicherte Daten bleiben erhalten. Synchronisierung erneut versuchen.';
+
+  @override
+  String get collectionsNotDiscovered =>
+      'Die Erkennung ist noch nicht abgeschlossen. Konto aktualisieren oder neu verbinden.';
+
+  @override
+  String get collectionsEmpty => 'Keine Sammlungen gefunden.';
+
+  @override
+  String get accountReadyToSync => 'Bereit zur Synchronisierung';
+
+  @override
+  String get accountSyncProblem => 'Synchronisierung benötigt Aufmerksamkeit';
+
+  @override
+  String get accountServiceUnreachable => 'Dienst nicht erreichbar';
+
+  @override
+  String get accountSyncDetails => 'Synchronisierungsdetails';
+
+  @override
+  String get accountReconnectStatus => 'Erneute Verbindung erforderlich';
+
+  @override
+  String get accountRegistrationStatus =>
+      'App-Registrierung benötigt Aufmerksamkeit';
+
+  @override
+  String get collectionsUnavailable => 'Sammlungen nicht verfügbar';
+
+  @override
+  String get accountContactSuggestions =>
+      'Gäste aus den Kontakten dieses Kontos vorschlagen';
+
+  @override
+  String get accountLoadingSignInSettings =>
+      'Anmeldeeinstellungen werden geladen…';
+
+  @override
+  String get contactsNoAddressBooks => 'Keine Adressbücher verfügbar';
+
+  @override
+  String get contactsSourcesUnavailable =>
+      'Adressbücher konnten nicht geladen werden';
+
+  @override
+  String get syncNoRecord =>
+      'Kein erfolgreicher Synchronisierungszeitpunkt erfasst';
+
+  @override
+  String get cachedSyncError =>
+      'Synchronisierung fehlgeschlagen; zwischengespeicherte Daten können veraltet sein.';
+
+  @override
+  String get calendarRemotePending => 'Google-Sichtbarkeitsänderung ausstehend';
+
+  @override
+  String get calendarRemoteFailed =>
+      'Die Sichtbarkeitsänderung bei Google ist fehlgeschlagen. Der letzte bestätigte Google-Status wird angezeigt. BusyMax folgt weiterhin der ausstehenden Änderung. Erneut versuchen oder verwerfen.';
+
+  @override
+  String discardCalendarSettingsConfirmation(String calendar, String settings) {
+    return 'Ausstehende Änderungen an „$calendar“ verwerfen?\n\nDiese Einstellungen werden auf ihre vorherigen Werte zurückgesetzt:\n$settings\n\nDeine Kalenderauswahl in BusyMax bleibt erhalten. Es werden keine Änderungen an Google gesendet.';
+  }
+
+  @override
+  String get sharedCalendarUnavailable =>
+      'Zugriff nicht verfügbar; zwischengespeicherte Daten werden angezeigt. Synchronisierung wiederholen oder aus der Kalenderliste entfernen.';
+
+  @override
+  String get invalidCollectionColor =>
+      'Geben Sie eine sechs- oder achtstellige Hexadezimalfarbe mit # ein.';
+
+  @override
+  String get invalidCollectionOrder => 'Geben Sie eine ganze Zahl ein.';
+
+  @override
+  String get invalidCollectionTimezone =>
+      'Geben Sie ein gültiges Kalenderzeitzonendokument mit VTIMEZONE und TZID ein.';
+
+  @override
+  String get invalidCollectionValue =>
+      'Korrigieren Sie diesen Wert vor dem Speichern.';
+
+  @override
+  String get accountAlreadyConnected =>
+      'Dieses Konto ist bereits verbunden. Verwenden Sie die Aktion zum erneuten Verbinden.';
+
+  @override
+  String get nextcloudRemovalAuthorizationDescription =>
+      'BusyMax versucht außerdem, das Nextcloud-App-Passwort dieses Kontos zu widerrufen. Die lokale Entfernung kann auch bei fehlgeschlagenem Widerruf erfolgreich sein.';
 }

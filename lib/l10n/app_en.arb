@@ -1,4 +1,5 @@
 {
+  "contactsAccountsUnavailable": "Could not load contact accounts",
   "launchAtLoginManagedExternally": "BusyMax was launched by your desktop's startup settings. Remove its entry there, then quit and reopen BusyMax to use this switch.",
   "timeFormat": "Time format",
   "firstDayOfWeek": "First day of the week",
@@ -1772,7 +1773,7 @@
   "searchFiltersAction": "Filters",
   "searchNoSources": "No search sources selected",
   "searchClearText": "Clear text",
-  "openSharedCalendar": "Open shared calendar",
+  "openSharedCalendar": "Open shared primary calendar",
   "manageCalendarSharing": "Manage calendar sharing",
   "shareRecipientEmail": "Recipient email",
   "shareRole": "Access role",
@@ -2003,5 +2004,59 @@
         "type": "String"
       }
     }
-  }
+  },
+  "connectedAccounts": "Connected accounts",
+  "contactsIndependentAccounts": "Independent contact accounts",
+  "contactsNextcloudReuse": "Contact suggestions reuse this account’s existing credential through the read-only contacts integration.",
+  "contactsRetrySync": "Retry contacts sync",
+  "contactsPreferenceFailed": "Could not save contact source preference",
+  "contactsSuggestionsDisabled": "Contact suggestions disabled",
+  "contactsSyncFailed": "Contacts could not sync. Retry, or reconnect if authorization has expired.",
+  "registrationRecoveryDescription": "The saved registration or its credential binding is unavailable or rejected. Explicitly replace the registration for this account to recover; existing data is preserved.",
+  "revalidateAccount": "Revalidate connection",
+  "openSharedPrimaryDescription": "Opens the specified owner’s primary calendar. Other shared calendars are discovered through ordinary account synchronization.",
+  "showInBusyMax": "Show in BusyMax",
+  "showInGoogleCalendarList": "Show in Google’s calendar list",
+  "googleVisibilityHelp": "BusyMax selection is local. Google visibility changes your calendar list on Google; hidden calendars cannot be displayed in BusyMax.",
+  "primaryCalendarVisibilityExplanation": "Google’s primary calendar stays in its calendar list.",
+  "accountsLoading": "Loading accounts…",
+  "accountsLoadFailed": "Accounts could not be loaded. Retry opening Accounts.",
+  "collectionsLoading": "Loading collections…",
+  "collectionsLoadFailed": "Collections could not be loaded. Cached data is retained; retry synchronization.",
+  "collectionsNotDiscovered": "Discovery has not completed. Refresh or reconnect this account.",
+  "collectionsEmpty": "No collections found.",
+  "accountReadyToSync": "Ready to sync",
+  "accountSyncProblem": "Synchronization needs attention",
+  "accountServiceUnreachable": "Could not reach the service",
+  "accountSyncDetails": "Synchronization details",
+  "accountReconnectStatus": "Reconnect required",
+  "accountRegistrationStatus": "Registration needs attention",
+  "collectionsUnavailable": "Collections unavailable",
+  "accountContactSuggestions": "Suggest guests from this account’s contacts",
+  "accountLoadingSignInSettings": "Loading sign-in settings…",
+  "contactsNoAddressBooks": "No address books available",
+  "contactsSourcesUnavailable": "Could not load address books",
+  "syncNoRecord": "No successful sync time recorded",
+  "cachedSyncError": "Sync failed; cached data may be out of date.",
+  "calendarRemotePending": "Google visibility change pending",
+  "calendarRemoteFailed": "Google visibility change failed. Google’s last confirmed state is shown. BusyMax still follows the pending change. Retry or discard it.",
+  "discardCalendarSettingsConfirmation": "Discard the pending changes to “{calendar}”?\n\nThese settings will return to their previous values:\n{settings}\n\nYour BusyMax calendar selection is kept. No changes will be sent to Google.",
+  "@discardCalendarSettingsConfirmation": {
+    "description": "Confirms discarding the entire queued Google calendar settings patch. calendar is the calendar display name; settings is a localized, newline-separated bulleted list of every affected setting. No provider request is sent, and the local calendar selection is preserved.",
+    "placeholders": {
+      "calendar": {
+        "type": "String"
+      },
+      "settings": {
+        "type": "String"
+      }
+    }
+  },
+  "sharedCalendarUnavailable": "Access unavailable; showing cached data. Retry synchronization or remove from your calendar list.",
+  "invalidCollectionColor": "Enter a six- or eight-digit hexadecimal color, starting with #.",
+  "invalidCollectionOrder": "Enter a whole number.",
+  "invalidCollectionTimezone": "Enter a valid calendar timezone document containing VTIMEZONE and TZID.",
+  "invalidCollectionValue": "Correct this value before saving.",
+  "accountAlreadyConnected": "This account is already connected. Use its Reconnect action.",
+  "nextcloudRemovalAuthorizationDescription": "BusyMax will also try to revoke this account’s Nextcloud app password. Local removal can succeed even if that revocation fails."
 }

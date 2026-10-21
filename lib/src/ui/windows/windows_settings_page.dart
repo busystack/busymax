@@ -1306,7 +1306,10 @@ Future<void> _removeWindowsAccount(
   final l10n = AppLocalizations.of(context);
   final options = await showWindowsAccountRemovalDialog(
     context,
-    accountLabel: account.displayLabel,
+    accountLabel: account.provider == BusyProvider.nextcloud
+        ? '${account.displayLabel} · ${account.authority}'
+        : account.displayLabel,
+    revokeNextcloudAppPassword: account.provider == BusyProvider.nextcloud,
     canRevokeGoogleAuthorization:
         account.provider == BusyProvider.google && account.isSignedIn,
   );
@@ -1331,8 +1334,11 @@ Future<void> _removeWindowsAccount(
     final remaining = await ref
         .read(accountsRepositoryProvider)
         .listVisibleAccounts();
-    ref.read(selectedAccountIdProvider.notifier).state =
-        remaining.firstOrNull?.id;
+    final selected = ref.read(selectedAccountIdProvider);
+    if (selected == account.id || !remaining.any((a) => a.id == selected)) {
+      ref.read(selectedAccountIdProvider.notifier).state =
+          remaining.firstOrNull?.id;
+    }
     await ref.read(authSessionControllerProvider.notifier).load();
     if (!context.mounted) return;
     if (authResult?.authorizationRevocationFailed ?? false) {
@@ -1843,11 +1849,7 @@ class _WindowsRegistrationCardState
       _authorizationCancellation = cancellation;
       try {
         AuthorizationRequest request;
-        if (replace ||
-            account.provider == BusyProvider.google &&
-                (account.needsReconnect ||
-                    summary == null ||
-                    summary.origin == RegistrationOrigin.retiringShared)) {
+        if (replace) {
           final handle = await showWindowsRegistrationSetup(
             context,
             ref,
@@ -1978,15 +1980,7 @@ class _WindowsRegistrationCardState
             ),
           Button(
             onPressed: connecting ? null : () => connect(false),
-            child: Text(
-              account.needsReconnect ||
-                      summary == null ||
-                      summary.origin == RegistrationOrigin.retiringShared
-                  ? (account.provider == BusyProvider.google
-                        ? l10n.reconnectGoogleAccount
-                        : l10n.reconnectAccount)
-                  : l10n.connectAccountAction,
-            ),
+            child: Text(l10n.reconnectAccount),
           ),
         ],
       ),

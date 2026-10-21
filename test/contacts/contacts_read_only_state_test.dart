@@ -12,7 +12,7 @@ import '../support/dav_contacts_fixture.dart';
 import 'read_only_contacts_provider_test.dart' show effective;
 
 void main() {
-  test('linked Nextcloud reconnect preserves legacy markers and the parent app password', () async {
+  test('reenabling linked Nextcloud suggestions preserves legacy markers and the parent app password', () async {
     final db = AppDatabase.memoryForTests();
     final credential = BusyMaxLinkedDavCredential(
       server: server,
@@ -62,7 +62,7 @@ void main() {
       payload: const {'type': 'historical', 'evidence': 'retain'},
     );
     await f.store.write((tx) => tx.putMutation(queued));
-    await f.controller.reconnectContactsAccount(id);
+    await f.controller.enableLinkedNextcloudContacts('nextcloud');
     await f.controller.synchronizeAccount(id);
     final account = (await f.store.read((tx) => tx.account(id)))!;
     expect(account.id, id);

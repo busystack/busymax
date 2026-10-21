@@ -147,8 +147,8 @@ void main() {
       expect(find.byType(WindowsSettingsPage), findsOneWidget);
       if (method == DesktopConnectionMethod.custom) {
         await _pumpConnectionPage(tester);
-        await tester.ensureVisible(find.text('Connect'));
-        await tester.tap(find.text('Connect'));
+        await tester.ensureVisible(find.text('Reconnect this account'));
+        await tester.tap(find.text('Reconnect this account'));
         await _pumpConnectionPage(tester);
         expect(find.byType(ContentDialog), findsNothing);
         for (var i = 0; i < 40; i++) {

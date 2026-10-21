@@ -14,6 +14,9 @@ class AppLocalizationsHi extends AppLocalizations {
   AppLocalizationsHi([String locale = 'hi']) : super(locale);
 
   @override
+  String get contactsAccountsUnavailable => 'संपर्क खाते लोड नहीं किए जा सके';
+
+  @override
   String get launchAtLoginManagedExternally =>
       'BusyMax आपके डेस्कटॉप की स्टार्टअप सेटिंग से शुरू हुआ था। वहाँ से इसकी प्रविष्टि हटाएँ, फिर इस स्विच का उपयोग करने के लिए BusyMax से बाहर निकलें और इसे दोबारा खोलें।';
 
@@ -3006,7 +3009,7 @@ class AppLocalizationsHi extends AppLocalizations {
   String get searchClearText => 'पाठ साफ़ करें';
 
   @override
-  String get openSharedCalendar => 'साझा कैलेंडर खोलें';
+  String get openSharedCalendar => 'साझा मुख्य कैलेंडर खोलें';
 
   @override
   String get manageCalendarSharing => 'कैलेंडर साझाकरण प्रबंधित करें';
@@ -3596,4 +3599,151 @@ class AppLocalizationsHi extends AppLocalizations {
   String seriesPatternChangeConfirmation(String before, String after) {
     return 'दोहराव का यह बदलाव तारीखें जोड़ या हटा सकता है।\n\nवर्तमान: $before\nप्रस्तावित: $after\n\nयह पैटर्न सहेजें?';
   }
+
+  @override
+  String get connectedAccounts => 'जुड़े हुए खाते';
+
+  @override
+  String get contactsIndependentAccounts => 'स्वतंत्र संपर्क खाते';
+
+  @override
+  String get contactsNextcloudReuse =>
+      'संपर्क सुझाव केवल पढ़ने वाले संपर्क एकीकरण के माध्यम से इस खाते के मौजूदा क्रेडेंशियल का दोबारा उपयोग करते हैं।';
+
+  @override
+  String get contactsRetrySync => 'संपर्क सिंक फिर आज़माएँ';
+
+  @override
+  String get contactsPreferenceFailed =>
+      'संपर्क स्रोत की प्राथमिकता सहेजी नहीं जा सकी।';
+
+  @override
+  String get contactsSuggestionsDisabled => 'संपर्क सुझाव बंद हैं';
+
+  @override
+  String get contactsSyncFailed =>
+      'संपर्क सिंक नहीं हो सके। फिर आज़माएँ, या अनुमति समाप्त होने पर खाता फिर जोड़ें।';
+
+  @override
+  String get registrationRecoveryDescription =>
+      'सहेजा गया पंजीकरण या उसका क्रेडेंशियल संबंध उपलब्ध नहीं है या अस्वीकार कर दिया गया है। बहाली के लिए इस खाते का पंजीकरण स्पष्ट रूप से बदलें; मौजूदा डेटा सुरक्षित रहेगा।';
+
+  @override
+  String get revalidateAccount => 'कनेक्शन फिर सत्यापित करें';
+
+  @override
+  String get openSharedPrimaryDescription =>
+      'निर्दिष्ट मालिक का मुख्य कैलेंडर खोलता है। अन्य साझा कैलेंडर सामान्य खाता सिंक में खोजे जाते हैं।';
+
+  @override
+  String get showInBusyMax => 'BusyMax में दिखाएँ';
+
+  @override
+  String get showInGoogleCalendarList => 'Google की कैलेंडर सूची में दिखाएँ';
+
+  @override
+  String get googleVisibilityHelp =>
+      'BusyMax का चयन स्थानीय है। Google दृश्यता Google पर आपकी सूची बदलती है; छिपे कैलेंडर BusyMax में नहीं दिखाए जा सकते।';
+
+  @override
+  String get primaryCalendarVisibilityExplanation =>
+      'Google का मुख्य कैलेंडर उसकी सूची में रहता है।';
+
+  @override
+  String get accountsLoading => 'खाते लोड हो रहे हैं…';
+
+  @override
+  String get accountsLoadFailed => 'खाते लोड नहीं हो सके। खाते फिर खोलें।';
+
+  @override
+  String get collectionsLoading => 'संग्रह लोड हो रहे हैं…';
+
+  @override
+  String get collectionsLoadFailed =>
+      'संग्रह लोड नहीं हो सके। कैश डेटा सुरक्षित है; सिंक फिर आज़माएँ।';
+
+  @override
+  String get collectionsNotDiscovered =>
+      'खोज पूरी नहीं हुई है। इस खाते को रीफ़्रेश करें या फिर जोड़ें।';
+
+  @override
+  String get collectionsEmpty => 'कोई संग्रह नहीं मिला।';
+
+  @override
+  String get accountReadyToSync => 'सिंक करने के लिए तैयार';
+
+  @override
+  String get accountSyncProblem => 'सिंक पर ध्यान देना आवश्यक है';
+
+  @override
+  String get accountServiceUnreachable => 'सेवा से संपर्क नहीं हो सका';
+
+  @override
+  String get accountSyncDetails => 'सिंक का विवरण';
+
+  @override
+  String get accountReconnectStatus => 'दोबारा कनेक्ट करना आवश्यक है';
+
+  @override
+  String get accountRegistrationStatus => 'ऐप पंजीकरण पर ध्यान देना आवश्यक है';
+
+  @override
+  String get collectionsUnavailable => 'संग्रह उपलब्ध नहीं हैं';
+
+  @override
+  String get accountContactSuggestions =>
+      'इस खाते के संपर्कों से मेहमान सुझाएँ';
+
+  @override
+  String get accountLoadingSignInSettings => 'साइन-इन सेटिंग लोड हो रही हैं…';
+
+  @override
+  String get contactsNoAddressBooks => 'कोई पता पुस्तिका उपलब्ध नहीं है';
+
+  @override
+  String get contactsSourcesUnavailable => 'पता पुस्तिकाएँ लोड नहीं हो सकीं';
+
+  @override
+  String get syncNoRecord => 'सफल सिंक का समय दर्ज नहीं है';
+
+  @override
+  String get cachedSyncError => 'सिंक विफल हुआ; कैश डेटा पुराना हो सकता है।';
+
+  @override
+  String get calendarRemotePending => 'Google दृश्यता बदलाव लंबित है';
+
+  @override
+  String get calendarRemoteFailed =>
+      'Google की दृश्यता बदलना विफल रहा। Google की पिछली पुष्ट स्थिति दिखाई गई है। BusyMax अभी भी लंबित बदलाव का पालन करता है। फिर से कोशिश करें या बदलाव छोड़ दें।';
+
+  @override
+  String discardCalendarSettingsConfirmation(String calendar, String settings) {
+    return '“$calendar” के लंबित बदलाव छोड़ें?\n\nये सेटिंग अपने पिछले मानों पर लौट जाएँगी:\n$settings\n\nBusyMax में आपका कैलेंडर चयन बना रहेगा। Google को कोई बदलाव नहीं भेजा जाएगा।';
+  }
+
+  @override
+  String get sharedCalendarUnavailable =>
+      'पहुँच उपलब्ध नहीं; कैश डेटा दिखाया जा रहा है। सिंक फिर आज़माएँ या कैलेंडर को अपनी सूची से हटाएँ।';
+
+  @override
+  String get invalidCollectionColor =>
+      '# से शुरू होने वाला छह या आठ अंकों का हेक्स रंग दर्ज करें।';
+
+  @override
+  String get invalidCollectionOrder => 'एक पूर्णांक दर्ज करें।';
+
+  @override
+  String get invalidCollectionTimezone =>
+      'VTIMEZONE और TZID वाला मान्य कैलेंडर समय क्षेत्र दस्तावेज़ दर्ज करें।';
+
+  @override
+  String get invalidCollectionValue => 'सहेजने से पहले यह मान सुधारें।';
+
+  @override
+  String get accountAlreadyConnected =>
+      'यह खाता पहले से जुड़ा है। इसके फिर से जोड़ने वाले विकल्प का उपयोग करें।';
+
+  @override
+  String get nextcloudRemovalAuthorizationDescription =>
+      'BusyMax इस खाते का Nextcloud ऐप पासवर्ड निरस्त करने का भी प्रयास करेगा। निरस्तीकरण विफल होने पर भी स्थानीय हटाना सफल हो सकता है।';
 }
