@@ -1322,6 +1322,7 @@
   "cachedSyncError": "فشلت المزامنة؛ قد تكون البيانات المخزنة مؤقتًا قديمة.",
   "calendarRemotePending": "تغيير ظهور Google قيد الانتظار",
   "calendarRemoteFailed": "فشل تغيير الظهور في Google. تظهر آخر حالة مؤكدة في Google. ما زال BusyMax يتبع التغيير المعلّق. أعد المحاولة أو تجاهل التغيير.",
+  "discardCalendarSettingsConfirmation": "هل تريد تجاهل التغييرات المعلّقة على «⁨{calendar}⁩»؟\n\nستعود هذه الإعدادات إلى قيمها السابقة:\n⁨{settings}⁩\n\nسيُحتفظ باختيار التقويم في BusyMax. لن تُرسل أي تغييرات إلى Google.",
   "sharedCalendarUnavailable": "الوصول غير متاح؛ تُعرض البيانات المخزنة مؤقتًا. أعد المزامنة أو أزل التقويم من قائمتك.",
   "invalidCollectionColor": "أدخل لونًا سداسيًا عشريًا من ست أو ثماني خانات يبدأ بـ #.",
   "invalidCollectionOrder": "أدخل عددًا صحيحًا.",

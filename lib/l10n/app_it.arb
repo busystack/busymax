@@ -1322,6 +1322,7 @@
   "cachedSyncError": "Sincronizzazione non riuscita; i dati in cache potrebbero essere obsoleti.",
   "calendarRemotePending": "Modifica visibilità Google in attesa",
   "calendarRemoteFailed": "La modifica della visibilità su Google non è riuscita. Viene mostrato l’ultimo stato confermato da Google. BusyMax continua a seguire la modifica in sospeso. Riprova o scarta la modifica.",
+  "discardCalendarSettingsConfirmation": "Scartare le modifiche in attesa per «{calendar}»?\n\nQueste impostazioni torneranno ai valori precedenti:\n{settings}\n\nLa selezione dei calendari in BusyMax viene mantenuta. Non verranno inviate modifiche a Google.",
   "sharedCalendarUnavailable": "Accesso non disponibile; vengono mostrati i dati in cache. Riprova o rimuovi il calendario dal tuo elenco.",
   "invalidCollectionColor": "Inserisci un colore esadecimale di sei o otto cifre che inizi con #.",
   "invalidCollectionOrder": "Inserisci un numero intero.",

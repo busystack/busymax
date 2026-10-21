@@ -16,6 +16,7 @@ import 'package:busymax/src/dav/discovery/dav_discovery_models.dart';
 import 'dart:async';
 
 import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
+import 'package:busymax/src/calendar_providers/calendar_colors.dart';
 import 'package:busymax/src/features/sync/calendar_sync_engine.dart';
 import 'package:busymax/src/features/sync/pending_op_resolution_service.dart';
 
@@ -399,242 +400,308 @@ void main() {
     },
   );
 
-  testWidgets(
-    'Google local selection and pending/failed CalendarList.hidden changes stay distinct',
-    (tester) async {
-      final f = ContactsFixture(AppDatabase.memoryForTests());
-      await tester.runAsync(() => f.addParent(BusyProvider.google));
-      final repository = CalendarRepository(database: f.database);
-      late PendingOp otherBlocked;
-      Future<List<PendingOp>> targetOperations() => (f.database.select(
-        f.database.pendingOps,
-      )..where((row) => row.accountId.equals('google'))).get();
-      await tester.runAsync(() async {
-        for (final primary in [false, true]) {
+  for (final combinedColorChange in [false, true]) {
+    testWidgets(
+      'Google local selection and pending/failed CalendarList.hidden changes stay distinct; combined color=$combinedColorChange',
+      (tester) async {
+        final f = ContactsFixture(AppDatabase.memoryForTests());
+        await tester.runAsync(() => f.addParent(BusyProvider.google));
+        final repository = CalendarRepository(database: f.database);
+        late PendingOp otherBlocked;
+        Future<List<PendingOp>> targetOperations() => (f.database.select(
+          f.database.pendingOps,
+        )..where((row) => row.accountId.equals('google'))).get();
+        await tester.runAsync(() async {
+          for (final primary in [false, true]) {
+            await repository.upsertSource(
+              accountId: 'google',
+              source: CalendarSourceDto(
+                provider: BusyProvider.google,
+                providerCalendarId: primary ? 'primary' : 'qa',
+                summary: primary ? 'QA Primary' : 'QA Calendar',
+                primaryCalendar: primary,
+                backgroundColor: '#9a9cff',
+                foregroundColor: '#000000',
+                colorId: '1',
+                rawJson: {
+                  'hidden': false,
+                  'backgroundColor': '#9a9cff',
+                  'foregroundColor': '#000000',
+                  'colorId': '1',
+                },
+              ),
+            );
+          }
+          await f.accounts.upsertSignedInAccount(
+            id: 'other-google',
+            provider: BusyProvider.google,
+            providerAccountId: 'other-subject',
+            grantedScopes: 'calendar tasks',
+          );
           await repository.upsertSource(
-            accountId: 'google',
-            source: CalendarSourceDto(
+            accountId: 'other-google',
+            source: const CalendarSourceDto(
               provider: BusyProvider.google,
-              providerCalendarId: primary ? 'primary' : 'qa',
-              summary: primary ? 'QA Primary' : 'QA Calendar',
-              primaryCalendar: primary,
+              providerCalendarId: 'other-qa',
+              summary: 'Other account calendar',
               rawJson: {'hidden': false},
             ),
           );
-        }
-        await f.accounts.upsertSignedInAccount(
-          id: 'other-google',
-          provider: BusyProvider.google,
-          providerAccountId: 'other-subject',
-          grantedScopes: 'calendar tasks',
-        );
-        await repository.upsertSource(
-          accountId: 'other-google',
-          source: const CalendarSourceDto(
+          final otherId = CalendarRepository.sourceId(
+            accountId: 'other-google',
             provider: BusyProvider.google,
             providerCalendarId: 'other-qa',
-            summary: 'Other account calendar',
-            rawJson: {'hidden': false},
-          ),
+          );
+          await repository.setSourceProviderHidden(otherId, true);
+          final otherOp = await f.database
+              .select(f.database.pendingOps)
+              .getSingle();
+          await f.database.pendingOpsDao.updateAttempt(
+            id: otherOp.id,
+            attemptCount: 1,
+            nextAttemptAtUtc: DateTime.utc(9999, 12, 31),
+            lastErrorCode: 'forbidden',
+          );
+          otherBlocked = (await f.database.pendingOpsDao.getOp(otherOp.id))!;
+        });
+        final accounts = (await tester.runAsync(
+          f.accounts.listVisibleAccounts,
+        ))!;
+        late final PendingOpResolutionService visibilityResolution;
+        final container = _container(
+          selectedAccountId: 'google',
+          authRepository: _FakeAuthRepository(),
+          accounts: accounts,
+          contactsFixture: f,
+          accountsRepository: f.accounts,
+          calendarSourceStream: repository.watchSourcesForAccounts([
+            'google',
+            'other-google',
+          ]),
+          calendarRepository: repository,
+          operationResolution: (id) {
+            expect(id, 'google');
+            return visibilityResolution;
+          },
         );
-        final otherId = CalendarRepository.sourceId(
-          accountId: 'other-google',
-          provider: BusyProvider.google,
-          providerCalendarId: 'other-qa',
-        );
-        await repository.setSourceProviderHidden(otherId, true);
-        final otherOp = await f.database
-            .select(f.database.pendingOps)
-            .getSingle();
-        await f.database.pendingOpsDao.updateAttempt(
-          id: otherOp.id,
-          attemptCount: 1,
-          nextAttemptAtUtc: DateTime.utc(9999, 12, 31),
-          lastErrorCode: 'forbidden',
-        );
-        otherBlocked = (await f.database.pendingOpsDao.getOp(otherOp.id))!;
-      });
-      final accounts = (await tester.runAsync(f.accounts.listVisibleAccounts))!;
-      late final PendingOpResolutionService visibilityResolution;
-      final container = _container(
-        selectedAccountId: 'google',
-        authRepository: _FakeAuthRepository(),
-        accounts: accounts,
-        contactsFixture: f,
-        accountsRepository: f.accounts,
-        calendarSourceStream: repository.watchSourcesForAccounts([
-          'google',
-          'other-google',
-        ]),
-        calendarRepository: repository,
-        operationResolution: (id) {
-          expect(id, 'google');
-          return visibilityResolution;
-        },
-      );
-      addTearDown(() async {
-        container.dispose();
-        await tester.runAsync(f.close);
-      });
-      await _pumpSettings(
-        tester,
-        container,
-        logicalSize: const Size(1200, 1400),
-      );
-      await settle(tester);
-      final sources = container
-          .read(calendarSourcesStreamProvider)
-          .requireValue;
-      final ordinary = sources.singleWhere(
-        (s) => s.accountId == 'google' && !s.primaryCalendar,
-      );
-      final primary = sources.singleWhere((s) => s.primaryCalendar);
-      final local = find.byKey(
-        ValueKey('settings-calendar-schedule-${ordinary.id}'),
-      );
-      await tester.ensureVisible(local);
-      await tester.tap(local);
-      await settle(tester);
-      expect(
-        (await complete(
+        addTearDown(() async {
+          container.dispose();
+          await tester.runAsync(f.close);
+        });
+        await _pumpSettings(
           tester,
-          () => f.database.select(f.database.calendarSources).get(),
-        )).singleWhere((s) => s.id == ordinary.id).selected,
-        isFalse,
-      );
-      expect(await complete(tester, targetOperations), isEmpty);
-      await complete(
-        tester,
-        () => repository.setSourceProviderHidden(ordinary.id, true),
-      );
-      await settle(tester);
-      expect(find.text('Google visibility change pending'), findsOneWidget);
-      final requests = <http.Request>[];
-      var denied = true;
-      final client = GoogleCalendarApiClient(
-        baseUri: Uri.parse('https://www.googleapis.com'),
-        httpClient: MockClient((request) async {
-          requests.add(request);
-          return denied
-              ? http.Response('{"error":{"code":403,"message":"denied"}}', 403)
-              : http.Response(
-                  jsonEncode({
-                    'id': 'qa',
-                    'summary': 'QA Calendar',
-                    'hidden': jsonDecode(request.body)['hidden'],
-                  }),
-                  200,
-                );
-        }),
-      );
-      final engine = CalendarSyncEngine(
-        database: f.database,
-        client: client,
-        accountId: 'google',
-      );
-      visibilityResolution = PendingOpResolutionService(
-        database: f.database,
-        accountId: 'google',
-        syncTasks: () async => fail('Visibility must not synchronize Tasks'),
-        syncCalendar: engine.dispatchPendingWrites,
-      );
-      await complete(
-        tester,
-        () => CalendarSyncEngine(
+          container,
+          logicalSize: const Size(1200, 1400),
+        );
+        await settle(tester);
+        final sources = container
+            .read(calendarSourcesStreamProvider)
+            .requireValue;
+        final ordinary = sources.singleWhere(
+          (s) => s.accountId == 'google' && !s.primaryCalendar,
+        );
+        final primary = sources.singleWhere((s) => s.primaryCalendar);
+        final local = find.byKey(
+          ValueKey('settings-calendar-schedule-${ordinary.id}'),
+        );
+        await tester.ensureVisible(local);
+        await tester.tap(local);
+        await settle(tester);
+        expect(
+          (await complete(
+            tester,
+            () => f.database.select(f.database.calendarSources).get(),
+          )).singleWhere((s) => s.id == ordinary.id).selected,
+          isFalse,
+        );
+        expect(await complete(tester, targetOperations), isEmpty);
+        await complete(
+          tester,
+          () => repository.setSourceProviderHidden(ordinary.id, true),
+        );
+        await settle(tester);
+        expect(find.text('Google visibility change pending'), findsOneWidget);
+        final requests = <http.Request>[];
+        var denied = true;
+        final client = GoogleCalendarApiClient(
+          baseUri: Uri.parse('https://www.googleapis.com'),
+          httpClient: MockClient((request) async {
+            requests.add(request);
+            return denied
+                ? http.Response(
+                    '{"error":{"code":403,"message":"denied"}}',
+                    403,
+                  )
+                : http.Response(
+                    jsonEncode({
+                      'id': 'qa',
+                      'summary': 'QA Calendar',
+                      'backgroundColor': '#9a9cff',
+                      'foregroundColor': '#000000',
+                      'colorId': '1',
+                      'hidden': jsonDecode(request.body)['hidden'],
+                    }),
+                    200,
+                  );
+          }),
+        );
+        final engine = CalendarSyncEngine(
           database: f.database,
           client: client,
           accountId: 'google',
-        ).dispatchPendingWrites(),
-      );
-      await settle(tester);
-      expect(requests.single.method, 'PATCH');
-      expect(requests.single.url.path, contains('/users/me/calendarList/qa'));
-      expect(jsonDecode(requests.single.body)['hidden'], isTrue);
-      expect(
-        find.text(
-          'Google visibility change failed. Google’s last confirmed state is shown. BusyMax still follows the pending change. Retry or discard it.',
-        ),
-        findsWidgets,
-      );
-      final remote = tester.widget<YaruSwitch>(
-        find.byKey(ValueKey('settings-calendar-provider-${ordinary.id}')),
-      );
-      expect(remote.value, isTrue);
-      // Ordinary sync cannot replay a permanent permission rejection.
-      await complete(tester, engine.dispatchPendingWrites);
-      expect(requests, hasLength(1));
-      final retry = find.byKey(
-        ValueKey('settings-calendar-visibility-retry-${ordinary.id}'),
-      );
-      expect(retry, findsOneWidget);
-      denied = false;
-      await tester.ensureVisible(retry);
-      await tester.tap(retry);
-      await settle(tester);
-      expect(requests, hasLength(2));
-      expect(jsonDecode(requests.last.body)['hidden'], isTrue);
-      expect(await complete(tester, targetOperations), isEmpty);
-
-      // A second rejected hide can instead be discarded locally. This keeps
-      // the user's independent selection and does not send another PATCH.
-      await complete(tester, () async {
-        await repository.setSourceProviderHidden(ordinary.id, false);
-        await engine.dispatchPendingWrites();
-        denied = true;
-        await repository.setSourceProviderHidden(ordinary.id, true);
-        await engine.dispatchPendingWrites();
-      });
-      await settle(tester);
-      final beforeDiscard = requests.length;
-      final discard = find.byKey(
-        ValueKey('settings-calendar-visibility-discard-${ordinary.id}'),
-      );
-      expect(discard, findsOneWidget);
-      await tester.ensureVisible(discard);
-      await tester.tap(discard);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Discard').last);
-      await settle(tester);
-      expect(requests.length, beforeDiscard);
-      expect(await complete(tester, targetOperations), isEmpty);
-      expect(tester.widget<YaruSwitch>(local).value, isFalse);
-      expect(tester.widget<YaruSwitch>(local).onChanged, isNotNull);
-      await tester.ensureVisible(local);
-      await tester.tap(local);
-      await settle(tester);
-      final restored = (await complete(
-        tester,
-        () => f.database.select(f.database.calendarSources).get(),
-      )).singleWhere((s) => s.id == ordinary.id);
-      expect(restored.hidden, isFalse);
-      expect(restored.selected, isTrue);
-      expect(
+        );
+        visibilityResolution = PendingOpResolutionService(
+          database: f.database,
+          accountId: 'google',
+          syncTasks: () async => fail('Visibility must not synchronize Tasks'),
+          syncCalendar: engine.dispatchPendingWrites,
+        );
         await complete(
           tester,
-          () => f.database.pendingOpsDao.getOp(otherBlocked.id),
-        ),
-        otherBlocked,
-      );
-      final primarySwitch = tester.widget<YaruSwitch>(
-        find.byKey(ValueKey('settings-calendar-provider-${primary.id}')),
-      );
-      expect(primarySwitch.value, isTrue);
-      expect(primarySwitch.onChanged, isNull);
-      await complete(
-        tester,
-        () => expectLater(
-          repository.setSourceProviderHidden(primary.id, true),
-          throwsA(isA<CalendarMutationNotAllowed>()),
-        ),
-      );
-      expect(
-        find.text('Google’s primary calendar stays in its calendar list.'),
-        findsOneWidget,
-      );
-      expect(tester.takeException(), isNull);
-      await _disposeDiagnosticsWidget(tester);
-    },
-  );
+          () => CalendarSyncEngine(
+            database: f.database,
+            client: client,
+            accountId: 'google',
+          ).dispatchPendingWrites(),
+        );
+        await settle(tester);
+        expect(requests.single.method, 'PATCH');
+        expect(requests.single.url.path, contains('/users/me/calendarList/qa'));
+        expect(jsonDecode(requests.single.body)['hidden'], isTrue);
+        expect(
+          find.text(
+            'Google visibility change failed. Google’s last confirmed state is shown. BusyMax still follows the pending change. Retry or discard it.',
+          ),
+          findsWidgets,
+        );
+        final remote = tester.widget<YaruSwitch>(
+          find.byKey(ValueKey('settings-calendar-provider-${ordinary.id}')),
+        );
+        expect(remote.value, isTrue);
+        // Ordinary sync cannot replay a permanent permission rejection.
+        await complete(tester, engine.dispatchPendingWrites);
+        expect(requests, hasLength(1));
+        final retry = find.byKey(
+          ValueKey('settings-calendar-visibility-retry-${ordinary.id}'),
+        );
+        expect(retry, findsOneWidget);
+        denied = false;
+        await tester.ensureVisible(retry);
+        await tester.tap(retry);
+        await settle(tester);
+        expect(requests, hasLength(2));
+        expect(jsonDecode(requests.last.body)['hidden'], isTrue);
+        expect(await complete(tester, targetOperations), isEmpty);
+
+        // A second rejected hide can instead be discarded locally. This keeps
+        // the user's independent selection and does not send another PATCH.
+        final queuedBeforeFailure = await complete(tester, () async {
+          await repository.setSourceProviderHidden(ordinary.id, false);
+          await engine.dispatchPendingWrites();
+          denied = true;
+          if (combinedColorChange) {
+            await repository.setSourceColor(
+              ordinary.id,
+              calendarColorChoices(BusyProvider.google).last,
+            );
+          }
+          await repository.setSourceProviderHidden(ordinary.id, true);
+          final queued = (await targetOperations()).single;
+          await engine.dispatchPendingWrites();
+          return queued;
+        });
+        final patch = jsonDecode(queuedBeforeFailure.requestJson) as Map;
+        expect(patch['hidden'], isTrue);
+        expect(patch.containsKey('backgroundColor'), combinedColorChange);
+        expect(patch.containsKey('foregroundColor'), combinedColorChange);
+        await settle(tester);
+        final beforeDiscard = requests.length;
+        final blocked = (await complete(tester, targetOperations)).single;
+        final beforeRestore = (await complete(
+          tester,
+          () => f.database.select(f.database.calendarSources).get(),
+        )).singleWhere((s) => s.id == ordinary.id);
+        if (combinedColorChange) {
+          expect(
+            beforeRestore.backgroundColor,
+            isNot(ordinary.backgroundColor),
+          );
+        }
+        final discard = find.byKey(
+          ValueKey('settings-calendar-visibility-discard-${ordinary.id}'),
+        );
+        expect(discard, findsOneWidget);
+        await tester.ensureVisible(discard);
+        await tester.tap(discard);
+        await tester.pumpAndSettle();
+        final confirmation =
+            'Discard the pending changes to “QA Calendar”?\n\n'
+            'These settings will return to their previous values:\n'
+            '${combinedColorChange ? '• Calendar color\n' : ''}'
+            '• Show in Google’s calendar list\n\n'
+            'Your BusyMax calendar selection is kept. No changes will be sent to Google.';
+        expect(find.text(confirmation), findsOneWidget);
+        expect(find.textContaining('Google Tasks'), findsNothing);
+        // Cancelling keeps the entire patch and its optimistic settings intact.
+        await tester.tap(find.text('Cancel').last);
+        await tester.pumpAndSettle();
+        expect((await complete(tester, targetOperations)).single, blocked);
+        expect(
+          (await complete(
+            tester,
+            () => f.database.select(f.database.calendarSources).get(),
+          )).singleWhere((s) => s.id == ordinary.id),
+          beforeRestore,
+        );
+        await tester.tap(discard);
+        await tester.pumpAndSettle();
+        expect(find.text(confirmation), findsOneWidget);
+        await tester.tap(find.text('Discard').last);
+        await settle(tester);
+        expect(requests.length, beforeDiscard);
+        expect(await complete(tester, targetOperations), isEmpty);
+        expect(tester.widget<YaruSwitch>(local).value, isFalse);
+        expect(tester.widget<YaruSwitch>(local).onChanged, isNotNull);
+        await tester.ensureVisible(local);
+        await tester.tap(local);
+        await settle(tester);
+        final restored = (await complete(
+          tester,
+          () => f.database.select(f.database.calendarSources).get(),
+        )).singleWhere((s) => s.id == ordinary.id);
+        expect(restored.hidden, isFalse);
+        expect(restored.selected, isTrue);
+        expect(restored.backgroundColor, ordinary.backgroundColor);
+        expect(restored.foregroundColor, ordinary.foregroundColor);
+        expect(restored.colorId, ordinary.colorId);
+        expect(
+          await complete(
+            tester,
+            () => f.database.pendingOpsDao.getOp(otherBlocked.id),
+          ),
+          otherBlocked,
+        );
+        final primarySwitch = tester.widget<YaruSwitch>(
+          find.byKey(ValueKey('settings-calendar-provider-${primary.id}')),
+        );
+        expect(primarySwitch.value, isTrue);
+        expect(primarySwitch.onChanged, isNull);
+        await complete(
+          tester,
+          () => expectLater(
+            repository.setSourceProviderHidden(primary.id, true),
+            throwsA(isA<CalendarMutationNotAllowed>()),
+          ),
+        );
+        expect(
+          find.text('Google’s primary calendar stays in its calendar list.'),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+        await _disposeDiagnosticsWidget(tester);
+      },
+    );
+  }
 
   testWidgets(
     'Calendar and Tasks show loading, recorded per-service times, empty success and cached errors truthfully',
@@ -1174,12 +1241,29 @@ void main() {
   setUp(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
+          const MethodChannel('yaru_window'),
+          (call) async => call.method == 'state' ? <String, Object?>{} : null,
+        );
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('yaru_window/events'),
+          (_) async => null,
+        );
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
           _nativeMenuChannel,
           (_) async => throw MissingPluginException(),
         );
   });
 
   tearDown(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(const MethodChannel('yaru_window'), null);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('yaru_window/events'),
+          null,
+        );
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_nativeMenuChannel, null);
   });

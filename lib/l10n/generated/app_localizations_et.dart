@@ -3662,6 +3662,11 @@ class AppLocalizationsEt extends AppLocalizations {
       'Google’i nähtavuse muutmine ebaõnnestus. Kuvatakse Google’i viimane kinnitatud olek. BusyMax järgib endiselt ootel muudatust. Proovi uuesti või loobu muudatusest.';
 
   @override
+  String discardCalendarSettingsConfirmation(String calendar, String settings) {
+    return 'Kas hüljata kalendri „$calendar“ ootel muudatused?\n\nNende seadete eelmised väärtused taastatakse:\n$settings\n\nSinu BusyMaxi kalendrivalik säilib. Google’ile ei saadeta muudatusi.';
+  }
+
+  @override
   String get sharedCalendarUnavailable =>
       'Juurdepääs puudub; kuvatakse vahemälu andmed. Proovi sünkroonimist uuesti või eemalda kalender loendist.';
 

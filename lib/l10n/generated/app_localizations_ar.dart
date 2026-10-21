@@ -3735,6 +3735,11 @@ class AppLocalizationsAr extends AppLocalizations {
       'فشل تغيير الظهور في Google. تظهر آخر حالة مؤكدة في Google. ما زال BusyMax يتبع التغيير المعلّق. أعد المحاولة أو تجاهل التغيير.';
 
   @override
+  String discardCalendarSettingsConfirmation(String calendar, String settings) {
+    return 'هل تريد تجاهل التغييرات المعلّقة على «⁨$calendar⁩»؟\n\nستعود هذه الإعدادات إلى قيمها السابقة:\n⁨$settings⁩\n\nسيُحتفظ باختيار التقويم في BusyMax. لن تُرسل أي تغييرات إلى Google.';
+  }
+
+  @override
   String get sharedCalendarUnavailable =>
       'الوصول غير متاح؛ تُعرض البيانات المخزنة مؤقتًا. أعد المزامنة أو أزل التقويم من قائمتك.';
 

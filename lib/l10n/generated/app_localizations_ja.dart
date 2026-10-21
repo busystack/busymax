@@ -3594,6 +3594,11 @@ class AppLocalizationsJa extends AppLocalizations {
       'Google での表示設定の変更に失敗しました。Google で最後に確認された状態が表示されています。BusyMax は引き続き保留中の変更に従います。再試行するか、変更を破棄してください。';
 
   @override
+  String discardCalendarSettingsConfirmation(String calendar, String settings) {
+    return '「$calendar」の保留中の変更を破棄しますか？\n\n次の設定を以前の値に戻します：\n$settings\n\nBusyMaxでのカレンダーの選択は保持されます。Googleに変更は送信されません。';
+  }
+
+  @override
   String get sharedCalendarUnavailable =>
       'アクセスできません。キャッシュを表示しています。同期を再試行するか、リストから削除してください。';
 

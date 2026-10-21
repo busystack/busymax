@@ -3715,6 +3715,11 @@ class AppLocalizationsFi extends AppLocalizations {
       'Näkyvyyden muuttaminen Googlessa epäonnistui. Googlen viimeisin vahvistettu tila näytetään. BusyMax noudattaa yhä odottavaa muutosta. Yritä uudelleen tai hylkää muutos.';
 
   @override
+  String discardCalendarSettingsConfirmation(String calendar, String settings) {
+    return 'Hylätäänkö kalenterin ”$calendar” odottavat muutokset?\n\nNämä asetukset palautetaan aiempiin arvoihinsa:\n$settings\n\nBusyMaxin kalenterivalintasi säilyy. Googlelle ei lähetetä muutoksia.';
+  }
+
+  @override
   String get sharedCalendarUnavailable =>
       'Ei käyttöoikeutta; näytetään välimuistin tiedot. Yritä synkronointia uudelleen tai poista kalenteri luettelosta.';
 

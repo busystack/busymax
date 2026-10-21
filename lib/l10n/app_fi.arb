@@ -1322,6 +1322,7 @@
   "cachedSyncError": "Synkronointi epäonnistui; välimuistin tiedot voivat olla vanhentuneita.",
   "calendarRemotePending": "Googlen näkyvyysmuutos odottaa",
   "calendarRemoteFailed": "Näkyvyyden muuttaminen Googlessa epäonnistui. Googlen viimeisin vahvistettu tila näytetään. BusyMax noudattaa yhä odottavaa muutosta. Yritä uudelleen tai hylkää muutos.",
+  "discardCalendarSettingsConfirmation": "Hylätäänkö kalenterin ”{calendar}” odottavat muutokset?\n\nNämä asetukset palautetaan aiempiin arvoihinsa:\n{settings}\n\nBusyMaxin kalenterivalintasi säilyy. Googlelle ei lähetetä muutoksia.",
   "sharedCalendarUnavailable": "Ei käyttöoikeutta; näytetään välimuistin tiedot. Yritä synkronointia uudelleen tai poista kalenteri luettelosta.",
   "invalidCollectionColor": "Anna kuusi- tai kahdeksannumeroinen heksaväri, joka alkaa #-merkillä.",
   "invalidCollectionOrder": "Anna kokonaisluku.",

@@ -1385,6 +1385,7 @@
   "cachedSyncError": "Synchronisierung fehlgeschlagen; zwischengespeicherte Daten können veraltet sein.",
   "calendarRemotePending": "Google-Sichtbarkeitsänderung ausstehend",
   "calendarRemoteFailed": "Die Sichtbarkeitsänderung bei Google ist fehlgeschlagen. Der letzte bestätigte Google-Status wird angezeigt. BusyMax folgt weiterhin der ausstehenden Änderung. Erneut versuchen oder verwerfen.",
+  "discardCalendarSettingsConfirmation": "Ausstehende Änderungen an „{calendar}“ verwerfen?\n\nDiese Einstellungen werden auf ihre vorherigen Werte zurückgesetzt:\n{settings}\n\nDeine Kalenderauswahl in BusyMax bleibt erhalten. Es werden keine Änderungen an Google gesendet.",
   "sharedCalendarUnavailable": "Zugriff nicht verfügbar; zwischengespeicherte Daten werden angezeigt. Synchronisierung wiederholen oder aus der Kalenderliste entfernen.",
   "invalidCollectionColor": "Geben Sie eine sechs- oder achtstellige Hexadezimalfarbe mit # ein.",
   "invalidCollectionOrder": "Geben Sie eine ganze Zahl ein.",

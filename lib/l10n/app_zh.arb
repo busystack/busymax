@@ -1322,6 +1322,7 @@
   "cachedSyncError": "同步失败；缓存数据可能已过时。",
   "calendarRemotePending": "Google 可见性更改待处理",
   "calendarRemoteFailed": "Google 显示设置更改失败。现显示 Google 上次确认的状态。BusyMax 仍遵循待处理的更改。请重试或放弃该更改。",
+  "discardCalendarSettingsConfirmation": "要放弃“{calendar}”的待处理更改吗？\n\n以下设置将恢复为之前的值：\n{settings}\n\nBusyMax 中的日历选择将保留。不会向 Google 发送任何更改。",
   "sharedCalendarUnavailable": "无法访问；正在显示缓存数据。请重试同步或从日历列表中移除。",
   "invalidCollectionColor": "请输入以 # 开头的六位或八位十六进制颜色。",
   "invalidCollectionOrder": "请输入整数。",

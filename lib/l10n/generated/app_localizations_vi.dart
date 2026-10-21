@@ -3675,6 +3675,11 @@ class AppLocalizationsVi extends AppLocalizations {
       'Thay đổi khả năng hiển thị trên Google không thành công. Trạng thái Google được xác nhận gần nhất đang hiển thị. BusyMax vẫn áp dụng thay đổi đang chờ. Hãy thử lại hoặc hủy thay đổi.';
 
   @override
+  String discardCalendarSettingsConfirmation(String calendar, String settings) {
+    return 'Hủy các thay đổi đang chờ của “$calendar”?\n\nCác cài đặt sau sẽ trở về giá trị trước đó:\n$settings\n\nLựa chọn lịch trong BusyMax của bạn được giữ nguyên. Không có thay đổi nào được gửi đến Google.';
+  }
+
+  @override
   String get sharedCalendarUnavailable =>
       'Không thể truy cập; đang hiện dữ liệu đệm. Thử đồng bộ lại hoặc xóa khỏi danh sách lịch.';
 

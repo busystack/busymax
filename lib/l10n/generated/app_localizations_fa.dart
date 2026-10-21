@@ -3715,6 +3715,11 @@ class AppLocalizationsFa extends AppLocalizations {
       'تغییر نمایش در Google ناموفق بود. آخرین وضعیت تأییدشدهٔ Google نمایش داده می‌شود. BusyMax همچنان از تغییر در انتظار پیروی می‌کند. دوباره تلاش کنید یا تغییر را کنار بگذارید.';
 
   @override
+  String discardCalendarSettingsConfirmation(String calendar, String settings) {
+    return 'تغییرات در انتظار برای «⁨$calendar⁩» کنار گذاشته شوند؟\n\nاین تنظیمات به مقادیر قبلی بازمی‌گردند:\n⁨$settings⁩\n\nانتخاب تقویم شما در BusyMax حفظ می‌شود. هیچ تغییری به Google ارسال نخواهد شد.';
+  }
+
+  @override
   String get sharedCalendarUnavailable =>
       'دسترسی موجود نیست؛ داده‌های ذخیره‌شده نمایش داده می‌شوند. همگام‌سازی را دوباره امتحان کنید یا تقویم را از فهرست حذف کنید.';
 

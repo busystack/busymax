@@ -1385,6 +1385,7 @@
   "cachedSyncError": "Falló la sincronización; los datos en caché pueden estar desactualizados.",
   "calendarRemotePending": "Cambio de visibilidad en Google pendiente",
   "calendarRemoteFailed": "Falló el cambio de visibilidad en Google. Se muestra el último estado confirmado de Google. BusyMax sigue aplicando el cambio pendiente. Reinténtalo o descártalo.",
+  "discardCalendarSettingsConfirmation": "¿Descartar los cambios pendientes de «{calendar}»?\n\nEstos ajustes volverán a sus valores anteriores:\n{settings}\n\nSe conserva tu selección de calendarios en BusyMax. No se enviarán cambios a Google.",
   "sharedCalendarUnavailable": "Acceso no disponible; se muestra la caché. Reintente la sincronización o quite el calendario de su lista.",
   "invalidCollectionColor": "Introduzca un color hexadecimal de seis u ocho dígitos que empiece por #.",
   "invalidCollectionOrder": "Introduzca un número entero.",

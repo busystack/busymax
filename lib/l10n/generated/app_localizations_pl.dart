@@ -3862,6 +3862,11 @@ class AppLocalizationsPl extends AppLocalizations {
       'Zmiana widoczności w Google nie powiodła się. Wyświetlany jest ostatni potwierdzony stan Google. BusyMax nadal stosuje oczekującą zmianę. Ponów próbę lub odrzuć zmianę.';
 
   @override
+  String discardCalendarSettingsConfirmation(String calendar, String settings) {
+    return 'Odrzucić oczekujące zmiany kalendarza „$calendar”?\n\nTe ustawienia wrócą do poprzednich wartości:\n$settings\n\nWybór kalendarzy w BusyMax zostanie zachowany. Żadne zmiany nie zostaną wysłane do Google.';
+  }
+
+  @override
   String get sharedCalendarUnavailable =>
       'Dostęp niedostępny; wyświetlane są dane z pamięci podręcznej. Ponów synchronizację lub usuń kalendarz z listy.';
 

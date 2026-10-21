@@ -6186,6 +6186,12 @@ abstract class AppLocalizations {
   /// **'Google visibility change failed. Google’s last confirmed state is shown. BusyMax still follows the pending change. Retry or discard it.'**
   String get calendarRemoteFailed;
 
+  /// Confirms discarding the entire queued Google calendar settings patch. calendar is the calendar display name; settings is a localized, newline-separated bulleted list of every affected setting. No provider request is sent, and the local calendar selection is preserved.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard the pending changes to “{calendar}”?\n\nThese settings will return to their previous values:\n{settings}\n\nYour BusyMax calendar selection is kept. No changes will be sent to Google.'**
+  String discardCalendarSettingsConfirmation(String calendar, String settings);
+
   /// No description provided for @sharedCalendarUnavailable.
   ///
   /// In en, this message translates to:

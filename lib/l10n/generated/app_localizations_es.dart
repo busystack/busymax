@@ -3698,6 +3698,11 @@ class AppLocalizationsEs extends AppLocalizations {
       'Falló el cambio de visibilidad en Google. Se muestra el último estado confirmado de Google. BusyMax sigue aplicando el cambio pendiente. Reinténtalo o descártalo.';
 
   @override
+  String discardCalendarSettingsConfirmation(String calendar, String settings) {
+    return '¿Descartar los cambios pendientes de «$calendar»?\n\nEstos ajustes volverán a sus valores anteriores:\n$settings\n\nSe conserva tu selección de calendarios en BusyMax. No se enviarán cambios a Google.';
+  }
+
+  @override
   String get sharedCalendarUnavailable =>
       'Acceso no disponible; se muestra la caché. Reintente la sincronización o quite el calendario de su lista.';
 

@@ -2028,6 +2028,18 @@
   "cachedSyncError": "Sync failed; cached data may be out of date.",
   "calendarRemotePending": "Google visibility change pending",
   "calendarRemoteFailed": "Google visibility change failed. Google’s last confirmed state is shown. BusyMax still follows the pending change. Retry or discard it.",
+  "discardCalendarSettingsConfirmation": "Discard the pending changes to “{calendar}”?\n\nThese settings will return to their previous values:\n{settings}\n\nYour BusyMax calendar selection is kept. No changes will be sent to Google.",
+  "@discardCalendarSettingsConfirmation": {
+    "description": "Confirms discarding the entire queued Google calendar settings patch. calendar is the calendar display name; settings is a localized, newline-separated bulleted list of every affected setting. No provider request is sent, and the local calendar selection is preserved.",
+    "placeholders": {
+      "calendar": {
+        "type": "String"
+      },
+      "settings": {
+        "type": "String"
+      }
+    }
+  },
   "sharedCalendarUnavailable": "Access unavailable; showing cached data. Retry synchronization or remove from your calendar list.",
   "invalidCollectionColor": "Enter a six- or eight-digit hexadecimal color, starting with #.",
   "invalidCollectionOrder": "Enter a whole number.",

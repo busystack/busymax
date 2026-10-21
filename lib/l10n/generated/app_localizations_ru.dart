@@ -3722,6 +3722,11 @@ class AppLocalizationsRu extends AppLocalizations {
       'Не удалось изменить видимость в Google. Показано последнее подтверждённое состояние Google. BusyMax по-прежнему учитывает ожидающее изменение. Повторите попытку или отмените изменение.';
 
   @override
+  String discardCalendarSettingsConfirmation(String calendar, String settings) {
+    return 'Отменить ожидающие изменения календаря «$calendar»?\n\nБудут восстановлены предыдущие значения этих настроек:\n$settings\n\nВыбор календарей в BusyMax сохранится. Изменения не будут отправлены в Google.';
+  }
+
+  @override
   String get sharedCalendarUnavailable =>
       'Нет доступа; показаны данные из кэша. Повторите синхронизацию или удалите календарь из своего списка.';
 

@@ -2894,11 +2894,25 @@ class _CalendarVisibilityRecoveryActionsState
     setState(() => _busy = true);
     final l10n = context.l10n;
     try {
+      // Discard restores the entire merged patch. List every affected setting,
+      // including personal settings queued alongside visibility.
+      final request = jsonDecode(widget.operation.requestJson) as Map;
+      final settings = [
+        if (request.containsKey('summary')) l10n.title,
+        if (request.containsKey('backgroundColor') ||
+            request.containsKey('foregroundColor') ||
+            request.containsKey('colorId'))
+          l10n.calendarColor,
+        if (request.containsKey('hidden')) l10n.showInGoogleCalendarList,
+      ];
       if (discard &&
           !await showBusyMaxConfirm(
             context,
             title: l10n.discardPendingOperation,
-            message: l10n.discardPendingOperationConfirmation,
+            message: l10n.discardCalendarSettingsConfirmation(
+              widget.source.summary,
+              settings.map((setting) => '• $setting').join('\n'),
+            ),
             confirmLabel: l10n.discard,
           )) {
         return;

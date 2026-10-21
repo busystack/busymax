@@ -12,6 +12,7 @@ import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/demo/demo_profile.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
+import 'package:busymax/src/calendar_providers/calendar_colors.dart';
 import 'package:busymax/src/features/settings/presentation/settings_screen.dart';
 import 'package:busymax/src/platform/gtk_font_service.dart';
 import 'package:busymax/src/platform/gtk_header_icon_service.dart';
@@ -126,6 +127,14 @@ void main() {
                 ),
               );
               if (provider == BusyProvider.google && number == 2) {
+                await CalendarRepository(database: f.database).setSourceColor(
+                  CalendarRepository.sourceId(
+                    accountId: id,
+                    provider: provider,
+                    providerCalendarId: 'qa-$number',
+                  ),
+                  calendarColorChoices(provider).last,
+                );
                 await CalendarRepository(database: f.database)
                     .setSourceProviderHidden(
                       CalendarRepository.sourceId(
@@ -258,6 +267,36 @@ void main() {
           alignment: 0.3,
         );
         await _capture(tester, '$output/$theme-google-failed.png');
+        final failedDiscard = find.byKey(
+          ValueKey('settings-calendar-visibility-discard-$sourceId'),
+        );
+        await tester.ensureVisible(failedDiscard);
+        await tester.tap(failedDiscard);
+        await tester.pumpAndSettle();
+        expect(
+          find.textContaining(
+            '• Calendar color\n• Show in Google’s calendar list',
+          ),
+          findsOneWidget,
+        );
+        expect(find.textContaining('Google Tasks'), findsNothing);
+        await _capture(
+          tester,
+          '$output/$theme-google-discard-confirmation.png',
+        );
+        await _resize(tester, 640, 900);
+        await _capture(
+          tester,
+          '$output/$theme-narrow-google-discard-confirmation.png',
+        );
+        await tester.tap(find.text('Cancel').last);
+        await tester.pumpAndSettle();
+        expect(
+          await tester.runAsync(
+            () => f.database.pendingOpsDao.getOp(visibilityOp.id),
+          ),
+          isNotNull,
+        );
         await _resize(tester, 640, 900);
         await Scrollable.ensureVisible(
           tester.element(find.text('QA calendar 2')),

@@ -3536,6 +3536,11 @@ class AppLocalizationsZh extends AppLocalizations {
       'Google 显示设置更改失败。现显示 Google 上次确认的状态。BusyMax 仍遵循待处理的更改。请重试或放弃该更改。';
 
   @override
+  String discardCalendarSettingsConfirmation(String calendar, String settings) {
+    return '要放弃“$calendar”的待处理更改吗？\n\n以下设置将恢复为之前的值：\n$settings\n\nBusyMax 中的日历选择将保留。不会向 Google 发送任何更改。';
+  }
+
+  @override
   String get sharedCalendarUnavailable => '无法访问；正在显示缓存数据。请重试同步或从日历列表中移除。';
 
   @override
@@ -7083,6 +7088,11 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   @override
   String get calendarRemoteFailed =>
       'Google 显示设置更改失败。现显示 Google 上次确认的状态。BusyMax 仍遵循待处理的更改。请重试或放弃该更改。';
+
+  @override
+  String discardCalendarSettingsConfirmation(String calendar, String settings) {
+    return '要放弃“$calendar”的待处理更改吗？\n\n以下设置将恢复为之前的值：\n$settings\n\nBusyMax 中的日历选择将保留。不会向 Google 发送任何更改。';
+  }
 
   @override
   String get sharedCalendarUnavailable => '无法访问；正在显示缓存数据。请重试同步或从日历列表中移除。';
@@ -10633,6 +10643,11 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   @override
   String get calendarRemoteFailed =>
       'Google 顯示設定變更失敗。目前顯示 Google 上次確認的狀態。BusyMax 仍遵循待處理的變更。請重試或捨棄該變更。';
+
+  @override
+  String discardCalendarSettingsConfirmation(String calendar, String settings) {
+    return '要捨棄「$calendar」的待處理變更嗎？\n\n以下設定將還原為先前的值：\n$settings\n\nBusyMax 中的行事曆選擇將會保留。不會向 Google 傳送任何變更。';
+  }
 
   @override
   String get sharedCalendarUnavailable => '無法存取；正在顯示快取資料。請重試同步或從行事曆清單移除。';

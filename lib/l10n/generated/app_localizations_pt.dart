@@ -3708,6 +3708,11 @@ class AppLocalizationsPt extends AppLocalizations {
       'Google visibility change failed. Google’s last confirmed state is shown. BusyMax still follows the pending change. Retry or discard it.';
 
   @override
+  String discardCalendarSettingsConfirmation(String calendar, String settings) {
+    return 'Discard the pending changes to “$calendar”?\n\nThese settings will return to their previous values:\n$settings\n\nYour BusyMax calendar selection is kept. No changes will be sent to Google.';
+  }
+
+  @override
   String get sharedCalendarUnavailable =>
       'Access unavailable; showing cached data. Retry synchronization or remove from your calendar list.';
 
@@ -7435,6 +7440,11 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
   @override
   String get calendarRemoteFailed =>
       'A alteração de visibilidade no Google falhou. É apresentado o último estado confirmado do Google. O BusyMax continua a seguir a alteração pendente. Tente novamente ou descarte a alteração.';
+
+  @override
+  String discardCalendarSettingsConfirmation(String calendar, String settings) {
+    return 'Descartar as alterações pendentes de «$calendar»?\n\nEstas definições regressarão aos valores anteriores:\n$settings\n\nA sua seleção de calendários no BusyMax será mantida. Não serão enviadas alterações à Google.';
+  }
 
   @override
   String get sharedCalendarUnavailable =>

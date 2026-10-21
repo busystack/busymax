@@ -2003,6 +2003,7 @@
   "cachedSyncError": "Synchronizacja nie powiodła się; dane w pamięci podręcznej mogą być nieaktualne.",
   "calendarRemotePending": "Oczekiwanie na zmianę widoczności Google",
   "calendarRemoteFailed": "Zmiana widoczności w Google nie powiodła się. Wyświetlany jest ostatni potwierdzony stan Google. BusyMax nadal stosuje oczekującą zmianę. Ponów próbę lub odrzuć zmianę.",
+  "discardCalendarSettingsConfirmation": "Odrzucić oczekujące zmiany kalendarza „{calendar}”?\n\nTe ustawienia wrócą do poprzednich wartości:\n{settings}\n\nWybór kalendarzy w BusyMax zostanie zachowany. Żadne zmiany nie zostaną wysłane do Google.",
   "sharedCalendarUnavailable": "Dostęp niedostępny; wyświetlane są dane z pamięci podręcznej. Ponów synchronizację lub usuń kalendarz z listy.",
   "invalidCollectionColor": "Wpisz sześcio- lub ośmiocyfrowy kolor szesnastkowy zaczynający się od #.",
   "invalidCollectionOrder": "Wpisz liczbę całkowitą.",

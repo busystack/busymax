@@ -3680,6 +3680,11 @@ class AppLocalizationsHi extends AppLocalizations {
       'Google की दृश्यता बदलना विफल रहा। Google की पिछली पुष्ट स्थिति दिखाई गई है। BusyMax अभी भी लंबित बदलाव का पालन करता है। फिर से कोशिश करें या बदलाव छोड़ दें।';
 
   @override
+  String discardCalendarSettingsConfirmation(String calendar, String settings) {
+    return '“$calendar” के लंबित बदलाव छोड़ें?\n\nये सेटिंग अपने पिछले मानों पर लौट जाएँगी:\n$settings\n\nBusyMax में आपका कैलेंडर चयन बना रहेगा। Google को कोई बदलाव नहीं भेजा जाएगा।';
+  }
+
+  @override
   String get sharedCalendarUnavailable =>
       'पहुँच उपलब्ध नहीं; कैश डेटा दिखाया जा रहा है। सिंक फिर आज़माएँ या कैलेंडर को अपनी सूची से हटाएँ।';
 
