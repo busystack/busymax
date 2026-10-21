@@ -3070,7 +3070,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get searchClearText => 'مسح النص';
 
   @override
-  String get openSharedCalendar => 'فتح تقويم مشترك';
+  String get openSharedCalendar => 'فتح تقويم أساسي مشترك';
 
   @override
   String get manageCalendarSharing => 'إدارة مشاركة التقويم';
@@ -3651,4 +3651,112 @@ class AppLocalizationsAr extends AppLocalizations {
   String seriesPatternChangeConfirmation(String before, String after) {
     return 'قد تؤدي هذه التغييرات في نمط التكرار إلى إضافة تواريخ أو إزالتها.\n\nالحالي: ⁨$before⁩\nالمقترح: ⁨$after⁩\n\nهل تريد حفظ هذا النمط؟';
   }
+
+  @override
+  String get connectedAccounts => 'الحسابات المتصلة';
+
+  @override
+  String get contactsIndependentAccounts => 'حسابات جهات اتصال مستقلة';
+
+  @override
+  String get contactsNextcloudReuse =>
+      'تعيد اقتراحات جهات الاتصال استخدام بيانات اعتماد هذا الحساب عبر تكامل جهات الاتصال للقراءة فقط.';
+
+  @override
+  String get contactsRetrySync => 'إعادة محاولة مزامنة جهات الاتصال';
+
+  @override
+  String get contactsPreferenceFailed => 'تعذّر حفظ تفضيل مصدر جهات الاتصال.';
+
+  @override
+  String get contactsSuggestionsDisabled => 'اقتراحات جهات الاتصال معطّلة';
+
+  @override
+  String get contactsSyncFailed =>
+      'تعذّرت مزامنة جهات الاتصال. أعد المحاولة أو أعد توصيل الحساب إذا انتهى التفويض.';
+
+  @override
+  String get registrationRecoveryDescription =>
+      'التسجيل المحفوظ أو ارتباط بيانات اعتماده غير متاح أو مرفوض. استبدل تسجيل هذا الحساب صراحةً لاستعادته؛ تُحفظ البيانات الحالية.';
+
+  @override
+  String get revalidateAccount => 'إعادة التحقق من الاتصال';
+
+  @override
+  String get openSharedPrimaryDescription =>
+      'يفتح التقويم الأساسي للمالك المحدد. تُكتشف التقاويم المشتركة الأخرى عبر مزامنة الحساب المعتادة.';
+
+  @override
+  String get showInBusyMax => 'إظهار في BusyMax';
+
+  @override
+  String get showInGoogleCalendarList => 'إظهار في قائمة تقاويم Google';
+
+  @override
+  String get googleVisibilityHelp =>
+      'اختيار BusyMax محلي. يغيّر ظهور Google قائمتك في Google؛ لا يمكن عرض التقاويم المخفية في BusyMax.';
+
+  @override
+  String get primaryCalendarVisibilityExplanation =>
+      'يبقى تقويم Google الأساسي في قائمته.';
+
+  @override
+  String get accountsLoading => 'جارٍ تحميل الحسابات…';
+
+  @override
+  String get accountsLoadFailed => 'تعذّر تحميل الحسابات. أعد فتح الحسابات.';
+
+  @override
+  String get collectionsLoading => 'جارٍ تحميل المجموعات…';
+
+  @override
+  String get collectionsLoadFailed =>
+      'تعذّر تحميل المجموعات. تُحفظ البيانات المخزنة مؤقتًا؛ أعد محاولة المزامنة.';
+
+  @override
+  String get collectionsNotDiscovered =>
+      'لم يكتمل الاكتشاف. حدّث هذا الحساب أو أعد توصيله.';
+
+  @override
+  String get collectionsEmpty => 'لم يُعثر على مجموعات.';
+
+  @override
+  String get syncNoRecord => 'لم يُسجّل وقت مزامنة ناجحة';
+
+  @override
+  String get cachedSyncError =>
+      'فشلت المزامنة؛ قد تكون البيانات المخزنة مؤقتًا قديمة.';
+
+  @override
+  String get calendarRemotePending => 'تغيير ظهور Google قيد الانتظار';
+
+  @override
+  String get calendarRemoteFailed =>
+      'فشل تغيير ظهور Google. تُعرض آخر حالة مؤكدة؛ أعد محاولة المزامنة.';
+
+  @override
+  String get sharedCalendarUnavailable =>
+      'الوصول غير متاح؛ تُعرض البيانات المخزنة مؤقتًا. أعد المزامنة أو أزل التقويم من قائمتك.';
+
+  @override
+  String get invalidCollectionColor =>
+      'أدخل لونًا سداسيًا عشريًا من ست أو ثماني خانات يبدأ بـ #.';
+
+  @override
+  String get invalidCollectionOrder => 'أدخل عددًا صحيحًا.';
+
+  @override
+  String get invalidCollectionTimezone =>
+      'أدخل مستند منطقة زمنية صالحًا للتقويم يحتوي على VTIMEZONE وTZID.';
+
+  @override
+  String get invalidCollectionValue => 'صحّح هذه القيمة قبل الحفظ.';
+
+  @override
+  String get accountAlreadyConnected =>
+      'هذا الحساب متصل بالفعل. استخدم إجراء إعادة توصيله.';
+
+  @override
+  String get nextcloudRemovalAuthorizationDescription =>
+      'سيحاول BusyMax أيضًا إلغاء كلمة مرور تطبيق Nextcloud لهذا الحساب. قد تنجح الإزالة المحلية حتى إذا فشل الإلغاء.';
 }

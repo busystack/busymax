@@ -20,6 +20,10 @@ final class ContactsFixture implements ContactsAuthorizationBroker {
     Duration syncInterval = const Duration(days: 1),
     bool realDav = false,
     BusyMaxLinkedDavCredential? linkedDavCredential,
+    Future<BusyMaxLinkedDavCredential?> Function(String)?
+    readLinkedDavCredential,
+    Future<void> Function(String, AuthorizationCancellation)?
+    reconnectLinkedDavAccount,
   }) : accounts = AccountsRepository(database: database),
        store = BusyMaxContactsStore(database) {
     controller = BusyMaxContactsController(
@@ -34,7 +38,9 @@ final class ContactsFixture implements ContactsAuthorizationBroker {
       deleteDavSecret: (id) async {
         davSecrets.remove(id);
       },
-      readLinkedDavCredential: (_) async => linkedDavCredential,
+      readLinkedDavCredential:
+          readLinkedDavCredential ?? (_) async => linkedDavCredential,
+      reconnectLinkedDavAccount: reconnectLinkedDavAccount,
       launchBrowser: (_) async => true,
       syncInterval: syncInterval,
       providerFactory: realDav ? null : provider,
@@ -69,6 +75,7 @@ final class ContactsFixture implements ContactsAuthorizationBroker {
 
     AuthorizationCancellation? cancellation,
     Future<void> Function()? persistContacts,
+    bool forceAuthorization = false,
   }) async {
     if (consentPause != null) {
       await Future.any<void>([

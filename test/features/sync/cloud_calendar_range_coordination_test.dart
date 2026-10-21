@@ -13,6 +13,7 @@ import 'package:busymax/src/features/connectivity/network_connectivity_service.d
 import 'package:busymax/src/features/notifications/notification_reconciler.dart';
 import 'package:busymax/src/features/sync/account_sync_operations.dart';
 import 'package:busymax/src/features/sync/calendar_sync_engine.dart';
+import 'package:busymax/src/features/sync/domain_sync_schedule.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_api_client.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_shared_calendar_address.dart';
 import 'package:busymax/src/microsoft_todo/oauth/microsoft_oauth_service.dart';
@@ -25,6 +26,53 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
+    test(
+      '$provider deferred writes retain a failed pull until recovery',
+      () async {
+        final fixture = await _Fixture.create(provider: provider);
+        addTearDown(fixture.dispose);
+        final operations = fixture.container.read(
+          accountSyncOperationsProvider,
+        );
+        final activity = fixture.container.read(accountSyncActivityProvider);
+        await operations.syncCalendar(_accountId, full: true);
+        final previous =
+            (await fixture.database
+                    .select(fixture.database.domainSyncSchedules)
+                    .getSingle())
+                .lastSuccessfulPullUtc;
+        final failure = StateError('Synthetic calendar pull failure');
+        fixture.client.syncFailure = failure;
+        await expectLater(
+          operations.syncCalendar(_accountId, full: true),
+          throwsA(same(failure)),
+        );
+        expect(activity.failure(_accountId, 'calendar'), same(failure));
+
+        fixture.client.syncFailure = null;
+        final discoveries = fixture.client.calendarDiscoveryCalls;
+        await withSyncTrigger(
+          SyncTrigger.localMutation,
+          () => operations.syncCalendar(_accountId, full: false),
+        );
+        expect(fixture.client.calendarDiscoveryCalls, discoveries);
+        expect(activity.failure(_accountId, 'calendar'), same(failure));
+        expect(
+          (await fixture.database
+                  .select(fixture.database.domainSyncSchedules)
+                  .getSingle())
+              .lastSuccessfulPullUtc,
+          previous,
+        );
+
+        await operations.syncCalendar(_accountId, full: true);
+        expect(fixture.client.calendarDiscoveryCalls, greaterThan(discoveries));
+        expect(activity.failure(_accountId, 'calendar'), isNull);
+      },
+    );
+  }
+
   test(
     'range retrieval completes before a newer baseline sync imports events',
     () async {
@@ -367,6 +415,8 @@ final class _HeldCalendarClient implements CloudCalendarClient {
   List<CalendarEventDto> rangeEvents = [];
   bool holdRange = false;
   bool holdSync = false;
+  Object? syncFailure;
+  int calendarDiscoveryCalls = 0;
 
   @override
   BusyProvider get provider => source.provider;
@@ -378,7 +428,11 @@ final class _HeldCalendarClient implements CloudCalendarClient {
       : microsoftCalendarProviderCapabilities;
 
   @override
-  Future<List<CalendarSourceDto>> listCalendars() async => [source];
+  Future<List<CalendarSourceDto>> listCalendars() async {
+    calendarDiscoveryCalls++;
+    if (syncFailure case final failure?) throw failure;
+    return [source];
+  }
 
   @override
   Future<List<CalendarEventDto>> listEvents({

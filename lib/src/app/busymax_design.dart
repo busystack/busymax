@@ -4139,6 +4139,7 @@ class BusyMaxPromptDialog extends StatefulWidget {
     required this.actionLabel,
     this.initialValue,
     this.message,
+    this.obscureText = false,
   });
 
   final String title;
@@ -4146,6 +4147,7 @@ class BusyMaxPromptDialog extends StatefulWidget {
   final String actionLabel;
   final String? initialValue;
   final String? message;
+  final bool obscureText;
 
   @override
   State<BusyMaxPromptDialog> createState() => _BusyMaxPromptDialogState();
@@ -4209,6 +4211,9 @@ class _BusyMaxPromptDialogState extends State<BusyMaxPromptDialog> {
             YaruListTile.square(
               title: TextFormField(
                 controller: _controller,
+                obscureText: widget.obscureText,
+                enableSuggestions: !widget.obscureText,
+                autocorrect: !widget.obscureText,
                 autofocus: true,
                 textInputAction: TextInputAction.done,
                 decoration: busyMaxGroupedTextFieldDecoration(

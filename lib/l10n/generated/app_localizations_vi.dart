@@ -3003,7 +3003,7 @@ class AppLocalizationsVi extends AppLocalizations {
   String get searchClearText => 'Xóa văn bản';
 
   @override
-  String get openSharedCalendar => 'Mở lịch được chia sẻ';
+  String get openSharedCalendar => 'Mở lịch chính được chia sẻ';
 
   @override
   String get manageCalendarSharing => 'Quản lý chia sẻ lịch';
@@ -3590,4 +3590,113 @@ class AppLocalizationsVi extends AppLocalizations {
   String seriesPatternChangeConfirmation(String before, String after) {
     return 'Thay đổi kiểu lặp có thể thêm hoặc xóa ngày.\n\nHiện tại: $before\nĐề xuất: $after\n\nLưu kiểu lặp này?';
   }
+
+  @override
+  String get connectedAccounts => 'Tài khoản đã kết nối';
+
+  @override
+  String get contactsIndependentAccounts => 'Tài khoản danh bạ độc lập';
+
+  @override
+  String get contactsNextcloudReuse =>
+      'Gợi ý liên hệ dùng lại thông tin xác thực hiện có của tài khoản qua tích hợp danh bạ chỉ đọc.';
+
+  @override
+  String get contactsRetrySync => 'Thử đồng bộ danh bạ lại';
+
+  @override
+  String get contactsPreferenceFailed =>
+      'Không thể lưu tùy chọn nguồn danh bạ.';
+
+  @override
+  String get contactsSuggestionsDisabled => 'Đã tắt gợi ý liên hệ';
+
+  @override
+  String get contactsSyncFailed =>
+      'Không thể đồng bộ danh bạ. Thử lại hoặc kết nối lại tài khoản nếu quyền đã hết hạn.';
+
+  @override
+  String get registrationRecoveryDescription =>
+      'Đăng ký đã lưu hoặc liên kết thông tin xác thực không khả dụng hoặc bị từ chối. Hãy thay thế rõ ràng đăng ký của tài khoản này để khôi phục; dữ liệu hiện có được giữ lại.';
+
+  @override
+  String get revalidateAccount => 'Xác minh lại kết nối';
+
+  @override
+  String get openSharedPrimaryDescription =>
+      'Mở lịch chính của chủ sở hữu được chỉ định. Các lịch chia sẻ khác được tìm qua đồng bộ tài khoản thông thường.';
+
+  @override
+  String get showInBusyMax => 'Hiện trong BusyMax';
+
+  @override
+  String get showInGoogleCalendarList => 'Hiện trong danh sách lịch Google';
+
+  @override
+  String get googleVisibilityHelp =>
+      'Lựa chọn BusyMax là cục bộ. Chế độ hiển thị Google thay đổi danh sách trên Google; lịch bị ẩn không thể hiển thị trong BusyMax.';
+
+  @override
+  String get primaryCalendarVisibilityExplanation =>
+      'Lịch chính Google luôn nằm trong danh sách.';
+
+  @override
+  String get accountsLoading => 'Đang tải tài khoản…';
+
+  @override
+  String get accountsLoadFailed =>
+      'Không thể tải tài khoản. Hãy mở lại Tài khoản.';
+
+  @override
+  String get collectionsLoading => 'Đang tải bộ sưu tập…';
+
+  @override
+  String get collectionsLoadFailed =>
+      'Không thể tải bộ sưu tập. Dữ liệu đệm được giữ; hãy thử đồng bộ lại.';
+
+  @override
+  String get collectionsNotDiscovered =>
+      'Chưa hoàn tất phát hiện. Hãy làm mới hoặc kết nối lại tài khoản.';
+
+  @override
+  String get collectionsEmpty => 'Không tìm thấy bộ sưu tập.';
+
+  @override
+  String get syncNoRecord => 'Chưa ghi nhận thời điểm đồng bộ thành công';
+
+  @override
+  String get cachedSyncError => 'Đồng bộ thất bại; dữ liệu đệm có thể đã cũ.';
+
+  @override
+  String get calendarRemotePending => 'Đang chờ đổi chế độ hiển thị Google';
+
+  @override
+  String get calendarRemoteFailed =>
+      'Đổi chế độ hiển thị Google thất bại. Đang hiện trạng thái được xác nhận gần nhất; hãy thử đồng bộ lại.';
+
+  @override
+  String get sharedCalendarUnavailable =>
+      'Không thể truy cập; đang hiện dữ liệu đệm. Thử đồng bộ lại hoặc xóa khỏi danh sách lịch.';
+
+  @override
+  String get invalidCollectionColor =>
+      'Nhập màu thập lục phân gồm sáu hoặc tám chữ số, bắt đầu bằng #.';
+
+  @override
+  String get invalidCollectionOrder => 'Nhập số nguyên.';
+
+  @override
+  String get invalidCollectionTimezone =>
+      'Nhập tài liệu múi giờ lịch hợp lệ chứa VTIMEZONE và TZID.';
+
+  @override
+  String get invalidCollectionValue => 'Sửa giá trị này trước khi lưu.';
+
+  @override
+  String get accountAlreadyConnected =>
+      'Tài khoản này đã kết nối. Hãy dùng thao tác kết nối lại của tài khoản.';
+
+  @override
+  String get nextcloudRemovalAuthorizationDescription =>
+      'BusyMax cũng sẽ thử thu hồi mật khẩu ứng dụng Nextcloud của tài khoản này. Việc xóa cục bộ vẫn có thể thành công dù thu hồi thất bại.';
 }

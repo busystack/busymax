@@ -3038,7 +3038,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get searchClearText => 'Clear text';
 
   @override
-  String get openSharedCalendar => 'Open shared calendar';
+  String get openSharedCalendar => 'Open shared primary calendar';
 
   @override
   String get manageCalendarSharing => 'Manage calendar sharing';
@@ -3623,4 +3623,113 @@ class AppLocalizationsEn extends AppLocalizations {
   String seriesPatternChangeConfirmation(String before, String after) {
     return 'This changes the recurrence pattern and may add or remove dates.\n\nCurrent: $before\nProposed: $after\n\nSave this pattern?';
   }
+
+  @override
+  String get connectedAccounts => 'Connected accounts';
+
+  @override
+  String get contactsIndependentAccounts => 'Independent contact accounts';
+
+  @override
+  String get contactsNextcloudReuse =>
+      'Contact suggestions reuse this account’s existing credential through the read-only contacts integration.';
+
+  @override
+  String get contactsRetrySync => 'Retry contacts sync';
+
+  @override
+  String get contactsPreferenceFailed =>
+      'Could not save contact source preference';
+
+  @override
+  String get contactsSuggestionsDisabled => 'Contact suggestions disabled';
+
+  @override
+  String get contactsSyncFailed =>
+      'Contacts could not sync. Retry, or reconnect if authorization has expired.';
+
+  @override
+  String get registrationRecoveryDescription =>
+      'The saved registration or its credential binding is unavailable or rejected. Explicitly replace the registration for this account to recover; existing data is preserved.';
+
+  @override
+  String get revalidateAccount => 'Revalidate connection';
+
+  @override
+  String get openSharedPrimaryDescription =>
+      'Opens the specified owner’s primary calendar. Other shared calendars are discovered through ordinary account synchronization.';
+
+  @override
+  String get showInBusyMax => 'Show in BusyMax';
+
+  @override
+  String get showInGoogleCalendarList => 'Show in Google’s calendar list';
+
+  @override
+  String get googleVisibilityHelp =>
+      'BusyMax selection is local. Google visibility changes your calendar list on Google; hidden calendars cannot be displayed in BusyMax.';
+
+  @override
+  String get primaryCalendarVisibilityExplanation =>
+      'Google’s primary calendar stays in its calendar list.';
+
+  @override
+  String get accountsLoading => 'Loading accounts…';
+
+  @override
+  String get accountsLoadFailed =>
+      'Accounts could not be loaded. Retry opening Accounts.';
+
+  @override
+  String get collectionsLoading => 'Loading collections…';
+
+  @override
+  String get collectionsLoadFailed =>
+      'Collections could not be loaded. Cached data is retained; retry synchronization.';
+
+  @override
+  String get collectionsNotDiscovered =>
+      'Discovery has not completed. Refresh or reconnect this account.';
+
+  @override
+  String get collectionsEmpty => 'No collections found.';
+
+  @override
+  String get syncNoRecord => 'No successful sync time recorded';
+
+  @override
+  String get cachedSyncError => 'Sync failed; cached data may be out of date.';
+
+  @override
+  String get calendarRemotePending => 'Google visibility change pending';
+
+  @override
+  String get calendarRemoteFailed =>
+      'Google visibility change failed. Previous confirmed state is shown; retry synchronization.';
+
+  @override
+  String get sharedCalendarUnavailable =>
+      'Access unavailable; showing cached data. Retry synchronization or remove from your calendar list.';
+
+  @override
+  String get invalidCollectionColor =>
+      'Enter a six- or eight-digit hexadecimal color, starting with #.';
+
+  @override
+  String get invalidCollectionOrder => 'Enter a whole number.';
+
+  @override
+  String get invalidCollectionTimezone =>
+      'Enter a valid calendar timezone document containing VTIMEZONE and TZID.';
+
+  @override
+  String get invalidCollectionValue => 'Correct this value before saving.';
+
+  @override
+  String get accountAlreadyConnected =>
+      'This account is already connected. Use its Reconnect action.';
+
+  @override
+  String get nextcloudRemovalAuthorizationDescription =>
+      'BusyMax will also try to revoke this account’s Nextcloud app password. Local removal can succeed even if that revocation fails.';
 }

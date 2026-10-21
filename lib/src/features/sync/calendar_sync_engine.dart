@@ -56,6 +56,7 @@ class CalendarSyncEngine {
   final CollectionIdReplacement? _onCalendarSourceIdReplaced;
   final Future<void> Function()? _onNotificationScheduleChanged;
   final DateTime Function() _nowUtc;
+  MicrosoftCalendarApiError? _sharedAccessFailure;
 
   Future<void> dispatchPendingWrites() async {
     try {
@@ -239,6 +240,7 @@ class CalendarSyncEngine {
           full: true,
         );
       }
+      if (_sharedAccessFailure case final failure?) throw failure;
     } finally {
       // Earlier pages and pending operations may already have committed.
       await NotificationScheduleService(
@@ -302,6 +304,7 @@ class CalendarSyncEngine {
           full: requiresSnapshot,
         );
       }
+      if (_sharedAccessFailure case final failure?) throw failure;
     } finally {
       // Earlier pages and pending operations may already have committed.
       await NotificationScheduleService(
@@ -313,6 +316,7 @@ class CalendarSyncEngine {
   }
 
   Future<List<CalendarSourceDto>> _refreshCalendarSources() async {
+    _sharedAccessFailure = null;
     // listCalendars() returns only after every page has been retrieved, so an
     // absent cloud calendar can be treated as a provider-side deletion.
     final calendars = await _client.listCalendars();
@@ -341,6 +345,9 @@ class CalendarSyncEngine {
           calendars.add(refreshed);
         } on MicrosoftCalendarApiError catch (error) {
           if (error.statusCode != 403 && error.statusCode != 404) rethrow;
+          // Finish other calendars, but do not record this domain as a fully
+          // successful pull while an opened shared calendar is inaccessible.
+          _sharedAccessFailure ??= error;
           // Explicit owner-context denial is not an empty calendar. Keep its
           // cached source, but remove write actions until access is restored.
           final oldMetadata = jsonDecode(source.rawJson ?? '{}');

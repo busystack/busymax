@@ -6,8 +6,13 @@ import '../../../platform/contacts_settings_routes_test.dart'
 import '../../../core/auth/authorization_transition_test.dart' show Harness;
 
 import 'package:busymax/src/core/auth/oauth_registration.dart';
+import 'package:busymax/src/core/auth/oauth_models.dart';
 
 import 'dart:async';
+
+import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
+import 'package:busymax/src/features/sync/calendar_sync_engine.dart';
+
 import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -60,6 +65,529 @@ import 'package:busymax/src/platform/common/desktop_services.dart';
 const _nativeMenuChannel = MethodChannel(nativeMenuChannelName);
 
 void main() {
+  testWidgets(
+    'successful empty Nextcloud discovery is distinct from undiscovered and failed discovery',
+    (tester) async {
+      final f = ContactsFixture(AppDatabase.memoryForTests());
+      await tester.runAsync(
+        () => f.accounts.upsertSignedInAccount(
+          id: 'nextcloud',
+          provider: BusyProvider.nextcloud,
+          providerAccountId: 'qa',
+          authority: 'https://cloud.example.test',
+          grantedScopes: '',
+        ),
+      );
+      final accounts = (await tester.runAsync(f.accounts.listVisibleAccounts))!;
+      final container = _container(
+        selectedAccountId: 'nextcloud',
+        authRepository: _FakeAuthRepository(),
+        accounts: accounts,
+        contactsFixture: f,
+        accountsRepository: f.accounts,
+      );
+      addTearDown(() async {
+        container.dispose();
+        await tester.runAsync(f.close);
+      });
+      await _pumpSettings(
+        tester,
+        container,
+        logicalSize: const Size(1200, 1400),
+      );
+      await settle(tester);
+      expect(
+        find.text(
+          'Discovery has not completed. Refresh or reconnect this account.',
+        ),
+        findsOneWidget,
+      );
+      await tester.runAsync(
+        () => f.database
+            .into(f.database.davAccountServices)
+            .insert(
+              DavAccountServicesCompanion.insert(
+                accountId: 'nextcloud',
+                canonicalServiceUri:
+                    'https://cloud.example.test/remote.php/dav/',
+                canonicalOrigin: 'https://cloud.example.test',
+                discoveredAtUtc: '2026-10-20T12:00:00Z',
+              ),
+            ),
+      );
+      await settle(tester);
+      expect(find.text('No collections found.'), findsOneWidget);
+      // Inventory discovery is not an invented Calendar or Tasks sync time.
+      for (final domain in ['calendar', 'tasks']) {
+        expect(
+          tester
+              .widget<BusyMaxActionRow>(
+                find.byKey(ValueKey('account-sync-$domain-nextcloud')),
+              )
+              .subtitle,
+          'No successful sync time recorded',
+        );
+      }
+      await tester.runAsync(
+        () => f.database.customUpdate(
+          "UPDATE dav_account_services SET last_discovery_error_code = 'DavNetworkFailure' WHERE account_id = 'nextcloud'",
+          updates: {f.database.davAccountServices},
+        ),
+      );
+      await settle(tester);
+      expect(find.text('No collections found.'), findsNothing);
+      expect(
+        find.text(
+          'Collections could not be loaded. Cached data is retained; retry synchronization.',
+        ),
+        findsWidgets,
+      );
+      expect(tester.takeException(), isNull);
+      await _disposeDiagnosticsWidget(tester);
+    },
+  );
+
+  testWidgets(
+    'Google local selection and pending/failed CalendarList.hidden changes stay distinct',
+    (tester) async {
+      final f = ContactsFixture(AppDatabase.memoryForTests());
+      await tester.runAsync(() => f.addParent(BusyProvider.google));
+      final repository = CalendarRepository(database: f.database);
+      await tester.runAsync(() async {
+        for (final primary in [false, true]) {
+          await repository.upsertSource(
+            accountId: 'google',
+            source: CalendarSourceDto(
+              provider: BusyProvider.google,
+              providerCalendarId: primary ? 'primary' : 'qa',
+              summary: primary ? 'QA Primary' : 'QA Calendar',
+              primaryCalendar: primary,
+              rawJson: {'hidden': false},
+            ),
+          );
+        }
+      });
+      final accounts = (await tester.runAsync(f.accounts.listVisibleAccounts))!;
+      final container = _container(
+        selectedAccountId: 'google',
+        authRepository: _FakeAuthRepository(),
+        accounts: accounts,
+        contactsFixture: f,
+        accountsRepository: f.accounts,
+        calendarSourceStream: repository.watchSourcesForAccounts(['google']),
+        calendarRepository: repository,
+      );
+      addTearDown(() async {
+        container.dispose();
+        await tester.runAsync(f.close);
+      });
+      await _pumpSettings(
+        tester,
+        container,
+        logicalSize: const Size(1200, 1400),
+      );
+      await settle(tester);
+      final sources = container
+          .read(calendarSourcesStreamProvider)
+          .requireValue;
+      final ordinary = sources.singleWhere((s) => !s.primaryCalendar);
+      final primary = sources.singleWhere((s) => s.primaryCalendar);
+      final local = find.byKey(
+        ValueKey('settings-calendar-schedule-${ordinary.id}'),
+      );
+      await tester.ensureVisible(local);
+      await tester.tap(local);
+      await settle(tester);
+      expect(
+        (await complete(
+          tester,
+          () => f.database.select(f.database.calendarSources).get(),
+        )).singleWhere((s) => s.id == ordinary.id).selected,
+        isFalse,
+      );
+      expect(
+        await complete(
+          tester,
+          () => f.database.select(f.database.pendingOps).get(),
+        ),
+        isEmpty,
+      );
+      await complete(
+        tester,
+        () => repository.setSourceProviderHidden(ordinary.id, true),
+      );
+      await settle(tester);
+      expect(find.text('Google visibility change pending'), findsOneWidget);
+      final requests = <http.Request>[];
+      final client = GoogleCalendarApiClient(
+        baseUri: Uri.parse('https://www.googleapis.com'),
+        httpClient: MockClient((request) async {
+          requests.add(request);
+          return http.Response(
+            '{"error":{"code":403,"message":"denied"}}',
+            403,
+          );
+        }),
+      );
+      await complete(
+        tester,
+        () => CalendarSyncEngine(
+          database: f.database,
+          client: client,
+          accountId: 'google',
+        ).dispatchPendingWrites(),
+      );
+      await settle(tester);
+      expect(requests.single.method, 'PATCH');
+      expect(requests.single.url.path, contains('/users/me/calendarList/qa'));
+      expect(jsonDecode(requests.single.body)['hidden'], isTrue);
+      expect(
+        find.text(
+          'Google visibility change failed. Previous confirmed state is shown; retry synchronization.',
+        ),
+        findsOneWidget,
+      );
+      final remote = tester.widget<YaruSwitch>(
+        find.byKey(ValueKey('settings-calendar-provider-${ordinary.id}')),
+      );
+      expect(remote.value, isTrue);
+      final primarySwitch = tester.widget<YaruSwitch>(
+        find.byKey(ValueKey('settings-calendar-provider-${primary.id}')),
+      );
+      expect(primarySwitch.value, isTrue);
+      expect(primarySwitch.onChanged, isNull);
+      await complete(
+        tester,
+        () => expectLater(
+          repository.setSourceProviderHidden(primary.id, true),
+          throwsA(isA<CalendarMutationNotAllowed>()),
+        ),
+      );
+      expect(
+        find.text('Google’s primary calendar stays in its calendar list.'),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+      await _disposeDiagnosticsWidget(tester);
+    },
+  );
+
+  testWidgets(
+    'Calendar and Tasks show loading, recorded per-service times, empty success and cached errors truthfully',
+    (tester) async {
+      final f = ContactsFixture(AppDatabase.memoryForTests());
+      await tester.runAsync(() => f.addParent(BusyProvider.google));
+      final accounts = (await tester.runAsync(f.accounts.listVisibleAccounts))!;
+      final sources = StreamController<List<CalendarSourceEntity>>();
+      final container = _container(
+        selectedAccountId: 'google',
+        authRepository: _FakeAuthRepository(),
+        accounts: accounts,
+        contactsFixture: f,
+        accountsRepository: f.accounts,
+        calendarSourceStream: sources.stream,
+      );
+      addTearDown(() async {
+        container.dispose();
+        await sources.close();
+        await tester.runAsync(f.close);
+      });
+      await _pumpSettings(
+        tester,
+        container,
+        logicalSize: const Size(1200, 1400),
+      );
+      await settle(tester);
+      expect(find.text('Loading collections…'), findsWidgets);
+      expect(find.text('No calendars synced yet.'), findsNothing);
+      sources.add([]);
+      await settle(tester);
+      expect(
+        find.text(
+          'Discovery has not completed. Refresh or reconnect this account.',
+        ),
+        findsOneWidget,
+      );
+      await complete(
+        tester,
+        () => f.database.customUpdate(
+          "INSERT INTO domain_sync_schedules(account_id,domain,last_successful_pull_utc) VALUES ('google','tasks','2026-10-19T12:00:00Z')",
+          updates: {f.database.domainSyncSchedules},
+        ),
+      );
+      await settle(tester);
+      final calendarStatus = tester.widget<BusyMaxActionRow>(
+        find.byKey(const ValueKey('account-sync-calendar-google')),
+      );
+      final tasksStatus = tester.widget<BusyMaxActionRow>(
+        find.byKey(const ValueKey('account-sync-tasks-google')),
+      );
+      expect(calendarStatus.subtitle, 'No successful sync time recorded');
+      expect(tasksStatus.subtitle, contains('Last successful sync:'));
+      final activity = container.read(accountSyncActivityProvider);
+      final gate = Completer<void>();
+      final syncing = activity.run('google', 'calendar', () async {
+        await gate.future;
+      });
+      await tester.pump();
+      expect(find.text('Syncing…'), findsWidgets);
+      gate.complete();
+      await syncing;
+      await complete(
+        tester,
+        () => f.database.customUpdate(
+          "INSERT INTO domain_sync_schedules(account_id,domain,last_successful_pull_utc) VALUES ('google','calendar','2026-10-20T12:00:00Z')",
+          updates: {f.database.domainSyncSchedules},
+        ),
+      );
+      await settle(tester);
+      expect(find.text('No collections found.'), findsOneWidget);
+      const cached = CalendarSourceEntity(
+        id: 'cached',
+        accountId: 'google',
+        provider: BusyProvider.google,
+        providerCalendarId: 'cached',
+        summary: 'Cached QA calendar',
+        selected: true,
+        hidden: false,
+        readOnly: false,
+        isDeleted: false,
+      );
+      sources.add([cached]);
+      await settle(tester);
+      await expectLater(
+        activity.run<void>('google', 'calendar', () async {
+          throw const OAuthException('OAuthTemporaryTransport', 'synthetic');
+        }),
+        throwsA(isA<OAuthException>()),
+      );
+      await settle(tester);
+      expect(find.text('Cached QA calendar'), findsOneWidget);
+      final failed = tester.widget<BusyMaxActionRow>(
+        find.byKey(const ValueKey('account-sync-calendar-google')),
+      );
+      expect(failed.subtitle, contains('Last successful sync:'));
+      expect(failed.subtitle, isNot(tasksStatus.subtitle));
+      expect(find.text('No collections found.'), findsNothing);
+      sources.addError(
+        StateError('synthetic cached collection stream failure'),
+      );
+      await settle(tester);
+      expect(find.text('Cached QA calendar'), findsOneWidget);
+      expect(
+        find.text(
+          'Collections could not be loaded. Cached data is retained; retry synchronization.',
+        ),
+        findsWidgets,
+      );
+      expect(tester.takeException(), isNull);
+      await _disposeDiagnosticsWidget(tester);
+    },
+  );
+
+  for (final summariesFail in [false, true]) {
+    testWidgets(
+      'Google reconnect reuses issuing registration with ${summariesFail ? 'failed' : 'loading'} summaries and revoked grant',
+      (tester) async {
+        await tester.runAsync(() async {
+          final h = Harness(buildConfig: syntheticDesktopConfig());
+          addTearDown(() async {
+            h.staging.dispose();
+            await h.db.close();
+          });
+          await h.seed();
+          await h.makeGoogleUserOwned();
+          await h.repository.markReconnectRequired('opaque');
+          final before = await h.secrets.readCredential(
+            'opaque',
+          ) as GoogleDesktopCredential;
+          final observing = _ObservedAuthRepository(h);
+          final container = _container(
+            selectedAccountId: 'opaque',
+            authRepository: observing,
+            accounts: await h.accounts.listVisibleAccounts(),
+            accountsRepository: h.accounts,
+            buildConfig: h.buildConfig,
+            productionHarness: h,
+            signedInSyncRunner: (_, _) async {},
+            registrationSummaryStream: summariesFail
+                ? Stream.error(StateError('synthetic summaries failure'))
+                : const Stream.empty(),
+          );
+          addTearDown(container.dispose);
+          await _pumpSettings(
+            tester,
+            container,
+            logicalSize: const Size(1200, 1200),
+          );
+          final reconnect = find.byKey(
+            const ValueKey('reconnect-account-opaque'),
+          );
+          await tester.ensureVisible(reconnect);
+          await tester.tap(reconnect);
+          await tester.pump();
+          await observing.started.future;
+          await observing.finished;
+          await tester.pumpAndSettle();
+          expect(observing.lastRequest!.intent, AuthorizationIntent.reconnect);
+          expect(h.flow.clients, [before.registration.clientId]);
+          expect(
+            find.byKey(const ValueKey('registration-reconnect-account')),
+            findsNothing,
+          );
+          expect((await h.accounts.accountById('opaque'))!.isSignedIn, isTrue);
+          await tester.pumpWidget(const SizedBox());
+        });
+      },
+    );
+  }
+
+  testWidgets(
+    'Microsoft missing binding exposes explicit replacement that recovers the selected account',
+    (tester) async {
+      await tester.runAsync(() async {
+        final h = Harness(buildConfig: syntheticDesktopConfig());
+        addTearDown(() async {
+          h.staging.dispose();
+          await h.db.close();
+        });
+        await h.seedMicrosoft(shared: false);
+        const id = 'microsoft:ms-user';
+        await h.secrets.deleteCredential(id);
+        final observing = _ObservedAuthRepository(h);
+        final container = _container(
+          selectedAccountId: id,
+          authRepository: observing,
+          accounts: await h.accounts.listVisibleAccounts(),
+          accountsRepository: h.accounts,
+          buildConfig: h.buildConfig,
+          productionHarness: h,
+          signedInSyncRunner: (_, _) async {},
+        );
+        addTearDown(container.dispose);
+        await _pumpSettings(
+          tester,
+          container,
+          logicalSize: const Size(1200, 1200),
+        );
+        await tester.tap(
+          find.byKey(const ValueKey('reconnect-account-microsoft:ms-user')),
+        );
+        await tester.pump();
+        await observing.started.future;
+        await observing.finished;
+        await tester.pumpAndSettle();
+        expect(h.flow.clients, isEmpty);
+        final recovery = find.byKey(
+          const ValueKey('replace-registration-recovery-microsoft:ms-user'),
+        );
+        expect(recovery, findsOneWidget);
+        observing.started = Completer<void>();
+        await tester.ensureVisible(recovery);
+        await tester.tap(recovery);
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('registration-busymax')));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+        await observing.started.future;
+        await observing.finished;
+        await tester.pumpAndSettle();
+        expect(
+          observing.lastRequest!.intent,
+          AuthorizationIntent.replaceRegistration,
+        );
+        expect(observing.lastRequest!.accountId, id);
+        expect(
+          (await h.secrets.readCredential(
+            id,
+          ) as MicrosoftDesktopCredential).subject,
+          'ms-user',
+        );
+        expect(await h.db.select(h.db.accounts).get(), hasLength(1));
+        await tester.pumpWidget(const SizedBox());
+      });
+    },
+  );
+
+  testWidgets(
+    'six connected accounts retain independent Add actions and target removal',
+    (tester) async {
+      final accounts = <AccountEntity>[
+        for (final provider in [
+          BusyProvider.google,
+          BusyProvider.microsoft,
+          BusyProvider.nextcloud,
+        ])
+          for (var i = 1; i <= 2; i++)
+            AccountEntity(
+              id: '${provider.name}:$i',
+              provider: provider,
+              providerAccountId: provider == BusyProvider.nextcloud
+                  ? 'alex'
+                  : 'subject-$i',
+              authority: provider == BusyProvider.nextcloud
+                  ? 'https://cloud$i.example.test'
+                  : provider == BusyProvider.google
+                  ? 'https://accounts.google.com'
+                  : 'https://login.microsoftonline.com/common',
+              credentialKind: provider == BusyProvider.nextcloud
+                  ? CredentialKind.nextcloudAppPassword
+                  : CredentialKind.oauth,
+              authState: 'signed_in',
+              email: provider == BusyProvider.nextcloud
+                  ? null
+                  : 'qa$i@example.test',
+              displayName:
+                  'Quality Assurance $i with a deliberately long account name',
+            ),
+      ];
+      final auth = _FakeAuthRepository();
+      final container = _container(
+        selectedAccountId: 'google:2',
+        authRepository: auth,
+        accounts: accounts,
+        buildConfig: _configuredBuildConfig,
+        signedInSyncRunner: (_, _) async {},
+      );
+      addTearDown(container.dispose);
+      await _pumpSettings(tester, container, logicalSize: const Size(640, 900));
+      for (final label in [
+        'Add Google account',
+        'Add Microsoft account',
+        'Add Nextcloud account',
+      ]) {
+        final row = tester.widget<BusyMaxActionRow>(
+          find.ancestor(
+            of: find.text(label),
+            matching: find.byType(BusyMaxActionRow),
+          ),
+        );
+        expect(row.onTap, isNotNull);
+      }
+      expect(
+        find.text(
+          'Quality Assurance 1 with a deliberately long account name · https://cloud1.example.test',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.text(
+          'Quality Assurance 2 with a deliberately long account name · https://cloud2.example.test',
+        ),
+        findsOneWidget,
+      );
+      final remove = find.byKey(const ValueKey('remove-account-google:1'));
+      await tester.ensureVisible(remove);
+      await tester.tap(remove);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('confirm-account-removal')));
+      await tester.pumpAndSettle();
+      expect(auth.removalCalls.single.accountId, 'google:1');
+      expect(container.read(selectedAccountIdProvider), 'google:2');
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets(
     'Linux contacts source switch immediately saves, filters and rolls back failed persistence',
     (tester) async {
@@ -965,6 +1493,7 @@ void main() {
         authRepository: auth,
         accounts: const [_googleAccount, _nextcloudAccount],
         davOnboardingService: onboarding,
+        databaseOverride: database,
       );
       addTearDown(container.dispose);
 
@@ -1211,6 +1740,7 @@ void main() {
     expect(removeTitle.style?.color, isNot(theme.colorScheme.error));
     expect(trash.color, theme.colorScheme.error);
 
+    await tester.ensureVisible(removeRowFinder);
     await tester.tap(find.text('Remove account…'));
     await tester.pumpAndSettle();
     final confirm = tester.widget<ElevatedButton>(
@@ -1335,12 +1865,15 @@ void main() {
 
     await _pumpSettings(tester, container);
 
-    expect(find.text('Reconnect Google account'), findsWidgets);
+    expect(
+      find.byKey(const ValueKey('reconnect-account-google:g')),
+      findsOneWidget,
+    );
     expect(
       find.text(
         'Your Google account needs to be reconnected to resume calendar and task synchronization.',
       ),
-      findsOneWidget,
+      findsWidgets,
     );
     expect(find.text('New task list'), findsNothing);
     expect(find.text('Remove account…'), findsOneWidget);
@@ -1367,6 +1900,7 @@ void main() {
   testWidgets(
     'Settings presents DAV calendars and task lists as named controls',
     (tester) async {
+      final semantics = tester.ensureSemantics();
       final container = _container(
         selectedAccountId: _nextcloudAccount.id,
         authRepository: _FakeAuthRepository(),
@@ -1422,6 +1956,19 @@ void main() {
       expect(find.text('Personal'), findsOneWidget);
       expect(find.text('NCC Task List'), findsOneWidget);
       expect(
+        tester
+            .getSemantics(
+              find.descendant(
+                of: find.byKey(
+                  const ValueKey('dav-collection-settings-personal-calendar'),
+                ),
+                matching: find.byType(IconButton),
+              ),
+            )
+            .label,
+        contains('Personal'),
+      );
+      expect(
         find.byKey(const ValueKey('dav-collection-settings-personal-calendar')),
         findsOneWidget,
       );
@@ -1434,6 +1981,7 @@ void main() {
         findsOneWidget,
       );
       expect(find.textContaining('Last synchronized:'), findsNothing);
+      semantics.dispose();
     },
   );
 
@@ -2235,9 +2783,30 @@ ProviderContainer _container({
   SignedInSyncRunner? signedInSyncRunner,
   Harness? productionHarness,
   ContactsFixture? contactsFixture,
+  Stream<Map<String, RegistrationSummary>>? registrationSummaryStream,
+  Stream<List<CalendarSourceEntity>>? calendarSourceStream,
+  CalendarRepository? calendarRepository,
+  AppDatabase? databaseOverride,
 }) {
+  final database =
+      databaseOverride ??
+      contactsFixture?.database ??
+      productionHarness?.db ??
+      AppDatabase.memoryForTests();
+  if (databaseOverride == null &&
+      contactsFixture == null &&
+      productionHarness == null) {
+    addTearDown(database.close);
+  }
   return ProviderContainer(
     overrides: [
+      databaseProvider.overrideWithValue(database),
+      if (calendarRepository != null)
+        calendarRepositoryProvider.overrideWithValue(calendarRepository),
+      if (registrationSummaryStream != null)
+        registrationSummariesProvider.overrideWith(
+          (ref) => registrationSummaryStream,
+        ),
       if (contactsFixture != null) ...[
         databaseProvider.overrideWithValue(contactsFixture.database),
         busyMaxContactsControllerProvider.overrideWithValue(
@@ -2279,7 +2848,7 @@ ProviderContainer _container({
         (ref) => Stream.value(davCollections),
       ),
       calendarSourcesStreamProvider.overrideWith(
-        (ref) => Stream.value(calendarSources),
+        (ref) => calendarSourceStream ?? Stream.value(calendarSources),
       ),
       if (googleSharingClient != null)
         googleCalendarApiClientForAccountProvider.overrideWith(
@@ -2684,11 +3253,27 @@ class _ObservedAuthRepository extends AuthRepository {
         authorizationPersistence: h.persistence,
       );
   Future<void>? finished;
+  AuthorizationRequest? lastRequest;
   Completer<void> started = Completer<void>();
   @override
   Future<AuthSessionState> signIn({AuthorizationRequest? request}) {
+    lastRequest = request;
     if (!started.isCompleted) started.complete();
     final operation = super.signIn(request: request);
+    finished = operation.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
+    return operation;
+  }
+
+  @override
+  Future<AuthSessionState> signInWithMicrosoft({
+    AuthorizationRequest? request,
+  }) {
+    lastRequest = request;
+    if (!started.isCompleted) started.complete();
+    final operation = super.signInWithMicrosoft(request: request);
     finished = operation.then<void>(
       (_) {},
       onError: (Object _, StackTrace _) {},
@@ -2824,9 +3409,24 @@ Future<void> _startStoredGoogleReconnect(
   required bool replacement,
 }) async {
   observing.started = Completer<void>();
-  final action = find
-      .text(replacement ? 'Reconnect Google account' : 'Connect')
-      .last;
+  if (replacement) {
+    final advanced = find.byKey(const ValueKey('account-advanced-opaque'));
+    await tester.ensureVisible(advanced);
+    final fade = tester.widget<AnimatedCrossFade>(
+      find
+          .descendant(of: advanced, matching: find.byType(AnimatedCrossFade))
+          .first,
+    );
+    if (fade.crossFadeState == CrossFadeState.showSecond) {
+      await tester.tap(
+        find.descendant(of: advanced, matching: find.text('Advanced')),
+      );
+      await tester.pumpAndSettle();
+    }
+  }
+  final action = replacement
+      ? find.text('Migrate now')
+      : find.byKey(const ValueKey('reconnect-account-opaque'));
   await tester.ensureVisible(action);
   await tester.tap(action);
   if (replacement) {

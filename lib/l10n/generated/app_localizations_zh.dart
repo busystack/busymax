@@ -2905,7 +2905,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get searchClearText => '清除文字';
 
   @override
-  String get openSharedCalendar => '打开共享日历';
+  String get openSharedCalendar => '打开共享主日历';
 
   @override
   String get manageCalendarSharing => '管理日历共享';
@@ -3459,6 +3459,102 @@ class AppLocalizationsZh extends AppLocalizations {
   String seriesPatternChangeConfirmation(String before, String after) {
     return '更改重复规则可能会增加或移除日期。\n\n当前：$before\n建议：$after\n\n保存此规则吗？';
   }
+
+  @override
+  String get connectedAccounts => '已连接的账户';
+
+  @override
+  String get contactsIndependentAccounts => '独立联系人账户';
+
+  @override
+  String get contactsNextcloudReuse => '联系人建议通过只读联系人集成重复使用此账户现有的凭据。';
+
+  @override
+  String get contactsRetrySync => '重试联系人同步';
+
+  @override
+  String get contactsPreferenceFailed => '无法保存联系人来源偏好。';
+
+  @override
+  String get contactsSuggestionsDisabled => '联系人建议已停用';
+
+  @override
+  String get contactsSyncFailed => '无法同步联系人。请重试，或在授权过期时重新连接账户。';
+
+  @override
+  String get registrationRecoveryDescription =>
+      '保存的应用注册或凭据绑定不可用或被拒绝。请明确替换此账户的注册以恢复连接；现有数据会保留。';
+
+  @override
+  String get revalidateAccount => '重新验证连接';
+
+  @override
+  String get openSharedPrimaryDescription => '打开指定所有者的主日历。其他共享日历通过普通账户同步发现。';
+
+  @override
+  String get showInBusyMax => '在 BusyMax 中显示';
+
+  @override
+  String get showInGoogleCalendarList => '在 Google 日历列表中显示';
+
+  @override
+  String get googleVisibilityHelp =>
+      'BusyMax 的选择是本地设置。Google 可见性会更改 Google 上的日历列表；隐藏的日历无法在 BusyMax 中显示。';
+
+  @override
+  String get primaryCalendarVisibilityExplanation => 'Google 主日历会保留在日历列表中。';
+
+  @override
+  String get accountsLoading => '正在加载账户…';
+
+  @override
+  String get accountsLoadFailed => '无法加载账户。请重新打开“账户”。';
+
+  @override
+  String get collectionsLoading => '正在加载集合…';
+
+  @override
+  String get collectionsLoadFailed => '无法加载集合。缓存数据已保留；请重试同步。';
+
+  @override
+  String get collectionsNotDiscovered => '发现尚未完成。请刷新或重新连接此账户。';
+
+  @override
+  String get collectionsEmpty => '未找到集合。';
+
+  @override
+  String get syncNoRecord => '没有成功同步时间记录';
+
+  @override
+  String get cachedSyncError => '同步失败；缓存数据可能已过时。';
+
+  @override
+  String get calendarRemotePending => 'Google 可见性更改待处理';
+
+  @override
+  String get calendarRemoteFailed => 'Google 可见性更改失败。显示的是上次确认的状态；请重试同步。';
+
+  @override
+  String get sharedCalendarUnavailable => '无法访问；正在显示缓存数据。请重试同步或从日历列表中移除。';
+
+  @override
+  String get invalidCollectionColor => '请输入以 # 开头的六位或八位十六进制颜色。';
+
+  @override
+  String get invalidCollectionOrder => '请输入整数。';
+
+  @override
+  String get invalidCollectionTimezone => '请输入包含 VTIMEZONE 和 TZID 的有效日历时区文档。';
+
+  @override
+  String get invalidCollectionValue => '保存前请修正此值。';
+
+  @override
+  String get accountAlreadyConnected => '此账户已连接。请使用该账户的“重新连接”操作。';
+
+  @override
+  String get nextcloudRemovalAuthorizationDescription =>
+      'BusyMax 还会尝试撤销此账户的 Nextcloud 应用密码。即使撤销失败，本地移除也可以成功。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -6357,7 +6453,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get searchClearText => '清除文字';
 
   @override
-  String get openSharedCalendar => '打开共享日历';
+  String get openSharedCalendar => '打开共享主日历';
 
   @override
   String get manageCalendarSharing => '管理日历共享';
@@ -6911,6 +7007,102 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String seriesPatternChangeConfirmation(String before, String after) {
     return '更改重复规则可能会增加或移除日期。\n\n当前：$before\n建议：$after\n\n保存此规则吗？';
   }
+
+  @override
+  String get connectedAccounts => '已连接的账户';
+
+  @override
+  String get contactsIndependentAccounts => '独立联系人账户';
+
+  @override
+  String get contactsNextcloudReuse => '联系人建议通过只读联系人集成重复使用此账户现有的凭据。';
+
+  @override
+  String get contactsRetrySync => '重试联系人同步';
+
+  @override
+  String get contactsPreferenceFailed => '无法保存联系人来源偏好。';
+
+  @override
+  String get contactsSuggestionsDisabled => '联系人建议已停用';
+
+  @override
+  String get contactsSyncFailed => '无法同步联系人。请重试，或在授权过期时重新连接账户。';
+
+  @override
+  String get registrationRecoveryDescription =>
+      '保存的应用注册或凭据绑定不可用或被拒绝。请明确替换此账户的注册以恢复连接；现有数据会保留。';
+
+  @override
+  String get revalidateAccount => '重新验证连接';
+
+  @override
+  String get openSharedPrimaryDescription => '打开指定所有者的主日历。其他共享日历通过普通账户同步发现。';
+
+  @override
+  String get showInBusyMax => '在 BusyMax 中显示';
+
+  @override
+  String get showInGoogleCalendarList => '在 Google 日历列表中显示';
+
+  @override
+  String get googleVisibilityHelp =>
+      'BusyMax 的选择是本地设置。Google 可见性会更改 Google 上的日历列表；隐藏的日历无法在 BusyMax 中显示。';
+
+  @override
+  String get primaryCalendarVisibilityExplanation => 'Google 主日历会保留在日历列表中。';
+
+  @override
+  String get accountsLoading => '正在加载账户…';
+
+  @override
+  String get accountsLoadFailed => '无法加载账户。请重新打开“账户”。';
+
+  @override
+  String get collectionsLoading => '正在加载集合…';
+
+  @override
+  String get collectionsLoadFailed => '无法加载集合。缓存数据已保留；请重试同步。';
+
+  @override
+  String get collectionsNotDiscovered => '发现尚未完成。请刷新或重新连接此账户。';
+
+  @override
+  String get collectionsEmpty => '未找到集合。';
+
+  @override
+  String get syncNoRecord => '没有成功同步时间记录';
+
+  @override
+  String get cachedSyncError => '同步失败；缓存数据可能已过时。';
+
+  @override
+  String get calendarRemotePending => 'Google 可见性更改待处理';
+
+  @override
+  String get calendarRemoteFailed => 'Google 可见性更改失败。显示的是上次确认的状态；请重试同步。';
+
+  @override
+  String get sharedCalendarUnavailable => '无法访问；正在显示缓存数据。请重试同步或从日历列表中移除。';
+
+  @override
+  String get invalidCollectionColor => '请输入以 # 开头的六位或八位十六进制颜色。';
+
+  @override
+  String get invalidCollectionOrder => '请输入整数。';
+
+  @override
+  String get invalidCollectionTimezone => '请输入包含 VTIMEZONE 和 TZID 的有效日历时区文档。';
+
+  @override
+  String get invalidCollectionValue => '保存前请修正此值。';
+
+  @override
+  String get accountAlreadyConnected => '此账户已连接。请使用该账户的“重新连接”操作。';
+
+  @override
+  String get nextcloudRemovalAuthorizationDescription =>
+      'BusyMax 还会尝试撤销此账户的 Nextcloud 应用密码。即使撤销失败，本地移除也可以成功。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -9810,7 +10002,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get searchClearText => '清除文字';
 
   @override
-  String get openSharedCalendar => '開啟共用行事曆';
+  String get openSharedCalendar => '開啟共用主要行事曆';
 
   @override
   String get manageCalendarSharing => '管理行事曆共用';
@@ -10364,4 +10556,100 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String seriesPatternChangeConfirmation(String before, String after) {
     return '變更重複規則可能會增加或移除日期。\n\n目前：$before\n建議：$after\n\n要儲存此規則嗎？';
   }
+
+  @override
+  String get connectedAccounts => '已連線的帳戶';
+
+  @override
+  String get contactsIndependentAccounts => '獨立聯絡人帳戶';
+
+  @override
+  String get contactsNextcloudReuse => '聯絡人建議透過唯讀聯絡人整合重複使用此帳戶現有的憑證。';
+
+  @override
+  String get contactsRetrySync => '重試聯絡人同步';
+
+  @override
+  String get contactsPreferenceFailed => '無法儲存聯絡人來源偏好。';
+
+  @override
+  String get contactsSuggestionsDisabled => '聯絡人建議已停用';
+
+  @override
+  String get contactsSyncFailed => '無法同步聯絡人。請重試，或在授權過期時重新連線帳戶。';
+
+  @override
+  String get registrationRecoveryDescription =>
+      '儲存的應用程式註冊或憑證繫結無法使用或遭拒。請明確取代此帳戶的註冊以恢復連線；現有資料會保留。';
+
+  @override
+  String get revalidateAccount => '重新驗證連線';
+
+  @override
+  String get openSharedPrimaryDescription => '開啟指定擁有者的主要行事曆。其他共用行事曆透過一般帳戶同步尋找。';
+
+  @override
+  String get showInBusyMax => '在 BusyMax 中顯示';
+
+  @override
+  String get showInGoogleCalendarList => '在 Google 行事曆清單中顯示';
+
+  @override
+  String get googleVisibilityHelp =>
+      'BusyMax 的選擇是本機設定。Google 可見性會變更 Google 上的清單；隱藏的行事曆無法在 BusyMax 中顯示。';
+
+  @override
+  String get primaryCalendarVisibilityExplanation => 'Google 主要行事曆會保留在清單中。';
+
+  @override
+  String get accountsLoading => '正在載入帳戶…';
+
+  @override
+  String get accountsLoadFailed => '無法載入帳戶。請重新開啟「帳戶」。';
+
+  @override
+  String get collectionsLoading => '正在載入集合…';
+
+  @override
+  String get collectionsLoadFailed => '無法載入集合。快取資料已保留；請重試同步。';
+
+  @override
+  String get collectionsNotDiscovered => '探索尚未完成。請重新整理或重新連線此帳戶。';
+
+  @override
+  String get collectionsEmpty => '找不到集合。';
+
+  @override
+  String get syncNoRecord => '沒有成功同步時間的記錄';
+
+  @override
+  String get cachedSyncError => '同步失敗；快取資料可能已過時。';
+
+  @override
+  String get calendarRemotePending => 'Google 可見性變更待處理';
+
+  @override
+  String get calendarRemoteFailed => 'Google 可見性變更失敗。顯示的是上次確認的狀態；請重試同步。';
+
+  @override
+  String get sharedCalendarUnavailable => '無法存取；正在顯示快取資料。請重試同步或從行事曆清單移除。';
+
+  @override
+  String get invalidCollectionColor => '請輸入以 # 開頭的六位或八位十六進位色彩。';
+
+  @override
+  String get invalidCollectionOrder => '請輸入整數。';
+
+  @override
+  String get invalidCollectionTimezone => '請輸入包含 VTIMEZONE 和 TZID 的有效行事曆時區文件。';
+
+  @override
+  String get invalidCollectionValue => '儲存前請修正此值。';
+
+  @override
+  String get accountAlreadyConnected => '此帳戶已連線。請使用該帳戶的「重新連線」操作。';
+
+  @override
+  String get nextcloudRemovalAuthorizationDescription =>
+      'BusyMax 也會嘗試撤銷此帳戶的 Nextcloud 應用程式密碼。即使撤銷失敗，本機移除仍可成功。';
 }

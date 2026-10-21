@@ -5021,7 +5021,7 @@ abstract class AppLocalizations {
   /// No description provided for @openSharedCalendar.
   ///
   /// In en, this message translates to:
-  /// **'Open shared calendar'**
+  /// **'Open shared primary calendar'**
   String get openSharedCalendar;
 
   /// No description provided for @manageCalendarSharing.
@@ -6041,6 +6041,192 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This changes the recurrence pattern and may add or remove dates.\n\nCurrent: {before}\nProposed: {after}\n\nSave this pattern?'**
   String seriesPatternChangeConfirmation(String before, String after);
+
+  /// No description provided for @connectedAccounts.
+  ///
+  /// In en, this message translates to:
+  /// **'Connected accounts'**
+  String get connectedAccounts;
+
+  /// No description provided for @contactsIndependentAccounts.
+  ///
+  /// In en, this message translates to:
+  /// **'Independent contact accounts'**
+  String get contactsIndependentAccounts;
+
+  /// No description provided for @contactsNextcloudReuse.
+  ///
+  /// In en, this message translates to:
+  /// **'Contact suggestions reuse this account’s existing credential through the read-only contacts integration.'**
+  String get contactsNextcloudReuse;
+
+  /// No description provided for @contactsRetrySync.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry contacts sync'**
+  String get contactsRetrySync;
+
+  /// No description provided for @contactsPreferenceFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save contact source preference'**
+  String get contactsPreferenceFailed;
+
+  /// No description provided for @contactsSuggestionsDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Contact suggestions disabled'**
+  String get contactsSuggestionsDisabled;
+
+  /// No description provided for @contactsSyncFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Contacts could not sync. Retry, or reconnect if authorization has expired.'**
+  String get contactsSyncFailed;
+
+  /// No description provided for @registrationRecoveryDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'The saved registration or its credential binding is unavailable or rejected. Explicitly replace the registration for this account to recover; existing data is preserved.'**
+  String get registrationRecoveryDescription;
+
+  /// No description provided for @revalidateAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Revalidate connection'**
+  String get revalidateAccount;
+
+  /// No description provided for @openSharedPrimaryDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Opens the specified owner’s primary calendar. Other shared calendars are discovered through ordinary account synchronization.'**
+  String get openSharedPrimaryDescription;
+
+  /// No description provided for @showInBusyMax.
+  ///
+  /// In en, this message translates to:
+  /// **'Show in BusyMax'**
+  String get showInBusyMax;
+
+  /// No description provided for @showInGoogleCalendarList.
+  ///
+  /// In en, this message translates to:
+  /// **'Show in Google’s calendar list'**
+  String get showInGoogleCalendarList;
+
+  /// No description provided for @googleVisibilityHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'BusyMax selection is local. Google visibility changes your calendar list on Google; hidden calendars cannot be displayed in BusyMax.'**
+  String get googleVisibilityHelp;
+
+  /// No description provided for @primaryCalendarVisibilityExplanation.
+  ///
+  /// In en, this message translates to:
+  /// **'Google’s primary calendar stays in its calendar list.'**
+  String get primaryCalendarVisibilityExplanation;
+
+  /// No description provided for @accountsLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading accounts…'**
+  String get accountsLoading;
+
+  /// No description provided for @accountsLoadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Accounts could not be loaded. Retry opening Accounts.'**
+  String get accountsLoadFailed;
+
+  /// No description provided for @collectionsLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading collections…'**
+  String get collectionsLoading;
+
+  /// No description provided for @collectionsLoadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Collections could not be loaded. Cached data is retained; retry synchronization.'**
+  String get collectionsLoadFailed;
+
+  /// No description provided for @collectionsNotDiscovered.
+  ///
+  /// In en, this message translates to:
+  /// **'Discovery has not completed. Refresh or reconnect this account.'**
+  String get collectionsNotDiscovered;
+
+  /// No description provided for @collectionsEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No collections found.'**
+  String get collectionsEmpty;
+
+  /// No description provided for @syncNoRecord.
+  ///
+  /// In en, this message translates to:
+  /// **'No successful sync time recorded'**
+  String get syncNoRecord;
+
+  /// No description provided for @cachedSyncError.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync failed; cached data may be out of date.'**
+  String get cachedSyncError;
+
+  /// No description provided for @calendarRemotePending.
+  ///
+  /// In en, this message translates to:
+  /// **'Google visibility change pending'**
+  String get calendarRemotePending;
+
+  /// No description provided for @calendarRemoteFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Google visibility change failed. Previous confirmed state is shown; retry synchronization.'**
+  String get calendarRemoteFailed;
+
+  /// No description provided for @sharedCalendarUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Access unavailable; showing cached data. Retry synchronization or remove from your calendar list.'**
+  String get sharedCalendarUnavailable;
+
+  /// No description provided for @invalidCollectionColor.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a six- or eight-digit hexadecimal color, starting with #.'**
+  String get invalidCollectionColor;
+
+  /// No description provided for @invalidCollectionOrder.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a whole number.'**
+  String get invalidCollectionOrder;
+
+  /// No description provided for @invalidCollectionTimezone.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a valid calendar timezone document containing VTIMEZONE and TZID.'**
+  String get invalidCollectionTimezone;
+
+  /// No description provided for @invalidCollectionValue.
+  ///
+  /// In en, this message translates to:
+  /// **'Correct this value before saving.'**
+  String get invalidCollectionValue;
+
+  /// No description provided for @accountAlreadyConnected.
+  ///
+  /// In en, this message translates to:
+  /// **'This account is already connected. Use its Reconnect action.'**
+  String get accountAlreadyConnected;
+
+  /// No description provided for @nextcloudRemovalAuthorizationDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'BusyMax will also try to revoke this account’s Nextcloud app password. Local removal can succeed even if that revocation fails.'**
+  String get nextcloudRemovalAuthorizationDescription;
 }
 
 class _AppLocalizationsDelegate

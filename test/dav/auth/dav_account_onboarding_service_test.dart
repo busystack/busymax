@@ -1,18 +1,27 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:busymax/src/core/secrets/secret_store.dart';
+import 'package:busymax/src/core/auth/authorization_persistence.dart';
 import 'package:busymax/src/dav/auth/dav_account_onboarding_service.dart';
 import 'package:busymax/src/dav/auth/nextcloud_login_flow_v2.dart';
 import 'package:busymax/src/dav/dav_errors.dart';
+import 'package:busymax/src/dav/http/dav_http_transport.dart';
 import 'package:busymax/src/dav/discovery/dav_discovery_models.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/providers/provider_capabilities.dart';
-import 'package:drift/drift.dart' hide isNull;
+import 'package:busymax/src/features/sync/account_sync_operations.dart';
+import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+
+import '../../support/contacts_fixture.dart';
+import '../../support/dav_contacts_fixture.dart' as carddav;
+
+import 'package:busymax/src/contacts/busymax_contacts_controller.dart';
 
 void main() {
   late AppDatabase database;
@@ -24,6 +33,644 @@ void main() {
   });
 
   tearDown(() => database.close());
+
+  test('linked Nextcloud contact retry reuses valid authorization and Reconnect renews the parent before rebinding', () async {
+    final service = DavAccountOnboardingService(
+      database: database,
+      secretStore: secrets,
+      nextcloudLoginFlow: _successfulLoginFlow(
+        server: carddav.server.toString(),
+        rotatePasswords: true,
+      ),
+      idFactory: () => 'contacts-parent',
+      discover: ({
+        required accountId,
+        required provider,
+        required accountAuthority,
+        required credential,
+        cancellationToken,
+      }) async => _discovery(accountId, provider, accountAuthority),
+    );
+    final id = (await service.connectNextcloud(
+      enteredServer: carddav.server.toString(),
+    )).accountId;
+    var reconnects = 0;
+    final fixture = ContactsFixture(
+      database,
+      realDav: true,
+      readLinkedDavCredential: (id) async {
+        final secret =
+            (await secrets.readCredential(id))! as NextcloudSecretRecord;
+        return BusyMaxLinkedDavCredential(
+          server: secret.canonicalServer,
+          username: secret.loginName,
+          password: secret.appPassword,
+        );
+      },
+      reconnectLinkedDavAccount: (id, cancellation) async {
+        reconnects++;
+        final token = DavCancellationToken();
+        if (cancellation.isCancelled) token.cancel();
+        unawaited(cancellation.signal.then((_) => token.cancel()));
+        await service.reconnectNextcloud(
+          accountId: id,
+          enteredServer: carddav.server.toString(),
+          cancellationToken: token,
+        );
+        cancellation.committed();
+      },
+    );
+    addTearDown(fixture.controller.close);
+    final dav = carddav.DavFixture();
+    fixture.respondDav = dav.respond;
+    await fixture.controller.enableLinkedNextcloudContacts(id);
+    final contactId = BusyMaxContactsController.linkedContactAccountId(id);
+    await fixture.controller.synchronizeAccount(contactId);
+    final source = (await fixture.controller.sourceSettings()).first.source;
+    await fixture.store.setSourceEnabled(source.key, enabled: false);
+    final original = (await secrets.readCredential(id))!.toJson();
+    await fixture.controller.synchronizeAccount(contactId);
+    expect(reconnects, 0);
+    expect((await secrets.readCredential(id))!.toJson(), original);
+    await fixture.controller.reconnectContactsAccount(contactId);
+    await fixture.controller.synchronizeAccount(contactId);
+    expect(reconnects, 1);
+    expect((await secrets.readCredential(id))!.toJson(), isNot(original));
+    expect(await fixture.store.sourceEnabled(source.key), isFalse);
+    expect((await database.select(database.accounts).getSingle()).id, id);
+    expect(
+      (await fixture.store.read((tx) => tx.account(contactId)))!.enabled,
+      isTrue,
+    );
+    expect(
+      dav.requests.where(
+        (r) => ['PUT', 'DELETE', 'PROPPATCH', 'MKCOL'].contains(r.method),
+      ),
+      isEmpty,
+    );
+  });
+
+  test('queued cancelled reconnect releases its caller before the account gate and cannot recreate a removed account', () async {
+    final coordinator = AccountSyncCoordinator();
+    addTearDown(coordinator.dispose);
+    final discovered = Completer<void>();
+    var reconnecting = false;
+    final service = DavAccountOnboardingService(
+      database: database,
+      secretStore: secrets,
+      syncCoordinator: coordinator,
+      nextcloudLoginFlow: _successfulLoginFlow(rotatePasswords: true),
+      idFactory: () => 'queued',
+      discover:
+          ({
+            required accountId,
+            required provider,
+            required accountAuthority,
+            required credential,
+            cancellationToken,
+          }) async {
+            if (reconnecting && !discovered.isCompleted) discovered.complete();
+            return _discovery(accountId, provider, accountAuthority);
+          },
+    );
+    final id = (await service.connectNextcloud(
+      enteredServer: 'cloud.example.test',
+    )).accountId;
+    final entered = Completer<void>(), release = Completer<void>();
+    final blocker = coordinator.run(id, () async {
+      entered.complete();
+      await release.future;
+    });
+    await entered.future;
+    reconnecting = true;
+    final token = DavCancellationToken();
+    final reconnect = service.reconnectNextcloud(
+      accountId: id,
+      enteredServer: 'cloud.example.test',
+      cancellationToken: token,
+    );
+    final cancelled = expectLater(
+      reconnect,
+      throwsA(
+        isA<DavException>().having(
+          (e) => e.kind,
+          'kind',
+          DavErrorKind.cancelled,
+        ),
+      ),
+    );
+    await discovered.future;
+    final removed = service.removeAccount(id);
+    await cancelled;
+    expect(release.isCompleted, isFalse);
+    release.complete();
+    await blocker;
+    await removed;
+    expect(await database.select(database.accounts).get(), isEmpty);
+    expect(await secrets.readCredential(id), isNull);
+    expect(await database.select(database.authorizationCommits).get(), isEmpty);
+    final next = await service.connectNextcloud(
+      enteredServer: 'cloud.example.test',
+    );
+    expect(next.accountId, id);
+    expect((await database.select(database.accounts).getSingle()).id, id);
+  });
+
+  test('DAV credential journaling does not call native OAuth hooks and Add cannot replace an existing account', () async {
+    Never unexpected() =>
+        throw StateError('DAV must not mutate native OAuth bindings');
+    final persistence = AuthorizationPersistence(
+      database: database,
+      secrets: secrets,
+      readNativeBinding: (_) async => unexpected(),
+      restoreNativeBinding: (_, _) async => unexpected(),
+      onCredentialWritten: (_, _) async => unexpected(),
+      onRemovalCommitted: (_, _) async => unexpected(),
+    );
+    final service = DavAccountOnboardingService(
+      database: database,
+      secretStore: secrets,
+      authorizationPersistence: persistence,
+      nextcloudLoginFlow: _successfulLoginFlow(rotatePasswords: true),
+      idFactory: () => 'dav-only',
+      discover: ({
+        required accountId,
+        required provider,
+        required accountAuthority,
+        required credential,
+        cancellationToken,
+      }) async => _discovery(accountId, provider, accountAuthority),
+    );
+    final id = (await service.connectNextcloud(
+      enteredServer: 'cloud.example.test',
+    )).accountId;
+    final saved = (await secrets.readCredential(id))!.toJson();
+    await expectLater(
+      service.connectNextcloud(enteredServer: 'cloud.example.test'),
+      throwsA(
+        isA<DavException>().having(
+          (e) => e.code,
+          'code',
+          'DavAccountAlreadyConnected',
+        ),
+      ),
+    );
+    expect((await secrets.readCredential(id))!.toJson(), saved);
+    await service.reconnectNextcloud(
+      accountId: id,
+      enteredServer: 'cloud.example.test',
+    );
+    expect((await secrets.readCredential(id))!.toJson(), isNot(saved));
+    await service.removeAccount(id);
+    expect(await secrets.readCredential(id), isNull);
+    expect(await database.select(database.accounts).get(), isEmpty);
+  });
+
+  for (final state in ['permission_changed', 'unsupported_server_profile']) {
+    test(
+      '$state can revalidate without replacing identity, selections or queued work',
+      () async {
+        var reject = false;
+        final service = DavAccountOnboardingService(
+          database: database,
+          secretStore: secrets,
+          nextcloudLoginFlow: _successfulLoginFlow(),
+          idFactory: () => 'recover',
+          discover:
+              ({
+                required accountId,
+                required provider,
+                required accountAuthority,
+                required credential,
+                cancellationToken,
+              }) async {
+                if (reject) {
+                  throw const DavException(
+                    kind: DavErrorKind.authorization,
+                    code: 'DavPermissionDenied',
+                    safeMessage: 'Permissions still need repair.',
+                  );
+                }
+                return _discovery(
+                  accountId,
+                  provider,
+                  accountAuthority,
+                  collections: [_mixedCollection(accountAuthority)],
+                );
+              },
+        );
+        final id = (await service.connectNextcloud(
+          enteredServer: 'cloud.example.test',
+        )).accountId;
+        await _insertNextcloudLocalState(database, id);
+        final collection = await database
+            .select(database.davCollections)
+            .getSingle();
+        await (database.update(
+          database.davCollections,
+        )..where((r) => r.id.equals(collection.id))).write(
+          const DavCollectionsCompanion(
+            eventsSelected: Value(false),
+            tasksSelected: Value(true),
+          ),
+        );
+        await (database.update(database.accounts)
+              ..where((r) => r.id.equals(id)))
+            .write(AccountsCompanion(authState: Value(state)));
+        final beforeSecret = (await secrets.readCredential(id))!.toJson();
+        final beforePending = await database
+            .select(database.pendingOps)
+            .getSingle();
+        reject = true;
+        await expectLater(
+          service.revalidateAccount(id),
+          throwsA(isA<DavException>()),
+        );
+        expect(
+          (await database.select(database.accounts).getSingle()).authState,
+          state,
+        );
+        expect((await secrets.readCredential(id))!.toJson(), beforeSecret);
+        expect(
+          await database.select(database.pendingOps).getSingle(),
+          beforePending,
+        );
+        reject = false;
+        final result = await service.revalidateAccount(id);
+        expect(result.accountId, id);
+        final recovered = await database.select(database.accounts).getSingle();
+        expect(recovered.authState, 'signed_in');
+        expect(recovered.providerAccountId, 'alex');
+        final selected = await database
+            .select(database.davCollections)
+            .getSingle();
+        expect(selected.id, collection.id);
+        expect(selected.eventsSelected, isFalse);
+        expect(selected.tasksSelected, isTrue);
+        expect(
+          (await database.select(database.taskLists).get()).any(
+            (r) => r.id == 'cached-list',
+          ),
+          isTrue,
+        );
+        expect(
+          await database.select(database.pendingOps).getSingle(),
+          beforePending,
+        );
+        expect((await secrets.readCredential(id))!.toJson(), beforeSecret);
+      },
+    );
+  }
+
+  test('same Nextcloud username on different servers remains isolated during reconnect and removal', () async {
+    DavAccountOnboardingService service(String server, String id) =>
+        DavAccountOnboardingService(
+          database: database,
+          secretStore: secrets,
+          nextcloudLoginFlow: _successfulLoginFlow(server: server),
+          idFactory: () => id,
+          discover: ({
+            required accountId,
+            required provider,
+            required accountAuthority,
+            required credential,
+            cancellationToken,
+          }) async => _discovery(accountId, provider, accountAuthority),
+        );
+    final firstService = service('https://cloud.example.test', 'one');
+    final secondService = service('https://other.example.test', 'two');
+    final first = await firstService.connectNextcloud(
+      enteredServer: 'cloud.example.test',
+    );
+    final second = await secondService.connectNextcloud(
+      enteredServer: 'other.example.test',
+    );
+    expect(first.accountId, isNot(second.accountId));
+    final secondBefore = (await secrets.readCredential(second.accountId))!
+        .toJson();
+    await firstService.reconnectNextcloud(
+      accountId: first.accountId,
+      enteredServer: 'cloud.example.test',
+    );
+    expect(await database.select(database.accounts).get(), hasLength(2));
+    await firstService.removeAccount(first.accountId);
+    expect(
+      (await database.select(database.accounts).getSingle()).id,
+      second.accountId,
+    );
+    expect(
+      (await secrets.readCredential(second.accountId))!.toJson(),
+      secondBefore,
+    );
+    expect(await secrets.readActiveAccountId(), isNull);
+  });
+  for (final failLocal in [false, true]) {
+    test(
+      'Nextcloud coordinated removal drains contacts and isolates other accounts; local failure=$failLocal',
+      () async {
+        final fixture = ContactsFixture(
+          database,
+          realDav: true,
+          linkedDavCredential: BusyMaxLinkedDavCredential(
+            server: carddav.server,
+            username: 'alex',
+            password: 'synthetic',
+          ),
+        );
+        addTearDown(fixture.controller.close);
+        final remote = carddav.DavFixture();
+        fixture.respondDav = remote.respond;
+        var revoked = 0;
+        final service = DavAccountOnboardingService(
+          database: database,
+          secretStore: secrets,
+          nextcloudLoginFlow: _successfulLoginFlow(
+            server: carddav.server.toString(),
+          ),
+          idFactory: () => 'parent',
+          discover: ({
+            required accountId,
+            required provider,
+            required accountAuthority,
+            required credential,
+            cancellationToken,
+          }) async => _discovery(accountId, provider, accountAuthority),
+          onAccountRemovalStarting:
+              fixture.controller.beginLinkedAccountRemoval,
+          onAccountRemoving: fixture.controller.prepareLinkedAccountRemoval,
+          persistLinkedAccountRemoval:
+              fixture.controller.persistLinkedAccountRemoval,
+          onAccountRemovalFailed:
+              fixture.controller.restoreLinkedAccountAfterFailedRemoval,
+          onAccountRemoved: fixture.controller.linkedAccountRemovalCommitted,
+          onAccountRemovalFinished:
+              fixture.controller.finishLinkedAccountRemoval,
+          nextcloudCredentialRevoker:
+              ({required accountId, required credential}) async {
+                revoked++;
+              },
+        );
+        final parent = (await service.connectNextcloud(
+          enteredServer: 'cloud.example.test',
+        )).accountId;
+        await fixture.accounts.upsertSignedInAccount(
+          id: 'unrelated',
+          provider: BusyProvider.nextcloud,
+          authority: 'https://other.example.test',
+          providerAccountId: 'alex',
+          grantedScopes: '',
+        );
+        await secrets.saveCredential(
+          'unrelated',
+          NextcloudSecretRecord(
+            canonicalServer: Uri.parse('https://other.example.test'),
+            loginName: 'alex',
+            appPassword: 'other-synthetic',
+          ),
+        );
+        await fixture.controller.enableLinkedNextcloudContacts(parent);
+        final id = 'contacts:$parent';
+        await fixture.controller.synchronizeAccount(id);
+        await fixture.controller.addCardDavContactsOnly(
+          id: 'independent',
+          label: 'Independent QA',
+          server: carddav.server,
+          username: 'independent',
+          password: 'synthetic',
+        );
+        expect(
+          await fixture.store.read((tx) => tx.count(accountId: id)),
+          greaterThan(0),
+        );
+        final independentSources = await fixture.store.read(
+          (tx) => tx.sources(accountId: 'independent'),
+        );
+        await fixture.store.setSourceEnabled(
+          independentSources.first.key,
+          enabled: false,
+        );
+        if (failLocal) {
+          await database.customStatement(
+            "CREATE TRIGGER reject_parent_removal BEFORE DELETE ON accounts WHEN OLD.id = '$parent' BEGIN SELECT RAISE(ABORT, 'fixture rollback'); END",
+          );
+          await expectLater(
+            service.removeAccount(parent),
+            throwsA(isA<Exception>()),
+          );
+          expect(revoked, 0);
+          expect(
+            (await fixture.store.read((tx) => tx.account(id)))!.enabled,
+            isTrue,
+          );
+          expect(
+            await secrets.readCredential(parent),
+            isA<NextcloudSecretRecord>(),
+          );
+          await fixture.controller.synchronizeAccount(id);
+          await database.customStatement('DROP TRIGGER reject_parent_removal');
+        }
+        final entered = Completer<void>(), release = Completer<void>();
+        var block = true;
+        fixture.respondDav = (request) async {
+          if (block && request.method == 'REPORT') {
+            block = false;
+            entered.complete();
+            await release.future;
+          }
+          return remote.respond(request);
+        };
+        final lateSync = fixture.controller.synchronizeAccount(id);
+        final observed = lateSync.then<void>(
+          (_) {},
+          onError: (Object _, StackTrace _) {},
+        );
+        await entered.future;
+        final removal = service.removeAccount(parent);
+        release.complete();
+        await removal;
+        await observed;
+        expect(await fixture.store.read((tx) => tx.account(id)), isNull);
+        expect(await fixture.store.read((tx) => tx.count(accountId: id)), 0);
+        expect(await fixture.store.linkedContactAccounts(parent), isEmpty);
+        expect(
+          (await fixture.store.selection()).accountIds,
+          isNot(contains(id)),
+        );
+        expect(await fixture.accounts.accountById('unrelated'), isNotNull);
+        expect(
+          await secrets.readCredential('unrelated'),
+          isA<NextcloudSecretRecord>(),
+        );
+        expect(
+          await fixture.store.read((tx) => tx.account('independent')),
+          isNotNull,
+        );
+        expect(
+          await fixture.store.sourceEnabled(independentSources.first.key),
+          isFalse,
+        );
+        expect(revoked, 1);
+      },
+    );
+  }
+
+  for (final phase in ['discovery', 'save', 'readback', 'commit']) {
+    test(
+      'cancel during $phase restores the previous credential and leaves no commit',
+      () async {
+        final entered = Completer<void>(), release = Completer<void>();
+        final gated = _GatedSecrets(entered, release);
+        _CommitGate? commitGate;
+        if (phase == 'commit') {
+          await database.close();
+          commitGate = _CommitGate(entered, release);
+          database = AppDatabase(
+            NativeDatabase.memory().interceptWith(commitGate),
+          );
+        }
+        final token = DavCancellationToken();
+        var block = false;
+        final service = DavAccountOnboardingService(
+          database: database,
+          secretStore: gated,
+          nextcloudLoginFlow: _successfulLoginFlow(rotatePasswords: true),
+          idFactory: () => 'cancelled',
+          discover:
+              ({
+                required accountId,
+                required provider,
+                required accountAuthority,
+                required credential,
+                cancellationToken,
+              }) async {
+                if (block && phase == 'discovery') {
+                  entered.complete();
+                  await release.future;
+                }
+                return _discovery(accountId, provider, accountAuthority);
+              },
+        );
+        final initial = await service.connectNextcloud(
+          enteredServer: 'cloud.example.test',
+        );
+        final previous = await gated.readCredential(initial.accountId);
+        block = true;
+        gated.phase = phase;
+        gated.wrote = false;
+        if (commitGate != null) commitGate.enabled = true;
+        // The same flow fixture can be reused after the first operation.
+        final operation = service.reconnectNextcloud(
+          accountId: initial.accountId,
+          enteredServer: 'cloud.example.test',
+          cancellationToken: token,
+        );
+        final failure = expectLater(
+          operation,
+          throwsA(
+            isA<DavException>().having(
+              (e) => e.kind,
+              'kind',
+              DavErrorKind.cancelled,
+            ),
+          ),
+        );
+        await entered.future;
+        token.cancel();
+        release.complete();
+        await failure;
+        expect(
+          (await gated.readCredential(
+            initial.accountId,
+          ) as NextcloudSecretRecord).appPassword,
+          (previous as NextcloudSecretRecord).appPassword,
+        );
+        expect(await database.select(database.accounts).get(), hasLength(1));
+      },
+    );
+  }
+
+  test('cancellation after the SQLite commit returns success and preserves the accepted credential', () async {
+    await database.close();
+    final token = DavCancellationToken();
+    final gate = _CommitGate(Completer<void>(), Completer<void>())
+      ..afterCommit = token.cancel;
+    database = AppDatabase(NativeDatabase.memory().interceptWith(gate));
+    final service = DavAccountOnboardingService(
+      database: database,
+      secretStore: secrets,
+      nextcloudLoginFlow: _successfulLoginFlow(),
+      idFactory: () => 'committed',
+      discover: ({
+        required accountId,
+        required provider,
+        required accountAuthority,
+        required credential,
+        cancellationToken,
+      }) async => _discovery(accountId, provider, accountAuthority),
+    );
+    gate.enabled = true;
+    final result = await service.connectNextcloud(
+      enteredServer: 'cloud.example.test',
+      cancellationToken: token,
+    );
+    expect(token.isCancelled, isTrue);
+    expect(
+      (await database.select(database.accounts).getSingle()).id,
+      result.accountId,
+    );
+    expect(
+      await secrets.readCredential(result.accountId),
+      isA<NextcloudSecretRecord>(),
+    );
+    expect(await database.select(database.authorizationCommits).get(), isEmpty);
+  });
+
+  test('cancelled new credential persistence leaves no account and permits the next attempt', () async {
+    final entered = Completer<void>(), release = Completer<void>();
+    final gated = _GatedSecrets(entered, release)..phase = 'save';
+    final service = DavAccountOnboardingService(
+      database: database,
+      secretStore: gated,
+      nextcloudLoginFlow: _successfulLoginFlow(),
+      idFactory: () => 'new',
+      discover: ({
+        required accountId,
+        required provider,
+        required accountAuthority,
+        required credential,
+        cancellationToken,
+      }) async => _discovery(accountId, provider, accountAuthority),
+    );
+    final token = DavCancellationToken();
+    final operation = service.connectNextcloud(
+      enteredServer: 'cloud.example.test',
+      cancellationToken: token,
+    );
+    final cancelled = expectLater(
+      operation,
+      throwsA(
+        isA<DavException>().having(
+          (e) => e.kind,
+          'kind',
+          DavErrorKind.cancelled,
+        ),
+      ),
+    );
+    await entered.future;
+    token.cancel();
+    release.complete();
+    await cancelled;
+    expect(await database.select(database.accounts).get(), isEmpty);
+    expect(await gated.readCredential('nextcloud:new'), isNull);
+    expect(await database.select(database.authorizationCommits).get(), isEmpty);
+    final connected = await service.connectNextcloud(
+      enteredServer: 'cloud.example.test',
+    );
+    expect(
+      (await database.select(database.accounts).getSingle()).id,
+      connected.accountId,
+    );
+  });
 
   test(
     'Apple discovery completes before trimmed opaque secret is stored',
@@ -562,19 +1209,24 @@ NextcloudLoginFlowV2 _successfulLoginFlow({
   String server = 'https://cloud.example.test/',
   String loginName = 'alex',
   String appPassword = 'app-password',
+  bool rotatePasswords = false,
 }) {
   var call = 0;
   return NextcloudLoginFlowV2(
-    client: MockClient((_) async {
+    client: MockClient((request) async {
       call += 1;
-      return call == 1
+      return call.isOdd
           ? http.Response(
               jsonEncode({
                 'poll': {
                   'token': 'token',
-                  'endpoint': 'https://cloud.example.test/login/v2/poll',
+                  'endpoint': request.url
+                      .resolve('../../login/v2/poll')
+                      .toString(),
                 },
-                'login': 'https://cloud.example.test/login/v2/flow/browser',
+                'login': request.url
+                    .resolve('../../login/v2/flow/browser')
+                    .toString(),
               }),
               200,
             )
@@ -582,7 +1234,9 @@ NextcloudLoginFlowV2 _successfulLoginFlow({
               jsonEncode({
                 'server': server,
                 'loginName': loginName,
-                'appPassword': appPassword,
+                'appPassword': rotatePasswords
+                    ? '$appPassword-$call'
+                    : appPassword,
               }),
               200,
             );
@@ -590,6 +1244,34 @@ NextcloudLoginFlowV2 _successfulLoginFlow({
     browserLauncher: (_) async => true,
     delay: (_) async {},
   );
+}
+
+class _GatedSecrets extends InMemorySecretStore {
+  _GatedSecrets(this.entered, this.release);
+  final Completer<void> entered, release;
+  String? phase;
+  bool wrote = false;
+  @override
+  Future<void> saveCredential(String id, SecretRecord record) async {
+    await super.saveCredential(id, record);
+    wrote = true;
+    if (phase == 'save' && id.startsWith('nextcloud:')) {
+      phase = null;
+      entered.complete();
+      await release.future;
+    }
+  }
+
+  @override
+  Future<SecretRecord?> readCredential(String id) async {
+    final value = await super.readCredential(id);
+    if (phase == 'readback' && wrote && id.startsWith('nextcloud:')) {
+      phase = null;
+      entered.complete();
+      await release.future;
+    }
+    return value;
+  }
 }
 
 Future<void> _insertNextcloudLocalState(
@@ -644,8 +1326,9 @@ Future<void> _markPendingAuthenticationBlocked(AppDatabase database) async {
 DavDiscoveryResult _discovery(
   String accountId,
   BusyProvider provider,
-  Uri authority,
-) => DavDiscoveryResult(
+  Uri authority, {
+  List<DavCollectionDiscovery> collections = const [],
+}) => DavDiscoveryResult(
   accountId: accountId,
   provider: provider,
   service: DavServiceDiscovery(
@@ -664,5 +1347,106 @@ DavDiscoveryResult _discovery(
     lastValidatedAtUtc: DateTime.utc(2026, 8, 8, 12),
     providerProfileVersion: 1,
   ),
-  collections: const [],
+  collections: collections,
 );
+
+DavCollectionDiscovery _mixedCollection(Uri authority) =>
+    DavCollectionDiscovery(
+      hrefKey: '/calendars/user/mixed/',
+      requestUri: authority.resolve('/calendars/user/mixed/'),
+      displayName: 'Mixed QA',
+      description: null,
+      resourceTypes: const {
+        '{DAV:}collection',
+        '{urn:ietf:params:xml:ns:caldav}calendar',
+      },
+      supportedComponentMask: 3,
+      supportedCalendarData: const [],
+      supportedReports: const {},
+      currentUserPrivileges: const {
+        '{DAV:}read',
+        '{DAV:}write',
+        '{DAV:}write-properties',
+      },
+      ownerHref: null,
+      safeDisplayMetadata: const {},
+      color: null,
+      sortOrder: null,
+      calendarTimeZone: null,
+      calendarTimeZoneId: null,
+      scheduleTransparency: null,
+      maximumResourceSize: null,
+      maximumInstances: null,
+      syncToken: null,
+      ctag: null,
+      capabilities: const CollectionCapabilities(
+        canRead: true,
+        canWriteContent: true,
+        canWriteProperties: true,
+        canAddMembers: true,
+        canDeleteMembers: true,
+        supportsEvents: true,
+        supportsTasks: true,
+      ),
+      kind: DavCollectionKind.mixedCalendar,
+      eventProjectionEnabled: true,
+      taskProjectionEnabled: true,
+    );
+
+class _CommitGate extends QueryInterceptor {
+  _CommitGate(this.entered, this.release);
+  final Completer<void> entered, release;
+  bool enabled = false;
+  void Function()? afterCommit;
+  QueryExecutor? accountTransaction;
+  @override
+  Future<int> runInsert(
+    QueryExecutor executor,
+    String statement,
+    List<Object?> args,
+  ) async {
+    final result = await super.runInsert(executor, statement, args);
+    if (enabled && statement.startsWith('INSERT INTO "accounts"')) {
+      accountTransaction ??= executor;
+    }
+    if (enabled &&
+        afterCommit == null &&
+        statement.startsWith('INSERT INTO "accounts"')) {
+      enabled = false;
+      entered.complete();
+      await release.future;
+    }
+    return result;
+  }
+
+  @override
+  Future<int> runUpdate(
+    QueryExecutor executor,
+    String statement,
+    List<Object?> args,
+  ) async {
+    final result = await super.runUpdate(executor, statement, args);
+    if (enabled && statement.startsWith('UPDATE "accounts"')) {
+      accountTransaction ??= executor;
+    }
+    if (enabled &&
+        afterCommit == null &&
+        statement.startsWith('UPDATE "accounts"')) {
+      enabled = false;
+      entered.complete();
+      await release.future;
+    }
+    return result;
+  }
+
+  @override
+  Future<void> commitTransaction(TransactionExecutor inner) async {
+    await super.commitTransaction(inner);
+    if (enabled &&
+        afterCommit != null &&
+        identical(accountTransaction, inner)) {
+      enabled = false;
+      afterCommit!();
+    }
+  }
+}

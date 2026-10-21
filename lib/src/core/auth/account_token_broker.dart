@@ -34,6 +34,7 @@ abstract interface class ContactsAuthorizationBroker {
     String accountId, {
     AuthorizationCancellation? cancellation,
     Future<void> Function()? persistContacts,
+    bool forceAuthorization = false,
   });
 
   Future<String> contactsAuthorizationHeader(
@@ -62,16 +63,19 @@ final class DesktopAccountTokenBroker
     String accountId, {
     AuthorizationCancellation? cancellation,
     Future<void> Function()? persistContacts,
+    bool forceAuthorization = false,
   }) => switch (provider) {
     BusyProvider.google => google.authorizeGoogleContacts(
       accountId,
       cancellation: cancellation,
       persistContacts: persistContacts,
+      forceAuthorization: forceAuthorization,
     ),
     BusyProvider.microsoft => microsoft.authorizeMicrosoftContacts(
       accountId,
       cancellation: cancellation,
       persistContacts: persistContacts,
+      forceAuthorization: forceAuthorization,
     ),
     _ => throw StateError('$provider does not use OAuth contacts access.'),
   };

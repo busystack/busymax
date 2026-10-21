@@ -42,6 +42,60 @@ void main() {
         );
   });
 
+  for (final (property, invalid, valid, message) in [
+    ('displayname', ' ', 'Repaired QA collection', 'This field is required.'),
+    (
+      'calendar-color',
+      'red?',
+      '#12345678',
+      'Enter a six- or eight-digit hexadecimal color, starting with #.',
+    ),
+    ('calendar-order', 'first', '4', 'Enter a whole number.'),
+    (
+      'calendar-timezone',
+      'not a timezone',
+      'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VTIMEZONE\r\nTZID:Etc/UTC\r\nEND:VTIMEZONE\r\nEND:VCALENDAR\r\n',
+      'Enter a valid calendar timezone document containing VTIMEZONE and TZID.',
+    ),
+  ]) {
+    testWidgets(
+      'Linux validates $property locally, retains its draft and allows correction',
+      (tester) async {
+        final fixture = NextcloudAdminFixture();
+        await tester.runAsync(fixture.seed);
+        addTearDown(fixture.close);
+        await _pump(tester, fixture, false);
+        if (property == 'calendar-timezone') {
+          await tester.ensureVisible(find.text('Advanced'));
+          await tester.tap(find.text('Advanced'));
+          await tester.pumpAndSettle();
+        }
+        final field = find.byKey(ValueKey('nextcloud-$property'));
+        await tester.ensureVisible(field);
+        await tester.enterText(field, invalid);
+        await tester.pump();
+        final requests = fixture.requests.length;
+        await tester.tap(find.text('Save'));
+        await tester.pumpAndSettle();
+        expect(find.text(message), findsOneWidget);
+        expect(fixture.requests.length, requests);
+        expect(tester.widget<TextField>(field).controller!.text, invalid);
+        expect(find.text('Nextcloud could not be reached.'), findsNothing);
+        await tester.enterText(field, valid);
+        await tester.pump();
+        await tester.tap(find.text('Save'));
+        await _settle(tester);
+        expect(
+          fixture.requests.where((r) => r.method == 'PROPPATCH'),
+          hasLength(1),
+        );
+        expect(find.text(message), findsNothing);
+        expect(tester.widget<TextField>(field).controller!.text, valid);
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+  }
+
   for (final windows in [false, true]) {
     final platform = windows ? 'Windows' : 'Linux';
     testWidgets('$platform initiates a federated calendar share', (

@@ -756,18 +756,21 @@ final class AndroidAuthorizationBroker
     String id, {
     AuthorizationCancellation? cancellation,
     Future<void> Function()? persistContacts,
+    bool forceAuthorization = false,
   }) async {
     final attempt = _attempts.begin(_nowUtc, cancellation);
     NativeOAuthCredential? current;
     const scope = googleContactsReadScope;
     try {
       current = await attempt.wait(nativeCredential(id, BusyProvider.google));
-      if (await _persistExistingContacts(
-        id,
-        current!,
-        attempt,
-        persistContacts,
-      )) {
+      if (!forceAuthorization &&
+          await _parentConnected(id) &&
+          await _persistExistingContacts(
+            id,
+            current!,
+            attempt,
+            persistContacts,
+          )) {
         attempt.committed();
         return;
       }
@@ -794,11 +797,13 @@ final class AndroidAuthorizationBroker
     String id, {
     AuthorizationCancellation? cancellation,
     Future<void> Function()? persistContacts,
+    bool forceAuthorization = false,
   }) => _optionalNativeConsent(
     id,
     _microsoftContactsReadNativeScope,
     cancellation,
     persistContacts: persistContacts,
+    forceAuthorization: forceAuthorization,
   );
 
   @override
@@ -807,16 +812,19 @@ final class AndroidAuthorizationBroker
     String accountId, {
     AuthorizationCancellation? cancellation,
     Future<void> Function()? persistContacts,
+    bool forceAuthorization = false,
   }) => switch (provider) {
     BusyProvider.google => authorizeGoogleContacts(
       accountId,
       cancellation: cancellation,
       persistContacts: persistContacts,
+      forceAuthorization: forceAuthorization,
     ),
     BusyProvider.microsoft => authorizeMicrosoftContacts(
       accountId,
       cancellation: cancellation,
       persistContacts: persistContacts,
+      forceAuthorization: forceAuthorization,
     ),
     _ => throw StateError('$provider does not use OAuth contacts access.'),
   };
@@ -826,6 +834,7 @@ final class AndroidAuthorizationBroker
     String scope,
     AuthorizationCancellation? cancellation, {
     Future<void> Function()? persistContacts,
+    bool forceAuthorization = false,
   }) async {
     final attempt = _attempts.begin(_nowUtc, cancellation);
     NativeOAuthCredential? current;
@@ -833,7 +842,9 @@ final class AndroidAuthorizationBroker
       current = await attempt.wait(
         nativeCredential(id, BusyProvider.microsoft),
       );
-      if (scope == _microsoftContactsReadNativeScope &&
+      if (!forceAuthorization &&
+          await _parentConnected(id) &&
+          scope == _microsoftContactsReadNativeScope &&
           await _persistExistingContacts(
             id,
             current!,
@@ -860,6 +871,12 @@ final class AndroidAuthorizationBroker
       _attempts.finish(attempt);
     }
   }
+
+  Future<bool> _parentConnected(String id) async =>
+      (await (persistence!.database.select(
+        persistence!.database.accounts,
+      )..where((r) => r.id.equals(id))).getSingleOrNull())?.authState ==
+      'signed_in';
 
   Future<void> _writeNativeGrants(String id, OAuthTokenSet tokens) async =>
       await (persistence!.database.update(

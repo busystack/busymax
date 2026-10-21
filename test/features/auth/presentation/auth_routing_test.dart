@@ -112,7 +112,7 @@ void main() {
 
   for (final mode in ['wrong-account', 'cancel', 'unverified', 'offline']) {
     testWidgets(
-      'targeted Google recovery $mode retains the old account and offers safe recovery',
+      'targeted Google registration recovery $mode retains the old account and offers safe recovery',
       (tester) async {
         await _insertAccount(
           database,
@@ -161,20 +161,23 @@ void main() {
         container
             .read(appRouterProvider)
             .go('/settings?page=accounts&reconnect=legacy-local');
-        for (
-          var i = 0;
-          i < 20 &&
-              find
-                  .byKey(const ValueKey('registration-methods-dialog'))
-                  .evaluate()
-                  .isEmpty;
-          i++
-        ) {
-          await tester.runAsync(
-            () => Future<void>.delayed(const Duration(milliseconds: 10)),
-          );
-          await tester.pumpAndSettle();
-        }
+        await _waitForAccountAction(
+          tester,
+          find.byKey(
+            const ValueKey('replace-registration-recovery-legacy-local'),
+          ),
+        );
+        // Let the first, expected missing-registration message expire before
+        // asserting the result of the explicit replacement attempt.
+        await tester.pump(const Duration(seconds: 5));
+        await tester.pumpAndSettle();
+        expect(fixture.flow.clients, isEmpty);
+        await tester.tap(
+          find.byKey(
+            const ValueKey('replace-registration-recovery-legacy-local'),
+          ),
+        );
+        await tester.pumpAndSettle();
         expect(
           find.byKey(const ValueKey('registration-reconnect-account')),
           findsOneWidget,
@@ -207,23 +210,12 @@ void main() {
             findsOneWidget,
           );
         } else if (mode == 'cancel') {
-          container
-              .read(appRouterProvider)
-              .go('/settings?page=accounts&reconnect=legacy-local');
-          for (
-            var i = 0;
-            i < 20 &&
-                find
-                    .byKey(const ValueKey('registration-methods-dialog'))
-                    .evaluate()
-                    .isEmpty;
-            i++
-          ) {
-            await tester.runAsync(
-              () => Future<void>.delayed(const Duration(milliseconds: 10)),
-            );
-            await tester.pumpAndSettle();
-          }
+          final retry = find.byKey(
+            const ValueKey('replace-registration-recovery-legacy-local'),
+          );
+          await tester.ensureVisible(retry);
+          await tester.tap(retry);
+          await tester.pumpAndSettle();
           expect(
             find.byKey(const ValueKey('registration-reconnect-account')),
             findsOneWidget,
@@ -379,8 +371,8 @@ void main() {
           () => Future<void>.delayed(const Duration(milliseconds: 20)),
         );
         await tester.pumpAndSettle();
-        await tester.ensureVisible(find.text('Connect'));
-        await tester.tap(find.text('Connect'));
+        await tester.ensureVisible(find.text('Reconnect this account'));
+        await tester.tap(find.text('Reconnect this account'));
         await tester.pumpAndSettle();
         expect(
           find.byKey(const ValueKey('registration-methods-dialog')),
@@ -400,6 +392,7 @@ void main() {
           record.registration.clientId,
           record.registration.clientId,
         ]);
+        await _expandAccountAdvanced(tester, id);
         await tester.ensureVisible(find.text('Replace registration'));
         await tester.tap(find.text('Replace registration'));
         await tester.pumpAndSettle();
@@ -560,6 +553,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       await _openSettings(tester);
+      await _expandAccountAdvanced(tester, 'google:existing');
       expect(find.text('Migrate now'), findsNWidgets(2));
       await tester.ensureVisible(find.text('Migrate now').first);
       await tester.tap(find.text('Migrate now').first);
@@ -568,6 +562,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Migrate now'), findsNWidgets(2));
       expect(flow.clients, isEmpty);
+      await tester.ensureVisible(find.text('Migrate now').first);
       await tester.tap(find.text('Migrate now').first);
       await tester.pumpAndSettle();
       await _validateAndAuthorizeGoogleSetup(tester);
@@ -613,6 +608,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       await _openSettings(tester);
+      await _expandAccountAdvanced(tester, 'google:existing');
       expect(find.text('Migrate now'), findsOneWidget);
       expect(find.textContaining('User-provided registration'), findsOneWidget);
       await _disposeApp(tester);
@@ -780,6 +776,12 @@ void main() {
       await tester.ensureVisible(action);
       await tester.tap(action);
       await tester.pumpAndSettle();
+      final replacement = find.byKey(
+        const ValueKey('replace-registration-recovery-account-1'),
+      );
+      await _waitForAccountAction(tester, replacement);
+      await tester.tap(replacement);
+      await tester.pumpAndSettle();
       expect(
         find.byKey(const ValueKey('registration-reconnect-account')),
         findsOneWidget,
@@ -792,7 +794,8 @@ void main() {
             .authState,
         accountAuthStateReauthRequired,
       );
-      await tester.tap(action);
+      await tester.ensureVisible(replacement);
+      await tester.tap(replacement);
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('registration-busymax')));
       for (var i = 0; i < 40; i++) {
@@ -1398,6 +1401,7 @@ void main() {
     );
     final router = container.read(appRouterProvider);
 
+    await tester.ensureVisible(find.text('Remove account…').first);
     await tester.tap(find.text('Remove account…').first);
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('confirm-account-removal')));
@@ -1462,6 +1466,7 @@ void main() {
       expect(settingsUri.path, '/settings');
       expect(settingsUri.queryParameters['page'], 'accounts');
 
+      await tester.ensureVisible(find.text('Remove account…').first);
       await tester.tap(find.text('Remove account…').first);
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('confirm-account-removal')));
@@ -1666,7 +1671,6 @@ void main() {
       await tester.ensureVisible(action);
       await tester.tap(action);
       await tester.pumpAndSettle();
-      await _validateAndAuthorizeGoogleSetup(tester);
       await tester.pump();
 
       final sessionWhileReconnecting = container.read(
@@ -1703,6 +1707,35 @@ void main() {
       await _disposeApp(tester);
     },
   );
+}
+
+Future<void> _waitForAccountAction(WidgetTester tester, Finder action) async {
+  for (var i = 0; i < 40 && action.evaluate().isEmpty; i++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 10)),
+    );
+    await tester.pumpAndSettle();
+  }
+  expect(action, findsOneWidget);
+  await tester.ensureVisible(action);
+  await tester.pumpAndSettle();
+}
+
+Future<void> _expandAccountAdvanced(WidgetTester tester, String id) async {
+  final advanced = find.byKey(ValueKey('account-advanced-$id'));
+  await tester.ensureVisible(advanced);
+  await tester.pumpAndSettle();
+  final fade = find.descendant(
+    of: advanced,
+    matching: find.byType(AnimatedCrossFade),
+  );
+  if (tester.widget<AnimatedCrossFade>(fade.first).crossFadeState ==
+      CrossFadeState.showSecond) {
+    await tester.tap(
+      find.descendant(of: advanced, matching: find.text('Advanced')),
+    );
+    await tester.pumpAndSettle();
+  }
 }
 
 Future<void> _connectGoogleThroughSettings(WidgetTester tester) async {

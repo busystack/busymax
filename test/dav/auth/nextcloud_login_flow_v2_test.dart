@@ -1,12 +1,92 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:busymax/src/dav/auth/nextcloud_login_flow_v2.dart';
 import 'package:busymax/src/dav/dav_errors.dart';
+import 'package:busymax/src/dav/http/dav_http_transport.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  for (final phase in ['browser', 'poll', 'delay']) {
+    test(
+      'external cancellation releases blocked $phase and isolates the next attempt',
+      () async {
+        final entered = Completer<void>(), release = Completer<void>();
+        var block = true, polls = 0;
+        final flow = NextcloudLoginFlowV2(
+          client: MockClient((request) async {
+            if (request.url.path.endsWith('/index.php/login/v2')) {
+              return http.Response(
+                jsonEncode({
+                  'poll': {
+                    'token': 'synthetic',
+                    'endpoint': 'https://cloud.example.test/poll',
+                  },
+                  'login': 'https://cloud.example.test/browser',
+                }),
+                200,
+              );
+            }
+            polls++;
+            if (block && phase == 'poll') {
+              entered.complete();
+              await release.future;
+            }
+            if (block && phase == 'delay') return http.Response('', 404);
+            return http.Response(
+              jsonEncode({
+                'server': 'https://cloud.example.test',
+                'loginName': 'qa',
+                'appPassword': 'synthetic',
+              }),
+              200,
+            );
+          }),
+          browserLauncher: (_) async {
+            if (block && phase == 'browser') {
+              entered.complete();
+              await release.future;
+            }
+            return true;
+          },
+          delay: (_) async {
+            entered.complete();
+            await release.future;
+          },
+        );
+        final oldToken = DavCancellationToken();
+        final first = flow.start(
+          'cloud.example.test',
+          cancellationToken: oldToken,
+        );
+        final cancelled = expectLater(
+          first,
+          throwsA(
+            isA<DavException>().having(
+              (e) => e.kind,
+              'kind',
+              DavErrorKind.cancelled,
+            ),
+          ),
+        );
+        await entered.future;
+        oldToken.cancel();
+        // The first request is still blocked: cancellation must release its guard.
+        await cancelled;
+        block = false;
+        final second = await flow.start('cloud.example.test');
+        expect(second.loginName, 'qa');
+        final completedPolls = polls;
+        release.complete();
+        // Drain the deliberately late callback; it must not poll or clear new work.
+        await Future<void>.value();
+        await Future<void>.value();
+        expect(polls, completedPolls);
+      },
+    );
+  }
   test('normalizes HTTPS while preserving an installation path', () {
     expect(
       normalizeNextcloudLoginServer(' cloud.example.test/nextcloud/ '),
