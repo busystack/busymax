@@ -1,4 +1,5 @@
 {
+  "contactsAccountsUnavailable": "No se pudieron cargar las cuentas de contactos",
   "contactsTitle": "Contactos",
   "contactsLinkedDescription": "Usa los contactos almacenados de esta cuenta al añadir invitados a eventos.",
   "contactsEnableSuggestions": "Activar sugerencias de contactos",

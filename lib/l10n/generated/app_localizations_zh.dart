@@ -14,6 +14,9 @@ class AppLocalizationsZh extends AppLocalizations {
   AppLocalizationsZh([String locale = 'zh']) : super(locale);
 
   @override
+  String get contactsAccountsUnavailable => '无法加载联系人账户';
+
+  @override
   String get launchAtLoginManagedExternally =>
       'BusyMax 由桌面的启动设置启动。请在那里移除 BusyMax 的条目，然后完全退出并重新打开 BusyMax，以使用此开关。';
 
@@ -3601,6 +3604,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   AppLocalizationsZhHans() : super('zh_Hans');
 
   @override
+  String get contactsAccountsUnavailable => '无法加载联系人账户';
+
+  @override
   String get launchAtLoginManagedExternally =>
       'BusyMax 由桌面的启动设置启动。请在那里移除 BusyMax 的条目，然后完全退出并重新打开 BusyMax，以使用此开关。';
 
@@ -7186,6 +7192,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 /// The translations for Chinese, using the Han script (`zh_Hant`).
 class AppLocalizationsZhHant extends AppLocalizationsZh {
   AppLocalizationsZhHant() : super('zh_Hant');
+
+  @override
+  String get contactsAccountsUnavailable => '無法載入聯絡人帳號';
 
   @override
   String get launchAtLoginManagedExternally =>

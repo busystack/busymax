@@ -1,4 +1,5 @@
 {
+  "contactsAccountsUnavailable": "無法載入聯絡人帳號",
   "contactsTitle": "聯絡人",
   "contactsLinkedDescription": "新增活動來賓時使用此帳號快取的聯絡人。",
   "contactsEnableSuggestions": "啟用聯絡人建議",

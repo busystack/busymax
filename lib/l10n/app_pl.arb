@@ -1,4 +1,5 @@
 {
+  "contactsAccountsUnavailable": "Nie udało się wczytać kont kontaktów",
   "contactsTitle": "Kontakty",
   "contactsLinkedDescription": "Używaj kontaktów z pamięci podręcznej tego konta podczas dodawania gości wydarzenia.",
   "contactsEnableSuggestions": "Włącz sugestie kontaktów",

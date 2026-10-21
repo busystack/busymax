@@ -1,4 +1,5 @@
 {
+  "contactsAccountsUnavailable": "Kontaktkonten konnten nicht geladen werden",
   "contactsTitle": "Kontakte",
   "contactsLinkedDescription": "Beim Hinzufügen von Veranstaltungsgästen zwischengespeicherte Kontakte dieses Kontos verwenden.",
   "contactsEnableSuggestions": "Kontaktvorschläge aktivieren",

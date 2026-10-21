@@ -14,6 +14,10 @@ class AppLocalizationsPt extends AppLocalizations {
   AppLocalizationsPt([String locale = 'pt']) : super(locale);
 
   @override
+  String get contactsAccountsUnavailable =>
+      'Não foi possível carregar as contas de contatos';
+
+  @override
   String get launchAtLoginManagedExternally =>
       'BusyMax was launched by your desktop\'s startup settings. Remove its entry there, then quit and reopen BusyMax to use this switch.';
 
@@ -3776,6 +3780,10 @@ class AppLocalizationsPt extends AppLocalizations {
 /// The translations for Portuguese, as used in Portugal (`pt_PT`).
 class AppLocalizationsPtPt extends AppLocalizationsPt {
   AppLocalizationsPtPt() : super('pt_PT');
+
+  @override
+  String get contactsAccountsUnavailable =>
+      'Não foi possível carregar as contas de contactos';
 
   @override
   String get launchAtLoginManagedExternally =>

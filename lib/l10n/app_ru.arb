@@ -1,4 +1,5 @@
 {
+  "contactsAccountsUnavailable": "Не удалось загрузить учётные записи контактов",
   "contactsTitle": "Контакты",
   "contactsLinkedDescription": "Использовать кэшированные контакты этой учётной записи при добавлении гостей события.",
   "contactsEnableSuggestions": "Включить предложения контактов",

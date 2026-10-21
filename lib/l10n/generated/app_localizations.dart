@@ -135,6 +135,12 @@ abstract class AppLocalizations {
     Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant'),
   ];
 
+  /// No description provided for @contactsAccountsUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load contact accounts'**
+  String get contactsAccountsUnavailable;
+
   /// No description provided for @launchAtLoginManagedExternally.
   ///
   /// In en, this message translates to:

@@ -14,6 +14,9 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
+  String get contactsAccountsUnavailable => 'Could not load contact accounts';
+
+  @override
   String get launchAtLoginManagedExternally =>
       'BusyMax was launched by your desktop\'s startup settings. Remove its entry there, then quit and reopen BusyMax to use this switch.';
 

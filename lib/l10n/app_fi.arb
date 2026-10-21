@@ -1,4 +1,5 @@
 {
+  "contactsAccountsUnavailable": "Yhteystietotilejä ei voitu ladata",
   "contactsTitle": "Yhteystiedot",
   "contactsLinkedDescription": "Käytä tämän tilin välimuistissa olevia yhteystietoja tapahtuman vieraita lisättäessä.",
   "contactsEnableSuggestions": "Ota yhteystietoehdotukset käyttöön",

@@ -26,6 +26,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -63,6 +64,8 @@ import 'package:busymax/src/webcal/webcal_http_client.dart';
 import 'package:busymax/src/webcal/webcal_subscription_service.dart';
 import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:drift/native.dart';
+import 'package:drift/drift.dart'
+    show QueryInterceptor, QueryExecutor, ApplyInterceptor;
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:ubuntu_localizations/ubuntu_localizations.dart';
@@ -76,6 +79,7 @@ import 'package:busymax/src/platform/common/desktop_services.dart';
 const _nativeMenuChannel = MethodChannel(nativeMenuChannelName);
 
 void main() {
+  registerContactsOverviewRegressions();
   for (final sharedFailure in [false, true]) {
     testWidgets(
       'temporary account status preserves distinct service recovery; shared=$sharedFailure',
@@ -3901,6 +3905,7 @@ Future<void> _pumpSettings(
   Size? logicalSize,
   TextScaler? textScaler,
   Locale locale = const Locale('en'),
+  ThemeData? theme,
   SettingsPage initialPage = SettingsPage.accounts,
   bool openSelectedAccount = true,
 }) async {
@@ -3921,7 +3926,7 @@ Future<void> _pumpSettings(
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
-      child: localizedTestApp(locale: locale, child: settings),
+      child: localizedTestApp(locale: locale, theme: theme, child: settings),
     ),
   );
   await tester.pumpAndSettle();
@@ -4081,6 +4086,434 @@ class _DelayedLookupAccountsRepository extends _FakeAccountsRepository {
   final lookup = Completer<AccountEntity?>();
   @override
   Future<AccountEntity?> accountById(String accountId) => lookup.future;
+}
+
+/// Holds actual repository reads at the UI preparation boundary. The query
+/// completes against SQLite before yielding, so other inventories remain usable.
+class _ContactLookupGate extends QueryInterceptor {
+  String? statementContaining;
+  bool fail = false;
+  Completer<void> entered = Completer<void>();
+  Completer<void> release = Completer<void>();
+
+  @override
+  Future<List<Map<String, Object?>>> runSelect(
+    QueryExecutor executor,
+    String statement,
+    List<Object?> args,
+  ) async {
+    final rows = await super.runSelect(executor, statement, args);
+    final target = statementContaining;
+    if (target != null && statement.contains(target)) {
+      statementContaining = null;
+      entered.complete();
+      await release.future;
+      if (fail) throw StateError('synthetic inventory read failure');
+    }
+    return rows;
+  }
+}
+
+void registerContactsOverviewRegressions() {
+  for (final pause in [
+    'linked linkage',
+    'linked account',
+    'independent linkage',
+    'independent credential',
+  ]) {
+    for (final destination in ['account', 'category']) {
+      testWidgets(
+        'Contacts Reconnect preparation belongs to its view: $pause → $destination',
+        (tester) async {
+          final linked = pause.startsWith('linked');
+          final gate = _ContactLookupGate();
+          final secretEntered = Completer<void>();
+          final secretRelease = Completer<void>();
+          var holdSecret = false;
+          late ContactsFixture f;
+          f = ContactsFixture(
+            AppDatabase(NativeDatabase.memory().interceptWith(gate)),
+            readDavSecret: (id) async {
+              final encoded = f.davSecrets[id];
+              if (holdSecret) {
+                holdSecret = false;
+                secretEntered.complete();
+                await secretRelease.future;
+              }
+              return encoded;
+            },
+          );
+          final contact = ContactAccount(
+            id: linked ? 'contacts:nextcloud:n' : 'independent-qa',
+            provider: ContactProviderKind.carddav,
+            displayName: 'Synthetic contacts',
+            subject: 'qa-user',
+            enabled: true,
+            errorCode: 'contacts:authentication:synthetic-expired',
+            grantedScopes: const {'carddav:read'},
+          );
+          await tester.runAsync(() async {
+            await f.accounts.upsertSignedInAccount(
+              id: _nextcloudAccount.id,
+              provider: BusyProvider.nextcloud,
+              providerAccountId: _nextcloudAccount.providerAccountId,
+              authority: _nextcloudAccount.authority,
+              grantedScopes: '',
+            );
+            if (linked) {
+              await f.store.saveLinkedAccount(
+                account: contact,
+                busyMaxAccountId: _nextcloudAccount.id,
+                reuseAuthorization: true,
+              );
+            } else {
+              await f.store.write((tx) => tx.putAccount(contact));
+              f.davSecrets[contact.id] = jsonEncode({
+                'version': 1,
+                'server': 'https://contacts.example.test',
+                'username': contact.subject,
+                'password': 'synthetic-only',
+                'readOnly': true,
+              });
+            }
+          });
+          final container = _container(
+            selectedAccountId: _nextcloudAccount.id,
+            authRepository: _FakeAuthRepository(),
+            accounts: const [_nextcloudAccount, _googleAccount],
+            contactsFixture: f,
+            accountsRepository: f.accounts,
+          );
+          addTearDown(() async {
+            if (!gate.release.isCompleted) gate.release.complete();
+            if (!secretRelease.isCompleted) secretRelease.complete();
+            await _disposeDiagnosticsWidget(tester);
+            container.dispose();
+            await complete(tester, f.close);
+          });
+          await _pumpSettings(
+            tester,
+            container,
+            logicalSize: const Size(1200, 1300),
+            openSelectedAccount: linked,
+          );
+          await complete(
+            tester,
+            () => container.read(independentContactAccountIdsProvider.future),
+          );
+          await tester.pumpAndSettle();
+          if (!linked) {
+            final entry = find.byKey(
+              ValueKey('contact-account-entry-${contact.id}'),
+            );
+            await tester.ensureVisible(entry);
+            await tester.tap(entry);
+            await tester.pumpAndSettle();
+          }
+          if (pause.endsWith('linkage')) {
+            gate.statementContaining = 'SELECT busymax_account_id FROM';
+          } else if (linked) {
+            gate.statementContaining = 'FROM "accounts" WHERE';
+          } else {
+            holdSecret = true;
+          }
+          final reconnect = find.byKey(
+            ValueKey(
+              linked
+                  ? 'reconnect-contacts-${_nextcloudAccount.id}'
+                  : 'contact-account-recovery-${contact.id}',
+            ),
+          );
+          await tester.ensureVisible(reconnect);
+          await tester.tap(reconnect);
+          await complete(
+            tester,
+            () => pause.endsWith('credential')
+                ? secretEntered.future
+                : gate.entered.future,
+          );
+          if (destination == 'category') {
+            await tester.tap(
+              find.byKey(const ValueKey('settings-navigation-schedule')),
+            );
+          } else {
+            await tester.tap(
+              find.byKey(const ValueKey('settings-header-back-button')),
+            );
+            await tester.pumpAndSettle();
+            final other = find.byKey(const ValueKey('account-entry-google:g'));
+            await tester.ensureVisible(other);
+            await tester.tap(other);
+          }
+          await tester.pumpAndSettle();
+          gate.release.complete();
+          secretRelease.complete();
+          await tester.pumpAndSettle();
+          expect(find.byKey(const Key('nextcloud-server-field')), findsNothing);
+          expect(find.byType(BusyMaxPromptDialog), findsNothing);
+          expect(f.requests, isEmpty);
+          expect(
+            (await complete(
+              tester,
+              () => f.store.read((tx) => tx.account(contact.id)),
+            ))!.toJson(),
+            contact.toJson(),
+          );
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+  }
+
+  for (final inventory in ['accounts', 'independent IDs']) {
+    for (final cached in [false, true]) {
+      testWidgets(
+        'Independent contact inventory failure and Retry retain stored entries: $inventory cached=$cached',
+        (tester) async {
+          final gate = _ContactLookupGate();
+          final f = ContactsFixture(
+            AppDatabase(NativeDatabase.memory().interceptWith(gate)),
+          );
+          const contact = ContactAccount(
+            id: 'independent-qa',
+            provider: ContactProviderKind.carddav,
+            displayName: 'Existing synthetic contact account',
+            subject: 'qa-user',
+            enabled: false,
+            grantedScopes: {'carddav:read'},
+          );
+          await tester.runAsync(
+            () => f.store.write((tx) => tx.putAccount(contact)),
+          );
+          void blockInventory() {
+            gate.statementContaining = inventory == 'accounts'
+                ? 'SELECT data FROM bm_contact_accounts ORDER BY id'
+                : 'SELECT a.id FROM bm_contact_accounts a';
+            gate.fail = true;
+          }
+
+          if (!cached) blockInventory();
+          final container = _container(
+            selectedAccountId: '',
+            authRepository: _FakeAuthRepository(),
+            accounts: const [],
+            contactsFixture: f,
+          );
+          addTearDown(() async {
+            if (!gate.release.isCompleted) gate.release.complete();
+            await _disposeDiagnosticsWidget(tester);
+            container.dispose();
+            await complete(tester, f.close);
+          });
+          if (!cached && inventory == 'independent IDs') {
+            // Settle its dependency before holding the first independent-ID
+            // read; a superseded earlier read must not satisfy this test.
+            await complete(
+              tester,
+              () => container.read(busyMaxContactAccountsProvider.future),
+            );
+          }
+          await _pumpSettings(
+            tester,
+            container,
+            logicalSize: const Size(1200, 1300),
+            openSelectedAccount: false,
+          );
+          if (cached) {
+            await complete(
+              tester,
+              () => container.read(independentContactAccountIdsProvider.future),
+            );
+            await tester.pumpAndSettle();
+            expect(
+              find.byKey(
+                const ValueKey('contact-account-entry-independent-qa'),
+              ),
+              findsOneWidget,
+            );
+            blockInventory();
+            if (inventory == 'accounts') {
+              container.invalidate(busyMaxContactAccountsProvider);
+            } else {
+              container.invalidate(independentContactAccountIdsProvider);
+            }
+          }
+          await complete(tester, () => gate.entered.future);
+          await tester.pump();
+          expect(
+            find.byKey(const ValueKey('contacts-inventory-loading')),
+            findsOneWidget,
+          );
+          gate.release.complete();
+          await complete(tester, () async {
+            try {
+              if (inventory == 'accounts') {
+                await container.read(busyMaxContactAccountsProvider.future);
+              } else {
+                await container.read(
+                  independentContactAccountIdsProvider.future,
+                );
+              }
+            } on StateError {
+              /* Expected real SQLite-read fixture failure. */
+            }
+          });
+          await tester.pumpAndSettle();
+          expect(find.text('Could not load contact accounts'), findsOneWidget);
+          expect(
+            find.byKey(const ValueKey('contacts-inventory-loading')),
+            findsNothing,
+          );
+          expect(find.textContaining('synthetic inventory'), findsNothing);
+          expect(
+            find.byKey(const ValueKey('add-carddav-contacts')),
+            findsOneWidget,
+          );
+          expect(
+            find.byKey(const ValueKey('contact-account-entry-independent-qa')),
+            cached ? findsOneWidget : findsNothing,
+          );
+          await tester.tap(
+            find.byKey(const ValueKey('contacts-inventory-retry')),
+          );
+          await complete(
+            tester,
+            () => container.read(independentContactAccountIdsProvider.future),
+          );
+          await tester.pumpAndSettle();
+          expect(find.text('Could not load contact accounts'), findsNothing);
+          expect(
+            find.byKey(const ValueKey('contact-account-entry-independent-qa')),
+            findsOneWidget,
+          );
+          expect(
+            (await complete(
+              tester,
+              () => f.store.read((tx) => tx.accounts()),
+            )).single.toJson(),
+            contact.toJson(),
+          );
+          expect(f.requests, isEmpty);
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+  }
+  for (final brightness in Brightness.values) {
+    testWidgets(
+      'Independent contact removal stays readable and confirmed: $brightness',
+      (tester) async {
+        final f = ContactsFixture(AppDatabase.memoryForTests());
+        const contact = ContactAccount(
+          id: 'independent-qa',
+          provider: ContactProviderKind.carddav,
+          displayName: 'Synthetic contacts',
+          subject: 'qa-user',
+          enabled: false,
+          grantedScopes: {'carddav:read'},
+        );
+        await tester.runAsync(
+          () => f.store.write((tx) => tx.putAccount(contact)),
+        );
+        final container = _container(
+          selectedAccountId: '',
+          authRepository: _FakeAuthRepository(),
+          accounts: const [],
+          contactsFixture: f,
+        );
+        addTearDown(() async {
+          await _disposeDiagnosticsWidget(tester);
+          container.dispose();
+          await complete(tester, f.close);
+        });
+        await _pumpSettings(
+          tester,
+          container,
+          logicalSize: const Size(1200, 1100),
+          openSelectedAccount: false,
+          theme: BusyMaxYaruTheme.build(
+            brightness: brightness,
+            accentColor: YaruColors.orange,
+          ),
+        );
+        await complete(
+          tester,
+          () => container.read(independentContactAccountIdsProvider.future),
+        );
+        await tester.pumpAndSettle();
+        final entry = find.byKey(
+          const ValueKey('contact-account-entry-independent-qa'),
+        );
+        await tester.ensureVisible(entry);
+        await tester.tap(entry);
+        await tester.pumpAndSettle();
+        final row = find.byKey(
+          const ValueKey('remove-contacts-only-independent-qa'),
+        );
+        await tester.ensureVisible(row);
+        final label = find.descendant(of: row, matching: find.text('Remove'));
+        final pointer = await tester.createGesture(
+          kind: ui.PointerDeviceKind.mouse,
+        );
+        addTearDown(pointer.removePointer);
+        for (final interaction in ['normal', 'hovered', 'focused']) {
+          if (interaction == 'hovered') {
+            await pointer.addPointer(location: Offset.zero);
+            await pointer.moveTo(tester.getCenter(row));
+          } else if (interaction == 'focused') {
+            await pointer.moveTo(Offset.zero);
+            Focus.of(tester.element(label)).requestFocus();
+            await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+            await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+            await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+            await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+          }
+          await tester.pumpAndSettle();
+          final paragraph = tester.renderObject<RenderParagraph>(label);
+          final foreground = paragraph.text.style!.color!;
+          final context = tester.element(label);
+          expect(
+            foreground,
+            DefaultTextStyle.of(context).style.color,
+            reason: 'Use the ordinary preference-row foreground',
+          );
+          final surface = busyMaxGroupedSurfaceColor(context);
+          final background = Color.alphaBlend(switch (interaction) {
+            'hovered' => busyMaxRowHoverColor(context),
+            'focused' => Theme.of(context).focusColor,
+            _ => Colors.transparent,
+          }, surface);
+          final visibleText = Color.alphaBlend(foreground, background);
+          final luminances = [
+            visibleText.computeLuminance(),
+            background.computeLuminance(),
+          ]..sort();
+          expect(
+            (luminances.last + 0.05) / (luminances.first + 0.05),
+            greaterThanOrEqualTo(4.5),
+            reason:
+                '$interaction: foreground=$foreground background=$background',
+          );
+        }
+        expect(Focus.of(tester.element(label)).hasFocus, isTrue);
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        // The operation's busy indicator remains active behind its modal.
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(find.byType(BusyMaxConfirmDialog), findsOneWidget);
+        await tester.tap(find.text('Cancel'));
+        await tester.pumpAndSettle();
+        expect(
+          (await complete(
+            tester,
+            () => f.store.read((tx) => tx.account(contact.id)),
+          ))!.toJson(),
+          contact.toJson(),
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 }
 
 class _FakeAccountsRepository implements AccountsRepository {

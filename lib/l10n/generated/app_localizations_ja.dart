@@ -14,6 +14,9 @@ class AppLocalizationsJa extends AppLocalizations {
   AppLocalizationsJa([String locale = 'ja']) : super(locale);
 
   @override
+  String get contactsAccountsUnavailable => '連絡先アカウントを読み込めませんでした';
+
+  @override
   String get launchAtLoginManagedExternally =>
       'BusyMax はデスクトップの自動起動設定によって起動されました。このスイッチを使うには、そこで BusyMax の項目を削除してから、BusyMax を終了して開き直してください。';
 

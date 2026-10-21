@@ -1,4 +1,5 @@
 {
+  "contactsAccountsUnavailable": "Impossible de charger les comptes de contacts",
   "contactsTitle": "Carnet d’adresses",
   "contactsLinkedDescription": "Utiliser les contacts en cache de ce compte lors de l’ajout d’invités aux événements.",
   "contactsEnableSuggestions": "Activer les suggestions de contacts",

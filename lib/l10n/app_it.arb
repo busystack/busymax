@@ -1,4 +1,5 @@
 {
+  "contactsAccountsUnavailable": "Impossibile caricare gli account dei contatti",
   "contactsTitle": "Contatti",
   "contactsLinkedDescription": "Usa i contatti memorizzati di questo account quando aggiungi invitati agli eventi.",
   "contactsEnableSuggestions": "Attiva i suggerimenti dei contatti",

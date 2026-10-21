@@ -14,6 +14,10 @@ class AppLocalizationsPl extends AppLocalizations {
   AppLocalizationsPl([String locale = 'pl']) : super(locale);
 
   @override
+  String get contactsAccountsUnavailable =>
+      'Nie udało się wczytać kont kontaktów';
+
+  @override
   String get launchAtLoginManagedExternally =>
       'BusyMax został uruchomiony przez ustawienia autostartu pulpitu. Usuń stamtąd jego wpis, a następnie zakończ i ponownie uruchom BusyMax, aby użyć tego przełącznika.';
 

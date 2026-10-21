@@ -14,6 +14,9 @@ class AppLocalizationsHi extends AppLocalizations {
   AppLocalizationsHi([String locale = 'hi']) : super(locale);
 
   @override
+  String get contactsAccountsUnavailable => 'संपर्क खाते लोड नहीं किए जा सके';
+
+  @override
   String get launchAtLoginManagedExternally =>
       'BusyMax आपके डेस्कटॉप की स्टार्टअप सेटिंग से शुरू हुआ था। वहाँ से इसकी प्रविष्टि हटाएँ, फिर इस स्विच का उपयोग करने के लिए BusyMax से बाहर निकलें और इसे दोबारा खोलें।';
 

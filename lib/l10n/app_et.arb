@@ -1,4 +1,5 @@
 {
+  "contactsAccountsUnavailable": "Kontaktikontosid ei õnnestunud laadida",
   "contactsTitle": "Kontaktid",
   "contactsLinkedDescription": "Kasuta sündmuse külaliste lisamisel selle konto vahemällu salvestatud kontakte.",
   "contactsEnableSuggestions": "Luba kontaktisoovitused",

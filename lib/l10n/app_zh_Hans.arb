@@ -1,4 +1,5 @@
 {
+  "contactsAccountsUnavailable": "无法加载联系人账户",
   "contactsTitle": "联系人",
   "contactsLinkedDescription": "添加日程参与者时使用此账号缓存的联系人。",
   "contactsEnableSuggestions": "启用联系人建议",

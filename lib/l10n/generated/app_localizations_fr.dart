@@ -14,6 +14,10 @@ class AppLocalizationsFr extends AppLocalizations {
   AppLocalizationsFr([String locale = 'fr']) : super(locale);
 
   @override
+  String get contactsAccountsUnavailable =>
+      'Impossible de charger les comptes de contacts';
+
+  @override
   String get launchAtLoginManagedExternally =>
       'BusyMax a été lancé par les paramètres de démarrage de votre bureau. Supprimez son entrée à cet endroit, puis quittez et rouvrez BusyMax pour utiliser cet interrupteur.';
 

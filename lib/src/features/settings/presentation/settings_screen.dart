@@ -802,33 +802,41 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   );
 
   Future<void> _reconnectContacts(ContactAccount contact) async {
+    // Preparation can outlive its account view before any enrollment exists
+    // for navigation to cancel. Own the intent from the first storage read.
+    final navigationGeneration = _accountNavigationGeneration;
+    bool ownsIntent() =>
+        mounted && navigationGeneration == _accountNavigationGeneration;
     final controller = ref.read(busyMaxContactsControllerProvider);
     final parentId = await controller.store.linkedBusyMaxAccount(contact.id);
-    if (!mounted) return;
+    if (!ownsIntent()) return;
     if (parentId != null && contact.provider == ContactProviderKind.carddav) {
       final parent = await ref
           .read(accountsRepositoryProvider)
           .accountById(parentId);
-      if (!mounted || parent == null) return;
+      if (!ownsIntent() || parent == null) return;
       if (await _connectAccount(parent.provider, reconnecting: parent) &&
-          mounted) {
+          ownsIntent()) {
         await _enableContacts(parent);
       }
       return;
     }
     String? password;
-    if (parentId == null &&
-        !await controller.isIndependentNextcloud(contact.id)) {
-      if (!mounted) return;
-      password = await showBusyMaxTextPrompt(
-        context,
-        title: context.l10n.reconnectAccount,
-        label: context.l10n.contactsPasswordLabel,
-        actionLabel: context.l10n.reconnectAccount,
-        obscureText: true,
-      );
-      if (!mounted || password == null) return;
+    if (parentId == null) {
+      final nextcloud = await controller.isIndependentNextcloud(contact.id);
+      if (!mounted || !ownsIntent()) return;
+      if (!nextcloud) {
+        password = await showBusyMaxTextPrompt(
+          context,
+          title: context.l10n.reconnectAccount,
+          label: context.l10n.contactsPasswordLabel,
+          actionLabel: context.l10n.reconnectAccount,
+          obscureText: true,
+        );
+        if (!ownsIntent() || password == null) return;
+      }
     }
+    if (!ownsIntent()) return;
     await _runContactOperation(
       contact.id,
       () => password != null
@@ -2329,15 +2337,8 @@ class _AccountManagementSection extends ConsumerWidget {
             selectedAccountId: selectedContactAccountId,
             onOpenAccount: onOpenContactAccount,
             entryFocusNode: entryFocusNode,
-            accounts: [
-              for (final account in contactAccounts)
-                if (ref
-                        .watch(independentContactAccountIdsProvider)
-                        .valueOrNull
-                        ?.contains(account.id) ==
-                    true)
-                  account,
-            ],
+            accountState: ref.watch(busyMaxContactAccountsProvider),
+            independentIds: ref.watch(independentContactAccountIdsProvider),
             sources: contactSources,
             busyAccountIds: busyContactAccountIds,
             onAddCardDav: onAddCardDavContacts,
@@ -2961,7 +2962,8 @@ class _ContactsOnlySettingsCard extends ConsumerWidget {
     required this.selectedAccountId,
     required this.onOpenAccount,
     required this.entryFocusNode,
-    required this.accounts,
+    required this.accountState,
+    required this.independentIds,
     required this.sources,
     required this.busyAccountIds,
     required this.onAddCardDav,
@@ -2974,7 +2976,8 @@ class _ContactsOnlySettingsCard extends ConsumerWidget {
   final String? selectedAccountId;
   final ValueChanged<String> onOpenAccount;
   final FocusNode Function(String) entryFocusNode;
-  final List<ContactAccount> accounts;
+  final AsyncValue<List<ContactAccount>> accountState;
+  final AsyncValue<Set<String>> independentIds;
   final List<BusyMaxContactSourceSetting> sources;
   final Set<String> busyAccountIds;
   final VoidCallback onAddCardDav, onAddNextcloud;
@@ -2984,17 +2987,45 @@ class _ContactsOnlySettingsCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
+    // Cached values remain useful during refresh and failure. An unavailable
+    // inventory still has its own status; it is never a successful empty list.
+    final accounts = [
+      for (final account in accountState.valueOrNull ?? <ContactAccount>[])
+        if (independentIds.valueOrNull?.contains(account.id) == true) account,
+    ];
+    final accountsFailed = accountState.hasError && !accountState.isLoading;
+    final independentIdsFailed =
+        independentIds.hasError && !independentIds.isLoading;
+    final inventoryFailed = accountsFailed || independentIdsFailed;
+    final inventoryLoading = accountState.isLoading || independentIds.isLoading;
+    void retryInventory() {
+      if (accountsFailed) {
+        ref.invalidate(busyMaxContactAccountsProvider);
+      }
+      if (independentIdsFailed) {
+        ref.invalidate(independentContactAccountIdsProvider);
+      }
+    }
+
+    Widget inventoryFailure() => BusyMaxActionRow(
+      key: const ValueKey('contacts-inventory-error'),
+      title: l10n.contactsAccountsUnavailable,
+      leading: const Icon(YaruIcons.warning),
+      trailing: BusyMaxPushButton.standard(
+        key: const ValueKey('contacts-inventory-retry'),
+        onPressed: retryInventory,
+        child: Text(l10n.retry),
+      ),
+    );
     if (selectedAccountId != null) {
       final sourceState = ref.watch(busyMaxContactSourceSettingsProvider);
       final account = accounts
           .where((a) => a.id == selectedAccountId)
           .firstOrNull;
       if (account == null) {
-        return BusyMaxActionRow(
-          title: ref.watch(busyMaxContactAccountsProvider).hasError
-              ? l10n.contactsSyncFailed
-              : l10n.accountsLoading,
-        );
+        return inventoryFailed
+            ? inventoryFailure()
+            : BusyMaxActionRow(title: l10n.accountsLoading);
       }
       final busy = busyAccountIds.contains(account.id);
       final recovery = _contactRecovery(account.errorCode);
@@ -3114,8 +3145,10 @@ class _ContactsOnlySettingsCard extends ConsumerWidget {
               BusyMaxActionRow(
                 key: ValueKey('remove-contacts-only-${account.id}'),
                 title: l10n.removeAction,
-                destructive: true,
-                leading: const Icon(YaruIcons.trash),
+                leading: Icon(
+                  YaruIcons.trash,
+                  color: Theme.of(context).colorScheme.error,
+                ),
                 onTap: busy ? null : () => onRemove(account),
               ),
             ],
@@ -3141,6 +3174,12 @@ class _ContactsOnlySettingsCard extends ConsumerWidget {
           leading: const Icon(YaruIcons.plus),
           onTap: onAddNextcloud,
         ),
+        if (inventoryLoading)
+          BusyMaxActionRow(
+            key: const ValueKey('contacts-inventory-loading'),
+            title: l10n.accountsLoading,
+          ),
+        if (inventoryFailed) inventoryFailure(),
         for (final account in accounts)
           _IndependentContactOverviewRow(
             key: ValueKey('contact-account-entry-${account.id}'),

@@ -1,4 +1,5 @@
 {
+  "contactsAccountsUnavailable": "Không thể tải các tài khoản danh bạ",
   "contactsTitle": "Danh bạ",
   "contactsLinkedDescription": "Dùng các liên hệ đã lưu đệm của tài khoản này khi thêm khách vào sự kiện.",
   "contactsEnableSuggestions": "Bật gợi ý liên hệ",

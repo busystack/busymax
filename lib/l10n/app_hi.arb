@@ -1,4 +1,5 @@
 {
+  "contactsAccountsUnavailable": "संपर्क खाते लोड नहीं किए जा सके",
   "contactsTitle": "संपर्क",
   "contactsLinkedDescription": "इवेंट में अतिथि जोड़ते समय इस खाते के कैश किए गए संपर्कों का उपयोग करें।",
   "contactsEnableSuggestions": "संपर्क सुझाव चालू करें",

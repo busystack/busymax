@@ -1,4 +1,5 @@
 {
+  "contactsAccountsUnavailable": "حساب‌های مخاطبین بارگیری نشدند",
   "contactsTitle": "مخاطبان",
   "contactsLinkedDescription": "هنگام افزودن مهمانان رویداد از مخاطبان ذخیره‌شدهٔ این حساب استفاده شود.",
   "contactsEnableSuggestions": "فعال‌کردن پیشنهادهای مخاطبان",

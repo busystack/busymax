@@ -14,6 +14,9 @@ class AppLocalizationsFa extends AppLocalizations {
   AppLocalizationsFa([String locale = 'fa']) : super(locale);
 
   @override
+  String get contactsAccountsUnavailable => 'حساب‌های مخاطبین بارگیری نشدند';
+
+  @override
   String get launchAtLoginManagedExternally =>
       'BusyMax از تنظیمات راه‌اندازی خودکار میزکار شما اجرا شده است. ورودی آن را در آنجا حذف کنید، سپس از BusyMax خارج شوید و دوباره آن را باز کنید تا بتوانید از این کلید استفاده کنید.';
 

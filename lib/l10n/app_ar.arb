@@ -1,4 +1,5 @@
 {
+  "contactsAccountsUnavailable": "تعذّر تحميل حسابات جهات الاتصال",
   "contactsTitle": "جهات الاتصال",
   "contactsLinkedDescription": "استخدم جهات الاتصال المخزنة مؤقتًا من هذا الحساب عند إضافة مدعوين إلى الأحداث.",
   "contactsEnableSuggestions": "تفعيل اقتراحات جهات الاتصال",

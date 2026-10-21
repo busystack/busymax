@@ -14,6 +14,9 @@ class AppLocalizationsFi extends AppLocalizations {
   AppLocalizationsFi([String locale = 'fi']) : super(locale);
 
   @override
+  String get contactsAccountsUnavailable => 'Yhteystietotilejä ei voitu ladata';
+
+  @override
   String get launchAtLoginManagedExternally =>
       'BusyMax käynnistettiin työpöydän automaattisen käynnistyksen asetuksista. Poista sen merkintä sieltä, lopeta BusyMax ja avaa se uudelleen, jotta voit käyttää tätä kytkintä.';
 

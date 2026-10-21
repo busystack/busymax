@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' show PointerDeviceKind;
 
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busystack_contacts/busystack_contacts.dart';
@@ -801,6 +802,44 @@ void main() {
           );
         }
         await _capture(tester, '$output/$theme-independent-contacts.png');
+        final contactRemoval = find.byKey(
+          const ValueKey('remove-contacts-only-independent-qa'),
+        );
+        await tester.ensureVisible(contactRemoval);
+        FocusManager.instance.primaryFocus?.unfocus();
+        final pointer = await tester.createGesture(
+          kind: PointerDeviceKind.mouse,
+        );
+        await pointer.addPointer(location: Offset.zero);
+        await _capture(tester, '$output/$theme-independent-remove-normal.png');
+        await pointer.moveTo(tester.getCenter(contactRemoval));
+        await _capture(tester, '$output/$theme-independent-remove-hover.png');
+        await pointer.moveTo(Offset.zero);
+        final removeLabel = find.descendant(
+          of: contactRemoval,
+          matching: find.text('Remove'),
+        );
+        Focus.of(tester.element(removeLabel)).requestFocus();
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.pumpAndSettle();
+        expect(Focus.of(tester.element(removeLabel)).hasFocus, isTrue);
+        await _capture(tester, '$output/$theme-independent-remove-focus.png');
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        // The removal operation remains busy while confirmation is open.
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(find.byType(BusyMaxConfirmDialog), findsOneWidget);
+        await _tap(tester, find.text('Cancel'));
+        expect(
+          await tester.runAsync(
+            () => f.store.read((tx) => tx.account('independent-qa')),
+          ),
+          isNotNull,
+        );
+        await pointer.removePointer();
         await _back(tester);
         await _open(tester, 'nextcloud:qa-2');
         await tester.runAsync(

@@ -25,6 +25,7 @@ final class ContactsFixture implements ContactsAuthorizationBroker {
     Future<int> Function(String)? readAuthorizationGeneration,
     Future<void> Function(String, AuthorizationCancellation)?
     reconnectLinkedDavAccount,
+    Future<String?> Function(String)? readDavSecret,
   }) : accounts = AccountsRepository(database: database),
        store = BusyMaxContactsStore(database) {
     controller = BusyMaxContactsController(
@@ -32,7 +33,7 @@ final class ContactsFixture implements ContactsAuthorizationBroker {
       accounts: accounts,
       authorization: this,
       httpClient: MockClient(respond),
-      readDavSecret: (id) async => davSecrets[id],
+      readDavSecret: readDavSecret ?? (id) async => davSecrets[id],
       writeDavSecret: (id, value) async {
         davSecrets[id] = value;
       },
