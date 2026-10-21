@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 
 import '../../calendar_providers/cloud_calendar_client.dart';
+import '../../calendar_providers/calendar_mutation.dart';
 import '../../dav/mutation/dav_pending_operation_selection.dart';
 import '../../dav/mutation/dav_pending_operations.dart';
 import '../../db/app_database.dart';
@@ -111,11 +112,21 @@ class PendingOpResolutionService {
         op.entityType == 'task' ||
         op.entityType == 'task_list' ||
         op.entityType == 'task_checklist_item';
-    final syncAfterDiscard = isTaskOperation
+    final isSeriesTimingOperation =
+        op.entityType == 'event' &&
+        (jsonDecode(op.requestJson) as Map)[calendarEventSeriesTimingKey]
+            is Map;
+    final syncAfterDiscard = isTaskOperation || isSeriesTimingOperation
         ? await serializePendingOpsReplay(
             database: _database,
             accountId: _accountId,
-            replay: () => _discardTaskOperation(op.id),
+            replay: () async {
+              if (isTaskOperation) return _discardTaskOperation(op.id);
+              final current = await _database.pendingOpsDao.getOp(op.id);
+              if (current == null) return false;
+              _requireOwnedOperation(current);
+              return _discardUncoordinatedOperation(current);
+            },
           )
         : await _discardUncoordinatedOperation(op);
     if (syncAfterDiscard) {

@@ -15,13 +15,34 @@ import '../ical/ical_recurrence.dart';
 import '../ical/ical_semantics.dart';
 import '../ical/ical_timezone.dart';
 import '../mutation/dav_mutation_patch.dart';
+import '../mutation/dav_projection_mutations.dart';
 import '../mutation/dav_pending_operation_selection.dart';
 import '../nextcloud/nextcloud_scheduling_policy.dart';
 import 'dav_collection_capabilities.dart';
 
 const davRawObjectParserVersion = 1;
-const davProjectionVersion = 5;
+const davProjectionVersion = 6;
 const davSyncStateSchemaVersion = 1;
+
+/// Shared temporal projection for synchronized and queued DAV task resources.
+Map<String, Object?> davTaskTemporalMetadata({
+  required IcalTemporalValue? start,
+  required IcalTemporalValue? due,
+  required IcalTimeZoneResolver timeZoneResolver,
+}) {
+  final startUtc = start == null
+      ? null
+      : _resolvedTemporalUtc(start, timeZoneResolver);
+  final dueUtc = due == null
+      ? null
+      : _resolvedTemporalUtc(due, timeZoneResolver);
+  return {
+    if (start != null) 'nativeStart': _temporalJson(start),
+    if (due != null) 'nativeDue': _temporalJson(due),
+    if (startUtc != null) 'startUtc': startUtc.toIso8601String(),
+    if (dueUtc != null) 'dueUtc': dueUtc.toIso8601String(),
+  };
+}
 
 Map<String, Object?> nextcloudParticipantProjection(
   Map<String, Object?> raw,
@@ -1375,6 +1396,7 @@ final class DavObjectRepository {
     );
     final timeZoneResolver = IcalTimeZoneResolver.fromDocument(semantic);
     final now = commit.completedAtUtc.toUtc().toIso8601String();
+    final currentHistory = davTaskCurrentInstanceHistory(semantic, master);
     for (final component in semantic.components) {
       final componentId =
           componentIds[_componentKey(
@@ -1389,7 +1411,14 @@ final class DavObjectRepository {
       final due = component.due ?? (component == master ? null : master.due);
       final start =
           component.start ?? (component == master ? null : master.start);
+      final completedHistory = component == master
+          ? completedDavTaskCurrentInstance(semantic, master)
+          : null;
+      final effectiveTaskState = completedHistory == null
+          ? component.taskUiState
+          : IcalTaskUiState.completed;
       final completed =
+          completedHistory?.completed ??
           component.completed ??
           (component.taskUiState == IcalTaskUiState.completed
               ? master.completed
@@ -1407,24 +1436,25 @@ final class DavObjectRepository {
         due: due,
         timeZoneResolver: timeZoneResolver,
       );
-      final startUtc = start == null
-          ? null
-          : _resolvedTemporalUtc(start, timeZoneResolver);
-      final dueUtc = due == null
-          ? null
-          : _resolvedTemporalUtc(due, timeZoneResolver);
       final metadata = {
         'transport': 'caldav',
         'uid': component.uid,
-        if (start != null) 'nativeStart': _temporalJson(start),
-        if (due != null) 'nativeDue': _temporalJson(due),
-        if (startUtc != null) 'startUtc': startUtc.toIso8601String(),
-        if (dueUtc != null) 'dueUtc': dueUtc.toIso8601String(),
+        if (component == currentHistory &&
+            (component.taskUiState == IcalTaskUiState.open ||
+                component.taskUiState == IcalTaskUiState.inProgress) &&
+            (master.taskUiState == IcalTaskUiState.open ||
+                master.taskUiState == IcalTaskUiState.inProgress))
+          'representedByMaster': true,
+        ...davTaskTemporalMetadata(
+          start: start,
+          due: due,
+          timeZoneResolver: timeZoneResolver,
+        ),
         if (component.recurrenceId != null)
           'recurrenceId': _temporalJson(component.recurrenceId!),
         'alarms': _alarmProjection(alarms),
       };
-      final taskStatus = switch (component.taskUiState) {
+      final taskStatus = switch (effectiveTaskState) {
         IcalTaskUiState.completed => 'completed',
         IcalTaskUiState.inProgress => 'inProcess',
         IcalTaskUiState.open => 'needsAction',
@@ -1449,7 +1479,9 @@ final class DavObjectRepository {
               recurrenceIdKey: Value(component.recurrenceIdKey),
               icalPriority: Value(priority),
               percentComplete: Value(
-                component.percentComplete ?? master.percentComplete,
+                completedHistory != null
+                    ? 100
+                    : component.percentComplete ?? master.percentComplete,
               ),
               taskLocation: Value(effectiveIcalLocation([component, master])),
               locationLatitude: Value(
@@ -1491,7 +1523,11 @@ final class DavObjectRepository {
               microsoftReminderTimeZone: Value(reminder?.timeZone),
               microsoftIsReminderOn: Value(reminder != null),
               completedUtc: Value(_storageTemporalNullable(completed)),
-              providerStatus: Value(component.status ?? master.status),
+              providerStatus: Value(
+                completedHistory != null
+                    ? 'COMPLETED'
+                    : component.status ?? master.status,
+              ),
               recurrenceJson: Value(
                 jsonEncode({
                   'rules': master.recurrenceRules,

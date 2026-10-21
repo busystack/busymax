@@ -45,6 +45,10 @@ Status, percentage, and completion time change as one state transition.
 Completing a parent completes open descendants; reopening a descendant reopens
 a closed ancestor. Completing a recurring master records its completed
 instance and advances the master when another occurrence exists.
+When an UNTIL rule is exhausted, the wire master remains intact for Nextcloud
+compatibility. Its matching completed history determines the local completed
+state. Explicit reopening updates that same history component; completing it
+again retains its recurrence identity.
 
 The editor supports the daily, weekly, monthly, and yearly recurrence subset
 represented by its controls, including supported intervals, selectors, counts,

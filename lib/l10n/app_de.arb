@@ -1359,5 +1359,6 @@
     }
   },
   "googleIdentityUnverified": "Die Identität dieser älteren Google-Verbindung konnte nicht bestätigt werden. Kalender, Aufgaben und ausstehende Änderungen bleiben erhalten. Fügen Sie eine separate Google-Verbindung hinzu. Ausstehende Änderungen bleiben beim ursprünglichen Konto.",
-  "addSeparateGoogleAccount": "Separate Google-Verbindung hinzufügen"
+  "addSeparateGoogleAccount": "Separate Google-Verbindung hinzufügen",
+  "seriesPatternChangeConfirmation": "Dies ändert das Wiederholungsmuster und kann Termine hinzufügen oder entfernen.\n\nAktuell: {before}\nVorschlag: {after}\n\nDieses Muster speichern?"
 }

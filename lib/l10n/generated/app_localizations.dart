@@ -6035,6 +6035,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Add a separate Google connection'**
   String get addSeparateGoogleAccount;
+
+  /// Explicit approval of an ordinary series date edit that changes recurrence semantics. Both patterns include their termination condition.
+  ///
+  /// In en, this message translates to:
+  /// **'This changes the recurrence pattern and may add or remove dates.\n\nCurrent: {before}\nProposed: {after}\n\nSave this pattern?'**
+  String seriesPatternChangeConfirmation(String before, String after);
 }
 
 class _AppLocalizationsDelegate

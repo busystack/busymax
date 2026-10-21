@@ -3,6 +3,7 @@ import 'dart:convert';
 import '../calendar_providers/attachment_upload_session.dart';
 
 import 'package:http/http.dart' as http;
+import 'package:collection/collection.dart';
 
 import '../calendar_providers/calendar_mutation.dart';
 import '../calendar_providers/calendar_provider_capabilities.dart';
@@ -20,7 +21,10 @@ import 'microsoft_event_attachment.dart';
 import 'microsoft_shared_calendar_address.dart';
 
 class MicrosoftCalendarApiClient
-    implements CloudCalendarClient, DetailedFreeBusyClient {
+    implements
+        CloudCalendarClient,
+        DetailedFreeBusyClient,
+        SeriesExceptionClient {
   MicrosoftCalendarApiClient({
     required http.Client httpClient,
     required Uri baseUri,
@@ -719,6 +723,150 @@ class MicrosoftCalendarApiClient
             throw const FormatException('Malformed cancelled occurrence ID.'),
       },
     );
+  }
+
+  @override
+  Future<List<CalendarEventDto>> readSeriesExceptions({
+    required String calendarId,
+    required CalendarEventDto master,
+  }) async {
+    final snapshot = await getSeriesExceptionSnapshot(
+      calendarId: calendarId,
+      recurringEventId: master.providerEventId,
+    );
+    if (snapshot.cancelledIds.isNotEmpty) {
+      // Graph v1.0 supplies opaque occurrence IDs for cancellations and omits
+      // them from /instances. It exposes no writable originalStart or
+      // documented conversion of those IDs to recurrence positions.
+      throw const SeriesExceptionPreservationUnsupported(
+        'Microsoft returned cancellation IDs without recurrence positions that this v1.0 operation can safely resolve. '
+        'The series was not changed; a decision about retaining those cancellations is required before retrying.',
+      );
+    }
+    final result = <CalendarEventDto>[];
+    for (final partial in snapshot.exceptions) {
+      final event = await getEvent(
+        calendarId: calendarId,
+        eventId: partial.providerEventId,
+      );
+      final meeting = event.rawJson['onlineMeeting'];
+      final sharedMeeting =
+          master.rawJson['isOnlineMeeting'] == true &&
+          meeting is Map &&
+          meeting['joinUrl'] is String &&
+          const DeepCollectionEquality().equals(
+            meeting,
+            master.rawJson['onlineMeeting'],
+          );
+      if (event.rawJson['hasAttachments'] == true ||
+          event.rawJson['isOnlineMeeting'] == true && !sharedMeeting) {
+        throw const SeriesExceptionPreservationUnsupported(
+          'This Microsoft exception has attachment resources or its own online-meeting identity. '
+          'The recurrence update cannot reassign those resources, so BusyMax kept the original series and this edit remains pending.',
+        );
+      }
+      result.add(event);
+    }
+    return result;
+  }
+
+  @override
+  Future<CalendarEventDto> findSeriesInstance({
+    required String calendarId,
+    required String recurringEventId,
+    required DateTime originalStart,
+    required bool allDay,
+    required String? timeZone,
+  }) async {
+    final instant = providerWallTimeToInstant(originalStart, timeZone);
+    final snapshot = await getSeriesExceptionSnapshot(
+      calendarId: calendarId,
+      recurringEventId: recurringEventId,
+    );
+    final exceptions = snapshot.exceptions
+        .where(
+          (event) =>
+              DateTime.tryParse(event.providerOriginalStartKey ?? '') ==
+              instant,
+        )
+        .toList();
+    if (exceptions.length == 1) {
+      return getEvent(
+        calendarId: calendarId,
+        eventId: exceptions.single.providerEventId,
+      );
+    }
+    final instances = await listEventInstances(
+      calendarId: calendarId,
+      recurringEventId: recurringEventId,
+      rangeStart: instant,
+      rangeEnd: instant.add(const Duration(days: 1)),
+    );
+    final matches = instances
+        .where(
+          (event) =>
+              event.providerRecurringEventId == recurringEventId &&
+              DateTime.tryParse(event.providerOriginalStartKey ?? '') ==
+                  instant,
+        )
+        .toList();
+    if (matches.length != 1) {
+      throw const FormatException(
+        'The revised Microsoft occurrence is not uniquely identifiable.',
+      );
+    }
+    return getEvent(
+      calendarId: calendarId,
+      eventId: matches.single.providerEventId,
+    );
+  }
+
+  @override
+  Future<CalendarEventDto> restoreSeriesException({
+    required String calendarId,
+    required CalendarEventDto instance,
+    required CalendarEventDto exception,
+    required CalendarGuestUpdatePolicy guestUpdatePolicy,
+  }) async {
+    if (exception.rawJson['isOnlineMeeting'] == true &&
+        !const DeepCollectionEquality().equals(
+          exception.rawJson['onlineMeeting'],
+          instance.rawJson['onlineMeeting'],
+        )) {
+      throw const SeriesExceptionPreservationUnsupported(
+        'Microsoft did not retain the series meeting identity on the revised occurrence. The original exception has not been replaced.',
+      );
+    }
+    const writable = {
+      'subject',
+      'body',
+      'start',
+      'end',
+      'isAllDay',
+      'attendees',
+      'categories',
+      'location',
+      'locations',
+      'importance',
+      'sensitivity',
+      'showAs',
+      'isReminderOn',
+      'reminderMinutesBeforeStart',
+      'responseRequested',
+      'hideAttendees',
+      'allowNewTimeProposals',
+    };
+    final json = await _requestJson(
+      'PATCH',
+      _uri(
+        '${_calendarPath(calendarId)}/events/${_enc(instance.providerEventId)}',
+      ),
+      body: {
+        for (final entry in exception.rawJson.entries)
+          if (writable.contains(entry.key)) entry.key: entry.value,
+      },
+    );
+    return microsoftCalendarEventFromJson(calendarId, json);
   }
 
   @override

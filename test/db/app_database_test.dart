@@ -23,6 +23,114 @@ void main() {
     await database.close();
   });
 
+  for (final failurePoint in ['transition', 'indexes', 'version']) {
+    test(
+      'supported migration rolls back and reopens after $failurePoint failure',
+      () async {
+        await database.close();
+        final fixture = await _openSchema5Fixture(failurePoint: failurePoint);
+        database = fixture.database;
+        final file = File('${fixture.directory.path}/busymax.sqlite');
+        await expectLater(
+          database.customSelect('PRAGMA user_version').get(),
+          throwsStateError,
+        );
+        await database.close();
+        final raw = sqlite3.sqlite3.open(file.path);
+        try {
+          expect(raw.select('PRAGMA user_version').single.values.single, 5);
+          expect(
+            raw.select('SELECT count(*) AS n FROM accounts').single['n'],
+            2,
+          );
+          expect(
+            raw.select('SELECT count(*) AS n FROM pending_ops').single['n'],
+            3,
+          );
+          expect(
+            raw.select(
+              "SELECT name FROM sqlite_master WHERE name = 'o_auth_transition_accounts'",
+            ),
+            isEmpty,
+          );
+          expect(raw.select('PRAGMA foreign_key_check'), isEmpty);
+        } finally {
+          raw.close();
+        }
+        database = AppDatabase(NativeDatabase(file));
+        expect(
+          (await database.customSelect('PRAGMA user_version').getSingle())
+              .read<int>('user_version'),
+          latestSchemaVersion,
+        );
+        expect(
+          await database.select(database.oAuthTransitionAccounts).get(),
+          hasLength(2),
+        );
+        expect(await database.select(database.pendingOps).get(), hasLength(3));
+        expect(
+          await database.customSelect('PRAGMA foreign_key_check').get(),
+          isEmpty,
+        );
+        expect(
+          (await database.customSelect('PRAGMA foreign_keys').getSingle())
+              .read<int>('foreign_keys'),
+          1,
+        );
+        expect(
+          await database
+              .customSelect(
+                "SELECT name FROM sqlite_master WHERE type = 'trigger'",
+              )
+              .get(),
+          isNotEmpty,
+        );
+        await database.close();
+        await fixture.directory.delete(recursive: true);
+        database = AppDatabase.memoryForTests();
+      },
+    );
+  }
+
+  test(
+    'interruption after migration commit reopens without repeating the upgrade',
+    () async {
+      await database.close();
+      final fixture = await _openSchema5Fixture(failurePoint: 'after_commit');
+      database = fixture.database;
+      await expectLater(
+        database.customSelect('SELECT 1').get(),
+        throwsStateError,
+      );
+      await database.close();
+      final file = File('${fixture.directory.path}/busymax.sqlite');
+      final raw = sqlite3.sqlite3.open(file.path);
+      try {
+        expect(
+          raw.select('PRAGMA user_version').single.values.single,
+          latestSchemaVersion,
+        );
+        expect(
+          raw.select('SELECT account_id FROM o_auth_transition_accounts'),
+          hasLength(2),
+        );
+        expect(raw.select('PRAGMA foreign_key_check'), isEmpty);
+      } finally {
+        raw.close();
+      }
+      database = AppDatabase(NativeDatabase(file));
+      expect(await database.select(database.accounts).get(), hasLength(2));
+      expect(await database.select(database.pendingOps).get(), hasLength(3));
+      expect(
+        await database.select(database.oAuthTransitionAccounts).get(),
+        hasLength(2),
+      );
+      await database.close();
+      await fixture.directory.delete(recursive: true);
+      database = AppDatabase.memoryForTests();
+    },
+  );
+
   test('opens the latest schema and creates required indexes', () async {
     final version = await database
         .customSelect('PRAGMA user_version')
@@ -1234,6 +1342,7 @@ void _removeProviderCredentialPairConstraint(sqlite3.Database database) {
 
 Future<({AppDatabase database, Directory directory})> _openSchema5Fixture({
   void Function(sqlite3.Database raw)? prepare,
+  String? failurePoint,
 }) async {
   final directory = await createPersistenceTestDirectory(
     'busymax-schema5-fixture-',
@@ -1248,5 +1357,34 @@ Future<({AppDatabase database, Directory directory})> _openSchema5Fixture({
   } finally {
     raw.close();
   }
-  return (database: AppDatabase(NativeDatabase(file)), directory: directory);
+  final executor = NativeDatabase(file);
+  return (
+    database: failurePoint == null
+        ? AppDatabase(executor)
+        : _FailingMigrationDatabase(executor, failurePoint),
+    directory: directory,
+  );
+}
+
+class _FailingMigrationDatabase extends AppDatabase {
+  _FailingMigrationDatabase(super.executor, this.point);
+  final String point;
+  bool populated = false;
+  @override
+  Future<void> customStatement(String statement, [List<Object?>? args]) async {
+    if (point == 'after_commit' && statement == 'PRAGMA foreign_keys = ON') {
+      throw StateError('injected before Drift advances the version');
+    }
+    if (point == 'indexes' && populated && statement.contains('CREATE INDEX')) {
+      throw StateError('injected late migration failure');
+    }
+    if (point == 'version' && statement.contains('PRAGMA user_version =')) {
+      throw StateError('injected version failure');
+    }
+    await super.customStatement(statement, args);
+    if (statement.startsWith('INSERT INTO o_auth_transition_accounts')) {
+      populated = true;
+      if (point == 'transition') throw StateError('injected after population');
+    }
+  }
 }

@@ -21,6 +21,7 @@ import 'package:busymax/src/features/sync/cloud_calendar_range_coverage_service.
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_api_client.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_errors.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_mapper.dart';
+import 'package:busymax/src/google_calendar/google_calendar_mapper.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_shared_calendar_address.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/schedule/schedule_repository.dart';
@@ -40,6 +41,172 @@ void main() {
 
   tearDown(() async {
     await database.close();
+  });
+
+  test('Google ID-only removal preserves pending intent and isolates accounts and calendars', () async {
+    await _insertAccount(database, provider: BusyProvider.google);
+    final account = await database.select(database.accounts).getSingle();
+    await database
+        .into(database.accounts)
+        .insert(
+          account
+              .toCompanion(false)
+              .copyWith(
+                id: const Value('other-account'),
+                providerAccountId: const Value('other-provider-account'),
+              ),
+        );
+    final repository = CalendarRepository(database: database);
+    final ids = <String>[];
+    for (final identity in [
+      ('account', 'cal-1'),
+      ('account', 'cal-2'),
+      ('other-account', 'cal-1'),
+    ]) {
+      await repository.upsertSource(
+        accountId: identity.$1,
+        source: CalendarSourceDto(
+          provider: BusyProvider.google,
+          providerCalendarId: identity.$2,
+          summary: 'Work',
+        ),
+      );
+      await repository.upsertEvent(
+        accountId: identity.$1,
+        event: googleCalendarEventFromJson(identity.$2, {
+          'id': 'same-id',
+          'recurringEventId': 'master',
+          'originalStartTime': {'dateTime': '2026-07-15T09:00:00Z'},
+          'summary': 'Original',
+          'organizer': {'self': true},
+          'start': {'dateTime': '2026-07-15T09:00:00Z'},
+          'end': {'dateTime': '2026-07-15T10:00:00Z'},
+        }),
+      );
+      ids.add(
+        (await database.select(database.calendarEvents).get())
+            .singleWhere(
+              (row) =>
+                  row.accountId == identity.$1 &&
+                  row.providerCalendarId == identity.$2,
+            )
+            .id,
+      );
+    }
+    await repository.updateLocalEvent(
+      EventEditorDraft.fromEventDetail(
+        (await repository.loadEventDetail(ids.first))!,
+      ).copyWith(
+        title: 'Pending local edit',
+        recurringMutationScope: RecurringEventMutationScope.singleOccurrence,
+      ),
+    );
+    final pending = await database.select(database.pendingOps).getSingle();
+    await repository.markGoogleRemovedEventDeleted(
+      accountId: 'account',
+      providerCalendarId: 'cal-1',
+      providerEventId: 'same-id',
+    );
+    final rows = await database.select(database.calendarEvents).get();
+    expect(rows, hasLength(3));
+    expect(rows.every((row) => !row.isDeleted), isTrue);
+    expect(
+      rows.singleWhere((row) => row.id == ids.first).title,
+      'Pending local edit',
+    );
+    expect(await database.select(database.pendingOps).getSingle(), pending);
+  });
+
+  test('Google incremental ID-only cancellation retires the cached occurrence identity idempotently', () async {
+    const source = CalendarSourceDto(
+      provider: BusyProvider.google,
+      providerCalendarId: 'cal-1',
+      summary: 'Work',
+    );
+    await _insertAccount(database, provider: BusyProvider.google);
+    await _insertSource(database, source);
+    final repository = CalendarRepository(database: database);
+    for (final id in ['occurrence', 'other']) {
+      await repository.upsertEvent(
+        accountId: 'account',
+        event: googleCalendarEventFromJson('cal-1', {
+          'id': id,
+          'recurringEventId': 'master',
+          'originalStartTime': {'dateTime': '2026-07-15T09:00:00Z'},
+          'summary': id,
+          'start': {'dateTime': '2026-07-15T09:00:00Z'},
+          'end': {'dateTime': '2026-07-15T10:00:00Z'},
+          'reminders': {
+            'useDefault': false,
+            'overrides': [
+              {'method': 'popup', 'minutes': 10},
+            ],
+          },
+        }),
+      );
+    }
+    await NotificationScheduleService(
+      database: database,
+      nowUtc: () => DateTime.utc(2026, 7, 15, 8),
+    ).rebuildUpcomingEventNotifications('account');
+    expect(
+      await database.select(database.notificationSchedule).get(),
+      hasLength(2),
+    );
+    await repository.saveSyncState(
+      accountId: 'account',
+      provider: BusyProvider.google,
+      syncKind: 'events',
+      calendarSourceId: CalendarRepository.sourceId(
+        accountId: 'account',
+        provider: BusyProvider.google,
+        providerCalendarId: 'cal-1',
+      ),
+      rangeStart: DateTime.utc(2025, 7).toIso8601String(),
+      rangeEnd: DateTime.utc(2028, 8).toIso8601String(),
+      cursorKind: 'google_sync_token',
+      cursorValue: 'prior',
+      full: true,
+      stateJson: '{"singleEvents":true,"version":1}',
+    );
+    final marker = googleCalendarEventFromJson('cal-1', {
+      'id': 'occurrence',
+      'status': 'cancelled',
+    });
+    final client = _FakeCalendarClient(
+      provider: BusyProvider.google,
+      calendars: [source],
+      pages: [
+        CalendarSyncPageDto(events: [marker], nextSyncTokenOrDeltaLink: 'next'),
+        CalendarSyncPageDto(events: [marker], nextSyncTokenOrDeltaLink: 'last'),
+      ],
+    );
+    final engine = CalendarSyncEngine(
+      database: database,
+      client: client,
+      accountId: 'account',
+      nowUtc: () => DateTime.utc(2026, 7, 15, 8),
+    );
+    await engine.incrementalSync();
+    await engine.incrementalSync();
+    final rows = await database.select(database.calendarEvents).get();
+    expect(rows, hasLength(2));
+    expect(
+      rows.singleWhere((row) => row.providerEventId == 'occurrence').isDeleted,
+      isTrue,
+    );
+    expect(
+      rows.singleWhere((row) => row.providerEventId == 'other').isDeleted,
+      isFalse,
+    );
+    expect(
+      await database.select(database.notificationSchedule).get(),
+      hasLength(1),
+    );
+    expect(client.syncCalls.map((call) => call.syncTokenOrDeltaLink), [
+      'prior',
+      'next',
+    ]);
   });
 
   for (final incremental in [false, true]) {

@@ -1296,5 +1296,6 @@
     }
   },
   "googleIdentityUnverified": "この古い Google 接続のアカウントを確認できませんでした。カレンダー、タスク、保留中の変更は保持されています。安全に同期するには、別の Google 接続を追加してください。保留中の変更は元のアカウントに残ります。",
-  "addSeparateGoogleAccount": "別の Google 接続を追加"
+  "addSeparateGoogleAccount": "別の Google 接続を追加",
+  "seriesPatternChangeConfirmation": "繰り返しパターンの変更により、日付が追加または削除される場合があります。\n\n現在：{before}\n変更案：{after}\n\nこのパターンを保存しますか？"
 }

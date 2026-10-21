@@ -1359,5 +1359,6 @@
     }
   },
   "googleIdentityUnverified": "L’identité de cette ancienne connexion Google n’a pas pu être vérifiée. Les calendriers, tâches et modifications en attente sont conservés. Ajoutez une connexion Google distincte pour synchroniser en toute sécurité. Les modifications en attente restent dans le compte d’origine.",
-  "addSeparateGoogleAccount": "Ajouter une connexion Google distincte"
+  "addSeparateGoogleAccount": "Ajouter une connexion Google distincte",
+  "seriesPatternChangeConfirmation": "Cette modification du schéma de répétition peut ajouter ou supprimer des dates.\n\nActuel : {before}\nProposé : {after}\n\nEnregistrer ce schéma ?"
 }

@@ -3646,4 +3646,9 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get addSeparateGoogleAccount => 'إضافة اتصال Google منفصل';
+
+  @override
+  String seriesPatternChangeConfirmation(String before, String after) {
+    return 'قد تؤدي هذه التغييرات في نمط التكرار إلى إضافة تواريخ أو إزالتها.\n\nالحالي: ⁨$before⁩\nالمقترح: ⁨$after⁩\n\nهل تريد حفظ هذا النمط؟';
+  }
 }

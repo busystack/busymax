@@ -55,6 +55,7 @@ import '../../tasks/domain/task_checklist_item.dart';
 import '../../tasks/presentation/new_task_dialog.dart';
 import '../../tasks/presentation/task_details_pane.dart';
 import '../../maps/application/external_location_launcher.dart';
+import '../../recurrence/presentation/recurrence_summary.dart';
 import '../application/saved_schedule_location.dart';
 import 'schedule_agenda_view.dart';
 import 'schedule_anchored_popover.dart';
@@ -2187,6 +2188,27 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     try {
       final result = await ScheduleReschedulingCoordinator(
         repository: ref.read(calendarRepositoryProvider),
+        confirmSeriesTimingChange: (change, scope) async {
+          if (!mounted) return false;
+          final following = scope == RecurringEventMutationScope.thisAndFuture;
+          return showBusyMaxConfirm(
+            context,
+            title: context.l10n.repeat,
+            message: context.l10n.seriesPatternChangeConfirmation(
+              recurrenceRuleSummary(
+                context,
+                change.previewRule(following: following, original: true),
+                timeZone: change.timeZone,
+              ),
+              recurrenceRuleSummary(
+                context,
+                change.previewRule(following: following),
+                timeZone: change.timeZone,
+              ),
+            ),
+            confirmLabel: context.l10n.save,
+          );
+        },
         chooseScope: (detail, following) => _chooseRecurringEventMutationScope(
           detail.provider,
           editing: true,

@@ -1,6 +1,7 @@
 import 'package:busymax/src/android/android_notifications.dart';
 import 'package:busymax/src/app/app_settings.dart';
 import 'package:busymax/src/core/time/stored_temporal_projection.dart';
+import 'package:busymax/src/dav/storage/dav_object_repository.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
@@ -55,6 +56,142 @@ void main() {
         backend: plugin,
         exactAlarmCapability: () async => exact,
       );
+
+  for (final kind in [
+    'start-only',
+    'due-only',
+    'start-and-due',
+    'floating',
+    'zoned',
+    'completed',
+    'cancelled',
+  ]) {
+    test(
+      'Android summary uses the real DAV deadline and lifecycle ($kind)',
+      () async {
+        settings = settings.copyWith(notifyDueToday: true);
+        final notifications = service();
+        await notifications.initialize(timeZoneId: 'Etc/UTC');
+        final today = _today().replaceAll('-', '');
+        final localDay = DateTime.parse(_today());
+        final tomorrow = DateTime(
+          localDay.year,
+          localDay.month,
+          localDay.day + 1,
+        ).toIso8601String().substring(0, 10).replaceAll('-', '');
+        final eligible = ![
+          'start-only',
+          'completed',
+          'cancelled',
+        ].contains(kind);
+        const href = '/dav/work/';
+        await database
+            .into(database.accounts)
+            .insert(
+              AccountsCompanion.insert(
+                id: 'dav:test',
+                provider: 'nextcloud',
+                authority: 'https://qa.example.test',
+                providerAccountId: 'test',
+                credentialKind: 'nextcloud_app_password',
+                authState: const Value('signed_in'),
+                createdAtUtc: '',
+                updatedAtUtc: '',
+              ),
+            );
+        await database
+            .into(database.davCollections)
+            .insert(
+              DavCollectionsCompanion.insert(
+                id: 'dav-work',
+                accountId: 'dav:test',
+                displayName: 'Work',
+                hrefKey: href,
+                requestUri: 'https://qa.example.test$href',
+                supportedComponentMask: const Value(2),
+                taskProjectionEnabled: const Value(true),
+                createdAtUtc: '',
+                updatedAtUtc: '',
+              ),
+            );
+        await database.taskListsDao.upsertTaskList(
+          TaskListsCompanion.insert(
+            accountId: 'dav:test',
+            id: 'dav-task-list-dav-work',
+            title: 'Work',
+            davCollectionId: const Value('dav-work'),
+            rawJson: '{}',
+            createdLocalAtUtc: '',
+            updatedLocalAtUtc: '',
+          ),
+        );
+        const objectHref = '${href}task.ics';
+        final raw = [
+          'BEGIN:VCALENDAR',
+          'VERSION:2.0',
+          'PRODID:-//BusyMax Test//EN',
+          'BEGIN:VTODO',
+          'UID:deadline-test',
+          'SUMMARY:Scheduled',
+          if (kind == 'floating')
+            'DTSTART:${today}T080000'
+          else if (kind == 'zoned')
+            'DTSTART;TZID=Pacific/Kiritimati:${tomorrow}T000000'
+          else if (kind != 'due-only')
+            'DTSTART;VALUE=DATE:$today',
+          if (kind == 'floating')
+            'DUE:${today}T090000'
+          else if (kind == 'zoned')
+            'DUE;TZID=Pacific/Kiritimati:${tomorrow}T003000'
+          else if (kind != 'start-only')
+            'DUE;VALUE=DATE:$today',
+          if (kind == 'completed') ...[
+            'STATUS:COMPLETED',
+            'PERCENT-COMPLETE:100',
+            'COMPLETED:${today}T000000Z',
+          ],
+          if (kind == 'cancelled') 'STATUS:CANCELLED',
+          'END:VTODO',
+          'END:VCALENDAR',
+          '',
+        ].join('\r\n');
+        await DavObjectRepository(database: database).commit(
+          DavCollectionCommit(
+            accountId: 'dav:test',
+            collectionId: 'dav-work',
+            provider: BusyProvider.nextcloud,
+            objects: [
+              DavPreparedObject.parse(
+                hrefKey: objectHref,
+                requestUri: Uri.parse('https://qa.example.test$objectHref'),
+                etag: '"one"',
+                contentType: 'text/calendar',
+                rawIcsBody: raw,
+              ),
+            ],
+            deletedHrefKeys: const {},
+            completeMembership: true,
+            membershipHrefKeys: const {objectHref},
+            finalCursorKind: 'dav_sync_token',
+            finalCursorValue: 'one',
+            baselineGeneration: 1,
+            completedAtUtc: DateTime.now().toUtc(),
+            projectionRangeStartUtc: DateTime.utc(localDay.year),
+            projectionRangeEndUtc: DateTime.utc(localDay.year + 1),
+          ),
+        );
+        expect(
+          (await database.select(database.tasks).getSingle()).dueUtc,
+          isNotNull,
+        );
+        await notifications.reconcile();
+        expect(
+          await database.select(database.androidDailySummarySchedules).get(),
+          hasLength(eligible ? 1 : 0),
+        );
+      },
+    );
+  }
 
   test(
     'reconciliation preserves a delivered notification still visible',

@@ -1296,5 +1296,6 @@
     }
   },
   "googleIdentityUnverified": "无法验证此旧 Google 连接的账号身份。日历、任务和待处理的更改已保留。请添加独立的 Google 连接以安全同步。待处理的更改将保留在原账号中。",
-  "addSeparateGoogleAccount": "添加独立的 Google 连接"
+  "addSeparateGoogleAccount": "添加独立的 Google 连接",
+  "seriesPatternChangeConfirmation": "更改重复规则可能会增加或移除日期。\n\n当前：{before}\n建议：{after}\n\n保存此规则吗？"
 }

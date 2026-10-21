@@ -3609,4 +3609,9 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get addSeparateGoogleAccount =>
       'Ajouter une connexion Google distincte';
+
+  @override
+  String seriesPatternChangeConfirmation(String before, String after) {
+    return 'Cette modification du schéma de répétition peut ajouter ou supprimer des dates.\n\nActuel : $before\nProposé : $after\n\nEnregistrer ce schéma ?';
+  }
 }

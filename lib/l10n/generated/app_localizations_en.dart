@@ -3618,4 +3618,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get addSeparateGoogleAccount => 'Add a separate Google connection';
+
+  @override
+  String seriesPatternChangeConfirmation(String before, String after) {
+    return 'This changes the recurrence pattern and may add or remove dates.\n\nCurrent: $before\nProposed: $after\n\nSave this pattern?';
+  }
 }

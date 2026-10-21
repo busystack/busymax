@@ -1177,9 +1177,11 @@ void main() {
   );
 
   test('recurrence summaries do not use hard-coded list separators', () {
-    final source = File(
-      'lib/src/features/recurrence/presentation/recurrence_editor.dart',
-    ).readAsStringSync();
+    final source = [
+      for (final name in ['recurrence_editor.dart', 'recurrence_summary.dart'])
+        File('lib/src/features/recurrence/presentation/$name')
+            .readAsStringSync(),
+    ].join('\n');
 
     expect(source, isNot(contains(".join(', ')")));
     expect(source, isNot(contains('repeatMonthDayListSeparator')));

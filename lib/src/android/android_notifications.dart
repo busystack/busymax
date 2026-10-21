@@ -712,7 +712,7 @@ final class AndroidNotificationService
       if (task.status == 'completed' || task.status == 'cancelled') {
         return false;
       }
-      final due = taskDueAsLocal(task);
+      final due = taskDeadlineAsLocal(task);
       return due != null &&
           due.year == now.year &&
           due.month == now.month &&

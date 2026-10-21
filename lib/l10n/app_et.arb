@@ -1474,5 +1474,6 @@
     }
   },
   "googleIdentityUnverified": "Selle vana Google’i ühenduse identiteeti ei saanud kinnitada. Kalendrid, ülesanded ja ootel muudatused säilitatakse. Lisa turvaliseks sünkroonimiseks eraldi Google’i ühendus. Ootel muudatused jäävad algse konto juurde.",
-  "addSeparateGoogleAccount": "Lisa eraldi Google’i ühendus"
+  "addSeparateGoogleAccount": "Lisa eraldi Google’i ühendus",
+  "seriesPatternChangeConfirmation": "Kordusmustri muutmine võib kuupäevi lisada või eemaldada.\n\nPraegune: {before}\nPakutud: {after}\n\nKas salvestada see muster?"
 }

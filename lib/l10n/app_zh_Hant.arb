@@ -1296,5 +1296,6 @@
     }
   },
   "googleIdentityUnverified": "無法驗證此舊 Google 連線的帳號身分。行事曆、待辦事項和待處理的變更已保留。請新增獨立的 Google 連線以安全同步。待處理的變更將保留在原帳號中。",
-  "addSeparateGoogleAccount": "新增獨立的 Google 連線"
+  "addSeparateGoogleAccount": "新增獨立的 Google 連線",
+  "seriesPatternChangeConfirmation": "變更重複規則可能會增加或移除日期。\n\n目前：{before}\n建議：{after}\n\n要儲存此規則嗎？"
 }

@@ -3630,4 +3630,9 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get addSeparateGoogleAccount =>
       'Добавить отдельное подключение Google';
+
+  @override
+  String seriesPatternChangeConfirmation(String before, String after) {
+    return 'Изменение правила повторения может добавить или удалить даты.\n\nСейчас: $before\nПредложено: $after\n\nСохранить это правило?';
+  }
 }

@@ -1296,5 +1296,6 @@
     }
   },
   "googleIdentityUnverified": "Không thể xác minh danh tính của kết nối Google cũ này. Lịch, công việc và thay đổi đang chờ được giữ lại. Thêm một kết nối Google riêng để đồng bộ an toàn. Thay đổi đang chờ vẫn thuộc tài khoản gốc.",
-  "addSeparateGoogleAccount": "Thêm kết nối Google riêng"
+  "addSeparateGoogleAccount": "Thêm kết nối Google riêng",
+  "seriesPatternChangeConfirmation": "Thay đổi kiểu lặp có thể thêm hoặc xóa ngày.\n\nHiện tại: {before}\nĐề xuất: {after}\n\nLưu kiểu lặp này?"
 }

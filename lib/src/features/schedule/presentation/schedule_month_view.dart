@@ -52,7 +52,11 @@ class ScheduleMonthView extends StatelessWidget {
     final days = _daysInRange(range);
     final rows = (days.length / DateTime.daysPerWeek).ceil();
     final month = DateTime(selectedDate.year, selectedDate.month);
-    final grouped = ScheduleProjection.groupByDay(items);
+    final grouped = ScheduleProjection.groupByDay(
+      items,
+      visibleRange: range,
+      repeatCalendarEvents: true,
+    );
     final theme = Theme.of(context);
     final workspaceColor = BusyMaxSurfaceColors.of(context).window;
     final border = busyMaxCalendarGridColor(context);

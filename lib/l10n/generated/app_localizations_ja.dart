@@ -3507,4 +3507,9 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get addSeparateGoogleAccount => '別の Google 接続を追加';
+
+  @override
+  String seriesPatternChangeConfirmation(String before, String after) {
+    return '繰り返しパターンの変更により、日付が追加または削除される場合があります。\n\n現在：$before\n変更案：$after\n\nこのパターンを保存しますか？';
+  }
 }

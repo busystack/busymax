@@ -5,6 +5,45 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('RFC 5545 recurrence', () {
+    test(
+      'yearly month-day expansion survives the editable rule round trip',
+      () {
+        final rule = EventRecurrenceCodec.decode(BusyProvider.google, const [
+          'RRULE:FREQ=YEARLY;INTERVAL=2;BYMONTHDAY=1;COUNT=24',
+        ], baseDate: DateTime(2026, 1, 1));
+        expect(rule.isSupported, isTrue);
+        expect(rule.byMonth, List.generate(12, (index) => index + 1));
+        expect(rule.byMonthDay, [1]);
+        expect(rule.interval, 2);
+        expect(rule.count, 24);
+        final encoded = EventRecurrenceCodec.encode(
+          BusyProvider.google,
+          rule,
+          baseDate: DateTime(2026, 1, 1),
+          allDay: true,
+        );
+        final decoded = EventRecurrenceCodec.decode(
+          BusyProvider.google,
+          encoded,
+          baseDate: DateTime(2026, 1, 1),
+        );
+        expect(decoded.byMonth, rule.byMonth);
+        final restricted = EventRecurrenceCodec.decode(
+          BusyProvider.google,
+          const ['RRULE:FREQ=YEARLY;BYMONTH=2,4;BYMONTHDAY=1'],
+          baseDate: DateTime(2026, 2, 1),
+        );
+        expect(restricted.byMonth, [2, 4]);
+        final anniversary = EventRecurrenceCodec.decode(
+          BusyProvider.google,
+          const ['RRULE:FREQ=YEARLY'],
+          baseDate: DateTime(2026, 3, 13),
+        );
+        expect(anniversary.byMonth, [3]);
+        expect(anniversary.byMonthDay, [13]);
+      },
+    );
+
     test('round-trips an every-two-weeks weekday set with a count', () {
       final rule = EventRecurrenceCodec.decode(BusyProvider.google, const [
         'RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE,FR;WKST=MO;COUNT=12',

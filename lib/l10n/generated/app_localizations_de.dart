@@ -3597,4 +3597,9 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get addSeparateGoogleAccount =>
       'Separate Google-Verbindung hinzufügen';
+
+  @override
+  String seriesPatternChangeConfirmation(String before, String after) {
+    return 'Dies ändert das Wiederholungsmuster und kann Termine hinzufügen oder entfernen.\n\nAktuell: $before\nVorschlag: $after\n\nDieses Muster speichern?';
+  }
 }

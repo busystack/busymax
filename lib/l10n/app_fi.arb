@@ -1296,5 +1296,6 @@
     }
   },
   "googleIdentityUnverified": "Tämän vanhan Google-yhteyden henkilöllisyyttä ei voitu vahvistaa. Kalenterit, tehtävät ja odottavat muutokset säilytetään. Lisää erillinen Google-yhteys turvallista synkronointia varten. Odottavat muutokset jäävät alkuperäiseen tiliin.",
-  "addSeparateGoogleAccount": "Lisää erillinen Google-yhteys"
+  "addSeparateGoogleAccount": "Lisää erillinen Google-yhteys",
+  "seriesPatternChangeConfirmation": "Toistumissäännön muuttaminen voi lisätä tai poistaa päivämääriä.\n\nNykyinen: {before}\nEhdotettu: {after}\n\nTallennetaanko tämä sääntö?"
 }

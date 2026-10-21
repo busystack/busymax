@@ -3617,4 +3617,9 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get addSeparateGoogleAccount => 'Aggiungi connessione Google separata';
+
+  @override
+  String seriesPatternChangeConfirmation(String before, String after) {
+    return 'Questa modifica della ricorrenza può aggiungere o rimuovere date.\n\nAttuale: $before\nProposta: $after\n\nSalvare questa ricorrenza?';
+  }
 }

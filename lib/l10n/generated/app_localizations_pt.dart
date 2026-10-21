@@ -3618,6 +3618,11 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get addSeparateGoogleAccount => 'Add a separate Google connection';
+
+  @override
+  String seriesPatternChangeConfirmation(String before, String after) {
+    return 'This changes the recurrence pattern and may add or remove dates.\n\nCurrent: $before\nProposed: $after\n\nSave this pattern?';
+  }
 }
 
 /// The translations for Portuguese, as used in Portugal (`pt_PT`).
@@ -7228,4 +7233,9 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
 
   @override
   String get addSeparateGoogleAccount => 'Adicionar ligação Google separada';
+
+  @override
+  String seriesPatternChangeConfirmation(String before, String after) {
+    return 'Esta alteração da recorrência pode adicionar ou remover datas.\n\nAtual: $before\nProposta: $after\n\nGuardar esta recorrência?';
+  }
 }

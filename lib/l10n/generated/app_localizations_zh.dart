@@ -3454,6 +3454,11 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get addSeparateGoogleAccount => '添加独立的 Google 连接';
+
+  @override
+  String seriesPatternChangeConfirmation(String before, String after) {
+    return '更改重复规则可能会增加或移除日期。\n\n当前：$before\n建议：$after\n\n保存此规则吗？';
+  }
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -6901,6 +6906,11 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get addSeparateGoogleAccount => '添加独立的 Google 连接';
+
+  @override
+  String seriesPatternChangeConfirmation(String before, String after) {
+    return '更改重复规则可能会增加或移除日期。\n\n当前：$before\n建议：$after\n\n保存此规则吗？';
+  }
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -10349,4 +10359,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get addSeparateGoogleAccount => '新增獨立的 Google 連線';
+
+  @override
+  String seriesPatternChangeConfirmation(String before, String after) {
+    return '變更重複規則可能會增加或移除日期。\n\n目前：$before\n建議：$after\n\n要儲存此規則嗎？';
+  }
 }

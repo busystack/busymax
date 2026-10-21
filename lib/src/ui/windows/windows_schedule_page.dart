@@ -36,6 +36,7 @@ import '../../features/maps/application/external_location_launcher.dart';
 import '../../features/schedule/application/saved_schedule_location.dart';
 import '../../schedule/schedule_event_rescheduling.dart';
 import '../../features/calendar/domain/event_timing_policy.dart';
+import '../../features/recurrence/presentation/recurrence_summary.dart';
 import '../../features/tasks/data/tasks_repository.dart';
 import '../../features/tasks/domain/task_mutation_result.dart';
 import '../common/schedule/schedule_interactions.dart';
@@ -886,6 +887,45 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     try {
       final result = await ScheduleReschedulingCoordinator(
         repository: ref.read(calendarRepositoryProvider),
+        confirmSeriesTimingChange: (change, scope) async {
+          if (!mounted) return false;
+          final following = scope == RecurringEventMutationScope.thisAndFuture;
+          return await showDialog<bool>(
+                context: context,
+                builder: (confirmationContext) => ContentDialog(
+                  title: Text(l10n.repeat),
+                  content: Text(
+                    l10n.seriesPatternChangeConfirmation(
+                      recurrenceRuleSummary(
+                        confirmationContext,
+                        change.previewRule(
+                          following: following,
+                          original: true,
+                        ),
+                        timeZone: change.timeZone,
+                      ),
+                      recurrenceRuleSummary(
+                        confirmationContext,
+                        change.previewRule(following: following),
+                        timeZone: change.timeZone,
+                      ),
+                    ),
+                  ),
+                  actions: [
+                    Button(
+                      onPressed: () =>
+                          Navigator.pop(confirmationContext, false),
+                      child: Text(l10n.cancel),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(confirmationContext, true),
+                      child: Text(l10n.save),
+                    ),
+                  ],
+                ),
+              ) ==
+              true;
+        },
         chooseScope: (detail, following) =>
             showWindowsRecurringEventMutationScope(
               context,

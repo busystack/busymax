@@ -1,8 +1,13 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:busymax/src/calendar_providers/calendar_mutation.dart';
 
 import 'package:busymax/src/dav/dav_errors.dart';
+import 'package:busymax/src/dav/dav_provider_profile.dart';
+import 'package:busymax/src/dav/http/dav_http_transport.dart';
+import 'package:busymax/src/dav/mutation/dav_conditional_mutation_service.dart';
+import 'package:busymax/src/dav/mutation/dav_pending_operations.dart';
 import 'package:busymax/src/dav/ical/ical_semantics.dart';
 import 'package:busymax/src/dav/ical/ical_recurrence.dart';
 import 'package:busymax/src/dav/ical/ical_document.dart';
@@ -13,17 +18,27 @@ import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
 import 'package:busymax/src/features/calendar/domain/event_timing_policy.dart';
+import 'package:busymax/src/features/recurrence/domain/series_timing_change.dart';
 import 'package:busymax/src/features/maps/domain/geographic_point.dart';
 import 'package:busymax/src/features/maps/domain/location_result.dart';
 import 'package:busymax/src/features/maps/data/location_resolution_repository.dart';
 import 'package:busymax/src/core/time/provider_date_time.dart';
+import 'package:busymax/src/core/time/stored_temporal_projection.dart';
 import 'package:busymax/src/schedule/schedule_event_rescheduling.dart';
 import 'package:busymax/src/schedule/schedule_item.dart';
+import 'package:busymax/src/schedule/schedule_filters.dart';
+import 'package:busymax/src/schedule/schedule_range.dart';
+import 'package:busymax/src/schedule/schedule_repository.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
+import 'package:busymax/src/features/notifications/notification_schedule_service.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+
+import '../../support/persistence_test_directory.dart';
 
 void main() {
   late AppDatabase database;
@@ -31,15 +46,14 @@ void main() {
   late CalendarRepository calendarRepository;
   late TasksRepository tasksRepository;
   late int notificationChanges;
+  Directory? persistenceDirectory;
+  late int objectSequence;
 
-  setUp(() async {
-    database = AppDatabase(NativeDatabase.memory());
-    var objectSequence = 0;
+  void attachRepositories() {
     objectRepository = DavObjectRepository(
       database: database,
       idFactory: () => 'dav-object-${objectSequence += 1}',
     );
-    notificationChanges = 0;
     calendarRepository = CalendarRepository(
       database: database,
       now: () => _now,
@@ -52,10 +66,346 @@ void main() {
       nowUtc: () => _now,
       onNotificationScheduleChanged: () async => notificationChanges += 1,
     );
+  }
+
+  Future<void> reopen() async {
+    await database.close();
+    database = AppDatabase(
+      NativeDatabase(File('${persistenceDirectory!.path}/busymax.sqlite')),
+    );
+    attachRepositories();
+  }
+
+  Future<void> usePersistentFixture() async {
+    persistenceDirectory = await createPersistenceTestDirectory(
+      'busymax-dav-lifecycle-',
+    );
+    await reopen();
+    await _seedDavAccount(database);
+  }
+
+  Future<void> replayResource(String candidate) async {
+    var puts = 0;
+    final transport = DavHttpTransport(
+      client: MockClient((request) async {
+        if (request.method == 'PUT') {
+          expect(request.headers['if-match'], '"one"');
+          expect(request.body, candidate);
+          puts++;
+          return http.Response('', 204, headers: {'etag': '"returned"'});
+        }
+        expect(request.method, 'GET');
+        return http.Response(
+          candidate,
+          200,
+          headers: {'etag': '"returned"', 'content-type': 'text/calendar'},
+        );
+      }),
+      profile: davProviderProfile(
+        BusyProvider.nextcloud,
+        nextcloudServer: Uri.parse('https://cloud.example.test'),
+      ),
+      accountAuthority: Uri.parse('https://cloud.example.test'),
+    );
+    final result = await DavPendingOperationsReplayer(
+      database: database,
+      accountId: _accountId,
+      objectRepository: objectRepository,
+      nowUtc: () => _now,
+      serviceFactory: ({required account, required collection}) async =>
+          DavConditionalMutationService(
+            remoteClient: DavMutationHttpClient(
+              transport: transport,
+              accountId: _accountId,
+              collectionId: _collectionId,
+              credential: DavBasicCredential(
+                username: 'alex',
+                password: 'fixture-password',
+              ),
+            ),
+            nowUtc: () => _now,
+          ),
+    ).replayDueOperations();
+    expect(result.appliedCount, 1);
+    expect(result.conflictCount, 0);
+    expect(puts, 1);
+    expect(await database.select(database.pendingOps).get(), isEmpty);
+  }
+
+  setUp(() async {
+    persistenceDirectory = null;
+    objectSequence = 0;
+    notificationChanges = 0;
+    database = AppDatabase(NativeDatabase.memory());
+    attachRepositories();
     await _seedDavAccount(database);
   });
 
-  tearDown(() => database.close());
+  tearDown(() async {
+    await database.close();
+    await persistenceDirectory?.delete(recursive: true);
+  });
+
+  for (final deadline in [false, true]) {
+    test(
+      'pending DAV task retains explicit deadline eligibility ($deadline)',
+      () async {
+        await usePersistentFixture();
+        await tasksRepository.createTask(
+          _taskListId,
+          TaskCreateInput(
+            title: 'Pending task',
+            fields: {
+              'microsoftStartDateTime': '2026-08-10',
+              if (deadline) 'microsoftDueDateTime': '2026-08-11',
+            },
+          ),
+        );
+        await reopen();
+        final task = await database.select(database.tasks).getSingle();
+        expect(
+          taskDeadlineAsLocal(task),
+          deadline ? DateTime(2026, 8, 11) : isNull,
+        );
+        expect(await database.select(database.pendingOps).get(), hasLength(1));
+        if (deadline) {
+          await tasksRepository.patchTask(
+            _taskListId,
+            task.id,
+            const TaskPatchInput({'microsoftDueDateTime': null}),
+          );
+          await reopen();
+          final cleared = await database.select(database.tasks).getSingle();
+          expect(taskDeadlineAsLocal(cleared), isNull);
+          expect(taskDueAsLocal(cleared), DateTime(2026, 8, 10));
+        }
+      },
+    );
+  }
+
+  test('pending DAV recurring completion advances the active projection before replay', () async {
+    await usePersistentFixture();
+    await tasksRepository.createTask(
+      _taskListId,
+      const TaskCreateInput(
+        title: 'Pending recurring',
+        fields: {
+          'microsoftDueDateTime': '2026-08-10',
+          'recurrence': {
+            'rules': ['FREQ=DAILY;COUNT=2'],
+            'dates': <String>[],
+            'excludedDates': <String>[],
+          },
+        },
+      ),
+    );
+    final task = await database.select(database.tasks).getSingle();
+    await tasksRepository.patchTask(
+      _taskListId,
+      task.id,
+      const TaskPatchInput({'status': 'completed'}),
+    );
+    await reopen();
+    final next = await database.select(database.tasks).getSingle();
+    expect(next.status, 'needsAction');
+    expect(taskDeadlineAsLocal(next), DateTime(2026, 8, 11));
+    expect(await database.select(database.pendingOps).get(), hasLength(1));
+  });
+
+  for (final following in [false, true]) {
+    test(
+      'cleared ${following ? 'following' : 'detached'} occurrence alarms stay cleared through resource projection',
+      () async {
+        await usePersistentFixture();
+        final baseline = _recurringEventResource().replaceFirst(
+          'X-SERIES-KEEP:opaque',
+          'X-SERIES-KEEP:opaque\r\nBEGIN:VALARM\r\nACTION:DISPLAY\r\nTRIGGER:-PT10M\r\nDESCRIPTION:Reminder\r\nEND:VALARM',
+        );
+        const href = '${_collectionHref}alarms.ics';
+        await _commitObjects(objectRepository, [
+          _prepared(href: href, etag: '"one"', body: baseline),
+        ]);
+        final occurrence =
+            (await database.select(database.calendarEvents).get()).singleWhere(
+              (row) => row.occurrenceKey!.contains('2026-08-10T09:00:00'),
+            );
+        await calendarRepository.updateLocalEvent(
+          _draftForEvent(occurrence).copyWith(
+            reminders: {'minutes': <int>[]},
+            recurringMutationScope: following
+                ? RecurringEventMutationScope.thisAndFuture
+                : RecurringEventMutationScope.singleOccurrence,
+          ),
+        );
+        final candidate = await _serializedPendingDavMutation(
+          database,
+          baseline,
+        );
+        final exception = IcalSemanticDocument.parse(candidate).components
+            .singleWhere(
+              (component) =>
+                  component.recurrenceId?.rawValue == '20260810T090000Z',
+            );
+        expect(exception.alarms, isEmpty);
+        Future<void> check() async {
+          final events = await database.select(database.calendarEvents).get();
+          expect(
+            (jsonDecode(
+              events
+                  .singleWhere((row) => row.id == occurrence.id)
+                  .remindersJson!,
+            ) as Map)['alarms'],
+            isEmpty,
+          );
+          await NotificationScheduleService(
+            database: database,
+            nowUtc: () => DateTime.utc(2026, 8, 8, 8),
+          ).rebuildUpcomingEventNotifications(_accountId);
+          final reminders = await database
+              .select(database.notificationSchedule)
+              .get();
+          expect(
+            reminders.where((row) => row.sourceId == occurrence.id),
+            isEmpty,
+          );
+          expect(reminders, isNotEmpty);
+        }
+
+        await check();
+        await reopen();
+        await check();
+        await replayResource(candidate);
+        await reopen();
+        await check();
+      },
+    );
+  }
+
+  for (final rule in [
+    'FREQ=DAILY;UNTIL=20260810',
+    'FREQ=DAILY;COUNT=1',
+    'FREQ=DAILY;COUNT=2',
+  ]) {
+    test(
+      'recurring task completion projects the current actionable state for $rule',
+      () async {
+        await usePersistentFixture();
+        final baseline = _taskResource(
+          uid: 'final-task',
+          summary: 'Recurring',
+          extra: [
+            'DTSTART;VALUE=DATE:20260809',
+            'DUE;VALUE=DATE:20260810',
+            'RRULE:$rule',
+            'STATUS:NEEDS-ACTION',
+          ],
+        );
+        const href = '${_collectionHref}final-task.ics';
+        await _commitObjects(objectRepository, [
+          _prepared(href: href, etag: '"one"', body: baseline),
+        ]);
+        final masterId = (await database.select(database.tasks).getSingle()).id;
+        await tasksRepository.patchTask(
+          _taskListId,
+          masterId,
+          const TaskPatchInput({'status': 'completed'}),
+        );
+        final master = (await database.select(database.tasks).get())
+            .singleWhere((row) => row.recurrenceIdKey == null);
+        final exhausted = !rule.endsWith('COUNT=2');
+        expect(master.status, exhausted ? 'completed' : 'needsAction');
+        final candidate = await _serializedPendingDavMutation(
+          database,
+          baseline,
+        );
+        final semantic = IcalSemanticDocument.parse(candidate);
+        expect(semantic.components, hasLength(2));
+        if (rule.contains('UNTIL')) {
+          expect(
+            semantic.components
+                .singleWhere((row) => row.recurrenceId == null)
+                .status,
+            'NEEDS-ACTION',
+          );
+          await tasksRepository.patchTask(
+            _taskListId,
+            masterId,
+            const TaskPatchInput({'status': 'completed'}),
+          );
+        }
+        await reopen();
+        await replayResource(candidate);
+        await reopen();
+        expect(
+          (await database.select(database.tasks).get())
+              .singleWhere((row) => row.id == masterId)
+              .status,
+          exhausted ? 'completed' : 'needsAction',
+        );
+        if (exhausted) {
+          final editedCompletion = DateTime.utc(2026, 8, 8, 7);
+          await tasksRepository.patchTask(
+            _taskListId,
+            masterId,
+            TaskPatchInput({
+              'completedAtUtc': editedCompletion.toIso8601String(),
+            }),
+          );
+          expect(
+            DateTime.parse(
+              (await database.select(database.tasks).get())
+                  .singleWhere((row) => row.id == masterId)
+                  .completedUtc!,
+            ),
+            editedCompletion,
+          );
+          await tasksRepository.patchTask(
+            _taskListId,
+            masterId,
+            const TaskPatchInput({'status': 'needsAction'}),
+          );
+          expect(
+            (await database.select(database.tasks).get())
+                .singleWhere((row) => row.id == masterId)
+                .status,
+            isNot('completed'),
+          );
+          await reopen();
+          final taskTrees = await database.tasksDao.watchAllTaskTrees([
+            _accountId,
+          ]).first;
+          expect(
+            taskTrees.where(
+              (row) => !['completed', 'cancelled'].contains(row.task.status),
+            ),
+            hasLength(1),
+          );
+          final openItems = await ScheduleRepository(database).listItems(
+            range: ScheduleRange(
+              start: DateTime(2026, 8),
+              end: DateTime(2026, 9),
+            ),
+            filters: const ScheduleFilters(
+              taskCompletion: ScheduleTaskCompletion.open,
+            ),
+          );
+          expect(openItems.whereType<TaskScheduleItem>(), hasLength(1));
+          await tasksRepository.patchTask(
+            _taskListId,
+            masterId,
+            const TaskPatchInput({'status': 'completed'}),
+          );
+          expect(
+            (await database.select(database.tasks).get())
+                .singleWhere((row) => row.id == masterId)
+                .status,
+            'completed',
+          );
+          expect(await database.select(database.tasks).get(), hasLength(2));
+        }
+      },
+    );
+  }
 
   for (final remove in [false, true]) {
     test(
@@ -1060,6 +1410,386 @@ void main() {
     },
   );
 
+  for (final drag in [false, true]) {
+    test(
+      '${drag ? 'coordinator drag' : 'ordinary weekly series edit'} preserves DAV exceptions through replay, sync and restart',
+      () async {
+        await usePersistentFixture();
+        const href = '${_collectionHref}weekly-timing.ics';
+        final baseline = _ical(const [
+          'BEGIN:VCALENDAR',
+          'VERSION:2.0',
+          'PRODID:-//BusyMax integration test//EN',
+          'BEGIN:VEVENT',
+          'UID:weekly@example.test',
+          'DTSTAMP:20260808T110000Z',
+          'DTSTART:20260803T090000Z',
+          'DTEND:20260803T100000Z',
+          'RRULE:FREQ=WEEKLY;BYDAY=MO;COUNT=5',
+          'SUMMARY:Weekly',
+          'X-SERIES-KEEP:opaque',
+          'END:VEVENT',
+          'BEGIN:VEVENT',
+          'UID:weekly@example.test',
+          'RECURRENCE-ID:20260810T090000Z',
+          'DTSTAMP:20260808T110000Z',
+          'DTSTART:20260812T130000Z',
+          'DTEND:20260812T150000Z',
+          'SUMMARY:Moved Wednesday',
+          'X-EXCEPTION-KEEP:opaque',
+          'END:VEVENT',
+          'BEGIN:VEVENT',
+          'UID:weekly@example.test',
+          'RECURRENCE-ID:20260817T090000Z',
+          'DTSTAMP:20260808T110000Z',
+          'DTSTART:20260817T090000Z',
+          'DTEND:20260817T100000Z',
+          'STATUS:CANCELLED',
+          'END:VEVENT',
+          'END:VCALENDAR',
+        ]);
+        await _commitObjects(objectRepository, [
+          _prepared(href: href, etag: '"one"', body: baseline),
+        ]);
+        final row = (await database.select(database.calendarEvents).get())
+            .singleWhere(
+              (event) => event.occurrenceKey!.contains('2026-08-03T09:00:00'),
+            );
+        final draft = _draftForEvent(row).copyWith(
+          start: DateTime.utc(2026, 8, 4, 9),
+          end: DateTime.utc(2026, 8, 4, 10),
+          recurringMutationScope: RecurringEventMutationScope.entireSeries,
+        );
+        if (drag) {
+          final item =
+              (await ScheduleRepository(database).listItems(
+                    range: ScheduleRange(
+                      start: DateTime.utc(2026, 8),
+                      end: DateTime.utc(2026, 9),
+                    ),
+                  ))
+                  .whereType<CalendarScheduleItem>()
+                  .singleWhere((item) => item.id == row.id);
+          expect(
+            await ScheduleReschedulingCoordinator(
+              repository: calendarRepository,
+              chooseScope: (_, _) async =>
+                  RecurringEventMutationScope.entireSeries,
+              chooseGuestUpdates: (_) async => throw StateError('No guests'),
+              requestSync: (_) async {},
+            ).commit(
+              ScheduleRescheduleRequest(
+                item: item,
+                interval: ScheduleInterval(draft.start!, draft.end!),
+              ),
+            ),
+            ScheduleRescheduleResult.saved,
+          );
+        } else {
+          await calendarRepository.updateLocalEvent(draft);
+        }
+        final candidate = await _serializedPendingDavMutation(
+          database,
+          baseline,
+        );
+        final semantic = IcalSemanticDocument.parse(candidate);
+        expect(
+          semantic.components
+              .singleWhere((component) => component.recurrenceId == null)
+              .recurrenceRules
+              .single,
+          contains('BYDAY=TU'),
+        );
+        final exception = semantic.components.singleWhere(
+          (c) => c.summary == 'Moved Wednesday',
+        );
+        expect(exception.recurrenceId!.rawValue, '20260811T090000Z');
+        expect(exception.start!.rawValue, '20260812T130000Z');
+        expect(exception.end!.rawValue, '20260812T150000Z');
+        expect(
+          semantic.components
+              .singleWhere((c) => c.status == 'CANCELLED')
+              .recurrenceId!
+              .rawValue,
+          '20260818T090000Z',
+        );
+        expect(candidate, contains('X-EXCEPTION-KEEP:opaque'));
+        Future<void> check() async {
+          final events = (await database.select(database.calendarEvents).get())
+              .where((event) => !event.isDeleted && !event.isCancelled)
+              .toList();
+          final moved = events.singleWhere(
+            (event) => event.title == 'Moved Wednesday',
+          );
+          expect(
+            DateTime.parse(moved.startDateTime!),
+            DateTime.utc(2026, 8, 12, 13),
+          );
+          expect(
+            DateTime.parse(moved.endDateTime!),
+            DateTime.utc(2026, 8, 12, 15),
+          );
+          expect(
+            events
+                .where((event) => event.title != 'Moved Wednesday')
+                .map((event) => DateTime.parse(event.startDateTime!).weekday),
+            everyElement(DateTime.tuesday),
+          );
+          expect(
+            events.where(
+              (event) => DateTime.parse(event.startDateTime!).day == 18,
+            ),
+            isEmpty,
+          );
+          expect(
+            events.where(
+              (event) => DateTime.parse(event.startDateTime!).day == 11,
+            ),
+            isEmpty,
+          );
+        }
+
+        await check();
+        await reopen();
+        await check();
+        await replayResource(candidate);
+        await _commitObjects(objectRepository, [
+          _prepared(href: href, etag: '"returned"', body: candidate),
+        ]);
+        await reopen();
+        await check();
+        expect(await database.select(database.pendingOps).get(), isEmpty);
+      },
+    );
+  }
+
+  test('ordinary all-day series edit keeps a rescheduled exception and cancellation dates', () async {
+    await usePersistentFixture();
+    const href = '${_collectionHref}all-day-series.ics';
+    final baseline = _ical(const [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//BusyMax fixture//EN',
+      'BEGIN:VEVENT',
+      'UID:all-day-series',
+      'DTSTAMP:20260101T000000Z',
+      'DTSTART;VALUE=DATE:20260601',
+      'DTEND;VALUE=DATE:20260602',
+      'RRULE:FREQ=WEEKLY;BYDAY=MO;COUNT=3',
+      'SUMMARY:Regular',
+      'END:VEVENT',
+      'BEGIN:VEVENT',
+      'UID:all-day-series',
+      'RECURRENCE-ID;VALUE=DATE:20260608',
+      'DTSTAMP:20260101T000000Z',
+      'DTSTART;VALUE=DATE:20260610',
+      'DTEND;VALUE=DATE:20260612',
+      'SUMMARY:Moved Wednesday',
+      'END:VEVENT',
+      'BEGIN:VEVENT',
+      'UID:all-day-series',
+      'RECURRENCE-ID;VALUE=DATE:20260615',
+      'DTSTAMP:20260101T000000Z',
+      'DTSTART;VALUE=DATE:20260615',
+      'DTEND;VALUE=DATE:20260616',
+      'STATUS:CANCELLED',
+      'END:VEVENT',
+      'END:VCALENDAR',
+    ]);
+    await _commitObjects(objectRepository, [
+      _prepared(href: href, etag: '"one"', body: baseline),
+    ]);
+    final selected = (await database.select(database.calendarEvents).get())
+        .singleWhere((row) => row.startDate == '2026-06-01');
+    await calendarRepository.updateLocalEvent(
+      _draftForEvent(selected).copyWith(
+        start: DateTime.utc(2026, 6, 2),
+        end: DateTime.utc(2026, 6, 3),
+        recurringMutationScope: RecurringEventMutationScope.entireSeries,
+      ),
+    );
+    final candidate = await _serializedPendingDavMutation(database, baseline);
+    final parsed = IcalSemanticDocument.parse(candidate);
+    expect(
+      parsed.components
+          .singleWhere((c) => c.summary == 'Moved Wednesday')
+          .recurrenceId!
+          .rawValue,
+      '20260609',
+    );
+    expect(
+      parsed.components
+          .singleWhere((c) => c.status == 'CANCELLED')
+          .recurrenceId!
+          .rawValue,
+      '20260616',
+    );
+    Future<void> check() async {
+      final active = (await database.select(database.calendarEvents).get())
+          .where((row) => !row.isDeleted && !row.isCancelled)
+          .toList();
+      expect(active, hasLength(2));
+      expect(
+        active.map((row) => row.startDate),
+        unorderedEquals(['2026-06-02', '2026-06-10']),
+      );
+      final moved = active.singleWhere((row) => row.title == 'Moved Wednesday');
+      expect(moved.endDate, '2026-06-12');
+      expect(moved.allDay, isTrue);
+    }
+
+    await check();
+    await replayResource(candidate);
+    await reopen();
+    await check();
+  });
+
+  for (final duration in ['P1D', 'PT24H']) {
+    test(
+      'ordinary zoned series edit preserves $duration and exception schedule across DST and restart',
+      () async {
+        await usePersistentFixture();
+        const href = '${_collectionHref}dst-series.ics';
+        final baseline = _ical([
+          'BEGIN:VCALENDAR',
+          'VERSION:2.0',
+          'PRODID:-//BusyMax fixture//EN',
+          'BEGIN:VEVENT',
+          'UID:dst-series',
+          'DTSTAMP:20260101T000000Z',
+          'DTSTART;TZID=America/Vancouver:20260302T013000',
+          'DURATION:$duration',
+          'RRULE:FREQ=WEEKLY;BYDAY=MO;COUNT=3',
+          'SUMMARY:Regular',
+          'END:VEVENT',
+          'BEGIN:VEVENT',
+          'UID:dst-series',
+          'RECURRENCE-ID;TZID=America/Vancouver:20260316T013000',
+          'DTSTAMP:20260101T000000Z',
+          'DTSTART;TZID=America/Vancouver:20260318T130000',
+          'DTEND;TZID=America/Vancouver:20260318T150000',
+          'SUMMARY:Moved Wednesday',
+          'X-KEEP:opaque',
+          'END:VEVENT',
+          'END:VCALENDAR',
+        ]);
+        await _commitObjects(objectRepository, [
+          _prepared(href: href, etag: '"one"', body: baseline),
+        ]);
+        final selected = (await database.select(database.calendarEvents).get())
+            .singleWhere((row) => row.startDateTime == '2026-03-02T01:30:00');
+        final detail = (await calendarRepository.loadEventDetail(selected.id))!;
+        await calendarRepository.updateLocalEvent(
+          EventEditorDraft.fromEventDetail(detail).copyWith(
+            start: providerCivilDateTime(DateTime.utc(2026, 3, 1, 1, 30)),
+            end: providerCivilDateTime(DateTime.utc(2026, 3, 2, 1, 30)),
+            recurringMutationScope: RecurringEventMutationScope.entireSeries,
+          ),
+        );
+        final candidate = await _serializedPendingDavMutation(
+          database,
+          baseline,
+        );
+        expect(candidate, contains('DURATION:$duration'));
+        final parsed = IcalSemanticDocument.parse(candidate);
+        final exception = parsed.components.singleWhere(
+          (c) => c.recurrenceId != null,
+        );
+        expect(exception.recurrenceId!.rawValue, '20260315T013000');
+        expect(exception.start!.rawValue, '20260318T130000');
+        expect(exception.end!.rawValue, '20260318T150000');
+        Future<void> check() async {
+          final rows = await database.select(database.calendarEvents).get();
+          final dst = rows.singleWhere(
+            (row) => row.startDateTime == '2026-03-08T01:30:00',
+          );
+          expect(dst.startTimeZone, 'America/Vancouver');
+          expect(
+            dst.endDateTime,
+            duration == 'P1D' ? '2026-03-09T01:30:00' : '2026-03-09T02:30:00',
+          );
+          expect(
+            providerDateTimeAsUtcInstant(dst.endDateTime, dst.endTimeZone)!
+                .difference(
+                  providerDateTimeAsUtcInstant(
+                    dst.startDateTime,
+                    dst.startTimeZone,
+                  )!,
+                )
+                .inHours,
+            duration == 'P1D' ? 23 : 24,
+          );
+          expect(
+            rows
+                .singleWhere((row) => row.title == 'Moved Wednesday')
+                .startDateTime,
+            '2026-03-18T13:00:00',
+          );
+        }
+
+        await check();
+        await reopen();
+        await check();
+        await replayResource(candidate);
+        await reopen();
+        await check();
+      },
+    );
+  }
+
+  test('a ranged exception with varying monthly offsets requires a decision before mutation', () async {
+    const href = '${_collectionHref}ranged-series.ics';
+    final baseline = _ical(const [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//BusyMax fixture//EN',
+      'BEGIN:VEVENT',
+      'UID:ranged-series',
+      'DTSTAMP:20260101T000000Z',
+      'DTSTART:20260126T090000Z',
+      'DTEND:20260126T100000Z',
+      'RRULE:FREQ=MONTHLY;BYDAY=-1MO;COUNT=8',
+      'SUMMARY:Regular',
+      'END:VEVENT',
+      'BEGIN:VEVENT',
+      'UID:ranged-series',
+      'RECURRENCE-ID;RANGE=THISANDFUTURE:20260223T090000Z',
+      'DTSTAMP:20260101T000000Z',
+      'DTSTART:20260225T090000Z',
+      'DTEND:20260225T100000Z',
+      'SUMMARY:Following Wednesdays',
+      'END:VEVENT',
+      'END:VCALENDAR',
+    ]);
+    await _commitObjects(objectRepository, [
+      _prepared(href: href, etag: '"one"', body: baseline),
+    ]);
+    final selected = (await database.select(database.calendarEvents).get())
+        .singleWhere(
+          (row) => row.occurrenceKey!.contains('2026-01-26T09:00:00'),
+        );
+    final draft = _draftForEvent(selected).copyWith(
+      start: DateTime.utc(2026, 1, 27, 9),
+      end: DateTime.utc(2026, 1, 27, 10),
+      recurringMutationScope: RecurringEventMutationScope.entireSeries,
+    );
+    await expectLater(
+      calendarRepository.prepareSeriesTimingChange(draft),
+      throwsA(isA<SeriesTimingDecisionRequired>()),
+    );
+    await expectLater(
+      calendarRepository.updateLocalEvent(draft),
+      throwsA(isA<SeriesTimingDecisionRequired>()),
+    );
+    expect(await database.select(database.pendingOps).get(), isEmpty);
+    expect(
+      (await database.select(database.calendarEvents).get())
+          .singleWhere((row) => row.id == selected.id)
+          .startDateTime,
+      '2026-01-26T09:00:00.000Z',
+    );
+  });
+
   test(
     'entire-series edit patches the master anchor and preserves exceptions',
     () async {
@@ -1098,7 +1828,7 @@ void main() {
       final exception = semantic.components.singleWhere(
         (component) => component.recurrenceId != null,
       );
-      expect(exception.recurrenceId?.rawValue, '20260809T090000Z');
+      expect(exception.recurrenceId?.rawValue, '20260809T100000Z');
       expect(exception.start?.rawValue, '20260809T110000Z');
       expect(exception.summary, 'Existing exception');
       expect(candidate, contains('X-SERIES-KEEP:opaque'));

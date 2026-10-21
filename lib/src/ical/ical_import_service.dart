@@ -1,9 +1,11 @@
 import 'package:drift/drift.dart';
 
 import '../features/maps/domain/location_result.dart';
+import '../core/time/provider_date_time.dart';
 
 import '../dav/dav_errors.dart';
 import '../dav/ical/ical_document.dart';
+import '../dav/ical/ical_recurrence.dart';
 import '../dav/ical/ical_semantics.dart';
 import '../dav/ical/ical_timezone.dart';
 import '../dav/nextcloud/nextcloud_native_import.dart';
@@ -362,8 +364,33 @@ _PreparedImportDraft _prepareDraft(
     end = _draftDateTime(endValue);
     endTimeZone = _timeZone(endValue);
   } else if (master.duration != null) {
-    end = _addWallDuration(startValue, master.duration!.duration);
-    endTimeZone = _timeZone(startValue);
+    final derivedEnd = addIcalDuration(
+      startValue,
+      master.duration!,
+      resolver: resolver,
+    );
+    final exactEnd = derivedEnd.resolvedUtc;
+    final graphNeedsExactEnd =
+        destination.provider == BusyProvider.microsoft &&
+        exactEnd != null &&
+        providerWallTimeToInstant(
+              derivedEnd.localValue,
+              derivedEnd.timeZoneId,
+            ) !=
+            exactEnd;
+    end = graphNeedsExactEnd
+        ? exactEnd
+        : derivedEnd.resolvedUtc != null &&
+              derivedEnd.kind == IcalTemporalKind.tzidDateTime
+        ? providerInstantInTimeZone(
+            derivedEnd.resolvedUtc!,
+            derivedEnd.timeZoneId,
+          )
+        : _draftDateTime(derivedEnd);
+    // Graph's dateTimeTimeZone uses wall fields and cannot distinguish the
+    // second autumn hour. Only that calculated endpoint needs UTC; DTSTART
+    // and the recurrence retain the resource's authored timezone.
+    endTimeZone = graphNeedsExactEnd ? 'UTC' : _timeZone(startValue);
   } else if (allDay) {
     end = DateTime(start.year, start.month, start.day + 1);
   } else {
@@ -726,19 +753,6 @@ String _wireTemporal(IcalTemporalValue value) {
 
 DateTime _draftDateTime(IcalTemporalValue value) {
   final wall = value.localValue;
-  if (value.kind == IcalTemporalKind.utcDateTime) return wall.toUtc();
-  return DateTime(
-    wall.year,
-    wall.month,
-    wall.day,
-    wall.hour,
-    wall.minute,
-    wall.second,
-  );
-}
-
-DateTime _addWallDuration(IcalTemporalValue value, Duration duration) {
-  final wall = value.localValue.add(duration);
   if (value.kind == IcalTemporalKind.utcDateTime) return wall.toUtc();
   return DateTime(
     wall.year,
