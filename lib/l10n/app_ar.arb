@@ -1321,7 +1321,7 @@
   "syncNoRecord": "لم يُسجّل وقت مزامنة ناجحة",
   "cachedSyncError": "فشلت المزامنة؛ قد تكون البيانات المخزنة مؤقتًا قديمة.",
   "calendarRemotePending": "تغيير ظهور Google قيد الانتظار",
-  "calendarRemoteFailed": "فشل تغيير ظهور Google. تُعرض آخر حالة مؤكدة؛ أعد محاولة المزامنة.",
+  "calendarRemoteFailed": "فشل تغيير الظهور في Google. تظهر آخر حالة مؤكدة في Google. ما زال BusyMax يتبع التغيير المعلّق. أعد المحاولة أو تجاهل التغيير.",
   "sharedCalendarUnavailable": "الوصول غير متاح؛ تُعرض البيانات المخزنة مؤقتًا. أعد المزامنة أو أزل التقويم من قائمتك.",
   "invalidCollectionColor": "أدخل لونًا سداسيًا عشريًا من ست أو ثماني خانات يبدأ بـ #.",
   "invalidCollectionOrder": "أدخل عددًا صحيحًا.",

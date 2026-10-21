@@ -1384,7 +1384,7 @@
   "syncNoRecord": "Kein erfolgreicher Synchronisierungszeitpunkt erfasst",
   "cachedSyncError": "Synchronisierung fehlgeschlagen; zwischengespeicherte Daten können veraltet sein.",
   "calendarRemotePending": "Google-Sichtbarkeitsänderung ausstehend",
-  "calendarRemoteFailed": "Google-Sichtbarkeitsänderung fehlgeschlagen. Der zuletzt bestätigte Zustand wird angezeigt. Synchronisierung erneut versuchen.",
+  "calendarRemoteFailed": "Die Sichtbarkeitsänderung bei Google ist fehlgeschlagen. Der letzte bestätigte Google-Status wird angezeigt. BusyMax folgt weiterhin der ausstehenden Änderung. Erneut versuchen oder verwerfen.",
   "sharedCalendarUnavailable": "Zugriff nicht verfügbar; zwischengespeicherte Daten werden angezeigt. Synchronisierung wiederholen oder aus der Kalenderliste entfernen.",
   "invalidCollectionColor": "Geben Sie eine sechs- oder achtstellige Hexadezimalfarbe mit # ein.",
   "invalidCollectionOrder": "Geben Sie eine ganze Zahl ein.",

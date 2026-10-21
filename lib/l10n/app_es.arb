@@ -1384,7 +1384,7 @@
   "syncNoRecord": "No se registró ninguna sincronización correcta",
   "cachedSyncError": "Falló la sincronización; los datos en caché pueden estar desactualizados.",
   "calendarRemotePending": "Cambio de visibilidad en Google pendiente",
-  "calendarRemoteFailed": "Falló el cambio de visibilidad en Google. Se muestra el último estado confirmado; reintente la sincronización.",
+  "calendarRemoteFailed": "Falló el cambio de visibilidad en Google. Se muestra el último estado confirmado de Google. BusyMax sigue aplicando el cambio pendiente. Reinténtalo o descártalo.",
   "sharedCalendarUnavailable": "Acceso no disponible; se muestra la caché. Reintente la sincronización o quite el calendario de su lista.",
   "invalidCollectionColor": "Introduzca un color hexadecimal de seis u ocho dígitos que empiece por #.",
   "invalidCollectionOrder": "Introduzca un número entero.",

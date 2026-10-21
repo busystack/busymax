@@ -1499,7 +1499,7 @@
   "syncNoRecord": "Eduka sünkroonimise aega pole salvestatud",
   "cachedSyncError": "Sünkroonimine nurjus; vahemälu andmed võivad olla aegunud.",
   "calendarRemotePending": "Google’i nähtavuse muudatus on ootel",
-  "calendarRemoteFailed": "Google’i nähtavuse muutmine nurjus. Kuvatakse viimane kinnitatud olek; proovi sünkroonimist uuesti.",
+  "calendarRemoteFailed": "Google’i nähtavuse muutmine ebaõnnestus. Kuvatakse Google’i viimane kinnitatud olek. BusyMax järgib endiselt ootel muudatust. Proovi uuesti või loobu muudatusest.",
   "sharedCalendarUnavailable": "Juurdepääs puudub; kuvatakse vahemälu andmed. Proovi sünkroonimist uuesti või eemalda kalender loendist.",
   "invalidCollectionColor": "Sisesta kuue- või kaheksakohaline kuueteistkümnendvärv, alustades märgiga #.",
   "invalidCollectionOrder": "Sisesta täisarv.",

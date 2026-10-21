@@ -14,6 +14,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import '../../../calendar_providers/calendar_mutation.dart';
+import '../../../db/app_database.dart' show PendingOp;
 import '../../../microsoft_calendar/microsoft_shared_calendar_address.dart';
 
 import 'package:flutter/material.dart';
@@ -2786,6 +2787,12 @@ class _CalendarSettingsRow extends ConsumerWidget {
                           : l10n.calendarRemotePending,
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
+                  if (failedVisibility)
+                    _CalendarVisibilityRecoveryActions(
+                      key: ValueKey('visibility-recovery-${pending.id}'),
+                      source: source,
+                      operation: pending,
+                    ),
                   if (source.provider == BusyProvider.google &&
                       source.primaryCalendar)
                     Text(
@@ -2818,7 +2825,7 @@ class _CalendarSettingsRow extends ConsumerWidget {
                     value: !confirmedHidden,
                     focusNode: focusNode,
                     hasFocusBorder: false,
-                    onChanged: canChangeProviderVisibility
+                    onChanged: canChangeProviderVisibility && !failedVisibility
                         ? (visible) =>
                               onProviderVisibilityChanged(source, visible)
                         : null,
@@ -2859,6 +2866,93 @@ class _CalendarSettingsRow extends ConsumerWidget {
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _CalendarVisibilityRecoveryActions extends ConsumerStatefulWidget {
+  const _CalendarVisibilityRecoveryActions({
+    super.key,
+    required this.source,
+    required this.operation,
+  });
+  final CalendarSourceEntity source;
+  final PendingOp operation;
+
+  @override
+  ConsumerState<_CalendarVisibilityRecoveryActions> createState() =>
+      _CalendarVisibilityRecoveryActionsState();
+}
+
+class _CalendarVisibilityRecoveryActionsState
+    extends ConsumerState<_CalendarVisibilityRecoveryActions> {
+  bool _busy = false;
+
+  Future<void> _resolve({required bool discard}) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    final l10n = context.l10n;
+    try {
+      if (discard &&
+          !await showBusyMaxConfirm(
+            context,
+            title: l10n.discardPendingOperation,
+            message: l10n.discardPendingOperationConfirmation,
+            confirmLabel: l10n.discard,
+          )) {
+        return;
+      }
+      if (!mounted) return;
+      final service = ref.read(
+        pendingOpResolutionServiceForAccountProvider(widget.source.accountId),
+      );
+      if (discard) {
+        await service.discard(widget.operation.id);
+      } else {
+        await service.retryNow(widget.operation.id);
+      }
+    } on Object catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(localizedSyncFailureMessage(l10n, error))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return Padding(
+      padding: const EdgeInsets.only(top: BusyMaxSpacing.sm),
+      child: Wrap(
+        spacing: BusyMaxSpacing.sm,
+        runSpacing: BusyMaxSpacing.sm,
+        children: [
+          BusyMaxPushButton.standard(
+            key: ValueKey(
+              'settings-calendar-visibility-retry-${widget.source.id}',
+            ),
+            onPressed: _busy ? null : () => _resolve(discard: false),
+            child: Text(
+              l10n.retry,
+              semanticsLabel: '${l10n.retry} · ${widget.source.summary}',
+            ),
+          ),
+          BusyMaxPushButton.standard(
+            key: ValueKey(
+              'settings-calendar-visibility-discard-${widget.source.id}',
+            ),
+            onPressed: _busy ? null : () => _resolve(discard: true),
+            child: Text(
+              l10n.discard,
+              semanticsLabel: '${l10n.discard} · ${widget.source.summary}',
+            ),
+          ),
+        ],
       ),
     );
   }

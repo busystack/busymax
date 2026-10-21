@@ -3732,7 +3732,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get calendarRemoteFailed =>
-      'فشل تغيير ظهور Google. تُعرض آخر حالة مؤكدة؛ أعد محاولة المزامنة.';
+      'فشل تغيير الظهور في Google. تظهر آخر حالة مؤكدة في Google. ما زال BusyMax يتبع التغيير المعلّق. أعد المحاولة أو تجاهل التغيير.';
 
   @override
   String get sharedCalendarUnavailable =>

@@ -228,6 +228,50 @@ void main() {
         await tester.ensureVisible(find.text('QA calendar 2'));
         await _capture(tester, '$output/$theme-google-pending.png');
         expect(find.text('Google visibility change pending'), findsOneWidget);
+        final visibilityOp = (await tester.runAsync(
+          () => f.database.select(f.database.pendingOps).getSingle(),
+        ))!;
+        await tester.runAsync(
+          () => f.database.pendingOpsDao.updateAttempt(
+            id: visibilityOp.id,
+            attemptCount: 1,
+            nextAttemptAtUtc: DateTime.utc(9999, 12, 31),
+            lastErrorCode: 'forbidden',
+          ),
+        );
+        await tester.pumpAndSettle();
+        final sourceId = CalendarRepository.sourceId(
+          accountId: 'google:qa-2',
+          provider: BusyProvider.google,
+          providerCalendarId: 'qa-2',
+        );
+        final failedRetry = find.byKey(
+          ValueKey('settings-calendar-visibility-retry-$sourceId'),
+        );
+        expect(failedRetry, findsOneWidget);
+        expect(
+          tester.getSemantics(failedRetry).label,
+          contains('QA calendar 2'),
+        );
+        await Scrollable.ensureVisible(
+          tester.element(find.text('QA calendar 2')),
+          alignment: 0.3,
+        );
+        await _capture(tester, '$output/$theme-google-failed.png');
+        await _resize(tester, 640, 900);
+        await Scrollable.ensureVisible(
+          tester.element(find.text('QA calendar 2')),
+          alignment: 0.3,
+        );
+        await _capture(tester, '$output/$theme-narrow-google-failed.png');
+        await _resize(tester, 1200, 1000);
+        await tester.runAsync(
+          () => f.database.pendingOpsDao.retryNow(
+            visibilityOp.id,
+            DateTime.now().toUtc(),
+          ),
+        );
+        await tester.pumpAndSettle();
         await tester.ensureVisible(find.text('Shared primary QA calendar 1'));
         await _capture(tester, '$output/$theme-microsoft-cached-error.png');
         await tester.ensureVisible(

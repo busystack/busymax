@@ -3591,7 +3591,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get calendarRemoteFailed =>
-      'Google の表示設定を変更できませんでした。最後に確認された状態を表示しています。同期を再試行してください。';
+      'Google での表示設定の変更に失敗しました。Google で最後に確認された状態が表示されています。BusyMax は引き続き保留中の変更に従います。再試行するか、変更を破棄してください。';
 
   @override
   String get sharedCalendarUnavailable =>

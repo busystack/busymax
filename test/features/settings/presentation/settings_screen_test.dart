@@ -1,5 +1,6 @@
 import '../../../support/desktop_registration_config.dart';
 import '../../../support/contacts_fixture.dart';
+import '../../../support/dav_contacts_fixture.dart' as carddav;
 import '../../../platform/contacts_settings_routes_test.dart'
     show complete, settle;
 
@@ -7,11 +8,16 @@ import '../../../core/auth/authorization_transition_test.dart' show Harness;
 
 import 'package:busymax/src/core/auth/oauth_registration.dart';
 import 'package:busymax/src/core/auth/oauth_models.dart';
+import 'package:busymax/src/core/auth/authorization_persistence.dart';
+import 'package:busymax/src/contacts/busymax_contacts_controller.dart';
+import 'package:busystack_contacts/busystack_contacts.dart';
+import 'package:busymax/src/dav/discovery/dav_discovery_models.dart';
 
 import 'dart:async';
 
 import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
 import 'package:busymax/src/features/sync/calendar_sync_engine.dart';
+import 'package:busymax/src/features/sync/pending_op_resolution_service.dart';
 
 import 'dart:convert';
 import 'dart:io';
@@ -39,6 +45,8 @@ import 'package:busymax/src/features/accounts/domain/account_connection_state.da
 import 'package:busymax/src/features/auth/data/auth_repository.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/google_calendar/google_calendar_api_client.dart';
+import 'package:busymax/src/google_tasks/oauth/oauth_service.dart';
+import 'package:busymax/src/google_tasks/oauth/oauth_loopback_flow.dart';
 import 'package:busymax/src/features/settings/presentation/settings_screen.dart';
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/sync/sync_auth_error.dart';
@@ -65,6 +73,250 @@ import 'package:busymax/src/platform/common/desktop_services.dart';
 const _nativeMenuChannel = MethodChannel(nativeMenuChannelName);
 
 void main() {
+  for (final enabled in [true, false]) {
+    testWidgets(
+      'ordinary Nextcloud account Reconnect renews linked request credentials; suggestions enabled=$enabled',
+      (tester) async {
+        final database = AppDatabase.memoryForTests();
+        final secrets = InMemorySecretStore();
+        final persistence = AuthorizationPersistence(
+          database: database,
+          secrets: secrets,
+        );
+        final f = ContactsFixture(
+          database,
+          realDav: true,
+          readAuthorizationGeneration: persistence.generation,
+          readLinkedDavCredential: (id) async {
+            final credential = await persistence.readCurrentCredential(id);
+            return credential is NextcloudSecretRecord
+                ? BusyMaxLinkedDavCredential(
+                    server: credential.canonicalServer,
+                    username: credential.loginName,
+                    password: credential.appPassword,
+                  )
+                : null;
+          },
+        );
+        addTearDown(() => complete(tester, f.close));
+        var polls = 0, browsers = 0;
+        final service = DavAccountOnboardingService(
+          database: database,
+          secretStore: secrets,
+          authorizationPersistence: persistence,
+          nextcloudLoginFlow: NextcloudLoginFlowV2(
+            client: MockClient((request) async {
+              return http.Response(
+                jsonEncode(
+                  request.url.path.endsWith('/poll')
+                      ? {
+                          'server': carddav.server.toString(),
+                          'loginName': 'alex',
+                          'appPassword': ++polls == 1
+                              ? 'password-A'
+                              : 'password-B',
+                        }
+                      : {
+                          'poll': {
+                            'token': 'synthetic',
+                            'endpoint': carddav.server
+                                .resolve('login/v2/poll')
+                                .toString(),
+                          },
+                          'login': carddav.server
+                              .resolve('login/v2/browser')
+                              .toString(),
+                        },
+                ),
+                200,
+              );
+            }),
+            browserLauncher: (_) async {
+              browsers++;
+              return true;
+            },
+            delay: (_) async {},
+          ),
+          idFactory: () => 'ordinary-reconnect',
+          discover:
+              ({
+                required accountId,
+                required provider,
+                required accountAuthority,
+                required credential,
+                cancellationToken,
+              }) async => DavDiscoveryResult(
+                accountId: accountId,
+                provider: provider,
+                service: DavServiceDiscovery(
+                  canonicalServiceUri: accountAuthority,
+                  canonicalOrigin: accountAuthority.replace(path: ''),
+                  principalHref: accountAuthority.resolve('principals/alex/'),
+                  calendarHomeHref: accountAuthority.resolve('calendars/alex/'),
+                  calendarUserAddresses: const [],
+                  scheduleInboxHref: null,
+                  scheduleOutboxHref: null,
+                  capabilities: const AccountServiceCapabilities(
+                    hasPrincipal: true,
+                    hasCalendarHome: true,
+                  ),
+                  discoveredAtUtc: DateTime.utc(2026, 10, 21),
+                  lastValidatedAtUtc: DateTime.utc(2026, 10, 21),
+                  providerProfileVersion: 1,
+                ),
+                collections: const [],
+              ),
+        );
+        final remote = carddav.DavFixture();
+        var revokedA = false;
+        f.respondDav = (request) async {
+          if (revokedA &&
+              request.headers['authorization'] ==
+                  'Basic ${base64Encode(utf8.encode('alex:password-A'))}') {
+            return http.Response('', 401);
+          }
+          return remote.respond(request);
+        };
+        final parent = (await complete(
+          tester,
+          () => service.connectNextcloud(
+            enteredServer: carddav.server.toString(),
+          ),
+        )).accountId;
+        final contactId = BusyMaxContactsController.linkedContactAccountId(
+          parent,
+        );
+        Object? revokedFailure;
+        await complete(tester, () async {
+          await f.controller.enableLinkedNextcloudContacts(parent);
+          await f.controller.synchronizeAccount(contactId);
+          final source = (await f.controller.sourceSettings()).first.source;
+          await f.store.setSourceEnabled(source.key, enabled: false);
+          revokedA = true;
+          try {
+            await f.controller.synchronizeAccount(contactId);
+          } on Object catch (error) {
+            revokedFailure = error;
+          }
+          if (!enabled) await f.controller.disableContactsAccount(contactId);
+        });
+        expect(revokedFailure, isA<ContactsException>());
+        final before = await complete(
+          tester,
+          () => f.store.read((tx) => tx.account(contactId)),
+        );
+        final preferences = await complete(tester, f.controller.sourceSettings);
+        final accounts = await complete(tester, f.accounts.listVisibleAccounts);
+        final connected = Completer<void>();
+        final container = _container(
+          selectedAccountId: parent,
+          authRepository: AuthRepository(
+            database: database,
+            accountsRepository: f.accounts,
+            authorizationPersistence: persistence,
+            oAuth: OAuthService(
+              config: _emptyBuildConfig,
+              tokenStore: secrets,
+              persistence: persistence,
+              loopbackFlow: OAuthLoopbackFlow(),
+              httpClient: MockClient(
+                (_) async =>
+                    throw StateError('Nextcloud reconnect must not use Google'),
+              ),
+            ),
+          ),
+          accounts: accounts,
+          accountsRepository: f.accounts,
+          contactsFixture: f,
+          davOnboardingService: service,
+          signedInSyncRunner: (_, _) async {
+            if (!connected.isCompleted) connected.complete();
+          },
+        );
+        addTearDown(() async {
+          await tester.pumpWidget(const SizedBox.shrink());
+          container.dispose();
+        });
+        expect(
+          identical(
+            container.read(davAccountOnboardingServiceProvider),
+            service,
+          ),
+          isTrue,
+        );
+        await _pumpSettings(
+          tester,
+          container,
+          logicalSize: const Size(1200, 1400),
+        );
+        await settle(tester);
+        final reconnect = find.byKey(ValueKey('reconnect-account-$parent'));
+        await tester.ensureVisible(reconnect);
+        await tester.pumpAndSettle();
+        await tester.tap(reconnect);
+        await tester.pumpAndSettle();
+        expect(
+          tester
+              .widget<TextField>(
+                find.byKey(const Key('nextcloud-server-field')),
+              )
+              .controller!
+              .text,
+          accounts.single.authority,
+        );
+        await tester.tap(find.text('Connect').last);
+        await tester.pumpAndSettle();
+        await complete(tester, () => connected.future);
+        await settle(tester);
+        expect(polls, 2);
+        expect(browsers, 2);
+        expect(container.read(authSessionControllerProvider).accountId, parent);
+        expect(
+          (await complete(
+            tester,
+            () => persistence.readCurrentCredential(parent),
+          ) as NextcloudSecretRecord).appPassword,
+          'password-B',
+        );
+        final requestCount = f.requests.length;
+        if (enabled) {
+          await complete(
+            tester,
+            () => f.controller.synchronizeAccount(contactId),
+          );
+          final requests = f.requests.skip(requestCount).toList();
+          expect(requests, isNotEmpty);
+          expect(
+            requests.every(
+              (r) =>
+                  r.headers['authorization'] ==
+                  'Basic ${base64Encode(utf8.encode('alex:password-B'))}',
+            ),
+            isTrue,
+          );
+        }
+        final after = await complete(
+          tester,
+          () => f.store.read((tx) => tx.account(contactId)),
+        );
+        expect(after!.enabled, enabled);
+        expect(after.generation, before!.generation);
+        for (final preference in preferences) {
+          expect(
+            await complete(
+              tester,
+              () => f.store.sourceEnabled(preference.source.key),
+            ),
+            preference.enabled,
+          );
+        }
+        expect(browsers, 2);
+        await _disposeDiagnosticsWidget(tester);
+        await complete(tester, f.controller.close);
+      },
+    );
+  }
+
   testWidgets(
     'successful empty Nextcloud discovery is distinct from undiscovered and failed discovery',
     (tester) async {
@@ -153,6 +405,10 @@ void main() {
       final f = ContactsFixture(AppDatabase.memoryForTests());
       await tester.runAsync(() => f.addParent(BusyProvider.google));
       final repository = CalendarRepository(database: f.database);
+      late PendingOp otherBlocked;
+      Future<List<PendingOp>> targetOperations() => (f.database.select(
+        f.database.pendingOps,
+      )..where((row) => row.accountId.equals('google'))).get();
       await tester.runAsync(() async {
         for (final primary in [false, true]) {
           await repository.upsertSource(
@@ -166,16 +422,55 @@ void main() {
             ),
           );
         }
+        await f.accounts.upsertSignedInAccount(
+          id: 'other-google',
+          provider: BusyProvider.google,
+          providerAccountId: 'other-subject',
+          grantedScopes: 'calendar tasks',
+        );
+        await repository.upsertSource(
+          accountId: 'other-google',
+          source: const CalendarSourceDto(
+            provider: BusyProvider.google,
+            providerCalendarId: 'other-qa',
+            summary: 'Other account calendar',
+            rawJson: {'hidden': false},
+          ),
+        );
+        final otherId = CalendarRepository.sourceId(
+          accountId: 'other-google',
+          provider: BusyProvider.google,
+          providerCalendarId: 'other-qa',
+        );
+        await repository.setSourceProviderHidden(otherId, true);
+        final otherOp = await f.database
+            .select(f.database.pendingOps)
+            .getSingle();
+        await f.database.pendingOpsDao.updateAttempt(
+          id: otherOp.id,
+          attemptCount: 1,
+          nextAttemptAtUtc: DateTime.utc(9999, 12, 31),
+          lastErrorCode: 'forbidden',
+        );
+        otherBlocked = (await f.database.pendingOpsDao.getOp(otherOp.id))!;
       });
       final accounts = (await tester.runAsync(f.accounts.listVisibleAccounts))!;
+      late final PendingOpResolutionService visibilityResolution;
       final container = _container(
         selectedAccountId: 'google',
         authRepository: _FakeAuthRepository(),
         accounts: accounts,
         contactsFixture: f,
         accountsRepository: f.accounts,
-        calendarSourceStream: repository.watchSourcesForAccounts(['google']),
+        calendarSourceStream: repository.watchSourcesForAccounts([
+          'google',
+          'other-google',
+        ]),
         calendarRepository: repository,
+        operationResolution: (id) {
+          expect(id, 'google');
+          return visibilityResolution;
+        },
       );
       addTearDown(() async {
         container.dispose();
@@ -190,7 +485,9 @@ void main() {
       final sources = container
           .read(calendarSourcesStreamProvider)
           .requireValue;
-      final ordinary = sources.singleWhere((s) => !s.primaryCalendar);
+      final ordinary = sources.singleWhere(
+        (s) => s.accountId == 'google' && !s.primaryCalendar,
+      );
       final primary = sources.singleWhere((s) => s.primaryCalendar);
       final local = find.byKey(
         ValueKey('settings-calendar-schedule-${ordinary.id}'),
@@ -205,13 +502,7 @@ void main() {
         )).singleWhere((s) => s.id == ordinary.id).selected,
         isFalse,
       );
-      expect(
-        await complete(
-          tester,
-          () => f.database.select(f.database.pendingOps).get(),
-        ),
-        isEmpty,
-      );
+      expect(await complete(tester, targetOperations), isEmpty);
       await complete(
         tester,
         () => repository.setSourceProviderHidden(ordinary.id, true),
@@ -219,15 +510,33 @@ void main() {
       await settle(tester);
       expect(find.text('Google visibility change pending'), findsOneWidget);
       final requests = <http.Request>[];
+      var denied = true;
       final client = GoogleCalendarApiClient(
         baseUri: Uri.parse('https://www.googleapis.com'),
         httpClient: MockClient((request) async {
           requests.add(request);
-          return http.Response(
-            '{"error":{"code":403,"message":"denied"}}',
-            403,
-          );
+          return denied
+              ? http.Response('{"error":{"code":403,"message":"denied"}}', 403)
+              : http.Response(
+                  jsonEncode({
+                    'id': 'qa',
+                    'summary': 'QA Calendar',
+                    'hidden': jsonDecode(request.body)['hidden'],
+                  }),
+                  200,
+                );
         }),
+      );
+      final engine = CalendarSyncEngine(
+        database: f.database,
+        client: client,
+        accountId: 'google',
+      );
+      visibilityResolution = PendingOpResolutionService(
+        database: f.database,
+        accountId: 'google',
+        syncTasks: () async => fail('Visibility must not synchronize Tasks'),
+        syncCalendar: engine.dispatchPendingWrites,
       );
       await complete(
         tester,
@@ -243,14 +552,69 @@ void main() {
       expect(jsonDecode(requests.single.body)['hidden'], isTrue);
       expect(
         find.text(
-          'Google visibility change failed. Previous confirmed state is shown; retry synchronization.',
+          'Google visibility change failed. Google’s last confirmed state is shown. BusyMax still follows the pending change. Retry or discard it.',
         ),
-        findsOneWidget,
+        findsWidgets,
       );
       final remote = tester.widget<YaruSwitch>(
         find.byKey(ValueKey('settings-calendar-provider-${ordinary.id}')),
       );
       expect(remote.value, isTrue);
+      // Ordinary sync cannot replay a permanent permission rejection.
+      await complete(tester, engine.dispatchPendingWrites);
+      expect(requests, hasLength(1));
+      final retry = find.byKey(
+        ValueKey('settings-calendar-visibility-retry-${ordinary.id}'),
+      );
+      expect(retry, findsOneWidget);
+      denied = false;
+      await tester.ensureVisible(retry);
+      await tester.tap(retry);
+      await settle(tester);
+      expect(requests, hasLength(2));
+      expect(jsonDecode(requests.last.body)['hidden'], isTrue);
+      expect(await complete(tester, targetOperations), isEmpty);
+
+      // A second rejected hide can instead be discarded locally. This keeps
+      // the user's independent selection and does not send another PATCH.
+      await complete(tester, () async {
+        await repository.setSourceProviderHidden(ordinary.id, false);
+        await engine.dispatchPendingWrites();
+        denied = true;
+        await repository.setSourceProviderHidden(ordinary.id, true);
+        await engine.dispatchPendingWrites();
+      });
+      await settle(tester);
+      final beforeDiscard = requests.length;
+      final discard = find.byKey(
+        ValueKey('settings-calendar-visibility-discard-${ordinary.id}'),
+      );
+      expect(discard, findsOneWidget);
+      await tester.ensureVisible(discard);
+      await tester.tap(discard);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Discard').last);
+      await settle(tester);
+      expect(requests.length, beforeDiscard);
+      expect(await complete(tester, targetOperations), isEmpty);
+      expect(tester.widget<YaruSwitch>(local).value, isFalse);
+      expect(tester.widget<YaruSwitch>(local).onChanged, isNotNull);
+      await tester.ensureVisible(local);
+      await tester.tap(local);
+      await settle(tester);
+      final restored = (await complete(
+        tester,
+        () => f.database.select(f.database.calendarSources).get(),
+      )).singleWhere((s) => s.id == ordinary.id);
+      expect(restored.hidden, isFalse);
+      expect(restored.selected, isTrue);
+      expect(
+        await complete(
+          tester,
+          () => f.database.pendingOpsDao.getOp(otherBlocked.id),
+        ),
+        otherBlocked,
+      );
       final primarySwitch = tester.widget<YaruSwitch>(
         find.byKey(ValueKey('settings-calendar-provider-${primary.id}')),
       );
@@ -2787,6 +3151,7 @@ ProviderContainer _container({
   Stream<List<CalendarSourceEntity>>? calendarSourceStream,
   CalendarRepository? calendarRepository,
   AppDatabase? databaseOverride,
+  PendingOpResolutionService Function(String)? operationResolution,
 }) {
   final database =
       databaseOverride ??
@@ -2801,6 +3166,10 @@ ProviderContainer _container({
   return ProviderContainer(
     overrides: [
       databaseProvider.overrideWithValue(database),
+      if (operationResolution != null)
+        pendingOpResolutionServiceForAccountProvider.overrideWith(
+          (ref, id) => operationResolution(id),
+        ),
       if (calendarRepository != null)
         calendarRepositoryProvider.overrideWithValue(calendarRepository),
       if (registrationSummaryStream != null)

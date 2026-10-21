@@ -3672,7 +3672,7 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get calendarRemoteFailed =>
-      'Đổi chế độ hiển thị Google thất bại. Đang hiện trạng thái được xác nhận gần nhất; hãy thử đồng bộ lại.';
+      'Thay đổi khả năng hiển thị trên Google không thành công. Trạng thái Google được xác nhận gần nhất đang hiển thị. BusyMax vẫn áp dụng thay đổi đang chờ. Hãy thử lại hoặc hủy thay đổi.';
 
   @override
   String get sharedCalendarUnavailable =>

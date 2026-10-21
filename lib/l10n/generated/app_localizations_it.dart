@@ -3708,7 +3708,7 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get calendarRemoteFailed =>
-      'Modifica visibilità Google non riuscita. Viene mostrato l’ultimo stato confermato; riprova la sincronizzazione.';
+      'La modifica della visibilità su Google non è riuscita. Viene mostrato l’ultimo stato confermato da Google. BusyMax continua a seguire la modifica in sospeso. Riprova o scarta la modifica.';
 
   @override
   String get sharedCalendarUnavailable =>

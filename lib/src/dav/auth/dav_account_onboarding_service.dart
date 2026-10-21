@@ -329,11 +329,15 @@ final class DavAccountOnboardingService {
           } on Object catch (error, stack) {
             // Preparation itself may have detached a worker before failing.
             try {
-              await _persistence.run(accountId, () async {
-                if (await _persistence.removalRecoveryAvailable(accountId)) {
-                  await onAccountRemovalFailed?.call(accountId);
-                }
-              });
+              final canRestore = await _persistence.run(
+                accountId,
+                () => _persistence.removalRecoveryAvailable(accountId),
+              );
+              // Retain the account gate and removal receipt while restoring,
+              // but release authorization first: binding contacts reads the
+              // verified credential through that same non-reentrant boundary.
+              // The contacts lifecycle also checks identity and generation.
+              if (canRestore) await onAccountRemovalFailed?.call(accountId);
             } on Object {
               /* retain original failure */
             }

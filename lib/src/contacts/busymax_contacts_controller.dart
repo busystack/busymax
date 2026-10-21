@@ -777,6 +777,12 @@ final class BusyMaxContactsController {
         final linked = parentId == null
             ? null
             : await readLinkedDavCredential(parentId);
+        if (parentId != null && linked == null) {
+          throw const ContactsException(
+            ContactsFailure.authentication,
+            'linked-parent-authorization-unavailable',
+          );
+        }
         final encoded = linked == null ? await readDavSecret(account.id) : null;
         if (linked == null && encoded == null) {
           throw StateError('CardDAV credential missing.');
@@ -786,7 +792,6 @@ final class BusyMaxContactsController {
                 'version': 1,
                 'server': linked!.server.toString(),
                 'username': linked.username,
-                'password': linked.password,
                 'readOnly': true,
                 'nextcloud': true,
               }
@@ -796,7 +801,18 @@ final class BusyMaxContactsController {
         }
         validateBinding?.call();
         _bindProvider(
-          _davProvider(account, config),
+          _davProvider(
+            account,
+            config,
+            linkedCredential: parentId == null
+                ? null
+                : () => _currentLinkedDavCredential(
+                    account,
+                    parentId,
+                    Uri.parse(config['server'] as String),
+                    config['username'] as String,
+                  ),
+          ),
           accountGeneration: account.generation,
         );
     }
@@ -820,8 +836,9 @@ final class BusyMaxContactsController {
 
   CardDavContactsProvider _davProvider(
     ContactAccount account,
-    Map<String, dynamic> config,
-  ) {
+    Map<String, dynamic> config, {
+    Future<DavBasicCredential> Function()? linkedCredential,
+  }) {
     final server = Uri.parse(config['server'] as String);
     _requireDavServer(server);
     final profile = config['nextcloud'] == true
@@ -841,16 +858,74 @@ final class BusyMaxContactsController {
         authority: server,
         profile: profile,
       ),
-      credentialProvider: () async => DavBasicCredential(
-        username: config['username'] as String,
-        password: config['password'] as String,
-      ),
+      credentialProvider:
+          linkedCredential ??
+          () async => DavBasicCredential(
+            username: config['username'] as String,
+            password: config['password'] as String,
+          ),
     );
     return CardDavContactsProvider(
       accountId: account.id,
       client: CardDavClient(resources),
       cachedRecord: (identity) => store.read((tx) => tx.contact(identity)),
       readOnly: true,
+    );
+  }
+
+  /// Linked contacts reuse the accepted parent credential for every request.
+  /// Never retain an app password across parent reconnects, or fall back to an
+  /// independent contact secret when a linked parent's authorization is gone.
+  Future<DavBasicCredential> _currentLinkedDavCredential(
+    ContactAccount account,
+    String parentId,
+    Uri server,
+    String username,
+  ) async {
+    final credential = await readLinkedDavCredential(parentId);
+    final current = await store.read((tx) => tx.account(account.id));
+    if (_closed ||
+        current?.enabled != true ||
+        current?.generation != account.generation ||
+        await store.linkedBusyMaxAccount(account.id) != parentId) {
+      throw const ContactsException(
+        ContactsFailure.cancelled,
+        'stale-linked-contact-binding',
+      );
+    }
+    final parent = await accounts.accountById(parentId);
+    final expectedAuthority = normalizeAccountAuthority(
+      BusyProvider.nextcloud,
+      authority: server.toString(),
+    );
+    final expectedSubject = normalizeProviderAccountId(
+      BusyProvider.nextcloud,
+      account.subject,
+    );
+    if (credential == null ||
+        normalizeProviderAccountId(BusyProvider.nextcloud, username) !=
+            expectedSubject ||
+        parent?.provider != BusyProvider.nextcloud ||
+        parent?.authority != expectedAuthority ||
+        parent?.providerAccountId != expectedSubject ||
+        normalizeAccountAuthority(
+              BusyProvider.nextcloud,
+              authority: credential.server.toString(),
+            ) !=
+            expectedAuthority ||
+        normalizeProviderAccountId(
+              BusyProvider.nextcloud,
+              credential.username,
+            ) !=
+            expectedSubject) {
+      throw const ContactsException(
+        ContactsFailure.authentication,
+        'linked-parent-authorization-unavailable',
+      );
+    }
+    return DavBasicCredential(
+      username: credential.username,
+      password: credential.password,
     );
   }
 

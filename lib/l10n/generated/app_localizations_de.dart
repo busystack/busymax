@@ -3686,7 +3686,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get calendarRemoteFailed =>
-      'Google-Sichtbarkeitsänderung fehlgeschlagen. Der zuletzt bestätigte Zustand wird angezeigt. Synchronisierung erneut versuchen.';
+      'Die Sichtbarkeitsänderung bei Google ist fehlgeschlagen. Der letzte bestätigte Google-Status wird angezeigt. BusyMax folgt weiterhin der ausstehenden Änderung. Erneut versuchen oder verwerfen.';
 
   @override
   String get sharedCalendarUnavailable =>

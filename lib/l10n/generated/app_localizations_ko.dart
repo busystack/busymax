@@ -3595,7 +3595,7 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get calendarRemoteFailed =>
-      'Google 표시 변경에 실패했습니다. 마지막으로 확인된 상태를 표시합니다. 동기화를 다시 시도하세요.';
+      'Google 표시 설정 변경에 실패했습니다. 마지막으로 확인된 Google 상태가 표시됩니다. BusyMax는 계속 대기 중인 변경을 따릅니다. 다시 시도하거나 변경을 취소하세요.';
 
   @override
   String get sharedCalendarUnavailable =>

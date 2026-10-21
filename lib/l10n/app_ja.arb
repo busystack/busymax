@@ -1321,7 +1321,7 @@
   "syncNoRecord": "成功した同期時刻の記録がありません",
   "cachedSyncError": "同期に失敗しました。キャッシュのデータが古い可能性があります。",
   "calendarRemotePending": "Google の表示設定の変更を待機中",
-  "calendarRemoteFailed": "Google の表示設定を変更できませんでした。最後に確認された状態を表示しています。同期を再試行してください。",
+  "calendarRemoteFailed": "Google での表示設定の変更に失敗しました。Google で最後に確認された状態が表示されています。BusyMax は引き続き保留中の変更に従います。再試行するか、変更を破棄してください。",
   "sharedCalendarUnavailable": "アクセスできません。キャッシュを表示しています。同期を再試行するか、リストから削除してください。",
   "invalidCollectionColor": "# で始まる6桁または8桁の16進数の色を入力してください。",
   "invalidCollectionOrder": "整数を入力してください。",

@@ -22,6 +22,7 @@ final class ContactsFixture implements ContactsAuthorizationBroker {
     BusyMaxLinkedDavCredential? linkedDavCredential,
     Future<BusyMaxLinkedDavCredential?> Function(String)?
     readLinkedDavCredential,
+    Future<int> Function(String)? readAuthorizationGeneration,
     Future<void> Function(String, AuthorizationCancellation)?
     reconnectLinkedDavAccount,
   }) : accounts = AccountsRepository(database: database),
@@ -40,6 +41,7 @@ final class ContactsFixture implements ContactsAuthorizationBroker {
       },
       readLinkedDavCredential:
           readLinkedDavCredential ?? (_) async => linkedDavCredential,
+      readAuthorizationGeneration: readAuthorizationGeneration,
       reconnectLinkedDavAccount: reconnectLinkedDavAccount,
       launchBrowser: (_) async => true,
       syncInterval: syncInterval,

@@ -3859,7 +3859,7 @@ class AppLocalizationsPl extends AppLocalizations {
 
   @override
   String get calendarRemoteFailed =>
-      'Zmiana widoczności Google nie powiodła się. Pokazano ostatni potwierdzony stan; ponów synchronizację.';
+      'Zmiana widoczności w Google nie powiodła się. Wyświetlany jest ostatni potwierdzony stan Google. BusyMax nadal stosuje oczekującą zmianę. Ponów próbę lub odrzuć zmianę.';
 
   @override
   String get sharedCalendarUnavailable =>

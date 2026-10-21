@@ -6183,7 +6183,7 @@ abstract class AppLocalizations {
   /// No description provided for @calendarRemoteFailed.
   ///
   /// In en, this message translates to:
-  /// **'Google visibility change failed. Previous confirmed state is shown; retry synchronization.'**
+  /// **'Google visibility change failed. Google’s last confirmed state is shown. BusyMax still follows the pending change. Retry or discard it.'**
   String get calendarRemoteFailed;
 
   /// No description provided for @sharedCalendarUnavailable.

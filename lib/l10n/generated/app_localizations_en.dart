@@ -3705,7 +3705,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get calendarRemoteFailed =>
-      'Google visibility change failed. Previous confirmed state is shown; retry synchronization.';
+      'Google visibility change failed. Google’s last confirmed state is shown. BusyMax still follows the pending change. Retry or discard it.';
 
   @override
   String get sharedCalendarUnavailable =>

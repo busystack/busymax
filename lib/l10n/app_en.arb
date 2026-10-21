@@ -2027,7 +2027,7 @@
   "syncNoRecord": "No successful sync time recorded",
   "cachedSyncError": "Sync failed; cached data may be out of date.",
   "calendarRemotePending": "Google visibility change pending",
-  "calendarRemoteFailed": "Google visibility change failed. Previous confirmed state is shown; retry synchronization.",
+  "calendarRemoteFailed": "Google visibility change failed. Google’s last confirmed state is shown. BusyMax still follows the pending change. Retry or discard it.",
   "sharedCalendarUnavailable": "Access unavailable; showing cached data. Retry synchronization or remove from your calendar list.",
   "invalidCollectionColor": "Enter a six- or eight-digit hexadecimal color, starting with #.",
   "invalidCollectionOrder": "Enter a whole number.",

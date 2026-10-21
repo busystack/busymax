@@ -35,9 +35,14 @@ void main() {
   tearDown(() => database.close());
 
   test('linked Nextcloud contact retry reuses valid authorization and Reconnect renews the parent before rebinding', () async {
+    final persistence = AuthorizationPersistence(
+      database: database,
+      secrets: secrets,
+    );
     final service = DavAccountOnboardingService(
       database: database,
       secretStore: secrets,
+      authorizationPersistence: persistence,
       nextcloudLoginFlow: _successfulLoginFlow(
         server: carddav.server.toString(),
         rotatePasswords: true,
@@ -58,9 +63,11 @@ void main() {
     final fixture = ContactsFixture(
       database,
       realDav: true,
+      readAuthorizationGeneration: persistence.generation,
       readLinkedDavCredential: (id) async {
         final secret =
-            (await secrets.readCredential(id))! as NextcloudSecretRecord;
+            (await persistence.readCurrentCredential(id))!
+                as NextcloudSecretRecord;
         return BusyMaxLinkedDavCredential(
           server: secret.canonicalServer,
           username: secret.loginName,
@@ -86,7 +93,55 @@ void main() {
     await fixture.controller.enableLinkedNextcloudContacts(id);
     final contactId = BusyMaxContactsController.linkedContactAccountId(id);
     await fixture.controller.synchronizeAccount(contactId);
-    final source = (await fixture.controller.sourceSettings()).first.source;
+    final otherServer = carddav.server.replace(host: 'other.example.test');
+    await fixture.accounts.upsertSignedInAccount(
+      id: 'other',
+      provider: BusyProvider.nextcloud,
+      authority: otherServer.toString(),
+      providerAccountId: 'alex',
+      grantedScopes: '',
+    );
+    final otherCredential = NextcloudSecretRecord(
+      canonicalServer: otherServer,
+      loginName: 'alex',
+      appPassword: 'other-password',
+    );
+    await secrets.saveCredential('other', otherCredential);
+    await fixture.controller.enableLinkedNextcloudContacts('other');
+    await fixture.controller.synchronizeAccount('contacts:other');
+    await service.reconnectNextcloud(
+      accountId: id,
+      enteredServer: carddav.server.toString(),
+    );
+    final replaced =
+        await persistence.readCurrentCredential(id) as NextcloudSecretRecord;
+    fixture.requests.clear();
+    await fixture.controller.synchronizeAccount(contactId);
+    expect(fixture.requests, isNotEmpty);
+    expect(
+      fixture.requests.every(
+        (request) =>
+            request.headers['authorization'] ==
+            'Basic ${base64Encode(utf8.encode('${replaced.loginName}:${replaced.appPassword}'))}',
+      ),
+      isTrue,
+    );
+    final targetRequestCount = fixture.requests.length;
+    await fixture.controller.synchronizeAccount('contacts:other');
+    final otherRequests = fixture.requests.skip(targetRequestCount).toList();
+    expect(otherRequests, isNotEmpty);
+    expect(
+      otherRequests.every(
+        (request) =>
+            request.url.host == otherServer.host &&
+            request.headers['authorization'] ==
+                'Basic ${base64Encode(utf8.encode('alex:other-password'))}',
+      ),
+      isTrue,
+    );
+    final source = (await fixture.controller.sourceSettings())
+        .firstWhere((setting) => setting.source.accountId == contactId)
+        .source;
     await fixture.store.setSourceEnabled(source.key, enabled: false);
     final original = (await secrets.readCredential(id))!.toJson();
     await fixture.controller.synchronizeAccount(contactId);
@@ -97,7 +152,14 @@ void main() {
     expect(reconnects, 1);
     expect((await secrets.readCredential(id))!.toJson(), isNot(original));
     expect(await fixture.store.sourceEnabled(source.key), isFalse);
-    expect((await database.select(database.accounts).getSingle()).id, id);
+    expect(
+      (await database.select(database.accounts).get()).map((a) => a.id),
+      unorderedEquals([id, 'other']),
+    );
+    expect(
+      (await secrets.readCredential('other'))!.toJson(),
+      otherCredential.toJson(),
+    );
     expect(
       (await fixture.store.read((tx) => tx.account(contactId)))!.enabled,
       isTrue,
@@ -368,24 +430,50 @@ void main() {
     test(
       'Nextcloud coordinated removal drains contacts and isolates other accounts; local failure=$failLocal',
       () async {
+        final gate = _ObservedAuthorizationGate();
+        final coordinator = AccountSyncCoordinator();
+        addTearDown(coordinator.dispose);
+        final persistence = AuthorizationPersistence(
+          database: database,
+          secrets: secrets,
+          gate: gate,
+        );
         final fixture = ContactsFixture(
           database,
           realDav: true,
-          linkedDavCredential: BusyMaxLinkedDavCredential(
-            server: carddav.server,
-            username: 'alex',
-            password: 'synthetic',
-          ),
+          // The production reader, including the shared authorization lock.
+          readLinkedDavCredential: (id) async {
+            final credential = await persistence.readCurrentCredential(id);
+            return credential is NextcloudSecretRecord
+                ? BusyMaxLinkedDavCredential(
+                    server: credential.canonicalServer,
+                    username: credential.loginName,
+                    password: credential.appPassword,
+                  )
+                : null;
+          },
+          readAuthorizationGeneration: persistence.generation,
         );
         addTearDown(fixture.controller.close);
         final remote = carddav.DavFixture();
         fixture.respondDav = remote.respond;
         var revoked = 0;
+        var restored = false;
+        var restoredWithAccountGate = false;
+        final restoring = Completer<void>(),
+            releaseRestoration = Completer<void>();
+        addTearDown(() {
+          if (!releaseRestoration.isCompleted) releaseRestoration.complete();
+        });
         final service = DavAccountOnboardingService(
           database: database,
           secretStore: secrets,
+          authorizationPersistence: persistence,
+          accountGate: gate,
+          syncCoordinator: coordinator,
           nextcloudLoginFlow: _successfulLoginFlow(
             server: carddav.server.toString(),
+            rotatePasswords: true,
           ),
           idFactory: () => 'parent',
           discover: ({
@@ -400,8 +488,18 @@ void main() {
           onAccountRemoving: fixture.controller.prepareLinkedAccountRemoval,
           persistLinkedAccountRemoval:
               fixture.controller.persistLinkedAccountRemoval,
-          onAccountRemovalFailed:
-              fixture.controller.restoreLinkedAccountAfterFailedRemoval,
+          onAccountRemovalFailed: (id) async {
+            // Fail deterministically instead of hanging the test on recursive
+            // entry into the production non-reentrant credential reader.
+            if (gate.held.contains('authorization:$id')) {
+              throw StateError('Contacts restoration owns authorization lock');
+            }
+            restoredWithAccountGate = gate.held.contains(id);
+            restoring.complete();
+            await releaseRestoration.future;
+            await fixture.controller.restoreLinkedAccountAfterFailedRemoval(id);
+            restored = true;
+          },
           onAccountRemoved: fixture.controller.linkedAccountRemovalCommitted,
           onAccountRemovalFinished:
               fixture.controller.finishLinkedAccountRemoval,
@@ -453,10 +551,59 @@ void main() {
           await database.customStatement(
             "CREATE TRIGGER reject_parent_removal BEFORE DELETE ON accounts WHEN OLD.id = '$parent' BEGIN SELECT RAISE(ABORT, 'fixture rollback'); END",
           );
-          await expectLater(
-            service.removeAccount(parent),
-            throwsA(isA<Exception>()),
+          final removal = service.removeAccount(parent);
+          final rejected = expectLater(removal, throwsA(isA<Exception>()));
+          await Future.any<void>([
+            restoring.future,
+            removal.then<void>((_) {}, onError: (Object _, StackTrace _) {}),
+          ]);
+          expect(restoring.isCompleted, isTrue);
+          final previous = (await persistence.readCurrentCredential(parent))!
+              .toJson();
+          final discovered = Completer<void>();
+          final replacementService = DavAccountOnboardingService(
+            database: database,
+            secretStore: secrets,
+            authorizationPersistence: persistence,
+            syncCoordinator: coordinator,
+            nextcloudLoginFlow: _successfulLoginFlow(
+              server: carddav.server.toString(),
+              appPassword: 'concurrent-password',
+            ),
+            discover:
+                ({
+                  required accountId,
+                  required provider,
+                  required accountAuthority,
+                  required credential,
+                  cancellationToken,
+                }) async {
+                  discovered.complete();
+                  return _discovery(accountId, provider, accountAuthority);
+                },
           );
+          final replacing = replacementService.reconnectNextcloud(
+            accountId: parent,
+            enteredServer: carddav.server.toString(),
+          );
+          await discovered.future;
+          // Recovery can read authorization, while replacement still waits
+          // on the production account coordinator until restoration finishes.
+          expect(
+            (await persistence.readCurrentCredential(parent))!.toJson(),
+            previous,
+          );
+          releaseRestoration.complete();
+          await rejected;
+          await replacing;
+          expect(
+            (await persistence.readCurrentCredential(
+              parent,
+            ) as NextcloudSecretRecord).appPassword,
+            'concurrent-password',
+          );
+          expect(restored, isTrue);
+          expect(restoredWithAccountGate, isTrue);
           expect(revoked, 0);
           expect(
             (await fixture.store.read((tx) => tx.account(id)))!.enabled,
@@ -468,6 +615,16 @@ void main() {
           );
           await fixture.controller.synchronizeAccount(id);
           await database.customStatement('DROP TRIGGER reject_parent_removal');
+          final beforeReconnect = (await secrets.readCredential(parent))!
+              .toJson();
+          await service.reconnectNextcloud(
+            accountId: parent,
+            enteredServer: carddav.server.toString(),
+          );
+          expect(
+            (await secrets.readCredential(parent))!.toJson(),
+            isNot(beforeReconnect),
+          );
         }
         final entered = Completer<void>(), release = Completer<void>();
         var block = true;
@@ -1244,6 +1401,24 @@ NextcloudLoginFlowV2 _successfulLoginFlow({
     browserLauncher: (_) async => true,
     delay: (_) async {},
   );
+}
+
+/// Observes production gate calls without changing their behavior. The shared
+/// AccountSyncCoordinator and AuthorizationPersistence retain serialization.
+final class _ObservedAuthorizationGate implements CrossEngineAccountGate {
+  final _gate = const InProcessAccountGate();
+  final held = <String>{};
+
+  @override
+  Future<T> run<T>(String id, Future<T> Function() work) =>
+      _gate.run(id, () async {
+        held.add(id);
+        try {
+          return await work();
+        } finally {
+          held.remove(id);
+        }
+      });
 }
 
 class _GatedSecrets extends InMemorySecretStore {

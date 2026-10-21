@@ -3719,7 +3719,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get calendarRemoteFailed =>
-      'Не удалось изменить видимость в Google. Показано последнее подтверждённое состояние; повторите синхронизацию.';
+      'Не удалось изменить видимость в Google. Показано последнее подтверждённое состояние Google. BusyMax по-прежнему учитывает ожидающее изменение. Повторите попытку или отмените изменение.';
 
   @override
   String get sharedCalendarUnavailable =>

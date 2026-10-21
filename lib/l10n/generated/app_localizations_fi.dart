@@ -3712,7 +3712,7 @@ class AppLocalizationsFi extends AppLocalizations {
 
   @override
   String get calendarRemoteFailed =>
-      'Googlen näkyvyysmuutos epäonnistui. Näytetään viimeksi vahvistettu tila; yritä synkronointia uudelleen.';
+      'Näkyvyyden muuttaminen Googlessa epäonnistui. Googlen viimeisin vahvistettu tila näytetään. BusyMax noudattaa yhä odottavaa muutosta. Yritä uudelleen tai hylkää muutos.';
 
   @override
   String get sharedCalendarUnavailable =>

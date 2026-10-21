@@ -3712,7 +3712,7 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String get calendarRemoteFailed =>
-      'تغییر نمایانی Google ناموفق بود. آخرین وضعیت تأییدشده نمایش داده می‌شود؛ همگام‌سازی را دوباره امتحان کنید.';
+      'تغییر نمایش در Google ناموفق بود. آخرین وضعیت تأییدشدهٔ Google نمایش داده می‌شود. BusyMax همچنان از تغییر در انتظار پیروی می‌کند. دوباره تلاش کنید یا تغییر را کنار بگذارید.';
 
   @override
   String get sharedCalendarUnavailable =>

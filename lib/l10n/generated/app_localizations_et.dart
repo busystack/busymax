@@ -3659,7 +3659,7 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String get calendarRemoteFailed =>
-      'Google’i nähtavuse muutmine nurjus. Kuvatakse viimane kinnitatud olek; proovi sünkroonimist uuesti.';
+      'Google’i nähtavuse muutmine ebaõnnestus. Kuvatakse Google’i viimane kinnitatud olek. BusyMax järgib endiselt ootel muudatust. Proovi uuesti või loobu muudatusest.';
 
   @override
   String get sharedCalendarUnavailable =>

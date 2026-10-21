@@ -3532,7 +3532,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get calendarRemotePending => 'Google 可见性更改待处理';
 
   @override
-  String get calendarRemoteFailed => 'Google 可见性更改失败。显示的是上次确认的状态；请重试同步。';
+  String get calendarRemoteFailed =>
+      'Google 显示设置更改失败。现显示 Google 上次确认的状态。BusyMax 仍遵循待处理的更改。请重试或放弃该更改。';
 
   @override
   String get sharedCalendarUnavailable => '无法访问；正在显示缓存数据。请重试同步或从日历列表中移除。';
@@ -7080,7 +7081,8 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get calendarRemotePending => 'Google 可见性更改待处理';
 
   @override
-  String get calendarRemoteFailed => 'Google 可见性更改失败。显示的是上次确认的状态；请重试同步。';
+  String get calendarRemoteFailed =>
+      'Google 显示设置更改失败。现显示 Google 上次确认的状态。BusyMax 仍遵循待处理的更改。请重试或放弃该更改。';
 
   @override
   String get sharedCalendarUnavailable => '无法访问；正在显示缓存数据。请重试同步或从日历列表中移除。';
@@ -10629,7 +10631,8 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get calendarRemotePending => 'Google 可見性變更待處理';
 
   @override
-  String get calendarRemoteFailed => 'Google 可見性變更失敗。顯示的是上次確認的狀態；請重試同步。';
+  String get calendarRemoteFailed =>
+      'Google 顯示設定變更失敗。目前顯示 Google 上次確認的狀態。BusyMax 仍遵循待處理的變更。請重試或捨棄該變更。';
 
   @override
   String get sharedCalendarUnavailable => '無法存取；正在顯示快取資料。請重試同步或從行事曆清單移除。';

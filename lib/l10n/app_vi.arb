@@ -1321,7 +1321,7 @@
   "syncNoRecord": "Chưa ghi nhận thời điểm đồng bộ thành công",
   "cachedSyncError": "Đồng bộ thất bại; dữ liệu đệm có thể đã cũ.",
   "calendarRemotePending": "Đang chờ đổi chế độ hiển thị Google",
-  "calendarRemoteFailed": "Đổi chế độ hiển thị Google thất bại. Đang hiện trạng thái được xác nhận gần nhất; hãy thử đồng bộ lại.",
+  "calendarRemoteFailed": "Thay đổi khả năng hiển thị trên Google không thành công. Trạng thái Google được xác nhận gần nhất đang hiển thị. BusyMax vẫn áp dụng thay đổi đang chờ. Hãy thử lại hoặc hủy thay đổi.",
   "sharedCalendarUnavailable": "Không thể truy cập; đang hiện dữ liệu đệm. Thử đồng bộ lại hoặc xóa khỏi danh sách lịch.",
   "invalidCollectionColor": "Nhập màu thập lục phân gồm sáu hoặc tám chữ số, bắt đầu bằng #.",
   "invalidCollectionOrder": "Nhập số nguyên.",

@@ -3677,7 +3677,7 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get calendarRemoteFailed =>
-      'Google दृश्यता बदलाव विफल हुआ। अंतिम पुष्ट स्थिति दिखाई जा रही है; सिंक फिर आज़माएँ।';
+      'Google की दृश्यता बदलना विफल रहा। Google की पिछली पुष्ट स्थिति दिखाई गई है। BusyMax अभी भी लंबित बदलाव का पालन करता है। फिर से कोशिश करें या बदलाव छोड़ दें।';
 
   @override
   String get sharedCalendarUnavailable =>
