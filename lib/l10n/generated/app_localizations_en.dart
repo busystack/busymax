@@ -3695,6 +3695,40 @@ class AppLocalizationsEn extends AppLocalizations {
   String get collectionsEmpty => 'No collections found.';
 
   @override
+  String get accountReadyToSync => 'Ready to sync';
+
+  @override
+  String get accountSyncProblem => 'Synchronization needs attention';
+
+  @override
+  String get accountServiceUnreachable => 'Could not reach the service';
+
+  @override
+  String get accountSyncDetails => 'Synchronization details';
+
+  @override
+  String get accountReconnectStatus => 'Reconnect required';
+
+  @override
+  String get accountRegistrationStatus => 'Registration needs attention';
+
+  @override
+  String get collectionsUnavailable => 'Collections unavailable';
+
+  @override
+  String get accountContactSuggestions =>
+      'Suggest guests from this account’s contacts';
+
+  @override
+  String get accountLoadingSignInSettings => 'Loading sign-in settings…';
+
+  @override
+  String get contactsNoAddressBooks => 'No address books available';
+
+  @override
+  String get contactsSourcesUnavailable => 'Could not load address books';
+
+  @override
   String get syncNoRecord => 'No successful sync time recorded';
 
   @override

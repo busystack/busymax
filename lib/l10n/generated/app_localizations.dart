@@ -6162,6 +6162,72 @@ abstract class AppLocalizations {
   /// **'No collections found.'**
   String get collectionsEmpty;
 
+  /// No description provided for @accountReadyToSync.
+  ///
+  /// In en, this message translates to:
+  /// **'Ready to sync'**
+  String get accountReadyToSync;
+
+  /// No description provided for @accountSyncProblem.
+  ///
+  /// In en, this message translates to:
+  /// **'Synchronization needs attention'**
+  String get accountSyncProblem;
+
+  /// No description provided for @accountServiceUnreachable.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not reach the service'**
+  String get accountServiceUnreachable;
+
+  /// No description provided for @accountSyncDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Synchronization details'**
+  String get accountSyncDetails;
+
+  /// No description provided for @accountReconnectStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Reconnect required'**
+  String get accountReconnectStatus;
+
+  /// No description provided for @accountRegistrationStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Registration needs attention'**
+  String get accountRegistrationStatus;
+
+  /// No description provided for @collectionsUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Collections unavailable'**
+  String get collectionsUnavailable;
+
+  /// No description provided for @accountContactSuggestions.
+  ///
+  /// In en, this message translates to:
+  /// **'Suggest guests from this account’s contacts'**
+  String get accountContactSuggestions;
+
+  /// No description provided for @accountLoadingSignInSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading sign-in settings…'**
+  String get accountLoadingSignInSettings;
+
+  /// No description provided for @contactsNoAddressBooks.
+  ///
+  /// In en, this message translates to:
+  /// **'No address books available'**
+  String get contactsNoAddressBooks;
+
+  /// No description provided for @contactsSourcesUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load address books'**
+  String get contactsSourcesUnavailable;
+
   /// No description provided for @syncNoRecord.
   ///
   /// In en, this message translates to:

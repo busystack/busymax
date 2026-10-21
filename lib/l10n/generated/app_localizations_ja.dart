@@ -3581,6 +3581,39 @@ class AppLocalizationsJa extends AppLocalizations {
   String get collectionsEmpty => 'コレクションが見つかりません。';
 
   @override
+  String get accountReadyToSync => '同期の準備完了';
+
+  @override
+  String get accountSyncProblem => '同期への対応が必要';
+
+  @override
+  String get accountServiceUnreachable => 'サービスに接続できませんでした';
+
+  @override
+  String get accountSyncDetails => '同期の詳細';
+
+  @override
+  String get accountReconnectStatus => '再接続が必要';
+
+  @override
+  String get accountRegistrationStatus => 'アプリ登録への対応が必要';
+
+  @override
+  String get collectionsUnavailable => 'コレクションを利用できません';
+
+  @override
+  String get accountContactSuggestions => 'このアカウントの連絡先からゲストを候補に表示';
+
+  @override
+  String get accountLoadingSignInSettings => 'サインイン設定を読み込み中…';
+
+  @override
+  String get contactsNoAddressBooks => '利用できるアドレス帳がありません';
+
+  @override
+  String get contactsSourcesUnavailable => 'アドレス帳を読み込めませんでした';
+
+  @override
   String get syncNoRecord => '成功した同期時刻の記録がありません';
 
   @override

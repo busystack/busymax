@@ -1773,6 +1773,7 @@ class BusyMaxActionRow extends StatefulWidget {
     this.tooltip,
     this.destructive = false,
     this.autofocus = false,
+    this.focusNode,
     this.hoverColor,
   }) : assert(onTap == null || onActivated == null);
 
@@ -1788,6 +1789,7 @@ class BusyMaxActionRow extends StatefulWidget {
   final String? tooltip;
   final bool destructive;
   final bool autofocus;
+  final FocusNode? focusNode;
   final Color? hoverColor;
 
   @override
@@ -1848,6 +1850,7 @@ class _BusyMaxActionRowState extends State<BusyMaxActionRow> {
       trailing: widget.trailing,
       enabled: widget.enabled,
       autofocus: widget.autofocus,
+      focusNode: widget.focusNode,
       hoverColor: widget.hoverColor ?? busyMaxRowHoverColor(context),
       onTap: interactive ? _activate : null,
     );

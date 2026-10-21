@@ -3662,6 +3662,40 @@ class AppLocalizationsVi extends AppLocalizations {
   String get collectionsEmpty => 'Không tìm thấy bộ sưu tập.';
 
   @override
+  String get accountReadyToSync => 'Sẵn sàng đồng bộ';
+
+  @override
+  String get accountSyncProblem => 'Đồng bộ cần được xử lý';
+
+  @override
+  String get accountServiceUnreachable => 'Không thể kết nối với dịch vụ';
+
+  @override
+  String get accountSyncDetails => 'Chi tiết đồng bộ';
+
+  @override
+  String get accountReconnectStatus => 'Cần kết nối lại';
+
+  @override
+  String get accountRegistrationStatus => 'Đăng ký ứng dụng cần được xử lý';
+
+  @override
+  String get collectionsUnavailable => 'Bộ sưu tập không khả dụng';
+
+  @override
+  String get accountContactSuggestions =>
+      'Đề xuất khách từ danh bạ của tài khoản này';
+
+  @override
+  String get accountLoadingSignInSettings => 'Đang tải cài đặt đăng nhập…';
+
+  @override
+  String get contactsNoAddressBooks => 'Không có sổ địa chỉ nào khả dụng';
+
+  @override
+  String get contactsSourcesUnavailable => 'Không thể tải sổ địa chỉ';
+
+  @override
   String get syncNoRecord => 'Chưa ghi nhận thời điểm đồng bộ thành công';
 
   @override

@@ -371,6 +371,7 @@ void main() {
           () => Future<void>.delayed(const Duration(milliseconds: 20)),
         );
         await tester.pumpAndSettle();
+        await _expandAccountAdvanced(tester, id);
         await tester.ensureVisible(find.text('Reconnect this account'));
         await tester.tap(find.text('Reconnect this account'));
         await tester.pumpAndSettle();
@@ -554,13 +555,25 @@ void main() {
       await tester.pumpAndSettle();
       await _openSettings(tester);
       await _expandAccountAdvanced(tester, 'google:existing');
-      expect(find.text('Migrate now'), findsNWidgets(2));
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(SettingsScreen)),
+      );
+      final summaries = (await tester.runAsync(
+        () => container.read(registrationSummariesProvider.future),
+      ))!;
+      expect(summaries['google:existing']!.showRetirementNotice, isTrue);
+      expect(summaries['microsoft:existing']!.showRetirementNotice, isTrue);
+      expect(find.text('Migrate now'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('account-detail-microsoft:existing')),
+        findsNothing,
+      );
       await tester.ensureVisible(find.text('Migrate now').first);
       await tester.tap(find.text('Migrate now').first);
       await tester.pumpAndSettle();
       await tester.tap(find.text('Cancel').last);
       await tester.pumpAndSettle();
-      expect(find.text('Migrate now'), findsNWidgets(2));
+      expect(find.text('Migrate now'), findsOneWidget);
       expect(flow.clients, isEmpty);
       await tester.ensureVisible(find.text('Migrate now').first);
       await tester.tap(find.text('Migrate now').first);
@@ -581,7 +594,7 @@ void main() {
         }
       }
       await tester.pumpAndSettle();
-      expect(find.text('Migrate now'), findsOneWidget);
+      expect(find.text('Migrate now'), findsNothing);
       expect(
         (await tester.runAsync(() => secrets.readCredential('google:existing')))
             as GoogleDesktopCredential,
@@ -597,6 +610,14 @@ void main() {
         ),
         isNull,
       );
+      expect(
+        (await tester.runAsync(
+          () => secrets.readCredential('microsoft:existing'),
+        ))!.toJson(),
+        records['microsoft:existing']!.toJson(),
+      );
+      await _expandAccountAdvanced(tester, 'microsoft:existing');
+      expect(find.text('Migrate now'), findsOneWidget);
       await _disposeApp(tester);
       await _pumpApp(
         tester,
@@ -609,8 +630,10 @@ void main() {
       await tester.pumpAndSettle();
       await _openSettings(tester);
       await _expandAccountAdvanced(tester, 'google:existing');
-      expect(find.text('Migrate now'), findsOneWidget);
+      expect(find.text('Migrate now'), findsNothing);
       expect(find.textContaining('User-provided registration'), findsOneWidget);
+      await _expandAccountAdvanced(tester, 'microsoft:existing');
+      expect(find.text('Migrate now'), findsOneWidget);
       await _disposeApp(tester);
     },
   );
@@ -772,7 +795,8 @@ void main() {
       );
       final original = container.read(authSessionControllerProvider);
       calls.clear();
-      final action = find.byKey(const ValueKey('reconnect-account-account-1'));
+      await _openAccountDetails(tester, 'account-1');
+      final action = find.byKey(const ValueKey('account-recovery-account-1'));
       await tester.ensureVisible(action);
       await tester.tap(action);
       await tester.pumpAndSettle();
@@ -1075,6 +1099,7 @@ void main() {
         GoRouter.of(workspace.context).push<void>('/settings?page=accounts'),
       );
       await tester.pumpAndSettle();
+      await _openAccountDetails(tester, 'google:last');
       await tester.ensureVisible(find.text('Remove account…'));
       await tester.tap(find.text('Remove account…'));
       await tester.pumpAndSettle();
@@ -1401,6 +1426,7 @@ void main() {
     );
     final router = container.read(appRouterProvider);
 
+    await _openAccountDetails(tester, 'google:remove');
     await tester.ensureVisible(find.text('Remove account…').first);
     await tester.tap(find.text('Remove account…').first);
     await tester.pumpAndSettle();
@@ -1466,6 +1492,7 @@ void main() {
       expect(settingsUri.path, '/settings');
       expect(settingsUri.queryParameters['page'], 'accounts');
 
+      await _openAccountDetails(tester, 'google:remove');
       await tester.ensureVisible(find.text('Remove account…').first);
       await tester.tap(find.text('Remove account…').first);
       await tester.pumpAndSettle();
@@ -1666,8 +1693,9 @@ void main() {
       );
 
       final action = find.byKey(
-        const ValueKey('reconnect-account-google:reconnect'),
+        const ValueKey('account-recovery-google:reconnect'),
       );
+      await _openAccountDetails(tester, 'google:reconnect');
       await tester.ensureVisible(action);
       await tester.tap(action);
       await tester.pumpAndSettle();
@@ -1722,6 +1750,7 @@ Future<void> _waitForAccountAction(WidgetTester tester, Finder action) async {
 }
 
 Future<void> _expandAccountAdvanced(WidgetTester tester, String id) async {
+  await _openAccountDetails(tester, id);
   final advanced = find.byKey(ValueKey('account-advanced-$id'));
   await tester.ensureVisible(advanced);
   await tester.pumpAndSettle();
@@ -1736,6 +1765,23 @@ Future<void> _expandAccountAdvanced(WidgetTester tester, String id) async {
     );
     await tester.pumpAndSettle();
   }
+}
+
+Future<void> _openAccountDetails(WidgetTester tester, String id) async {
+  if (find.byKey(ValueKey('account-detail-$id')).evaluate().isNotEmpty) return;
+  final openDetail = find.byWidgetPredicate((widget) {
+    final key = widget.key;
+    return key is ValueKey<String> && key.value.startsWith('account-detail-');
+  });
+  if (openDetail.evaluate().isNotEmpty) {
+    await tester.tap(find.byKey(const ValueKey('settings-header-back-button')));
+    await tester.pumpAndSettle();
+  }
+  final entry = find.byKey(ValueKey('account-entry-$id'));
+  await _waitForAccountAction(tester, entry);
+  await tester.tap(entry);
+  await tester.pumpAndSettle();
+  expect(find.byKey(ValueKey('account-detail-$id')), findsOneWidget);
 }
 
 Future<void> _connectGoogleThroughSettings(WidgetTester tester) async {

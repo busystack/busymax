@@ -3847,6 +3847,41 @@ class AppLocalizationsPl extends AppLocalizations {
   String get collectionsEmpty => 'Nie znaleziono kolekcji.';
 
   @override
+  String get accountReadyToSync => 'Gotowe do synchronizacji';
+
+  @override
+  String get accountSyncProblem => 'Synchronizacja wymaga uwagi';
+
+  @override
+  String get accountServiceUnreachable => 'Nie można połączyć się z usługą';
+
+  @override
+  String get accountSyncDetails => 'Szczegóły synchronizacji';
+
+  @override
+  String get accountReconnectStatus => 'Wymagane ponowne połączenie';
+
+  @override
+  String get accountRegistrationStatus => 'Rejestracja aplikacji wymaga uwagi';
+
+  @override
+  String get collectionsUnavailable => 'Kolekcje niedostępne';
+
+  @override
+  String get accountContactSuggestions =>
+      'Sugeruj gości z kontaktów tego konta';
+
+  @override
+  String get accountLoadingSignInSettings => 'Wczytywanie ustawień logowania…';
+
+  @override
+  String get contactsNoAddressBooks => 'Brak dostępnych książek adresowych';
+
+  @override
+  String get contactsSourcesUnavailable =>
+      'Nie można wczytać książek adresowych';
+
+  @override
   String get syncNoRecord => 'Brak zapisanego czasu udanej synchronizacji';
 
   @override

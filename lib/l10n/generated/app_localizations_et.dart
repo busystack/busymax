@@ -3648,6 +3648,42 @@ class AppLocalizationsEt extends AppLocalizations {
   String get collectionsEmpty => 'Kogumeid ei leitud.';
 
   @override
+  String get accountReadyToSync => 'Sünkroonimiseks valmis';
+
+  @override
+  String get accountSyncProblem => 'Sünkroonimine vajab tähelepanu';
+
+  @override
+  String get accountServiceUnreachable => 'Teenusega ei saanud ühendust';
+
+  @override
+  String get accountSyncDetails => 'Sünkroonimise üksikasjad';
+
+  @override
+  String get accountReconnectStatus => 'Ühenda konto uuesti';
+
+  @override
+  String get accountRegistrationStatus =>
+      'Rakenduse registreering vajab tähelepanu';
+
+  @override
+  String get collectionsUnavailable => 'Kogud pole saadaval';
+
+  @override
+  String get accountContactSuggestions =>
+      'Soovita külalisi selle konto kontaktidest';
+
+  @override
+  String get accountLoadingSignInSettings => 'Sisselogimisseadete laadimine…';
+
+  @override
+  String get contactsNoAddressBooks => 'Aadressiraamatud pole saadaval';
+
+  @override
+  String get contactsSourcesUnavailable =>
+      'Aadressiraamatuid ei saanud laadida';
+
+  @override
   String get syncNoRecord => 'Eduka sünkroonimise aega pole salvestatud';
 
   @override

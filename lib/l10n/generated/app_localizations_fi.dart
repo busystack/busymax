@@ -3700,6 +3700,41 @@ class AppLocalizationsFi extends AppLocalizations {
   String get collectionsEmpty => 'Kokoelmia ei löytynyt.';
 
   @override
+  String get accountReadyToSync => 'Valmis synkronointiin';
+
+  @override
+  String get accountSyncProblem => 'Synkronointi vaatii huomiota';
+
+  @override
+  String get accountServiceUnreachable => 'Palveluun ei saatu yhteyttä';
+
+  @override
+  String get accountSyncDetails => 'Synkronoinnin tiedot';
+
+  @override
+  String get accountReconnectStatus => 'Yhdistä tili uudelleen';
+
+  @override
+  String get accountRegistrationStatus =>
+      'Sovellusrekisteröinti vaatii huomiota';
+
+  @override
+  String get collectionsUnavailable => 'Kokoelmat eivät ole käytettävissä';
+
+  @override
+  String get accountContactSuggestions =>
+      'Ehdota vieraita tämän tilin yhteystiedoista';
+
+  @override
+  String get accountLoadingSignInSettings => 'Ladataan kirjautumisasetuksia…';
+
+  @override
+  String get contactsNoAddressBooks => 'Osoitekirjoja ei ole käytettävissä';
+
+  @override
+  String get contactsSourcesUnavailable => 'Osoitekirjoja ei voitu ladata';
+
+  @override
   String get syncNoRecord =>
       'Onnistuneen synkronoinnin aikaa ei ole tallennettu';
 

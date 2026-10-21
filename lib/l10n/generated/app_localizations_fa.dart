@@ -3701,6 +3701,39 @@ class AppLocalizationsFa extends AppLocalizations {
   String get collectionsEmpty => 'مجموعه‌ای پیدا نشد.';
 
   @override
+  String get accountReadyToSync => 'آمادهٔ همگام‌سازی';
+
+  @override
+  String get accountSyncProblem => 'همگام‌سازی نیاز به رسیدگی دارد';
+
+  @override
+  String get accountServiceUnreachable => 'دسترسی به سرویس ممکن نشد';
+
+  @override
+  String get accountSyncDetails => 'جزئیات همگام‌سازی';
+
+  @override
+  String get accountReconnectStatus => 'اتصال مجدد لازم است';
+
+  @override
+  String get accountRegistrationStatus => 'ثبت برنامه نیاز به رسیدگی دارد';
+
+  @override
+  String get collectionsUnavailable => 'مجموعه‌ها در دسترس نیستند';
+
+  @override
+  String get accountContactSuggestions => 'پیشنهاد مهمان از مخاطبان این حساب';
+
+  @override
+  String get accountLoadingSignInSettings => 'در حال بارگیری تنظیمات ورود…';
+
+  @override
+  String get contactsNoAddressBooks => 'دفترچهٔ نشانی در دسترس نیست';
+
+  @override
+  String get contactsSourcesUnavailable => 'بارگیری دفترچه‌های نشانی ممکن نشد';
+
+  @override
   String get syncNoRecord => 'زمان همگام‌سازی موفق ثبت نشده است';
 
   @override

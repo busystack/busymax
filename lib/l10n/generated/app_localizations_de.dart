@@ -3674,6 +3674,43 @@ class AppLocalizationsDe extends AppLocalizations {
   String get collectionsEmpty => 'Keine Sammlungen gefunden.';
 
   @override
+  String get accountReadyToSync => 'Bereit zur Synchronisierung';
+
+  @override
+  String get accountSyncProblem => 'Synchronisierung benötigt Aufmerksamkeit';
+
+  @override
+  String get accountServiceUnreachable => 'Dienst nicht erreichbar';
+
+  @override
+  String get accountSyncDetails => 'Synchronisierungsdetails';
+
+  @override
+  String get accountReconnectStatus => 'Erneute Verbindung erforderlich';
+
+  @override
+  String get accountRegistrationStatus =>
+      'App-Registrierung benötigt Aufmerksamkeit';
+
+  @override
+  String get collectionsUnavailable => 'Sammlungen nicht verfügbar';
+
+  @override
+  String get accountContactSuggestions =>
+      'Gäste aus den Kontakten dieses Kontos vorschlagen';
+
+  @override
+  String get accountLoadingSignInSettings =>
+      'Anmeldeeinstellungen werden geladen…';
+
+  @override
+  String get contactsNoAddressBooks => 'Keine Adressbücher verfügbar';
+
+  @override
+  String get contactsSourcesUnavailable =>
+      'Adressbücher konnten nicht geladen werden';
+
+  @override
   String get syncNoRecord =>
       'Kein erfolgreicher Synchronisierungszeitpunkt erfasst';
 

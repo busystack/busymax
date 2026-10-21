@@ -3523,6 +3523,39 @@ class AppLocalizationsZh extends AppLocalizations {
   String get collectionsEmpty => '未找到集合。';
 
   @override
+  String get accountReadyToSync => '已准备好同步';
+
+  @override
+  String get accountSyncProblem => '同步需要处理';
+
+  @override
+  String get accountServiceUnreachable => '无法连接到服务';
+
+  @override
+  String get accountSyncDetails => '同步详情';
+
+  @override
+  String get accountReconnectStatus => '需要重新连接';
+
+  @override
+  String get accountRegistrationStatus => '应用注册需要处理';
+
+  @override
+  String get collectionsUnavailable => '集合不可用';
+
+  @override
+  String get accountContactSuggestions => '从此账户的联系人中推荐访客';
+
+  @override
+  String get accountLoadingSignInSettings => '正在加载登录设置…';
+
+  @override
+  String get contactsNoAddressBooks => '没有可用的通讯录';
+
+  @override
+  String get contactsSourcesUnavailable => '无法加载通讯录';
+
+  @override
   String get syncNoRecord => '没有成功同步时间记录';
 
   @override
@@ -7075,6 +7108,39 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get collectionsEmpty => '未找到集合。';
+
+  @override
+  String get accountReadyToSync => '已准备好同步';
+
+  @override
+  String get accountSyncProblem => '同步需要处理';
+
+  @override
+  String get accountServiceUnreachable => '无法连接到服务';
+
+  @override
+  String get accountSyncDetails => '同步详情';
+
+  @override
+  String get accountReconnectStatus => '需要重新连接';
+
+  @override
+  String get accountRegistrationStatus => '应用注册需要处理';
+
+  @override
+  String get collectionsUnavailable => '集合不可用';
+
+  @override
+  String get accountContactSuggestions => '从此账户的联系人中推荐访客';
+
+  @override
+  String get accountLoadingSignInSettings => '正在加载登录设置…';
+
+  @override
+  String get contactsNoAddressBooks => '没有可用的通讯录';
+
+  @override
+  String get contactsSourcesUnavailable => '无法加载通讯录';
 
   @override
   String get syncNoRecord => '没有成功同步时间记录';
@@ -10630,6 +10696,39 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get collectionsEmpty => '找不到集合。';
+
+  @override
+  String get accountReadyToSync => '已準備好同步';
+
+  @override
+  String get accountSyncProblem => '同步需要處理';
+
+  @override
+  String get accountServiceUnreachable => '無法連線至服務';
+
+  @override
+  String get accountSyncDetails => '同步詳細資料';
+
+  @override
+  String get accountReconnectStatus => '需要重新連線';
+
+  @override
+  String get accountRegistrationStatus => '應用程式註冊需要處理';
+
+  @override
+  String get collectionsUnavailable => '集合無法使用';
+
+  @override
+  String get accountContactSuggestions => '從此帳戶的聯絡人中建議訪客';
+
+  @override
+  String get accountLoadingSignInSettings => '正在載入登入設定…';
+
+  @override
+  String get contactsNoAddressBooks => '沒有可用的通訊錄';
+
+  @override
+  String get contactsSourcesUnavailable => '無法載入通訊錄';
 
   @override
   String get syncNoRecord => '沒有成功同步時間的記錄';

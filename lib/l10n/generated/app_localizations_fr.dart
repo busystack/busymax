@@ -3688,6 +3688,44 @@ class AppLocalizationsFr extends AppLocalizations {
   String get collectionsEmpty => 'Aucune collection trouvée.';
 
   @override
+  String get accountReadyToSync => 'Prêt à synchroniser';
+
+  @override
+  String get accountSyncProblem =>
+      'La synchronisation nécessite une intervention';
+
+  @override
+  String get accountServiceUnreachable => 'Impossible de joindre le service';
+
+  @override
+  String get accountSyncDetails => 'Détails de synchronisation';
+
+  @override
+  String get accountReconnectStatus => 'Reconnexion nécessaire';
+
+  @override
+  String get accountRegistrationStatus =>
+      'L’enregistrement nécessite une intervention';
+
+  @override
+  String get collectionsUnavailable => 'Collections indisponibles';
+
+  @override
+  String get accountContactSuggestions =>
+      'Suggérer des invités à partir des contacts de ce compte';
+
+  @override
+  String get accountLoadingSignInSettings =>
+      'Chargement des paramètres de connexion…';
+
+  @override
+  String get contactsNoAddressBooks => 'Aucun carnet d’adresses disponible';
+
+  @override
+  String get contactsSourcesUnavailable =>
+      'Impossible de charger les carnets d’adresses';
+
+  @override
   String get syncNoRecord =>
       'Aucune date de synchronisation réussie enregistrée';
 

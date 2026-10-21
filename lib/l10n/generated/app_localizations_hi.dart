@@ -3667,6 +3667,40 @@ class AppLocalizationsHi extends AppLocalizations {
   String get collectionsEmpty => 'कोई संग्रह नहीं मिला।';
 
   @override
+  String get accountReadyToSync => 'सिंक करने के लिए तैयार';
+
+  @override
+  String get accountSyncProblem => 'सिंक पर ध्यान देना आवश्यक है';
+
+  @override
+  String get accountServiceUnreachable => 'सेवा से संपर्क नहीं हो सका';
+
+  @override
+  String get accountSyncDetails => 'सिंक का विवरण';
+
+  @override
+  String get accountReconnectStatus => 'दोबारा कनेक्ट करना आवश्यक है';
+
+  @override
+  String get accountRegistrationStatus => 'ऐप पंजीकरण पर ध्यान देना आवश्यक है';
+
+  @override
+  String get collectionsUnavailable => 'संग्रह उपलब्ध नहीं हैं';
+
+  @override
+  String get accountContactSuggestions =>
+      'इस खाते के संपर्कों से मेहमान सुझाएँ';
+
+  @override
+  String get accountLoadingSignInSettings => 'साइन-इन सेटिंग लोड हो रही हैं…';
+
+  @override
+  String get contactsNoAddressBooks => 'कोई पता पुस्तिका उपलब्ध नहीं है';
+
+  @override
+  String get contactsSourcesUnavailable => 'पता पुस्तिकाएँ लोड नहीं हो सकीं';
+
+  @override
   String get syncNoRecord => 'सफल सिंक का समय दर्ज नहीं है';
 
   @override

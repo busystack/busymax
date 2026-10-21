@@ -3721,6 +3721,40 @@ class AppLocalizationsAr extends AppLocalizations {
   String get collectionsEmpty => 'لم يُعثر على مجموعات.';
 
   @override
+  String get accountReadyToSync => 'جاهز للمزامنة';
+
+  @override
+  String get accountSyncProblem => 'تحتاج المزامنة إلى معالجة';
+
+  @override
+  String get accountServiceUnreachable => 'تعذّر الوصول إلى الخدمة';
+
+  @override
+  String get accountSyncDetails => 'تفاصيل المزامنة';
+
+  @override
+  String get accountReconnectStatus => 'يلزم إعادة الاتصال';
+
+  @override
+  String get accountRegistrationStatus => 'يحتاج تسجيل التطبيق إلى معالجة';
+
+  @override
+  String get collectionsUnavailable => 'المجموعات غير متاحة';
+
+  @override
+  String get accountContactSuggestions =>
+      'اقتراح مدعوين من جهات اتصال هذا الحساب';
+
+  @override
+  String get accountLoadingSignInSettings => 'جارٍ تحميل إعدادات تسجيل الدخول…';
+
+  @override
+  String get contactsNoAddressBooks => 'لا توجد دفاتر عناوين متاحة';
+
+  @override
+  String get contactsSourcesUnavailable => 'تعذّر تحميل دفاتر العناوين';
+
+  @override
   String get syncNoRecord => 'لم يُسجّل وقت مزامنة ناجحة';
 
   @override

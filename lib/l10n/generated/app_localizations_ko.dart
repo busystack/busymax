@@ -3585,6 +3585,39 @@ class AppLocalizationsKo extends AppLocalizations {
   String get collectionsEmpty => '컬렉션을 찾지 못했습니다.';
 
   @override
+  String get accountReadyToSync => '동기화 준비됨';
+
+  @override
+  String get accountSyncProblem => '동기화에 조치가 필요합니다';
+
+  @override
+  String get accountServiceUnreachable => '서비스에 연결할 수 없습니다';
+
+  @override
+  String get accountSyncDetails => '동기화 세부 정보';
+
+  @override
+  String get accountReconnectStatus => '다시 연결해야 합니다';
+
+  @override
+  String get accountRegistrationStatus => '앱 등록에 조치가 필요합니다';
+
+  @override
+  String get collectionsUnavailable => '컬렉션을 사용할 수 없습니다';
+
+  @override
+  String get accountContactSuggestions => '이 계정의 연락처에서 참석자 제안';
+
+  @override
+  String get accountLoadingSignInSettings => '로그인 설정을 불러오는 중…';
+
+  @override
+  String get contactsNoAddressBooks => '사용 가능한 주소록이 없습니다';
+
+  @override
+  String get contactsSourcesUnavailable => '주소록을 불러올 수 없습니다';
+
+  @override
   String get syncNoRecord => '성공한 동기화 시간이 기록되지 않음';
 
   @override

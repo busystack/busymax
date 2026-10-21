@@ -3708,6 +3708,42 @@ class AppLocalizationsRu extends AppLocalizations {
   String get collectionsEmpty => 'Коллекции не найдены.';
 
   @override
+  String get accountReadyToSync => 'Готово к синхронизации';
+
+  @override
+  String get accountSyncProblem => 'Синхронизация требует внимания';
+
+  @override
+  String get accountServiceUnreachable => 'Не удалось связаться с сервисом';
+
+  @override
+  String get accountSyncDetails => 'Подробности синхронизации';
+
+  @override
+  String get accountReconnectStatus => 'Требуется повторное подключение';
+
+  @override
+  String get accountRegistrationStatus =>
+      'Регистрация приложения требует внимания';
+
+  @override
+  String get collectionsUnavailable => 'Коллекции недоступны';
+
+  @override
+  String get accountContactSuggestions =>
+      'Предлагать гостей из контактов этого аккаунта';
+
+  @override
+  String get accountLoadingSignInSettings => 'Загрузка настроек входа…';
+
+  @override
+  String get contactsNoAddressBooks => 'Нет доступных адресных книг';
+
+  @override
+  String get contactsSourcesUnavailable =>
+      'Не удалось загрузить адресные книги';
+
+  @override
   String get syncNoRecord => 'Время успешной синхронизации не записано';
 
   @override
