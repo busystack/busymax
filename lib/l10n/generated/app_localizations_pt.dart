@@ -14,8 +14,7 @@ class AppLocalizationsPt extends AppLocalizations {
   AppLocalizationsPt([String locale = 'pt']) : super(locale);
 
   @override
-  String get contactsAccountsUnavailable =>
-      'Não foi possível carregar as contas de contatos';
+  String get contactsAccountsUnavailable => 'Could not load contact accounts';
 
   @override
   String get launchAtLoginManagedExternally =>
