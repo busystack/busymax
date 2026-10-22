@@ -12,16 +12,19 @@ import '../../core/time/provider_date_time.dart';
 import '../../dav/ical/ical_task_alarm.dart';
 import '../../db/app_database.dart';
 import '../accounts/data/accounts_repository.dart';
+import 'reminder_delivery_policy.dart';
 
 class NotificationScheduleService {
   NotificationScheduleService({
     required AppDatabase database,
     DateTime Function()? nowUtc,
+    this.preserveLifecycle = false,
   }) : _database = database,
        _nowUtc = nowUtc ?? (() => DateTime.now().toUtc());
 
   final AppDatabase _database;
   final DateTime Function() _nowUtc;
+  final bool preserveLifecycle;
 
   Future<void> rebuildUpcomingEventNotifications(String accountId) =>
       _database.transaction(() async {
@@ -37,9 +40,7 @@ class NotificationScheduleService {
     String accountId, {
     String? sourceId,
   }) async {
-    final now = _nowUtc();
     final notifications = <String, _PendingNotification>{};
-    final retainedIds = await _actionableNotificationIds(accountId, 'event');
     final sourcesById = {
       for (final source
           in await (_database.select(_database.calendarSources)..where(
@@ -92,16 +93,13 @@ class NotificationScheduleService {
       for (final reminder in reminders) {
         final reminderAt = reminder.scheduledAtUtc;
         final id = 'event|${event.id}|${reminder.key}';
-        if (!reminder.relevantUntilUtc.isAfter(now) &&
-            !retainedIds.contains(id)) {
-          continue;
-        }
         notifications[id] = _PendingNotification(
           id: id,
           accountId: accountId,
           sourceType: 'event',
           sourceId: event.id,
           scheduledAtUtc: reminderAt,
+          expiresAtUtc: eventReminderExpiry(reminderAt, endUtc ?? startUtc),
           title: event.title,
           body: _eventPreview(event),
         );
@@ -137,7 +135,6 @@ class NotificationScheduleService {
     String accountId, {
     String? sourceId,
   }) async {
-    final now = _nowUtc();
     final notifications = <String, _PendingNotification>{};
     final existing =
         await (_database.select(_database.notificationSchedule)..where(
@@ -146,10 +143,6 @@ class NotificationScheduleService {
                   row.sourceType.equals('task'),
             ))
             .get();
-    final retainedIds = {
-      for (final row in existing)
-        if (row.dismissedAtUtc == null) row.id,
-    };
     final existingById = {for (final row in existing) row.id: row};
     final existingBySource = <String, List<NotificationScheduleData>>{};
     for (final row in existing) {
@@ -218,16 +211,13 @@ class NotificationScheduleService {
         final id = existingById.containsKey(canonicalId)
             ? canonicalId
             : previous.firstOrNull?.id ?? canonicalId;
-        if (reminder.scheduledAtUtc.isBefore(now) &&
-            !retainedIds.contains(id)) {
-          continue;
-        }
         notifications[id] = _PendingNotification(
           id: id,
           accountId: accountId,
           sourceType: 'task',
           sourceId: task.id,
           scheduledAtUtc: reminder.scheduledAtUtc,
+          expiresAtUtc: taskReminderExpiry(reminder.scheduledAtUtc),
           title: task.title,
           body: task.notes ?? task.bodyContent,
         );
@@ -240,15 +230,17 @@ class NotificationScheduleService {
   /// Preserve the original alarm time for snoozes and transferred local IDs.
   /// Repair a changed source immediately, even while sync awaits another page.
   Future<bool> validateAndReconcileReminder(
-    NotificationScheduleData row,
-  ) => _database.transaction(() async {
+    NotificationScheduleData row, {
+    bool forOpen = false,
+  }) => _database.transaction(() async {
     final current = await (_database.select(
       _database.notificationSchedule,
     )..where((table) => table.id.equals(row.id))).getSingleOrNull();
     if (current == null ||
         current.generation != row.generation ||
         current.scheduledAtUtc != row.scheduledAtUtc ||
-        current.dismissedAtUtc != null) {
+        !forOpen &&
+            (current.dismissedAtUtc != null || current.expiredAtUtc != null)) {
       return false;
     }
     final desired = switch (row.sourceType) {
@@ -260,40 +252,30 @@ class NotificationScheduleService {
       _ => <String, _PendingNotification>{},
     };
     final reminder = desired[row.id];
-    if (reminder != null &&
-        reminder.sourceId == row.sourceId &&
-        reminder.scheduledAtUtc.millisecondsSinceEpoch == row.scheduledAtUtc) {
-      return true;
-    }
     await _reconcileNotifications(
       accountId: row.accountId,
       sourceType: row.sourceType,
       sourceId: row.sourceId,
       notifications: desired.values,
     );
+    if (reminder != null &&
+        reminder.sourceId == row.sourceId &&
+        reminder.scheduledAtUtc.millisecondsSinceEpoch == row.scheduledAtUtc) {
+      final reconciled = await (_database.select(
+        _database.notificationSchedule,
+      )..where((table) => table.id.equals(row.id))).getSingleOrNull();
+      // Android auto-cancels a body-clicked post before cold reconciliation.
+      // Open may reveal its valid source without clearing terminal delivery
+      // state. Snooze, Dismiss and delivery still require an actionable row.
+      return reconciled != null &&
+          (forOpen || !reminderHasExpired(reconciled, _nowUtc()));
+    }
     return false;
   });
 
   Future<void> rebuildUpcomingNotifications(String accountId) async {
     await rebuildUpcomingEventNotifications(accountId);
     await rebuildUpcomingTaskNotifications(accountId);
-  }
-
-  // Sent reminders still back Open/Snooze actions in the notification center.
-  // Retain them while their source and reminder exist and are enabled.
-  Future<Set<String>> _actionableNotificationIds(
-    String accountId,
-    String sourceType,
-  ) async {
-    final rows =
-        await (_database.select(_database.notificationSchedule)..where(
-              (row) =>
-                  row.accountId.equals(accountId) &
-                  row.sourceType.equals(sourceType) &
-                  row.dismissedAtUtc.isNull(),
-            ))
-            .get();
-    return {for (final row in rows) row.id};
   }
 
   Future<void> _reconcileNotifications({
@@ -337,12 +319,15 @@ class NotificationScheduleService {
       for (final notification in desired.values) {
         final existingRow = existingById[notification.id];
         final scheduledAt = notification.scheduledAtUtc.millisecondsSinceEpoch;
+        final expiresAt = notification.expiresAtUtc.millisecondsSinceEpoch;
         if (existingRow != null) {
-          final resetLifecycle = _shouldResetLifecycle(
-            existingRow,
-            scheduledAtUtc: scheduledAt,
-            nowUtc: now,
-          );
+          final resetLifecycle =
+              !preserveLifecycle &&
+              _shouldResetLifecycle(
+                existingRow,
+                scheduledAtUtc: scheduledAt,
+                nowUtc: now,
+              );
           await (_database.update(_database.notificationSchedule)..where(
                 (row) =>
                     row.id.equals(notification.id) &
@@ -355,6 +340,13 @@ class NotificationScheduleService {
                       : const Value.absent(),
                   sourceId: Value(notification.sourceId),
                   scheduledAtUtc: Value(scheduledAt),
+                  expiresAtUtc: Value(expiresAt),
+                  expiredAtUtc: resetLifecycle
+                      ? const Value(null)
+                      : const Value.absent(),
+                  deferredUntilUtc: resetLifecycle
+                      ? const Value(null)
+                      : const Value.absent(),
                   title: Value(notification.title),
                   body: Value(notification.body),
                   sentAtUtc: resetLifecycle
@@ -382,6 +374,8 @@ class NotificationScheduleService {
                 sourceType: notification.sourceType,
                 sourceId: notification.sourceId,
                 scheduledAtUtc: scheduledAt,
+                expiresAtUtc: Value(expiresAt),
+                expiredAtUtc: Value(expiresAt <= now ? now : null),
                 title: notification.title,
                 body: Value(notification.body),
                 createdAtLocal: updatedAt,
@@ -390,8 +384,53 @@ class NotificationScheduleService {
             );
       }
 
+      // Expiry and catch-up consolidation are durable delivery decisions. They
+      // never change the source item, and rebuilding cannot revive them.
+      final candidates =
+          await (_database.select(_database.notificationSchedule)..where(
+                (row) =>
+                    row.accountId.equals(accountId) &
+                    row.sourceType.equals(sourceType) &
+                    row.sentAtUtc.isNull() &
+                    row.dismissedAtUtc.isNull() &
+                    row.expiredAtUtc.isNull(),
+              ))
+              .get();
+      final missedBySource = <String, List<NotificationScheduleData>>{};
+      for (final row in candidates) {
+        if (!desired.containsKey(row.id)) continue;
+        if (reminderHasExpired(row, _nowUtc())) {
+          await (_database.update(_database.notificationSchedule)
+                ..where((table) => table.id.equals(row.id)))
+              .write(NotificationScheduleCompanion(expiredAtUtc: Value(now)));
+        } else if (row.snoozedUntilUtc == null && row.scheduledAtUtc <= now) {
+          (missedBySource[row.sourceId] ??= []).add(row);
+        }
+      }
+      for (final missed in missedBySource.values) {
+        missed.sort((a, b) => b.scheduledAtUtc.compareTo(a.scheduledAtUtc));
+        for (final row in missed.skip(1)) {
+          await (_database.update(_database.notificationSchedule)
+                ..where((table) => table.id.equals(row.id)))
+              .write(NotificationScheduleCompanion(expiredAtUtc: Value(now)));
+        }
+      }
+
       for (final row in existing) {
         if (desired.containsKey(row.id)) {
+          continue;
+        }
+        if (row.dismissedAtUtc != null || row.expiredAtUtc != null) {
+          // Keep only the terminal identity when a source is no longer eligible.
+          // A later ordinary sync must not turn it into a fresh delivery.
+          await (_database.update(
+            _database.notificationSchedule,
+          )..where((table) => table.id.equals(row.id))).write(
+            const NotificationScheduleCompanion(
+              title: Value(''),
+              body: Value(null),
+            ),
+          );
           continue;
         }
         await (_database.delete(
@@ -461,12 +500,14 @@ DateTime? _davTaskTemporalUtc(String? metadataJson, String prefix) {
   final decoded = _decodeJson(metadataJson);
   if (decoded is! Map) return null;
   final exact = decoded['${prefix}Utc'];
-  if (exact is String) return DateTime.tryParse(exact)?.toUtc();
   final native =
       decoded['native${prefix[0].toUpperCase()}${prefix.substring(1)}'];
   if (native is! Map) return null;
   final raw = native['raw'];
   final kind = native['kind'];
+  if (kind != 'floatingDateTime' && kind != 'date' && exact is String) {
+    return DateTime.tryParse(exact)?.toUtc();
+  }
   if (raw is! String || kind is! String) return null;
   final match = RegExp(
     r'^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})(?:Z)?)?$',
@@ -515,7 +556,9 @@ bool _shouldResetLifecycle(
   }
 
   final alreadyHandled =
-      existing.sentAtUtc != null || existing.dismissedAtUtc != null;
+      existing.sentAtUtc != null ||
+      existing.dismissedAtUtc != null ||
+      existing.expiredAtUtc != null;
   final legacyPastDueReminder =
       alreadyHandled &&
       existing.scheduledAtUtc <= nowUtc &&
@@ -530,6 +573,7 @@ class _PendingNotification {
     required this.sourceType,
     required this.sourceId,
     required this.scheduledAtUtc,
+    required this.expiresAtUtc,
     required this.title,
     this.body,
   });
@@ -539,6 +583,7 @@ class _PendingNotification {
   final String sourceType;
   final String sourceId;
   final DateTime scheduledAtUtc;
+  final DateTime expiresAtUtc;
   final String title;
   final String? body;
 }

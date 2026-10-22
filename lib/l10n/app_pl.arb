@@ -2022,5 +2022,15 @@
   "invalidCollectionTimezone": "Wpisz prawidłowy dokument strefy czasowej zawierający VTIMEZONE i TZID.",
   "invalidCollectionValue": "Popraw tę wartość przed zapisaniem.",
   "accountAlreadyConnected": "To konto jest już połączone. Użyj jego opcji ponownego połączenia.",
-  "nextcloudRemovalAuthorizationDescription": "BusyMax spróbuje też unieważnić hasło aplikacji Nextcloud tego konta. Usunięcie lokalne może się udać nawet wtedy, gdy unieważnienie się nie powiedzie."
+  "nextcloudRemovalAuthorizationDescription": "BusyMax spróbuje też unieważnić hasło aplikacji Nextcloud tego konta. Usunięcie lokalne może się udać nawet wtedy, gdy unieważnienie się nie powiedzie.",
+  "dailySummaryTime": "Godzina codziennego podsumowania",
+  "reminderTimeInPast": "Wybierz bieżącą minutę lub przyszłą godzinę przypomnienia.",
+  "notificationsBlocked": "Android blokuje powiadomienia lub ich kategorię. Przypomnienia zostały zapisane. Sprawdź systemowe ustawienia powiadomień.",
+  "notificationsAllowed": "Ustawienia systemu zezwalają na powiadomienia BusyMax.",
+  "notificationsUnknown": "Stan dostarczania jest niedostępny. Sprawdź ustawienia systemu.",
+  "notificationExactAlarms": "Dostęp do dokładnych alarmów jest włączony.",
+  "notificationInexactAlarms": "Dostęp do dokładnych alarmów jest niedostępny. Android może dostarczać przypomnienia później.",
+  "dailySummaryScope": "Wszystkie konta",
+  "notificationsSystemBlocked": "Systemowe ustawienia powiadomień blokują BusyMax. Przypomnienia zostały zapisane.",
+  "notificationItemUnavailable": "To przypomnienie nie jest już dostępne. Element mógł zostać zmieniony lub usunięty."
 }

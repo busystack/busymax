@@ -19,6 +19,79 @@ enum TaskScheduleIssue { none, dueBeforeStart, mixedTimeModes }
 enum TaskRecurrenceIssue { none, unsupportedDestination, missingDate }
 
 class TaskDetailsDraft {
+  /// Re-evaluated when Add reminder is invoked. A due-day morning is useful
+  /// only while it is still ahead; otherwise give ten minutes to finish saving.
+  static DateTime newReminderDefault({
+    String? dueDate,
+    required String timeZone,
+    required DateTime now,
+  }) {
+    final morning = providerDateTimeAsUtcInstant(
+      dueDate == null ? null : '${dueDate}T09:00:00',
+      timeZone,
+    );
+    final instant = morning != null && morning.isAfter(now.toUtc())
+        ? morning
+        : now.toUtc().add(const Duration(minutes: 10));
+    return providerUtcInstantAsWallTime(instant, timeZone);
+  }
+
+  /// Preserve historical saved/imported alarms. Only a newly enabled or edited
+  /// alarm is validated, allowing the current minute to cross its trigger.
+  bool hasNewPastReminder({
+    TaskEntity? original,
+    required TaskCollectionCapabilities capabilities,
+    required String localTimeZone,
+    required DateTime now,
+  }) {
+    final minuteStart = now.toUtc().subtract(
+      Duration(
+        seconds: now.second,
+        milliseconds: now.millisecond,
+        microseconds: now.microsecond,
+      ),
+    );
+    if (capabilities.supportsReminderDateTime && microsoftReminderEnabled) {
+      final changed =
+          original == null ||
+          toPatch(
+            original,
+            capabilities,
+            localTimeZone: localTimeZone,
+          ).containsKey('microsoftReminderDateTime');
+      if (changed) {
+        final instant = providerDateTimeAsUtcInstant(
+          '${microsoftReminderDate ?? ''}T${microsoftReminderTime ?? ''}:00',
+          microsoftReminderTimeZone ?? localTimeZone,
+        );
+        if (instant == null || instant.isBefore(minuteStart)) return true;
+      }
+    }
+    if (capabilities.supportsMultipleReminders) {
+      final previous = original == null
+          ? const <IcalTaskAlarm>[]
+          : decodeIcalTaskAlarms(original.taskAlarmsJson);
+      for (final alarm in alarms) {
+        if (previous.any(
+          (item) => jsonEncode(item.toJson()) == jsonEncode(alarm.toJson()),
+        )) {
+          continue;
+        }
+        final reference = reminderReferenceUtc(
+          due: alarm.isRelatedToDue,
+          localTimeZone: localTimeZone,
+        );
+        final instant =
+            alarm.absoluteUtc ??
+            (reference == null || alarm.relativeOffset == null
+                ? null
+                : reference.add(alarm.relativeOffset!));
+        if (instant != null && instant.isBefore(minuteStart)) return true;
+      }
+    }
+    return false;
+  }
+
   const TaskDetailsDraft({
     required this.taskListId,
     required this.taskId,

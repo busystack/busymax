@@ -3746,4 +3746,41 @@ class AppLocalizationsHi extends AppLocalizations {
   @override
   String get nextcloudRemovalAuthorizationDescription =>
       'BusyMax इस खाते का Nextcloud ऐप पासवर्ड निरस्त करने का भी प्रयास करेगा। निरस्तीकरण विफल होने पर भी स्थानीय हटाना सफल हो सकता है।';
+
+  @override
+  String get dailySummaryTime => 'दैनिक सारांश का समय';
+
+  @override
+  String get reminderTimeInPast =>
+      'वर्तमान मिनट या भविष्य का रिमाइंडर समय चुनें।';
+
+  @override
+  String get notificationsBlocked =>
+      'Android सूचनाएँ या किसी सूचना श्रेणी को रोक रहा है। आपके रिमाइंडर सहेजे गए हैं। सिस्टम की सूचना सेटिंग जाँचें।';
+
+  @override
+  String get notificationsAllowed =>
+      'सिस्टम सेटिंग BusyMax सूचनाओं की अनुमति देती हैं।';
+
+  @override
+  String get notificationsUnknown =>
+      'सूचना वितरण की स्थिति उपलब्ध नहीं है। सिस्टम सेटिंग जाँचें।';
+
+  @override
+  String get notificationExactAlarms => 'सटीक अलार्म की अनुमति चालू है।';
+
+  @override
+  String get notificationInexactAlarms =>
+      'सटीक अलार्म की अनुमति उपलब्ध नहीं है। Android रिमाइंडर देर से दिखा सकता है।';
+
+  @override
+  String get dailySummaryScope => 'सभी खाते';
+
+  @override
+  String get notificationsSystemBlocked =>
+      'सिस्टम की सूचना सेटिंग BusyMax को रोक रही है। आपके रिमाइंडर सहेजे गए हैं।';
+
+  @override
+  String get notificationItemUnavailable =>
+      'यह रिमाइंडर अब उपलब्ध नहीं है। हो सकता है आइटम बदला गया हो या हटा दिया गया हो।';
 }

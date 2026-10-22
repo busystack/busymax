@@ -1341,5 +1341,15 @@
   "invalidCollectionTimezone": "Nhập tài liệu múi giờ lịch hợp lệ chứa VTIMEZONE và TZID.",
   "invalidCollectionValue": "Sửa giá trị này trước khi lưu.",
   "accountAlreadyConnected": "Tài khoản này đã kết nối. Hãy dùng thao tác kết nối lại của tài khoản.",
-  "nextcloudRemovalAuthorizationDescription": "BusyMax cũng sẽ thử thu hồi mật khẩu ứng dụng Nextcloud của tài khoản này. Việc xóa cục bộ vẫn có thể thành công dù thu hồi thất bại."
+  "nextcloudRemovalAuthorizationDescription": "BusyMax cũng sẽ thử thu hồi mật khẩu ứng dụng Nextcloud của tài khoản này. Việc xóa cục bộ vẫn có thể thành công dù thu hồi thất bại.",
+  "dailySummaryTime": "Giờ tóm tắt hằng ngày",
+  "reminderTimeInPast": "Chọn phút hiện tại hoặc thời gian nhắc trong tương lai.",
+  "notificationsBlocked": "Android đang chặn thông báo hoặc một danh mục thông báo. Lời nhắc đã được lưu. Hãy kiểm tra cài đặt thông báo của hệ thống.",
+  "notificationsAllowed": "Cài đặt hệ thống cho phép thông báo BusyMax.",
+  "notificationsUnknown": "Không có trạng thái gửi thông báo. Hãy kiểm tra cài đặt hệ thống.",
+  "notificationExactAlarms": "Quyền báo thức chính xác đã được bật.",
+  "notificationInexactAlarms": "Không có quyền báo thức chính xác. Android có thể gửi lời nhắc muộn hơn.",
+  "dailySummaryScope": "Tất cả tài khoản",
+  "notificationsSystemBlocked": "Cài đặt thông báo của hệ thống đang chặn BusyMax. Lời nhắc đã được lưu.",
+  "notificationItemUnavailable": "Lời nhắc này không còn khả dụng. Mục có thể đã được thay đổi hoặc xóa."
 }

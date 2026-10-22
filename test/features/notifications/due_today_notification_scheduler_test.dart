@@ -19,7 +19,6 @@ void main() {
   late DateTime Function() clock;
   late Duration retryDelay;
   late List<String> markedDates;
-  String? accountId;
 
   setUp(() async {
     database = AppDatabase(NativeDatabase.memory());
@@ -29,7 +28,6 @@ void main() {
     clock = () => now;
     retryDelay = const Duration(minutes: 1);
     markedDates = [];
-    accountId = 'account';
     await database
         .into(database.accounts)
         .insert(
@@ -59,7 +57,7 @@ void main() {
     scheduler = DueTodayNotificationScheduler(
       database: database,
       settings: () => settings,
-      activeAccountId: () => accountId,
+
       notifications: () => DesktopNotificationService(
         backend: backend,
         settings: settings,
@@ -131,12 +129,12 @@ void main() {
   );
 
   test(
-    'local midnight evaluates the new date without settings or task changes',
+    'the selected local morning time evaluates the new date automatically',
     () async {
       await _insertTask(database, 'tomorrow', '2026-06-09');
       settings = settings.copyWith(lastDueTodayNotificationDate: '2026-06-08');
       final started = DateTime.now();
-      final base = DateTime(2026, 6, 8, 23, 59, 59, 200);
+      final base = DateTime(2026, 6, 9, 8, 59, 59, 200);
       clock = () => base.add(DateTime.now().difference(started));
       scheduler.start();
       await _waitUntil(() => markedDates.isNotEmpty);
@@ -197,11 +195,12 @@ void main() {
       await _waitUntil(() => backend.requests.isNotEmpty);
       scheduler.inputsChanged();
       await _insertTask(database, 'two', '2026-06-08');
-      await scheduler.checkNow();
+      final queued = scheduler.checkNow();
       backend.barrier!.complete();
-      await checking;
+      await Future.wait([checking, queued]);
       expect(backend.requests, hasLength(1));
       expect(markedDates, ['2026-06-08']);
+      expect(backend.activeIds, contains('due-today'));
     },
   );
 
@@ -216,16 +215,44 @@ void main() {
     expect(backend.requests, hasLength(1));
   });
 
-  test('selecting an account evaluates existing tasks immediately', () async {
-    await _insertTask(database, 'one', '2026-06-08');
-    accountId = null;
-    await scheduler.checkNow();
-    expect(backend.requests, isEmpty);
-    accountId = 'account';
-    scheduler.inputsChanged();
-    await _waitUntil(() => markedDates.isNotEmpty);
-    expect(backend.requests, hasLength(1));
-  });
+  test(
+    'privacy during summary submission withdraws details and retries cleanup',
+    () async {
+      await _insertTask(database, 'one', '2026-06-08');
+      backend.barrier = Completer<void>();
+      final checking = scheduler.checkNow();
+      await _waitUntil(() => backend.requests.isNotEmpty);
+      settings = settings.copyWith(
+        notificationDetailLevel: NotificationDetailLevel.private,
+      );
+      backend.cancellationFailuresRemaining = 1;
+      scheduler.inputsChanged();
+      backend.barrier!.complete();
+      await checking;
+      expect(backend.activeIds, isEmpty);
+      expect(backend.cancellationAttempts.length, greaterThanOrEqualTo(2));
+      expect(markedDates, ['2026-06-08']);
+      settings = settings.copyWith(
+        notificationDetailLevel: NotificationDetailLevel.normal,
+      );
+      scheduler.inputsChanged();
+      await scheduler.checkNow();
+      expect(backend.requests, hasLength(1));
+    },
+  );
+
+  test(
+    'summary delivery is independent of ordinary account selection',
+    () async {
+      await _insertTask(database, 'one', '2026-06-08');
+      await scheduler.checkNow();
+      expect(backend.requests, hasLength(1));
+      scheduler.inputsChanged();
+      await scheduler.checkNow();
+      await _waitUntil(() => markedDates.isNotEmpty);
+      expect(backend.requests, hasLength(1));
+    },
+  );
 
   test(
     'stopping during delivery prevents later settings writes or timers',

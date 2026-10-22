@@ -1341,5 +1341,15 @@
   "invalidCollectionTimezone": "请输入包含 VTIMEZONE 和 TZID 的有效日历时区文档。",
   "invalidCollectionValue": "保存前请修正此值。",
   "accountAlreadyConnected": "此账户已连接。请使用该账户的“重新连接”操作。",
-  "nextcloudRemovalAuthorizationDescription": "BusyMax 还会尝试撤销此账户的 Nextcloud 应用密码。即使撤销失败，本地移除也可以成功。"
+  "nextcloudRemovalAuthorizationDescription": "BusyMax 还会尝试撤销此账户的 Nextcloud 应用密码。即使撤销失败，本地移除也可以成功。",
+  "dailySummaryTime": "每日摘要时间",
+  "reminderTimeInPast": "请选择当前分钟或未来的提醒时间。",
+  "notificationsBlocked": "Android 正在阻止通知或某个通知类别。您的提醒已保存。请检查系统通知设置。",
+  "notificationsAllowed": "系统设置允许 BusyMax 通知。",
+  "notificationsUnknown": "无法获取通知送达状态。请检查系统设置。",
+  "notificationExactAlarms": "已启用精确闹钟权限。",
+  "notificationInexactAlarms": "精确闹钟权限不可用。Android 可能会延迟发送提醒。",
+  "dailySummaryScope": "所有账户",
+  "notificationsSystemBlocked": "系统通知设置正在阻止 BusyMax。您的提醒已保存。",
+  "notificationItemUnavailable": "此提醒已不可用。事项可能已更改或删除。"
 }

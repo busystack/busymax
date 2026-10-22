@@ -19,6 +19,7 @@ final class WindowsNotificationIdStore {
   // Failed writes leave allocations uncommitted until a later write succeeds.
   bool _dirty = false;
   int _nextId = 1;
+  Set<String> get knownStableIds => Set.unmodifiable(_ids.keys);
   Future<void> _serial = Future<void>.value();
 
   static Future<WindowsNotificationIdStore> openDefault() async {

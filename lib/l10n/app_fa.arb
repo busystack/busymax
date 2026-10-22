@@ -1372,7 +1372,7 @@
   },
   "googleIdentityUnverified": "هویت این اتصال قدیمی Google تأیید نشد. تقویم‌ها، کارها و تغییرات در انتظار حفظ شده‌اند. برای همگام‌سازی امن، یک اتصال Google جداگانه اضافه کنید. تغییرات در انتظار در حساب اصلی باقی می‌مانند.",
   "addSeparateGoogleAccount": "افزودن اتصال Google جداگانه",
-  "seriesPatternChangeConfirmation": "این تغییر در الگوی تکرار ممکن است تاریخ‌هایی را اضافه یا حذف کند.\n\nفعلی: \u2068{before}\u2069\nپیشنهادی: \u2068{after}\u2069\n\nاین الگو ذخیره شود؟",
+  "seriesPatternChangeConfirmation": "این تغییر در الگوی تکرار ممکن است تاریخ‌هایی را اضافه یا حذف کند.\n\nفعلی: ⁨{before}⁩\nپیشنهادی: ⁨{after}⁩\n\nاین الگو ذخیره شود؟",
   "connectedAccounts": "حساب‌های متصل",
   "contactsIndependentAccounts": "حساب‌های مستقل مخاطبان",
   "contactsNextcloudReuse": "پیشنهادهای مخاطب از اطلاعات ورود فعلی این حساب از طریق یکپارچه‌سازی فقط‌خواندنی مخاطبان استفاده می‌کنند.",
@@ -1415,5 +1415,15 @@
   "invalidCollectionTimezone": "یک سند منطقه زمانی معتبر شامل VTIMEZONE و TZID وارد کنید.",
   "invalidCollectionValue": "این مقدار را پیش از ذخیره اصلاح کنید.",
   "accountAlreadyConnected": "این حساب از قبل متصل است. از گزینه اتصال دوباره آن استفاده کنید.",
-  "nextcloudRemovalAuthorizationDescription": "BusyMax تلاش می‌کند گذرواژه برنامه Nextcloud این حساب را نیز لغو کند. حذف محلی حتی در صورت ناموفق بودن لغو می‌تواند انجام شود."
+  "nextcloudRemovalAuthorizationDescription": "BusyMax تلاش می‌کند گذرواژه برنامه Nextcloud این حساب را نیز لغو کند. حذف محلی حتی در صورت ناموفق بودن لغو می‌تواند انجام شود.",
+  "dailySummaryTime": "زمان خلاصهٔ روزانه",
+  "reminderTimeInPast": "دقیقهٔ فعلی یا زمان یادآوری در آینده را انتخاب کنید.",
+  "notificationsBlocked": "Android اعلان‌ها یا یکی از دسته‌های اعلان را مسدود کرده است. یادآوری‌های شما ذخیره شده‌اند. تنظیمات اعلان سیستم را بررسی کنید.",
+  "notificationsAllowed": "تنظیمات سیستم اعلان‌های BusyMax را مجاز می‌داند.",
+  "notificationsUnknown": "وضعیت تحویل اعلان در دسترس نیست. تنظیمات سیستم را بررسی کنید.",
+  "notificationExactAlarms": "دسترسی به زنگ‌های دقیق فعال است.",
+  "notificationInexactAlarms": "دسترسی به زنگ‌های دقیق موجود نیست. ممکن است Android یادآوری‌ها را دیرتر نمایش دهد.",
+  "dailySummaryScope": "همهٔ حساب‌ها",
+  "notificationsSystemBlocked": "تنظیمات اعلان سیستم BusyMax را مسدود کرده است. یادآوری‌های شما ذخیره شده‌اند.",
+  "notificationItemUnavailable": "این یادآوری دیگر در دسترس نیست. ممکن است مورد تغییر کرده یا حذف شده باشد."
 }

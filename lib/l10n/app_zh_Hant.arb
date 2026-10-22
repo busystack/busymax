@@ -1341,5 +1341,15 @@
   "invalidCollectionTimezone": "請輸入包含 VTIMEZONE 和 TZID 的有效行事曆時區文件。",
   "invalidCollectionValue": "儲存前請修正此值。",
   "accountAlreadyConnected": "此帳戶已連線。請使用該帳戶的「重新連線」操作。",
-  "nextcloudRemovalAuthorizationDescription": "BusyMax 也會嘗試撤銷此帳戶的 Nextcloud 應用程式密碼。即使撤銷失敗，本機移除仍可成功。"
+  "nextcloudRemovalAuthorizationDescription": "BusyMax 也會嘗試撤銷此帳戶的 Nextcloud 應用程式密碼。即使撤銷失敗，本機移除仍可成功。",
+  "dailySummaryTime": "每日摘要時間",
+  "reminderTimeInPast": "請選擇目前分鐘或未來的提醒時間。",
+  "notificationsBlocked": "Android 正在封鎖通知或某個通知類別。您的提醒已儲存。請檢查系統通知設定。",
+  "notificationsAllowed": "系統設定允許 BusyMax 通知。",
+  "notificationsUnknown": "無法取得通知傳送狀態。請檢查系統設定。",
+  "notificationExactAlarms": "已啟用精確鬧鐘權限。",
+  "notificationInexactAlarms": "精確鬧鐘權限不可用。Android 可能會延遲傳送提醒。",
+  "dailySummaryScope": "所有帳戶",
+  "notificationsSystemBlocked": "系統通知設定正在封鎖 BusyMax。您的提醒已儲存。",
+  "notificationItemUnavailable": "此提醒已無法使用。事項可能已變更或刪除。"
 }

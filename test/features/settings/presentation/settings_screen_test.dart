@@ -3496,7 +3496,12 @@ void main() {
     timeRows = tester.widgetList<DesktopTimeValueRow>(
       find.byType(DesktopTimeValueRow),
     );
-    expect(timeRows.every((row) => row.enabled), isTrue);
+    expect(
+      timeRows
+          .where((row) => row.label.startsWith('Quiet hours'))
+          .every((row) => row.enabled),
+      isTrue,
+    );
   });
 
   test('Schedule display hours persist and keep a valid range', () async {

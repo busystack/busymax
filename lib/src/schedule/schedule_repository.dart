@@ -1,3 +1,5 @@
+import '../features/notifications/daily_summary_policy.dart';
+
 import 'dart:convert';
 import 'dart:async';
 
@@ -717,7 +719,9 @@ class ScheduleRepository {
                     _database.taskLists.pendingDelete.equals(false)),
           )
           ..where(
-            _database.taskLists.davCollectionId.isNull() |
+            (filters.notificationDeadline != null
+                    ? const Constant(true)
+                    : _database.taskLists.davCollectionId.isNull()) |
                 _database.davCollections.tasksSelected.equals(true),
           );
     if (filters.taskListFilterActive) {
@@ -740,9 +744,36 @@ class ScheduleRepository {
     final rows = (await query.get())
         .where((row) => isVisibleTaskProjection(row.readTable(_database.tasks)))
         .toList();
+    final notificationKeys = filters.notificationDeadline == null
+        ? null
+        : {
+            for (final task in await notificationTasksDueOn(
+              _database,
+              filters.notificationDeadline!,
+            ))
+              '${task.accountId}\u0000${task.taskListId}\u0000${task.id}',
+          };
     final hierarchy = await _taskHierarchy(rows);
     final items = <ScheduleItem>[];
     for (final row in rows) {
+      if (filters.notificationDeadline != null) {
+        final task = row.readTable(_database.tasks);
+        if (!notificationKeys!.contains(
+          '${task.accountId}\u0000${task.taskListId}\u0000${task.id}',
+        )) {
+          continue;
+        }
+        final due = taskDeadlineAsLocal(task);
+        final day = filters.notificationDeadline!;
+        if (due == null ||
+            due.year != day.year ||
+            due.month != day.month ||
+            due.day != day.day ||
+            task.status == 'cancelled' ||
+            task.status == 'completed') {
+          continue;
+        }
+      }
       final item = _taskItemFromRow(
         row,
         providers,

@@ -1,3 +1,4 @@
+import '../features/notifications/operational_notification_coordinator.dart';
 import '../core/http/request_dispatch_exception.dart';
 import '../features/sync/domain_sync_schedule.dart';
 import '../features/sync/account_sync_activity.dart';
@@ -460,36 +461,96 @@ final notificationCancellationQueueProvider =
 final desktopNotificationServiceProvider = Provider<DesktopNotificationService>(
   (ref) {
     final settings = ref.watch(appSettingsControllerProvider);
+    final window = ref.watch(desktopWindowServiceProvider);
+    final navigation = ref.watch(desktopNavigationServiceProvider);
+    var disposed = false;
+    ref.onDispose(() => disposed = true);
     return DesktopNotificationService(
       backend: ref.watch(desktopNotificationBackendProvider),
       cancellationQueue: ref.watch(notificationCancellationQueueProvider),
       settings: settings,
       locale: settings.locale,
-      onReconnectActivated: (id) async {
-        await ref.read(desktopWindowServiceProvider).showWindow();
+      deliveryAllowed: () =>
+          !disposed &&
+          ref.read(desktopNotificationReadinessProvider).permissionGranted !=
+              false,
+      onDeliveryStateChanged: (succeeded) {
+        if (disposed) return;
+        final previous = ref.read(desktopNotificationReadinessProvider);
         ref
-            .read(desktopNavigationServiceProvider)
-            .open(
-              DesktopNavigationDestination.settings,
-              reconnectAccountId: id,
-            );
+            .read(desktopNotificationReadinessProvider.notifier)
+            .state = DesktopNotificationReadiness(
+          succeeded
+              ? DesktopNotificationReadinessState.available
+              : previous.state,
+          permissionGranted: previous.permissionGranted,
+          deliveryFailed: !succeeded,
+          diagnosticCode: succeeded ? null : 'native-submission-failed',
+        );
+      },
+      onRoutedNotification: (payload) async {
+        await window.showWindow();
+        navigation.open(
+          payload['notificationRoute'] == 'due-today'
+              ? DesktopNavigationDestination.tasks
+              : DesktopNavigationDestination.settings,
+          notificationPayload: payload,
+        );
+      },
+      onReconnectActivated: (id) async {
+        await window.showWindow();
+        navigation.open(
+          DesktopNavigationDestination.settings,
+          reconnectAccountId: id,
+        );
       },
       onDestinationActivated: (destination) async {
-        await ref.read(desktopWindowServiceProvider).showWindow();
-        ref.read(desktopNavigationServiceProvider).open(destination);
+        await window.showWindow();
+        navigation.open(destination);
       },
     );
   },
 );
 
-final operationalNotificationReporterProvider =
-    Provider<OperationalNotificationReporter>((ref) {
+final operationalNotificationTransportProvider =
+    Provider<OperationalNotificationTransport>((ref) {
       final desktop = ref.watch(desktopNotificationServiceProvider);
-      return CallbackOperationalNotificationReporter(
-        onSyncFailure: desktop.notifySyncFailure,
-        onConflict: desktop.notifyConflict,
+      return OperationalNotificationTransport(
+        deliver: desktop.deliverOperationalIssue,
+        cancel: desktop.cancelReminder,
       );
     });
+
+final operationalNotificationCoordinatorProvider =
+    Provider<OperationalNotificationCoordinator>((ref) {
+      final coordinator = OperationalNotificationCoordinator(
+        database: ref.watch(databaseProvider),
+        settings: () => ref.read(appSettingsControllerProvider),
+        transport: () => ref.read(operationalNotificationTransportProvider),
+      );
+      ref.listen(
+        appSettingsControllerProvider,
+        (previous, next) => coordinator.settingsChanged(
+          withdraw:
+              previous?.notificationDetailLevel !=
+                      next.notificationDetailLevel &&
+                  next.notificationDetailLevel ==
+                      NotificationDetailLevel.private ||
+              previous?.localeTag != next.localeTag,
+          releaseDeferred:
+              previous?.quietHoursEnabled != next.quietHoursEnabled ||
+              previous?.quietHoursStart != next.quietHoursStart ||
+              previous?.quietHoursEnd != next.quietHoursEnd,
+        ),
+      );
+      ref.onDispose(coordinator.stop);
+      return coordinator;
+    });
+
+final operationalNotificationReporterProvider =
+    Provider<OperationalNotificationReporter>(
+      (ref) => ref.watch(operationalNotificationCoordinatorProvider),
+    );
 
 Stream<T> _contactsConfigurationStream<T>(
   BusyMaxContactsController controller,
@@ -1142,7 +1203,7 @@ final davAccountSyncEngineFactoryProvider =
         },
         reportPendingMutationFailure: (accountId, error) => ref
             .read(operationalNotificationReporterProvider)
-            .notifySyncFailure(error),
+            .notifySyncFailure(error, accountId: accountId),
       );
     });
 
@@ -1908,8 +1969,8 @@ Future<void> _runAccountSyncIfEligible(
       .generation(accountId);
   try {
     await synchronize(ref.read(accountSyncOperationsProvider));
-    ref
-        .read(desktopNotificationServiceProvider)
+    await ref
+        .read(operationalNotificationCoordinatorProvider)
         .clearAccountSyncFailure(accountId);
   } on Object catch (error) {
     throw AuthorizationScopedFailure(
@@ -1931,27 +1992,70 @@ final _reminderActionHandlerProvider = Provider<ScheduledReminderActionHandler>(
 
 final Provider<NotificationScheduler> notificationSchedulerProvider =
     Provider<NotificationScheduler>((ref) {
+      ref.watch(operationalNotificationCoordinatorProvider).start();
+      final database = ref.watch(databaseProvider);
+      final timeZoneSource = ref.watch(localTimeZoneSourceProvider);
+      var disposed = false;
+      String? previousZone;
+      Duration? previousOffset;
       final scheduler = NotificationScheduler(
-        database: ref.watch(databaseProvider),
+        database: database,
         notifications: ref.read(desktopNotificationServiceProvider),
+        beforeCheck: () async {
+          final zone = await timeZoneSource.currentIanaTimeZone();
+          if (disposed) return;
+          final offset = DateTime.now().timeZoneOffset;
+          if (zone == previousZone && offset == previousOffset) return;
+          final schedules = NotificationScheduleService(
+            database: database,
+            preserveLifecycle: true,
+          );
+          for (final account
+              in await database.select(database.accounts).get()) {
+            if (disposed) return;
+            await schedules.rebuildUpcomingNotifications(account.id);
+          }
+          previousZone = zone;
+          previousOffset = offset;
+        },
         // Read the independent router without making it a dependency of the
         // scheduler it resolves when an action arrives.
         onReminderAction: ref.read(_reminderActionHandlerProvider),
         onNotificationActivated: (row) => _openNotificationSource(ref, row),
+        onUnavailable: () => _reportNotificationUnavailable(ref),
       );
       ref.listen(desktopNotificationServiceProvider, (_, notifications) {
         scheduler.updateNotifications(notifications);
       });
+      ref.listen(desktopNotificationReadinessProvider, (previous, next) {
+        if (previous?.permissionGranted != next.permissionGranted) {
+          scheduler.updateNotifications(
+            ref.read(desktopNotificationServiceProvider),
+          );
+        }
+      });
       scheduler.start();
-      ref.onDispose(scheduler.stop);
+      ref.onDispose(() {
+        disposed = true;
+        scheduler.stop();
+      });
       return scheduler;
     });
 
 final notificationReconcilerProvider = Provider<NotificationReconciler>(
-  (ref) => CallbackNotificationReconciler(
-    ref.watch(notificationSchedulerProvider).checkNow,
-  ),
+  (ref) => CallbackNotificationReconciler(() async {
+    await ref.read(notificationSchedulerProvider).checkNow();
+    await ref.read(operationalNotificationCoordinatorProvider).reconcile();
+  }),
 );
+
+final notificationSourceUnavailableProvider = StateProvider<int>((ref) => 0);
+
+Future<void> _reportNotificationUnavailable(Ref ref) async {
+  final counter = ref.read(notificationSourceUnavailableProvider.notifier);
+  counter.state++;
+  await ref.read(desktopWindowServiceProvider).showWindow();
+}
 
 final _notificationOpenSequenceProvider = StateProvider<int>((ref) => 0);
 
@@ -1981,7 +2085,7 @@ Future<void> _openEventNotification(
           ))
           .getSingleOrNull();
   if (event == null) {
-    await ref.read(desktopWindowServiceProvider).showWindow();
+    await _reportNotificationUnavailable(ref);
     return;
   }
 
@@ -2011,7 +2115,7 @@ Future<void> _openTaskNotification(
             ..limit(1))
           .getSingleOrNull();
   if (task == null) {
-    await ref.read(desktopWindowServiceProvider).showWindow();
+    await _reportNotificationUnavailable(ref);
     return;
   }
 
@@ -2072,7 +2176,6 @@ final dueTodayNotificationProvider = Provider<DueTodayNotificationScheduler>((
   final scheduler = DueTodayNotificationScheduler(
     database: ref.watch(databaseProvider),
     settings: () => ref.read(appSettingsControllerProvider),
-    activeAccountId: () => ref.read(activeAccountProvider),
     notifications: () => ref.read(desktopNotificationServiceProvider),
     markNotified: (date) => ref
         .read(appSettingsControllerProvider.notifier)

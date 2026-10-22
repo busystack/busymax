@@ -1341,5 +1341,15 @@
   "invalidCollectionTimezone": "Introduza um documento de fuso horário válido com VTIMEZONE e TZID.",
   "invalidCollectionValue": "Corrija este valor antes de guardar.",
   "accountAlreadyConnected": "Esta conta já está ligada. Utilize a ação para voltar a ligar.",
-  "nextcloudRemovalAuthorizationDescription": "O BusyMax tentará também revogar a palavra-passe de aplicação Nextcloud desta conta. A remoção local pode ser concluída mesmo que a revogação falhe."
+  "nextcloudRemovalAuthorizationDescription": "O BusyMax tentará também revogar a palavra-passe de aplicação Nextcloud desta conta. A remoção local pode ser concluída mesmo que a revogação falhe.",
+  "dailySummaryTime": "Hora do resumo diário",
+  "reminderTimeInPast": "Escolha o minuto atual ou uma hora futura para o lembrete.",
+  "notificationsBlocked": "O Android está a bloquear notificações ou uma categoria. Os lembretes estão guardados. Reveja as definições de notificações do sistema.",
+  "notificationsAllowed": "As definições do sistema permitem notificações do BusyMax.",
+  "notificationsUnknown": "O estado de entrega não está disponível. Reveja as definições do sistema.",
+  "notificationExactAlarms": "O acesso a alarmes exatos está ativado.",
+  "notificationInexactAlarms": "O acesso a alarmes exatos não está disponível. O Android pode apresentar os lembretes mais tarde.",
+  "dailySummaryScope": "Todas as contas",
+  "notificationsSystemBlocked": "As definições de notificações do sistema estão a bloquear o BusyMax. Os lembretes estão guardados.",
+  "notificationItemUnavailable": "Este lembrete já não está disponível. O item pode ter sido alterado ou removido."
 }

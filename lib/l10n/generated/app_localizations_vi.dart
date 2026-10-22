@@ -3742,4 +3742,41 @@ class AppLocalizationsVi extends AppLocalizations {
   @override
   String get nextcloudRemovalAuthorizationDescription =>
       'BusyMax cũng sẽ thử thu hồi mật khẩu ứng dụng Nextcloud của tài khoản này. Việc xóa cục bộ vẫn có thể thành công dù thu hồi thất bại.';
+
+  @override
+  String get dailySummaryTime => 'Giờ tóm tắt hằng ngày';
+
+  @override
+  String get reminderTimeInPast =>
+      'Chọn phút hiện tại hoặc thời gian nhắc trong tương lai.';
+
+  @override
+  String get notificationsBlocked =>
+      'Android đang chặn thông báo hoặc một danh mục thông báo. Lời nhắc đã được lưu. Hãy kiểm tra cài đặt thông báo của hệ thống.';
+
+  @override
+  String get notificationsAllowed =>
+      'Cài đặt hệ thống cho phép thông báo BusyMax.';
+
+  @override
+  String get notificationsUnknown =>
+      'Không có trạng thái gửi thông báo. Hãy kiểm tra cài đặt hệ thống.';
+
+  @override
+  String get notificationExactAlarms => 'Quyền báo thức chính xác đã được bật.';
+
+  @override
+  String get notificationInexactAlarms =>
+      'Không có quyền báo thức chính xác. Android có thể gửi lời nhắc muộn hơn.';
+
+  @override
+  String get dailySummaryScope => 'Tất cả tài khoản';
+
+  @override
+  String get notificationsSystemBlocked =>
+      'Cài đặt thông báo của hệ thống đang chặn BusyMax. Lời nhắc đã được lưu.';
+
+  @override
+  String get notificationItemUnavailable =>
+      'Lời nhắc này không còn khả dụng. Mục có thể đã được thay đổi hoặc xóa.';
 }

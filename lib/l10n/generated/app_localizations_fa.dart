@@ -3780,4 +3780,41 @@ class AppLocalizationsFa extends AppLocalizations {
   @override
   String get nextcloudRemovalAuthorizationDescription =>
       'BusyMax تلاش می‌کند گذرواژه برنامه Nextcloud این حساب را نیز لغو کند. حذف محلی حتی در صورت ناموفق بودن لغو می‌تواند انجام شود.';
+
+  @override
+  String get dailySummaryTime => 'زمان خلاصهٔ روزانه';
+
+  @override
+  String get reminderTimeInPast =>
+      'دقیقهٔ فعلی یا زمان یادآوری در آینده را انتخاب کنید.';
+
+  @override
+  String get notificationsBlocked =>
+      'Android اعلان‌ها یا یکی از دسته‌های اعلان را مسدود کرده است. یادآوری‌های شما ذخیره شده‌اند. تنظیمات اعلان سیستم را بررسی کنید.';
+
+  @override
+  String get notificationsAllowed =>
+      'تنظیمات سیستم اعلان‌های BusyMax را مجاز می‌داند.';
+
+  @override
+  String get notificationsUnknown =>
+      'وضعیت تحویل اعلان در دسترس نیست. تنظیمات سیستم را بررسی کنید.';
+
+  @override
+  String get notificationExactAlarms => 'دسترسی به زنگ‌های دقیق فعال است.';
+
+  @override
+  String get notificationInexactAlarms =>
+      'دسترسی به زنگ‌های دقیق موجود نیست. ممکن است Android یادآوری‌ها را دیرتر نمایش دهد.';
+
+  @override
+  String get dailySummaryScope => 'همهٔ حساب‌ها';
+
+  @override
+  String get notificationsSystemBlocked =>
+      'تنظیمات اعلان سیستم BusyMax را مسدود کرده است. یادآوری‌های شما ذخیره شده‌اند.';
+
+  @override
+  String get notificationItemUnavailable =>
+      'این یادآوری دیگر در دسترس نیست. ممکن است مورد تغییر کرده یا حذف شده باشد.';
 }

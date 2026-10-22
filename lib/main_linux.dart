@@ -122,13 +122,36 @@ Future<void> main(List<String> arguments) async {
     }),
     desktopNotificationBackendProvider.overrideWith((ref) {
       final backend = FreedesktopNotificationBackend();
+      var disposed = false;
+      ref.onDispose(() => disposed = true);
+      unawaited(
+        backend
+            .probe()
+            .then((_) {
+              if (!disposed) {
+                ref
+                    .read(desktopNotificationReadinessProvider.notifier)
+                    .state = const DesktopNotificationReadiness(
+                  DesktopNotificationReadinessState.available,
+                );
+              }
+            })
+            .catchError((Object _) {
+              if (!disposed) {
+                ref
+                    .read(desktopNotificationReadinessProvider.notifier)
+                    .state = const DesktopNotificationReadiness(
+                  DesktopNotificationReadinessState.failedInstalledPackage,
+                  diagnosticCode: 'linux-notification-service-unavailable',
+                );
+              }
+            }),
+      );
       ref.onDispose(() => unawaited(backend.close()));
       return backend;
     }),
     desktopNotificationReadinessProvider.overrideWith(
-      (ref) => const DesktopNotificationReadiness(
-        DesktopNotificationReadinessState.available,
-      ),
+      (ref) => const DesktopNotificationReadiness.initializing(),
     ),
     localTimeZoneSourceProvider.overrideWithValue(timeZoneSource),
     localTimeZoneProvider.overrideWithValue(localTimeZone),

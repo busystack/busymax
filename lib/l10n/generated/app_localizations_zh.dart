@@ -3597,6 +3597,36 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get nextcloudRemovalAuthorizationDescription =>
       'BusyMax 还会尝试撤销此账户的 Nextcloud 应用密码。即使撤销失败，本地移除也可以成功。';
+
+  @override
+  String get dailySummaryTime => '每日摘要时间';
+
+  @override
+  String get reminderTimeInPast => '请选择当前分钟或未来的提醒时间。';
+
+  @override
+  String get notificationsBlocked => 'Android 正在阻止通知或某个通知类别。您的提醒已保存。请检查系统通知设置。';
+
+  @override
+  String get notificationsAllowed => '系统设置允许 BusyMax 通知。';
+
+  @override
+  String get notificationsUnknown => '无法获取通知送达状态。请检查系统设置。';
+
+  @override
+  String get notificationExactAlarms => '已启用精确闹钟权限。';
+
+  @override
+  String get notificationInexactAlarms => '精确闹钟权限不可用。Android 可能会延迟发送提醒。';
+
+  @override
+  String get dailySummaryScope => '所有账户';
+
+  @override
+  String get notificationsSystemBlocked => '系统通知设置正在阻止 BusyMax。您的提醒已保存。';
+
+  @override
+  String get notificationItemUnavailable => '此提醒已不可用。事项可能已更改或删除。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -7187,6 +7217,36 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   @override
   String get nextcloudRemovalAuthorizationDescription =>
       'BusyMax 还会尝试撤销此账户的 Nextcloud 应用密码。即使撤销失败，本地移除也可以成功。';
+
+  @override
+  String get dailySummaryTime => '每日摘要时间';
+
+  @override
+  String get reminderTimeInPast => '请选择当前分钟或未来的提醒时间。';
+
+  @override
+  String get notificationsBlocked => 'Android 正在阻止通知或某个通知类别。您的提醒已保存。请检查系统通知设置。';
+
+  @override
+  String get notificationsAllowed => '系统设置允许 BusyMax 通知。';
+
+  @override
+  String get notificationsUnknown => '无法获取通知送达状态。请检查系统设置。';
+
+  @override
+  String get notificationExactAlarms => '已启用精确闹钟权限。';
+
+  @override
+  String get notificationInexactAlarms => '精确闹钟权限不可用。Android 可能会延迟发送提醒。';
+
+  @override
+  String get dailySummaryScope => '所有账户';
+
+  @override
+  String get notificationsSystemBlocked => '系统通知设置正在阻止 BusyMax。您的提醒已保存。';
+
+  @override
+  String get notificationItemUnavailable => '此提醒已不可用。事项可能已更改或删除。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -10778,4 +10838,34 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   @override
   String get nextcloudRemovalAuthorizationDescription =>
       'BusyMax 也會嘗試撤銷此帳戶的 Nextcloud 應用程式密碼。即使撤銷失敗，本機移除仍可成功。';
+
+  @override
+  String get dailySummaryTime => '每日摘要時間';
+
+  @override
+  String get reminderTimeInPast => '請選擇目前分鐘或未來的提醒時間。';
+
+  @override
+  String get notificationsBlocked => 'Android 正在封鎖通知或某個通知類別。您的提醒已儲存。請檢查系統通知設定。';
+
+  @override
+  String get notificationsAllowed => '系統設定允許 BusyMax 通知。';
+
+  @override
+  String get notificationsUnknown => '無法取得通知傳送狀態。請檢查系統設定。';
+
+  @override
+  String get notificationExactAlarms => '已啟用精確鬧鐘權限。';
+
+  @override
+  String get notificationInexactAlarms => '精確鬧鐘權限不可用。Android 可能會延遲傳送提醒。';
+
+  @override
+  String get dailySummaryScope => '所有帳戶';
+
+  @override
+  String get notificationsSystemBlocked => '系統通知設定正在封鎖 BusyMax。您的提醒已儲存。';
+
+  @override
+  String get notificationItemUnavailable => '此提醒已無法使用。事項可能已變更或刪除。';
 }

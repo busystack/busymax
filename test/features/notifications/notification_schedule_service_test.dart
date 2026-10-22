@@ -794,7 +794,7 @@ void main() {
     },
   );
 
-  test('missed event reminder after event start is not scheduled', () async {
+  test('a start reminder remains useful during its occurrence', () async {
     service = NotificationScheduleService(
       database: database,
       nowUtc: () => DateTime.utc(2026, 6, 8, 4, 26, 30),
@@ -809,7 +809,10 @@ void main() {
 
     await service.rebuildUpcomingEventNotifications('microsoft:m');
 
-    expect(await database.select(database.notificationSchedule).get(), isEmpty);
+    expect(
+      await database.select(database.notificationSchedule).get(),
+      hasLength(1),
+    );
   });
 
   test('local Microsoft event reminder wakes notification scheduler', () async {

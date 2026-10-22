@@ -1341,5 +1341,15 @@
   "invalidCollectionTimezone": "VTIMEZONE と TZID を含む有効なカレンダーのタイムゾーン文書を入力してください。",
   "invalidCollectionValue": "保存する前にこの値を修正してください。",
   "accountAlreadyConnected": "このアカウントは既に接続されています。このアカウントの再接続操作を使用してください。",
-  "nextcloudRemovalAuthorizationDescription": "BusyMax はこのアカウントの Nextcloud アプリパスワードの失効も試みます。失効に失敗しても、ローカルでの削除は完了する場合があります。"
+  "nextcloudRemovalAuthorizationDescription": "BusyMax はこのアカウントの Nextcloud アプリパスワードの失効も試みます。失効に失敗しても、ローカルでの削除は完了する場合があります。",
+  "dailySummaryTime": "毎日の概要の時刻",
+  "reminderTimeInPast": "現在の分または将来のリマインダー時刻を選択してください。",
+  "notificationsBlocked": "Androidが通知または通知カテゴリをブロックしています。リマインダーは保存されています。システムの通知設定を確認してください。",
+  "notificationsAllowed": "システム設定でBusyMaxの通知が許可されています。",
+  "notificationsUnknown": "通知の配信状況を確認できません。システム設定を確認してください。",
+  "notificationExactAlarms": "正確なアラームへのアクセスが有効です。",
+  "notificationInexactAlarms": "正確なアラームへのアクセスがありません。Androidがリマインダーを遅れて表示する場合があります。",
+  "dailySummaryScope": "すべてのアカウント",
+  "notificationsSystemBlocked": "システムの通知設定がBusyMaxをブロックしています。リマインダーは保存されています。",
+  "notificationItemUnavailable": "このリマインダーは利用できなくなりました。項目が変更または削除された可能性があります。"
 }

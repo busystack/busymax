@@ -1,3 +1,6 @@
+import '../features/notifications/notification_schedule_service.dart';
+import '../features/notifications/notification_reconciler.dart';
+import '../features/notifications/operational_notification_coordinator.dart';
 import '../features/sync/domain_sync_schedule.dart';
 import '../core/auth/registration_staging.dart';
 
@@ -15,8 +18,6 @@ import '../app/app_bootstrap.dart';
 import '../config/build_config.dart';
 import '../core/secrets/secret_store.dart';
 import '../db/app_database.dart';
-import '../l10n/app_locale.dart';
-import '../../l10n/generated/app_localizations.dart';
 import 'android_account_gate.dart';
 import 'android_authorization.dart';
 import 'android_notifications.dart';
@@ -125,7 +126,11 @@ final class AndroidHeadlessRuntime {
     required http.Client httpClient,
   }) : _httpClient = httpClient;
 
-  static Future<AndroidHeadlessRuntime> create() async {
+  static Future<AndroidHeadlessRuntime> create({
+    // Native acceptance needs root-scoped transport overrides: a nested scope
+    // cannot safely replace dependencies of existing database-backed providers.
+    List<Override> Function(AppDatabase database)? overridesForTesting,
+  }) async {
     final platform = BusyMaxAndroidPlatform.instance;
     const storage = FlutterSecureStorage(
       aOptions: AndroidOptions(resetOnError: false),
@@ -152,31 +157,6 @@ final class AndroidHeadlessRuntime {
       database: database,
       settings: () => container.read(appSettingsControllerProvider),
       platform: platform,
-      strings: () {
-        final current = container.read(appSettingsControllerProvider);
-        final locale =
-            current.locale ??
-            resolveBusyMaxLocales(
-              PlatformDispatcher.instance.locales,
-              busyMaxSupportedLocales,
-            );
-        final l10n = lookupAppLocalizations(locale);
-        return AndroidNotificationStrings(
-          channelName: l10n.reminderGroup,
-          channelDescription: '${l10n.eventReminders} · ${l10n.taskReminders}',
-          statusChannelName: l10n.sync,
-          statusChannelDescription: l10n.syncConflicts,
-          privateTitle: 'BusyMax',
-          open: l10n.notificationOpenAction,
-          snooze: l10n.notificationSnoozeAction,
-          dismiss: l10n.notificationDismissAction,
-          syncFailureTitle: l10n.syncFailureNotificationTitle,
-          syncFailureBody: l10n.davTemporarilyUnavailable,
-          conflictTitle: l10n.conflictNotificationTitle,
-          dueTodayTitle: l10n.dueTodayNotificationTitle,
-          dueTodayBody: l10n.dueTodayNotificationBody,
-        );
-      },
     );
     await notifications.initialize(timeZoneId: timeZoneId);
     container = ProviderContainer(
@@ -198,13 +178,36 @@ final class AndroidHeadlessRuntime {
         crossEngineAccountGateProvider.overrideWithValue(
           AndroidCrossEngineAccountGate(platform),
         ),
-        notificationReconcilerProvider.overrideWithValue(notifications),
-        androidNotificationServiceProvider.overrideWithValue(notifications),
-        operationalNotificationReporterProvider.overrideWithValue(
-          notifications,
+        notificationReconcilerProvider.overrideWithValue(
+          CallbackNotificationReconciler(() async {
+            await notifications.reconcile();
+            await container
+                .read(operationalNotificationCoordinatorProvider)
+                .reconcile();
+          }),
         ),
+        androidNotificationServiceProvider.overrideWithValue(notifications),
+        operationalNotificationTransportProvider.overrideWithValue(
+          OperationalNotificationTransport(
+            deliver: notifications.deliverOperationalIssue,
+            cancel: notifications.cancelOperationalIssue,
+          ),
+        ),
+        ...?overridesForTesting?.call(database),
       ],
     );
+    // First observe native posts from the previous process. Rebuilding an
+    // unsent database row before that observation could expire an alarm Android
+    // already delivered while BusyMax was stopped, invalidating its actions.
+    await notifications.reconcile();
+    final schedules = NotificationScheduleService(
+      database: database,
+      preserveLifecycle: true,
+    );
+    for (final account in await database.select(database.accounts).get()) {
+      await schedules.rebuildUpcomingNotifications(account.id);
+    }
+    container.read(operationalNotificationCoordinatorProvider).start();
     return AndroidHeadlessRuntime._(
       container: container,
       database: database,

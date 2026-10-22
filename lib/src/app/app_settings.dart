@@ -116,6 +116,7 @@ class AppSettings {
     required this.quietHoursEnd,
     required this.redactTaskContentInDiagnostics,
     required this.lastDueTodayNotificationDate,
+    this.dueTodayNotificationTime = '09:00',
     required this.taskListScheduleVisibility,
     required this.scheduleViewMode,
     this.androidScheduleViewMode,
@@ -255,6 +256,10 @@ class AppSettings {
       redactTaskContentInDiagnostics:
           json['redactTaskContentInDiagnostics'] as bool? ??
           defaults.redactTaskContentInDiagnostics,
+      dueTodayNotificationTime: _normalizedTimeOfDay(
+        json['dueTodayNotificationTime'],
+        defaults.dueTodayNotificationTime,
+      ),
       lastDueTodayNotificationDate: json['lastDueTodayNotificationDate']
           ?.toString(),
       taskListScheduleVisibility: _boolMap(json['taskListScheduleVisibility']),
@@ -297,6 +302,7 @@ class AppSettings {
   final String quietHoursEnd;
   final bool redactTaskContentInDiagnostics;
   final String? lastDueTodayNotificationDate;
+  final String dueTodayNotificationTime;
   final Map<String, bool> taskListScheduleVisibility;
   final ScheduleSidebarOrder sidebarOrder;
   final ScheduleViewMode scheduleViewMode;
@@ -334,6 +340,7 @@ class AppSettings {
       'quietHoursEnd': quietHoursEnd,
       'redactTaskContentInDiagnostics': redactTaskContentInDiagnostics,
       'lastDueTodayNotificationDate': lastDueTodayNotificationDate,
+      'dueTodayNotificationTime': dueTodayNotificationTime,
       'taskListScheduleVisibility': taskListScheduleVisibility,
       'sidebarOrder': sidebarOrder.toJson(),
       'scheduleViewMode': scheduleViewMode.name,
@@ -368,6 +375,7 @@ class AppSettings {
     String? quietHoursEnd,
     bool? redactTaskContentInDiagnostics,
     String? lastDueTodayNotificationDate,
+    String? dueTodayNotificationTime,
     Map<String, bool>? taskListScheduleVisibility,
     ScheduleSidebarOrder? sidebarOrder,
     ScheduleViewMode? scheduleViewMode,
@@ -415,6 +423,8 @@ class AppSettings {
       quietHoursEnd: quietHoursEnd ?? this.quietHoursEnd,
       redactTaskContentInDiagnostics:
           redactTaskContentInDiagnostics ?? this.redactTaskContentInDiagnostics,
+      dueTodayNotificationTime:
+          dueTodayNotificationTime ?? this.dueTodayNotificationTime,
       lastDueTodayNotificationDate: clearLastDueTodayNotificationDate
           ? null
           : lastDueTodayNotificationDate ?? this.lastDueTodayNotificationDate,
@@ -731,6 +741,15 @@ class AppSettingsController extends StateNotifier<AppSettings> {
       (current) => current.copyWith(redactTaskContentInDiagnostics: enabled),
     );
   }
+
+  Future<void> setDueTodayNotificationTime(String value) => _mutate(
+    (current) => current.copyWith(
+      dueTodayNotificationTime: _normalizedTimeOfDay(
+        value,
+        current.dueTodayNotificationTime,
+      ),
+    ),
+  );
 
   Future<void> markDueTodayNotified(String date) {
     return _mutate(

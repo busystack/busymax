@@ -45,6 +45,7 @@ final _androidTasksProvider = FutureProvider.autoDispose
         String? listId,
         bool completed,
         bool noDate,
+        DateTime? notificationDate,
       })
     >((ref, key) {
       ref.watch(scheduleDataRevisionProvider);
@@ -59,12 +60,16 @@ final _androidTasksProvider = FutureProvider.autoDispose
           .watch(scheduleRepositoryProvider)
           .listAllTasks(
             filters: ScheduleFilters(
-              query: key.query,
-              taskCompletion: key.completed
+              query: key.notificationDate == null ? key.query : '',
+              notificationDeadline: key.notificationDate,
+              taskCompletion: key.notificationDate != null
+                  ? ScheduleTaskCompletion.open
+                  : key.completed
                   ? ScheduleTaskCompletion.all
                   : ScheduleTaskCompletion.open,
               showNoDateTasks: key.noDate,
-              taskListFilterActive: selected != null,
+              taskListFilterActive:
+                  key.notificationDate == null && selected != null,
               taskListKeys: selected == null
                   ? const {}
                   : {
@@ -79,7 +84,8 @@ final _androidTasksProvider = FutureProvider.autoDispose
     });
 
 class AndroidTasksScreen extends ConsumerStatefulWidget {
-  const AndroidTasksScreen({super.key});
+  const AndroidTasksScreen({super.key, this.notificationDate});
+  final DateTime? notificationDate;
   @override
   ConsumerState<AndroidTasksScreen> createState() => _AndroidTasksScreenState();
 }
@@ -139,100 +145,108 @@ class _AndroidTasksScreenState extends ConsumerState<AndroidTasksScreen> {
         listId: _listId,
         completed: _showCompleted,
         noDate: _showNoDate,
+        notificationDate: widget.notificationDate,
       )),
     );
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.l10n.tasks),
+        title: Text(
+          widget.notificationDate == null
+              ? context.l10n.tasks
+              : '${context.l10n.dueDate} · ${DateFormat.yMMMd(Localizations.localeOf(context).toLanguageTag()).format(widget.notificationDate!)}',
+        ),
         actions: [
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.filter_list),
-            onSelected: (value) {
-              if (value == 'clear-completed') {
-                unawaited(_clearCompleted());
-                return;
-              }
-              setState(() {
-                _mutationIntent = null;
-                if (value == 'completed') _showCompleted = !_showCompleted;
-                if (value == 'no-date') _showNoDate = !_showNoDate;
-              });
-            },
-            itemBuilder: (context) => [
-              CheckedPopupMenuItem(
-                value: 'completed',
-                checked: _showCompleted,
-                child: Text(context.l10n.completed),
-              ),
-              CheckedPopupMenuItem(
-                value: 'no-date',
-                checked: _showNoDate,
-                child: Text(context.l10n.noDate),
-              ),
-              if (_listId != null &&
-                  (selectedAccount?.provider == BusyProvider.google ||
-                      selectedAccount?.provider == BusyProvider.nextcloud))
-                PopupMenuItem(
-                  value: 'clear-completed',
-                  child: Text(context.l10n.clearCompleted),
+          if (widget.notificationDate == null)
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.filter_list),
+              onSelected: (value) {
+                if (value == 'clear-completed') {
+                  unawaited(_clearCompleted());
+                  return;
+                }
+                setState(() {
+                  _mutationIntent = null;
+                  if (value == 'completed') _showCompleted = !_showCompleted;
+                  if (value == 'no-date') _showNoDate = !_showNoDate;
+                });
+              },
+              itemBuilder: (context) => [
+                CheckedPopupMenuItem(
+                  value: 'completed',
+                  checked: _showCompleted,
+                  child: Text(context.l10n.completed),
                 ),
-            ],
-          ),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(116),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-            child: Column(
-              children: [
-                SearchBar(
-                  hintText: context.l10n.windowsSearch,
-                  leading: const Icon(Icons.search),
-                  onChanged: (value) => setState(() {
-                    _mutationIntent = null;
-                    _query = value;
-                  }),
+                CheckedPopupMenuItem(
+                  value: 'no-date',
+                  checked: _showNoDate,
+                  child: Text(context.l10n.noDate),
                 ),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<String?>(
-                  isExpanded: true,
-                  initialValue: _listId == null
-                      ? null
-                      : _taskListKey(_accountId!, _listId!),
-                  decoration: InputDecoration(
-                    labelText: context.l10n.list,
-                    isDense: true,
+                if (_listId != null &&
+                    (selectedAccount?.provider == BusyProvider.google ||
+                        selectedAccount?.provider == BusyProvider.nextcloud))
+                  PopupMenuItem(
+                    value: 'clear-completed',
+                    child: Text(context.l10n.clearCompleted),
                   ),
-                  items: [
-                    DropdownMenuItem(
-                      value: null,
-                      child: Text(context.l10n.allTasks),
-                    ),
-                    for (final list in lists)
-                      DropdownMenuItem(
-                        value: _taskListKey(list.accountId, list.id),
-                        child: Text(
-                          '${list.title} · ${accountLabels[list.accountId] ?? list.accountId}',
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                  ],
-                  onChanged: (value) => setState(() {
-                    _mutationIntent = null;
-                    if (value == null) {
-                      _accountId = null;
-                      _listId = null;
-                      return;
-                    }
-                    final separator = value.indexOf('\u0000');
-                    _accountId = value.substring(0, separator);
-                    _listId = value.substring(separator + 1);
-                  }),
-                ),
               ],
             ),
-          ),
-        ),
+        ],
+        bottom: widget.notificationDate != null
+            ? null
+            : PreferredSize(
+                preferredSize: const Size.fromHeight(116),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                  child: Column(
+                    children: [
+                      SearchBar(
+                        hintText: context.l10n.windowsSearch,
+                        leading: const Icon(Icons.search),
+                        onChanged: (value) => setState(() {
+                          _mutationIntent = null;
+                          _query = value;
+                        }),
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String?>(
+                        isExpanded: true,
+                        initialValue: _listId == null
+                            ? null
+                            : _taskListKey(_accountId!, _listId!),
+                        decoration: InputDecoration(
+                          labelText: context.l10n.list,
+                          isDense: true,
+                        ),
+                        items: [
+                          DropdownMenuItem(
+                            value: null,
+                            child: Text(context.l10n.allTasks),
+                          ),
+                          for (final list in lists)
+                            DropdownMenuItem(
+                              value: _taskListKey(list.accountId, list.id),
+                              child: Text(
+                                '${list.title} · ${accountLabels[list.accountId] ?? list.accountId}',
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                        ],
+                        onChanged: (value) => setState(() {
+                          _mutationIntent = null;
+                          if (value == null) {
+                            _accountId = null;
+                            _listId = null;
+                            return;
+                          }
+                          final separator = value.indexOf('\u0000');
+                          _accountId = value.substring(0, separator);
+                          _listId = value.substring(separator + 1);
+                        }),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
       ),
       body: tasks.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -1049,17 +1063,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
                 value: _draft.microsoftReminderEnabled,
                 onChanged: !canWrite
                     ? null
-                    : (value) => setState(
-                        () => _draft = _draft.copyWith(
-                          microsoftReminderEnabled: value,
-                          microsoftReminderDate: value
-                              ? (_draft.microsoftReminderDate ?? _today())
-                              : null,
-                          microsoftReminderTime: value
-                              ? (_draft.microsoftReminderTime ?? '09:00')
-                              : null,
-                        ),
-                      ),
+                    : (value) => _setReminderEnabled(value),
               ),
             if (capabilities.supportsReminderDateTime &&
                 !capabilities.supportsMultipleReminders &&
@@ -1625,6 +1629,24 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
     }
   }
 
+  void _setReminderEnabled(bool enabled) {
+    final String zone =
+        _draft.microsoftReminderTimeZone ?? ref.read(localTimeZoneProvider);
+    final value = TaskDetailsDraft.newReminderDefault(
+      dueDate: _draft.dueDate,
+      timeZone: zone,
+      now: DateTime.now(),
+    );
+    setState(
+      () => _draft = _draft.copyWith(
+        microsoftReminderEnabled: enabled,
+        microsoftReminderDate: enabled ? _date(value) : null,
+        microsoftReminderTime: enabled ? _clock(value) : null,
+        microsoftReminderTimeZone: zone,
+      ),
+    );
+  }
+
   Future<void> _pickReminderDate() async {
     final current =
         DateTime.tryParse(_draft.microsoftReminderDate ?? '') ?? DateTime.now();
@@ -1794,16 +1816,17 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
     if (mode == null || !mounted) return;
     IcalTaskAlarm? alarm;
     if (mode == 'absolute') {
+      final initial = DateTime.now().add(const Duration(minutes: 10));
       final date = await showBusyMaxDatePicker(
         context: context,
-        initialDate: DateTime.now(),
+        initialDate: initial,
         firstDate: DateTime(1970),
         lastDate: DateTime(2200),
       );
       if (date == null || !mounted) return;
       final time = await showTimePicker(
         context: context,
-        initialTime: TimeOfDay.now(),
+        initialTime: TimeOfDay.fromDateTime(initial),
       );
       if (time == null) return;
       alarm = IcalTaskAlarm.displayAbsolute(
@@ -1939,6 +1962,17 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   }
 
   Future<void> _save() async {
+    if (_draft.hasNewPastReminder(
+      original: widget.task,
+      capabilities: _capabilities,
+      localTimeZone: ref.read(localTimeZoneProvider),
+      now: DateTime.now(),
+    )) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(context.l10n.reminderTimeInPast)));
+      return;
+    }
     setState(_syncDraftFromControllers);
     if (!_draftIsValid) return;
     setState(() => _saving = true);
@@ -2020,10 +2054,38 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       _draft.scheduleIssueFor(_capabilities) == TaskScheduleIssue.none;
 
   Future<String> _persistTaskDraft() async {
-    if (_draft.microsoftReminderEnabled || _draft.alarms.isNotEmpty) {
-      await ref
-          .read(androidNotificationServiceProvider)
-          .requestNotificationPermission();
+    final changed = widget.task == null
+        ? null
+        : _draft.toPatch(
+            widget.task!,
+            _capabilities,
+            localTimeZone: ref.read(localTimeZoneProvider),
+          );
+    if ((_draft.microsoftReminderEnabled || _draft.alarms.isNotEmpty) &&
+        (changed == null ||
+            changed.containsKey('microsoftReminderDateTime') ||
+            changed.containsKey('taskAlarmsJson'))) {
+      final notifications = ref.read(androidNotificationServiceProvider);
+      final granted = await notifications.requestNotificationPermission();
+      final readiness = notifications.readiness.value;
+      if ((!granted || !readiness.remindersReady) && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              !granted ||
+                      readiness.notificationsAllowed == false ||
+                      readiness.remindersAllowed == false
+                  ? context.l10n.notificationsBlocked
+                  : context.l10n.notificationsUnknown,
+            ),
+            action: SnackBarAction(
+              label: context.l10n.settingsSystem,
+              onPressed: () =>
+                  BusyMaxAndroidPlatform.instance.openNotificationSettings(),
+            ),
+          ),
+        );
+      }
     }
     final repository = ref.read(
       tasksRepositoryForAccountProvider(widget.accountId),
@@ -3271,7 +3333,6 @@ String _date(DateTime value) =>
     '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
 String _clock(DateTime value) =>
     '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
-String _today() => _date(DateTime.now());
 
 String _recurrenceLabel(BuildContext context, RecurrenceFrequency frequency) =>
     switch (frequency) {

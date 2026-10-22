@@ -22,7 +22,8 @@ std::string Activation(const std::string& action, const std::string& payload) {
 void TestRoutedNotifications() {
   using busymax::activation::IsValidNotificationActivation;
   for (const std::string route : {"due-today", "sync-failure", "conflict"}) {
-    const std::string payload = R"("notificationRoute":")" + route + '"';
+    const std::string payload = R"("notificationRoute":")" + route + '"' +
+        (route == "due-today" ? R"(,"date":"2026-06-08")" : "");
     for (const std::string action : {"default", "open"}) {
       Check(IsValidNotificationActivation(Activation(action, payload)),
             route + " accepts " + action);
@@ -34,6 +35,7 @@ void TestRoutedNotifications() {
     for (const std::string key : {"notificationScheduleId",
                                  "notificationGeneration", "itemKind",
                                  "accountId", "sourceId", "itemId", "unknown"}) {
+      if (key == "accountId" && route != "due-today") continue;
       const std::string extra = '"' + key + R"(":"value")";
       Check(!IsValidNotificationActivation(
                 Activation("open", payload + ',' + extra)),
@@ -41,6 +43,13 @@ void TestRoutedNotifications() {
       Check(!IsValidNotificationActivation(
                 Activation("open", extra + ',' + payload)),
             route + " rejects preceding " + key);
+    }
+    if (route != "due-today") {
+      Check(IsValidNotificationActivation(Activation("open", payload + R"(,"accountId":"account-1")")), route + " accepts account identity");
+      Check(!IsValidNotificationActivation(Activation("snooze", payload + R"(,"accountId":"account-1")")), route + " rejects account snooze");
+      Check(!IsValidNotificationActivation(Activation("open", payload + R"(,"accountId":"")")), route + " rejects empty account");
+      Check(!IsValidNotificationActivation(Activation("open", payload + R"(,"accountId":"   ")")), route + " rejects blank account");
+      Check(!IsValidNotificationActivation(Activation("open", payload + R"(,"accountId":")" + std::string(2049, 'x') + '"')), route + " rejects oversized account");
     }
     Check(!IsValidNotificationActivation(
               Activation("open", payload + ',' + payload)),

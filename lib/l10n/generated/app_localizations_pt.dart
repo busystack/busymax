@@ -3774,6 +3774,43 @@ class AppLocalizationsPt extends AppLocalizations {
   @override
   String get nextcloudRemovalAuthorizationDescription =>
       'BusyMax will also try to revoke this account’s Nextcloud app password. Local removal can succeed even if that revocation fails.';
+
+  @override
+  String get dailySummaryTime => 'Daily summary time';
+
+  @override
+  String get reminderTimeInPast =>
+      'Choose the current minute or a future reminder time.';
+
+  @override
+  String get notificationsBlocked =>
+      'Android is blocking notifications or a notification category. Your reminders are saved. Review system notification settings.';
+
+  @override
+  String get notificationsAllowed =>
+      'System settings allow BusyMax notifications.';
+
+  @override
+  String get notificationsUnknown =>
+      'Notification delivery status is unavailable. Review system settings.';
+
+  @override
+  String get notificationExactAlarms => 'Exact alarm access is enabled.';
+
+  @override
+  String get notificationInexactAlarms =>
+      'Exact alarm access is unavailable. Android may deliver reminders later.';
+
+  @override
+  String get dailySummaryScope => 'All accounts';
+
+  @override
+  String get notificationsSystemBlocked =>
+      'System notification settings are blocking BusyMax. Your reminders are saved.';
+
+  @override
+  String get notificationItemUnavailable =>
+      'This reminder is no longer available. The item may have changed or been removed.';
 }
 
 /// The translations for Portuguese, as used in Portugal (`pt_PT`).
@@ -7549,4 +7586,42 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
   @override
   String get nextcloudRemovalAuthorizationDescription =>
       'O BusyMax tentará também revogar a palavra-passe de aplicação Nextcloud desta conta. A remoção local pode ser concluída mesmo que a revogação falhe.';
+
+  @override
+  String get dailySummaryTime => 'Hora do resumo diário';
+
+  @override
+  String get reminderTimeInPast =>
+      'Escolha o minuto atual ou uma hora futura para o lembrete.';
+
+  @override
+  String get notificationsBlocked =>
+      'O Android está a bloquear notificações ou uma categoria. Os lembretes estão guardados. Reveja as definições de notificações do sistema.';
+
+  @override
+  String get notificationsAllowed =>
+      'As definições do sistema permitem notificações do BusyMax.';
+
+  @override
+  String get notificationsUnknown =>
+      'O estado de entrega não está disponível. Reveja as definições do sistema.';
+
+  @override
+  String get notificationExactAlarms =>
+      'O acesso a alarmes exatos está ativado.';
+
+  @override
+  String get notificationInexactAlarms =>
+      'O acesso a alarmes exatos não está disponível. O Android pode apresentar os lembretes mais tarde.';
+
+  @override
+  String get dailySummaryScope => 'Todas as contas';
+
+  @override
+  String get notificationsSystemBlocked =>
+      'As definições de notificações do sistema estão a bloquear o BusyMax. Os lembretes estão guardados.';
+
+  @override
+  String get notificationItemUnavailable =>
+      'Este lembrete já não está disponível. O item pode ter sido alterado ou removido.';
 }

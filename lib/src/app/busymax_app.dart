@@ -86,6 +86,7 @@ class BusyMaxApp extends LinuxBusyMaxApp {
 
 class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
   final _logger = RedactingLogger(Logger('LinuxBusyMaxApp'));
+  final _notificationMessengerKey = GlobalKey<ScaffoldMessengerState>();
   final _calendarOpenReadiness = DesktopCalendarOpenReadiness();
   final _windowCloseCoordinator = BusyMaxWindowCloseCoordinator();
   late final BusyMaxSystemFirstWeekdayController _firstWeekdayController;
@@ -160,7 +161,7 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
       _handleNavigationRequest(
         DesktopNavigationRequest(
           request.notificationDestination!,
-          reconnectAccountId: request.payload?['accountId'],
+          notificationPayload: request.payload,
         ),
       );
       return;
@@ -231,6 +232,43 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
   void _handleNavigationRequest(DesktopNavigationRequest request) {
     if (!mounted) return;
     final router = ref.read(appRouterProvider);
+    final payload = request.notificationPayload;
+    if (payload != null) {
+      if (payload['notificationRoute'] == 'due-today') {
+        unawaited(
+          router.push<void>(
+            Uri(
+              path: '/tasks',
+              queryParameters: {'due': payload['date']!},
+            ).toString(),
+          ),
+        );
+      } else if (payload['notificationRoute'] == 'conflict') {
+        router.go(
+          Uri(
+            path: '/settings',
+            queryParameters: {
+              'page': 'diagnostics',
+              if (payload['accountId'] != null)
+                'account': payload['accountId']!,
+            },
+          ).toString(),
+        );
+      } else {
+        router.go(
+          Uri(
+            path: '/settings',
+            queryParameters: {
+              'page': 'accounts',
+              if (payload['accountId'] != null)
+                'reconnect': payload['accountId']!,
+            },
+          ).toString(),
+        );
+      }
+      return;
+    }
+
     if (request.reconnectAccountId case final id?) {
       router.go(
         Uri(
@@ -257,6 +295,20 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(notificationSourceUnavailableProvider, (_, _) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final context = rootNavigatorKey.currentContext;
+        if (mounted && context != null && context.mounted) {
+          _notificationMessengerKey.currentState?.showSnackBar(
+            SnackBar(
+              content: Text(
+                AppLocalizations.of(context).notificationItemUnavailable,
+              ),
+            ),
+          );
+        }
+      });
+    });
     final router = ref.watch(appRouterProvider);
     final settings = ref.watch(appSettingsControllerProvider);
     final ubuntuAccentColor = ref
@@ -278,6 +330,7 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
         final accentColor =
             gtkThemeColors?.accent ?? ubuntuAccentColor ?? systemColor.accent;
         return MaterialApp.router(
+          scaffoldMessengerKey: _notificationMessengerKey,
           onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
           debugShowCheckedModeBanner: false,
           theme: buildBusyMaxTheme(

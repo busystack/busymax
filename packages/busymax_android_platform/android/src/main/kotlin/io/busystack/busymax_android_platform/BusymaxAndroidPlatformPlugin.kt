@@ -2,6 +2,8 @@ package io.busystack.busymax_android_platform
 
 import android.accounts.Account
 import android.app.Activity
+import android.app.NotificationManager
+import androidx.core.app.NotificationManagerCompat
 import android.content.BroadcastReceiver
 import android.content.pm.PackageManager
 import android.util.Base64
@@ -388,6 +390,27 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
                 context.startActivity(intent)
+                result.success(null)
+            }
+            "notificationCapabilities" -> {
+                val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                fun allowed(id: String): Boolean = Build.VERSION.SDK_INT < 26 ||
+                    manager.getNotificationChannel(id)?.importance != NotificationManager.IMPORTANCE_NONE
+                result.success(mapOf(
+                    "notifications" to NotificationManagerCompat.from(context).areNotificationsEnabled(),
+                    "reminders" to allowed("busymax_reminders_v1"),
+                    "summaries" to allowed("busymax_summaries_v1"),
+                    "status" to allowed("busymax_status_v1")
+                ))
+            }
+            "prepareNotificationChannels" -> {
+                if (Build.VERSION.SDK_INT >= 26) {
+                    val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                    prepareBusyMaxNotificationChannels(manager,
+                        call.argument<String>("reminders") ?: "Reminders",
+                        call.argument<String>("summaries") ?: "Tasks due today",
+                        call.argument<String>("status") ?: "Synchronization")
+                }
                 result.success(null)
             }
             "acquireAccountGate" -> acquireAccountGate(call, result)

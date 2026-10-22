@@ -2422,186 +2422,226 @@ void main() {
     },
   );
 
-  testWidgets('Android Nextcloud edits one reminder and keeps sibling alarms', (
-    tester,
-  ) async {
-    final tomorrow = DateTime.now().toUtc().add(const Duration(days: 1));
-    final start = DateTime.utc(tomorrow.year, tomorrow.month, tomorrow.day, 16);
-    final end = start.add(const Duration(hours: 1));
-    String icsDate(DateTime value) =>
-        '${value.toUtc().toIso8601String().split('.').first.replaceAll('-', '').replaceAll(':', '')}Z';
-    const accountId = 'nextcloud:event-reminders';
-    const collectionId = 'reminders-collection';
-    const href = '/remote.php/dav/calendars/user/work/';
-    late CalendarSourceEntity seededSource;
-    late EventEditorDraft seededDraft;
-    late String seededEventId;
-    final raw =
-        'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\n'
-        'UID:reminders@example.test\r\nDTSTART:${icsDate(start)}\r\n'
-        'DTEND:${icsDate(end)}\r\nSUMMARY:Reminders\r\n'
-        'BEGIN:VALARM\r\nACTION:DISPLAY\r\nTRIGGER:-PT15M\r\n'
-        'DESCRIPTION:First\r\nX-KEEP:first\r\nEND:VALARM\r\n'
-        'BEGIN:VALARM\r\nACTION:DISPLAY\r\nTRIGGER:-PT30M\r\n'
-        'DESCRIPTION:Second\r\nX-KEEP:second\r\nEND:VALARM\r\n'
-        'BEGIN:VALARM\r\nACTION:DISPLAY\r\n'
-        'TRIGGER;RELATED=END:-PT0M\r\n'
-        'DESCRIPTION:At end\r\nX-KEEP:end\r\nEND:VALARM\r\n'
-        'BEGIN:VALARM\r\nACTION:AUDIO\r\nTRIGGER:-PT5M\r\n'
-        'X-KEEP:audio\r\nEND:VALARM\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n';
-    final harness = await _pumpApp(
-      tester,
-      AppSettings.defaults(),
-      notificationBackend: _PermissionOnlyNotifications(),
-      onCalendarSync: (_) async {},
-      seedDatabase: (database) async {
-        await tester.runAsync(() async {
-          await database
-              .into(database.accounts)
-              .insert(
-                AccountsCompanion.insert(
-                  id: accountId,
-                  provider: 'nextcloud',
-                  authority: 'https://cloud.example.test',
-                  providerAccountId: 'user',
-                  credentialKind: 'nextcloud_app_password',
-                  authState: const Value('signed_in'),
-                  createdAtUtc: start.toIso8601String(),
-                  updatedAtUtc: start.toIso8601String(),
+  for (final blockedChannel in [false, true]) {
+    testWidgets(
+      'Android Nextcloud edits one reminder and keeps sibling alarms (blocked channel: $blockedChannel)',
+      (tester) async {
+        if (blockedChannel) {
+          messenger.setMockMethodCallHandler(
+            platformChannel,
+            (call) async => switch (call.method) {
+              'notificationCapabilities' => {
+                'notifications': true,
+                'reminders': false,
+                'summaries': true,
+                'status': true,
+              },
+              'googleAuthorizationAvailable' ||
+              'microsoftAuthorizationAvailable' => false,
+              _ => null,
+            },
+          );
+        }
+        final tomorrow = DateTime.now().toUtc().add(const Duration(days: 1));
+        final start = DateTime.utc(
+          tomorrow.year,
+          tomorrow.month,
+          tomorrow.day,
+          16,
+        );
+        final end = start.add(const Duration(hours: 1));
+        String icsDate(DateTime value) =>
+            '${value.toUtc().toIso8601String().split('.').first.replaceAll('-', '').replaceAll(':', '')}Z';
+        const accountId = 'nextcloud:event-reminders';
+        const collectionId = 'reminders-collection';
+        const href = '/remote.php/dav/calendars/user/work/';
+        late CalendarSourceEntity seededSource;
+        late EventEditorDraft seededDraft;
+        late String seededEventId;
+        final raw =
+            'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\n'
+            'UID:reminders@example.test\r\nDTSTART:${icsDate(start)}\r\n'
+            'DTEND:${icsDate(end)}\r\nSUMMARY:Reminders\r\n'
+            'BEGIN:VALARM\r\nACTION:DISPLAY\r\nTRIGGER:-PT15M\r\n'
+            'DESCRIPTION:First\r\nX-KEEP:first\r\nEND:VALARM\r\n'
+            'BEGIN:VALARM\r\nACTION:DISPLAY\r\nTRIGGER:-PT30M\r\n'
+            'DESCRIPTION:Second\r\nX-KEEP:second\r\nEND:VALARM\r\n'
+            'BEGIN:VALARM\r\nACTION:DISPLAY\r\n'
+            'TRIGGER;RELATED=END:-PT0M\r\n'
+            'DESCRIPTION:At end\r\nX-KEEP:end\r\nEND:VALARM\r\n'
+            'BEGIN:VALARM\r\nACTION:AUDIO\r\nTRIGGER:-PT5M\r\n'
+            'X-KEEP:audio\r\nEND:VALARM\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n';
+        final harness = await _pumpApp(
+          tester,
+          AppSettings.defaults(),
+          notificationBackend: _PermissionOnlyNotifications(),
+          onCalendarSync: (_) async {},
+          seedDatabase: (database) async {
+            await tester.runAsync(() async {
+              await database
+                  .into(database.accounts)
+                  .insert(
+                    AccountsCompanion.insert(
+                      id: accountId,
+                      provider: 'nextcloud',
+                      authority: 'https://cloud.example.test',
+                      providerAccountId: 'user',
+                      credentialKind: 'nextcloud_app_password',
+                      authState: const Value('signed_in'),
+                      createdAtUtc: start.toIso8601String(),
+                      updatedAtUtc: start.toIso8601String(),
+                    ),
+                  );
+              await database
+                  .into(database.davCollections)
+                  .insert(
+                    DavCollectionsCompanion.insert(
+                      id: collectionId,
+                      accountId: accountId,
+                      hrefKey: href,
+                      requestUri: 'https://cloud.example.test$href',
+                      displayName: 'Work',
+                      supportedComponentMask: const Value(1),
+                      currentUserPrivilegesJson: const Value(
+                        '["{DAV:}read","{DAV:}write"]',
+                      ),
+                      readOnly: const Value(false),
+                      eventProjectionEnabled: const Value(true),
+                      createdAtUtc: start.toIso8601String(),
+                      updatedAtUtc: start.toIso8601String(),
+                    ),
+                  );
+              await database
+                  .into(database.calendarSources)
+                  .insert(
+                    CalendarSourcesCompanion.insert(
+                      id: 'dav-calendar-$collectionId',
+                      accountId: accountId,
+                      provider: 'nextcloud',
+                      providerCalendarId: href,
+                      davCollectionId: const Value(collectionId),
+                      summary: 'Work',
+                      createdAtLocal: 0,
+                      updatedAtLocal: 0,
+                    ),
+                  );
+              final prepared = DavPreparedObject.parse(
+                hrefKey: '${href}reminders.ics',
+                requestUri: Uri.parse(
+                  'https://cloud.example.test${href}reminders.ics',
                 ),
+                etag: '"v1"',
+                contentType: 'text/calendar',
+                rawIcsBody: raw,
               );
-          await database
-              .into(database.davCollections)
-              .insert(
-                DavCollectionsCompanion.insert(
-                  id: collectionId,
+              await DavObjectRepository(database: database).commit(
+                DavCollectionCommit(
                   accountId: accountId,
-                  hrefKey: href,
-                  requestUri: 'https://cloud.example.test$href',
-                  displayName: 'Work',
-                  supportedComponentMask: const Value(1),
-                  currentUserPrivilegesJson: const Value(
-                    '["{DAV:}read","{DAV:}write"]',
+                  collectionId: collectionId,
+                  provider: BusyProvider.nextcloud,
+                  objects: [prepared],
+                  deletedHrefKeys: const {},
+                  completeMembership: true,
+                  membershipHrefKeys: {prepared.hrefKey},
+                  finalCursorKind: 'dav_sync_token',
+                  finalCursorValue: 'sync-1',
+                  baselineGeneration: 1,
+                  completedAtUtc: DateTime.now().toUtc(),
+                  projectionRangeStartUtc: start.subtract(
+                    const Duration(days: 1),
                   ),
-                  readOnly: const Value(false),
-                  eventProjectionEnabled: const Value(true),
-                  createdAtUtc: start.toIso8601String(),
-                  updatedAtUtc: start.toIso8601String(),
+                  projectionRangeEndUtc: end.add(const Duration(days: 1)),
                 ),
               );
-          await database
-              .into(database.calendarSources)
-              .insert(
-                CalendarSourcesCompanion.insert(
-                  id: 'dav-calendar-$collectionId',
-                  accountId: accountId,
-                  provider: 'nextcloud',
-                  providerCalendarId: href,
-                  davCollectionId: const Value(collectionId),
-                  summary: 'Work',
-                  createdAtLocal: 0,
-                  updatedAtLocal: 0,
-                ),
+              final repository = CalendarRepository(database: database);
+              seededSource = (await repository.watchSourcesForAccounts([
+                accountId,
+              ]).first).single;
+              seededEventId =
+                  (await database.select(database.calendarEvents).getSingle())
+                      .id;
+              seededDraft = EventEditorDraft.fromEventDetail(
+                (await repository.loadEventDetail(seededEventId))!,
               );
-          final prepared = DavPreparedObject.parse(
-            hrefKey: '${href}reminders.ics',
-            requestUri: Uri.parse(
-              'https://cloud.example.test${href}reminders.ics',
+            });
+          },
+        );
+        addTearDown(harness.dispose);
+        final repository = CalendarRepository(database: harness.database);
+        expect(seededSource.capabilities.canEditEvents, isTrue);
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: harness.container,
+            child: localizedTestApp(
+              child: const Scaffold(body: Text('Editor host')),
             ),
-            etag: '"v1"',
-            contentType: 'text/calendar',
-            rawIcsBody: raw,
-          );
-          await DavObjectRepository(database: database).commit(
-            DavCollectionCommit(
-              accountId: accountId,
-              collectionId: collectionId,
-              provider: BusyProvider.nextcloud,
-              objects: [prepared],
-              deletedHrefKeys: const {},
-              completeMembership: true,
-              membershipHrefKeys: {prepared.hrefKey},
-              finalCursorKind: 'dav_sync_token',
-              finalCursorValue: 'sync-1',
-              baselineGeneration: 1,
-              completedAtUtc: DateTime.now().toUtc(),
-              projectionRangeStartUtc: start.subtract(const Duration(days: 1)),
-              projectionRangeEndUtc: end.add(const Duration(days: 1)),
-            ),
-          );
-          final repository = CalendarRepository(database: database);
-          seededSource = (await repository.watchSourcesForAccounts([
-            accountId,
-          ]).first).single;
-          seededEventId =
-              (await database.select(database.calendarEvents).getSingle()).id;
-          seededDraft = EventEditorDraft.fromEventDetail(
-            (await repository.loadEventDetail(seededEventId))!,
-          );
-        });
-      },
-    );
-    addTearDown(harness.dispose);
-    final repository = CalendarRepository(database: harness.database);
-    expect(seededSource.capabilities.canEditEvents, isTrue);
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: harness.container,
-        child: localizedTestApp(
-          child: const Scaffold(body: Text('Editor host')),
-        ),
-      ),
-    );
-    tester
-        .state<NavigatorState>(find.byType(Navigator).first)
-        .push<void>(
-          MaterialPageRoute(
-            builder: (_) =>
-                AndroidEventEditor(sources: [seededSource], draft: seededDraft),
           ),
         );
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
-    final second = find.byKey(const Key('android-event-dav-reminder-1'));
-    await _scrollUntilBuilt(tester, second);
-    expect(
-      find.byKey(const Key('android-event-dav-reminder-0')),
-      findsOneWidget,
-    );
-    tester.widget<DropdownButtonFormField<int>>(second).onChanged!.call(45);
-    await tester.pump();
-    await tester.tap(find.widgetWithText(TextButton, 'Save'));
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 100)),
-    );
-    await tester.pumpAndSettle();
-    expect(tester.takeException(), isNull);
-    expect(find.byType(AndroidEventEditor), findsNothing);
-    final operations = (await tester.runAsync(
-      () => harness.database.select(harness.database.pendingOps).get(),
-    ))!;
-    expect(operations, hasLength(1));
-    expect(operations.single.operationType, 'dav.update');
-    final queuedBody =
-        DavMutationPatch.fromJsonString(operations.single.mutationPatchJson!)
-            .applyTo(
+        tester
+            .state<NavigatorState>(find.byType(Navigator).first)
+            .push<void>(
+              MaterialPageRoute(
+                builder: (_) => AndroidEventEditor(
+                  sources: [seededSource],
+                  draft: seededDraft,
+                ),
+              ),
+            );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 400));
+        final second = find.byKey(const Key('android-event-dav-reminder-1'));
+        await _scrollUntilBuilt(tester, second);
+        expect(
+          find.byKey(const Key('android-event-dav-reminder-0')),
+          findsOneWidget,
+        );
+        tester.widget<DropdownButtonFormField<int>>(second).onChanged!.call(45);
+        await tester.pump();
+        await tester.tap(find.widgetWithText(TextButton, 'Save'));
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 100)),
+        );
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(find.byType(AndroidEventEditor), findsNothing);
+        final operations = (await tester.runAsync(
+          () => harness.database.select(harness.database.pendingOps).get(),
+        ))!;
+        expect(operations, hasLength(1));
+        expect(operations.single.operationType, 'dav.update');
+        final queuedBody =
+            DavMutationPatch.fromJsonString(
+              operations.single.mutationPatchJson!,
+            ).applyTo(
               operations.single.baselineRawIcs!,
               nowUtc: DateTime.now().toUtc(),
             );
-    expect(queuedBody, contains('TRIGGER:-PT45M'));
-    expect(queuedBody, contains('X-KEEP:first'));
-    expect(queuedBody, contains('X-KEEP:second'));
-    expect(queuedBody, contains('TRIGGER;RELATED=END:-PT0M'));
-    expect(queuedBody, contains('X-KEEP:end'));
-    expect(queuedBody, contains('X-KEEP:audio'));
-    final updated = (await tester.runAsync(
-      () => repository.loadEventDetail(seededEventId),
-    ))!;
-    final editedRows = androidNextcloudEditableReminderRows(updated.reminders)!;
-    expect(editedRows.map((row) => row.minutes), [15, 45]);
-    expect(jsonEncode(updated.reminders), contains('X-KEEP'));
-    expect(tester.takeException(), isNull);
-  });
+        expect(
+          find.text(
+            blockedChannel
+                ? 'Android is blocking notifications or a notification category. Your reminders are saved. Review system notification settings.'
+                : 'Notification delivery status is unavailable. Review system settings.',
+          ),
+          findsOneWidget,
+        );
+        expect(queuedBody, contains('TRIGGER:-PT45M'));
+        expect(queuedBody, contains('X-KEEP:first'));
+        expect(queuedBody, contains('X-KEEP:second'));
+        expect(queuedBody, contains('TRIGGER;RELATED=END:-PT0M'));
+        expect(queuedBody, contains('X-KEEP:end'));
+        expect(queuedBody, contains('X-KEEP:audio'));
+        final updated = (await tester.runAsync(
+          () => repository.loadEventDetail(seededEventId),
+        ))!;
+        final editedRows = androidNextcloudEditableReminderRows(
+          updated.reminders,
+        )!;
+        expect(editedRows.map((row) => row.minutes), [15, 45]);
+        expect(jsonEncode(updated.reminders), contains('X-KEEP'));
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 
   testWidgets('Android event label selection queues the scoped ID', (
     tester,
@@ -3427,6 +3467,9 @@ final class _PermissionOnlyNotifications extends Fake
     implements AndroidNotificationBackend {
   @override
   Future<bool> requestNotificationPermission() async => true;
+
+  @override
+  Future<bool> canScheduleExactly() async => true;
 }
 
 final class _AndroidAppHarness {

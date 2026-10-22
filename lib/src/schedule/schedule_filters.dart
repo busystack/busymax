@@ -40,6 +40,7 @@ class ScheduleFilters {
     this.person = '',
     this.location = '',
     this.showNoDateTasks = true,
+    this.notificationDeadline,
   });
 
   final Set<String> accountIds;
@@ -62,4 +63,7 @@ class ScheduleFilters {
   final String person;
   final String location;
   final bool showNoDateTasks;
+
+  /// Temporary notification destination; ordinary browsing filters are retained.
+  final DateTime? notificationDeadline;
 }

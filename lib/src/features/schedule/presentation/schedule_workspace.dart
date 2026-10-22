@@ -1,3 +1,5 @@
+import 'package:intl/intl.dart';
+
 import '../../sync/account_recovery_feedback.dart';
 import '../../../l10n/oauth_error_description.dart';
 
@@ -7,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:yaru/yaru.dart';
 
 import '../../../app/app_bootstrap.dart';
 import '../../../app/busymax_about_dialog.dart';
@@ -162,6 +165,7 @@ class ScheduleWorkspace extends ConsumerStatefulWidget {
     super.key,
     this.initialScope = ScheduleScope.all,
     this.initialDate,
+    this.notificationDeadline,
     this.initialTaskAccountId,
     this.initialTaskListId,
     this.initialTaskId,
@@ -171,6 +175,7 @@ class ScheduleWorkspace extends ConsumerStatefulWidget {
   final ScheduleScope initialScope;
   @visibleForTesting
   final DateTime? initialDate;
+  final DateTime? notificationDeadline;
   final String? initialTaskAccountId;
   final String? initialTaskListId;
   final String? initialTaskId;
@@ -298,7 +303,11 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     // save. Requery when those rows arrive so the month view updates itself.
     ref.watch(scheduleDataRevisionProvider);
     final settings = ref.watch(appSettingsControllerProvider);
-    _syncModeFromSettings(settings.scheduleViewMode);
+    if (widget.notificationDeadline == null) {
+      _syncModeFromSettings(settings.scheduleViewMode);
+    } else {
+      _mode = ScheduleViewMode.agenda;
+    }
     final range = _range(context);
     final searchActive = _searchActive;
     final accountsState = ref.watch(accountsStreamProvider);
@@ -421,7 +430,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                             _scope,
                           );
                     final items =
-                        !searchActive && _mode == ScheduleViewMode.agenda
+                        widget.notificationDeadline == null &&
+                            !searchActive &&
+                            _mode == ScheduleViewMode.agenda
                         ? _agendaItems(scopedItems, range)
                         : scopedItems;
                     _latestItems = items;
@@ -448,7 +459,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                                   showNoDateTasks: false,
                                 ),
                               );
-                    final displayRange = searchActive
+                    final displayRange = widget.notificationDeadline != null
+                        ? ScheduleRange.day(widget.notificationDeadline!)
+                        : searchActive
                         ? _searchCriteria?.range ??
                               _rangeForSearchResults(items, range)
                         : range;
@@ -689,7 +702,24 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                               : true;
                           final frame = LinuxPageFrame(
                             header: header,
-                            body: cloudCoverage != true
+                            body: widget.notificationDeadline != null
+                                ? Column(
+                                    children: [
+                                      ListTile(
+                                        title: Text(
+                                          '${context.l10n.dueDate} · ${DateFormat.yMMMd(context.l10n.localeName).format(widget.notificationDeadline!)}',
+                                        ),
+                                        trailing: YaruIconButton(
+                                          icon: const Icon(Icons.close),
+                                          tooltip: context.l10n.close,
+                                          onPressed: () =>
+                                              GoRouter.of(context).pop(),
+                                        ),
+                                      ),
+                                      Expanded(child: main),
+                                    ],
+                                  )
+                                : cloudCoverage != true
                                 ? Column(
                                     children: [
                                       ListTile(
@@ -1027,6 +1057,16 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     required Set<String> sourceIds,
     required Set<ScheduleTaskListKey> taskListKeys,
   }) async {
+    if (widget.notificationDeadline != null) {
+      return _ScheduleItemsResult(
+        items: await repository.listAllTasks(
+          filters: ScheduleFilters(
+            includeCalendarEvents: false,
+            notificationDeadline: widget.notificationDeadline,
+          ),
+        ),
+      );
+    }
     if (searchActive) {
       final criteria = _searchCriteria;
       if (criteria == null) return const _ScheduleItemsResult(items: []);

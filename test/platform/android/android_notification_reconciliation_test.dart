@@ -1,3 +1,8 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:busymax/src/features/notifications/reminder_presentation.dart';
+import 'package:busymax/src/features/notifications/notification_schedule_service.dart';
 import 'package:busymax/src/android/android_notifications.dart';
 import 'package:busymax/src/app/app_settings.dart';
 import 'package:busymax/src/core/time/stored_temporal_projection.dart';
@@ -17,14 +22,22 @@ void main() {
   late AppDatabase database;
   late _StatefulNotificationPlugin plugin;
   late AppSettings settings;
+  late Map<String, bool> capabilities;
 
   setUp(() async {
+    capabilities = {
+      'notifications': true,
+      'reminders': true,
+      'summaries': true,
+      'status': true,
+    };
     database = AppDatabase(NativeDatabase.memory());
     plugin = _StatefulNotificationPlugin();
     settings = AppSettings.defaults().copyWith(notifyDueToday: false);
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(platformChannel, (call) async {
           if (call.method == 'acquireAccountGate') return 'test-lease';
+          if (call.method == 'notificationCapabilities') return capabilities;
           return null;
         });
     await database
@@ -49,13 +62,155 @@ void main() {
     await database.close();
   });
 
-  AndroidNotificationService service({bool exact = false}) =>
-      AndroidNotificationService(
+  AndroidNotificationService service({
+    bool exact = false,
+    DateTime Function()? clock,
+  }) => AndroidNotificationService(
+    database: database,
+    settings: () => settings,
+    backend: plugin,
+    exactAlarmCapability: () async => exact,
+    now: clock,
+  );
+
+  test('background action identity survives task ID replacement and duplicate callbacks', () async {
+    final now = DateTime.utc(2026, 6, 8, 8, 56);
+    await database
+        .update(database.accounts)
+        .write(const AccountsCompanion(provider: Value('microsoft')));
+    await _insertDueTodayTask(database, localDay: now.toLocal());
+    await database
+        .update(database.tasks)
+        .write(
+          TasksCompanion(
+            microsoftIsReminderOn: const Value(true),
+            microsoftReminderDateTime: Value(
+              now.subtract(const Duration(minutes: 1)).toIso8601String(),
+            ),
+            microsoftReminderTimeZone: const Value('UTC'),
+          ),
+        );
+    await NotificationScheduleService(
+      database: database,
+      nowUtc: () => now,
+    ).rebuildUpcomingNotifications('google:test');
+    final original = await database
+        .select(database.notificationSchedule)
+        .getSingle();
+    // Replay transfers sourceId but retains delivery identity. A visible
+    // notification's payload still contains the previous local item ID.
+    await database
+        .update(database.tasks)
+        .write(const TasksCompanion(id: Value('server-task')));
+    await database
+        .update(database.notificationSchedule)
+        .write(
+          const NotificationScheduleCompanion(sourceId: Value('server-task')),
+        );
+    final old = AndroidReminderActivation(
+      scheduleId: original.id,
+      generation: original.generation,
+      sourceType: 'task',
+      accountId: original.accountId,
+      itemId: 'task-1',
+    );
+    expect(
+      await applyAndroidReminderAction(
         database: database,
-        settings: () => settings,
-        backend: plugin,
-        exactAlarmCapability: () async => exact,
+        activation: old,
+        actionId: androidNotificationActionSnooze,
+        nowUtc: now,
+      ),
+      isTrue,
+    );
+    expect(
+      await applyAndroidReminderAction(
+        database: database,
+        activation: old,
+        actionId: androidNotificationActionSnooze,
+        nowUtc: now,
+      ),
+      isFalse,
+    );
+    final snoozed = await database
+        .select(database.notificationSchedule)
+        .getSingle();
+    expect(
+      snoozed.snoozedUntilUtc,
+      now.add(const Duration(minutes: 10)).millisecondsSinceEpoch,
+    );
+    final current = AndroidReminderActivation(
+      scheduleId: snoozed.id,
+      generation: snoozed.generation,
+      sourceType: 'task',
+      accountId: snoozed.accountId,
+      itemId: 'server-task',
+    );
+    expect(
+      await applyAndroidReminderAction(
+        database: database,
+        activation: current,
+        actionId: androidNotificationActionDismiss,
+        nowUtc: now,
+      ),
+      isTrue,
+    );
+    expect(
+      await applyAndroidReminderAction(
+        database: database,
+        activation: current,
+        actionId: androidNotificationActionDismiss,
+        nowUtc: now,
+      ),
+      isFalse,
+    );
+    final task = await database.select(database.tasks).getSingle();
+    expect(task.id, 'server-task');
+    expect(task.status, isNot('completed'));
+    expect(task.pendingDelete, isFalse);
+  });
+
+  test(
+    'cold body Open validates a consumed native post without reviving delivery',
+    () async {
+      final now = DateTime.utc(2026, 6, 8, 8, 56);
+      await _insertReminder(
+        database,
+        scheduledAt: now.subtract(const Duration(minutes: 1)),
+        generation: 'opened',
       );
+      await database
+          .update(database.notificationSchedule)
+          .write(
+            NotificationScheduleCompanion(
+              dismissedAtUtc: Value(now.millisecondsSinceEpoch),
+            ),
+          );
+      final row = await database
+          .select(database.notificationSchedule)
+          .getSingle();
+      final source = NotificationScheduleService(
+        database: database,
+        nowUtc: () => now,
+      );
+      expect(
+        await source.validateAndReconcileReminder(row, forOpen: true),
+        isTrue,
+      );
+      final consumed = await database
+          .select(database.notificationSchedule)
+          .getSingle();
+      expect(consumed.dismissedAtUtc, row.dismissedAtUtc);
+      expect(await source.validateAndReconcileReminder(consumed), isFalse);
+      await database
+          .update(database.calendarEvents)
+          .write(const CalendarEventsCompanion(isDeleted: Value(true)));
+      expect(
+        await source.validateAndReconcileReminder(consumed, forOpen: true),
+        isFalse,
+      );
+    },
+  );
 
   for (final kind in [
     'start-only',
@@ -225,34 +380,76 @@ void main() {
     },
   );
 
-  test('a stale active generation is canceled without reposting', () async {
-    await _insertReminder(
-      database,
-      generation: 'generation-2',
-      scheduledAt: DateTime.now().subtract(const Duration(hours: 1)),
-    );
-    await _insertMapping(
-      database,
-      generation: 'generation-1',
-      platformId: 42,
-      state: androidNotificationRegistrationState(
-        settings: settings,
-        exact: false,
-      ),
-    );
-    plugin.activeIds.add(42);
-    final notifications = service();
-    await notifications.initialize(timeZoneId: 'Etc/UTC');
+  test(
+    'account recovery does not replay a post first observed while ineligible',
+    () async {
+      await _insertReminder(
+        database,
+        generation: 'observed',
+        scheduledAt: DateTime.now().subtract(const Duration(minutes: 1)),
+      );
+      await _insertMapping(
+        database,
+        generation: 'observed',
+        platformId: 42,
+        state: androidNotificationRegistrationState(
+          settings: settings,
+          exact: false,
+        ),
+      );
+      plugin.activeIds.add(42);
+      await database
+          .update(database.accounts)
+          .write(const AccountsCompanion(authState: Value('reauth_required')));
+      final notifications = service();
+      await notifications.initialize(timeZoneId: 'America/Vancouver');
+      await notifications.reconcile();
+      expect(
+        (await database.select(database.notificationSchedule).getSingle())
+            .sentAtUtc,
+        isNotNull,
+      );
+      expect(plugin.activeIds, isEmpty);
+      await database
+          .update(database.accounts)
+          .write(const AccountsCompanion(authState: Value('signed_in')));
+      await notifications.reconcile();
+      expect(plugin.scheduled, isEmpty);
+      expect(plugin.activeIds, isEmpty);
+    },
+  );
 
-    await notifications.reconcile();
+  test(
+    'a stale active generation is replaced by its relevant current delivery',
+    () async {
+      await _insertReminder(
+        database,
+        generation: 'generation-2',
+        scheduledAt: DateTime.now().subtract(const Duration(hours: 1)),
+      );
+      await _insertMapping(
+        database,
+        generation: 'generation-1',
+        platformId: 42,
+        state: androidNotificationRegistrationState(
+          settings: settings,
+          exact: false,
+        ),
+      );
+      plugin.activeIds.add(42);
+      final notifications = service();
+      await notifications.initialize(timeZoneId: 'Etc/UTC');
 
-    expect(plugin.cancelledIds, contains(42));
-    expect(plugin.scheduledIds, isEmpty);
-    expect(
-      await database.select(database.androidNotificationMappings).get(),
-      isEmpty,
-    );
-  });
+      await notifications.reconcile();
+
+      expect(plugin.cancelledIds, contains(42));
+      expect(plugin.scheduledIds, hasLength(1));
+      expect(
+        await database.select(database.androidNotificationMappings).get(),
+        hasLength(1),
+      );
+    },
+  );
 
   test(
     'dismissed reminders are removed even when the old post is active',
@@ -293,11 +490,7 @@ void main() {
       generation: 'generation-1',
       scheduledAt: scheduledAt,
     );
-    final state = androidNotificationRegistrationState(
-      settings: settings,
-      exact: false,
-      title: 'Visible meeting',
-    );
+    final state = await _reminderState(database, settings);
     await _insertMapping(
       database,
       generation: 'generation-1',
@@ -317,24 +510,18 @@ void main() {
 
   test('snooze generation schedules its future effective time', () async {
     final now = DateTime.now();
+    await _insertReminder(
+      database,
+      generation: 'generation-1:snooze',
+      scheduledAt: now.subtract(const Duration(hours: 1)),
+    );
     await database
-        .into(database.notificationSchedule)
-        .insert(
-          NotificationScheduleCompanion.insert(
-            id: 'reminder-1',
-            generation: const Value('generation-1:snooze'),
-            accountId: 'google:test',
-            sourceType: 'event',
-            sourceId: 'event-1',
-            scheduledAtUtc: now
-                .subtract(const Duration(hours: 1))
-                .millisecondsSinceEpoch,
+        .update(database.notificationSchedule)
+        .write(
+          NotificationScheduleCompanion(
             snoozedUntilUtc: Value(
               now.add(const Duration(hours: 1)).millisecondsSinceEpoch,
             ),
-            title: 'Snoozed meeting',
-            createdAtLocal: 0,
-            updatedAtLocal: 0,
           ),
         );
     final notifications = service();
@@ -410,34 +597,26 @@ void main() {
     plugin.cancelledIds.clear();
     plugin.scheduled.clear();
 
-    await (database.update(
-      database.notificationSchedule,
-    )..where((table) => table.id.equals('reminder-1'))).write(
-      const NotificationScheduleCompanion(
-        title: Value('Renamed meeting'),
-        body: Value('Updated location'),
-      ),
-    );
+    await database
+        .update(database.calendarEvents)
+        .write(
+          const CalendarEventsCompanion(
+            title: Value('Renamed meeting'),
+            location: Value('Updated location'),
+          ),
+        );
     await notifications.reconcile();
 
     expect(plugin.cancelledIds, contains(platformId));
     expect(plugin.scheduledIds, contains(platformId));
     final call = plugin.scheduled.single;
     expect(call.title, 'Renamed meeting');
-    expect(call.body, 'Updated location');
+    expect(call.body, contains('Updated location'));
     final updatedMapping = await database
         .select(database.androidNotificationMappings)
         .getSingle();
     expect(updatedMapping.generation, 'generation-1');
-    expect(
-      updatedMapping.state,
-      androidNotificationRegistrationState(
-        settings: settings,
-        exact: false,
-        title: 'Renamed meeting',
-        body: 'Updated location',
-      ),
-    );
+    expect(updatedMapping.state, await _reminderState(database, settings));
   });
 
   test(
@@ -487,14 +666,7 @@ void main() {
       final row = await database
           .select(database.androidDailySummarySchedules)
           .getSingle();
-      expect(
-        row.state,
-        androidNotificationRegistrationState(
-          settings: settings,
-          exact: true,
-          title: const AndroidNotificationStrings().dueTodayTitle,
-        ),
-      );
+      expect(row.state, startsWith('scheduled:v3:private:exact:'));
     },
   );
 
@@ -528,6 +700,285 @@ void main() {
       isEmpty,
     );
   });
+  test(
+    'first discovery after trigger keeps a still-upcoming Android reminder',
+    () async {
+      final clock = DateTime.utc(2026, 6, 8, 8, 56);
+      await _insertReminder(
+        database,
+        generation: 'late-import',
+        scheduledAt: clock.subtract(const Duration(minutes: 1)),
+      );
+      final notifications = service(clock: () => clock);
+      await notifications.initialize(timeZoneId: 'Etc/UTC');
+      await notifications.reconcile();
+      expect(plugin.scheduled, hasLength(1));
+      expect(
+        plugin.scheduled.single.date.toUtc(),
+        clock.add(const Duration(seconds: 1)),
+      );
+      await notifications.reconcile();
+      expect(plugin.scheduled, hasLength(1));
+    },
+  );
+
+  test(
+    'native registration can cross the trigger instant without loss',
+    () async {
+      var clock = DateTime.utc(2026, 6, 8, 8, 54, 59);
+      final trigger = clock.add(const Duration(seconds: 1));
+      await _insertReminder(
+        database,
+        generation: 'crossing',
+        scheduledAt: trigger,
+      );
+      final notifications = service(clock: () => clock);
+      await notifications.initialize(timeZoneId: 'Etc/UTC');
+      plugin.beforePendingQuery = () =>
+          clock = trigger.add(const Duration(seconds: 1));
+      await notifications.reconcile();
+      expect(plugin.scheduled, hasLength(1));
+      expect(plugin.scheduled.single.date.toUtc().isAfter(clock), isTrue);
+    },
+  );
+
+  test(
+    'permission and channel readiness remain separate from exact alarms',
+    () async {
+      final notifications = service(exact: true);
+      await notifications.initialize(timeZoneId: 'Etc/UTC');
+      await _insertReminder(
+        database,
+        generation: 'permission',
+        scheduledAt: DateTime.now().add(const Duration(hours: 1)),
+      );
+      capabilities['notifications'] = false;
+      plugin.permissionGranted = false;
+      expect(await notifications.requestNotificationPermission(), isFalse);
+      await notifications.reconcile();
+      expect(notifications.readiness.value.exactAlarms, isTrue);
+      expect(notifications.readiness.value.remindersReady, isFalse);
+      expect(plugin.scheduled, isEmpty);
+      expect(
+        await database.select(database.notificationSchedule).get(),
+        hasLength(1),
+      );
+      capabilities['notifications'] = true;
+      capabilities['reminders'] = false;
+      plugin.permissionGranted = true;
+      expect(await notifications.requestNotificationPermission(), isTrue);
+      expect(notifications.readiness.value.notificationsAllowed, isTrue);
+      expect(notifications.readiness.value.remindersReady, isFalse);
+      capabilities['reminders'] = true;
+      await notifications.reconcile();
+      expect(notifications.readiness.value.remindersReady, isTrue);
+      expect(plugin.scheduled, hasLength(1));
+    },
+  );
+
+  test('privacy withdraws visible details despite active-query failure and retries cancellation', () async {
+    await _insertReminder(
+      database,
+      generation: 'visible-private',
+      scheduledAt: DateTime.now().subtract(const Duration(minutes: 1)),
+    );
+    await _insertMapping(
+      database,
+      generation: 'visible-private',
+      platformId: 42,
+      state: await _reminderState(database, settings),
+    );
+    plugin.activeIds.add(42);
+    plugin.activeQueryFails = true;
+    plugin.cancellationFailuresRemaining = 1;
+    final notifications = service();
+    await notifications.initialize(timeZoneId: 'Etc/UTC');
+    settings = settings.copyWith(
+      notificationDetailLevel: NotificationDetailLevel.private,
+    );
+    await expectLater(notifications.reconcile(), throwsStateError);
+    expect(
+      (await database.select(database.androidNotificationMappings).getSingle())
+          .state,
+      startsWith('withdrawing:'),
+    );
+    plugin.activeQueryFails = false;
+    await notifications.reconcile();
+    expect(plugin.activeIds, isEmpty);
+    expect(plugin.scheduled, isEmpty);
+    settings = settings.copyWith(
+      notificationDetailLevel: NotificationDetailLevel.normal,
+    );
+    await notifications.reconcile();
+    expect(plugin.scheduled, isEmpty);
+  });
+
+  test('privacy during delayed registration consumes an overdue post without another alert', () async {
+    final clock = DateTime.now();
+    await _insertReminder(
+      database,
+      generation: 'privacy-race',
+      scheduledAt: clock.subtract(const Duration(minutes: 1)),
+    );
+    plugin.registrationBarrier = Completer<void>();
+    final notifications = service(clock: () => clock);
+    await notifications.initialize(timeZoneId: 'Etc/UTC');
+    final registering = notifications.reconcile();
+    await _until(() => plugin.scheduled.isNotEmpty);
+    settings = settings.copyWith(
+      notificationDetailLevel: NotificationDetailLevel.private,
+    );
+    plugin.registrationBarrier!.complete();
+    await registering;
+    expect(plugin.scheduled, hasLength(1));
+    expect(plugin.pendingIds, isEmpty);
+    expect(
+      (await database.select(database.notificationSchedule).getSingle())
+          .sentAtUtc,
+      isNotNull,
+    );
+  });
+
+  test(
+    'a visible summary changes count and privacy silently without a new alarm',
+    () async {
+      settings = settings.copyWith(
+        notifyDueToday: true,
+        dueTodayNotificationTime: '00:00',
+      );
+      final notifications = service();
+      await notifications.initialize(timeZoneId: 'America/Vancouver');
+      await _insertDueTodayTask(database);
+      await notifications.reconcile();
+      plugin.pendingIds.remove(0x425903);
+      plugin.activeIds.add(0x425903);
+      final task = await database.select(database.tasks).getSingle();
+      await database
+          .into(database.tasks)
+          .insert(task.copyWith(id: 'second-task'));
+      await notifications.reconcile();
+      expect(plugin.scheduled, hasLength(1));
+      expect(plugin.shown.single.body, contains('2'));
+      expect(plugin.shown.single.details.android!.silent, isTrue);
+      expect(plugin.shown.single.details.android!.onlyAlertOnce, isTrue);
+      settings = settings.copyWith(
+        notificationDetailLevel: NotificationDetailLevel.private,
+      );
+      await notifications.reconcile();
+      expect(plugin.shown.last.body, isNull);
+      expect(plugin.shown.last.details.android!.silent, isTrue);
+      await database
+          .update(database.tasks)
+          .write(const TasksCompanion(status: Value('completed')));
+      await notifications.reconcile();
+      expect(plugin.activeIds, isEmpty);
+      await database
+          .update(database.tasks)
+          .write(const TasksCompanion(status: Value('needsAction')));
+      await notifications.reconcile();
+      expect(plugin.scheduled, hasLength(1));
+    },
+  );
+
+  test(
+    'summary time and local timezone changes reschedule a pending summary',
+    () async {
+      final day = DateTime.now().toUtc();
+      var clock = DateTime.utc(day.year, day.month, day.day, 14);
+      settings = settings.copyWith(
+        notifyDueToday: true,
+        dueTodayNotificationTime: '23:30',
+      );
+      final notifications = service(clock: () => clock);
+      await notifications.initialize(timeZoneId: 'America/Vancouver');
+      await _insertDueTodayTask(
+        database,
+        localDay: tz.TZDateTime.from(clock, tz.local),
+      );
+      await notifications.reconcile();
+      expect(plugin.scheduled.single.date.hour, 23);
+      settings = settings.copyWith(dueTodayNotificationTime: '23:45');
+      await notifications.reconcile();
+      expect(plugin.scheduled.last.date.minute, 45);
+      final previousUtc = plugin.scheduled.last.date.toUtc();
+      await notifications.initialize(timeZoneId: 'Asia/Tokyo');
+      await notifications.reconcile();
+      expect(plugin.scheduled.last.date.toUtc(), isNot(previousUtc));
+      expect(plugin.scheduled.last.date.hour, 23);
+      expect(plugin.scheduled.last.date.minute, 45);
+      clock = clock.add(const Duration(minutes: 1));
+    },
+  );
+
+  test(
+    'native identity survives account deletion until cancellation succeeds',
+    () async {
+      await _insertReminder(
+        database,
+        generation: 'removed-account',
+        scheduledAt: DateTime.now().add(const Duration(hours: 1)),
+      );
+      final notifications = service();
+      await notifications.initialize(timeZoneId: 'Etc/UTC');
+      await notifications.reconcile();
+      final id = plugin.scheduled.single.id;
+      await database.delete(database.accounts).go();
+      expect(
+        await database.select(database.androidNotificationMappings).get(),
+        hasLength(1),
+      );
+      plugin.cancellationFailuresRemaining = 1;
+      await expectLater(notifications.reconcile(), throwsStateError);
+      expect(
+        await database.select(database.androidNotificationMappings).get(),
+        hasLength(1),
+      );
+      await notifications.reconcile();
+      expect(plugin.cancelledIds, contains(id));
+      expect(
+        await database.select(database.androidNotificationMappings).get(),
+        isEmpty,
+      );
+    },
+  );
+
+  test(
+    'German background-action construction keeps localized ten-minute actions',
+    () async {
+      settings = settings.copyWith(localeTag: 'de');
+      final clock = DateTime.now().toUtc();
+      await _insertReminder(
+        database,
+        generation: 'german',
+        scheduledAt: clock.subtract(const Duration(minutes: 1)),
+      );
+      final row = await database
+          .select(database.notificationSchedule)
+          .getSingle();
+      expect(
+        await applyAndroidReminderAction(
+          database: database,
+          activation: AndroidReminderActivation(
+            scheduleId: row.id,
+            generation: row.generation,
+            sourceType: row.sourceType,
+            accountId: row.accountId,
+            itemId: row.sourceId,
+          ),
+          actionId: androidNotificationActionSnooze,
+          nowUtc: clock,
+        ),
+        isTrue,
+      );
+      final restarted = service(clock: () => clock);
+      await restarted.initialize(timeZoneId: 'Etc/UTC');
+      await restarted.reconcile();
+      final labels = plugin.scheduled.single.details.android!.actions!
+          .map((action) => action.title)
+          .toList();
+      expect(labels, ['Öffnen', 'In 10 Minuten erinnern', 'Schließen']);
+    },
+  );
 }
 
 Future<void> _insertReminder(
@@ -535,24 +986,93 @@ Future<void> _insertReminder(
   required String generation,
   required DateTime scheduledAt,
   bool dismissed = false,
-}) => database
-    .into(database.notificationSchedule)
-    .insert(
-      NotificationScheduleCompanion.insert(
-        id: 'reminder-1',
-        generation: Value(generation),
-        accountId: 'google:test',
-        sourceType: 'event',
-        sourceId: 'event-1',
-        scheduledAtUtc: scheduledAt.millisecondsSinceEpoch,
-        title: 'Visible meeting',
-        dismissedAtUtc: dismissed
-            ? Value(DateTime.now().millisecondsSinceEpoch)
-            : const Value.absent(),
-        createdAtLocal: 0,
-        updatedAtLocal: 0,
-      ),
-    );
+}) async {
+  await database
+      .into(database.calendarSources)
+      .insertOnConflictUpdate(
+        CalendarSourcesCompanion.insert(
+          id: 'calendar',
+          accountId: 'google:test',
+          provider: 'google',
+          providerCalendarId: 'calendar',
+          summary: 'Calendar',
+          createdAtLocal: 0,
+          updatedAtLocal: 0,
+        ),
+      );
+  await database
+      .into(database.calendarEvents)
+      .insertOnConflictUpdate(
+        CalendarEventsCompanion.insert(
+          id: 'event-1',
+          accountId: 'google:test',
+          calendarSourceId: 'calendar',
+          provider: 'google',
+          providerCalendarId: 'calendar',
+          providerEventId: 'event-1',
+          title: 'Visible meeting',
+          startDateTime: Value(
+            scheduledAt
+                .toUtc()
+                .add(const Duration(minutes: 5))
+                .toIso8601String(),
+          ),
+          endDateTime: Value(
+            scheduledAt
+                .toUtc()
+                .add(const Duration(hours: 12))
+                .toIso8601String(),
+          ),
+          remindersJson: Value(
+            jsonEncode({
+              'overrides': [
+                {'method': 'popup', 'minutes': 5},
+              ],
+            }),
+          ),
+          createdAtLocal: 0,
+          updatedAtLocal: 0,
+        ),
+      );
+  await database
+      .into(database.notificationSchedule)
+      .insert(
+        NotificationScheduleCompanion.insert(
+          id: 'event|event-1|5',
+          generation: Value(generation),
+          accountId: 'google:test',
+          sourceType: 'event',
+          sourceId: 'event-1',
+          scheduledAtUtc: scheduledAt.millisecondsSinceEpoch,
+          title: 'Visible meeting',
+          dismissedAtUtc: dismissed
+              ? Value(DateTime.now().millisecondsSinceEpoch)
+              : const Value.absent(),
+          createdAtLocal: 0,
+          updatedAtLocal: 0,
+        ),
+      );
+}
+
+Future<String> _reminderState(
+  AppDatabase database,
+  AppSettings settings, {
+  bool exact = false,
+}) async {
+  final row = await database.select(database.notificationSchedule).getSingle();
+  final presentation = await reminderPresentation(database, row, settings);
+  return androidNotificationRegistrationState(
+    settings: settings,
+    exact: exact,
+    title: presentation.title,
+    body: presentation.body,
+    actionLabels: [
+      AndroidNotificationStrings.forSettings(settings).open,
+      AndroidNotificationStrings.forSettings(settings).snooze,
+      AndroidNotificationStrings.forSettings(settings).dismiss,
+    ],
+  );
+}
 
 Future<void> _insertMapping(
   AppDatabase database, {
@@ -564,7 +1084,7 @@ Future<void> _insertMapping(
     .into(database.androidNotificationMappings)
     .insert(
       AndroidNotificationMappingsCompanion.insert(
-        scheduleId: 'reminder-1',
+        scheduleId: 'event|event-1|5',
         generation: generation,
         platformId: platformId,
         scheduledAtUtc:
@@ -575,7 +1095,10 @@ Future<void> _insertMapping(
       ),
     );
 
-Future<void> _insertDueTodayTask(AppDatabase database) async {
+Future<void> _insertDueTodayTask(
+  AppDatabase database, {
+  DateTime? localDay,
+}) async {
   await database
       .into(database.taskLists)
       .insert(
@@ -589,7 +1112,7 @@ Future<void> _insertDueTodayTask(AppDatabase database) async {
         ),
       );
   // Match the service's configured date, not the host runner's timezone.
-  final today = tz.TZDateTime.now(tz.local);
+  final today = localDay ?? tz.TZDateTime.now(tz.local);
   await database
       .into(database.tasks)
       .insert(
@@ -619,8 +1142,32 @@ class _StatefulNotificationPlugin implements AndroidNotificationBackend {
   final Set<int> pendingIds = {};
   final Set<int> activeIds = {};
   final List<int> cancelledIds = [];
-  final List<({int id, String? title, String? body, AndroidScheduleMode mode})>
+  final List<
+    ({
+      int id,
+      String? title,
+      String? body,
+      AndroidScheduleMode mode,
+      tz.TZDateTime date,
+      NotificationDetails details,
+      String? payload,
+    })
+  >
   scheduled = [];
+  final List<
+    ({
+      int id,
+      String? title,
+      String? body,
+      NotificationDetails details,
+      String? payload,
+    })
+  >
+  shown = [];
+  int cancellationFailuresRemaining = 0;
+  bool permissionGranted = true;
+  Completer<void>? registrationBarrier;
+  void Function()? beforePendingQuery;
   bool activeQueryFails = false;
 
   Iterable<int> get scheduledIds => scheduled.map((value) => value.id);
@@ -639,11 +1186,13 @@ class _StatefulNotificationPlugin implements AndroidNotificationBackend {
       const NotificationAppLaunchDetails(false);
 
   @override
-  Future<List<PendingNotificationRequest>>
-  pendingNotificationRequests() async => [
-    for (final id in pendingIds)
-      PendingNotificationRequest(id, null, null, null),
-  ];
+  Future<List<PendingNotificationRequest>> pendingNotificationRequests() async {
+    beforePendingQuery?.call();
+    return [
+      for (final id in pendingIds)
+        PendingNotificationRequest(id, null, null, null),
+    ];
+  }
 
   @override
   Future<List<ActiveNotification>> getActiveNotifications() async {
@@ -654,6 +1203,10 @@ class _StatefulNotificationPlugin implements AndroidNotificationBackend {
   @override
   Future<void> cancel({required int id, String? tag}) async {
     cancelledIds.add(id);
+    if (cancellationFailuresRemaining > 0) {
+      cancellationFailuresRemaining--;
+      throw StateError('cancel failed');
+    }
     pendingIds.remove(id);
     activeIds.remove(id);
   }
@@ -674,7 +1227,11 @@ class _StatefulNotificationPlugin implements AndroidNotificationBackend {
       title: title,
       body: body,
       mode: androidScheduleMode,
+      date: scheduledDate,
+      details: notificationDetails,
+      payload: payload,
     ));
+    await registrationBarrier?.future;
     pendingIds.add(id);
   }
 
@@ -684,14 +1241,30 @@ class _StatefulNotificationPlugin implements AndroidNotificationBackend {
     String? title,
     String? body,
     required NotificationDetails notificationDetails,
-  }) async {}
+    String? payload,
+  }) async {
+    shown.add((
+      id: id,
+      title: title,
+      body: body,
+      details: notificationDetails,
+      payload: payload,
+    ));
+  }
 
   @override
-  Future<bool> requestNotificationPermission() async => true;
+  Future<bool> requestNotificationPermission() async => permissionGranted;
 
   @override
   Future<bool> requestExactAlarmPermission() async => true;
 
   @override
   Future<bool> canScheduleExactly() async => false;
+}
+
+Future<void> _until(bool Function() condition) async {
+  for (var i = 0; i < 200 && !condition(); i++) {
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+  }
+  expect(condition(), isTrue);
 }

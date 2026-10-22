@@ -119,7 +119,6 @@ void main() {
         final scheduler = DueTodayNotificationScheduler(
           database: database,
           settings: () => AppSettings.defaults().copyWith(notifyDueToday: true),
-          activeAccountId: () => 'account',
           notifications: () => DesktopNotificationService(
             backend: backend,
             settings: AppSettings.defaults().copyWith(notifyDueToday: true),
@@ -159,7 +158,6 @@ void main() {
       final scheduler = DueTodayNotificationScheduler(
         database: database,
         settings: () => AppSettings.defaults().copyWith(notifyDueToday: true),
-        activeAccountId: () => 'account',
         notifications: () => DesktopNotificationService(
           backend: backend,
           settings: AppSettings.defaults().copyWith(notifyDueToday: true),
@@ -219,7 +217,6 @@ void main() {
     final summary = DueTodayNotificationScheduler(
       database: database,
       settings: () => AppSettings.defaults().copyWith(notifyDueToday: true),
-      activeAccountId: () => 'account',
       notifications: () => notifications,
       markNotified: (date) async => marked.add(date),
       now: () => DateTime(2026, 8, 9, 9),

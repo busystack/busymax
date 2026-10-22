@@ -1,16 +1,62 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/features/notifications/desktop_notification_service.dart';
 import 'package:busymax/src/platform/common/desktop_services.dart';
 import 'package:busymax/src/platform/linux/linux_notification_backend.dart';
 import 'package:desktop_notifications/desktop_notifications.dart';
+import 'package:dbus/dbus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../support/memory_settings_store.dart';
 
 void main() {
+  test('native withdrawal uses the same D-Bus sender as delivery and retries failure', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'busymax-notification-bus-',
+    );
+    final server = DBusServer();
+    final address = await server.listenAddress(
+      DBusAddress.unix(path: '${directory.path}/bus'),
+    );
+    final daemon = DBusClient(address);
+    final object = _NotificationDaemon();
+    await daemon.registerObject(object);
+    await daemon.requestName('org.freedesktop.Notifications');
+    final backend = FreedesktopNotificationBackend(
+      bus: DBusClient(address),
+      identityFile: File('${directory.path}/ids.json'),
+    );
+    addTearDown(() async {
+      await backend.close();
+      await daemon.close();
+      await server.close();
+      await directory.delete(recursive: true);
+    });
+    await backend.probe();
+    await backend.notify(
+      const BusyMaxNotificationRequest(
+        stableId: 'event|source|generation',
+        title: 'Native path',
+      ),
+    );
+    object.failClose = true;
+    await expectLater(
+      backend.cancel('event|source|generation'),
+      throwsA(isA<DBusMethodResponseException>()),
+    );
+    expect(await backend.knownReminderDeliveryIds(), {
+      'event|source|generation',
+    });
+    object.failClose = false;
+    await backend.cancel('event|source|generation');
+    expect(object.closedBy, object.submittedBy);
+    expect(object.closeCalls, 2);
+    expect(await backend.knownReminderDeliveryIds(), isEmpty);
+  }, skip: !Platform.isLinux);
+
   for (final route in ['due-today', 'sync-failure', 'conflict']) {
     test(
       '$route default action shows the window and opens its destination',
@@ -118,6 +164,39 @@ void main() {
       expect(old.closeCalls, 0);
     },
   );
+}
+
+class _NotificationDaemon extends DBusObject {
+  _NotificationDaemon()
+    : super(DBusObjectPath('/org/freedesktop/Notifications'));
+  String? submittedBy;
+  String? closedBy;
+  bool failClose = false;
+  int closeCalls = 0;
+
+  @override
+  Future<DBusMethodResponse> handleMethodCall(DBusMethodCall call) async {
+    switch (call.name) {
+      case 'GetCapabilities':
+        return DBusMethodSuccessResponse([
+          DBusArray.string(['actions', 'body']),
+        ]);
+      case 'Notify':
+        submittedBy = call.sender;
+        return DBusMethodSuccessResponse([DBusUint32(1)]);
+      case 'CloseNotification':
+        closeCalls++;
+        closedBy = call.sender;
+        if (failClose || closedBy != submittedBy) {
+          return DBusMethodErrorResponse(
+            'org.freedesktop.DBus.Error.InvalidArgs',
+            [DBusString('Invalid notification ID')],
+          );
+        }
+        return DBusMethodSuccessResponse();
+    }
+    return DBusMethodErrorResponse.unknownMethod();
+  }
 }
 
 class _Client extends Fake implements NotificationsClient {

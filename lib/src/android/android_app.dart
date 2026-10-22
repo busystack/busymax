@@ -1,3 +1,6 @@
+import '../features/notifications/notification_schedule_service.dart';
+import '../features/notifications/daily_summary_policy.dart';
+
 import 'dart:async';
 
 import 'package:busymax_android_platform/busymax_android_platform.dart';
@@ -18,6 +21,7 @@ import '../platform/android/android_first_weekday_source.dart';
 import 'android_notifications.dart';
 import 'presentation/android_schedule_screen.dart';
 import 'presentation/android_settings_screen.dart';
+import 'presentation/android_diagnostics_screen.dart';
 import 'presentation/android_tasks_screen.dart';
 
 final androidSelectedDestinationProvider = StateProvider<int>((ref) => 0);
@@ -157,6 +161,7 @@ class _AndroidHomeShellState extends ConsumerState<AndroidHomeShell>
   }
 
   Future<void> _refresh() async {
+    await ref.read(androidNotificationServiceProvider).refreshReadiness();
     try {
       await ref.read(allAccountsSyncRunnerProvider)();
     } on Object {
@@ -186,6 +191,15 @@ class _AndroidHomeShellState extends ConsumerState<AndroidHomeShell>
       await ref
           .read(androidNotificationServiceProvider)
           .initialize(timeZoneId: zone);
+      await ref.read(androidNotificationServiceProvider).reconcile();
+      final database = ref.read(databaseProvider);
+      final schedules = NotificationScheduleService(
+        database: database,
+        preserveLifecycle: true,
+      );
+      for (final account in await database.select(database.accounts).get()) {
+        await schedules.rebuildUpcomingNotifications(account.id);
+      }
       await ref.read(notificationReconcilerProvider).reconcile();
       return;
     }
@@ -224,7 +238,45 @@ class _AndroidHomeShellState extends ConsumerState<AndroidHomeShell>
 
   Future<void> _openReminder(AndroidReminderActivation activation) async {
     if (activation.sourceType == 'summary') {
-      ref.read(androidSelectedDestinationProvider.notifier).state = 1;
+      final date = parseNotificationDate(activation.itemId);
+      if (date == null || !mounted) return;
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          builder: (_) => AndroidTasksScreen(notificationDate: date),
+        ),
+      );
+      return;
+    }
+    if (activation.sourceType == 'sync-failure' ||
+        activation.sourceType == 'conflict') {
+      final database = ref.read(databaseProvider);
+      final account = activation.accountId == 'all'
+          ? null
+          : await (database.select(database.accounts)
+                  ..where((row) => row.id.equals(activation.accountId)))
+                .getSingleOrNull();
+      if (!mounted) return;
+      if (activation.accountId != 'all' && account == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.l10n.notificationItemUnavailable)),
+        );
+        return;
+      }
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          builder: (_) =>
+              activation.sourceType == 'conflict' &&
+                  (account?.provider == 'google' ||
+                      account?.provider == 'microsoft')
+              ? AndroidDiagnosticsScreen(accountId: account!.id)
+              : AndroidSettingsScreen(
+                  notificationAccountId: activation.accountId == 'all'
+                      ? null
+                      : activation.accountId,
+                  notificationConflicts: activation.sourceType == 'conflict',
+                ),
+        ),
+      );
       return;
     }
     final database = ref.read(databaseProvider);
@@ -234,24 +286,29 @@ class _AndroidHomeShellState extends ConsumerState<AndroidHomeShell>
                   schedule.id.equals(activation.scheduleId) &
                   schedule.generation.equals(activation.generation) &
                   schedule.accountId.equals(activation.accountId) &
-                  schedule.sourceId.equals(activation.itemId),
+                  schedule.sourceType.equals(activation.sourceType),
             ))
             .getSingleOrNull();
+    final valid =
+        row != null &&
+        await NotificationScheduleService(database: database)
+            .validateAndReconcileReminder(row, forOpen: true);
     if (!mounted) return;
-    if (row == null) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(context.l10n.noEventsOrTasks)));
+    if (!valid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.l10n.notificationItemUnavailable)),
+      );
       return;
     }
     ref.read(androidSelectedDestinationProvider.notifier).state = 0;
     if (activation.sourceType == 'event') {
-      await showAndroidEventEditor(context, ref, eventId: activation.itemId);
+      await showAndroidEventEditor(context, ref, eventId: row.sourceId);
     } else if (activation.sourceType == 'task') {
       await showAndroidTaskById(
         context,
         ref,
         accountId: activation.accountId,
-        taskId: activation.itemId,
+        taskId: row.sourceId,
       );
     }
   }

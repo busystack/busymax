@@ -3582,9 +3582,27 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
       if ((_reminderMinutes ?? -2) >= 0 ||
           androidGooglePopupReminderRows(_editedGoogleReminders).isNotEmpty ||
           (_editedNextcloudReminders?.isNotEmpty ?? false)) {
-        await ref
-            .read(androidNotificationServiceProvider)
-            .requestNotificationPermission();
+        final notifications = ref.read(androidNotificationServiceProvider);
+        final granted = await notifications.requestNotificationPermission();
+        final readiness = notifications.readiness.value;
+        if ((!granted || !readiness.remindersReady) && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                !granted ||
+                        readiness.notificationsAllowed == false ||
+                        readiness.remindersAllowed == false
+                    ? context.l10n.notificationsBlocked
+                    : context.l10n.notificationsUnknown,
+              ),
+              action: SnackBarAction(
+                label: context.l10n.settingsSystem,
+                onPressed: () =>
+                    BusyMaxAndroidPlatform.instance.openNotificationSettings(),
+              ),
+            ),
+          );
+        }
       }
       if (draft.eventId == null) {
         await ref.read(calendarRepositoryProvider).createLocalEvent(draft);

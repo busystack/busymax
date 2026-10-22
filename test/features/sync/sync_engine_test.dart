@@ -627,6 +627,9 @@ void main() {
       final databaseFile = File('${directory.path}/busymax.sqlite');
       database = AppDatabase(NativeDatabase(databaseFile));
       await _insertAccount(database);
+      await (database.update(database.accounts)
+            ..where((row) => row.id.equals('account')))
+          .write(const AccountsCompanion(authState: Value('signed_in')));
 
       final releaseSecondPage = Completer<void>();
       final secondPageRequested = Completer<void>();
@@ -674,7 +677,6 @@ void main() {
         return DueTodayNotificationScheduler(
           database: database,
           settings: () => settings,
-          activeAccountId: () => 'account',
           notifications: () => DesktopNotificationService(
             backend: backend,
             settings: settings,

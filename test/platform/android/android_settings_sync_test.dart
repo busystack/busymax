@@ -9,6 +9,7 @@ import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/notifications/notification_reconciler.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -16,6 +17,71 @@ import '../../support/memory_settings_store.dart';
 import '../../test_localized_app.dart';
 
 void main() {
+  testWidgets(
+    'blocked notification System action opens app settings separately from precision',
+    (tester) async {
+      const platform = MethodChannel('io.busystack.busymax/android');
+      final calls = <String>[];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(platform, (call) async {
+            calls.add(call.method);
+            return null;
+          });
+      addTearDown(
+        () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(platform, null),
+      );
+      final harness = await _pumpAndroidSettings(tester);
+      addTearDown(harness.dispose);
+      harness.container
+          .read(androidNotificationServiceProvider)
+          .readiness
+          .value = const AndroidNotificationReadiness(
+        initialized: true,
+        notificationsAllowed: false,
+        remindersAllowed: true,
+        summariesAllowed: true,
+        statusAllowed: true,
+        exactAlarms: false,
+      );
+      await tester.pump();
+      final row = find.byWidgetPredicate(
+        (widget) =>
+            widget is ListTile &&
+            widget.title is Text &&
+            (widget.title! as Text).data == 'Notifications' &&
+            widget.trailing is TextButton,
+      );
+      await tester.scrollUntilVisible(
+        row,
+        500,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.ensureVisible(row);
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.descendant(
+          of: row,
+          matching: find.widgetWithText(TextButton, 'System'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(calls, contains('openNotificationSettings'));
+      const precision =
+          'Exact alarm access is unavailable. Android may deliver reminders later.';
+      expect(
+        find.descendant(of: row, matching: find.text(precision)),
+        findsNothing,
+      );
+      expect(
+        find.descendant(
+          of: find.widgetWithText(ListTile, 'Reminders'),
+          matching: find.text(precision),
+        ),
+        findsOneWidget,
+      );
+    },
+  );
   testWidgets('eligible Android account exposes actionable Sync', (
     tester,
   ) async {
@@ -44,6 +110,12 @@ void main() {
       signedInSyncRunner: (accountId, initial) async => calls.add(accountId),
     );
     addTearDown(harness.dispose);
+
+    expect(
+      find.textContaining('This account needs to be reconnected'),
+      findsWidgets,
+    );
+    expect(find.textContaining('reauth_required'), findsNothing);
 
     await _openAccountMenu(tester);
 

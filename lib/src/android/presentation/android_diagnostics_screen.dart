@@ -12,7 +12,8 @@ import '../android_background.dart';
 import '../android_notifications.dart';
 
 class AndroidDiagnosticsScreen extends ConsumerWidget {
-  const AndroidDiagnosticsScreen({super.key});
+  const AndroidDiagnosticsScreen({super.key, this.accountId});
+  final String? accountId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -72,7 +73,12 @@ class AndroidDiagnosticsScreen extends ConsumerWidget {
                 .pendingOpsDao
                 .watchAllBlockedOps(),
             builder: (context, snapshot) {
-              final operations = snapshot.data ?? const <PendingOp>[];
+              final operations = (snapshot.data ?? const <PendingOp>[])
+                  .where(
+                    (operation) =>
+                        accountId == null || operation.accountId == accountId,
+                  )
+                  .toList();
               if (operations.isEmpty) {
                 return ListTile(
                   leading: const Icon(Icons.check_circle_outline),

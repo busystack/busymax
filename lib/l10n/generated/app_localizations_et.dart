@@ -3731,4 +3731,42 @@ class AppLocalizationsEt extends AppLocalizations {
   @override
   String get nextcloudRemovalAuthorizationDescription =>
       'BusyMax proovib tühistada ka selle konto Nextcloudi rakenduse parooli. Kohalik eemaldamine võib õnnestuda ka siis, kui tühistamine nurjub.';
+
+  @override
+  String get dailySummaryTime => 'Igapäevase kokkuvõtte kellaaeg';
+
+  @override
+  String get reminderTimeInPast =>
+      'Vali praegune minut või tulevane meeldetuletuse aeg.';
+
+  @override
+  String get notificationsBlocked =>
+      'Android blokeerib teavitused või teavituste kategooria. Meeldetuletused on salvestatud. Kontrolli süsteemi teavitusseadeid.';
+
+  @override
+  String get notificationsAllowed =>
+      'Süsteemi seaded lubavad BusyMaxi teavitusi.';
+
+  @override
+  String get notificationsUnknown =>
+      'Teavituste edastamise olek pole saadaval. Kontrolli süsteemi seadeid.';
+
+  @override
+  String get notificationExactAlarms =>
+      'Täpsete alarmide juurdepääs on lubatud.';
+
+  @override
+  String get notificationInexactAlarms =>
+      'Täpsete alarmide juurdepääs puudub. Android võib meeldetuletusi hiljem edastada.';
+
+  @override
+  String get dailySummaryScope => 'Kõik kontod';
+
+  @override
+  String get notificationsSystemBlocked =>
+      'Süsteemi teavitusseaded blokeerivad BusyMaxi. Meeldetuletused on salvestatud.';
+
+  @override
+  String get notificationItemUnavailable =>
+      'See meeldetuletus pole enam saadaval. Üksust võidi muuta või eemaldada.';
 }

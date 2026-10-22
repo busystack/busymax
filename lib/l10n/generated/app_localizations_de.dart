@@ -3760,4 +3760,42 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get nextcloudRemovalAuthorizationDescription =>
       'BusyMax versucht außerdem, das Nextcloud-App-Passwort dieses Kontos zu widerrufen. Die lokale Entfernung kann auch bei fehlgeschlagenem Widerruf erfolgreich sein.';
+
+  @override
+  String get dailySummaryTime => 'Uhrzeit der täglichen Übersicht';
+
+  @override
+  String get reminderTimeInPast =>
+      'Wähle die aktuelle Minute oder eine spätere Erinnerungszeit.';
+
+  @override
+  String get notificationsBlocked =>
+      'Android blockiert Benachrichtigungen oder eine Benachrichtigungskategorie. Deine Erinnerungen sind gespeichert. Prüfe die Systemeinstellungen für Benachrichtigungen.';
+
+  @override
+  String get notificationsAllowed =>
+      'Die Systemeinstellungen erlauben BusyMax-Benachrichtigungen.';
+
+  @override
+  String get notificationsUnknown =>
+      'Der Zustellstatus ist nicht verfügbar. Prüfe die Systemeinstellungen.';
+
+  @override
+  String get notificationExactAlarms =>
+      'Der Zugriff auf genaue Alarme ist aktiviert.';
+
+  @override
+  String get notificationInexactAlarms =>
+      'Der Zugriff auf genaue Alarme ist nicht verfügbar. Android kann Erinnerungen später zustellen.';
+
+  @override
+  String get dailySummaryScope => 'Alle Konten';
+
+  @override
+  String get notificationsSystemBlocked =>
+      'Die Benachrichtigungseinstellungen des Systems blockieren BusyMax. Deine Erinnerungen sind gespeichert.';
+
+  @override
+  String get notificationItemUnavailable =>
+      'Diese Erinnerung ist nicht mehr verfügbar. Der Eintrag wurde möglicherweise geändert oder entfernt.';
 }
