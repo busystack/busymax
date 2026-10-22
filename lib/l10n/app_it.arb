@@ -1341,5 +1341,15 @@
   "invalidCollectionTimezone": "Inserisci un documento di fuso orario valido contenente VTIMEZONE e TZID.",
   "invalidCollectionValue": "Correggi questo valore prima di salvare.",
   "accountAlreadyConnected": "Questo account è già collegato. Usa la sua azione di riconnessione.",
-  "nextcloudRemovalAuthorizationDescription": "BusyMax tenterà anche di revocare la password per app Nextcloud di questo account. La rimozione locale può riuscire anche se la revoca non riesce."
+  "nextcloudRemovalAuthorizationDescription": "BusyMax tenterà anche di revocare la password per app Nextcloud di questo account. La rimozione locale può riuscire anche se la revoca non riesce.",
+  "dailySummaryTime": "Ora del riepilogo giornaliero",
+  "reminderTimeInPast": "Scegli il minuto corrente o un orario futuro per il promemoria.",
+  "notificationsBlocked": "Android blocca le notifiche o una categoria. I promemoria sono salvati. Controlla le impostazioni di notifica del sistema.",
+  "notificationsAllowed": "Le impostazioni di sistema consentono le notifiche di BusyMax.",
+  "notificationsUnknown": "Lo stato di consegna non è disponibile. Controlla le impostazioni di sistema.",
+  "notificationExactAlarms": "L’accesso agli allarmi esatti è attivo.",
+  "notificationInexactAlarms": "L’accesso agli allarmi esatti non è disponibile. Android potrebbe mostrare i promemoria più tardi.",
+  "dailySummaryScope": "Tutti gli account",
+  "notificationsSystemBlocked": "Le impostazioni di notifica del sistema bloccano BusyMax. I promemoria sono salvati.",
+  "notificationItemUnavailable": "Questo promemoria non è più disponibile. L’elemento potrebbe essere stato modificato o rimosso."
 }

@@ -1,3 +1,8 @@
+import '../../features/notifications/desktop_notification_backend.dart';
+import '../../platform/windows/windows_notification_backend.dart';
+import '../../features/notifications/daily_summary_policy.dart';
+import '../../ui/windows/windows_diagnostics_dialog.dart';
+
 import 'dart:async';
 
 import 'package:fluent_ui/fluent_ui.dart';
@@ -100,6 +105,32 @@ class _WindowsBusyMaxAppState extends ConsumerState<WindowsBusyMaxApp>
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_refreshNotificationPermission());
+    }
+  }
+
+  Future<void> _refreshNotificationPermission() async {
+    final current = ref.read(desktopNotificationReadinessProvider);
+    if (current.state != DesktopNotificationReadinessState.available) return;
+    final config = ref.read(buildConfigProvider);
+    final permission = await WindowsNotificationBackend.notificationPermission(
+      config.windowsAppUserModelId,
+    );
+    if (!mounted) return;
+    ref
+        .read(desktopNotificationReadinessProvider.notifier)
+        .state = DesktopNotificationReadiness(
+      current.state,
+      permissionGranted: permission,
+      deliveryFailed: current.deliveryFailed,
+      diagnosticCode: current.diagnosticCode,
+    );
+    await ref.read(notificationReconcilerProvider).reconcile();
+  }
+
+  @override
   void didChangeAccessibilityFeatures() => _platformChanged();
 
   @override
@@ -133,7 +164,7 @@ class _WindowsBusyMaxAppState extends ConsumerState<WindowsBusyMaxApp>
           _handleNavigation(
             DesktopNavigationRequest(
               destination,
-              reconnectAccountId: activation.payload?['accountId'],
+              notificationPayload: activation.payload,
             ),
           );
           return;
@@ -228,7 +259,67 @@ class _WindowsBusyMaxAppState extends ConsumerState<WindowsBusyMaxApp>
     }
   }
 
+  Future<void> _showUnavailableNotification() async {
+    final context = await _calendarOpenReadiness.waitForRootNavigator(
+      windowsRootNavigatorKey,
+    );
+    if (!mounted || context == null || !context.mounted) return;
+    await displayInfoBar(
+      context,
+      builder: (context, close) => InfoBar(
+        title: Text(AppLocalizations.of(context).notificationItemUnavailable),
+        action: Button(
+          onPressed: close,
+          child: Text(AppLocalizations.of(context).close),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openSummaryNotification(String? value) async {
+    final date = parseNotificationDate(value);
+    if (date == null) return;
+    final context = await _calendarOpenReadiness.waitForRootNavigator(
+      windowsRootNavigatorKey,
+    );
+    if (context == null || !context.mounted || !mounted) return;
+    await Navigator.of(context).push<void>(
+      FluentPageRoute(builder: (_) => WindowsTasksPage(notificationDate: date)),
+    );
+  }
+
+  Future<void> _openConflictNotification(String? accountId) async {
+    final context = await _calendarOpenReadiness.waitForRootNavigator(
+      windowsRootNavigatorKey,
+    );
+    if (context == null || !context.mounted || !mounted) return;
+    await showWindowsDiagnosticsDialog(context, ref, accountId: accountId);
+  }
+
   void _handleNavigation(DesktopNavigationRequest request) {
+    final payload = request.notificationPayload;
+    if (payload != null) {
+      if (payload['notificationRoute'] == 'due-today') {
+        unawaited(_openSummaryNotification(payload['date']));
+        return;
+      }
+      if (payload['notificationRoute'] == 'conflict') {
+        unawaited(_openConflictNotification(payload['accountId']));
+        return;
+      }
+      windowsAppRouter.go(
+        Uri(
+          path: '/settings',
+          queryParameters: {
+            'page': 'accounts',
+            if (payload['accountId'] != null)
+              'reconnect': payload['accountId']!,
+          },
+        ).toString(),
+      );
+      return;
+    }
+
     if (request.reconnectAccountId case final id?) {
       windowsAppRouter.go(
         Uri(
@@ -261,6 +352,10 @@ class _WindowsBusyMaxAppState extends ConsumerState<WindowsBusyMaxApp>
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(
+      notificationSourceUnavailableProvider,
+      (_, _) => unawaited(_showUnavailableNotification()),
+    );
     ref.watch(notificationSchedulerProvider);
     ref.watch(dueTodayNotificationProvider);
     final settings = ref.watch(appSettingsControllerProvider);

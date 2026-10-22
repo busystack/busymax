@@ -3801,4 +3801,40 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get nextcloudRemovalAuthorizationDescription =>
       'سيحاول BusyMax أيضًا إلغاء كلمة مرور تطبيق Nextcloud لهذا الحساب. قد تنجح الإزالة المحلية حتى إذا فشل الإلغاء.';
+
+  @override
+  String get dailySummaryTime => 'وقت الملخص اليومي';
+
+  @override
+  String get reminderTimeInPast =>
+      'اختر الدقيقة الحالية أو وقت تذكير في المستقبل.';
+
+  @override
+  String get notificationsBlocked =>
+      'يحظر Android الإشعارات أو إحدى فئاتها. تم حفظ تذكيراتك. راجع إعدادات إشعارات النظام.';
+
+  @override
+  String get notificationsAllowed => 'تسمح إعدادات النظام بإشعارات BusyMax.';
+
+  @override
+  String get notificationsUnknown =>
+      'حالة تسليم الإشعارات غير متاحة. راجع إعدادات النظام.';
+
+  @override
+  String get notificationExactAlarms => 'تم تفعيل الوصول إلى المنبهات الدقيقة.';
+
+  @override
+  String get notificationInexactAlarms =>
+      'الوصول إلى المنبهات الدقيقة غير متاح. قد يعرض Android التذكيرات لاحقًا.';
+
+  @override
+  String get dailySummaryScope => 'كل الحسابات';
+
+  @override
+  String get notificationsSystemBlocked =>
+      'تحظر إعدادات إشعارات النظام BusyMax. تم حفظ تذكيراتك.';
+
+  @override
+  String get notificationItemUnavailable =>
+      'لم يعد هذا التذكير متاحًا. ربما تم تغيير العنصر أو إزالته.';
 }

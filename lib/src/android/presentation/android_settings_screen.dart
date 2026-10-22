@@ -49,7 +49,13 @@ import 'android_feedback_screen.dart';
 import 'android_nextcloud_scheduling_screen.dart';
 
 class AndroidSettingsScreen extends ConsumerStatefulWidget {
-  const AndroidSettingsScreen({super.key});
+  const AndroidSettingsScreen({
+    super.key,
+    this.notificationAccountId,
+    this.notificationConflicts = false,
+  });
+  final String? notificationAccountId;
+  final bool notificationConflicts;
 
   @override
   ConsumerState<AndroidSettingsScreen> createState() =>
@@ -88,6 +94,36 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 96),
         children: [
+          if (widget.notificationConflicts)
+            _Section(
+              title: context.l10n.syncConflicts,
+              children: [
+                for (final conflict in conflicts.where(
+                  (conflict) =>
+                      widget.notificationAccountId == null ||
+                      conflict.accountId == widget.notificationAccountId,
+                ))
+                  ListTile(
+                    leading: const Icon(Icons.warning_amber),
+                    title: Text(conflict.itemTitle),
+                    subtitle: Text(
+                      '${conflict.accountLabel} · ${conflict.collectionName}',
+                    ),
+                    onTap: () => unawaited(_resolveConflict(conflict)),
+                  ),
+                ListTile(
+                  title: Text(context.l10n.blockedPendingOperations),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push<void>(
+                    MaterialPageRoute(
+                      builder: (_) => AndroidDiagnosticsScreen(
+                        accountId: widget.notificationAccountId,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           const AndroidContactsSettings(),
           _Section(
             title: context.l10n.accounts,
@@ -97,7 +133,11 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                   leading: const Icon(Icons.account_circle_outlined),
                   title: Text(context.l10n.providerConnectionDescription),
                 ),
-              for (final account in accounts) ...[
+              for (final account in accounts.where(
+                (account) =>
+                    widget.notificationAccountId == null ||
+                    account.id == widget.notificationAccountId,
+              )) ...[
                 if (account.provider == BusyProvider.microsoft ||
                     account.provider == BusyProvider.google)
                   _AndroidRegistrationCard(
@@ -540,18 +580,69 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                       ),
                 ),
               ),
+              ValueListenableBuilder<AndroidNotificationReadiness>(
+                valueListenable: ref
+                    .read(androidNotificationServiceProvider)
+                    .readiness,
+                builder: (context, status, _) => Column(
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.notifications_outlined),
+                      title: Text(context.l10n.notifications),
+                      subtitle: Text(
+                        [
+                          if (status.failed ||
+                              !status.initialized ||
+                              status.notificationsAllowed == null)
+                            context.l10n.notificationsUnknown
+                          else if (status.notificationsAllowed == false ||
+                              status.remindersAllowed == false ||
+                              status.summariesAllowed == false ||
+                              status.statusAllowed == false)
+                            context.l10n.notificationsBlocked
+                          else
+                            context.l10n.notificationsAllowed,
+                          if (status.remindersAllowed == false)
+                            context.l10n.reminders,
+                          if (status.summariesAllowed == false)
+                            context.l10n.notifyDueToday,
+                          if (status.statusAllowed == false) context.l10n.sync,
+                        ].join('\n'),
+                      ),
+                      onTap: () => BusyMaxAndroidPlatform.instance
+                          .openNotificationSettings(),
+                      trailing: TextButton(
+                        onPressed: () => unawaited(
+                          BusyMaxAndroidPlatform.instance
+                              .openNotificationSettings(),
+                        ),
+                        child: Text(context.l10n.settingsSystem),
+                      ),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.alarm_outlined),
+                      title: Text(context.l10n.reminders),
+                      subtitle: Text(
+                        status.exactAlarms
+                            ? context.l10n.notificationExactAlarms
+                            : context.l10n.notificationInexactAlarms,
+                      ),
+                      trailing: status.exactAlarms
+                          ? null
+                          : TextButton(
+                              onPressed: () => unawaited(_requestExactAlarms()),
+                              child: Text(context.l10n.settingsSystem),
+                            ),
+                    ),
+                  ],
+                ),
+              ),
               ListTile(
-                leading: const Icon(Icons.alarm),
-                title: Text(context.l10n.reminders),
-                subtitle: Text(
-                  ref
-                      .read(androidNotificationServiceProvider)
-                      .precisionDiagnostic,
-                ),
-                trailing: TextButton(
-                  onPressed: () => unawaited(_requestExactAlarms()),
-                  child: Text(context.l10n.settingsSystem),
-                ),
+                title: Text(context.l10n.dailySummaryTime),
+                subtitle: Text(context.l10n.dailySummaryScope),
+                trailing: Text(settings.dueTodayNotificationTime),
+                enabled: settings.notifyDueToday,
+                onTap: _pickSummaryTime,
               ),
               SwitchListTile(
                 secondary: const Icon(Icons.bedtime_outlined),
@@ -583,14 +674,6 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                   onTap: () => unawaited(_pickQuietTime(false)),
                 ),
               ],
-              ListTile(
-                leading: const Icon(Icons.notifications_active_outlined),
-                title: Text(context.l10n.notifications),
-                trailing: const Icon(Icons.open_in_new),
-                onTap: () => unawaited(
-                  BusyMaxAndroidPlatform.instance.openNotificationSettings(),
-                ),
-              ),
             ],
           ),
           _Section(
@@ -632,7 +715,11 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                   leading: const Icon(Icons.check_circle_outline),
                   title: Text(context.l10n.noBlockedPendingOperations),
                 ),
-              for (final conflict in conflicts)
+              for (final conflict in conflicts.where(
+                (conflict) =>
+                    widget.notificationAccountId == null ||
+                    conflict.accountId == widget.notificationAccountId,
+              ))
                 ListTile(
                   leading: const Icon(Icons.warning_amber),
                   title: Text(conflict.itemTitle),
@@ -706,6 +793,8 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
   String _accountSubtitle(AccountEntity account) {
     final state = account.isSignedIn
         ? context.l10n.signedInAccount
+        : account.needsReconnect
+        ? context.l10n.accountReconnectRequired
         : account.authState;
     final synced =
         account.provider == BusyProvider.nextcloud ||
@@ -1618,7 +1707,7 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
       final granted = await ref
           .read(androidNotificationServiceProvider)
           .requestNotificationPermission();
-      if (!granted) return;
+      if (!granted && mounted) _message(context.l10n.notificationsBlocked);
     }
     await save(enabled);
     await ref.read(notificationReconcilerProvider).reconcile();
@@ -1631,6 +1720,27 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
         .requestExactAlarmPermission();
     await ref.read(notificationReconcilerProvider).reconcile();
     if (mounted) setState(() {});
+  }
+
+  Future<void> _pickSummaryTime() async {
+    final parts = ref
+        .read(appSettingsControllerProvider)
+        .dueTodayNotificationTime
+        .split(':');
+    final selected = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(
+        hour: int.parse(parts[0]),
+        minute: int.parse(parts[1]),
+      ),
+    );
+    if (selected == null) return;
+    await ref
+        .read(appSettingsControllerProvider.notifier)
+        .setDueTodayNotificationTime(
+          '${selected.hour.toString().padLeft(2, '0')}:${selected.minute.toString().padLeft(2, '0')}',
+        );
+    await ref.read(notificationReconcilerProvider).reconcile();
   }
 
   Future<void> _pickQuietTime(bool start) async {

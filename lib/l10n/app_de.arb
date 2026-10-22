@@ -1404,5 +1404,15 @@
   "invalidCollectionTimezone": "Geben Sie ein gültiges Kalenderzeitzonendokument mit VTIMEZONE und TZID ein.",
   "invalidCollectionValue": "Korrigieren Sie diesen Wert vor dem Speichern.",
   "accountAlreadyConnected": "Dieses Konto ist bereits verbunden. Verwenden Sie die Aktion zum erneuten Verbinden.",
-  "nextcloudRemovalAuthorizationDescription": "BusyMax versucht außerdem, das Nextcloud-App-Passwort dieses Kontos zu widerrufen. Die lokale Entfernung kann auch bei fehlgeschlagenem Widerruf erfolgreich sein."
+  "nextcloudRemovalAuthorizationDescription": "BusyMax versucht außerdem, das Nextcloud-App-Passwort dieses Kontos zu widerrufen. Die lokale Entfernung kann auch bei fehlgeschlagenem Widerruf erfolgreich sein.",
+  "dailySummaryTime": "Uhrzeit der täglichen Übersicht",
+  "reminderTimeInPast": "Wähle die aktuelle Minute oder eine spätere Erinnerungszeit.",
+  "notificationsBlocked": "Android blockiert Benachrichtigungen oder eine Benachrichtigungskategorie. Deine Erinnerungen sind gespeichert. Prüfe die Systemeinstellungen für Benachrichtigungen.",
+  "notificationsAllowed": "Die Systemeinstellungen erlauben BusyMax-Benachrichtigungen.",
+  "notificationsUnknown": "Der Zustellstatus ist nicht verfügbar. Prüfe die Systemeinstellungen.",
+  "notificationExactAlarms": "Der Zugriff auf genaue Alarme ist aktiviert.",
+  "notificationInexactAlarms": "Der Zugriff auf genaue Alarme ist nicht verfügbar. Android kann Erinnerungen später zustellen.",
+  "dailySummaryScope": "Alle Konten",
+  "notificationsSystemBlocked": "Die Benachrichtigungseinstellungen des Systems blockieren BusyMax. Deine Erinnerungen sind gespeichert.",
+  "notificationItemUnavailable": "Diese Erinnerung ist nicht mehr verfügbar. Der Eintrag wurde möglicherweise geändert oder entfernt."
 }

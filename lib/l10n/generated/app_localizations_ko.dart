@@ -3662,4 +3662,38 @@ class AppLocalizationsKo extends AppLocalizations {
   @override
   String get nextcloudRemovalAuthorizationDescription =>
       'BusyMax는 이 계정의 Nextcloud 앱 암호 해지도 시도합니다. 해지에 실패해도 로컬 제거는 완료될 수 있습니다.';
+
+  @override
+  String get dailySummaryTime => '일일 요약 시간';
+
+  @override
+  String get reminderTimeInPast => '현재 분 또는 미래의 알림 시간을 선택하세요.';
+
+  @override
+  String get notificationsBlocked =>
+      'Android에서 알림 또는 알림 카테고리를 차단하고 있습니다. 알림은 저장되었습니다. 시스템 알림 설정을 확인하세요.';
+
+  @override
+  String get notificationsAllowed => '시스템 설정에서 BusyMax 알림을 허용합니다.';
+
+  @override
+  String get notificationsUnknown => '알림 전달 상태를 확인할 수 없습니다. 시스템 설정을 확인하세요.';
+
+  @override
+  String get notificationExactAlarms => '정확한 알람 접근이 허용되어 있습니다.';
+
+  @override
+  String get notificationInexactAlarms =>
+      '정확한 알람 접근이 허용되지 않습니다. Android에서 알림을 늦게 전달할 수 있습니다.';
+
+  @override
+  String get dailySummaryScope => '모든 계정';
+
+  @override
+  String get notificationsSystemBlocked =>
+      '시스템 알림 설정에서 BusyMax를 차단하고 있습니다. 알림은 저장되었습니다.';
+
+  @override
+  String get notificationItemUnavailable =>
+      '이 알림은 더 이상 사용할 수 없습니다. 항목이 변경되었거나 삭제되었을 수 있습니다.';
 }

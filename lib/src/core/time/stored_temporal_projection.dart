@@ -7,12 +7,14 @@ import 'provider_date_time.dart';
 /// CalDAV projections may resolve a resource's own VTIMEZONE definition.
 DateTime? calendarEventStartAsLocal(CalendarEvent event) => event.allDay
     ? _date(event.startDate) ?? _date(event.startDateTime)
-    : projectedUtc(event.rawJson, 'startUtc')?.toLocal() ??
+    : _floatingTemporal(event.rawJson, 'nativeStart') ??
+          projectedUtc(event.rawJson, 'startUtc')?.toLocal() ??
           providerDateTimeAsLocal(event.startDateTime, event.startTimeZone);
 
 DateTime? calendarEventEndAsLocal(CalendarEvent event) => event.allDay
     ? _date(event.endDate) ?? _date(event.endDateTime)
-    : projectedUtc(event.rawJson, 'endUtc')?.toLocal() ??
+    : _floatingTemporal(event.rawJson, 'nativeEnd') ??
+          projectedUtc(event.rawJson, 'endUtc')?.toLocal() ??
           providerDateTimeAsLocal(event.endDateTime, event.endTimeZone);
 
 /// Uses the same resolved instants as Schedule projection when deciding which
@@ -42,6 +44,20 @@ bool storedCalendarEventOverlapsUtcRange(
 DateTime? projectedUtc(String? json, String key) {
   final value = _metadata(json)?[key];
   return value is String ? DateTime.tryParse(value)?.toUtc() : null;
+}
+
+DateTime? _floatingTemporal(String? json, String key) {
+  final native = _metadata(json)?[key];
+  if (native is! Map || native['kind'] != 'floatingDateTime') return null;
+  final raw = native['raw'];
+  if (raw is! String) return null;
+  final match = RegExp(r'^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})$')
+      .firstMatch(raw);
+  return match == null
+      ? null
+      : DateTime.tryParse(
+          '${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}:${match[6]}',
+        );
 }
 
 /// Dates and floating times retain their written calendar day. Zoned times

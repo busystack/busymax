@@ -817,10 +817,10 @@ class _TaskReminderDialogState extends State<_TaskReminderDialog> {
     super.initState();
     final initial = widget.initial;
     final offset = initial?.relativeOffset;
-    final tomorrow = DateTime.now().add(const Duration(days: 1));
+    final next = DateTime.now().add(const Duration(minutes: 10));
     _absoluteLocal =
         initial?.absoluteUtc?.toLocal() ??
-        DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 9);
+        DateTime(next.year, next.month, next.day, next.hour, next.minute);
     if (offset != null) {
       if (widget.allDay) {
         final fields = IcalAllDayAlarmOffset.fromDuration(offset);

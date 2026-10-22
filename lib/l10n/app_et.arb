@@ -1519,5 +1519,15 @@
   "invalidCollectionTimezone": "Sisesta kehtiv kalendri ajavööndi dokument, mis sisaldab VTIMEZONE ja TZID väärtusi.",
   "invalidCollectionValue": "Paranda see väärtus enne salvestamist.",
   "accountAlreadyConnected": "See konto on juba ühendatud. Kasuta selle uuesti ühendamise toimingut.",
-  "nextcloudRemovalAuthorizationDescription": "BusyMax proovib tühistada ka selle konto Nextcloudi rakenduse parooli. Kohalik eemaldamine võib õnnestuda ka siis, kui tühistamine nurjub."
+  "nextcloudRemovalAuthorizationDescription": "BusyMax proovib tühistada ka selle konto Nextcloudi rakenduse parooli. Kohalik eemaldamine võib õnnestuda ka siis, kui tühistamine nurjub.",
+  "dailySummaryTime": "Igapäevase kokkuvõtte kellaaeg",
+  "reminderTimeInPast": "Vali praegune minut või tulevane meeldetuletuse aeg.",
+  "notificationsBlocked": "Android blokeerib teavitused või teavituste kategooria. Meeldetuletused on salvestatud. Kontrolli süsteemi teavitusseadeid.",
+  "notificationsAllowed": "Süsteemi seaded lubavad BusyMaxi teavitusi.",
+  "notificationsUnknown": "Teavituste edastamise olek pole saadaval. Kontrolli süsteemi seadeid.",
+  "notificationExactAlarms": "Täpsete alarmide juurdepääs on lubatud.",
+  "notificationInexactAlarms": "Täpsete alarmide juurdepääs puudub. Android võib meeldetuletusi hiljem edastada.",
+  "dailySummaryScope": "Kõik kontod",
+  "notificationsSystemBlocked": "Süsteemi teavitusseaded blokeerivad BusyMaxi. Meeldetuletused on salvestatud.",
+  "notificationItemUnavailable": "See meeldetuletus pole enam saadaval. Üksust võidi muuta või eemaldada."
 }

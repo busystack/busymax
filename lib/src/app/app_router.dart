@@ -1,3 +1,5 @@
+import '../features/notifications/daily_summary_policy.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -50,7 +52,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/tasks',
-        pageBuilder: (context, state) => _tasksWorkspacePage(),
+        pageBuilder: (context, state) => _tasksWorkspacePage(
+          notificationDate: parseNotificationDate(
+            state.uri.queryParameters['due'],
+          ),
+        ),
       ),
       GoRoute(
         path: r'/tasks/:taskRoute(.*)',
@@ -73,6 +79,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           key: state.pageKey,
           child: SettingsScreen(
             reconnectAccountId: state.uri.queryParameters['reconnect'],
+            notificationAccountId: state.uri.queryParameters['account'],
             initialPage: settingsPageFromRouteValue(
               state.uri.queryParameters['page'],
             ),
@@ -94,11 +101,16 @@ Page<void> _tasksWorkspacePage({
   String? accountId,
   String? taskListId,
   String? taskId,
+  DateTime? notificationDate,
 }) {
   return NoTransitionPage<void>(
-    key: _tasksWorkspacePageKey,
+    key: notificationDate == null
+        ? _tasksWorkspacePageKey
+        : ValueKey('due-tasks-$notificationDate'),
     child: ScheduleWorkspace(
       initialScope: ScheduleScope.tasks,
+      initialDate: notificationDate,
+      notificationDeadline: notificationDate,
       initialTaskAccountId: accountId,
       initialTaskListId: taskListId,
       initialTaskId: taskId,

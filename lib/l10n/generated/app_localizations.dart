@@ -6305,6 +6305,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'BusyMax will also try to revoke this account’s Nextcloud app password. Local removal can succeed even if that revocation fails.'**
   String get nextcloudRemovalAuthorizationDescription;
+
+  /// No description provided for @dailySummaryTime.
+  ///
+  /// In en, this message translates to:
+  /// **'Daily summary time'**
+  String get dailySummaryTime;
+
+  /// No description provided for @reminderTimeInPast.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose the current minute or a future reminder time.'**
+  String get reminderTimeInPast;
+
+  /// No description provided for @notificationsBlocked.
+  ///
+  /// In en, this message translates to:
+  /// **'Android is blocking notifications or a notification category. Your reminders are saved. Review system notification settings.'**
+  String get notificationsBlocked;
+
+  /// No description provided for @notificationsAllowed.
+  ///
+  /// In en, this message translates to:
+  /// **'System settings allow BusyMax notifications.'**
+  String get notificationsAllowed;
+
+  /// No description provided for @notificationsUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'Notification delivery status is unavailable. Review system settings.'**
+  String get notificationsUnknown;
+
+  /// No description provided for @notificationExactAlarms.
+  ///
+  /// In en, this message translates to:
+  /// **'Exact alarm access is enabled.'**
+  String get notificationExactAlarms;
+
+  /// No description provided for @notificationInexactAlarms.
+  ///
+  /// In en, this message translates to:
+  /// **'Exact alarm access is unavailable. Android may deliver reminders later.'**
+  String get notificationInexactAlarms;
+
+  /// No description provided for @dailySummaryScope.
+  ///
+  /// In en, this message translates to:
+  /// **'All accounts'**
+  String get dailySummaryScope;
+
+  /// No description provided for @notificationsSystemBlocked.
+  ///
+  /// In en, this message translates to:
+  /// **'System notification settings are blocking BusyMax. Your reminders are saved.'**
+  String get notificationsSystemBlocked;
+
+  /// No description provided for @notificationItemUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This reminder is no longer available. The item may have changed or been removed.'**
+  String get notificationItemUnavailable;
 }
 
 class _AppLocalizationsDelegate

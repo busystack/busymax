@@ -300,6 +300,7 @@ void main() {
                 action: 'open',
               );
           container.read(notificationSchedulerProvider).stop();
+          container.read(operationalNotificationCoordinatorProvider).stop();
           expect(received?.date, local);
           expect(received?.itemId, event.id);
           await _until(
@@ -400,6 +401,7 @@ void main() {
             action: 'open',
           );
       container.read(notificationSchedulerProvider).stop();
+      container.read(operationalNotificationCoordinatorProvider).stop();
       await _until(tester, find.text('Exact notification task details'));
       expect(find.text('Exact notification task details'), findsOneWidget);
       expect(tester.takeException(), isNull);

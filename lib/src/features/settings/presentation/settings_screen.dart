@@ -83,9 +83,11 @@ class SettingsScreen extends ConsumerStatefulWidget {
     super.key,
     this.initialPage = SettingsPage.system,
     this.reconnectAccountId,
+    this.notificationAccountId,
   });
 
   final String? reconnectAccountId;
+  final String? notificationAccountId;
 
   final SettingsPage initialPage;
 
@@ -538,6 +540,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ),
       SettingsPage.notifications => _SettingsPageLayout(
         children: [
+          Text(l10n.windowsReminderExitNotice),
+          Text(l10n.notificationsUnknown),
           BusyMaxGroupedList(
             filled: true,
             children: [
@@ -555,9 +559,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
               BusyMaxSwitchRow(
                 title: l10n.notifyDueToday,
+                subtitle: l10n.dailySummaryScope,
                 value: settings.notifyDueToday,
                 onChanged: settingsController.setNotifyDueToday,
                 leading: const Icon(YaruIcons.calendar_day),
+              ),
+              DesktopTimeValueRow(
+                label: l10n.dailySummaryTime,
+                time: settings.dueTodayNotificationTime,
+                enabled: settings.notifyDueToday,
+                allowEmpty: false,
+                onChanged: (time) {
+                  if (time != null) {
+                    unawaited(
+                      settingsController.setDueTodayNotificationTime(time),
+                    );
+                  }
+                },
               ),
               BusyMaxSwitchRow(
                 title: l10n.notifySyncFailures,
@@ -647,8 +665,25 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ],
           ),
           const SizedBox(height: BusyMaxSpacing.lg),
+          if (davConflicts.any(
+            (conflict) =>
+                widget.notificationAccountId == null ||
+                conflict.accountId == widget.notificationAccountId,
+          ))
+            _DavConflictsCard(
+              conflicts: davConflicts
+                  .where(
+                    (conflict) =>
+                        widget.notificationAccountId == null ||
+                        conflict.accountId == widget.notificationAccountId,
+                  )
+                  .toList(),
+              onResolve: (conflict, resolution) =>
+                  unawaited(_resolveConflict(conflict, resolution)),
+            ),
           DiagnosticsPanel(
             scrollable: false,
+            accountId: widget.notificationAccountId,
             sectionHeaderStyle: _settingsSectionHeaderStyle(context),
           ),
         ],

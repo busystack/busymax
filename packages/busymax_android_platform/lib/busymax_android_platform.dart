@@ -242,6 +242,20 @@ final class BusyMaxAndroidPlatform {
   Future<void> openNotificationSettings() =>
       _methodChannel.invokeMethod<void>('openNotificationSettings');
 
+  Future<Map<String, Object?>> notificationCapabilities() async => _stringMap(
+    await _methodChannel.invokeMethod<Object?>('notificationCapabilities'),
+  );
+
+  Future<void> prepareNotificationChannels({
+    required String reminders,
+    required String summaries,
+    required String status,
+  }) => _methodChannel.invokeMethod<void>('prepareNotificationChannels', {
+    'reminders': reminders,
+    'summaries': summaries,
+    'status': status,
+  });
+
   Future<String> acquireAccountGate(
     String accountId, {
     Duration timeout = const Duration(seconds: 30),

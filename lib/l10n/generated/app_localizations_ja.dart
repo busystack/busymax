@@ -3658,4 +3658,38 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get nextcloudRemovalAuthorizationDescription =>
       'BusyMax はこのアカウントの Nextcloud アプリパスワードの失効も試みます。失効に失敗しても、ローカルでの削除は完了する場合があります。';
+
+  @override
+  String get dailySummaryTime => '毎日の概要の時刻';
+
+  @override
+  String get reminderTimeInPast => '現在の分または将来のリマインダー時刻を選択してください。';
+
+  @override
+  String get notificationsBlocked =>
+      'Androidが通知または通知カテゴリをブロックしています。リマインダーは保存されています。システムの通知設定を確認してください。';
+
+  @override
+  String get notificationsAllowed => 'システム設定でBusyMaxの通知が許可されています。';
+
+  @override
+  String get notificationsUnknown => '通知の配信状況を確認できません。システム設定を確認してください。';
+
+  @override
+  String get notificationExactAlarms => '正確なアラームへのアクセスが有効です。';
+
+  @override
+  String get notificationInexactAlarms =>
+      '正確なアラームへのアクセスがありません。Androidがリマインダーを遅れて表示する場合があります。';
+
+  @override
+  String get dailySummaryScope => 'すべてのアカウント';
+
+  @override
+  String get notificationsSystemBlocked =>
+      'システムの通知設定がBusyMaxをブロックしています。リマインダーは保存されています。';
+
+  @override
+  String get notificationItemUnavailable =>
+      'このリマインダーは利用できなくなりました。項目が変更または削除された可能性があります。';
 }

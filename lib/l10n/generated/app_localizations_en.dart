@@ -3774,4 +3774,41 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get nextcloudRemovalAuthorizationDescription =>
       'BusyMax will also try to revoke this account’s Nextcloud app password. Local removal can succeed even if that revocation fails.';
+
+  @override
+  String get dailySummaryTime => 'Daily summary time';
+
+  @override
+  String get reminderTimeInPast =>
+      'Choose the current minute or a future reminder time.';
+
+  @override
+  String get notificationsBlocked =>
+      'Android is blocking notifications or a notification category. Your reminders are saved. Review system notification settings.';
+
+  @override
+  String get notificationsAllowed =>
+      'System settings allow BusyMax notifications.';
+
+  @override
+  String get notificationsUnknown =>
+      'Notification delivery status is unavailable. Review system settings.';
+
+  @override
+  String get notificationExactAlarms => 'Exact alarm access is enabled.';
+
+  @override
+  String get notificationInexactAlarms =>
+      'Exact alarm access is unavailable. Android may deliver reminders later.';
+
+  @override
+  String get dailySummaryScope => 'All accounts';
+
+  @override
+  String get notificationsSystemBlocked =>
+      'System notification settings are blocking BusyMax. Your reminders are saved.';
+
+  @override
+  String get notificationItemUnavailable =>
+      'This reminder is no longer available. The item may have changed or been removed.';
 }

@@ -226,6 +226,7 @@ void main() {
       database.tasks,
     )..where((row) => row.id.equals('future-task'))).write(
       TasksCompanion(
+        title: const Value('Future report'),
         microsoftReminderDateTime: Value(
           baseNow.add(const Duration(milliseconds: 60)).toIso8601String(),
         ),
@@ -624,6 +625,13 @@ void main() {
                 sentAtUtc: const Value(null),
               ),
             );
+        await (database.update(
+          database.tasks,
+        )..where((row) => row.id.equals('task-1'))).write(
+          TasksCompanion(
+            microsoftReminderDateTime: Value(now.toIso8601String()),
+          ),
+        );
         await scheduler.checkNow();
         final current = await database
             .select(database.notificationSchedule)

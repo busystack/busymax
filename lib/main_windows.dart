@@ -102,8 +102,12 @@ Future<void> main(List<String> arguments) async {
         appUserModelId: buildConfig.windowsAppUserModelId,
         onActivation: activationService.accept,
       );
-      notificationReadiness = const DesktopNotificationReadiness(
+      notificationReadiness = DesktopNotificationReadiness(
         DesktopNotificationReadinessState.available,
+        permissionGranted:
+            await WindowsNotificationBackend.notificationPermission(
+              buildConfig.windowsAppUserModelId,
+            ),
       );
     } on WindowsNotificationInitializationException catch (error) {
       notificationReadiness = DesktopNotificationReadiness(

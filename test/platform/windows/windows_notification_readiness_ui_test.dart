@@ -5,6 +5,35 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  for (final allowed in [true, false, null]) {
+    testWidgets('packaged notification permission is reported as $allowed', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        FluentApp(
+          localizationsDelegates: const [AppLocalizations.delegate],
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: WindowsNotificationReadinessInfoBar(
+            readiness: DesktopNotificationReadiness(
+              DesktopNotificationReadinessState.available,
+              permissionGranted: allowed,
+            ),
+          ),
+        ),
+      );
+      expect(
+        find.text(
+          allowed == true
+              ? 'System settings allow BusyMax notifications.'
+              : allowed == false
+              ? 'System notification settings are blocking BusyMax. Your reminders are saved.'
+              : 'Notification delivery status is unavailable. Review system settings.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('System'), findsOneWidget);
+    });
+  }
   for (final testCase
       in <({DesktopNotificationReadiness readiness, String message})>[
         (

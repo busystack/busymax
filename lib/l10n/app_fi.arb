@@ -1341,5 +1341,15 @@
   "invalidCollectionTimezone": "Anna kelvollinen kalenterin aikavyöhykeasiakirja, joka sisältää VTIMEZONE- ja TZID-tiedot.",
   "invalidCollectionValue": "Korjaa tämä arvo ennen tallentamista.",
   "accountAlreadyConnected": "Tämä tili on jo yhdistetty. Käytä sen uudelleenyhdistämistoimintoa.",
-  "nextcloudRemovalAuthorizationDescription": "BusyMax yrittää myös perua tämän tilin Nextcloud-sovellussalasanan. Paikallinen poisto voi onnistua, vaikka peruminen epäonnistuu."
+  "nextcloudRemovalAuthorizationDescription": "BusyMax yrittää myös perua tämän tilin Nextcloud-sovellussalasanan. Paikallinen poisto voi onnistua, vaikka peruminen epäonnistuu.",
+  "dailySummaryTime": "Päivittäisen yhteenvedon aika",
+  "reminderTimeInPast": "Valitse nykyinen minuutti tai tuleva muistutusaika.",
+  "notificationsBlocked": "Android estää ilmoitukset tai ilmoitusluokan. Muistutuksesi on tallennettu. Tarkista järjestelmän ilmoitusasetukset.",
+  "notificationsAllowed": "Järjestelmäasetukset sallivat BusyMaxin ilmoitukset.",
+  "notificationsUnknown": "Ilmoitusten toimitustila ei ole saatavilla. Tarkista järjestelmäasetukset.",
+  "notificationExactAlarms": "Tarkkojen hälytysten käyttö on sallittu.",
+  "notificationInexactAlarms": "Tarkkojen hälytysten käyttö ei ole sallittu. Android saattaa toimittaa muistutukset myöhemmin.",
+  "dailySummaryScope": "Kaikki tilit",
+  "notificationsSystemBlocked": "Järjestelmän ilmoitusasetukset estävät BusyMaxin ilmoitukset. Muistutuksesi on tallennettu.",
+  "notificationItemUnavailable": "Tämä muistutus ei ole enää saatavilla. Kohdetta on voitu muuttaa tai se on poistettu."
 }

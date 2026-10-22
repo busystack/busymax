@@ -7,6 +7,7 @@
 #include <functional>
 #include <optional>
 #include <utility>
+#include <winrt/Windows.UI.Notifications.h>
 
 #include "flutter/generated_plugin_registrant.h"
 #include "windows_startup_task.h"
@@ -129,6 +130,7 @@ bool FlutterWindow::OnCreate() {
           return;
         }
         if (method == "reportNotificationActivationFailure") {
+          // Forwarding failure is independent of display permission.
           MessageBoxW(
               GetHandle(),
               L"BusyMax could not deliver the selected notification action "
@@ -136,6 +138,21 @@ bool FlutterWindow::OnCreate() {
               L"changed by this process.",
               L"BusyMax notification error", MB_OK | MB_ICONERROR);
           result->Success();
+          return;
+        }
+        if (method == "notificationPermission") {
+          const auto* aumid = std::get_if<std::string>(call.arguments());
+          if (!HasPackageIdentity() || aumid == nullptr || aumid->empty() || aumid->size() > 2048) {
+            result->Success();
+            return;
+          }
+          try {
+            using namespace winrt::Windows::UI::Notifications;
+            const auto notifier = ToastNotificationManager::CreateToastNotifier(winrt::to_hstring(*aumid));
+            result->Success(flutter::EncodableValue(notifier.Setting() == NotificationSetting::Enabled));
+          } catch (...) {
+            result->Success();
+          }
           return;
         }
         if (method == "setHideOnClose") {

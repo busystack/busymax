@@ -3782,4 +3782,42 @@ class AppLocalizationsFi extends AppLocalizations {
   @override
   String get nextcloudRemovalAuthorizationDescription =>
       'BusyMax yrittää myös perua tämän tilin Nextcloud-sovellussalasanan. Paikallinen poisto voi onnistua, vaikka peruminen epäonnistuu.';
+
+  @override
+  String get dailySummaryTime => 'Päivittäisen yhteenvedon aika';
+
+  @override
+  String get reminderTimeInPast =>
+      'Valitse nykyinen minuutti tai tuleva muistutusaika.';
+
+  @override
+  String get notificationsBlocked =>
+      'Android estää ilmoitukset tai ilmoitusluokan. Muistutuksesi on tallennettu. Tarkista järjestelmän ilmoitusasetukset.';
+
+  @override
+  String get notificationsAllowed =>
+      'Järjestelmäasetukset sallivat BusyMaxin ilmoitukset.';
+
+  @override
+  String get notificationsUnknown =>
+      'Ilmoitusten toimitustila ei ole saatavilla. Tarkista järjestelmäasetukset.';
+
+  @override
+  String get notificationExactAlarms =>
+      'Tarkkojen hälytysten käyttö on sallittu.';
+
+  @override
+  String get notificationInexactAlarms =>
+      'Tarkkojen hälytysten käyttö ei ole sallittu. Android saattaa toimittaa muistutukset myöhemmin.';
+
+  @override
+  String get dailySummaryScope => 'Kaikki tilit';
+
+  @override
+  String get notificationsSystemBlocked =>
+      'Järjestelmän ilmoitusasetukset estävät BusyMaxin ilmoitukset. Muistutuksesi on tallennettu.';
+
+  @override
+  String get notificationItemUnavailable =>
+      'Tämä muistutus ei ole enää saatavilla. Kohdetta on voitu muuttaa tai se on poistettu.';
 }

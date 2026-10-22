@@ -679,8 +679,12 @@ class NotificationSchedule extends Table {
   TextColumn get title => text()();
   TextColumn get body => text().nullable()();
   IntColumn get sentAtUtc => integer().nullable()();
+  BoolColumn get sentPrivate => boolean().withDefault(const Constant(false))();
   IntColumn get dismissedAtUtc => integer().nullable()();
   IntColumn get snoozedUntilUtc => integer().nullable()();
+  IntColumn get expiresAtUtc => integer().nullable()();
+  IntColumn get expiredAtUtc => integer().nullable()();
+  IntColumn get deferredUntilUtc => integer().nullable()();
   IntColumn get createdAtLocal => integer()();
   IntColumn get updatedAtLocal => integer()();
 
@@ -691,11 +695,9 @@ class NotificationSchedule extends Table {
 /// Durable Android alarm identity. This maps a mutable logical reminder to a
 /// collision-free platform integer without duplicating calendar/task data.
 class AndroidNotificationMappings extends Table {
-  TextColumn get scheduleId => text().references(
-    NotificationSchedule,
-    #id,
-    onDelete: KeyAction.cascade,
-  )();
+  // Native cleanup must outlive source/account cascades. Reconciliation removes
+  // this identity only after Android confirms successful cancellation.
+  TextColumn get scheduleId => text()();
   TextColumn get generation => text()();
   IntColumn get platformId => integer().unique()();
   IntColumn get scheduledAtUtc => integer()();
@@ -717,6 +719,31 @@ class AndroidDailySummarySchedules extends Table {
   TextColumn get state => text().withDefault(const Constant('scheduled'))();
   IntColumn get updatedAtUtc => integer()();
 
+  @override
+  Set<Column<Object>> get primaryKey => {localDate};
+}
+
+/// Durable deduplication and retry state for actionable account issues. Keep
+/// account IDs after removal until the corresponding native post is withdrawn.
+class NotificationIssues extends Table {
+  TextColumn get id => text()();
+  TextColumn get accountId => text().nullable()();
+  TextColumn get kind => text()();
+  TextColumn get revision => text()();
+  TextColumn get submittedRevision => text().nullable()();
+  BoolColumn get submittedPrivate =>
+      boolean().withDefault(const Constant(false))();
+  IntColumn get retryAtUtc => integer().nullable()();
+  IntColumn get nativeId => integer().nullable()();
+  BoolColumn get cleanupPending =>
+      boolean().withDefault(const Constant(false))();
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+class DailySummaryHistory extends Table {
+  TextColumn get localDate => text()();
+  IntColumn get consumedAtUtc => integer()();
   @override
   Set<Column<Object>> get primaryKey => {localDate};
 }

@@ -44,6 +44,8 @@ part 'daos/tasks_dao.dart';
     NotificationSchedule,
     AndroidNotificationMappings,
     AndroidDailySummarySchedules,
+    NotificationIssues,
+    DailySummaryHistory,
     LocationResolutions,
   ],
   daos: [TaskListsDao, TasksDao, PendingOpsDao, SyncRunsDao],

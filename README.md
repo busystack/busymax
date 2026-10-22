@@ -109,6 +109,7 @@ Account, provider, and data information:
 - [Apple iCloud Calendar setup](docs/apple_icloud_setup.md)
 - [Nextcloud Calendar and Tasks setup](docs/nextcloud_setup.md)
 - [Privacy and data map](docs/privacy_data_map.md)
+- [Notification delivery and recovery](docs/notifications.md)
 - [Android setup and OAuth registration](docs/android_setup.md)
 
 Development and maintenance:

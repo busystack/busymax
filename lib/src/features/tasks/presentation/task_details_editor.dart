@@ -1279,6 +1279,17 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       widget.capabilities,
       localTimeZone: widget.localTimeZone,
     );
+    if (draft.hasNewPastReminder(
+      original: widget.isCreate ? null : _editingTask,
+      capabilities: widget.capabilities,
+      localTimeZone: widget.localTimeZone,
+      now: DateTime.now(),
+    )) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(context.l10n.reminderTimeInPast)));
+      return;
+    }
     setState(() {
       _saving = true;
     });
@@ -1883,14 +1894,22 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
           ),
           enabled: _canWrite,
           onTap: _canWrite
-              ? () => _updateDraft(
-                  draft.copyWith(
-                    microsoftReminderEnabled: true,
-                    microsoftReminderDate:
-                        draft.dueDate ?? encodeGoogleDateOnly(DateTime.now()),
-                    microsoftReminderTime: '09:00',
-                  ),
-                )
+              ? () {
+                  final value = TaskDetailsDraft.newReminderDefault(
+                    dueDate: draft.dueDate,
+                    timeZone:
+                        draft.microsoftReminderTimeZone ?? widget.localTimeZone,
+                    now: DateTime.now(),
+                  );
+                  _updateDraft(
+                    draft.copyWith(
+                      microsoftReminderEnabled: true,
+                      microsoftReminderDate: encodeGoogleDateOnly(value),
+                      microsoftReminderTime:
+                          '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}',
+                    ),
+                  );
+                }
               : null,
         ),
       ];

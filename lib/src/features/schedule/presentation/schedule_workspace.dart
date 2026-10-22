@@ -1,3 +1,5 @@
+import 'package:intl/intl.dart';
+
 import '../../sync/account_recovery_feedback.dart';
 import '../../../l10n/oauth_error_description.dart';
 
@@ -7,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:yaru/yaru.dart';
 
 import '../../../app/app_bootstrap.dart';
 import '../../../app/busymax_about_dialog.dart';
@@ -20,6 +23,7 @@ import '../../../app/busymax_shortcuts.dart';
 import '../../../app/busymax_surface_colors.dart';
 import '../../../app/busymax_window_close.dart';
 import '../../../app/linux/linux_page_frame.dart';
+import '../../../app/linux/linux_header_style.dart';
 import '../../../core/logging/redacting_logger.dart';
 import '../../../calendar_providers/calendar_mutation.dart';
 import '../../../features/accounts/data/accounts_repository.dart';
@@ -162,6 +166,7 @@ class ScheduleWorkspace extends ConsumerStatefulWidget {
     super.key,
     this.initialScope = ScheduleScope.all,
     this.initialDate,
+    this.notificationDeadline,
     this.initialTaskAccountId,
     this.initialTaskListId,
     this.initialTaskId,
@@ -171,6 +176,7 @@ class ScheduleWorkspace extends ConsumerStatefulWidget {
   final ScheduleScope initialScope;
   @visibleForTesting
   final DateTime? initialDate;
+  final DateTime? notificationDeadline;
   final String? initialTaskAccountId;
   final String? initialTaskListId;
   final String? initialTaskId;
@@ -298,7 +304,11 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     // save. Requery when those rows arrive so the month view updates itself.
     ref.watch(scheduleDataRevisionProvider);
     final settings = ref.watch(appSettingsControllerProvider);
-    _syncModeFromSettings(settings.scheduleViewMode);
+    if (widget.notificationDeadline == null) {
+      _syncModeFromSettings(settings.scheduleViewMode);
+    } else {
+      _mode = ScheduleViewMode.agenda;
+    }
     final range = _range(context);
     final searchActive = _searchActive;
     final accountsState = ref.watch(accountsStreamProvider);
@@ -421,7 +431,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                             _scope,
                           );
                     final items =
-                        !searchActive && _mode == ScheduleViewMode.agenda
+                        widget.notificationDeadline == null &&
+                            !searchActive &&
+                            _mode == ScheduleViewMode.agenda
                         ? _agendaItems(scopedItems, range)
                         : scopedItems;
                     _latestItems = items;
@@ -448,7 +460,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                                   showNoDateTasks: false,
                                 ),
                               );
-                    final displayRange = searchActive
+                    final displayRange = widget.notificationDeadline != null
+                        ? ScheduleRange.day(widget.notificationDeadline!)
+                        : searchActive
                         ? _searchCriteria?.range ??
                               _rangeForSearchResults(items, range)
                         : range;
@@ -456,9 +470,11 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                         ? ScheduleViewMode.agenda
                         : _mode;
                     _consumePendingCommand(visibleSources, accounts, sources);
-                    final canShowSidebar = BusyMaxLayoutRules.showSidebar(
-                      MediaQuery.sizeOf(context).width,
-                    );
+                    final canShowSidebar =
+                        widget.notificationDeadline == null &&
+                        BusyMaxLayoutRules.showSidebar(
+                          MediaQuery.sizeOf(context).width,
+                        );
                     Widget buildSidebar() {
                       if (searchActive && _searchCriteria != null) {
                         return SizedBox(
@@ -494,49 +510,53 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                       );
                     }
 
-                    final header = ScheduleToolbar(
-                      mode: _mode,
-                      range: range,
-                      selectedDate: _selectedDate,
-                      onToday: _goToToday,
-                      onPrevious: _previous,
-                      onNext: _next,
-                      onModeChanged: _setMode,
-                      canCreateEvent: writableSources.isNotEmpty,
-                      canCreateTask: canCreateTask,
-                      onCreateEvent: () => unawaited(
-                        _openNewEvent(
-                          writableSources,
-                          _defaultSelectedDateStart(),
-                        ),
-                      ),
-                      onCreateTask: () => unawaited(
-                        _openNewTask(
-                          accounts,
-                          due: _day(_defaultSelectedDateStart()),
-                        ),
-                      ),
-                      createMenuController: _createMenuController,
-                      onRefresh: () => unawaited(_refreshAll()),
-                      canRefresh: accounts.isNotEmpty,
-                      canShowSidebar: canShowSidebar,
-                      sidebarVisible: canShowSidebar && !_sidebarCollapsed,
-                      onToggleSidebar: () => _handleHeaderAction(
-                        BusyMaxHeaderAction.sidebarToggle,
-                      ),
-                      onSearch: () =>
-                          _handleHeaderAction(BusyMaxHeaderAction.search),
-                      searchActive: searchActive,
-                      searchController: _searchController,
-                      searchFocusRequest: _fallbackSearchFocusRequest,
-                      onSearchChanged: _setSearchQuery,
-                      onClearSearch: _clearSearchQuery,
-                      onSearchFilters:
-                          searchActive && (!canShowSidebar || _sidebarCollapsed)
-                          ? _showSearchFilters
-                          : null,
-                      onMenuSelected: _handleToolbarMenu,
-                    );
+                    final header = widget.notificationDeadline != null
+                        ? _summaryHeader()
+                        : ScheduleToolbar(
+                            mode: _mode,
+                            range: range,
+                            selectedDate: _selectedDate,
+                            onToday: _goToToday,
+                            onPrevious: _previous,
+                            onNext: _next,
+                            onModeChanged: _setMode,
+                            canCreateEvent: writableSources.isNotEmpty,
+                            canCreateTask: canCreateTask,
+                            onCreateEvent: () => unawaited(
+                              _openNewEvent(
+                                writableSources,
+                                _defaultSelectedDateStart(),
+                              ),
+                            ),
+                            onCreateTask: () => unawaited(
+                              _openNewTask(
+                                accounts,
+                                due: _day(_defaultSelectedDateStart()),
+                              ),
+                            ),
+                            createMenuController: _createMenuController,
+                            onRefresh: () => unawaited(_refreshAll()),
+                            canRefresh: accounts.isNotEmpty,
+                            canShowSidebar: canShowSidebar,
+                            sidebarVisible:
+                                canShowSidebar && !_sidebarCollapsed,
+                            onToggleSidebar: () => _handleHeaderAction(
+                              BusyMaxHeaderAction.sidebarToggle,
+                            ),
+                            onSearch: () =>
+                                _handleHeaderAction(BusyMaxHeaderAction.search),
+                            searchActive: searchActive,
+                            searchController: _searchController,
+                            searchFocusRequest: _fallbackSearchFocusRequest,
+                            onSearchChanged: _setSearchQuery,
+                            onClearSearch: _clearSearchQuery,
+                            onSearchFilters:
+                                searchActive &&
+                                    (!canShowSidebar || _sidebarCollapsed)
+                                ? _showSearchFilters
+                                : null,
+                            onMenuSelected: _handleToolbarMenu,
+                          );
                     final main = BusyMaxBinaryPresentation(
                       alternateActive: searchActive,
                       child: Listener(
@@ -602,7 +622,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                           onPrevious: _previous,
                           onNext: _next,
                           onAgendaLoadMore:
-                              !searchActive && _mode == ScheduleViewMode.agenda
+                              widget.notificationDeadline == null &&
+                                  !searchActive &&
+                                  _mode == ScheduleViewMode.agenda
                               ? _loadMoreAgendaDays
                               : null,
                           hasMoreAgendaOverdueTasks:
@@ -614,11 +636,15 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                               _mode == ScheduleViewMode.agenda &&
                               (snapshot.data?.hasMoreNoDateTasks ?? false),
                           onAgendaLoadMoreOverdue:
-                              !searchActive && _mode == ScheduleViewMode.agenda
+                              widget.notificationDeadline == null &&
+                                  !searchActive &&
+                                  _mode == ScheduleViewMode.agenda
                               ? _loadMoreAgendaOverdueTasks
                               : null,
                           onAgendaLoadMoreNoDate:
-                              !searchActive && _mode == ScheduleViewMode.agenda
+                              widget.notificationDeadline == null &&
+                                  !searchActive &&
+                                  _mode == ScheduleViewMode.agenda
                               ? _loadMoreAgendaNoDateTasks
                               : null,
                           onItemSelected: (context, item, [globalPosition]) =>
@@ -634,8 +660,12 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                           onTaskCompletionChanged: _setTaskCompleted,
                           onChecklistItemCompletionChanged:
                               _setChecklistItemCompleted,
-                          canCreateEvent: writableSources.isNotEmpty,
-                          canCreateTask: canCreateTask,
+                          canCreateEvent:
+                              widget.notificationDeadline == null &&
+                              writableSources.isNotEmpty,
+                          canCreateTask:
+                              widget.notificationDeadline == null &&
+                              canCreateTask,
                           searchActive: searchActive,
                           searchCriteria: _searchCriteria,
                           searchQuery: _searchQuery,
@@ -655,9 +685,11 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                       backgroundColor: BusyMaxSurfaceColors.of(context).window,
                       body: LayoutBuilder(
                         builder: (context, constraints) {
-                          final showSidebar = BusyMaxLayoutRules.showSidebar(
-                            constraints.maxWidth,
-                          );
+                          final showSidebar =
+                              widget.notificationDeadline == null &&
+                              BusyMaxLayoutRules.showSidebar(
+                                constraints.maxWidth,
+                              );
                           _latestCanShowSidebar = showSidebar;
                           final sidebar = BusyMaxBinaryPresentation(
                             alternateActive:
@@ -689,7 +721,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                               : true;
                           final frame = LinuxPageFrame(
                             header: header,
-                            body: cloudCoverage != true
+                            body:
+                                widget.notificationDeadline == null &&
+                                    cloudCoverage != true
                                 ? Column(
                                     children: [
                                       ListTile(
@@ -712,7 +746,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                                   )
                                 : main,
                             sidebarHeader: const BusyMaxLinuxBrandHeader(),
-                            sidebarBody: sidebar,
+                            sidebarBody: widget.notificationDeadline == null
+                                ? sidebar
+                                : null,
                             sidebarAvailable: showSidebar,
                             sidebarExpanded: !_sidebarCollapsed,
                             sidebarTransitionGeneration:
@@ -761,6 +797,24 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       ),
     );
   }
+
+  Widget _summaryHeader() => BusyMaxLinuxHeaderLayout(
+    leading: BusyMaxLinuxHeaderControlGroup(
+      children: [
+        YaruIconButton(
+          key: const ValueKey('notification-summary-close'),
+          icon: const Icon(Icons.close),
+          tooltip: context.l10n.close,
+          onPressed: () => GoRouter.of(context).pop(),
+        ),
+      ],
+    ),
+    title: Text(
+      '${context.l10n.dueDate} · ${DateFormat.yMMMd(context.l10n.localeName).format(widget.notificationDeadline!)}',
+      style: busyMaxLinuxHeaderTitleStyle(context),
+    ),
+    trailing: const SizedBox.shrink(),
+  );
 
   void _handleToolbarMenu(ScheduleToolbarMenuAction action) {
     switch (action) {
@@ -815,6 +869,23 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   }
 
   void _dispatchHeaderAction(BusyMaxHeaderAction action) {
+    if (widget.notificationDeadline != null &&
+        const {
+          BusyMaxHeaderAction.sidebarToggle,
+          BusyMaxHeaderAction.search,
+          BusyMaxHeaderAction.today,
+          BusyMaxHeaderAction.previous,
+          BusyMaxHeaderAction.next,
+          BusyMaxHeaderAction.viewModeDay,
+          BusyMaxHeaderAction.viewModeWeek,
+          BusyMaxHeaderAction.viewModeMonth,
+          BusyMaxHeaderAction.viewModeYear,
+          BusyMaxHeaderAction.viewModeAgenda,
+          BusyMaxHeaderAction.createEvent,
+          BusyMaxHeaderAction.createTask,
+        }.contains(action)) {
+      return;
+    }
     switch (action) {
       case BusyMaxHeaderAction.back:
         return;
@@ -1027,6 +1098,16 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     required Set<String> sourceIds,
     required Set<ScheduleTaskListKey> taskListKeys,
   }) async {
+    if (widget.notificationDeadline != null) {
+      return _ScheduleItemsResult(
+        items: await repository.listAllTasks(
+          filters: ScheduleFilters(
+            includeCalendarEvents: false,
+            notificationDeadline: widget.notificationDeadline,
+          ),
+        ),
+      );
+    }
     if (searchActive) {
       final criteria = _searchCriteria;
       if (criteria == null) return const _ScheduleItemsResult(items: []);
@@ -1264,7 +1345,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   }
 
   void _setMode(ScheduleViewMode mode, {DateTime? agendaDate}) {
-    if (_searchActive) return;
+    if (_searchActive || widget.notificationDeadline != null) return;
     if (_mode == mode) {
       if (mode == ScheduleViewMode.agenda && agendaDate != null) {
         _setDate(agendaDate);
@@ -1396,6 +1477,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     if (!_canHandleRouteShortcut()) {
       return false;
     }
+    if (widget.notificationDeadline != null) {
+      return command == _ScheduleShortcut.dismissSearch;
+    }
     return switch (command) {
       _ScheduleShortcut.search => true,
       _ScheduleShortcut.sidebar => _latestCanShowSidebar || _searchActive,
@@ -1425,7 +1509,11 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       case _ScheduleShortcut.sidebar:
         _handleHeaderAction(BusyMaxHeaderAction.sidebarToggle);
       case _ScheduleShortcut.dismissSearch:
-        _closeSearch();
+        if (widget.notificationDeadline != null) {
+          GoRouter.of(context).pop();
+        } else {
+          _closeSearch();
+        }
       case _ScheduleShortcut.previous:
         _previous();
       case _ScheduleShortcut.next:

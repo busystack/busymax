@@ -11,6 +11,7 @@ import 'package:busymax/src/features/calendar/presentation/event_editor_draft.da
 import 'package:busymax/src/features/calendar/data/calendar_event_detail.dart';
 import 'package:busymax/src/features/calendar/domain/event_timing_policy.dart';
 import 'package:busymax/src/features/calendar/domain/google_status_event.dart';
+import 'package:busymax/src/features/notifications/notification_schedule_service.dart';
 import 'package:busymax/src/features/maps/data/location_resolution_repository.dart';
 import 'package:busymax/src/features/maps/domain/geographic_point.dart';
 import 'package:busymax/src/features/maps/domain/location_result.dart';
@@ -21,7 +22,7 @@ import 'package:busymax/src/schedule/schedule_item.dart';
 import 'package:busymax/src/schedule/schedule_range.dart';
 import 'package:busymax/src/schedule/schedule_repository.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
-import 'package:drift/drift.dart';
+import 'package:drift/drift.dart' hide isNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -2247,15 +2248,47 @@ void main() {
     expect(schedulerCalls, 0);
   });
 
-  test('disabling source reminders removes its scheduled reminders', () async {
-    await _seedScheduledEvent(repository, database);
-    schedulerCalls = 0;
+  test(
+    'disabling source reminders retains an inactive alarm identity',
+    () async {
+      await _seedScheduledEvent(repository, database);
+      final original = await database
+          .select(database.notificationSchedule)
+          .getSingle();
+      schedulerCalls = 0;
 
-    await repository.setSourceRemindersEnabled(_sourceId, false);
+      await repository.setSourceRemindersEnabled(_sourceId, false);
 
-    expect(await database.select(database.notificationSchedule).get(), isEmpty);
-    expect(schedulerCalls, 1);
-  });
+      final retained = await database
+          .select(database.notificationSchedule)
+          .getSingle();
+      expect(retained.id, original.id);
+      expect(retained.generation, original.generation);
+      expect(retained.sentAtUtc, isNull);
+      expect(retained.title, isEmpty);
+      expect(
+        await NotificationScheduleService(
+          database: database,
+          nowUtc: () => DateTime.utc(2026, 6, 4),
+        ).isReminderSourceEligible(retained),
+        isFalse,
+      );
+      expect(schedulerCalls, 1);
+      await repository.setSourceRemindersEnabled(_sourceId, true);
+      final enabled = await database
+          .select(database.notificationSchedule)
+          .getSingle();
+      expect(enabled.id, original.id);
+      expect(enabled.generation, original.generation);
+      expect(
+        await NotificationScheduleService(
+          database: database,
+          nowUtc: () => DateTime.utc(2026, 6, 4),
+        ).isReminderSourceEligible(enabled),
+        isTrue,
+      );
+    },
+  );
 
   test('deleting a source immediately removes its reminders', () async {
     await _seedScheduledEvent(repository, database);

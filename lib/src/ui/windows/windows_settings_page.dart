@@ -490,7 +490,8 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
         ),
         const SizedBox(height: 20),
         _SectionTitle(l10n.notifications),
-        if (!notificationReadiness.canNotify) ...[
+        if (!notificationReadiness.canNotify ||
+            notificationReadiness.permissionGranted == null) ...[
           WindowsNotificationReadinessInfoBar(readiness: notificationReadiness),
           const SizedBox(height: 8),
         ],
@@ -518,9 +519,23 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
               _SettingsRow(
                 icon: BusyMaxGlyph.today,
                 title: l10n.notifyDueToday,
+                subtitle: l10n.dailySummaryScope,
                 child: ToggleSwitch(
                   checked: settings.notifyDueToday,
                   onChanged: controller.setNotifyDueToday,
+                ),
+              ),
+              const Divider(),
+              _SettingsRow(
+                icon: BusyMaxGlyph.reminder,
+                title: l10n.dailySummaryTime,
+                child: WindowsTimePicker(
+                  selected: _timeStringDateTime(
+                    settings.dueTodayNotificationTime,
+                  ),
+                  onChanged: (value) => controller.setDueTodayNotificationTime(
+                    _timeString(value),
+                  ),
                 ),
               ),
               const Divider(),
@@ -1231,6 +1246,26 @@ class WindowsNotificationReadinessInfoBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    if (readiness.state == DesktopNotificationReadinessState.available &&
+        !readiness.deliveryFailed) {
+      return InfoBar(
+        title: Text(l10n.notifications),
+        content: Text(
+          readiness.permissionGranted == false
+              ? l10n.notificationsSystemBlocked
+              : readiness.permissionGranted == true
+              ? l10n.notificationsAllowed
+              : l10n.notificationsUnknown,
+        ),
+        severity: readiness.permissionGranted == false
+            ? InfoBarSeverity.warning
+            : InfoBarSeverity.info,
+        action: Button(
+          child: Text(l10n.settingsSystem),
+          onPressed: () => launchUrl(Uri.parse('ms-settings:notifications')),
+        ),
+      );
+    }
     final unpackaged =
         readiness.state ==
         DesktopNotificationReadinessState.unavailableUnpackaged;

@@ -19,10 +19,12 @@ class DiagnosticsPanel extends ConsumerWidget {
   const DiagnosticsPanel({
     super.key,
     this.scrollable = true,
+    this.accountId,
     this.sectionHeaderStyle,
   });
 
   final bool scrollable;
+  final String? accountId;
   final TextStyle? sectionHeaderStyle;
 
   @override
@@ -83,7 +85,9 @@ class DiagnosticsPanel extends ConsumerWidget {
       StreamBuilder<List<PendingOp>>(
         stream: database.pendingOpsDao.watchAllBlockedOps(),
         builder: (context, snapshot) {
-          final ops = snapshot.data ?? const <PendingOp>[];
+          final ops = (snapshot.data ?? const <PendingOp>[])
+              .where((op) => accountId == null || op.accountId == accountId)
+              .toList();
           if (ops.isEmpty) {
             return Text(
               accounts.isEmpty

@@ -1341,5 +1341,15 @@
   "invalidCollectionTimezone": "Введите корректный документ часового пояса с VTIMEZONE и TZID.",
   "invalidCollectionValue": "Исправьте это значение перед сохранением.",
   "accountAlreadyConnected": "Этот аккаунт уже подключён. Используйте его действие переподключения.",
-  "nextcloudRemovalAuthorizationDescription": "BusyMax также попытается отозвать пароль приложения Nextcloud этого аккаунта. Локальное удаление может завершиться, даже если отзыв не удался."
+  "nextcloudRemovalAuthorizationDescription": "BusyMax также попытается отозвать пароль приложения Nextcloud этого аккаунта. Локальное удаление может завершиться, даже если отзыв не удался.",
+  "dailySummaryTime": "Время ежедневной сводки",
+  "reminderTimeInPast": "Выберите текущую минуту или будущее время напоминания.",
+  "notificationsBlocked": "Android блокирует уведомления или их категорию. Напоминания сохранены. Проверьте системные настройки уведомлений.",
+  "notificationsAllowed": "Системные настройки разрешают уведомления BusyMax.",
+  "notificationsUnknown": "Состояние доставки недоступно. Проверьте системные настройки.",
+  "notificationExactAlarms": "Доступ к точным будильникам включён.",
+  "notificationInexactAlarms": "Доступ к точным будильникам недоступен. Android может доставлять напоминания позже.",
+  "dailySummaryScope": "Все учётные записи",
+  "notificationsSystemBlocked": "Системные настройки уведомлений блокируют BusyMax. Напоминания сохранены.",
+  "notificationItemUnavailable": "Это напоминание больше недоступно. Возможно, элемент был изменён или удалён."
 }

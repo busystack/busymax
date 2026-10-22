@@ -14,7 +14,8 @@ const busyMaxNotificationActivationServerArgument =
     '----AppNotificationActivationServer';
 const busyMaxNotificationForwarderArgument = '--busymax-notification-forwarder';
 
-final class WindowsNotificationBackend implements DesktopNotificationBackend {
+final class WindowsNotificationBackend
+    implements DesktopNotificationBackend, DesktopNotificationIdentitySource {
   WindowsNotificationBackend._({
     required WindowsNotificationPluginAdapter plugin,
     required void Function(DesktopActivation activation) onActivation,
@@ -30,6 +31,20 @@ final class WindowsNotificationBackend implements DesktopNotificationBackend {
       return await channel.invokeMethod<bool>('hasPackageIdentity') ?? false;
     } on MissingPluginException {
       return false;
+    }
+  }
+
+  static Future<bool?> notificationPermission(
+    String appUserModelId, {
+    MethodChannel channel = const MethodChannel(windowsDesktopChannelName),
+  }) async {
+    try {
+      return await channel.invokeMethod<bool>(
+        'notificationPermission',
+        appUserModelId,
+      );
+    } on Object {
+      return null;
     }
   }
 
@@ -103,6 +118,15 @@ final class WindowsNotificationBackend implements DesktopNotificationBackend {
   final WindowsNotificationPluginAdapter _plugin;
   final void Function(DesktopActivation activation) _onActivation;
   final WindowsNotificationIdStore? _idStore;
+  final Set<String> _cancelledReminders = {};
+
+  @override
+  Future<Set<String>> knownReminderDeliveryIds() async => {
+    for (final id in _idStore?.knownStableIds ?? <String>{})
+      if (!_cancelledReminders.contains(id) &&
+          (id.startsWith('event|') || id.startsWith('task|')))
+        id,
+  };
 
   @override
   Future<void> notify(
@@ -117,6 +141,7 @@ final class WindowsNotificationBackend implements DesktopNotificationBackend {
       'accountId',
       'sourceId',
       'itemId',
+      'date',
     };
     final requestPayload = request.payload ?? const <String, String>{};
     if (request.stableId.isEmpty ||
@@ -133,7 +158,7 @@ final class WindowsNotificationBackend implements DesktopNotificationBackend {
           (entry) =>
               !permittedPayloadKeys.contains(entry.key) ||
               entry.value.isEmpty ||
-              entry.value.length > 2048,
+              utf8.encode(entry.value).length > 2048,
         )) {
       throw ArgumentError(
         'Windows notification activation data must contain only bounded '
@@ -183,7 +208,10 @@ final class WindowsNotificationBackend implements DesktopNotificationBackend {
     final scheduleId = parsed['notificationScheduleId'];
     final route = parsed['notificationRoute'];
     if (route != null
-        ? stableId != route
+        ? stableId !=
+              (parsed['accountId'] == null
+                  ? route
+                  : '$route|${parsed['accountId']}')
         : scheduleId == null ||
               stableId !=
                   notificationDeliveryId(
@@ -239,6 +267,7 @@ final class WindowsNotificationBackend implements DesktopNotificationBackend {
       );
     }
     await _plugin.cancel(id: await idStore.idFor(stableId));
+    _cancelledReminders.add(stableId);
   }
 
   @override
