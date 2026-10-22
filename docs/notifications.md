@@ -107,6 +107,12 @@ active or possibly consumed due post is withdrawn without speculative redelivery
 Disabling a category withdraws its visible posts and pending registrations.
 Re-enabling allows only still-relevant, unconsumed reminders. It does not revive
 a previously visible withdrawn post. This is separate from privacy handling.
+The known-pending replacement fact survives the outer withdrawal marker during
+failed cleanup. Re-enabling before retry completes cannot infer delivery or
+dismissal from the absence BusyMax caused; cleanup retries before replacement
+using the retained native ID and generation. Temporary native blocking preserves
+that fact while readiness reports the restriction. See the
+[withdrawal retry validation](android-notification-withdrawal-validation.md).
 
 Android engines read authoritative persisted settings inside the notification
 gate and revalidate notification policy around native submission. Foreground

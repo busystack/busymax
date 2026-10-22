@@ -1438,6 +1438,179 @@ void main() {
     }
   }
 
+  for (final scenario in [
+    (
+      historyUnavailable: false,
+      delivered: false,
+      activeOnRecovery: false,
+      channelBlocked: false,
+    ),
+    (
+      historyUnavailable: true,
+      delivered: false,
+      activeOnRecovery: false,
+      channelBlocked: false,
+    ),
+    (
+      historyUnavailable: false,
+      delivered: false,
+      activeOnRecovery: true,
+      channelBlocked: false,
+    ),
+    (
+      historyUnavailable: false,
+      delivered: true,
+      activeOnRecovery: false,
+      channelBlocked: false,
+    ),
+    (
+      historyUnavailable: true,
+      delivered: true,
+      activeOnRecovery: false,
+      channelBlocked: false,
+    ),
+    (
+      historyUnavailable: false,
+      delivered: false,
+      activeOnRecovery: false,
+      channelBlocked: true,
+    ),
+    (
+      historyUnavailable: true,
+      delivered: false,
+      activeOnRecovery: false,
+      channelBlocked: true,
+    ),
+  ]) {
+    test(
+      'disabled-category withdrawal retry preserves replacement meaning $scenario',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'busymax-withdrawal-',
+        );
+        addTearDown(() => directory.delete(recursive: true));
+        final peer = await shareDatabase(directory);
+        final clock = DateTime.utc(2026, 6, 8, 8, 56);
+        await _insertReminder(
+          database,
+          generation: 'withdrawal-race',
+          scheduledAt: clock.subtract(const Duration(minutes: 1)),
+        );
+        plugin.activeQueryFails = scenario.historyUnavailable;
+        plugin.registrationBarrier = Completer<void>();
+        // Cancellation #1 removes the newly registered alarm. Cleanup's second
+        // cancellation fails after persisting its outer withdrawal obligation.
+        plugin.cancellationFailureAttempts.add(2);
+        if (scenario.delivered) {
+          plugin.beforePendingQuery = () {
+            if (plugin.pendingIds.isNotEmpty) {
+              plugin.activeIds.addAll(plugin.pendingIds);
+              plugin.pendingIds.clear();
+            }
+          };
+        }
+        final original = service(clock: () => clock);
+        await original.initialize(timeZoneId: 'Etc/UTC');
+        final registering = original.reconcile();
+        await plugin.registrationStarted.future;
+        settings = settings.copyWith(notifyEventReminders: false);
+        plugin.registrationBarrier!.complete();
+        await expectLater(registering, throwsStateError);
+        plugin.beforePendingQuery = null;
+
+        expect(plugin.scheduled, hasLength(1));
+        final nativeId = plugin.scheduled.single.id;
+        expect(plugin.cancelledIds, [nativeId, nativeId]);
+        expect(plugin.pendingIds, isEmpty);
+        expect(plugin.activeIds, isEmpty);
+        final withdrawing = await peer
+            .select(peer.androidNotificationMappings)
+            .getSingle();
+        expect(withdrawing.platformId, nativeId);
+        expect(withdrawing.generation, 'withdrawal-race');
+        expect(
+          withdrawing.state,
+          startsWith(
+            scenario.delivered
+                ? 'withdrawing:registering:'
+                : 'withdrawing:replacing:scheduled:',
+          ),
+        );
+        final beforeRecovery = await peer
+            .select(peer.notificationSchedule)
+            .getSingle();
+        expect(
+          beforeRecovery.sentAtUtc,
+          scenario.delivered ? isNotNull : isNull,
+        );
+        expect(beforeRecovery.dismissedAtUtc, isNull);
+
+        settings = settings.copyWith(notifyEventReminders: true);
+        if (scenario.activeOnRecovery) plugin.activeIds.add(nativeId);
+        final restarted = AndroidNotificationService(
+          database: peer,
+          settings: () => settings,
+          backend: plugin,
+          exactAlarmCapability: () async => false,
+          now: () => clock,
+        );
+        await restarted.initialize(timeZoneId: 'Etc/UTC');
+        if (scenario.channelBlocked) {
+          capabilities['reminders'] = false;
+          await restarted.reconcile();
+          expect(plugin.scheduled, hasLength(1));
+          expect(restarted.readiness.value.remindersReady, isFalse);
+          final blocked = await peer
+              .select(peer.notificationSchedule)
+              .getSingle();
+          expect(blocked.sentAtUtc, isNull);
+          expect(blocked.dismissedAtUtc, isNull);
+          capabilities['reminders'] = true;
+        }
+        await restarted.reconcile();
+        expect(restarted.readiness.value.remindersReady, isTrue);
+        final consumed = scenario.delivered || scenario.activeOnRecovery;
+        var row = await peer.select(peer.notificationSchedule).getSingle();
+        expect(row.generation, 'withdrawal-race');
+        expect(row.sentAtUtc, consumed ? isNotNull : isNull);
+        if (!consumed) expect(row.dismissedAtUtc, isNull);
+        expect(plugin.scheduled, hasLength(consumed ? 1 : 2));
+        expect(plugin.pendingIds, consumed ? isEmpty : equals({nativeId}));
+        if (!consumed) {
+          final replacement = await peer
+              .select(peer.androidNotificationMappings)
+              .getSingle();
+          expect(replacement.platformId, nativeId);
+          expect(replacement.generation, withdrawing.generation);
+          expect(replacement.state, startsWith('scheduled:v3:normal:'));
+          expect(plugin.scheduled.last.id, nativeId);
+          expect(plugin.scheduled.last.payload, plugin.scheduled.first.payload);
+        }
+        await restarted.reconcile();
+        plugin.activeQueryFails = false;
+        await restarted.reconcile();
+        expect(plugin.scheduled, hasLength(consumed ? 1 : 2));
+        row = await peer.select(peer.notificationSchedule).getSingle();
+        if (!consumed) {
+          expect(row.sentAtUtc, isNull);
+          expect(row.dismissedAtUtc, isNull);
+          plugin.pendingIds.clear();
+          plugin.activeIds.add(nativeId);
+          await restarted.reconcile();
+          expect(
+            (await peer.select(peer.notificationSchedule).getSingle())
+                .sentAtUtc,
+            isNotNull,
+          );
+          expect(plugin.scheduled, hasLength(2));
+        }
+        final source = await peer.select(peer.calendarEvents).getSingle();
+        expect(source.isCancelled, isFalse);
+        expect(source.isDeleted, isFalse);
+      },
+    );
+  }
+
   test(
     'a visible summary changes count and privacy silently without a new alarm',
     () async {
@@ -1765,6 +1938,7 @@ class _StatefulNotificationPlugin implements AndroidNotificationBackend {
   shown = [];
   int cancellationFailuresRemaining = 0;
   int cancellationFailuresAfterRemoval = 0;
+  final cancellationFailureAttempts = <int>{};
   bool permissionGranted = true;
   Completer<void>? registrationBarrier;
   Completer<void>? showBarrier;
@@ -1806,6 +1980,9 @@ class _StatefulNotificationPlugin implements AndroidNotificationBackend {
   @override
   Future<void> cancel({required int id, String? tag}) async {
     cancelledIds.add(id);
+    if (cancellationFailureAttempts.remove(cancelledIds.length)) {
+      throw StateError('cancel failed on requested attempt');
+    }
     if (cancellationFailuresRemaining > 0) {
       cancellationFailuresRemaining--;
       throw StateError('cancel failed');

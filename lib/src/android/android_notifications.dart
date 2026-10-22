@@ -859,7 +859,7 @@ final class AndroidNotificationService
       if (known?.generation == row.generation &&
           (activeIds.contains(known!.platformId) ||
               !activeStateKnown &&
-                  !known.state.startsWith('replacing:') &&
+                  !_isPendingReplacement(known.state) &&
                   !pendingIds.contains(known.platformId) &&
                   applyAndroidQuietHours(_effectiveAt(row), settings) <=
                       nowMillis) &&
@@ -917,13 +917,13 @@ final class AndroidNotificationService
           mappingMatchesGeneration &&
           (activeIds.contains(mapping!.platformId) ||
               (!activeStateKnown &&
-                  !mapping.state.startsWith('replacing:') &&
+                  !_isPendingReplacement(mapping.state) &&
                   !remainsPending &&
                   effectiveAt <= nowMillis));
       if (mappingMatchesGeneration &&
           mapping!.state != 'blocked' &&
           !mapping.state.startsWith('registering:') &&
-          !mapping.state.startsWith('replacing:') &&
+          !_isPendingReplacement(mapping.state) &&
           effectiveAt <= nowMillis &&
           !remainsPending &&
           !remainsDisplayed &&
@@ -1042,7 +1042,7 @@ final class AndroidNotificationService
           sameGeneration &&
           (activeIds.contains(mapping!.platformId) ||
               (!activeStateKnown &&
-                  !mapping.state.startsWith('replacing:') &&
+                  !_isPendingReplacement(mapping.state) &&
                   !pendingIds.contains(mapping.platformId) &&
                   effectiveAt <= nowMillis));
       final unchangedPending =
@@ -1089,11 +1089,17 @@ final class AndroidNotificationService
       if (readiness.value.notificationsAllowed == false ||
           readiness.value.remindersAllowed == false) {
         if (mapping != null) {
-          await (_database.update(
-            _database.androidNotificationMappings,
-          )..where((table) => table.scheduleId.equals(row.id))).write(
-            const AndroidNotificationMappingsCompanion(state: Value('blocked')),
-          );
+          // Native readiness is reported separately. Blocking must not erase
+          // the fact that we canceled an unfired alarm for replacement.
+          if (!_isPendingReplacement(mapping.state)) {
+            await (_database.update(
+              _database.androidNotificationMappings,
+            )..where((table) => table.scheduleId.equals(row.id))).write(
+              const AndroidNotificationMappingsCompanion(
+                state: Value('blocked'),
+              ),
+            );
+          }
           await _notifications.cancel(id: mapping.platformId);
         }
         continue;
@@ -1236,6 +1242,12 @@ final class AndroidNotificationService
     );
   }
 
+  // Withdrawal adds a cleanup obligation around the same known-pending alarm.
+  // Its wrapper must not turn our cancellation into delivery/dismissal evidence.
+  bool _isPendingReplacement(String state) =>
+      state.startsWith('replacing:') ||
+      state.startsWith('withdrawing:replacing:');
+
   Future<void> _markPendingReplacement(
     NotificationScheduleData row,
     String previousState,
@@ -1243,7 +1255,7 @@ final class AndroidNotificationService
     // Persist before cancellation: a retry or another runtime must distinguish
     // our withdrawal of a positively observed pending alarm from a delivered
     // or possibly dismissed post when native history cannot be inspected.
-    if (previousState.startsWith('replacing:')) return;
+    if (_isPendingReplacement(previousState)) return;
     await (_database.update(_database.androidNotificationMappings)..where(
           (mapping) =>
               mapping.scheduleId.equals(row.id) &
