@@ -178,54 +178,62 @@ void main() {
     });
   }
 
-  test('remote cancellation removes unchanged alarm, displayed toast, and summary eligibility', () async {
-    await _importNotificationTask(repository, due: 'DUE;VALUE=DATE:20260809');
-    var now = DateTime.utc(2026, 8, 9, 7);
-    final schedules = NotificationScheduleService(
-      database: database,
-      nowUtc: () => now,
-    );
-    await schedules.rebuildUpcomingTaskNotifications('account');
-    final original = await database.select(database.tasks).getSingle();
-    final backend = RecordingNotificationBackend();
-    final notifications = DesktopNotificationService(
-      backend: backend,
-      settings: AppSettings.defaults().copyWith(notifyDueToday: true),
-    );
-    final scheduler = NotificationScheduler(
-      database: database,
-      notifications: notifications,
-      nowUtc: () => now,
-    );
-    addTearDown(scheduler.stop);
-    now = DateTime.utc(2026, 8, 9, 8);
-    await scheduler.checkNow();
-    expect(backend.requests, hasLength(1));
-    await _importNotificationTask(
-      repository,
-      due: 'DUE;VALUE=DATE:20260809',
-      status: 'CANCELLED',
-    );
-    final cancelled = await database.select(database.tasks).getSingle();
-    expect(cancelled.status, 'cancelled');
-    expect(cancelled.taskAlarmsJson, original.taskAlarmsJson);
-    await schedules.rebuildUpcomingTaskNotifications('account');
-    expect(await database.select(database.notificationSchedule).get(), isEmpty);
-    await scheduler.checkNow();
-    expect(backend.cancelledIds, contains(backend.requests.single.stableId));
-    final marked = <String>[];
-    final summary = DueTodayNotificationScheduler(
-      database: database,
-      settings: () => AppSettings.defaults().copyWith(notifyDueToday: true),
-      notifications: () => notifications,
-      markNotified: (date) async => marked.add(date),
-      now: () => DateTime(2026, 8, 9, 9),
-    );
-    addTearDown(summary.stop);
-    await summary.checkNow();
-    expect(marked, isEmpty);
-    expect(backend.requests, hasLength(1));
-  });
+  test(
+    'remote cancellation withdraws a consumed alarm and summary eligibility',
+    () async {
+      await _importNotificationTask(repository, due: 'DUE;VALUE=DATE:20260809');
+      var now = DateTime.utc(2026, 8, 9, 7);
+      final schedules = NotificationScheduleService(
+        database: database,
+        nowUtc: () => now,
+      );
+      await schedules.rebuildUpcomingTaskNotifications('account');
+      final original = await database.select(database.tasks).getSingle();
+      final backend = RecordingNotificationBackend();
+      final notifications = DesktopNotificationService(
+        backend: backend,
+        settings: AppSettings.defaults().copyWith(notifyDueToday: true),
+      );
+      final scheduler = NotificationScheduler(
+        database: database,
+        notifications: notifications,
+        nowUtc: () => now,
+      );
+      addTearDown(scheduler.stop);
+      now = DateTime.utc(2026, 8, 9, 8);
+      await scheduler.checkNow();
+      expect(backend.requests, hasLength(1));
+      await _importNotificationTask(
+        repository,
+        due: 'DUE;VALUE=DATE:20260809',
+        status: 'CANCELLED',
+      );
+      final cancelled = await database.select(database.tasks).getSingle();
+      expect(cancelled.status, 'cancelled');
+      expect(cancelled.taskAlarmsJson, original.taskAlarmsJson);
+      await schedules.rebuildUpcomingTaskNotifications('account');
+      final consumed = await database
+          .select(database.notificationSchedule)
+          .getSingle();
+      expect(consumed.sentAtUtc, now.millisecondsSinceEpoch);
+      expect(consumed.title, isEmpty);
+      expect(await schedules.isReminderSourceEligible(consumed), isFalse);
+      await scheduler.checkNow();
+      expect(backend.cancelledIds, contains(backend.requests.single.stableId));
+      final marked = <String>[];
+      final summary = DueTodayNotificationScheduler(
+        database: database,
+        settings: () => AppSettings.defaults().copyWith(notifyDueToday: true),
+        notifications: () => notifications,
+        markNotified: (date) async => marked.add(date),
+        now: () => DateTime(2026, 8, 9, 9),
+      );
+      addTearDown(summary.stop);
+      await summary.checkNow();
+      expect(marked, isEmpty);
+      expect(backend.requests, hasLength(1));
+    },
+  );
 
   test(
     'stores exact raw event and atomically builds recurrence projections',

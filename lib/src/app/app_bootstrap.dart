@@ -1998,7 +1998,8 @@ final Provider<NotificationScheduler> notificationSchedulerProvider =
       var disposed = false;
       String? previousZone;
       Duration? previousOffset;
-      final scheduler = NotificationScheduler(
+      late final NotificationScheduler scheduler;
+      scheduler = NotificationScheduler(
         database: database,
         notifications: ref.read(desktopNotificationServiceProvider),
         beforeCheck: () async {
@@ -2006,6 +2007,8 @@ final Provider<NotificationScheduler> notificationSchedulerProvider =
           if (disposed) return;
           final offset = DateTime.now().timeZoneOffset;
           if (zone == previousZone && offset == previousOffset) return;
+          await scheduler.localTimeChanged();
+          if (disposed) return;
           final schedules = NotificationScheduleService(
             database: database,
             preserveLifecycle: true,

@@ -243,14 +243,25 @@ class NotificationScheduleService {
             (current.dismissedAtUtc != null || current.expiredAtUtc != null)) {
       return false;
     }
-    final desired = switch (row.sourceType) {
-      'event' => await _eventNotifications(
-        row.accountId,
-        sourceId: row.sourceId,
-      ),
-      'task' => await _taskNotifications(row.accountId, sourceId: row.sourceId),
-      _ => <String, _PendingNotification>{},
-    };
+    final account = await (_database.select(
+      _database.accounts,
+    )..where((table) => table.id.equals(row.accountId))).getSingleOrNull();
+    final eligible =
+        account != null &&
+        accountLocalReminderEligibleStates.contains(account.authState);
+    final desired = !eligible
+        ? <String, _PendingNotification>{}
+        : switch (row.sourceType) {
+            'event' => await _eventNotifications(
+              row.accountId,
+              sourceId: row.sourceId,
+            ),
+            'task' => await _taskNotifications(
+              row.accountId,
+              sourceId: row.sourceId,
+            ),
+            _ => <String, _PendingNotification>{},
+          };
     final reminder = desired[row.id];
     await _reconcileNotifications(
       accountId: row.accountId,
@@ -278,6 +289,28 @@ class NotificationScheduleService {
     await rebuildUpcomingTaskNotifications(accountId);
   }
 
+  /// Read-only eligibility for withdrawing a retained, consumed delivery.
+  /// Its history must survive temporary collection/account disablement.
+  Future<bool> isReminderSourceEligible(NotificationScheduleData row) async {
+    final account = await (_database.select(
+      _database.accounts,
+    )..where((table) => table.id.equals(row.accountId))).getSingleOrNull();
+    if (account == null ||
+        !accountLocalReminderEligibleStates.contains(account.authState)) {
+      return false;
+    }
+    final desired = switch (row.sourceType) {
+      'event' => await _eventNotifications(
+        row.accountId,
+        sourceId: row.sourceId,
+      ),
+      'task' => await _taskNotifications(row.accountId, sourceId: row.sourceId),
+      _ => <String, _PendingNotification>{},
+    };
+    return desired[row.id]?.scheduledAtUtc.millisecondsSinceEpoch ==
+        row.scheduledAtUtc;
+  }
+
   Future<void> _reconcileNotifications({
     required String accountId,
     required String sourceType,
@@ -291,8 +324,7 @@ class NotificationScheduleService {
       final account = await (_database.select(
         _database.accounts,
       )..where((row) => row.id.equals(accountId))).getSingleOrNull();
-      if (account == null ||
-          !accountLocalReminderEligibleStates.contains(account.authState)) {
+      if (account == null) {
         await (_database.delete(_database.notificationSchedule)..where(
               (row) =>
                   row.accountId.equals(accountId) &
@@ -300,6 +332,9 @@ class NotificationScheduleService {
             ))
             .go();
         return;
+      }
+      if (!accountLocalReminderEligibleStates.contains(account.authState)) {
+        desired.clear();
       }
 
       final existing =
@@ -313,6 +348,16 @@ class NotificationScheduleService {
               ))
               .get();
       final existingById = {for (final row in existing) row.id: row};
+      final registrations = {
+        for (final mapping in await (_database.select(
+          _database.androidNotificationMappings,
+        )..where((row) => row.scheduleId.isIn(existingById.keys))).get())
+          mapping.scheduleId: mapping.generation,
+      };
+      final temporarilyDisabled =
+          !accountLocalReminderEligibleStates.contains(account.authState)
+          ? existing.map((row) => row.sourceId).toSet()
+          : await _disabledCollectionSourceIds(accountId, sourceType);
       final updatedAt = DateTime.now().millisecondsSinceEpoch;
       final now = _nowUtc().millisecondsSinceEpoch;
 
@@ -420,9 +465,16 @@ class NotificationScheduleService {
         if (desired.containsKey(row.id)) {
           continue;
         }
-        if (row.dismissedAtUtc != null || row.expiredAtUtc != null) {
-          // Keep only the terminal identity when a source is no longer eligible.
-          // A later ordinary sync must not turn it into a fresh delivery.
+        if (row.sentAtUtc != null ||
+            row.snoozedUntilUtc != null ||
+            row.dismissedAtUtc != null ||
+            row.expiredAtUtc != null ||
+            registrations[row.id] == row.generation ||
+            temporarilyDisabled.contains(row.sourceId)) {
+          // Keep consumed history and in-flight identity through disablement.
+          // An Android registration may have fired without a sent observation
+          // yet. Native reconciliation must observe/withdraw it before cleanup
+          // can discard an unsent row. A registration alone is not submission.
           await (_database.update(
             _database.notificationSchedule,
           )..where((table) => table.id.equals(row.id))).write(
@@ -438,6 +490,41 @@ class NotificationScheduleService {
         )..where((table) => table.id.equals(row.id))).go();
       }
     });
+  }
+
+  Future<Set<String>> _disabledCollectionSourceIds(
+    String accountId,
+    String sourceType,
+  ) async {
+    if (sourceType == 'event') {
+      final events = _database.calendarEvents;
+      final sources = _database.calendarSources;
+      final query =
+          _database.select(events).join([
+            innerJoin(sources, sources.id.equalsExp(events.calendarSourceId)),
+          ])..where(
+            events.accountId.equals(accountId) &
+                sources.remindersEnabled.equals(false) &
+                sources.isDeleted.equals(false),
+          );
+      return {for (final row in await query.get()) row.readTable(events).id};
+    }
+    final tasks = _database.tasks;
+    final lists = _database.taskLists;
+    final query =
+        _database.select(tasks).join([
+          innerJoin(
+            lists,
+            lists.accountId.equalsExp(tasks.accountId) &
+                lists.id.equalsExp(tasks.taskListId),
+          ),
+        ])..where(
+          tasks.accountId.equals(accountId) &
+              lists.remindersEnabled.equals(false) &
+              lists.pendingDelete.equals(false) &
+              lists.serverMissing.equals(false),
+        );
+    return {for (final row in await query.get()) row.readTable(tasks).id};
   }
 }
 

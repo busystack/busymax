@@ -177,7 +177,7 @@ class DesktopNotificationService {
     if (quietEnd != null) return ReminderDeliveryResult.deferred(quietEnd);
     final message = kind == 'conflict'
         ? _strings.blockedChanges
-        : switch (revision) {
+        : switch (revision.split(':').first) {
             'reconnectRequired' => _strings.reconnectRequired,
             'permissionChanged' => _strings.permissionChanged,
             'unsupportedProvider' => _strings.unsupportedProvider,

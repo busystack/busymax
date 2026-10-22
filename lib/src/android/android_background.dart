@@ -21,6 +21,7 @@ import '../db/app_database.dart';
 import 'android_account_gate.dart';
 import 'android_authorization.dart';
 import 'android_notifications.dart';
+import 'android_settings_store.dart';
 import 'android_time_zone.dart';
 
 const busyMaxPeriodicSyncUniqueName = 'busymax.periodic-sync.v1';
@@ -135,9 +136,8 @@ final class AndroidHeadlessRuntime {
     const storage = FlutterSecureStorage(
       aOptions: AndroidOptions(resetOnError: false),
     );
-    final settings = await loadInitialAppSettings(
-      const JsonFileLocalSettingsStore(),
-    );
+    final settingsStore = AndroidSettingsStore(platform: platform);
+    final settings = AppSettings.fromJson(await settingsStore.load());
     final timeZoneId = await platform.currentTimeZoneId();
     final uses24Hour = await platform.uses24HourFormat();
     final database = AppDatabase.open();
@@ -156,6 +156,7 @@ final class AndroidHeadlessRuntime {
     final notifications = AndroidNotificationService(
       database: database,
       settings: () => container.read(appSettingsControllerProvider),
+      policyStore: settingsStore,
       platform: platform,
     );
     await notifications.initialize(timeZoneId: timeZoneId);
@@ -165,6 +166,7 @@ final class AndroidHeadlessRuntime {
         databaseProvider.overrideWithValue(database),
         secureStorageProvider.overrideWithValue(storage),
         initialAppSettingsProvider.overrideWithValue(settings),
+        localSettingsStoreProvider.overrideWithValue(settingsStore),
         localTimeZoneSourceProvider.overrideWithValue(
           AndroidLocalTimeZoneSource(platform),
         ),
@@ -191,6 +193,8 @@ final class AndroidHeadlessRuntime {
           OperationalNotificationTransport(
             deliver: notifications.deliverOperationalIssue,
             cancel: notifications.cancelOperationalIssue,
+            synchronize: notifications.synchronize,
+            readSettings: notifications.currentSettings,
           ),
         ),
         ...?overridesForTesting?.call(database),

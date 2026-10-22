@@ -8,6 +8,8 @@ BusyMax does not claim a notification was seen merely because submission succeed
 The [audit and acceptance record](notification-validation.md) lists confirmed
 repairs, automated results and the native checks still requiring another OS or
 package environment.
+The [independent follow-up repair record](notification-repair-validation.md)
+separates the F1–F7 reproductions and new validation from that earlier evidence.
 
 ## Reminders
 
@@ -47,6 +49,17 @@ rows lose their copied display text. A changed future source alarm can establish
 a new generation. Source/account/collection eligibility and conditional writes
 remain authoritative.
 
+Submission and an explicit pending Snooze also retain their identity through
+calendar/list reminder toggles and temporary account ineligibility. Registered
+Android identities survive rebuilding until native delivery can be observed and
+withdrawn; a pending registration alone is not marked delivered. Successful
+desktop Show completion during disablement is recorded before withdrawal. Native
+artifacts are withdrawn while ineligible; re-enabling cannot replay an unchanged
+consumed alarm. A future alarm that never fired can still be registered. After a
+desktop zone/offset change, local quiet-hour deferrals are invalidated before
+source reprojection. Snooze remains the fixed UTC delivery baseline even when a
+floating source alarm moves later.
+
 Already submitted reminders retain Open/Snooze/Dismiss while their source alarm
 is valid. Android records an active post before evaluating unsent expiry. Known
 past registrations absent from pending and active native state are consumed,
@@ -80,10 +93,23 @@ operation. Android withdraws detailed reminder posts and silently updates visibl
 summaries using the same native identity. Pending registrations refresh their
 content and action labels. Failed cleanup retains identity and retry state.
 Switching back to normal details never recreates a consumed post.
+An overdue inexact alarm that Android still reports as pending has not proved
+delivery. A privacy change replaces it privately without marking it submitted;
+the replacement is silent if its trigger has already passed. A known active or
+possibly consumed due post is withdrawn without speculative redelivery.
 
 Disabling a category withdraws its visible posts and pending registrations.
 Re-enabling allows only still-relevant, unconsumed reminders. It does not revive
 a previously visible withdrawn post. This is separate from privacy handling.
+
+Android engines read authoritative persisted settings inside the notification
+gate and revalidate notification policy around native submission. Foreground
+settings mutations rebase on the durable document under a separate short-lived
+settings gate, so an older engine's unrelated save cannot restore Normal details
+or enabled categories. Data-change events and resume refresh the UI snapshot.
+Workers and terminated actions use the same store. An unreadable policy aborts
+delivery instead of falling back to Normal; stale completed submissions are
+withdrawn using their retained native identities.
 
 All Android contexts, including a terminated-process Snooze callback, resolve the
 saved app locale (or the supported system locale) through
@@ -123,6 +149,9 @@ results in the existing task/schedule composition, without ordinary search,
 account or list selections. Closing this temporary destination preserves normal
 browsing state. Opening a delayed summary on another day shows its original date,
 not an unrelated current Tasks view.
+Linux uses a focused dated agenda: ordinary Search, date/view controls, creation
+controls and their shortcuts are unavailable there. Item details/completion and
+Close/Escape remain functional; closing returns to the preserved browsing view.
 
 ## Operational issues and recovery
 
@@ -138,6 +167,23 @@ Explicit reconnection invalidates pending/visible issues from the replaced
 authorization without waiting for another successful network sync. Late failures
 and native sends from that authorization cannot recreate its alert. Ordinary
 token refresh leaves the generation unchanged.
+
+Android coordinator scans share the existing engine-owned notification gate
+with reminder registration and operational delivery/cancellation. Eligibility
+is read after acquisition; native ID allocation is transactional and uses the
+same namespace as reminders. Engine detachment/stopped-work cleanup releases
+the gate. Revision changes reset retry/submission state atomically, retaining
+native cleanup identity. An asynchronous cancellation may only update/delete
+the issue revision and lifecycle it evaluated.
+
+An operational ID is persisted before Show. If Show completed but submission
+persistence was interrupted, an active native ID for the unchanged revision is
+observed as submitted without another Show. Known submitted/consumed revisions
+remain consumed even when absent. If a process dies between Show and persistence
+and the post disappears before recovery, BusyMax cannot distinguish that from
+work abandoned before Show; the unsubmitted revision can retry. This is a bounded
+retry policy, not an exactly-once claim across process death. Failed native
+submissions remain retryable; recovery/removal cancels the retained identity.
 
 Android and desktop use `syncFailureNotificationDisposition`: ordinary transport
 errors, timeouts, cooldowns and retryable provider conditions are suppressed.
@@ -216,6 +262,10 @@ device's network settings. Use a separate test package/manifest overlay when bui
 entry point; do not change the production application ID or use a real account
 profile. Keep device captures, profiles and build overlays under ignored
 `build/`.
+The driver's `start-old-worker` / `release-old-worker` commands pause an actual
+WorkManager engine after runtime creation, allowing foreground policy changes
+before the worker resumes. Its pending-request receipt uses the native plugin;
+the worker's cached settings and authoritative policy are recorded separately.
 
 Portable native parsing and fake-backend regressions do not establish packaged
 Windows forwarding, Android shade/lock-screen presentation, heads-up/sound,

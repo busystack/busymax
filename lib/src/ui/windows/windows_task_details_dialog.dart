@@ -22,6 +22,7 @@ import '../../features/tasks/domain/task_mutation_result.dart';
 import '../../features/tasks/data/tasks_repository.dart';
 import '../../features/tasks/domain/task_source_links.dart';
 import '../../features/tasks/presentation/task_details_draft.dart';
+import '../../core/time/provider_date_time.dart';
 import '../../features/schedule/presentation/schedule_item_exporter.dart';
 import '../../features/schedule/presentation/schedule_event_details_format.dart';
 import '../../features/schedule/presentation/attachment_download.dart';
@@ -51,7 +52,9 @@ Future<bool> showWindowsTaskDetailsDialog(
   TaskMutationCommittedCallback? onTaskMutationStarted,
   TaskMutationCommittedCallback? onTaskMutationCommitted,
   VoidCallback? onTaskMutationFailed,
+  DateTime Function()? now,
 }) async {
+  final clock = now ?? DateTime.now;
   final repository = ref.read(
     tasksRepositoryForAccountProvider(task.accountId),
   );
@@ -911,12 +914,23 @@ Future<bool> showWindowsTaskDetailsDialog(
                               checked: reminderEnabled,
                               onChanged: enabled
                                   ? (value) => setState(() {
+                                      final invokedAt = clock();
+                                      if (value &&
+                                          (reminder == null ||
+                                              !providerWallTimeToInstant(
+                                                reminder!,
+                                                reminderTimeZone,
+                                              ).isAfter(invokedAt.toUtc()))) {
+                                        reminder =
+                                            TaskDetailsDraft.newReminderDefault(
+                                              dueDate: due == null
+                                                  ? null
+                                                  : _dateOnly(due!),
+                                              timeZone: reminderTimeZone,
+                                              now: invokedAt,
+                                            );
+                                      }
                                       reminderEnabled = value;
-                                      reminder ??=
-                                          (due ?? start ?? DateTime.now())
-                                              .subtract(
-                                                const Duration(minutes: 15),
-                                              );
                                     })
                                   : null,
                               content: Text(l10n.reminder),
@@ -1774,6 +1788,7 @@ Future<bool> showWindowsTaskDetailsDialog(
                                             context,
                                             initial: alarms[index].absoluteUtc!
                                                 .toLocal(),
+                                            now: clock,
                                           );
                                       if (value != null) {
                                         setState(() {
@@ -1800,11 +1815,17 @@ Future<bool> showWindowsTaskDetailsDialog(
                                     final value =
                                         await _showAbsoluteReminderDialog(
                                           context,
-                                          initial:
-                                              (due ?? start ?? DateTime.now())
-                                                  .subtract(
-                                                    const Duration(minutes: 15),
-                                                  ),
+                                          initial: providerWallTimeToInstant(
+                                            TaskDetailsDraft.newReminderDefault(
+                                              dueDate: due == null
+                                                  ? null
+                                                  : _dateOnly(due!),
+                                              timeZone: localTimeZone,
+                                              now: clock(),
+                                            ),
+                                            localTimeZone,
+                                          ).toLocal(),
+                                          now: clock,
                                         );
                                     if (value != null) {
                                       setState(() {
@@ -1906,6 +1927,18 @@ Future<bool> showWindowsTaskDetailsDialog(
                         setState(() => busy = true);
                         try {
                           final updatedDraft = currentDraft();
+                          if (updatedDraft.hasNewPastReminder(
+                            original: original,
+                            capabilities: capabilities,
+                            localTimeZone: localTimeZone,
+                            now: clock(),
+                          )) {
+                            setState(() {
+                              busy = false;
+                              error = l10n.reminderTimeInPast;
+                            });
+                            return;
+                          }
                           if (updatedDraft.scheduleIssue !=
                               TaskScheduleIssue.none) {
                             setState(() {
@@ -2011,6 +2044,7 @@ Future<bool> showWindowsTaskDetailsDialog(
           onTaskMutationStarted: onTaskMutationStarted,
           onTaskMutationCommitted: onTaskMutationCommitted,
           onTaskMutationFailed: onTaskMutationFailed,
+          now: clock,
         ) ||
         changed;
   }
@@ -2231,8 +2265,10 @@ String _alarmLabel(BuildContext context, IcalTaskAlarm alarm) {
 Future<DateTime?> _showAbsoluteReminderDialog(
   BuildContext context, {
   required DateTime initial,
+  required DateTime Function() now,
 }) {
   var value = initial;
+  String? error;
   return showDialog<DateTime>(
     context: context,
     barrierDismissible: false,
@@ -2267,6 +2303,8 @@ Future<DateTime?> _showAbsoluteReminderDialog(
                 );
               }),
             ),
+            if (error != null)
+              InfoBar(title: Text(error!), severity: InfoBarSeverity.error),
           ],
         ),
         actions: [
@@ -2275,7 +2313,23 @@ Future<DateTime?> _showAbsoluteReminderDialog(
             child: Text(AppLocalizations.of(context).cancel),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, value),
+            onPressed: () {
+              final instant = now().toUtc();
+              final minute = instant.subtract(
+                Duration(
+                  seconds: instant.second,
+                  milliseconds: instant.millisecond,
+                  microseconds: instant.microsecond,
+                ),
+              );
+              if (value.toUtc().isBefore(minute) && value != initial) {
+                setState(
+                  () => error = AppLocalizations.of(context).reminderTimeInPast,
+                );
+                return;
+              }
+              Navigator.pop(dialogContext, value);
+            },
             child: Text(AppLocalizations.of(context).save),
           ),
         ],

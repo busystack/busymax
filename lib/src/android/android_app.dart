@@ -161,6 +161,8 @@ class _AndroidHomeShellState extends ConsumerState<AndroidHomeShell>
   }
 
   Future<void> _refresh() async {
+    await ref.read(appSettingsControllerProvider.notifier).reload();
+    if (!mounted) return;
     await ref.read(androidNotificationServiceProvider).refreshReadiness();
     try {
       await ref.read(allAccountsSyncRunnerProvider)();
@@ -204,6 +206,7 @@ class _AndroidHomeShellState extends ConsumerState<AndroidHomeShell>
       return;
     }
     if (event.type == 'dataChanged') {
+      await ref.read(appSettingsControllerProvider.notifier).reload();
       ref.invalidate(accountsStreamProvider);
       ref.invalidate(accountManagementStreamProvider);
       ref.invalidate(calendarSourcesStreamProvider);
@@ -211,6 +214,7 @@ class _AndroidHomeShellState extends ConsumerState<AndroidHomeShell>
       ref.invalidate(scheduleDataRevisionProvider);
       ref.invalidate(davConflictsStreamProvider);
       ref.invalidate(webCalSubscriptionsProvider);
+      await ref.read(notificationReconcilerProvider).reconcile();
       return;
     }
     if (event.type == 'document') {

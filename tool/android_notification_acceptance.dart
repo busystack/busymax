@@ -17,6 +17,75 @@ import 'package:drift/drift.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:workmanager/workmanager.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+
+List<Override> _isolatedTransport(AppDatabase database) => [
+  accountSyncOperationsProvider.overrideWithValue(
+    const DisabledAccountSyncOperations(),
+  ),
+  allAccountsSyncRunnerProvider.overrideWithValue(() async {}),
+  signedInSyncRunnerProvider.overrideWithValue((_, _) async {}),
+  scheduleRepositoryProvider.overrideWithValue(
+    ScheduleRepository(database, ensureCloudCoverage: (_, _) async => true),
+  ),
+];
+
+@pragma('vm:entry-point')
+void notificationQaWorker() {
+  Workmanager().executeTask((task, input) async {
+    if (task != 'notification-policy-qa') return true;
+    final support = await getApplicationSupportDirectory();
+    if (!support.path.contains('/io.busystack.busymax.notificationqa/')) {
+      throw StateError('QA package required');
+    }
+    final directory = Directory('${support.path}/notification-qa');
+    final runtime = await AndroidHeadlessRuntime.create(
+      overridesForTesting: _isolatedTransport,
+    );
+    try {
+      await File('${directory.path}/worker-ready.json').writeAsString(
+        jsonEncode(
+          runtime.container.read(appSettingsControllerProvider).toJson(),
+        ),
+        flush: true,
+      );
+      final release = File('${directory.path}/worker-release');
+      final deadline = DateTime.now().add(const Duration(minutes: 3));
+      while (!await release.exists()) {
+        if (DateTime.now().isAfter(deadline)) {
+          throw StateError('QA barrier timed out');
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      }
+      await runtime.notifications.reconcile();
+      await runtime.container
+          .read(operationalNotificationCoordinatorProvider)
+          .reconcile();
+      final pending = await FlutterLocalNotificationsPlugin()
+          .pendingNotificationRequests();
+      await File('${directory.path}/worker-done.json').writeAsString(
+        jsonEncode({
+          'cachedDetail': runtime.container
+              .read(appSettingsControllerProvider)
+              .notificationDetailLevel
+              .name,
+          'authoritativeDetail': (await runtime.notifications.currentSettings())
+              .notificationDetailLevel
+              .name,
+          'pending': [
+            for (final request in pending)
+              {'id': request.id, 'title': request.title, 'body': request.body},
+          ],
+        }),
+        flush: true,
+      );
+    } finally {
+      await runtime.dispose();
+    }
+    return true;
+  });
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,6 +96,7 @@ Future<void> main() async {
       'This driver requires the isolated notification QA package.',
     );
   }
+  await Workmanager().initialize(notificationQaWorker);
   final runtime = await AndroidHeadlessRuntime.create(
     overridesForTesting: (database) => [
       accountSyncOperationsProvider.overrideWithValue(
@@ -163,6 +233,22 @@ class _Driver {
   Future<void> apply(Map<String, dynamic> command) async {
     final now = DateTime.now().toUtc();
     switch (command['command']) {
+      case 'start-old-worker':
+        for (final name in [
+          'worker-ready.json',
+          'worker-release',
+          'worker-done.json',
+        ]) {
+          final file = File('${directory.path}/$name');
+          if (await file.exists()) await file.delete();
+        }
+        await Workmanager().registerOneOffTask(
+          'notification-policy-qa-${now.microsecondsSinceEpoch}',
+          'notification-policy-qa',
+        );
+      case 'release-old-worker':
+        await File('${directory.path}/worker-release')
+            .writeAsString('release', flush: true);
       case 'permission':
         await record({
           'permissionResult': await runtime.notifications
@@ -262,6 +348,25 @@ class _Driver {
         await settings.setNotifyEventReminders(false);
       case 'enable-events':
         await settings.setNotifyEventReminders(true);
+      case 'disable-tasks':
+        await settings.setNotifyTaskReminders(false);
+      case 'enable-tasks':
+        await settings.setNotifyTaskReminders(true);
+      case 'calendar-reminders':
+        await runtime.container
+            .read(calendarRepositoryProvider)
+            .setSourceRemindersEnabled(
+              'qa-calendar',
+              command['enabled'] as bool,
+            );
+      case 'list-reminders':
+        await runtime.container
+            .read(taskListsRepositoryForAccountProvider('qa-microsoft'))
+            .setRemindersEnabled('qa-list', command['enabled'] as bool);
+      case 'scan-issues':
+        await runtime.container
+            .read(operationalNotificationCoordinatorProvider)
+            .reconcile();
       case 'sync-issue':
         final authorization =
             await (database.select(database.authorizationGenerations)
@@ -359,6 +464,23 @@ class _Driver {
             'snoozedUntil': row.snoozedUntilUtc,
             'expired': row.expiredAtUtc,
           },
+      ],
+      'issues': [
+        for (final issue
+            in await database.select(database.notificationIssues).get())
+          {
+            'id': issue.id,
+            'revision': issue.revision,
+            'submitted': issue.submittedRevision,
+            'nativeId': issue.nativeId,
+            'cleanupPending': issue.cleanupPending,
+          },
+      ],
+      'pendingNative': [
+        for (final request
+            in await FlutterLocalNotificationsPlugin()
+                .pendingNotificationRequests())
+          {'id': request.id, 'title': request.title, 'body': request.body},
       ],
     });
   }

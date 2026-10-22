@@ -1,10 +1,17 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:busymax/src/features/notifications/reminder_presentation.dart';
 import 'package:busymax/src/features/notifications/notification_schedule_service.dart';
+import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
+import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/android/android_notifications.dart';
 import 'package:busymax/src/app/app_settings.dart';
+import 'package:busymax/src/core/auth/oauth_models.dart';
+import 'package:busymax/src/android/android_settings_store.dart';
+import 'package:busymax/src/features/notifications/operational_notification_coordinator.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:busymax/src/core/time/stored_temporal_projection.dart';
 import 'package:busymax/src/dav/storage/dav_object_repository.dart';
 import 'package:busymax/src/db/app_database.dart';
@@ -23,6 +30,7 @@ void main() {
   late _StatefulNotificationPlugin plugin;
   late AppSettings settings;
   late Map<String, bool> capabilities;
+  late _NativeGates gates;
 
   setUp(() async {
     capabilities = {
@@ -34,9 +42,18 @@ void main() {
     database = AppDatabase(NativeDatabase.memory());
     plugin = _StatefulNotificationPlugin();
     settings = AppSettings.defaults().copyWith(notifyDueToday: false);
+    gates = _NativeGates();
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(platformChannel, (call) async {
-          if (call.method == 'acquireAccountGate') return 'test-lease';
+          if (call.method == 'acquireAccountGate') {
+            return gates.acquire(
+              (call.arguments as Map)['accountId'] as String,
+            );
+          }
+          if (call.method == 'releaseAccountGate') {
+            gates.release((call.arguments as Map)['leaseId'] as String);
+            return null;
+          }
           if (call.method == 'notificationCapabilities') return capabilities;
           return null;
         });
@@ -72,6 +89,508 @@ void main() {
     exactAlarmCapability: () async => exact,
     now: clock,
   );
+
+  Future<AppDatabase> shareDatabase(
+    Directory directory, {
+    QueryInterceptor? interceptor,
+  }) async {
+    final account = await database.select(database.accounts).getSingle();
+    await database.close();
+    final file = File('${directory.path}/busymax.sqlite');
+    database = AppDatabase(NativeDatabase(file));
+    await database.into(database.accounts).insert(account.toCompanion(true));
+    final native = NativeDatabase(file);
+    final peer = AppDatabase(
+      interceptor == null ? native : native.interceptWith(interceptor),
+    );
+    await peer.select(peer.accounts).get();
+    addTearDown(peer.close);
+    return peer;
+  }
+
+  for (final change in [
+    'private',
+    'events-disabled',
+    'tasks-disabled',
+    'locale',
+    'quiet-hours',
+  ]) {
+    for (final duringRegistration in [false, true]) {
+      test(
+        'independent old runtime cannot restore $change (native call in flight: $duringRegistration)',
+        () async {
+          final directory = await Directory.systemTemp.createTemp(
+            'busymax-policy-',
+          );
+          addTearDown(() => directory.delete(recursive: true));
+          final peer = await shareDatabase(directory);
+          final disk = _DiskSettingsStore(
+            File('${directory.path}/settings.json'),
+          );
+          final store = AndroidSettingsStore(store: disk);
+          await store.save(settings.toJson());
+          ProviderContainer runtime() => ProviderContainer(
+            overrides: [
+              localSettingsStoreProvider.overrideWithValue(store),
+              initialAppSettingsProvider.overrideWithValue(
+                AppSettings.fromJson(jsonDecode(disk.file.readAsStringSync())),
+              ),
+            ],
+          );
+          final old = runtime();
+          final foreground = runtime();
+          addTearDown(old.dispose);
+          addTearDown(foreground.dispose);
+          final now = DateTime.utc(2026, 6, 8, 8, 56);
+          if (change == 'tasks-disabled') {
+            await database
+                .update(database.accounts)
+                .write(const AccountsCompanion(provider: Value('microsoft')));
+            await _insertDueTodayTask(database, localDay: now.toLocal());
+            await database
+                .update(database.tasks)
+                .write(
+                  TasksCompanion(
+                    microsoftIsReminderOn: const Value(true),
+                    microsoftReminderDateTime: Value(
+                      now.add(const Duration(minutes: 20)).toIso8601String(),
+                    ),
+                    microsoftReminderTimeZone: const Value('UTC'),
+                  ),
+                );
+            await NotificationScheduleService(
+              database: database,
+              nowUtc: () => now,
+            ).rebuildUpcomingNotifications('google:test');
+          } else {
+            await _insertReminder(
+              database,
+              scheduledAt: now.add(const Duration(minutes: 20)),
+              generation: 'policy',
+            );
+          }
+          AndroidNotificationService notifications(ProviderContainer context) =>
+              AndroidNotificationService(
+                database: identical(context, old) ? peer : database,
+                settings: () => context.read(appSettingsControllerProvider),
+                policyStore: store,
+                backend: plugin,
+                now: () => now,
+              );
+          final older = notifications(old);
+          final newer = notifications(foreground);
+          await older.initialize(timeZoneId: 'Etc/UTC');
+          await newer.initialize(timeZoneId: 'Etc/UTC');
+          Future<void>? pending;
+          if (duringRegistration) {
+            plugin.registrationBarrier = Completer<void>();
+            pending = older.reconcile();
+            await plugin.registrationStarted.future;
+          }
+          final controller = foreground.read(
+            appSettingsControllerProvider.notifier,
+          );
+          switch (change) {
+            case 'private':
+              await controller.setNotificationDetailLevel(
+                NotificationDetailLevel.private,
+              );
+            case 'events-disabled':
+              await controller.setNotifyEventReminders(false);
+            case 'tasks-disabled':
+              await controller.setNotifyTaskReminders(false);
+            case 'locale':
+              await controller.setLocaleTag('de');
+            case 'quiet-hours':
+              await controller.setQuietHoursStart('08:00');
+              await controller.setQuietHoursEnd('10:00');
+              await controller.setQuietHoursEnabled(true);
+          }
+          if (duringRegistration) {
+            if (change == 'private') plugin.cancellationFailuresRemaining = 1;
+            plugin.registrationBarrier!.complete();
+            if (change == 'private') {
+              await expectLater(pending!, throwsStateError);
+            } else {
+              await pending;
+            }
+          }
+          await newer.reconcile();
+          // A stale engine saving an unrelated preference must rebase its write
+          // too, instead of putting Normal/enabled policy back on disk.
+          await old
+              .read(appSettingsControllerProvider.notifier)
+              .setThemeModePreference(BusyMaxThemeModePreference.dark);
+          await older.reconcile();
+          final requests = plugin.scheduled
+              .where((row) => plugin.pendingIds.contains(row.id))
+              .toList();
+          if (change.endsWith('disabled')) {
+            expect(plugin.pendingIds, isEmpty);
+          } else {
+            expect(requests, isNotEmpty);
+            final last = requests.last;
+            if (change == 'private') {
+              expect(last.title, isNot('Visible meeting'));
+              expect(last.body, isNull);
+            } else if (change == 'locale') {
+              expect(
+                last.details.android!.actions!.first.title,
+                AndroidNotificationStrings.forSettings(
+                  foreground.read(appSettingsControllerProvider),
+                ).open,
+              );
+            } else {
+              expect(last.date.hour, 10);
+            }
+          }
+        },
+      );
+    }
+  }
+
+  test('two operational coordinators submit one revision and recovery removes every native ID', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'busymax-operational-',
+    );
+    addTearDown(() => directory.delete(recursive: true));
+    final peer = await shareDatabase(directory);
+    await database
+        .into(database.notificationIssues)
+        .insert(
+          NotificationIssuesCompanion.insert(
+            id: 'sync-failure|google:test',
+            accountId: const Value('google:test'),
+            kind: 'sync-failure',
+            revision: 'reconnectRequired:0',
+          ),
+        );
+    final first = service();
+    final second = AndroidNotificationService(
+      database: peer,
+      settings: () => settings,
+      backend: plugin,
+    );
+    await first.initialize(timeZoneId: 'Etc/UTC');
+    await second.initialize(timeZoneId: 'Etc/UTC');
+    OperationalNotificationCoordinator coordinator(
+      AndroidNotificationService notifications,
+    ) {
+      final value = OperationalNotificationCoordinator(
+        database: identical(notifications, first) ? database : peer,
+        settings: () => settings,
+        transport: () => OperationalNotificationTransport(
+          deliver: notifications.deliverOperationalIssue,
+          cancel: notifications.cancelOperationalIssue,
+          synchronize: notifications.synchronize,
+          readSettings: notifications.currentSettings,
+        ),
+      );
+      addTearDown(value.stop);
+      return value;
+    }
+
+    final a = coordinator(first);
+    final b = coordinator(second);
+    plugin.showBarrier = Completer<void>();
+    final one = a.reconcile();
+    await plugin.showStarted.future;
+    final queued = Completer<void>();
+    gates.onQueued = () {
+      if (!queued.isCompleted) queued.complete();
+    };
+    final two = b.reconcile();
+    await queued.future;
+    plugin.showBarrier!.complete();
+    await Future.wait([one, two]);
+    expect(plugin.shown, hasLength(1));
+    expect(plugin.activeIds, hasLength(1));
+    await a.clearAccountSyncFailure('google:test');
+    expect(plugin.activeIds, isEmpty);
+  });
+
+  test(
+    'same-issue ID allocation is shared even when a second lookup was paused',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'busymax-allocation-',
+      );
+      addTearDown(() => directory.delete(recursive: true));
+      final lookup = _PauseIssueLookup();
+      final peer = await shareDatabase(directory, interceptor: lookup);
+      await database
+          .into(database.notificationIssues)
+          .insert(
+            NotificationIssuesCompanion.insert(
+              id: 'sync-failure|google:test',
+              accountId: const Value('google:test'),
+              kind: 'sync-failure',
+              revision: 'reconnectRequired:0',
+            ),
+          );
+      final a = service();
+      final b = AndroidNotificationService(
+        database: peer,
+        settings: () => settings,
+        backend: plugin,
+      );
+      await a.initialize(timeZoneId: 'Etc/UTC');
+      await b.initialize(timeZoneId: 'Etc/UTC');
+      OperationalNotificationCoordinator coordinator(
+        AppDatabase db,
+        AndroidNotificationService notifications,
+      ) {
+        final value = OperationalNotificationCoordinator(
+          database: db,
+          settings: () => settings,
+          transport: () => OperationalNotificationTransport(
+            deliver: notifications.deliverOperationalIssue,
+            cancel: notifications.cancelOperationalIssue,
+            synchronize: notifications.synchronize,
+            readSettings: notifications.currentSettings,
+          ),
+        );
+        addTearDown(value.stop);
+        return value;
+      }
+
+      final first = coordinator(database, a);
+      final second = coordinator(peer, b);
+      lookup.armed = true;
+      final pendingB = second.reconcile();
+      await lookup.entered.future;
+      final queued = Completer<void>();
+      gates.onQueued = () {
+        if (!queued.isCompleted) queued.complete();
+      };
+      final pendingA = first.reconcile();
+      // On the old implementation A can finish while B holds a stale null-ID
+      // snapshot. With serialization, A waits before it reads eligibility.
+      await Future.any([pendingA, queued.future]);
+      lookup.release.complete();
+      await Future.wait([pendingA, pendingB]);
+      expect(plugin.shown, hasLength(1));
+      final issue = await database
+          .select(database.notificationIssues)
+          .getSingle();
+      expect(plugin.activeIds, {issue.nativeId});
+      await first.clearAccountSyncFailure('google:test');
+      expect(plugin.activeIds, isEmpty);
+    },
+  );
+
+  test('reminder IDs share the operational namespace', () async {
+    final now = DateTime.utc(2026, 6, 8, 8, 56);
+    await _insertReminder(
+      database,
+      scheduledAt: now.add(const Duration(minutes: 5)),
+      generation: 'collision',
+    );
+    final collision = allocateAndroidNotificationId('event|event-1|5', {});
+    await database
+        .into(database.notificationIssues)
+        .insert(
+          NotificationIssuesCompanion.insert(
+            id: 'sync-failure|google:test',
+            accountId: const Value('google:test'),
+            kind: 'sync-failure',
+            revision: 'reconnectRequired:0',
+            nativeId: Value(collision),
+          ),
+        );
+    final runtime = service(clock: () => now);
+    await runtime.initialize(timeZoneId: 'Etc/UTC');
+    await runtime.reconcile();
+    expect(plugin.scheduled.single.id, isNot(collision));
+  });
+
+  for (final task in [false, true]) {
+    test(
+      'source toggle observes an Android post before sent history was recorded (task: $task)',
+      () async {
+        final now = DateTime.now().toUtc();
+        if (task) {
+          await database
+              .update(database.accounts)
+              .write(const AccountsCompanion(provider: Value('microsoft')));
+          await _insertDueTodayTask(database, localDay: now.toLocal());
+          await database
+              .update(database.tasks)
+              .write(
+                TasksCompanion(
+                  microsoftIsReminderOn: const Value(true),
+                  microsoftReminderDateTime: Value(
+                    now.subtract(const Duration(minutes: 1)).toIso8601String(),
+                  ),
+                  microsoftReminderTimeZone: const Value('UTC'),
+                ),
+              );
+          await NotificationScheduleService(
+            database: database,
+            nowUtc: () => now,
+          ).rebuildUpcomingNotifications('google:test');
+        } else {
+          await _insertReminder(
+            database,
+            scheduledAt: now.subtract(const Duration(minutes: 1)),
+            generation: 'unobserved',
+          );
+        }
+        final runtime = service(clock: () => now);
+        await runtime.initialize(timeZoneId: 'Etc/UTC');
+        await runtime.reconcile();
+        final original = await database
+            .select(database.notificationSchedule)
+            .getSingle();
+        final nativeId = plugin.scheduled.single.id;
+        plugin.pendingIds.remove(nativeId);
+        plugin.activeIds.add(nativeId);
+        expect(original.sentAtUtc, isNull);
+        Future<void> toggle(bool enabled) => task
+            ? TaskListsRepository(
+                database: database,
+                accountId: 'google:test',
+                nowUtc: () => now,
+              ).setRemindersEnabled('list-1', enabled)
+            : CalendarRepository(
+                database: database,
+                now: () => now,
+              ).setSourceRemindersEnabled('calendar', enabled);
+        await toggle(false);
+        if (task) {
+          plugin.cancellationFailuresRemaining = 1;
+          await expectLater(runtime.reconcile(), throwsStateError);
+          expect(
+            (await database
+                    .select(database.androidNotificationMappings)
+                    .getSingle())
+                .state,
+            startsWith('withdrawing:'),
+          );
+        } else {
+          await runtime.reconcile();
+        }
+        final consumed = await database
+            .select(database.notificationSchedule)
+            .getSingle();
+        expect(consumed.sentAtUtc, isNotNull);
+        await toggle(true);
+        await runtime.reconcile();
+        expect(plugin.activeIds, isEmpty);
+        expect(plugin.scheduled, hasLength(1));
+        expect(
+          (await database.select(database.notificationSchedule).getSingle())
+              .generation,
+          original.generation,
+        );
+      },
+    );
+  }
+
+  test(
+    'concurrent issue reports share one durable revision and native identity',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'busymax-reports-',
+      );
+      addTearDown(() => directory.delete(recursive: true));
+      final peer = await shareDatabase(directory);
+      final a = service();
+      final b = AndroidNotificationService(
+        database: peer,
+        settings: () => settings,
+        backend: plugin,
+      );
+      await a.initialize(timeZoneId: 'Etc/UTC');
+      await b.initialize(timeZoneId: 'Etc/UTC');
+      OperationalNotificationCoordinator coordinator(
+        AppDatabase db,
+        AndroidNotificationService notifications,
+      ) {
+        final value = OperationalNotificationCoordinator(
+          database: db,
+          settings: () => settings,
+          transport: () => OperationalNotificationTransport(
+            deliver: notifications.deliverOperationalIssue,
+            cancel: notifications.cancelOperationalIssue,
+            synchronize: notifications.synchronize,
+            readSettings: notifications.currentSettings,
+          ),
+        );
+        addTearDown(value.stop);
+        return value;
+      }
+
+      final first = coordinator(database, a);
+      final second = coordinator(peer, b);
+      await Future.wait([
+        first.notifySyncFailure(
+          const OAuthException('OAuthMissingToken', 'controlled'),
+          accountId: 'google:test',
+        ),
+        second.notifySyncFailure(
+          const OAuthException('OAuthMissingToken', 'controlled'),
+          accountId: 'google:test',
+        ),
+      ]);
+      expect(plugin.shown, hasLength(1));
+      expect(plugin.activeIds, {
+        (await database.select(database.notificationIssues).getSingle())
+            .nativeId,
+      });
+      await second.clearAccountSyncFailure('google:test');
+      expect(plugin.activeIds, isEmpty);
+    },
+  );
+
+  test('operational interrupted persistence observes an active post without posting again', () async {
+    await database
+        .into(database.notificationIssues)
+        .insert(
+          NotificationIssuesCompanion.insert(
+            id: 'sync-failure|google:test',
+            accountId: const Value('google:test'),
+            kind: 'sync-failure',
+            revision: 'reconnectRequired:0',
+          ),
+        );
+    final native = service();
+    await native.initialize(timeZoneId: 'Etc/UTC');
+    await native.deliverOperationalIssue(
+      'sync-failure',
+      'google:test',
+      'reconnectRequired:0',
+      1,
+    );
+    final runtime = OperationalNotificationCoordinator(
+      database: database,
+      settings: () => settings,
+      transport: () => OperationalNotificationTransport(
+        deliver: native.deliverOperationalIssue,
+        cancel: native.cancelOperationalIssue,
+        synchronize: native.synchronize,
+        readSettings: native.currentSettings,
+      ),
+    );
+    addTearDown(runtime.stop);
+    await runtime.reconcile();
+    expect(plugin.shown, hasLength(1));
+    expect(
+      (await database.select(database.notificationIssues).getSingle())
+          .submittedRevision,
+      'reconnectRequired:0',
+    );
+    // A known consumed post, including a later swipe, stays consumed.
+    plugin.activeIds.clear();
+    await runtime.reconcile();
+    expect(plugin.shown, hasLength(1));
+    await runtime.clearAccountSyncFailure('google:test');
+    await runtime.notifySyncFailure(
+      const OAuthException('OAuthMissingToken', 'controlled'),
+      accountId: 'google:test',
+    );
+    expect(plugin.shown, hasLength(2));
+  });
 
   test('background action identity survives task ID replacement and duplicate callbacks', () async {
     final now = DateTime.utc(2026, 6, 8, 8, 56);
@@ -813,7 +1332,7 @@ void main() {
     expect(plugin.scheduled, isEmpty);
   });
 
-  test('privacy during delayed registration consumes an overdue post without another alert', () async {
+  test('privacy during delayed registration preserves an overdue inexact alarm that has not fired', () async {
     final clock = DateTime.now();
     await _insertReminder(
       database,
@@ -824,14 +1343,25 @@ void main() {
     final notifications = service(clock: () => clock);
     await notifications.initialize(timeZoneId: 'Etc/UTC');
     final registering = notifications.reconcile();
-    await _until(() => plugin.scheduled.isNotEmpty);
+    await plugin.registrationStarted.future;
     settings = settings.copyWith(
       notificationDetailLevel: NotificationDetailLevel.private,
     );
     plugin.registrationBarrier!.complete();
     await registering;
-    expect(plugin.scheduled, hasLength(1));
-    expect(plugin.pendingIds, isEmpty);
+    expect(plugin.scheduled, hasLength(2));
+    expect(plugin.pendingIds, {plugin.scheduled.last.id});
+    expect(plugin.scheduled.last.id, plugin.scheduled.first.id);
+    expect(plugin.scheduled.last.body, isNull);
+    expect(plugin.scheduled.last.details.android!.silent, isTrue);
+    expect(
+      (await database.select(database.notificationSchedule).getSingle())
+          .sentAtUtc,
+      isNull,
+    );
+    plugin.pendingIds.clear();
+    plugin.activeIds.add(plugin.scheduled.last.id);
+    await notifications.reconcile();
     expect(
       (await database.select(database.notificationSchedule).getSingle())
           .sentAtUtc,
@@ -1167,6 +1697,9 @@ class _StatefulNotificationPlugin implements AndroidNotificationBackend {
   int cancellationFailuresRemaining = 0;
   bool permissionGranted = true;
   Completer<void>? registrationBarrier;
+  Completer<void>? showBarrier;
+  final registrationStarted = Completer<void>();
+  final showStarted = Completer<void>();
   void Function()? beforePendingQuery;
   bool activeQueryFails = false;
 
@@ -1231,6 +1764,9 @@ class _StatefulNotificationPlugin implements AndroidNotificationBackend {
       details: notificationDetails,
       payload: payload,
     ));
+    if (!registrationStarted.isCompleted) {
+      registrationStarted.complete();
+    }
     await registrationBarrier?.future;
     pendingIds.add(id);
   }
@@ -1250,6 +1786,11 @@ class _StatefulNotificationPlugin implements AndroidNotificationBackend {
       details: notificationDetails,
       payload: payload,
     ));
+    if (!showStarted.isCompleted) {
+      showStarted.complete();
+    }
+    await showBarrier?.future;
+    activeIds.add(id);
   }
 
   @override
@@ -1262,9 +1803,60 @@ class _StatefulNotificationPlugin implements AndroidNotificationBackend {
   Future<bool> canScheduleExactly() async => false;
 }
 
-Future<void> _until(bool Function() condition) async {
-  for (var i = 0; i < 200 && !condition(); i++) {
-    await Future<void>.delayed(const Duration(milliseconds: 5));
+class _DiskSettingsStore implements LocalSettingsStore {
+  _DiskSettingsStore(this.file);
+  final File file;
+  @override
+  Future<Map<String, Object?>> load() async =>
+      (jsonDecode(await file.readAsString()) as Map).cast<String, Object?>();
+  @override
+  Future<void> save(Map<String, Object?> json) async {
+    final temporary = File('${file.path}.tmp');
+    await temporary.writeAsString(jsonEncode(json), flush: true);
+    await temporary.rename(file.path);
   }
-  expect(condition(), isTrue);
+}
+
+class _NativeGates {
+  final _tails = <String, Future<void>>{};
+  final _leases = <String, Completer<void>>{};
+  int _next = 0;
+  void Function()? onQueued;
+  Future<String> acquire(String key) async {
+    final previous = _tails[key];
+    final release = Completer<void>();
+    final id = 'lease-${_next++}';
+    _tails[key] = release.future;
+    _leases[id] = release;
+    if (previous != null) {
+      if (key == '__notifications__') onQueued?.call();
+      await previous;
+    }
+    return id;
+  }
+
+  void release(String id) => _leases.remove(id)!.complete();
+}
+
+class _PauseIssueLookup extends QueryInterceptor {
+  bool armed = false;
+  final entered = Completer<void>();
+  final release = Completer<void>();
+  @override
+  Future<List<Map<String, Object?>>> runSelect(
+    QueryExecutor executor,
+    String statement,
+    List<Object?> args,
+  ) async {
+    final result = await executor.runSelect(statement, args);
+    if (armed &&
+        statement.contains('notification_issues') &&
+        args.contains('sync-failure|google:test') &&
+        result.singleOrNull?['native_id'] == null) {
+      armed = false;
+      entered.complete();
+      await release.future;
+    }
+    return result;
+  }
 }

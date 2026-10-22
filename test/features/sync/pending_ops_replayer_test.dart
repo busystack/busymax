@@ -9,7 +9,7 @@ import 'package:busymax/src/features/notifications/notification_schedule_service
 import 'package:busymax/src/features/notifications/notification_scheduler.dart';
 import 'package:busymax/src/features/notifications/desktop_notification_service.dart';
 import 'package:busymax/src/core/http/request_dispatch_exception.dart';
-import 'package:drift/drift.dart';
+import 'package:drift/drift.dart' hide isNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:busymax/src/db/app_database.dart';
@@ -2308,14 +2308,32 @@ void main() {
           )).single.id,
           'task-in-temporary-list',
         );
-        await NotificationScheduleService(
+        final schedules = NotificationScheduleService(
           database: database,
           nowUtc: () => DateTime.utc(2026, 6, 4, 1),
-        ).rebuildUpcomingTaskNotifications('account');
-        expect(
-          await database.select(database.notificationSchedule).get(),
-          hasLength(reminderValue ? 1 : 0),
         );
+        await schedules.rebuildUpcomingTaskNotifications('account');
+        final retained =
+            (await database.select(database.notificationSchedule).get()).single;
+        expect(
+          await schedules.isReminderSourceEligible(retained),
+          reminderValue,
+        );
+        expect(retained.sentAtUtc, isNull);
+        if (!reminderValue) {
+          expect(retained.title, isEmpty);
+          // Temporary list disablement retains the unsent identity even when
+          // creation replaces the list ID. Re-enabling restores that future
+          // alarm without manufacturing another generation or consuming it.
+          await repository.setRemindersEnabled(server.id, true);
+          final enabled =
+              (await database.select(database.notificationSchedule).get())
+                  .single;
+          expect(enabled.id, retained.id);
+          expect(enabled.generation, retained.generation);
+          expect(await schedules.isReminderSourceEligible(enabled), isTrue);
+          expect(enabled.sentAtUtc, isNull);
+        }
       },
     );
   }

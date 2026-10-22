@@ -710,6 +710,9 @@ final class _TrackingNotificationScheduler implements NotificationScheduler {
   void updateNotifications(DesktopNotificationService notifications) {}
 
   @override
+  Future<void> localTimeChanged() async {}
+
+  @override
   void start() {}
 
   @override

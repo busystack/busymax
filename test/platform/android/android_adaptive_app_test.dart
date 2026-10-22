@@ -3051,7 +3051,9 @@ Future<_AndroidAppHarness> _pumpApp(
           (ref, accountId) => todoClient,
         ),
       initialAppSettingsProvider.overrideWithValue(settings),
-      localSettingsStoreProvider.overrideWithValue(MemorySettingsStore()),
+      localSettingsStoreProvider.overrideWithValue(
+        MemorySettingsStore(settings.toJson()),
+      ),
       allAccountsSyncRunnerProvider.overrideWithValue(() async {}),
       notificationReconcilerProvider.overrideWithValue(
         CallbackNotificationReconciler(() async {}),

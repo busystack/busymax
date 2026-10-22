@@ -27,6 +27,8 @@ import '../app/app_settings.dart';
 import '../db/app_database.dart';
 import '../features/accounts/data/accounts_repository.dart';
 import '../features/notifications/notification_reconciler.dart';
+import 'android_notification_gate.dart';
+import 'android_settings_store.dart';
 
 const androidReminderChannelId = 'busymax_reminders_v1';
 const androidSummaryChannelId = 'busymax_summaries_v1';
@@ -238,13 +240,13 @@ Future<void> busyMaxNotificationBackgroundResponse(
     await platform.releaseAccountGate(lease);
   }
   if (changed) {
-    final settings = await loadInitialAppSettings(
-      const JsonFileLocalSettingsStore(),
-    );
+    final store = AndroidSettingsStore(platform: platform);
+    final settings = AppSettings.fromJson(await store.load());
     final reconcileDatabase = AppDatabase.open();
     final service = AndroidNotificationService(
       database: reconcileDatabase,
       settings: () => settings,
+      policyStore: store,
       platform: platform,
     );
     try {
@@ -411,6 +413,7 @@ final class AndroidNotificationService
   AndroidNotificationService({
     required AppDatabase database,
     required AppSettings Function() settings,
+    LocalSettingsStore? policyStore,
     BusyMaxAndroidPlatform? platform,
     AndroidNotificationStrings Function()? strings,
     FlutterLocalNotificationsPlugin? plugin,
@@ -418,22 +421,66 @@ final class AndroidNotificationService
     Future<bool> Function()? exactAlarmCapability,
     DateTime Function()? now,
   }) : _database = database,
-       _settings = settings,
+       _settingsReader = settings,
+       _policyStore = policyStore,
        _platform = platform ?? BusyMaxAndroidPlatform.instance,
-       _strings =
-           strings ??
-           (() => AndroidNotificationStrings.forSettings(settings())),
+       _stringsOverride = strings,
        _notifications = backend ?? FlutterAndroidNotificationBackend(plugin),
        _exactAlarmCapability = exactAlarmCapability,
        _now = now ?? DateTime.now;
 
   final DateTime Function() _now;
   final AppDatabase _database;
-  final AppSettings Function() _settings;
+  final AppSettings Function() _settingsReader;
+  final LocalSettingsStore? _policyStore;
+  AppSettings? _currentPolicy;
   final BusyMaxAndroidPlatform _platform;
-  final AndroidNotificationStrings Function() _strings;
+  final AndroidNotificationStrings Function()? _stringsOverride;
   final AndroidNotificationBackend _notifications;
   final Future<bool> Function()? _exactAlarmCapability;
+  AppSettings _settings() => _currentPolicy ?? _settingsReader();
+  AndroidNotificationStrings _strings() =>
+      _stringsOverride?.call() ??
+      AndroidNotificationStrings.forSettings(_settings());
+
+  /// A container's snapshot is not authoritative in a different Flutter engine.
+  /// Read failures abort delivery; they never fall back to Normal details.
+  Future<AppSettings> currentSettings() async =>
+      _currentPolicy = _policyStore == null
+      ? _settingsReader()
+      : AppSettings.fromJson(await _policyStore.load());
+
+  Future<void> synchronize(Future<void> Function() operation) =>
+      AndroidNotificationGate(_platform).run(operation);
+
+  Future<bool> _policyStillCurrent(
+    AppSettings snapshot, {
+    int? nativeId,
+  }) async {
+    try {
+      return _policyFingerprint(await currentSettings()) ==
+          _policyFingerprint(snapshot);
+    } on Object {
+      if (nativeId != null) await _notifications.cancel(id: nativeId);
+      rethrow;
+    }
+  }
+
+  String _policyFingerprint(AppSettings settings) => jsonEncode([
+    settings.notifyEventReminders,
+    settings.notifyTaskReminders,
+    settings.notifyDueToday,
+    settings.notifySyncFailures,
+    settings.notifyConflicts,
+    settings.notificationDetailLevel.name,
+    settings.localeTag,
+    settings.timeFormatPreference.name,
+    settings.dueTodayNotificationTime,
+    settings.quietHoursEnabled,
+    settings.quietHoursStart,
+    settings.quietHoursEnd,
+  ]);
+
   final StreamController<AndroidReminderActivation> _activations =
       StreamController<AndroidReminderActivation>.broadcast(sync: true);
   AndroidReminderActivation? _initialActivation;
@@ -502,7 +549,7 @@ final class AndroidNotificationService
   void updateTimeZone(String timeZoneId) {
     try {
       tz.setLocalLocation(tz.getLocation(timeZoneId));
-    } on ArgumentError {
+    } on tz.LocationNotFoundException {
       tz.setLocalLocation(tz.UTC);
     }
   }
@@ -552,35 +599,39 @@ final class AndroidNotificationService
     await deliverOperationalIssue('conflict', null, 'conflict', 1);
   }
 
-  Future<int?> _issueNativeId(String id, {bool allocate = false}) async {
-    final issue = await (_database.select(
-      _database.notificationIssues,
-    )..where((row) => row.id.equals(id))).getSingleOrNull();
-    if (issue?.nativeId != null) return issue!.nativeId;
-    if (!allocate) return null;
-    final used = {
-      for (final row
-          in await _database.select(_database.notificationIssues).get())
-        if (row.nativeId != null) row.nativeId!,
-      for (final row
-          in await _database
-              .select(_database.androidNotificationMappings)
-              .get())
-        row.platformId,
-      0x425901,
-      0x425902,
-      0x425903,
-    };
-    final nativeId = allocateAndroidNotificationId(id, used);
-    if (issue != null) {
-      await (_database.update(_database.notificationIssues)
-            ..where((row) => row.id.equals(id)))
-          .write(NotificationIssuesCompanion(nativeId: Value(nativeId)));
-    }
-    return nativeId;
-  }
+  Future<int?> _issueNativeId(String id, {bool allocate = false}) =>
+      _database.transaction(() async {
+        final issue = await (_database.select(
+          _database.notificationIssues,
+        )..where((row) => row.id.equals(id))).getSingleOrNull();
+        if (issue?.nativeId != null) return issue!.nativeId;
+        if (!allocate) return null;
+        final used = {
+          for (final row
+              in await _database.select(_database.notificationIssues).get())
+            if (row.nativeId != null) row.nativeId!,
+          for (final row
+              in await _database
+                  .select(_database.androidNotificationMappings)
+                  .get())
+            row.platformId,
+          0x425901,
+          0x425902,
+          0x425903,
+        };
+        final nativeId = allocateAndroidNotificationId(id, used);
+        if (issue != null) {
+          await (_database.update(_database.notificationIssues)
+                ..where((row) => row.id.equals(id)))
+              .write(NotificationIssuesCompanion(nativeId: Value(nativeId)));
+        }
+        return nativeId;
+      });
 
-  Future<bool> cancelOperationalIssue(String id) async {
+  Future<bool> cancelOperationalIssue(String id) =>
+      AndroidNotificationGate(_platform).run(() => _cancelOperationalIssue(id));
+
+  Future<bool> _cancelOperationalIssue(String id) async {
     final nativeId = await _issueNativeId(id);
     if (nativeId == null) return true;
     try {
@@ -596,8 +647,16 @@ final class AndroidNotificationService
     String? accountId,
     String revision,
     int count,
+  ) => AndroidNotificationGate(_platform)
+      .run(() => _deliverOperationalIssue(kind, accountId, revision, count));
+
+  Future<ReminderDeliveryResult> _deliverOperationalIssue(
+    String kind,
+    String? accountId,
+    String revision,
+    int count,
   ) async {
-    final settings = _settings();
+    final settings = await currentSettings();
     if (kind == 'conflict'
         ? !settings.notifyConflicts
         : !settings.notifySyncFailures) {
@@ -627,7 +686,7 @@ final class AndroidNotificationService
     );
     final message = kind == 'conflict'
         ? l10n.blockedPendingOperations
-        : switch (revision) {
+        : switch (revision.split(':').first) {
             'reconnectRequired' => strings.reconnectRequired,
             'permissionChanged' => strings.permissionChanged,
             'unsupportedProvider' => strings.unsupportedProvider,
@@ -636,6 +695,24 @@ final class AndroidNotificationService
     final stableId = accountId == null ? kind : '$kind|$accountId';
     try {
       final id = await _issueNativeId(stableId, allocate: true);
+      if (!await _policyStillCurrent(settings)) {
+        return ReminderDeliveryResult.failed(
+          _now().toUtc().add(const Duration(minutes: 1)),
+        );
+      }
+      // The pinned Android adapter exposes active IDs, not their Dart payload.
+      // A changed revision first retains cleanupPending and withdraws the old
+      // ID. Thus an active ID for this unchanged, unsubmitted revision is an
+      // observed submission after interrupted persistence, not a new alert.
+      final active = await _notifications.getActiveNotifications();
+      final issue = await (_database.select(
+        _database.notificationIssues,
+      )..where((row) => row.id.equals(stableId))).getSingleOrNull();
+      if (issue?.revision == revision &&
+          !issue!.cleanupPending &&
+          active.any((post) => post.id == id)) {
+        return const ReminderDeliveryResult.delivered();
+      }
       await _showStatus(
         id: id!,
         title: kind == 'conflict'
@@ -653,11 +730,7 @@ final class AndroidNotificationService
           sourceId: accountId ?? 'all',
         ).encode(),
       );
-      if (_settings().notificationDetailLevel !=
-              settings.notificationDetailLevel ||
-          (kind == 'conflict'
-              ? !_settings().notifyConflicts
-              : !_settings().notifySyncFailures)) {
+      if (!await _policyStillCurrent(settings, nativeId: id)) {
         await _notifications.cancel(id: id);
       }
       return const ReminderDeliveryResult.delivered();
@@ -685,6 +758,7 @@ final class AndroidNotificationService
           strings.statusChannelName,
           channelDescription: strings.statusChannelDescription,
           importance: Importance.defaultImportance,
+          onlyAlertOnce: true,
           priority: Priority.defaultPriority,
           visibility:
               _settings().notificationDetailLevel ==
@@ -704,13 +778,13 @@ final class AndroidNotificationService
       return;
     }
     _reconciling = true;
-    String? lease;
     try {
-      lease = await _platform.acquireAccountGate('__notifications__');
-      do {
-        _reconcileAgain = false;
-        await _reconcileOnce();
-      } while (_reconcileAgain);
+      await synchronize(() async {
+        do {
+          _reconcileAgain = false;
+          await _reconcileOnce();
+        } while (_reconcileAgain);
+      });
     } on Object {
       final status = readiness.value;
       readiness.value = AndroidNotificationReadiness(
@@ -724,7 +798,6 @@ final class AndroidNotificationService
       );
       rethrow;
     } finally {
-      if (lease != null) await _platform.releaseAccountGate(lease);
       _reconciling = false;
     }
   }
@@ -738,7 +811,7 @@ final class AndroidNotificationService
         if (accountLocalReminderEligibleStates.contains(account.authState))
           account.id,
     };
-    final settings = _settings();
+    final settings = await currentSettings();
     final localized = _strings();
     await _platform.prepareNotificationChannels(
       reminders: localized.channelName,
@@ -807,6 +880,22 @@ final class AndroidNotificationService
           !const {'event', 'task'}.contains(row.sourceType)) {
         continue;
       }
+      final sources = NotificationScheduleService(
+        database: _database,
+        nowUtc: () => _now().toUtc(),
+      );
+      if (!await sources.isReminderSourceEligible(row)) {
+        await sources.validateAndReconcileReminder(row);
+        final refreshed = await (_database.select(
+          _database.notificationSchedule,
+        )..where((table) => table.id.equals(row.id))).getSingleOrNull();
+        if (refreshed != null &&
+            (refreshed.generation != row.generation ||
+                refreshed.scheduledAtUtc != row.scheduledAtUtc)) {
+          _reconcileAgain = true;
+        }
+        continue;
+      }
       final effectiveAt = applyAndroidQuietHours(_effectiveAt(row), settings);
       if (row.sentAtUtc == null &&
           row.snoozedUntilUtc == null &&
@@ -871,6 +960,21 @@ final class AndroidNotificationService
 
     for (final mapping in mappings) {
       if (!desiredIds.contains(mapping.scheduleId)) {
+        // Persist the withdrawal decision before awaiting Android. If policy or
+        // source eligibility changes again after a failed cancel, this exact
+        // post still needs cleanup; re-enabling must not erase that decision.
+        if (!mapping.state.startsWith('withdrawing:')) {
+          await (_database.update(_database.androidNotificationMappings)..where(
+                (row) =>
+                    row.scheduleId.equals(mapping.scheduleId) &
+                    row.generation.equals(mapping.generation),
+              ))
+              .write(
+                AndroidNotificationMappingsCompanion(
+                  state: Value('withdrawing:${mapping.state}'),
+                ),
+              );
+        }
         await _notifications.cancel(id: mapping.platformId);
         await (_database.delete(
           _database.androidNotificationMappings,
@@ -891,7 +995,13 @@ final class AndroidNotificationService
         mapping.scheduleId: mapping,
     };
     final usedIds = {
+      0x425901,
+      0x425902,
+      0x425903,
       for (final mapping in activeMappings.values) mapping.platformId,
+      for (final issue
+          in await _database.select(_database.notificationIssues).get())
+        if (issue.nativeId != null) issue.nativeId!,
     };
     final strings = _strings();
     for (final row in desired) {
@@ -1016,6 +1126,10 @@ final class AndroidNotificationService
               updatedAtUtc: now.millisecondsSinceEpoch,
             ),
           );
+      if (!await _policyStillCurrent(settings)) {
+        _reconcileAgain = true;
+        return;
+      }
       await _notifications.zonedSchedule(
         id: platformId,
         title: title,
@@ -1052,6 +1166,10 @@ final class AndroidNotificationService
             : AndroidScheduleMode.inexactAllowWhileIdle,
         payload: payload,
       );
+      final currentPolicy = await _policyStillCurrent(
+        settings,
+        nativeId: platformId,
+      );
       final current =
           await (_database.select(_database.notificationSchedule)..where(
                 (table) =>
@@ -1066,13 +1184,14 @@ final class AndroidNotificationService
             database: _database,
             nowUtc: () => _now().toUtc(),
           ).validateAndReconcileReminder(current) ||
-          _settings().notificationDetailLevel !=
-              settings.notificationDetailLevel ||
-          (row.sourceType == 'event'
-              ? !_settings().notifyEventReminders
-              : !_settings().notifyTaskReminders)) {
+          !currentPolicy) {
+        final due = effectiveAt <= _now().millisecondsSinceEpoch;
+        final pendingRegistration =
+            due &&
+            current != null &&
+            await _nativeRegistrationStillPending(platformId);
         await _notifications.cancel(id: platformId);
-        if (effectiveAt <= _now().millisecondsSinceEpoch && current != null) {
+        if (due && current != null && !pendingRegistration) {
           await (_database.update(_database.notificationSchedule)..where(
                 (table) =>
                     table.id.equals(row.id) &
@@ -1106,6 +1225,25 @@ final class AndroidNotificationService
       activeIds: activeIds,
       activeStateKnown: activeStateKnown,
     );
+  }
+
+  Future<bool> _nativeRegistrationStillPending(int id) async {
+    try {
+      final pending = await _notifications.pendingNotificationRequests();
+      if (!pending.any((request) => request.id == id)) return false;
+      try {
+        final active = await _notifications.getActiveNotifications();
+        if (active.any((post) => post.id == id)) return false;
+      } on Object {
+        // A known pending inexact alarm is not evidence of delivery, even if
+        // native history is unavailable. Its private replacement stays pending.
+      }
+      return true;
+    } on Object {
+      // Without pending-state evidence, keep the existing conservative policy:
+      // withdraw the known ID and do not revive a possibly consumed due post.
+      return false;
+    }
   }
 
   Future<void> _reconcileDailySummary({
@@ -1218,6 +1356,10 @@ final class AndroidNotificationService
     if (displayed) {
       if (current != null &&
           (current.taskCount != count || current.state != state)) {
+        if (!await _policyStillCurrent(settings)) {
+          _reconcileAgain = true;
+          return;
+        }
         await _notifications.show(
           id: id,
           title: title,
@@ -1225,9 +1367,9 @@ final class AndroidNotificationService
           notificationDetails: details,
           payload: payload,
         );
-        if (_settings().notificationDetailLevel !=
-            settings.notificationDetailLevel) {
+        if (!await _policyStillCurrent(settings, nativeId: id)) {
           await _notifications.cancel(id: id);
+          _reconcileAgain = true;
         }
         await (_database.update(
           _database.androidDailySummarySchedules,
@@ -1299,6 +1441,10 @@ final class AndroidNotificationService
           ),
         );
     try {
+      if (!await _policyStillCurrent(settings)) {
+        _reconcileAgain = true;
+        return;
+      }
       await _notifications.zonedSchedule(
         id: id,
         title: title,
@@ -1313,9 +1459,7 @@ final class AndroidNotificationService
             : AndroidScheduleMode.inexactAllowWhileIdle,
         payload: payload,
       );
-      if (_settings().notificationDetailLevel !=
-              settings.notificationDetailLevel ||
-          !_settings().notifyDueToday) {
+      if (!await _policyStillCurrent(settings, nativeId: id)) {
         await _notifications.cancel(id: id);
         _reconcileAgain = true;
       }

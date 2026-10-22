@@ -16,6 +16,8 @@ class OperationalNotificationTransport {
   const OperationalNotificationTransport({
     required this.deliver,
     required this.cancel,
+    this.synchronize,
+    this.readSettings,
   });
   final Future<ReminderDeliveryResult> Function(
     String kind,
@@ -25,6 +27,8 @@ class OperationalNotificationTransport {
   )
   deliver;
   final Future<bool> Function(String id) cancel;
+  final Future<void> Function(Future<void> Function() operation)? synchronize;
+  final Future<AppSettings> Function()? readSettings;
 }
 
 /// Reconciles durable unresolved issues instead of depending on one transient
@@ -113,16 +117,7 @@ class OperationalNotificationCoordinator
       revision = '${disposition.name}:$generation';
     }
     final id = operationalNotificationId('sync-failure', accountId);
-    await _database
-        .into(_database.notificationIssues)
-        .insertOnConflictUpdate(
-          NotificationIssuesCompanion.insert(
-            id: id,
-            accountId: Value(accountId),
-            kind: 'sync-failure',
-            revision: revision,
-          ),
-        );
+    await _recordIssue(id, accountId, 'sync-failure', revision);
     await reconcile();
   }
 
@@ -154,7 +149,12 @@ class OperationalNotificationCoordinator
     try {
       do {
         _again = false;
-        await _evaluate();
+        final synchronize = _transport().synchronize;
+        if (synchronize == null) {
+          await _evaluate();
+        } else {
+          await synchronize(_evaluate);
+        }
       } while (_again && !_stopped);
     } on Object {
       // A disposed runtime may close its database while a native operation or
@@ -166,6 +166,7 @@ class OperationalNotificationCoordinator
   }
 
   Future<void> _evaluate() async {
+    if (_stopped) return;
     final accounts = {
       for (final account in await _database.select(_database.accounts).get())
         account.id,
@@ -195,16 +196,12 @@ class OperationalNotificationCoordinator
     for (final entry in byAccount.entries) {
       if (_stopped) return;
       entry.value.sort();
-      await _database
-          .into(_database.notificationIssues)
-          .insertOnConflictUpdate(
-            NotificationIssuesCompanion.insert(
-              id: operationalNotificationId('conflict', entry.key),
-              accountId: Value(entry.key),
-              kind: 'conflict',
-              revision: entry.value.join('\n'),
-            ),
-          );
+      await _recordIssue(
+        operationalNotificationId('conflict', entry.key),
+        entry.key,
+        'conflict',
+        entry.value.join('\n'),
+      );
     }
     final withdraw = _withdraw;
     if (_stopped) return;
@@ -220,7 +217,7 @@ class OperationalNotificationCoordinator
               _syncIssueGeneration(issue.revision) !=
                   (generations[issue.accountId] ?? 0)) ||
           (issue.kind == 'conflict' && !byAccount.containsKey(issue.accountId));
-      final settings = _settings();
+      final settings = await _currentSettings();
       final enabled = issue.kind == 'conflict'
           ? settings.notifyConflicts
           : settings.notifySyncFailures;
@@ -233,15 +230,23 @@ class OperationalNotificationCoordinator
           issue.cleanupPending) {
         final removed = await _transport().cancel(issue.id);
         if (_stopped) return;
-        await (_database.update(
-          _database.notificationIssues,
-        )..where((row) => row.id.equals(issue.id))).write(
-          NotificationIssuesCompanion(cleanupPending: Value(!removed)),
-        );
+        final updated =
+            await (_database.update(
+              _database.notificationIssues,
+            )..where((row) => _sameIssue(row, issue))).write(
+              NotificationIssuesCompanion(cleanupPending: Value(!removed)),
+            );
+        if (updated == 0) {
+          _again = true;
+          continue;
+        }
         if (resolved && removed) {
-          await (_database.delete(
-            _database.notificationIssues,
-          )..where((row) => row.id.equals(issue.id))).go();
+          final deleted =
+              await (_database.delete(_database.notificationIssues)..where(
+                    (row) => _sameIssue(row, issue, cleanupPending: false),
+                  ))
+                  .go();
+          if (deleted == 0) _again = true;
           continue;
         }
         if (resolved || !enabled || !removed) continue;
@@ -255,9 +260,7 @@ class OperationalNotificationCoordinator
       final result = await transport.deliver(
         issue.kind,
         issue.accountId,
-        issue.kind == 'sync-failure'
-            ? issue.revision.split(':').first
-            : issue.revision,
+        issue.revision,
         byAccount[issue.accountId]?.length ?? 1,
       );
       if (_stopped) {
@@ -287,21 +290,25 @@ class OperationalNotificationCoordinator
         authorizationChanged =
             generation != _syncIssueGeneration(issue.revision);
       }
+      final currentSettings = await _currentSettings();
       if (current?.revision != issue.revision ||
           authorizationChanged ||
-          _settings().notificationDetailLevel !=
+          currentSettings.notificationDetailLevel !=
               settings.notificationDetailLevel ||
           (issue.kind == 'conflict'
-              ? !_settings().notifyConflicts
-              : !_settings().notifySyncFailures)) {
+              ? !currentSettings.notifyConflicts
+              : !currentSettings.notifySyncFailures)) {
         final removed = await transport.cancel(issue.id);
         if (_stopped) return;
         if (!removed) {
-          await (_database.update(
-            _database.notificationIssues,
-          )..where((row) => row.id.equals(issue.id))).write(
-            const NotificationIssuesCompanion(cleanupPending: Value(true)),
-          );
+          await (_database.update(_database.notificationIssues)..where(
+                (row) =>
+                    row.id.equals(issue.id) &
+                    row.revision.equals(issue.revision),
+              ))
+              .write(
+                const NotificationIssuesCompanion(cleanupPending: Value(true)),
+              );
         }
       }
       if (current?.revision != issue.revision || authorizationChanged) {
@@ -328,12 +335,63 @@ class OperationalNotificationCoordinator
     }
   }
 
+  Future<AppSettings> _currentSettings() async =>
+      await _transport().readSettings?.call() ?? _settings();
+
+  Future<void> _recordIssue(
+    String id,
+    String? accountId,
+    String kind,
+    String revision,
+  ) async {
+    // One atomic UPSERT, including lifecycle reset. Separate runtimes may
+    // report while cancellation is awaiting native work; a read/then-write
+    // transaction here would race another writer's revision or lock upgrade.
+    await _database.customInsert(
+      'INSERT INTO notification_issues (id, account_id, kind, revision) '
+      'VALUES (?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET '
+      'revision = excluded.revision, '
+      'submitted_revision = CASE WHEN revision <> excluded.revision '
+      'THEN NULL ELSE submitted_revision END, '
+      'retry_at_utc = CASE WHEN revision <> excluded.revision '
+      'THEN NULL ELSE retry_at_utc END, '
+      'cleanup_pending = CASE WHEN revision <> excluded.revision '
+      'THEN cleanup_pending OR submitted_revision IS NOT NULL OR native_id IS NOT NULL '
+      'ELSE cleanup_pending END',
+      variables: [
+        Variable(id),
+        Variable<String>(accountId),
+        Variable(kind),
+        Variable(revision),
+      ],
+      updates: {_database.notificationIssues},
+    );
+  }
+
   Future<int> _authorizationGeneration(String accountId) async =>
       (await (_database.select(
             _database.authorizationGenerations,
           )..where((row) => row.accountId.equals(accountId))).getSingleOrNull())
           ?.generation ??
       0;
+
+  // A native cancellation may await another engine. It may only consume the
+  // revision AND lifecycle that caused it, never a recovered/new failure.
+  Expression<bool> _sameIssue(
+    $NotificationIssuesTable row,
+    NotificationIssue issue, {
+    bool? cleanupPending,
+  }) =>
+      row.id.equals(issue.id) &
+      row.revision.equals(issue.revision) &
+      (issue.submittedRevision == null
+          ? row.submittedRevision.isNull()
+          : row.submittedRevision.equals(issue.submittedRevision!)) &
+      row.submittedPrivate.equals(issue.submittedPrivate) &
+      row.cleanupPending.equals(cleanupPending ?? issue.cleanupPending) &
+      (issue.retryAtUtc == null
+          ? row.retryAtUtc.isNull()
+          : row.retryAtUtc.equals(issue.retryAtUtc!));
 
   int? _syncIssueGeneration(String revision) =>
       int.tryParse(revision.substring(revision.lastIndexOf(':') + 1));

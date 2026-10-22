@@ -111,6 +111,17 @@ class NotificationScheduler {
     unawaited(checkNow());
   }
 
+  /// Local quiet-hour releases are projections, unlike a fixed UTC Snooze.
+  /// Call before rebuilding source times after a zone/offset change.
+  Future<void> localTimeChanged() async {
+    _deferredUntilUtc.clear();
+    await _database
+        .update(_database.notificationSchedule)
+        .write(
+          const NotificationScheduleCompanion(deferredUntilUtc: Value(null)),
+        );
+  }
+
   /// Terminal: neither callbacks nor work already awaiting delivery may rearm it.
   void stop() {
     _stopped = true;
@@ -184,6 +195,15 @@ class NotificationScheduler {
     }
     for (final row in rows) {
       if (row.sentAtUtc != null &&
+          !await NotificationScheduleService(
+            database: _database,
+            nowUtc: _nowUtc,
+          ).isReminderSourceEligible(row)) {
+        await _cancelReminder(_deliveryId(row));
+        if (_stopped) return;
+        continue;
+      }
+      if (row.sentAtUtc != null &&
           (_withdrawSourceTypes.contains(row.sourceType) ||
               !_notifications.allowsReminder(row.sourceType) ||
               _notifications.isPrivate && !row.sentPrivate) &&
@@ -228,6 +248,15 @@ class NotificationScheduler {
       final eligible = await _isAccountReminderEligible(pending.accountId);
       if (_stopped) return;
       if (!eligible) continue;
+      final sources = NotificationScheduleService(
+        database: _database,
+        nowUtc: _nowUtc,
+      );
+      if (!await sources.isReminderSourceEligible(pending)) {
+        await sources.validateAndReconcileReminder(pending);
+        await _cancelReminder(_deliveryId(pending));
+        continue;
+      }
       final row = await _claimReminder(pending);
       if (_stopped) return;
       if (row == null) {
@@ -363,7 +392,16 @@ class NotificationScheduler {
             ))
             .get();
     if (_stopped) return;
-    final nextDueAt = pending
+    final eligible = <NotificationScheduleData>[];
+    final sources = NotificationScheduleService(
+      database: _database,
+      nowUtc: _nowUtc,
+    );
+    for (final row in pending) {
+      if (_stopped) return;
+      if (await sources.isReminderSourceEligible(row)) eligible.add(row);
+    }
+    final nextDueAt = eligible
         .where((row) => !_disabledNotificationIds.contains(_deliveryId(row)))
         .map(_effectiveDueAtUtc)
         .fold<int?>(null, (earliest, value) {
@@ -380,9 +418,7 @@ class NotificationScheduler {
   }
 
   int _effectiveDueAtUtc(NotificationScheduleData row) {
-    var dueAt = row.scheduledAtUtc;
-    final snoozedUntil = row.snoozedUntilUtc;
-    if (snoozedUntil != null && snoozedUntil > dueAt) dueAt = snoozedUntil;
+    var dueAt = row.snoozedUntilUtc ?? row.scheduledAtUtc;
     final deferredUntil = _deferredUntilUtc[_deliveryId(row)];
     if (deferredUntil != null && deferredUntil > dueAt) dueAt = deferredUntil;
     if (row.deferredUntilUtc != null && row.deferredUntilUtc! > dueAt) {
@@ -417,7 +453,10 @@ class NotificationScheduler {
   }) => _database.transaction(() async {
     if (_stopped) return false;
     final reminderCurrent = await _isReminderCurrent(row);
-    if (_stopped || !reminderCurrent) return false;
+    if (_stopped) return false;
+    // A successful native submission is consumed history even if a collection
+    // was disabled while Show awaited. Record only this exact generation, then
+    // withdraw the invalid post; re-enabling must not replay the same alarm.
     // One conditional write: no lookup/update race with edits or actions.
     final updated =
         await (_database.update(
@@ -431,7 +470,7 @@ class NotificationScheduler {
             updatedAtLocal: Value(DateTime.now().millisecondsSinceEpoch),
           ),
         );
-    return updated != 0;
+    return reminderCurrent && updated != 0;
   });
 
   Future<void> handleReminderAction(
