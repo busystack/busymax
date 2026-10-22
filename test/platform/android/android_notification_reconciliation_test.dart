@@ -1332,42 +1332,111 @@ void main() {
     expect(plugin.scheduled, isEmpty);
   });
 
-  test('privacy during delayed registration preserves an overdue inexact alarm that has not fired', () async {
-    final clock = DateTime.now();
-    await _insertReminder(
-      database,
-      generation: 'privacy-race',
-      scheduledAt: clock.subtract(const Duration(minutes: 1)),
-    );
-    plugin.registrationBarrier = Completer<void>();
-    final notifications = service(clock: () => clock);
-    await notifications.initialize(timeZoneId: 'Etc/UTC');
-    final registering = notifications.reconcile();
-    await plugin.registrationStarted.future;
-    settings = settings.copyWith(
-      notificationDetailLevel: NotificationDetailLevel.private,
-    );
-    plugin.registrationBarrier!.complete();
-    await registering;
-    expect(plugin.scheduled, hasLength(2));
-    expect(plugin.pendingIds, {plugin.scheduled.last.id});
-    expect(plugin.scheduled.last.id, plugin.scheduled.first.id);
-    expect(plugin.scheduled.last.body, isNull);
-    expect(plugin.scheduled.last.details.android!.silent, isTrue);
-    expect(
-      (await database.select(database.notificationSchedule).getSingle())
-          .sentAtUtc,
-      isNull,
-    );
-    plugin.pendingIds.clear();
-    plugin.activeIds.add(plugin.scheduled.last.id);
-    await notifications.reconcile();
-    expect(
-      (await database.select(database.notificationSchedule).getSingle())
-          .sentAtUtc,
-      isNotNull,
-    );
-  });
+  for (final activeQueryFails in [false, true]) {
+    for (final cancellationFailure in [
+      'none',
+      'before removal',
+      'after removal',
+    ]) {
+      test(
+        'privacy during delayed registration preserves an overdue inexact alarm that has not fired (active query fails: $activeQueryFails; cancellation failure: $cancellationFailure)',
+        () async {
+          final clock = DateTime.now();
+          AppDatabase? peer;
+          if (cancellationFailure != 'none') {
+            final directory = await Directory.systemTemp.createTemp(
+              'busymax-private-replacement-',
+            );
+            addTearDown(() => directory.delete(recursive: true));
+            peer = await shareDatabase(directory);
+          }
+          await _insertReminder(
+            database,
+            generation: 'privacy-race',
+            scheduledAt: clock.subtract(const Duration(minutes: 1)),
+          );
+          plugin.registrationBarrier = Completer<void>();
+          plugin.activeQueryFails = activeQueryFails;
+          var notifications = service(clock: () => clock);
+          await notifications.initialize(timeZoneId: 'Etc/UTC');
+          final registering = notifications.reconcile();
+          await plugin.registrationStarted.future;
+          settings = settings.copyWith(
+            notificationDetailLevel: NotificationDetailLevel.private,
+          );
+          if (cancellationFailure == 'before removal') {
+            plugin.cancellationFailuresRemaining = 1;
+          } else if (cancellationFailure == 'after removal') {
+            plugin.cancellationFailuresAfterRemoval = 1;
+          }
+          plugin.registrationBarrier!.complete();
+          if (cancellationFailure == 'none') {
+            await registering;
+          } else {
+            await expectLater(registering, throwsStateError);
+            expect(
+              (await peer!.select(peer.androidNotificationMappings).getSingle())
+                  .state,
+              startsWith('replacing:'),
+            );
+            expect(
+              (await peer.select(peer.notificationSchedule).getSingle())
+                  .sentAtUtc,
+              isNull,
+            );
+            // A new service/SQLite connection recovers the durable replacement
+            // decision, including interruption after native removal took effect.
+            notifications = AndroidNotificationService(
+              database: peer,
+              settings: () => settings,
+              backend: plugin,
+              exactAlarmCapability: () async => false,
+              now: () => clock,
+            );
+            await notifications.initialize(timeZoneId: 'Etc/UTC');
+            await notifications.reconcile();
+          }
+          expect(plugin.scheduled, hasLength(2));
+          expect(plugin.pendingIds, {plugin.scheduled.last.id});
+          expect(plugin.scheduled.last.id, plugin.scheduled.first.id);
+          expect(plugin.scheduled.last.body, isNull);
+          expect(plugin.scheduled.last.details.android!.silent, isTrue);
+          expect(
+            (await database.select(database.notificationSchedule).getSingle())
+                .sentAtUtc,
+            isNull,
+          );
+          final nativeId = plugin.scheduled.last.id;
+          expect(plugin.cancelledIds, contains(nativeId));
+          final mapping = await database
+              .select(database.androidNotificationMappings)
+              .getSingle();
+          expect(mapping.platformId, nativeId);
+          expect(mapping.generation, 'privacy-race');
+          expect(mapping.state, startsWith('scheduled:v3:private:'));
+          await notifications.reconcile();
+          expect(plugin.scheduled, hasLength(2));
+          expect(plugin.pendingIds, {nativeId});
+          plugin.activeQueryFails = false;
+          await notifications.reconcile();
+          expect(plugin.scheduled, hasLength(2));
+          expect(
+            (await database.select(database.notificationSchedule).getSingle())
+                .sentAtUtc,
+            isNull,
+          );
+          plugin.pendingIds.clear();
+          plugin.activeIds.add(plugin.scheduled.last.id);
+          await notifications.reconcile();
+          expect(
+            (await database.select(database.notificationSchedule).getSingle())
+                .sentAtUtc,
+            isNotNull,
+          );
+        },
+      );
+    }
+  }
 
   test(
     'a visible summary changes count and privacy silently without a new alarm',
@@ -1695,6 +1764,7 @@ class _StatefulNotificationPlugin implements AndroidNotificationBackend {
   >
   shown = [];
   int cancellationFailuresRemaining = 0;
+  int cancellationFailuresAfterRemoval = 0;
   bool permissionGranted = true;
   Completer<void>? registrationBarrier;
   Completer<void>? showBarrier;
@@ -1742,6 +1812,10 @@ class _StatefulNotificationPlugin implements AndroidNotificationBackend {
     }
     pendingIds.remove(id);
     activeIds.remove(id);
+    if (cancellationFailuresAfterRemoval > 0) {
+      cancellationFailuresAfterRemoval--;
+      throw StateError('interrupted after native cancellation');
+    }
   }
 
   @override

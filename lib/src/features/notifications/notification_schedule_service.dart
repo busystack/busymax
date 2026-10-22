@@ -475,14 +475,19 @@ class NotificationScheduleService {
           // An Android registration may have fired without a sent observation
           // yet. Native reconciliation must observe/withdraw it before cleanup
           // can discard an unsent row. A registration alone is not submission.
-          await (_database.update(
-            _database.notificationSchedule,
-          )..where((table) => table.id.equals(row.id))).write(
-            const NotificationScheduleCompanion(
-              title: Value(''),
-              body: Value(null),
-            ),
-          );
+          // The desktop scheduler watches this table. Even an equal-value
+          // UPDATE emits again in Drift and would keep an overdue disabled
+          // reminder reconciling itself indefinitely.
+          if (row.title.isNotEmpty || row.body != null) {
+            await (_database.update(
+              _database.notificationSchedule,
+            )..where((table) => table.id.equals(row.id))).write(
+              const NotificationScheduleCompanion(
+                title: Value(''),
+                body: Value(null),
+              ),
+            );
+          }
           continue;
         }
         await (_database.delete(

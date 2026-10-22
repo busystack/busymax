@@ -6,6 +6,9 @@ import 'dart:io';
 
 import 'package:busymax/src/app/app_settings.dart';
 import 'package:busymax/src/core/auth/oauth_models.dart';
+import 'package:busymax/src/core/auth/authorization_persistence.dart';
+import 'package:busymax/src/core/auth/oauth_registration.dart';
+import 'package:busymax/src/core/secrets/secret_store.dart';
 import 'package:busymax/src/core/http/request_dispatch_exception.dart';
 import 'package:busymax/src/dav/ical/ical_task_alarm.dart';
 import 'package:busymax/src/db/app_database.dart';
@@ -108,6 +111,137 @@ void main() {
   });
 
   for (final task in [false, true]) {
+    test('running scheduler settles across a disabled trigger (task: $task)', () async {
+      now = DateTime.now().toUtc();
+      final trigger = now.add(const Duration(minutes: 5));
+      if (task) {
+        await database
+            .update(database.accounts)
+            .write(const AccountsCompanion(provider: Value('microsoft')));
+        await database
+            .into(database.taskLists)
+            .insert(
+              TaskListsCompanion.insert(
+                accountId: 'a',
+                id: 'list',
+                title: 'Inbox',
+                rawJson: '{}',
+                createdLocalAtUtc: '',
+                updatedLocalAtUtc: '',
+              ),
+            );
+        await database
+            .into(database.tasks)
+            .insert(
+              TasksCompanion.insert(
+                accountId: 'a',
+                taskListId: 'list',
+                id: 'task',
+                title: 'Task',
+                rawJson: '{}',
+                createdLocalAtUtc: '',
+                updatedLocalAtUtc: '',
+                microsoftIsReminderOn: const Value(true),
+                microsoftReminderDateTime: Value(trigger.toIso8601String()),
+                microsoftReminderTimeZone: const Value('UTC'),
+              ),
+            );
+      } else {
+        await _event(database, offsets: [5]);
+        await database
+            .update(database.calendarEvents)
+            .write(
+              CalendarEventsCompanion(
+                startDateTime: Value(
+                  trigger.add(const Duration(minutes: 5)).toIso8601String(),
+                ),
+                endDateTime: Value(
+                  trigger.add(const Duration(hours: 2)).toIso8601String(),
+                ),
+              ),
+            );
+      }
+      await schedules().rebuildUpcomingNotifications('a');
+      var checks = 0;
+      var writes = 0;
+      var overBudget = false;
+      late NotificationScheduler runtime;
+      runtime = NotificationScheduler(
+        database: database,
+        notifications: service(),
+        nowUtc: () => now,
+        interval: const Duration(days: 1),
+        beforeCheck: () async {
+          if (++checks == 30) {
+            overBudget = true;
+            runtime.stop(); // Bound a broken stream feedback loop deterministically.
+          }
+        },
+      );
+      addTearDown(runtime.stop);
+      final updates = database
+          .tableUpdates(TableUpdateQuery.onTable(database.notificationSchedule))
+          .listen((_) => writes++);
+      addTearDown(updates.cancel);
+      Future<void> toggle(bool enabled) => task
+          ? TaskListsRepository(
+              database: database,
+              accountId: 'a',
+              nowUtc: () => now,
+            ).setRemindersEnabled('list', enabled)
+          : CalendarRepository(
+              database: database,
+              now: () => now,
+            ).setSourceRemindersEnabled('calendar-a', enabled);
+      runtime.start();
+      await pumpEventQueue();
+      await toggle(false);
+      await pumpEventQueue();
+      final scrubbed = await database
+          .select(database.notificationSchedule)
+          .getSingle();
+      expect(scrubbed.title, isEmpty);
+      expect(scrubbed.sentAtUtc, isNull);
+      now = trigger.add(const Duration(seconds: 1));
+      // A clock-triggered check with the real subscription still running. All
+      // follow-up checks must come from real Drift emissions, not this caller.
+      await runtime.checkNow();
+      await pumpEventQueue(times: 50);
+      expect(
+        overBudget,
+        isFalse,
+        reason: 'schedule writes must not feed themselves',
+      );
+      final settled = (checks, writes, backend.cancellationAttempts.length);
+      await pumpEventQueue(times: 50);
+      expect((checks, writes, backend.cancellationAttempts.length), settled);
+      expect(backend.requests, isEmpty);
+      final disabled = await database
+          .select(database.notificationSchedule)
+          .getSingle();
+      expect(disabled.generation, scrubbed.generation);
+      expect(disabled.sentAtUtc, isNull);
+      expect(disabled.dismissedAtUtc, isNull);
+      expect(disabled.expiredAtUtc, isNull);
+      await toggle(true);
+      await pumpEventQueue(times: 50);
+      expect(backend.requests, hasLength(1));
+      final delivered = await database
+          .select(database.notificationSchedule)
+          .getSingle();
+      expect(delivered.sentAtUtc, isNotNull);
+      await toggle(false);
+      await pumpEventQueue();
+      await toggle(true);
+      await pumpEventQueue();
+      expect(backend.requests, hasLength(1));
+      expect(
+        (await database.select(database.notificationSchedule).getSingle())
+            .generation,
+        delivered.generation,
+      );
+    });
+
     for (final lifecycle in [
       'sent',
       'snoozed',
@@ -830,6 +964,78 @@ void main() {
     return coordinator;
   }
 
+  test(
+    'a scan predating authorization replacement cannot consume its new issue',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'busymax-auth-scan-',
+      );
+      addTearDown(() => directory.delete(recursive: true));
+      await database.close();
+      final file = File('${directory.path}/busymax.sqlite');
+      final barrier = _PauseIssueSelection();
+      database = AppDatabase(NativeDatabase(file).interceptWith(barrier));
+      await _account(database, 'a');
+      final peer = AppDatabase(NativeDatabase(file));
+      addTearDown(peer.close);
+      final persistence = AuthorizationPersistence(
+        database: peer,
+        secrets: InMemorySecretStore(),
+      );
+      final runtime = coordinator();
+      barrier.armed = true;
+      final scanning = runtime.reconcile();
+      await barrier.entered.future;
+      // The old implementation has already selected generation 0 here, but has
+      // not selected the issue. Commit through the real authorization boundary.
+      await persistence.commit(
+        accountId: 'a',
+        expectedGeneration: 0,
+        requireExisting: true,
+        candidate: GoogleDesktopCredential(
+          registration: const GoogleDesktopRegistration(
+            clientId: 'synthetic.apps.googleusercontent.com',
+            projectId: null,
+            origin: RegistrationOrigin.userProvided,
+          ),
+          tokenSet: OAuthTokenSet(
+            accessToken: 'synthetic',
+            refreshToken: 'synthetic',
+            expiresAtUtc: now.add(const Duration(hours: 1)),
+            tokenType: 'Bearer',
+            scopes: const {},
+          ),
+          subject: 'a',
+          generation: 1,
+          transitionEligible: false,
+        ),
+        persistAccount: () async {},
+      );
+      await runtime.notifySyncFailure(
+        const AuthorizationScopedFailure(
+          accountId: 'a',
+          generation: 1,
+          cause: OAuthException('OAuthMissingToken', 'synthetic'),
+        ),
+      );
+      expect(
+        (await peer.select(peer.notificationIssues).getSingle()).revision,
+        'reconnectRequired:1',
+      );
+      barrier.release.complete();
+      await scanning;
+      final current = await database
+          .select(database.notificationIssues)
+          .getSingle();
+      expect(current.revision, 'reconnectRequired:1');
+      expect(current.submittedRevision, current.revision);
+      expect(backend.requests, hasLength(1));
+      expect(backend.activeIds, hasLength(1));
+      await runtime.reconcile();
+      expect(backend.requests, hasLength(1));
+    },
+  );
+
   for (final authorizationReplacement in [false, true]) {
     test(
       'obsolete cleanup preserves a new issue (authorization replacement: $authorizationReplacement)',
@@ -1134,4 +1340,25 @@ Future<void> _until(bool Function() condition) async {
     await Future<void>.delayed(const Duration(milliseconds: 5));
   }
   expect(condition(), isTrue);
+}
+
+class _PauseIssueSelection extends QueryInterceptor {
+  bool armed = false;
+  final entered = Completer<void>();
+  final release = Completer<void>();
+  @override
+  Future<List<Map<String, Object?>>> runSelect(
+    QueryExecutor executor,
+    String statement,
+    List<Object?> args,
+  ) async {
+    if (armed &&
+        statement.startsWith('SELECT') &&
+        statement.contains('notification_issues')) {
+      armed = false;
+      entered.complete();
+      await release.future;
+    }
+    return executor.runSelect(statement, args);
+  }
 }

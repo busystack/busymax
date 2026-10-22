@@ -10,6 +10,8 @@ repairs, automated results and the native checks still requiring another OS or
 package environment.
 The [independent follow-up repair record](notification-repair-validation.md)
 separates the F1–F7 reproductions and new validation from that earlier evidence.
+The [subsequent convergence/authorization/privacy record](notification-followup-validation.md)
+records the three independently reproduced follow-up cases.
 
 ## Reminders
 
@@ -55,8 +57,10 @@ Android identities survive rebuilding until native delivery can be observed and
 withdrawn; a pending registration alone is not marked delivered. Successful
 desktop Show completion during disablement is recorded before withdrawal. Native
 artifacts are withdrawn while ineligible; re-enabling cannot replay an unchanged
-consumed alarm. A future alarm that never fired can still be registered. After a
-desktop zone/offset change, local quiet-hour deferrals are invalidated before
+consumed alarm. A future alarm that never fired can still be registered.
+Scrubbing retained inactive rows is idempotent; the desktop schedule watch must
+settle after cleanup instead of feeding equal-value updates back into itself.
+After a desktop zone/offset change, local quiet-hour deferrals are invalidated before
 source reprojection. Snooze remains the fixed UTC delivery baseline even when a
 floating source alarm moves later.
 
@@ -95,8 +99,10 @@ content and action labels. Failed cleanup retains identity and retry state.
 Switching back to normal details never recreates a consumed post.
 An overdue inexact alarm that Android still reports as pending has not proved
 delivery. A privacy change replaces it privately without marking it submitted;
-the replacement is silent if its trigger has already passed. A known active or
-possibly consumed due post is withdrawn without speculative redelivery.
+the replacement is silent if its trigger has already passed. The known-pending
+replacement decision is persisted before cancellation, so native-history failure
+or runtime recreation cannot reinterpret that cancellation as delivery. A known
+active or possibly consumed due post is withdrawn without speculative redelivery.
 
 Disabling a category withdraws its visible posts and pending registrations.
 Re-enabling allows only still-relevant, unconsumed reminders. It does not revive
@@ -174,7 +180,9 @@ is read after acquisition; native ID allocation is transactional and uses the
 same namespace as reminders. Engine detachment/stopped-work cleanup releases
 the gate. Revision changes reset retry/submission state atomically, retaining
 native cleanup identity. An asynchronous cancellation may only update/delete
-the issue revision and lifecycle it evaluated.
+the issue revision and lifecycle it evaluated. Resolution also uses current
+account, authorization and conflict state in the cleanup SQL predicate itself;
+an earlier scan snapshot cannot consume a newly current issue.
 
 An operational ID is persisted before Show. If Show completed but submission
 persistence was interrupted, an active native ID for the unchanged revision is

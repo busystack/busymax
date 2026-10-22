@@ -859,6 +859,7 @@ final class AndroidNotificationService
       if (known?.generation == row.generation &&
           (activeIds.contains(known!.platformId) ||
               !activeStateKnown &&
+                  !known.state.startsWith('replacing:') &&
                   !pendingIds.contains(known.platformId) &&
                   applyAndroidQuietHours(_effectiveAt(row), settings) <=
                       nowMillis) &&
@@ -916,11 +917,13 @@ final class AndroidNotificationService
           mappingMatchesGeneration &&
           (activeIds.contains(mapping!.platformId) ||
               (!activeStateKnown &&
+                  !mapping.state.startsWith('replacing:') &&
                   !remainsPending &&
                   effectiveAt <= nowMillis));
       if (mappingMatchesGeneration &&
           mapping!.state != 'blocked' &&
           !mapping.state.startsWith('registering:') &&
+          !mapping.state.startsWith('replacing:') &&
           effectiveAt <= nowMillis &&
           !remainsPending &&
           !remainsDisplayed &&
@@ -1039,6 +1042,7 @@ final class AndroidNotificationService
           sameGeneration &&
           (activeIds.contains(mapping!.platformId) ||
               (!activeStateKnown &&
+                  !mapping.state.startsWith('replacing:') &&
                   !pendingIds.contains(mapping.platformId) &&
                   effectiveAt <= nowMillis));
       final unchangedPending =
@@ -1096,6 +1100,9 @@ final class AndroidNotificationService
       }
       if (unchangedPending) continue;
       if (mapping != null) {
+        if (await _nativeRegistrationStillPending(mapping.platformId)) {
+          await _markPendingReplacement(row, mapping.state);
+        }
         await _notifications.cancel(id: mapping.platformId);
       }
       final platformId =
@@ -1114,6 +1121,10 @@ final class AndroidNotificationService
                 .add(const Duration(seconds: 1))
                 .millisecondsSinceEpoch
           : effectiveAt;
+      if (!await _policyStillCurrent(settings)) {
+        _reconcileAgain = true;
+        return;
+      }
       await _database
           .into(_database.androidNotificationMappings)
           .insertOnConflictUpdate(
@@ -1126,10 +1137,6 @@ final class AndroidNotificationService
               updatedAtUtc: now.millisecondsSinceEpoch,
             ),
           );
-      if (!await _policyStillCurrent(settings)) {
-        _reconcileAgain = true;
-        return;
-      }
       await _notifications.zonedSchedule(
         id: platformId,
         title: title,
@@ -1187,9 +1194,11 @@ final class AndroidNotificationService
           !currentPolicy) {
         final due = effectiveAt <= _now().millisecondsSinceEpoch;
         final pendingRegistration =
-            due &&
             current != null &&
             await _nativeRegistrationStillPending(platformId);
+        if (pendingRegistration) {
+          await _markPendingReplacement(row, registrationState);
+        }
         await _notifications.cancel(id: platformId);
         if (due && current != null && !pendingRegistration) {
           await (_database.update(_database.notificationSchedule)..where(
@@ -1225,6 +1234,26 @@ final class AndroidNotificationService
       activeIds: activeIds,
       activeStateKnown: activeStateKnown,
     );
+  }
+
+  Future<void> _markPendingReplacement(
+    NotificationScheduleData row,
+    String previousState,
+  ) async {
+    // Persist before cancellation: a retry or another runtime must distinguish
+    // our withdrawal of a positively observed pending alarm from a delivered
+    // or possibly dismissed post when native history cannot be inspected.
+    if (previousState.startsWith('replacing:')) return;
+    await (_database.update(_database.androidNotificationMappings)..where(
+          (mapping) =>
+              mapping.scheduleId.equals(row.id) &
+              mapping.generation.equals(row.generation),
+        ))
+        .write(
+          AndroidNotificationMappingsCompanion(
+            state: Value('replacing:$previousState'),
+          ),
+        );
   }
 
   Future<bool> _nativeRegistrationStillPending(int id) async {

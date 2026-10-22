@@ -172,12 +172,6 @@ class OperationalNotificationCoordinator
         account.id,
     };
     if (_stopped) return;
-    final generations = {
-      for (final row
-          in await _database.select(_database.authorizationGenerations).get())
-        row.accountId: row.generation,
-    };
-    if (_stopped) return;
     final conflicts =
         await (_database.select(_database.pendingOps)..where(
               (row) =>
@@ -210,13 +204,12 @@ class OperationalNotificationCoordinator
         in await _database.select(_database.notificationIssues).get()) {
       if (_stopped) return;
       final resolved =
-          issue.revision == 'resolved' ||
-          (issue.accountId != null && !accounts.contains(issue.accountId)) ||
-          (issue.kind == 'sync-failure' &&
-              issue.accountId != null &&
-              _syncIssueGeneration(issue.revision) !=
-                  (generations[issue.accountId] ?? 0)) ||
-          (issue.kind == 'conflict' && !byAccount.containsKey(issue.accountId));
+          await (_database.select(
+                _database.notificationIssues,
+              )..where((row) => _sameIssue(row, issue) & _resolvedIssue(issue)))
+              .getSingleOrNull() !=
+          null;
+      if (_stopped) return;
       final settings = await _currentSettings();
       final enabled = issue.kind == 'conflict'
           ? settings.notifyConflicts
@@ -231,11 +224,14 @@ class OperationalNotificationCoordinator
         final removed = await _transport().cancel(issue.id);
         if (_stopped) return;
         final updated =
-            await (_database.update(
-              _database.notificationIssues,
-            )..where((row) => _sameIssue(row, issue))).write(
-              NotificationIssuesCompanion(cleanupPending: Value(!removed)),
-            );
+            await (_database.update(_database.notificationIssues)..where(
+                  (row) =>
+                      _sameIssue(row, issue) &
+                      (resolved ? _resolvedIssue(issue) : const Constant(true)),
+                ))
+                .write(
+                  NotificationIssuesCompanion(cleanupPending: Value(!removed)),
+                );
         if (updated == 0) {
           _again = true;
           continue;
@@ -243,7 +239,9 @@ class OperationalNotificationCoordinator
         if (resolved && removed) {
           final deleted =
               await (_database.delete(_database.notificationIssues)..where(
-                    (row) => _sameIssue(row, issue, cleanupPending: false),
+                    (row) =>
+                        _sameIssue(row, issue, cleanupPending: false) &
+                        _resolvedIssue(issue),
                   ))
                   .go();
           if (deleted == 0) _again = true;
@@ -374,6 +372,50 @@ class OperationalNotificationCoordinator
           )..where((row) => row.accountId.equals(accountId))).getSingleOrNull())
           ?.generation ??
       0;
+
+  // Resolution is a predicate over authoritative SQLite state, not a scan's
+  // cached account/generation snapshot. Use it both to decide cancellation and
+  // in the cleanup writes themselves: authorization/recovery can commit while
+  // native cancellation awaits, under a different cross-engine gate.
+  Expression<bool> _resolvedIssue(NotificationIssue issue) {
+    if (issue.revision == 'resolved') return const Constant(true);
+    final accountId = issue.accountId;
+    if (accountId == null) return const Constant(false);
+    final missingAccount = notExistsQuery(
+      _database.select(_database.accounts)
+        ..where((row) => row.id.equals(accountId)),
+    );
+    if (issue.kind == 'sync-failure') {
+      final generation = _syncIssueGeneration(issue.revision);
+      if (generation == null) return const Constant(true);
+      final matchingGeneration =
+          _database.select(_database.authorizationGenerations)..where(
+            (row) =>
+                row.accountId.equals(accountId) &
+                (generation == 0
+                    ? row.generation.isNotValue(0)
+                    : row.generation.equals(generation)),
+          );
+      // An absent generation is the established generation-zero state.
+      return missingAccount |
+          (generation == 0
+              ? existsQuery(matchingGeneration)
+              : notExistsQuery(matchingGeneration));
+    }
+    if (issue.kind == 'conflict') {
+      return missingAccount |
+          notExistsQuery(
+            _database.select(_database.pendingOps)..where(
+              (row) =>
+                  row.accountId.equals(accountId) &
+                  (row.state.equals('conflict') |
+                      row.conflictState.equals('unresolved') |
+                      row.lastErrorCode.equals('conflict')),
+            ),
+          );
+    }
+    return missingAccount;
+  }
 
   // A native cancellation may await another engine. It may only consume the
   // revision AND lifecycle that caused it, never a recovered/new failure.
