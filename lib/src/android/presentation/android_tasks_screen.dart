@@ -102,6 +102,7 @@ class AndroidTaskEditorResult {
     required this.taskId,
     this.previousTaskListId,
     this.completed,
+    this.occurrenceKey,
   });
 
   final AndroidTaskEditorAction action;
@@ -110,6 +111,7 @@ class AndroidTaskEditorResult {
   final String taskId;
   final String? previousTaskListId;
   final bool? completed;
+  final String? occurrenceKey;
 }
 
 class _AndroidTasksScreenState extends ConsumerState<AndroidTasksScreen> {
@@ -120,6 +122,7 @@ class _AndroidTasksScreenState extends ConsumerState<AndroidTasksScreen> {
   bool _showNoDate = true;
   var _mutationGeneration = 0;
   bool _clearingCompleted = false;
+  final Set<String> _taskMutationsInFlight = {};
   TaskListMutationIntent? _mutationIntent;
 
   @override
@@ -282,9 +285,10 @@ class _AndroidTasksScreenState extends ConsumerState<AndroidTasksScreen> {
                 mutation: _mutationIntent,
                 identityOf: (task) =>
                     '${task.accountId}\u0000${task.sourceId}\u0000${task.id}',
-                mutationApplied: (task, mutation) =>
-                    mutation.completed == null ||
-                    task.completed == mutation.completed,
+                mutationApplied: (task, mutation) => mutation.completionSettled(
+                  currentCompleted: task.completed,
+                  currentOccurrenceKey: task.occurrenceKey,
+                ),
                 onMutationConsumed: (mutation) {
                   if (!mounted) return;
                   if (_mutationIntent?.generation == mutation.generation) {
@@ -307,7 +311,9 @@ class _AndroidTasksScreenState extends ConsumerState<AndroidTasksScreen> {
                       tooltip: displayedCompleted
                           ? context.l10n.taskStatusCompleted
                           : context.l10n.taskStatusInProcess,
-                      onPressed: task.capabilities.canEdit
+                      onPressed:
+                          task.capabilities.canEdit &&
+                              !_taskMutationsInFlight.contains(_taskKey(task))
                           ? () => _toggle(task)
                           : null,
                       icon: AndroidTaskCompletionIcon(
@@ -351,6 +357,8 @@ class _AndroidTasksScreenState extends ConsumerState<AndroidTasksScreen> {
   }
 
   Future<void> _toggle(TaskScheduleItem task) async {
+    final key = _taskKey(task);
+    if (!task.capabilities.canEdit || !_taskMutationsInFlight.add(key)) return;
     setState(() {
       _mutationIntent = TaskListMutationIntent(
         presentation: TaskListMutationPresentation.completion,
@@ -358,6 +366,7 @@ class _AndroidTasksScreenState extends ConsumerState<AndroidTasksScreen> {
         taskListId: task.sourceId,
         taskId: task.id,
         completed: !task.completed,
+        occurrenceKey: task.occurrenceKey,
         generation: ++_mutationGeneration,
       );
     });
@@ -370,23 +379,41 @@ class _AndroidTasksScreenState extends ConsumerState<AndroidTasksScreen> {
             TaskPatchInput.completion(
               !task.completed,
               includeCompletedTimestamp: false,
+              observedOccurrenceKey: task.occurrenceKey,
             ),
           );
     } on Object catch (error) {
       if (mounted) {
-        setState(() => _mutationIntent = null);
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('$error')));
+        if (_mutationIntent?.taskKey == key) {
+          setState(() => _mutationIntent = null);
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              error is TaskOccurrenceChangedException
+                  ? context.l10n.taskDraftConflict
+                  : '$error',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _taskMutationsInFlight.remove(key));
       }
     }
   }
+
+  String _taskKey(TaskScheduleItem task) =>
+      '${task.accountId}\u0000${task.sourceId}\u0000${task.id}';
 
   bool _animatesCompletion(TaskScheduleItem task) {
     final intent = _mutationIntent;
     return intent?.presentation == TaskListMutationPresentation.completion &&
         intent?.taskKey ==
             '${task.accountId}\u0000${task.sourceId}\u0000${task.id}' &&
-        intent?.completed != null;
+        intent!.completionAppliesTo(task.occurrenceKey) &&
+        intent.completed != null;
   }
 
   bool _displayedCompletion(TaskScheduleItem task) {
@@ -394,8 +421,9 @@ class _AndroidTasksScreenState extends ConsumerState<AndroidTasksScreen> {
     if (intent?.presentation == TaskListMutationPresentation.completion &&
         intent?.taskKey ==
             '${task.accountId}\u0000${task.sourceId}\u0000${task.id}' &&
-        intent?.completed != null) {
-      return intent!.completed!;
+        intent!.completionAppliesTo(task.occurrenceKey) &&
+        intent.completed != null) {
+      return intent.completed!;
     }
     return task.completed;
   }
@@ -533,6 +561,7 @@ class _AndroidTasksScreenState extends ConsumerState<AndroidTasksScreen> {
         current?.accountId == result.accountId &&
         current?.taskListId == taskListId &&
         current?.taskId == result.taskId &&
+        current?.occurrenceKey == result.occurrenceKey &&
         current?.completed == result.completed) {
       return;
     }
@@ -543,6 +572,7 @@ class _AndroidTasksScreenState extends ConsumerState<AndroidTasksScreen> {
         taskListId: taskListId,
         taskId: result.taskId,
         completed: result.completed,
+        occurrenceKey: result.occurrenceKey,
         generation: ++_mutationGeneration,
       );
     });
@@ -558,8 +588,9 @@ Future<TaskListEntity?> selectAndroidTaskList(
   List<TaskListEntity> lists, {
   required String title,
   Map<String, String> accountLabels = const {},
+  bool alwaysPrompt = false,
 }) {
-  if (lists.length == 1) return Future.value(lists.single);
+  if (lists.length == 1 && !alwaysPrompt) return Future.value(lists.single);
   return showModalBottomSheet<TaskListEntity>(
     context: context,
     showDragHandle: true,
@@ -581,6 +612,126 @@ Future<TaskListEntity?> selectAndroidTaskList(
   );
 }
 
+final _taskEditorNavigators = Expando<_TaskEditorNavigator>();
+
+String _taskEditorKey(String accountId, String taskListId, String taskId) =>
+    '$accountId\u0000$taskListId\u0000$taskId';
+
+String _taskRecoveryKey(String accountId, String taskListId, String taskId) =>
+    'busymax.android.task-draft.v2.'
+    '${base64Url.encode(utf8.encode(jsonEncode([accountId, taskListId, taskId])))}';
+
+String _taskCreationIntentKey(
+  String accountId,
+  String taskListId,
+  BusyProvider provider,
+  DateTime? initialDue,
+) => jsonEncode([
+  accountId,
+  taskListId,
+  provider.name,
+  initialDue?.toIso8601String(),
+]);
+
+class _TaskEditorOpen {
+  _TaskEditorOpen(this.order, {this.creationIntentKey});
+  final int order;
+  final String? creationIntentKey;
+  Future<AndroidTaskEditorResult?>? result;
+  TaskEntity? task;
+}
+
+class _TaskEditorNavigator {
+  var generation = 0;
+  final openings = <String, _TaskEditorOpen>{};
+  final editors = <_AndroidTaskEditorState>[];
+}
+
+_TaskEditorNavigator _taskEditorNavigator(NavigatorState navigator) =>
+    _taskEditorNavigators[navigator] ??= _TaskEditorNavigator();
+
+Future<AndroidTaskEditorResult?> _reuseTaskEditor(
+  _TaskEditorNavigator sessions,
+  _TaskEditorOpen opening,
+  TaskScheduleItem? task,
+) async {
+  final target = sessions.editors.where((editor) {
+    if (task == null) {
+      return editor.mounted &&
+          !editor._allowPop &&
+          editor.widget.task == null &&
+          editor._creationIntentKey == opening.creationIntentKey;
+    }
+    final existing = editor._observedTask ?? editor.widget.task;
+    return opening.task != null
+        ? editor._matchesTask(opening.task!) && !editor._allowPop
+        : editor.mounted &&
+              !editor._allowPop &&
+              existing != null &&
+              editor.widget.accountId == task.accountId &&
+              editor._draft.taskListId == task.sourceId &&
+              existing.matchesIdentity(task.id);
+  }).firstOrNull;
+  if (target != null) await _revealTaskEditor(sessions, target);
+  return opening.result!;
+}
+
+Future<void> _revealTaskEditor(
+  _TaskEditorNavigator sessions,
+  _AndroidTaskEditorState target,
+) async {
+  final current = sessions.editors
+      .where(
+        (editor) =>
+            editor.mounted && ModalRoute.of(editor.context)?.isCurrent == true,
+      )
+      .lastOrNull;
+  if (current != null && current._hierarchyAncestors.contains(target)) {
+    await current._returnToEditor(target);
+  }
+}
+
+Future<_AndroidTaskEditorState?> _findTaskEditor(
+  _TaskEditorNavigator sessions,
+  TaskEntity task,
+) async {
+  final exact = sessions.editors
+      .where((editor) => editor._matchesTask(task) && !editor._allowPop)
+      .firstOrNull;
+  if (exact != null) return exact;
+  for (final editor in List.of(sessions.editors)) {
+    final observed = editor._observedTask ?? editor.widget.task;
+    final oldListId = editor._draft.taskListId;
+    if (!editor.mounted ||
+        editor._allowPop ||
+        editor._saving ||
+        observed == null ||
+        editor.widget.accountId != task.accountId ||
+        !task.previousTaskListIds.contains(oldListId) ||
+        !(task.matchesIdentity(observed.id) ||
+            observed.matchesIdentity(task.id))) {
+      continue;
+    }
+    final repository = editor.ref.read(
+      tasksRepositoryForAccountProvider(task.accountId),
+    );
+    final source = await repository.readTask(oldListId, observed.id);
+    final current = await repository.readTask(task.taskListId, task.id);
+    if (source != null ||
+        current == null ||
+        !current.previousTaskListIds.contains(oldListId) ||
+        !current.matchesIdentity(observed.id) ||
+        !editor.mounted ||
+        editor._allowPop ||
+        editor._saving) {
+      continue;
+    }
+    editor._rebindMovedTask(current);
+    return editor;
+  }
+  return null;
+}
+
 Future<AndroidTaskEditorResult?> showAndroidTaskEditor(
   BuildContext context,
   WidgetRef ref, {
@@ -591,6 +742,60 @@ Future<AndroidTaskEditorResult?> showAndroidTaskEditor(
   ValueChanged<AndroidTaskEditorResult>? onMutationStarted,
   ValueChanged<AndroidTaskEditorResult>? onMutationCommitted,
   VoidCallback? onMutationFailed,
+}) {
+  final sessions = _taskEditorNavigator(Navigator.of(context));
+  final creationIntentKey = task == null && creationList != null
+      ? _taskCreationIntentKey(
+          creationList.accountId,
+          creationList.id,
+          creationProvider!,
+          initialDue,
+        )
+      : null;
+  final key = task == null
+      ? 'new\u0000$creationIntentKey'
+      : _taskEditorKey(task.accountId, task.sourceId, task.id);
+  final active = sessions.openings[key];
+  if (active != null) return _reuseTaskEditor(sessions, active, task);
+  final opening = _TaskEditorOpen(
+    ++sessions.generation,
+    creationIntentKey: creationIntentKey,
+  );
+  sessions.openings[key] = opening;
+  final result =
+      _showAndroidTaskEditor(
+        context,
+        ref,
+        task: task,
+        creationList: creationList,
+        creationProvider: creationProvider,
+        initialDue: initialDue,
+        onMutationStarted: onMutationStarted,
+        onMutationCommitted: onMutationCommitted,
+        onMutationFailed: onMutationFailed,
+        sessions: sessions,
+        opening: opening,
+      ).whenComplete(() {
+        sessions.openings.removeWhere(
+          (_, candidate) => identical(candidate, opening),
+        );
+      });
+  opening.result = result;
+  return result;
+}
+
+Future<AndroidTaskEditorResult?> _showAndroidTaskEditor(
+  BuildContext context,
+  WidgetRef ref, {
+  TaskScheduleItem? task,
+  TaskListEntity? creationList,
+  BusyProvider? creationProvider,
+  DateTime? initialDue,
+  ValueChanged<AndroidTaskEditorResult>? onMutationStarted,
+  ValueChanged<AndroidTaskEditorResult>? onMutationCommitted,
+  VoidCallback? onMutationFailed,
+  required _TaskEditorNavigator sessions,
+  required _TaskEditorOpen opening,
 }) async {
   TaskEntity? entity;
   TaskListEntity? selectedList = creationList;
@@ -600,6 +805,35 @@ Future<AndroidTaskEditorResult?> showAndroidTaskEditor(
         .watchTask(task.sourceId, task.id)
         .first;
     if (!context.mounted || entity == null) return null;
+    opening.task = entity;
+    final keys = entity.identityIds
+        .map((id) => _taskEditorKey(entity!.accountId, entity.taskListId, id))
+        .toList();
+    final older =
+        keys
+            .map((key) => sessions.openings[key])
+            .nonNulls
+            .where((candidate) => candidate.order < opening.order)
+            .toList()
+          ..sort((a, b) => a.order.compareTo(b.order));
+    if (older.isNotEmpty) {
+      final owner = older.first..task = entity;
+      for (final key in keys) {
+        sessions.openings[key] = owner;
+      }
+      return _reuseTaskEditor(sessions, owner, task);
+    }
+    for (final key in keys) {
+      sessions.openings[key] = opening;
+    }
+    final active = await _findTaskEditor(sessions, entity);
+    if (!context.mounted) return null;
+    if (active != null) {
+      await _revealTaskEditor(sessions, active);
+      if (!active.mounted) return null;
+      final result = await ModalRoute.of(active.context)!.popped;
+      return result is AndroidTaskEditorResult ? result : null;
+    }
     selectedList =
         (await ref
                 .read(taskListsRepositoryForAccountProvider(task.accountId))
@@ -611,20 +845,62 @@ Future<AndroidTaskEditorResult?> showAndroidTaskEditor(
       .read(accountsRepositoryProvider)
       .accountById(task?.accountId ?? creationList!.accountId);
   if (!context.mounted) return null;
+  if (entity != null) {
+    // A hierarchy editor may have claimed this task while the list/account
+    // reads were in flight. Its reservation exists before its route builds.
+    final currentTask = entity;
+    _TaskEditorOpen? otherOwner() => currentTask.identityIds
+        .map(
+          (id) =>
+              sessions.openings[_taskEditorKey(
+                currentTask.accountId,
+                currentTask.taskListId,
+                id,
+              )],
+        )
+        .nonNulls
+        .where((candidate) => !identical(candidate, opening))
+        .firstOrNull;
+    final owner = otherOwner();
+    if (owner != null) return _reuseTaskEditor(sessions, owner, task);
+    final active = await _findTaskEditor(sessions, entity);
+    if (!context.mounted) return null;
+    if (active != null) {
+      await _revealTaskEditor(sessions, active);
+      if (!active.mounted) return null;
+      final result = await ModalRoute.of(active.context)!.popped;
+      return result is AndroidTaskEditorResult ? result : null;
+    }
+    final claimedWhileReading = otherOwner();
+    if (claimedWhileReading != null) {
+      return _reuseTaskEditor(sessions, claimedWhileReading, task);
+    }
+  }
+  final currentEditor = sessions.editors
+      .where(
+        (editor) =>
+            editor.mounted && ModalRoute.of(editor.context)?.isCurrent == true,
+      )
+      .lastOrNull;
   return Navigator.of(context).push<AndroidTaskEditorResult>(
     MaterialPageRoute<AndroidTaskEditorResult>(
       fullscreenDialog: true,
-      builder: (_) => AndroidTaskEditor(
-        accountId: task?.accountId ?? creationList!.accountId,
-        provider: task?.provider ?? creationProvider!,
-        task: entity,
-        creationList: creationList,
-        initialDue: initialDue,
-        accountLabel: account?.displayLabel,
-        listLabel: selectedList?.title,
-        onMutationStarted: onMutationStarted,
-        onMutationCommitted: onMutationCommitted,
-        onMutationFailed: onMutationFailed,
+      builder: (_) => _TaskHierarchyEditors(
+        editors: currentEditor == null
+            ? const []
+            : [...currentEditor._hierarchyAncestors, currentEditor],
+        child: AndroidTaskEditor(
+          accountId: task?.accountId ?? creationList!.accountId,
+          provider: task?.provider ?? creationProvider!,
+          task: entity,
+          creationList: creationList,
+          initialDue: initialDue,
+          accountLabel: account?.displayLabel,
+          listLabel: selectedList?.title,
+          onMutationStarted: onMutationStarted,
+          onMutationCommitted: onMutationCommitted,
+          onMutationFailed: onMutationFailed,
+        ),
       ),
     ),
   );
@@ -656,6 +932,15 @@ class AndroidTaskEditor extends ConsumerStatefulWidget {
   final VoidCallback? onMutationFailed;
   @override
   ConsumerState<AndroidTaskEditor> createState() => _AndroidTaskEditorState();
+}
+
+class _TaskHierarchyEditors extends InheritedWidget {
+  const _TaskHierarchyEditors({required this.editors, required super.child});
+
+  final List<_AndroidTaskEditorState> editors;
+
+  @override
+  bool updateShouldNotify(_TaskHierarchyEditors oldWidget) => false;
 }
 
 class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
@@ -706,8 +991,10 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   bool _allowPop = false;
   bool _recoveryLoaded = false;
   String? _recoverySourceKey;
-  bool _recoveredConcurrentState = false;
   String? _pendingMoveDestinationId;
+  List<_AndroidTaskEditorState> _hierarchyAncestors = const [];
+  _TaskEditorNavigator? _editorNavigator;
+  bool _hierarchyNavigationPending = false;
   bool _recoveryWritesBlocked = false;
   Future<void> _recoveryIo = Future.value();
   Timer? _recoveryTimer;
@@ -732,19 +1019,38 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
 
   bool get _canWrite =>
       !_saving &&
+      !_hierarchyNavigationPending &&
       _recoveryLoaded &&
       (widget.task == null
           ? _capabilities.canCreateTasks
           : _capabilities.canUpdateTasks);
+
+  bool get _canNavigateHierarchy =>
+      !_saving &&
+      !_hierarchyNavigationPending &&
+      _recoveryLoaded &&
+      ModalRoute.of(context)?.isCurrent != false;
 
   bool get _hasDraftEdits => !_draft.hasSameValues(_initialDraft);
 
   bool get _hasPendingEdits =>
       _hasDraftEdits || _pendingMoveDestinationId != null;
 
-  String get _recoveryKey =>
-      'busymax.android.task-draft.${widget.accountId}.'
-      '${widget.task?.id ?? 'new-${_initialDraft.taskListId}'}';
+  String get _recoveryKey => widget.task == null
+      ? 'busymax.android.task-draft.v2.new.'
+            '${base64Url.encode(utf8.encode(_creationIntentKey))}'
+      : _taskRecoveryKey(
+          widget.accountId,
+          _initialDraft.taskListId,
+          widget.task!.id,
+        );
+
+  String get _creationIntentKey => _taskCreationIntentKey(
+    widget.accountId,
+    widget.creationList?.id ?? _initialDraft.taskListId,
+    widget.provider,
+    widget.initialDue,
+  );
 
   @override
   void initState() {
@@ -757,7 +1063,24 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final sessions = _taskEditorNavigator(Navigator.of(context));
+    if (!identical(_editorNavigator, sessions)) {
+      _editorNavigator?.editors.remove(this);
+      _editorNavigator = sessions;
+      sessions.editors.add(this);
+    }
+    _hierarchyAncestors =
+        context
+            .dependOnInheritedWidgetOfExactType<_TaskHierarchyEditors>()
+            ?.editors ??
+        const [];
+  }
+
+  @override
   void dispose() {
+    _editorNavigator?.editors.remove(this);
     _consentCancellation?.cancel();
     _recoveryTimer?.cancel();
     if (_recoveryLoaded && _hasPendingEdits && !_allowPop) {
@@ -787,6 +1110,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
     }
     final capabilities = _capabilities;
     final canWrite = _canWrite;
+    ref.watch(scheduleTaskListsProvider);
     return PopScope<void>(
       canPop: _allowPop || (!_saving && !_hasPendingEdits),
       onPopInvokedWithResult: (didPop, _) async {
@@ -824,7 +1148,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
             Card(
               child: ListTile(
                 leading: const Icon(Icons.account_circle_outlined),
-                title: Text(widget.listLabel ?? _draft.taskListId),
+                title: Text(_taskListLabel(_draft.taskListId)),
                 subtitle: Text(widget.accountLabel ?? widget.accountId),
               ),
             ),
@@ -1597,7 +1921,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
           leading: const Icon(Icons.account_tree_outlined),
           title: Text(parent.title),
           subtitle: Text(context.l10n.parent),
-          onTap: _canWrite ? () => _openHierarchyTask(parent) : null,
+          onTap: _canNavigateHierarchy
+              ? () => _openHierarchyTask(parent)
+              : null,
         ),
       for (final subtask in hierarchy.subtasks)
         ListTile(
@@ -1636,7 +1962,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
               : subtask.hasChildren
               ? const Icon(Icons.account_tree_outlined)
               : null,
-          onTap: !_canWrite || subtask.task == null
+          onTap: !_canNavigateHierarchy || subtask.task == null
               ? null
               : () => _openHierarchyTask(subtask.task!),
         ),
@@ -1653,23 +1979,152 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
     ],
   );
 
+  bool _matchesTask(TaskEntity task) {
+    final existing = _observedTask ?? widget.task;
+    return mounted &&
+        existing != null &&
+        widget.accountId == task.accountId &&
+        _draft.taskListId == task.taskListId &&
+        (existing.matchesIdentity(task.id) ||
+            task.matchesIdentity(existing.id));
+  }
+
+  String _taskListLabel(String taskListId) {
+    final current = ref
+        .read(scheduleTaskListsProvider)
+        .valueOrNull
+        ?.where(
+          (list) => list.accountId == widget.accountId && list.id == taskListId,
+        )
+        .firstOrNull;
+    if (current != null) return current.title;
+    final originalListId = widget.task?.taskListId ?? widget.creationList?.id;
+    return (taskListId == originalListId ? widget.listLabel : null) ??
+        taskListId;
+  }
+
+  void _rebindMovedTask(TaskEntity task) {
+    final oldRecoveryKey = _recoveryKey;
+    final observed = _observedTask ?? widget.task!;
+    final observedMetadata = observed.providerMetadataJson == null
+        ? <String, Object?>{}
+        : (jsonDecode(observed.providerMetadataJson!) as Map)
+              .cast<String, Object?>();
+    // Movement verifies identity and location, not a newer recurrence baseline.
+    // Keep the dates/opaque metadata the user observed for their pending edit.
+    final reboundMetadata = {
+      ...observedMetadata,
+      '_busymaxTaskIdAliases': {
+        ...observed.identityIds,
+        ...task.identityIds,
+      }.where((id) => id != task.id).toList(),
+      '_busymaxTaskPreviousListIds': {
+        ...observed.previousTaskListIds,
+        ...task.previousTaskListIds,
+      }.toList(),
+    };
+    final rebound = TaskEntity.fromDraftBaselineJson({
+      ...observed.toDraftBaselineJson(),
+      'taskListId': task.taskListId,
+      'id': task.id,
+      'providerMetadataJson': jsonEncode(reboundMetadata),
+    });
+    setState(() {
+      _observedTask = rebound;
+      _draft = _draft.copyWith(
+        taskListId: task.taskListId,
+        taskId: task.id,
+        observedTask: rebound,
+      );
+      _initialDraft = _initialDraft.copyWith(
+        taskListId: task.taskListId,
+        taskId: task.id,
+      );
+      _recoverySourceKey ??= oldRecoveryKey;
+    });
+    unawaited(_persistRecovery());
+  }
+
+  Future<void> _returnToEditor(_AndroidTaskEditorState target) async {
+    if (!_canNavigateHierarchy) return;
+    final editors = [..._hierarchyAncestors, this];
+    final existingIndex = editors.indexOf(target);
+    if (existingIndex < 0) return;
+    final closing = editors.skip(existingIndex + 1).toList().reversed;
+    if (closing.any((editor) => editor._saving || !editor._recoveryLoaded)) {
+      return;
+    }
+    setState(() => _hierarchyNavigationPending = true);
+    try {
+      for (final editor in closing) {
+        if (editor._hasPendingEdits && !await editor._confirmDiscardChanges()) {
+          return;
+        }
+        if (!mounted || !editor.mounted || !target.mounted) return;
+      }
+      for (final editor in closing) {
+        await editor._clearRecovery(finalCleanup: true);
+        if (!mounted || !editor.mounted || !target.mounted) return;
+        editor.setState(() => editor._allowPop = true);
+      }
+      if (!mounted || !target.mounted) return;
+      final targetRoute = ModalRoute.of(target.context);
+      Navigator.of(context).popUntil((route) => route == targetRoute);
+    } finally {
+      if (mounted) setState(() => _hierarchyNavigationPending = false);
+    }
+  }
+
   Future<void> _openHierarchyTask(TaskEntity task) async {
-    if (!_canWrite) return;
-    await Navigator.of(context).push<AndroidTaskEditorResult>(
-      MaterialPageRoute<AndroidTaskEditorResult>(
-        fullscreenDialog: true,
-        builder: (_) => AndroidTaskEditor(
-          accountId: widget.accountId,
-          provider: widget.provider,
-          task: task,
-          accountLabel: widget.accountLabel,
-          listLabel: widget.listLabel,
-          onMutationStarted: widget.onMutationStarted,
-          onMutationCommitted: widget.onMutationCommitted,
-          onMutationFailed: widget.onMutationFailed,
+    if (!_canNavigateHierarchy) return;
+    final editors = [..._hierarchyAncestors, this];
+    final existing = editors
+        .where((editor) => editor._matchesTask(task))
+        .firstOrNull;
+    if (existing != null) {
+      await _returnToEditor(existing);
+      return;
+    }
+    final sessions = _taskEditorNavigator(Navigator.of(context));
+    final active = await _findTaskEditor(sessions, task);
+    if (!mounted || !_canNavigateHierarchy) return;
+    if (active != null) {
+      await _revealTaskEditor(sessions, active);
+      return;
+    }
+    setState(() => _hierarchyNavigationPending = true);
+    final opening = _TaskEditorOpen(++sessions.generation)..task = task;
+    for (final id in task.identityIds) {
+      sessions.openings[_taskEditorKey(task.accountId, task.taskListId, id)] =
+          opening;
+    }
+    try {
+      final result = Navigator.of(context).push<AndroidTaskEditorResult>(
+        MaterialPageRoute<AndroidTaskEditorResult>(
+          fullscreenDialog: true,
+          builder: (_) => _TaskHierarchyEditors(
+            editors: editors,
+            child: AndroidTaskEditor(
+              accountId: widget.accountId,
+              provider: widget.provider,
+              task: task,
+              accountLabel: widget.accountLabel,
+              listLabel: _taskListLabel(task.taskListId),
+              onMutationStarted: widget.onMutationStarted,
+              onMutationCommitted: widget.onMutationCommitted,
+              onMutationFailed: widget.onMutationFailed,
+            ),
+          ),
         ),
-      ),
-    );
+      );
+      opening.result = result;
+      await result;
+    } finally {
+      sessions.openings.removeWhere(
+        (_, candidate) => identical(candidate, opening),
+      );
+      if (mounted) setState(() => _hierarchyNavigationPending = false);
+    }
   }
 
   Future<void> _toggleSubtask(TaskSubtaskEntity subtask) async {
@@ -1694,13 +2149,21 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
           TaskPatchInput.completion(
             !subtask.completed,
             includeCompletedTimestamp: false,
+            observedOccurrenceKey: subtask.task?.occurrenceKey,
           ),
         );
       }
     } on Object catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('$error')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              error is TaskOccurrenceChangedException
+                  ? context.l10n.taskDraftConflict
+                  : '$error',
+            ),
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -2266,7 +2729,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   Future<void> _save() async {
     if (!_canWrite) return;
     if (_pendingMoveDestinationId != null) {
-      await _moveToList();
+      await _moveToList(retryPending: true);
       return;
     }
     if (_draft.hasNewPastReminder(
@@ -2296,6 +2759,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
             taskListId: _draft.taskListId,
             taskId: existing.id,
             completed: _draftCompletion,
+            occurrenceKey: _observedTask?.occurrenceKey,
           );
     if (pendingResult != null) {
       widget.onMutationStarted?.call(pendingResult);
@@ -2310,6 +2774,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
         taskListId: _draft.taskListId,
         taskId: taskId,
         completed: pendingResult?.completed,
+        occurrenceKey: pendingResult?.occurrenceKey,
       );
       widget.onMutationCommitted?.call(result);
       if (mounted) {
@@ -2405,7 +2870,8 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   }
 
   String _taskMutationError(Object error) => switch (error) {
-    TaskDraftConflictException() => context.l10n.taskDraftConflict,
+    TaskDraftConflictException() ||
+    TaskOccurrenceChangedException() => context.l10n.taskDraftConflict,
     DavException(code: 'DavTaskDurationRequiresStart') =>
       context.l10n.taskDurationRequiresStart,
     _ => '$error',
@@ -2567,6 +3033,18 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
           localTimeZone: ref.read(localTimeZoneProvider),
         ),
         observedTask: _observedTask,
+        observedOccurrenceKey:
+            changed!.keys.any(
+              const {
+                'status',
+                'completed',
+                'taskStatus',
+                'percentComplete',
+                'completedAtUtc',
+              }.contains,
+            )
+            ? _observedTask?.occurrenceKey
+            : null,
       ),
     );
     final committed = await repository.readTask(
@@ -2763,7 +3241,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
     }
   }
 
-  Future<void> _moveToList() async {
+  Future<void> _moveToList({bool retryPending = false}) async {
     if (!_canWrite) return;
     late final List<TaskListEntity> lists;
     try {
@@ -2771,7 +3249,11 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
           (await ref
                   .read(taskListsRepositoryForAccountProvider(widget.accountId))
                   .listTaskLists())
-              .where((list) => list.id != _draft.taskListId)
+              .where(
+                (list) =>
+                    list.id != _draft.taskListId ||
+                    (!retryPending && _pendingMoveDestinationId != null),
+              )
               .toList();
     } on Object catch (error) {
       if (mounted) {
@@ -2785,16 +3267,26 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
         .where((list) => list.id == _pendingMoveDestinationId)
         .firstOrNull;
     final destination =
-        previousDestination ??
+        (retryPending ? previousDestination : null) ??
         await selectAndroidTaskList(
           context,
           lists,
           title: context.l10n.list,
+          alwaysPrompt: !retryPending && _pendingMoveDestinationId != null,
           accountLabels: {
             widget.accountId: widget.accountLabel ?? widget.accountId,
           },
         );
     if (destination == null || !mounted || !_canWrite) return;
+    if (destination.id == _draft.taskListId) {
+      setState(() => _pendingMoveDestinationId = null);
+      if (_hasDraftEdits) {
+        await _persistRecovery();
+      } else {
+        await _clearRecovery();
+      }
+      return;
+    }
     setState(_syncDraftFromControllers);
     var saveEdits = false;
     if (_hasDraftEdits) {
@@ -2873,6 +3365,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       Navigator.pop(context, committedResult);
     } on Object catch (error) {
       if (!mutationPersisted) widget.onMutationFailed?.call();
+      await _persistRecovery();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -3200,17 +3693,59 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
     try {
       final storage = ref.read(secureStorageProvider);
       String? raw;
+      String? recoverySourceKey;
       final keys = <String>{_recoveryKey};
       final task = widget.task;
       if (task != null) {
+        for (final listId in [task.taskListId, ...task.previousTaskListIds]) {
+          for (final identity in task.identityIds) {
+            keys.add(_taskRecoveryKey(widget.accountId, listId, identity));
+          }
+        }
+        // Existing v2 records used an account/task key. Their payload still
+        // has the list scope, so only a verified scope may claim that record.
         for (final identity in task.identityIds) {
           keys.add('busymax.android.task-draft.${widget.accountId}.$identity');
         }
+      } else if (widget.initialDue == null) {
+        keys.add(
+          'busymax.android.task-draft.${widget.accountId}.'
+          'new-${_initialDraft.taskListId}',
+        );
       }
       for (final key in keys) {
-        raw = await storage.read(key: key);
-        if (raw != null) {
-          _recoverySourceKey = key;
+        final candidate = await storage.read(key: key);
+        if (candidate == null) continue;
+        final Object? value;
+        try {
+          value = jsonDecode(candidate);
+        } on FormatException {
+          continue;
+        }
+        if (value is! Map) continue;
+        final listId = value['taskListId'];
+        final scopeMatches = task == null
+            ? listId == _initialDraft.taskListId
+            : listId == task.taskListId ||
+                  task.previousTaskListIds.contains(listId);
+        if (value['accountId'] != widget.accountId ||
+            !scopeMatches ||
+            (task != null &&
+                value['taskId'] != null &&
+                !task.matchesIdentity(value['taskId'].toString()))) {
+          // Another list may legitimately contain the same provider ID. It
+          // keeps both its draft and ownership of its original recovery key.
+          continue;
+        }
+        if (task != null && listId != task.taskListId && listId is String) {
+          final source = await ref
+              .read(tasksRepositoryForAccountProvider(widget.accountId))
+              .readTask(listId, value['taskId']?.toString() ?? task.id);
+          if (source != null) continue;
+        }
+        if (candidate.isNotEmpty) {
+          raw = candidate;
+          recoverySourceKey = key;
           break;
         }
       }
@@ -3228,25 +3763,26 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
           (widget.task != null &&
               map['taskId'] != null &&
               !widget.task!.matchesIdentity(map['taskId'].toString()))) {
-        await _clearRecovery();
+        await _clearRecovery(sourceKey: recoverySourceKey);
         return;
       }
       TaskEntity? recoveredObserved;
       final rawObserved = map['observedTask'];
-      _recoveryBaselineUnavailable = widget.task != null && rawObserved is! Map;
-      _recoveryOriginalBaseTitle = map['baseTitle'] as String?;
+      final recoveryBaselineUnavailable =
+          widget.task != null && rawObserved is! Map;
+      final recoveryOriginalBaseTitle = map['baseTitle'] as String?;
       if (widget.task != null && rawObserved is Map) {
         recoveredObserved = TaskEntity.fromDraftBaselineJson(
           rawObserved.cast<String, Object?>(),
         );
         if (recoveredObserved.accountId != widget.accountId ||
             !widget.task!.matchesIdentity(recoveredObserved.id)) {
-          await _clearRecovery();
+          await _clearRecovery(sourceKey: recoverySourceKey);
           return;
         }
       }
       final rawComparison = map['originalObservedTask'];
-      _recoveryComparisonTask = rawComparison is Map
+      final recoveryComparisonTask = rawComparison is Map
           ? TaskEntity.fromDraftBaselineJson(
               rawComparison.cast<String, Object?>(),
             )
@@ -3353,7 +3889,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
         }
         recoveredObserved = TaskEntity.fromDraftBaselineJson(composed);
       }
-      _recoveredConcurrentState =
+      final recoveredConcurrentState =
           widget.task != null &&
           (map['baseTitle'] != _initialDraft.title ||
               map['taskListId'] != _initialDraft.taskListId ||
@@ -3415,7 +3951,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
           baseDate: base,
         );
         if (provider != widget.provider || !creationRule.isSupported) {
-          await _clearRecovery();
+          await _clearRecovery(sourceKey: recoverySourceKey);
           return;
         }
         recovered = recovered.copyWith(
@@ -3423,6 +3959,8 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
         );
       }
       if (!mounted) return;
+      final pendingMoveDestinationId =
+          map['pendingMoveDestinationId'] as String?;
       await WidgetsBinding.instance.endOfFrame;
       if (!mounted) return;
       final recover = await showDialog<bool>(
@@ -3431,7 +3969,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
         builder: (dialogContext) => AlertDialog(
           title: Text(context.l10n.discardChanges),
           content: Text(
-            _recoveredConcurrentState
+            recoveredConcurrentState
                 ? context.l10n.taskDraftConflict
                 : context.l10n.discardChangesConfirmation,
           ),
@@ -3448,13 +3986,17 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
         ),
       );
       if (recover != true) {
-        await _clearRecovery();
+        await _clearRecovery(sourceKey: recoverySourceKey);
         return;
       }
       if (!mounted) return;
       setState(() {
+        _recoverySourceKey = recoverySourceKey;
+        _recoveryBaselineUnavailable = recoveryBaselineUnavailable;
+        _recoveryOriginalBaseTitle = recoveryOriginalBaseTitle;
+        _recoveryComparisonTask = recoveryComparisonTask;
         _observedTask = recoveredObserved ?? _observedTask;
-        _pendingMoveDestinationId = map['pendingMoveDestinationId'] as String?;
+        _pendingMoveDestinationId = pendingMoveDestinationId;
         if (_pendingMoveDestinationId == recovered.taskListId) {
           _pendingMoveDestinationId = null;
         }
@@ -3512,6 +4054,8 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       return;
     }
     final creationRecurrence = _draft.creationRecurrence;
+    final recoveryKey = _recoveryKey;
+    final recoverySourceKey = _recoverySourceKey;
     final payload = jsonEncode({
       'v': 2,
       'savedAt': DateTime.now().toIso8601String(),
@@ -3538,22 +4082,24 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       if (_recoveryWritesBlocked) return;
       await ref
           .read(secureStorageProvider)
-          .write(key: _recoveryKey, value: payload);
-      if (_recoverySourceKey != null && _recoverySourceKey != _recoveryKey) {
-        await ref.read(secureStorageProvider).delete(key: _recoverySourceKey!);
+          .write(key: recoveryKey, value: payload);
+      if (recoverySourceKey != null && recoverySourceKey != recoveryKey) {
+        await ref.read(secureStorageProvider).delete(key: recoverySourceKey);
       }
     });
   }
 
-  Future<void> _clearRecovery({bool finalCleanup = false}) {
+  Future<void> _clearRecovery({bool finalCleanup = false, String? sourceKey}) {
+    final recoveryKey = _recoveryKey;
+    final recoverySourceKey = sourceKey ?? _recoverySourceKey;
     if (finalCleanup) {
       _recoveryWritesBlocked = true;
       _recoveryTimer?.cancel();
     }
     return _enqueueRecovery(() async {
-      await ref.read(secureStorageProvider).delete(key: _recoveryKey);
-      if (_recoverySourceKey != null && _recoverySourceKey != _recoveryKey) {
-        await ref.read(secureStorageProvider).delete(key: _recoverySourceKey!);
+      await ref.read(secureStorageProvider).delete(key: recoveryKey);
+      if (recoverySourceKey != null && recoverySourceKey != recoveryKey) {
+        await ref.read(secureStorageProvider).delete(key: recoverySourceKey);
       }
     });
   }

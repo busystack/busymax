@@ -1533,6 +1533,8 @@ Future<bool> showWindowsTaskDetailsDialog(
                                               ? subtask.id
                                               : null,
                                           completed: value ?? false,
+                                          occurrenceKey:
+                                              affectedTask?.occurrenceKey,
                                         );
                                         report(onTaskMutationStarted, mutation);
                                         try {
@@ -1544,6 +1546,8 @@ Future<bool> showWindowsTaskDetailsDialog(
                                               child.id,
                                               TaskPatchInput.completion(
                                                 value == true,
+                                                observedOccurrenceKey:
+                                                    child.occurrenceKey,
                                               ),
                                             );
                                           } else {
@@ -1571,11 +1575,15 @@ Future<bool> showWindowsTaskDetailsDialog(
                                             changed = true;
                                             error = null;
                                           });
-                                        } on Object catch (_) {
+                                        } on Object catch (failure) {
                                           onTaskMutationFailed?.call();
                                           setState(() {
                                             busy = false;
-                                            error = l10n.operationFailed;
+                                            error =
+                                                failure
+                                                    is TaskOccurrenceChangedException
+                                                ? l10n.taskDraftConflict
+                                                : l10n.operationFailed;
                                           });
                                         }
                                       }
@@ -2112,6 +2120,7 @@ Future<bool> showWindowsTaskDetailsDialog(
                             taskListId: original.taskListId,
                             taskId: task.id,
                             completed: completionChanged ? completed : null,
+                            occurrenceKey: original.occurrenceKey,
                           );
                           report(onTaskMutationStarted, mutation);
                           if (patch.isNotEmpty) {
@@ -2123,6 +2132,19 @@ Future<bool> showWindowsTaskDetailsDialog(
                                 locationChange: updatedDraft.locationChange,
                                 observedTask: updatedDraft.observedTask,
                                 completionIntent: checkboxCompletionIntent,
+                                observedOccurrenceKey:
+                                    checkboxCompletionIntent != null ||
+                                        patch.keys.any(
+                                          const {
+                                            'status',
+                                            'completed',
+                                            'taskStatus',
+                                            'percentComplete',
+                                            'completedAtUtc',
+                                          }.contains,
+                                        )
+                                    ? updatedDraft.observedTask?.occurrenceKey
+                                    : null,
                               ),
                             );
                           }
@@ -2167,7 +2189,9 @@ Future<bool> showWindowsTaskDetailsDialog(
                           onTaskMutationFailed?.call();
                           setState(() {
                             busy = false;
-                            error = failure is TaskDraftConflictException
+                            error =
+                                failure is TaskDraftConflictException ||
+                                    failure is TaskOccurrenceChangedException
                                 ? l10n.taskDraftConflict
                                 : failure is DavException &&
                                       failure.code ==

@@ -234,14 +234,14 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
     final l10n = context.l10n;
     final hasChanges = _hasEditorChanges(draft);
     final scheduledAllDay = _isScheduledAllDay(draft);
-    final scheduleIssue = draft.scheduleIssue;
+    final scheduleIssue = draft.scheduleIssueFor(widget.capabilities);
     final canSave =
         _canWrite &&
         draft.title.trim().isNotEmpty &&
         hasChanges &&
         !_saving &&
         scheduleIssue == TaskScheduleIssue.none &&
-        draft.hasValidTaskUrl &&
+        draft.hasValidTaskUrlFor(widget.capabilities) &&
         _timeFieldsAreValid(draft, scheduledAllDay) &&
         (widget.canSaveDraft?.call(draft) ?? true);
     final currentList = _listTitle(draft.taskListId);
@@ -1305,8 +1305,8 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
     if (draft == null ||
         _saving ||
         !_canWrite ||
-        draft.scheduleIssue != TaskScheduleIssue.none ||
-        !draft.hasValidTaskUrl ||
+        draft.scheduleIssueFor(widget.capabilities) != TaskScheduleIssue.none ||
+        !draft.hasValidTaskUrlFor(widget.capabilities) ||
         !_timeFieldsAreValid(draft, _isScheduledAllDay(draft))) {
       return;
     }
@@ -1360,7 +1360,8 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            error is TaskDraftConflictException
+            error is TaskDraftConflictException ||
+                    error is TaskOccurrenceChangedException
                 ? context.l10n.taskDraftConflict
                 : error is DavException &&
                       error.code == 'DavTaskDurationRequiresStart'
@@ -1925,7 +1926,8 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
         _invalidTimeFields.contains(_TaskTimeField.start)) {
       return false;
     }
-    if (draft.microsoftReminderEnabled &&
+    if (widget.capabilities.supportsReminderDateTime &&
+        draft.microsoftReminderEnabled &&
         _invalidTimeFields.contains(_TaskTimeField.reminder)) {
       return false;
     }

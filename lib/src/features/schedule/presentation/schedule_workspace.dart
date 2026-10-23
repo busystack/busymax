@@ -245,6 +245,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   ScheduleNavigationIntent? _navigationIntent;
   var _taskListMutationGeneration = 0;
   TaskListMutationIntent? _taskListMutationIntent;
+  final _pendingTaskCompletions = <String>{};
 
   @override
   void initState() {
@@ -2716,12 +2717,17 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   }
 
   Future<void> _setTaskCompleted(TaskScheduleItem item, bool completed) async {
+    final taskKey = '${item.accountId}\u0000${item.sourceId}\u0000${item.id}';
+    if (!item.capabilities.canEdit || !_pendingTaskCompletions.add(taskKey)) {
+      return;
+    }
     final intent = TaskListMutationIntent(
       presentation: TaskListMutationPresentation.completion,
       accountId: item.accountId,
       taskListId: item.sourceId,
       taskId: item.id,
       completed: completed,
+      occurrenceKey: item.occurrenceKey,
       generation: ++_taskListMutationGeneration,
     );
     setState(() => _taskListMutationIntent = intent);
@@ -2731,7 +2737,10 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
           .patchTask(
             item.sourceId,
             item.id,
-            TaskPatchInput.completion(completed),
+            TaskPatchInput.completion(
+              completed,
+              observedOccurrenceKey: item.occurrenceKey,
+            ),
           );
     } on Object {
       if (mounted) {
@@ -2742,6 +2751,8 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
           context,
         ).showSnackBar(SnackBar(content: Text(context.l10n.operationFailed)));
       }
+    } finally {
+      _pendingTaskCompletions.remove(taskKey);
     }
   }
 
@@ -2763,6 +2774,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         taskId: createdId ?? result.taskId,
         checklistItemId: result.checklistItemId,
         completed: result.completed,
+        occurrenceKey: result.occurrenceKey,
         generation: ++_taskListMutationGeneration,
       );
     });

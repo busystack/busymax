@@ -417,6 +417,8 @@ class TaskListsRepository {
         task.id: {
           'updatedUtc': task.updatedUtc,
           'rawJson': jsonDecode(task.rawJson),
+          if (_hasAcknowledgedHiddenEffect(task))
+            acknowledgedTaskHiddenEffectKey: true,
         },
     };
   }
@@ -442,6 +444,15 @@ class TaskListsRepository {
   }
 
   String _now() => _nowUtc().toIso8601String();
+}
+
+bool _hasAcknowledgedHiddenEffect(Task task) {
+  try {
+    final metadata = jsonDecode(task.providerMetadataJson ?? '{}');
+    return metadata is Map && metadata[acknowledgedTaskHiddenEffectKey] == true;
+  } on FormatException {
+    return false;
+  }
 }
 
 const _taskListMutationOperations = {

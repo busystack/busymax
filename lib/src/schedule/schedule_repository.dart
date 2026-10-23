@@ -21,6 +21,7 @@ import '../features/calendar/domain/google_status_event.dart';
 import '../features/tasks/domain/task_checklist_item.dart';
 import '../features/tasks/domain/google_task_assignment_policy.dart';
 import '../features/tasks/domain/task_source_links.dart';
+import '../features/tasks/domain/task_occurrence.dart';
 import 'schedule_filters.dart';
 import 'schedule_item.dart';
 import 'event_attachment_link.dart';
@@ -948,6 +949,12 @@ class ScheduleRepository {
       status: task.status,
       position: task.position,
       sortOrder: task.sortOrder,
+      occurrenceKey: davTaskOccurrenceKey(
+        davCollectionId: task.davCollectionId,
+        recurrenceJson: task.recurrenceJson,
+        recurrenceIdKey: task.recurrenceIdKey,
+        providerMetadataJson: task.providerMetadataJson,
+      ),
       allDay: _taskAllDay(task, provider),
       start: start,
       end: _taskEnd(task, provider),

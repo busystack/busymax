@@ -192,6 +192,7 @@ class TaskScheduleItem implements ScheduleItem {
     this.status,
     this.position,
     this.sortOrder,
+    this.occurrenceKey,
     required this.allDay,
     this.start,
     this.due,
@@ -235,6 +236,7 @@ class TaskScheduleItem implements ScheduleItem {
   final String? status;
   final String? position;
   final int? sortOrder;
+  final String? occurrenceKey;
   bool get cancelled => status?.toLowerCase() == 'cancelled';
   bool get actionable => !completed && !cancelled;
   final bool isAssigned;

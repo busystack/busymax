@@ -243,3 +243,301 @@ checklist check/write windows are also recorded provider limitations. Complete
 the explicitly unexecuted native/live gates above with the documented hosts,
 QA opt-ins and actual provider/server versions. These limits do not invalidate
 the executable client regressions and must not be reported as passes.
+
+## Follow-up R01–R13 (2026-10-22)
+
+This follow-up started from `cd725b1` with a clean working tree. The F/U
+dispositions and earlier run results above remain historical evidence; none of
+their totals is counted as a new follow-up run. Applicable repository
+instructions and the development, data-model, provider, replay, DAV, Android and
+validation contracts were reread. Flutter 3.47.5 / bundled Dart 3.13.4 and the
+pinned sibling checkouts were verified with the existing tools. No SDK,
+dependency, lockfile, database schema or localization catalog change was needed.
+
+| ID | Follow-up disposition | Production reproduction, repair and controls |
+| --- | --- | --- |
+| R01 | Confirmed/repaired | Actual Windows details checkbox (0/20%) and Linux progress control (IN-PROCESS/20→50) through SQLite/DAV accepted a synchronized cancellation before repair. DAV validation now derives the lifecycle write set from the actual candidate patch, comparing the observed status/percentage/completion time that it will replace. Exact local drafts and remote cancellation survive conflict without a source/outbox write. Unchanged and remote-notes controls save; explicit cancellation can merge an untouched timestamp. Focused 14 cases pass; see DAV ledger. |
+| R02 | Confirmed/repaired | Actual Android Tasks, Windows Tasks and Linux agenda retained a checked overlay after a real COUNT=3 master advanced under its same ID. Linux/Android also lacked a per-task in-flight guard. Completion intents now carry the authored occurrence identity, settle when it advances and never overlay the next occurrence. An atomic repository guard rejects callbacks bound to an older occurrence; deliberate completion of the newly rendered open occurrence remains valid. Rendered/raw-resource tests verify D+1, COUNT=2, one history, stale callback rejection, in-flight activation, ordinary completion and final COUNT=1. A separately reproduced stale Windows editor Save also receives the lifecycle-only occurrence guard; title-only edits still merge after advancement. The earlier explicit-status Android stale-editor probe was already protected; D03 below records the separately confirmed omitted-status task after an acknowledged move. |
+| R03 | Confirmed/repaired | Actual parent→child→parent navigation let a hidden editor overwrite durably saved L2 with older L1 in an isolated copy of the checkout's original Android path. Rapid row activation across a controlled task-read boundary separately opened two editors. Hierarchy navigation now reuses the mounted editor/exact draft through existing dirty-close decisions. Bounded Navigator/account/list/verified-identity reservations also prevent duplicate top-level owners and converge temporary aliases; independent creation requests remain independent. Controlled IO retains the newest notes across timers/recreation and drains pending writes before Save/Discard cleanup. Dirty-child cancellation retains both routes/drafts. See Android ledger for exact before/after evidence and scope controls. |
+| R04 | Confirmed/repaired | Actual Android Schedule agenda/search and Windows day/week checkboxes completed only the parent through the explicit-status branch before repair. The missed callers now use `TaskPatchInput.completion`; Android retains status-only Google/Microsoft payloads and Windows retains its completion timestamp. Real DAV rows/candidates and stateful replay/reload check descendants, ancestor reopening and absence of cancellation. Existing explicit status/progress/cancellation and task-page controls remain covered. |
+| R05 | Confirmed/repaired | A provider committed PATCH/PUT, lost its response, then an unsent reconciliation GET erased the durable `in_progress` evidence. Earlier dispatch uncertainty now survives failed reads, retry scheduling, manual Retry and restart. Stateful/disk-backed tests establish one remote write, dependent progress and retained genuine divergence; a first genuinely unsent write remains retryable and uncertain recurrence remains recovery-required. See replay ledger. |
+| R06 | Confirmed/repaired | Actual Microsoft adapter with paginated mutable checklist state committed rename/check/uncheck then lost the response; retry self-conflicted. Item updates now persist attempt evidence and acknowledge only established touched-field postconditions. Acknowledgment, dependent baselines, visible overlay and removal commit together. Tests cover failed reconciliation reads, restart, second-connection commit barriers, unrelated fields, missing/sibling items and existing create/alias safeguards. Graph's final read/write window remains unguarded by any proven endpoint precondition. |
+| R07 | Confirmed/repaired | A real SQLite interceptor held delivery of an already-read temporary parent while acknowledgment committed its server identity; creation then queued the obsolete ID and could replace newer sibling state. Parent identity/items are reread and merged inside the projection/outbox transaction, with parent-create dependencies. The regression preserves an acknowledged sibling alias plus its later edit and makes exactly one remote creation for the held item. Ack-before-read and ack-after-enqueue controls pass. A related unavailable-list race was also reproduced and repaired below. |
+| R08 | Confirmed/repaired | Stateful paginated Google responses reproduced clear→list-delete hidden self-conflict, child-delete→list-delete tombstone membership self-conflict and incoming completed-move→destination-clear self-conflict. Only captured predecessor effects rebase approved snapshots, including both move endpoints, hidden state and live-versus-deleted membership. Acknowledgment/projection/dependent updates/removal are atomic locally. Restart, deferred/blocked predecessors and second-connection barriers pass; external notes/new live children/new completed tasks still block. Related snapshot defects are listed in the replay ledger. Google's endpoint check/clear race remains. |
+| R09 | Confirmed/repaired | Same-list DAV C→top with A PUBLIC/0, B PRIVATE/1 and C PUBLIC/3 partially changed A before rejecting B. The complete local plan now preflights affected members and commits sibling normalization, hierarchy effects, candidates, outbox and pending marker in one transaction. Exact before/after snapshots remain equal on privacy rejection and late SQLite failures. All-public acknowledgment/restart and private-first controls pass. Remote multi-resource atomicity is not claimed. |
+| R10 | Confirmed/repaired | Discarding current-v2 recovery without an observed snapshot (or rejecting malformed late-parsed metadata) poisoned fresh Android Save with recovery-only comparison flags. Those flags/source metadata are now accepted only with the restored draft and reset on discard/rejection. Fresh edits queue once against the loaded task; Restore without a historical snapshot remains review-only. No legacy format or guessed baseline was added. |
+| R11 | Confirmed/repaired | Real Linux New Task account/list controls retained an invalid Nextcloud URL/start-deadline pair when switched to Google, but hidden fields disabled Create/Ctrl+S. Button, feedback and Save now use the existing active-provider validation. A further actual account-switch regression proved retained LocationChange was forwarded and rejected Google creation; creation output now filters that change by capability while preserving the hidden draft. The final three affected suites pass 27 cases. Actual Linux recurrence switching and factory recurrence protection were already correct and remain controls. |
+| R12 | Confirmed/repaired | After Android move A→B failed, List retried B instead of allowing C. Save retains explicit retry, while List offers another destination or the current source to cancel only the pending move. Before/after-patch tests preserve the exact draft, do not repeat a committed patch and cover recovery/restart, retry B, C, cancellation and disappeared B. |
+| R13 | Confirmed/repaired | Actual read-only Android parent/child links remained disabled because navigation required write permission. A separate navigation guard permits readable relatives while retaining saving/loading/recovery guards. Completion/create/edit/delete remain disabled. Route reuse and submitted-Save navigation controls cover the R03 interaction. |
+
+### Additional directly related corrections
+
+- **D01 (R03 Save path):** real ordinary/plain and HTML DAV notes replacement
+  failed because the builder removes the stale target `X-ALT-DESC`, while its
+  own mutation allowlist rejected that property. Only that intended property
+  was admitted. Two failing-before/passing-after resource/outbox/replay tests
+  preserve detached HTML/history, UID/parent/rule, timezone/alarm and opaque
+  data; a title-only control preserves the alternative description.
+- **R07-list availability:** while the parent-read delivery was held, actual
+  repository list deletion marked the list unavailable but checklist creation
+  still succeeded. The transaction now requires the list as well as the parent.
+  The before test completed instead of throwing; all four final checklist
+  creation cases pass, with exact row/outbox preservation on rejection.
+- **R03 movement provenance:** scoped recovery must distinguish a real move
+  from two live equal-ID rows in different lists. Supported cross-list local
+  move transactions now remember the prior list in client metadata; provider
+  refresh preserves that evidence for the same scoped row. No missing-row
+  inference or arbitrary identity redirection was added. The before movement
+  regression lacked this evidence. A real stateful cloud move/ack/refresh/disk
+  restart test and the affected repository/draft suites pass **25** cases;
+  same-list movement adds no scope and unrelated equal-ID rows inherit none.
+  DAV controls preserve each master/history row's own native metadata. The
+  final DAV integration run passes **82** cases, including acknowledgment,
+  refresh/restart, partial rejection/retry and unrelated UID replacement at the
+  same destination URL. A confirmed DAV move transfers only verified aliases
+  and prior scopes per UID/recurrence key to its new projection identity.
+  Reprojection never transfers those identities to another UID.
+- **R03 ownership boundaries:** additional actual-control failures established
+  shared storage between equal IDs in different lists, a delayed top-level
+  read pushing a second editor after hierarchy navigation, and repeated New
+  Task activation sharing one recovery slot. Existing-task recovery is now
+  scoped by account/list/verified identity, and both navigation entry points
+  reserve/recheck ownership. Repeated identical creation contexts reuse their
+  draft; differing initial dates remain independent. The current-v2 body stays
+  unchanged. Accepted current-v2 source records migrate through the same
+  serialized owner; foreign candidates are preserved. The earlier F09 movement
+  fixture actually left two live scoped rows. It now performs a real supported
+  move, acknowledgment and refresh before restart; the two-live-row case is
+  retained as the independence negative control.
+- **D02 (R04 Windows planner failure):** the changed checkbox caller rethrew a
+  failed local mutation from its void callback, yielding an unhandled error and
+  no feedback. An actual planner checkbox fails before repair. It now uses the
+  existing localized Fluent InfoBar, retains exact rows/outbox and allows one
+  successful retry. The feedback test waits for the existing entrance animation;
+  no production delay was introduced.
+- **D03 (R02/R03 observed occurrence after movement):** an open recurring DAV
+  task without an explicit STATUS reproduced an additional stale completion:
+  complete D, acknowledge the resource, move/acknowledge its tree to B, then
+  reopen the already-mounted dirty editor and Save its old 100% draft. The
+  identity rebind copied D+1's native temporal metadata into the observed
+  snapshot, so Save advanced D+1 again. Rebinding now merges only verified
+  aliases and prior-list provenance into the original observed metadata.
+  Actual Android controls, real DAV storage and stateful PUT/MOVE replay retain
+  D+1, one history, the exact draft/recovery comparison and no new candidate.
+  Notes-only merging and completing an unchanged occurrence remain valid.
+  An explicitly authored NEEDS-ACTION control was already protected by the
+  semantic status comparison; that passing protection was not misreported as
+  an overwrite. The four final cases and six related ownership controls pass.
+- **D04 (R02 Android feedback):** the new occurrence guard reached an English
+  diagnostic fallback in the editor, Tasks, Schedule and hierarchy checkbox
+  handlers. Actual German controls reproduced the untranslated snackbar after
+  first proving retained draft/provider/outbox state. These four handlers now
+  use the existing localized draft-conflict message for this exception only.
+  All four German controls and five existing occurrence controls pass; no
+  strings, layouts or other error conventions changed.
+- **R08-clear-after-ack / R08-incoming-move:** separately reproduced snapshot
+  composition defects are recorded in the replay ledger. Known hidden effects
+  remain attributable after acknowledgment; an existing destination-deletion
+  snapshot never adopts independent notes from a move response.
+
+### Follow-up commands and results
+
+The following are new executions, with temporary logs outside Git. Focused
+before failures were established before their corresponding behavior changes;
+test harness compile/selector mistakes were corrected without changing valid
+contracts. Detailed replay, DAV and Android commands/results are in their
+respective ledgers. Coordinator-focused runs were:
+
+```sh
+flutter test test/features/tasks/presentation/new_task_loading_test.dart --plain-name R11 --reporter expanded
+flutter test test/features/tasks/data/checklist_creation_identity_test.dart --reporter expanded
+flutter test test/features/tasks/data/checklist_creation_identity_test.dart --plain-name 'after read with unavailable list' --reporter expanded
+flutter test test/features/tasks/presentation/desktop_recurring_completion_test.dart --reporter expanded
+flutter test test/features/tasks/presentation/desktop_recurring_completion_test.dart test/features/tasks/data/checklist_creation_identity_test.dart test/features/tasks/presentation/new_task_loading_test.dart --concurrency=2 --reporter expanded
+```
+
+The initial checklist run passed its ack-before-read control and failed the
+obsolete-ID and missing-parent-dependency cases. The initial corrected desktop
+run passed four ordinary/final controls and failed six assertions: two stuck
+COUNT=3 presentations, Linux's duplicate submission, Windows' guarded submission
+whose next presentation still stuck, and the two planner descendant cases.
+After repair the desktop file passes **12**, creation/loading passes **8**, and
+the original three checklist cases pass; the combined run passes **23**. The
+later unavailable-list regression brings the final checklist file to **4**.
+The final desktop file including D02 passes **13** cases.
+The additional actual account-switch/location controls and affected draft and
+creation suites pass **27**. The Android adaptive checkpoint passes **118**,
+including the scoped ownership extensions, moved-list caption and hidden
+creation-owner Cancel/Discard controls. After D03/D04, the complete file passes
+**126**; the earlier counts remain historical checkpoints. Commands for these
+extensions were:
+
+```sh
+flutter test test/features/tasks/presentation/new_task_capability_emission_test.dart test/features/tasks/presentation/task_details_draft_test.dart test/features/tasks/presentation/new_task_loading_test.dart --concurrency=2 --reporter expanded
+flutter test test/features/tasks/data/task_move_identity_test.dart test/features/tasks/data/task_draft_lifecycle_test.dart test/features/tasks/data/tasks_repository_test.dart --concurrency=2 --no-pub --reporter=expanded
+flutter test test/platform/android/android_adaptive_app_test.dart --concurrency=1 --reporter=expanded
+```
+
+The scoped movement/repository command passes **25**, and the final full DAV
+integration file passes **82**. These overlapping affected runs are not added
+to the full-suite total.
+
+Preparation used the pinned SDK executables (`flutter` and bundled `dart` below)
+and the documented shared-dependency workflow:
+
+```sh
+dart tool/verify_flutter_sdk.dart --flutter /home/albert/flutter/bin/flutter --dart /home/albert/flutter/bin/cache/dart-sdk/bin/dart --expected-flutter 3.47.5 --expected-dart 3.13.4
+python3 tool/checkout_shared_dependencies.py
+flutter pub get --enforce-lockfile
+flutter gen-l10n
+dart run build_runner build --delete-conflicting-outputs --force-jit
+dart format --output=none --set-exit-if-changed .
+flutter analyze
+dart run tool/check_platform_boundaries.dart
+flutter build linux --debug -t lib/main_linux.dart
+BUSYMAX_ACCEPTANCE_ROOT="$PWD/build/task-lifecycle-followup-native" XDG_DATA_HOME="$PWD/build/task-lifecycle-followup-native/data" flutter test integration_test/task_lifecycle_linux_test.dart -d linux --no-pub --reporter=expanded
+BUSYMAX_FLUTTER_EXECUTABLE=/home/albert/flutter/bin/flutter JAVA_HOME=/home/albert/.sdkman/candidates/java/17.0.20-tem ANDROID_SDK_ROOT=/home/albert/Android/Sdk tool/android/check_prerequisites.sh
+android/gradlew --project-dir android -Dorg.gradle.java.home=/home/albert/.sdkman/candidates/java/17.0.20-tem :busymax_android_platform:testDebugUnitTest :app:lintDebug
+JAVA_HOME=/home/albert/.sdkman/candidates/java/17.0.20-tem flutter build apk --debug -t lib/main_android.dart --no-pub
+```
+
+The SDK checker, sibling checkout verification, lockfile-enforced resolution,
+localization and builders passed. The pinned builder reports its existing
+deprecated flag warning; pins were retained. Generated-source snapshot →
+generation → verification passed with **no checked-in generation diff**.
+Platform boundaries passed. Formatting passed (946 files, zero changes before
+the added native Android test); initial analysis found one test-helper braces
+info, corrected without behavioral changes, and the subsequent full analysis
+passed with no issues. Final checks for later additions are recorded below.
+
+Linux debug build passed. The native Linux task integration test passed **1**
+in 24 seconds in a real Yaru window using isolated synthetic state. It exercised
+creation, temporary identity acknowledgment, dirty Escape/Cancel, failed Save
+and retry, hierarchy/promotion/order, keyboard shortcuts and deletion guards;
+it did not contact a live provider. Android prerequisites, native unit/lint
+Gradle tasks and debug APK build passed. Existing locked-plugin Gradle warnings
+were retained; building the APK alone is not installed Android acceptance.
+
+Unlike the historical native-limit row above, current KVM acceleration was
+usable. Installed Android checks therefore use a newly created, explicitly
+designated disposable API 35 emulator with a private ADB server; the existing
+AVD and attached personal device are untouched. The app still compiles/targets
+API 37. The native Android bridge smoke test passed **1** on that emulator.
+The Android ledger records the separate installed task acceptance and process
+receipts; no widget recreation is counted as process recovery.
+
+Final follow-up results below supersede these historical checkpoints for this
+repair. Previous totals and native results are not substitutes for those runs.
+An initial follow-up aggregate run (`flutter test --concurrency=2
+--reporter=expanded`) was intentionally interrupted after **3,260 passed and
+10 provider-gated skips**, while additional bounded R03/R11 regressions were
+being established. SIGINT caused a loader/channel shutdown error; this partial
+run is not counted as a passing full suite. The final run uses the completed
+sources after those focused repairs.
+Two brief aggregate attempts were also stopped after **148** and **153**
+passes when the additional creation-owner navigation and moved-list caption
+controls established remaining corrections. Their interrupted loader cleanup
+is not a product regression or a passing suite. Intermediate analysis found
+two undefined fixture variables in a storage-key migration assertion; the
+fixture was corrected while preserving its original recurrence/timezone
+checks. That Android checkpoint passed all 118 tests; final D03/D04 coverage
+passes 126.
+
+The later full formatting command passed **949 files, zero changes**. Full
+analysis passed with **no issues** (182.4 seconds); the last Android caption
+edit also passed focused analysis and formatting. Final Linux debug build and
+the native task integration test passed **1** in 17 seconds using
+`build/task-lifecycle-followup-final-native` for both the acceptance root and
+isolated data directory. Generated-source verification after the UI-only
+corrections still matches the reviewed snapshot. Platform boundaries passed.
+
+The next aggregate completed with **4,245 passed, 10 provider-gated skips and
+one failed assertion**. The new moved-occurrence regression expected the
+occurrence-specific message, while its explicit-status fixture correctly
+received the existing useful draft-conflict message. A supported omitted-status
+control then established D03's actual unsafe advancement separately; the
+identity-only correction and exact durable-recovery controls passed before
+starting the final aggregate. This failed aggregate is not reported as a pass.
+The following aggregate was intentionally stopped after **1,030 passes** when
+the separate German controls confirmed D04. Its SIGINT cleanup errors and zero
+CLI exit status are not counted as a passing full suite. All nine focused D04
+and occurrence controls passed before the final aggregate/check sequence.
+
+### Final follow-up verification
+
+The final application and widget-test source hashes stayed unchanged during
+the aggregate. A later native-checklist harness tab-readiness correction was
+checked separately with scoped analysis/formatting; it does not change the
+application or the offline suite.
+
+| Command | Actual final result |
+| --- | --- |
+| `dart format --output=none --set-exit-if-changed .` | Passed: **950 files, zero changes**, 164.82 seconds. |
+| `flutter analyze` | Passed: **no issues**, 124.7 seconds. |
+| `flutter test --concurrency=2 --reporter=expanded` | Passed: **4,251 tests**, **10 existing provider-gated skips**, **no failures**, 36:03; process exit 0. |
+| `dart run tool/check_platform_boundaries.dart` | Passed. |
+| `dart run tool/check_generated_sources.dart verify /tmp/busymax-followup-final-r03-generated.json` | Passed against the reviewed regeneration snapshot; no generated, schema, locale or dependency-pin diff. |
+| `JAVA_HOME=/home/albert/.sdkman/candidates/java/17.0.20-tem flutter build apk --debug -t lib/main_android.dart --no-pub` | Passed: **158.6 seconds**, normal debug APK preserved separately from native acceptance artifacts. `JAVA_HOME` records the command environment; Flutter's existing JVM selection was retained. |
+
+The final check sequence ran sequentially. An earlier concurrent invocation of
+two Dart checks raced while copying `.dart_tool/lib/libsqlite3.so`, causing
+generated verification to fail before executing its check. The unchanged
+command passed sequentially, and the final sequential sequence passed both
+checks. No source, pending data or validation was changed to avoid that race.
+The ten skips require eight explicitly enabled Nextcloud fixtures/stages and
+two explicitly enabled iCloud fixtures. Their existing exclusions were retained;
+none is counted as a pass. No Google/Microsoft live acceptance is inferred from
+the offline suite. Final source-hash verification matches all 790 application,
+widget-test and integration-test sources, including the separately checked
+native harness correction.
+
+The final Linux build/native test above passed before the last Android-only
+metadata and feedback corrections; the shared/Linux sources were unchanged
+afterward. Installed Android core acceptance passed one scenario across actual
+process deaths/relaunches using software rendering, and its separate platform
+bridge smoke passed one test. Exact scope, PID receipts, failed harness attempts
+and the normal-renderer limit are recorded in the Android ledger.
+
+Installed offline Microsoft checklist acceptance also completed on the final
+localized application sources. PID 3847 exercised Rename Cancel/Apply, Delete
+Cancel/confirm and real Android Back. It retained exactly two pending item
+operations with their dependency, leaving the core fixture's four operations
+unchanged. After an actual force-stop/process-absence check, PID 4459 reopened
+the same database and verified the projection, payloads and dependency. The
+verification phase reported `All tests passed`; the preceding UI checkpoint
+was deliberately interrupted for that restart and is not counted as another
+passed test. No Graph call or credential was used. The two native integration
+files passed scoped analysis and formatting after their final synchronization
+correction. The normal APK byte-matches its preserved build artifact.
+
+The first checklist attempt selected the prior Schedule row before the Tasks
+tab rendered; the test now waits for the tab transition. A subsequent QA
+emulator native crash occurred before installation. Its cause was not
+established. The same owned AVD restarted without wiping userdata and completed
+the installed checklist/restart checks. The owned emulator and private ADB
+server were stopped afterward; no personal device or existing AVD was used.
+
+Remaining external actions are specific: run the documented native task/dialog
+checks on a designated Windows QA host; repeat installed Android acceptance
+with the normal renderer on a stable designated device/emulator; and explicitly
+enable the disposable provider fixtures from `docs/development.md`, recording
+actual server/provider versions before live mutation checks. The API 35 emulator
+run does not prove API 37 runtime acceptance. No confirmed R01–R13 code defect
+remains from this bounded repair, but these unexecuted gates remain unverified.
+
+F05 remains **blocked** on endpoint-specific authoritative PATCH/reachable PUT
+evidence or explicitly enabled disposable Google QA. F10 remains **withdrawn**;
+device-local advancement, floating detached history, COUNT/final-UNTIL/reopen
+behavior and the Tasks 0.18.1 compatibility limitation are preserved. Account
+and notification policies, Google clear/hide, Microsoft checklist identity and
+Nextcloud trash/restore remain unchanged. Native Windows and live-provider
+checks still require the designated host/disposable fixtures described above;
+none is inferred from widget tests or builds. Installed Android acceptance is
+limited to the explicitly recorded disposable-emulator scenarios.
+
+The exact Google [PATCH](https://developers.google.com/workspace/tasks/reference/rest/v1/tasks/patch)
+and [PUT](https://developers.google.com/workspace/tasks/reference/rest/v1/tasks/update)
+method pages were reread during this follow-up. They do not specify a verified
+conditional-write mechanism for these endpoints. That is insufficient evidence
+to implement or claim atomic protection, and does not prove such support is
+absent. No disposable Google fixture was enabled for an endpoint experiment.

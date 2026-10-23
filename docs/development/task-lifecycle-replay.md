@@ -130,3 +130,98 @@ The Windows integration correction's final command was
 Google case and one passing matching-state negative control. Test-harness
 iterations corrected SQLite stream disposal before the final passing run;
 those failures were not attributed to provider or application behavior.
+
+## Follow-up replay validation: R05, R06 and R08
+
+The follow-up was revalidated against the current clean committed baseline on
+2026-10-22 with the same pinned Flutter 3.47.5 / bundled Dart 3.13.4 and shared
+locked dependencies. The original F/U ledger entries remain recorded; this section corrects the
+narrower composition gaps found during the follow-up.
+The tests below use production repositories/replay, real SQLite, durable
+file-backed restart fixtures, and mutable provider state. A fake's supported
+read behavior is not evidence of provider conditional writes or native delivery.
+
+| ID | Disposition | Reachable reproduction and controls | Correction and executable evidence |
+|---|---|---|---|
+| R05 | Confirmed | Queue title A→B and dependent notes N→L. The provider commits B and loses the response. A later reconciliation GET fails with `RequestNotDispatchedException`; the old handler reset PATCH/PUT to `retry`, erasing the earlier write's durable uncertainty. Four initial PATCH/PUT cases failed because the retained state became `retry`; the first genuinely unsent mutation control passed. | Preserve an existing `in_progress` marker across an unsent reconciliation read and scheduling/manual Retry. A first mutation prevented from dispatch remains safely retryable. After file close/reopen and explicit Retry, the intended postcondition acknowledges one title mutation and permits the dependent notes mutation. A value different from baseline and desired still conflicts and retains both local intents. A recurring-completion control retains `recovery_required` protection after an unsent read; it does not demonstrate provider occurrence advancement. |
+| R06 | Confirmed | Actual `MicrosoftTodoTaskRemoteClient` over a stateful Graph checklist interface commits rename/check/uncheck, then loses its response. Before repair, all nine valid initial cases observed one provider mutation but no durable dispatched marker (`pending` remained). The fixture also fails a later second-page reconciliation read and closes/reopens SQLite. | Mark the item update immediately before dispatch. Supported paginated reads may establish only that item's requested, adapter-normalized fields. Use the same transaction for acknowledgment, field-scoped dependent baseline updates, visible projection overlay and operation removal. Rename/check/uncheck each cover normal dependent progress, an independently changed untouched field that must still conflict, a missing remote item, and sibling independence. The acknowledgment-commit barrier opens a second database connection and verifies exact dependent baseline, retained visible completion, one rename and one dependent check. Existing temporary-create/alias and uncertain-create protections remain covered by the affected suite. No Graph atomic-write contract is claimed. |
+| R08 | Confirmed | All three offline compositions reproduced: clear→list deletion conflicted with its own hidden flag; child deletion→list deletion misclassified returned Google tombstones as live membership; completed move A→B→clear B did not rebase the destination clear. Six initial deferred/blocked restart variants applied only the predecessor (1 instead of 2). External notes, new live child and new completed-task controls blocked destruction. | Rebase only approved hidden effects, captured move fields/membership and their acknowledged revisions. Read all pages with the existing Google flags; exclude true deletion tombstones from live membership while unexpected missing/live members still conflict. A clear's empty response establishes hidden=true, so its narrow durable marker explains a revision advance only when the complete approved semantic snapshot still matches. It never replaces untouched fields. Source/destination clear handling requires the captured move and never adds absent approved members. Predecessor acknowledgment, dependent snapshots, local projection and operation removal commit together. Three commit barriers inspect these states from a second SQLite connection before permitting the remaining destructive operation. |
+
+Two directly related R08 defects were verified and recorded separately:
+
+- **Clear already acknowledged before list deletion is queued:** the local
+  hidden flag had changed but `rawJson` still said hidden=false. The control
+  without external edits failed (0 instead of 1 list deletion); the external
+  notes control remained blocked. Successful clear now records only its known
+  hidden effect in local raw/metadata. Later list-deletion snapshots carry that
+  effect while keeping every original notes/status field. A fresh provider
+  import replaces this local explanation with its actual provider revision.
+- **Incoming move response replaced an existing destination deletion snapshot:**
+  an independent notes N→R arriving in the move response was copied wholesale
+  into a previously approved child baseline. The regression observed both move
+  and list deletion succeeding (2 instead of the expected 1), destroying the
+  changed remote child; the unchanged control passed. Initialization now occurs
+  only when no approved child snapshot exists. Existing snapshots rebase the
+  acknowledged move fields and retain notes N, so remote R blocks deletion.
+
+Valid fail-before commands and outcomes:
+
+```bash
+flutter test test/features/sync/pending_ops_replayer_test.dart --plain-name R0 --concurrency=1 --reporter=expanded
+flutter test test/features/sync/pending_ops_replayer_test.dart --plain-name R06 --concurrency=1 --reporter=expanded
+flutter test test/features/sync/pending_ops_replayer_test.dart --plain-name 'R08 related' --concurrency=1 --reporter=expanded
+flutter test test/features/sync/pending_ops_replayer_test.dart --plain-name 'R08 related incoming' --concurrency=1 --reporter=expanded
+```
+
+The first combined command reproduced the four R05 and six R08 failures;
+checklist fixture setup was then corrected to implement the adapter's explicit
+`MicrosoftTodoChecklistApiClient` interface, and the separate R06 command
+reproduced all nine missing-dispatch-marker failures after an actual provider
+commit. The related-clear command had one failing unchanged-state case and one
+passing remote-notes control. The related-incoming command had one failing
+remote-notes case and one passing unchanged control. A matcher import ambiguity
+and test-name filter typo were harness issues, not application/provider results.
+No production sources were swapped for these checks.
+
+Passing focused commands:
+
+```bash
+flutter test test/features/sync/pending_ops_replayer_test.dart --name 'R05|R06' --concurrency=1 --reporter=expanded
+flutter test test/features/sync/pending_ops_replayer_test.dart --plain-name R08 --concurrency=1 --reporter=expanded
+flutter test test/features/sync/pending_ops_replayer_test.dart --plain-name R0 --concurrency=1 --reporter=expanded
+flutter test test/features/sync/pending_ops_replayer_test.dart --name 'R08 Google.*commits predecessor' --concurrency=1 --reporter=expanded
+```
+
+These passed 14, 9, 28 and 3 cases respectively as coverage was added. The final
+full affected run follows the last incoming-move correction, so its result is
+the final integration count, rather than a sum of those overlapping focused runs:
+
+```bash
+flutter test test/features/sync/pending_ops_replayer_test.dart \
+  test/features/sync/pending_op_resolution_service_test.dart \
+  test/features/task_lists/data/task_lists_repository_test.dart \
+  test/microsoft_todo/api/microsoft_todo_task_remote_client_test.dart \
+  --concurrency=2 --reporter=expanded
+dart analyze lib/src/features/sync/pending_ops_replayer.dart \
+  lib/src/features/sync/task_mutation_barrier.dart \
+  lib/src/features/task_lists/data/task_lists_repository.dart \
+  test/features/sync/pending_ops_replayer_test.dart
+```
+
+The final affected run passed **226 tests**. Targeted analysis reported
+**No issues found**, the owned Dart format check made **0 changes**, and
+`git diff --check` found no whitespace errors. Logs remain in `/tmp`.
+No existing regression was removed, weakened, or made to pass by erasing pending
+payloads. No live Google/Microsoft credentials or provider mutations were used
+in this portion, and no native host acceptance was run here.
+
+The official [tasks.list endpoint](https://developers.google.com/workspace/tasks/reference/rest/v1/tasks/list)
+was read for pagination and `showDeleted`/`showHidden` behavior, and the official
+[tasks.clear endpoint](https://developers.google.com/workspace/tasks/reference/rest/v1/tasks/clear)
+for its existing all-completed hide operation and empty response. Google still
+has the documented preflight/clear race: another task can complete after the
+last read. F05 remains blocked on exact Tasks conditional-write evidence or an
+explicit disposable QA endpoint test; no If-Match fallback or atomicity claim
+was added. Microsoft checklist read/compare has the previously documented final
+read/write window. F10 remains withdrawn from automatic repair, and the pinned
+Nextcloud recurrence, account and notification policies remain unchanged.

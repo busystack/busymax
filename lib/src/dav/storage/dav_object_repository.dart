@@ -752,6 +752,14 @@ final class DavObjectRepository {
               accountId: accountId,
               davObjectId: sourceObject.id,
             );
+      final sourceTasks = sourceObject == null
+          ? const <Task>[]
+          : await (_database.select(_database.tasks)..where(
+                  (row) =>
+                      row.accountId.equals(accountId) &
+                      row.davObjectId.equals(sourceObject.id),
+                ))
+                .get();
       final effectiveDestinationContext = _includingRememberedLocationCoverage(
         destinationContext,
         remembered,
@@ -770,6 +778,58 @@ final class DavObjectRepository {
         prepared: canonicalDestinationObject,
         ignorePendingOperations: true,
       );
+      if (sourceTasks.isNotEmpty) {
+        final destinationTasks =
+            await (_database.select(_database.tasks)..where(
+                  (row) =>
+                      row.accountId.equals(accountId) &
+                      row.davObjectId.equals(destinationObjectId),
+                ))
+                .get();
+        for (final moved in destinationTasks) {
+          final original = sourceTasks
+              .where(
+                (task) =>
+                    task.icalUid != null &&
+                    task.icalUid == moved.icalUid &&
+                    task.recurrenceIdKey == moved.recurrenceIdKey,
+              )
+              .singleOrNull;
+          if (original == null) continue;
+          final before = original.providerMetadataJson == null
+              ? const <String, Object?>{}
+              : jsonDecode(original.providerMetadataJson!) as Map;
+          final metadata = moved.providerMetadataJson == null
+              ? <String, Object?>{}
+              : (jsonDecode(moved.providerMetadataJson!) as Map)
+                    .cast<String, Object?>();
+          metadata['_busymaxTaskIdAliases'] = {
+            if (metadata['_busymaxTaskIdAliases'] case final List ids)
+              ...ids.whereType<String>(),
+            if (before['_busymaxTaskIdAliases'] case final List ids)
+              ...ids.whereType<String>(),
+            original.id,
+          }.toList();
+          metadata['_busymaxTaskPreviousListIds'] = {
+            if (metadata['_busymaxTaskPreviousListIds'] case final List ids)
+              ...ids.whereType<String>(),
+            if (before['_busymaxTaskPreviousListIds'] case final List ids)
+              ...ids.whereType<String>(),
+            'dav-task-list-$sourceCollectionId',
+          }.toList();
+          await (_database.update(_database.tasks)..where(
+                (row) =>
+                    row.accountId.equals(accountId) &
+                    row.taskListId.equals(moved.taskListId) &
+                    row.id.equals(moved.id),
+              ))
+              .write(
+                TasksCompanion(
+                  providerMetadataJson: Value(jsonEncode(metadata)),
+                ),
+              );
+        }
+      }
       affected.add(destinationObjectId);
       await resolutions.restore(
         remembered,
@@ -1118,6 +1178,32 @@ final class DavObjectRepository {
       commit,
       remembered,
     );
+    // Reprojection replaces rows. Retain only verified client identities for
+    // each exact projection; native temporal/alarm data comes from its own
+    // newly parsed component below.
+    final taskIdentities = <(String, String?), Map<String, Object?>>{};
+    if (semantic.components.firstOrNull?.componentType == 'VTODO') {
+      final tasks =
+          await (_database.select(_database.tasks)..where(
+                (row) =>
+                    row.accountId.equals(commit.accountId) &
+                    row.davObjectId.equals(objectId),
+              ))
+              .get();
+      for (final task in tasks) {
+        final source = task.providerMetadataJson;
+        if (source == null) continue;
+        final metadata = jsonDecode(source) as Map;
+        taskIdentities[(task.id, task.icalUid)] = {
+          for (final key in const [
+            '_busymaxTaskIdAliases',
+            '_busymaxTaskPreviousListIds',
+          ])
+            if (metadata[key] is List)
+              key: (metadata[key] as List).whereType<String>().toList(),
+        };
+      }
+    }
     await _replaceProjectionsBody(
       commit: effectiveCommit,
       collection: collection,
@@ -1125,6 +1211,7 @@ final class DavObjectRepository {
       etag: etag,
       semantic: semantic,
       componentIds: componentIds,
+      taskIdentities: taskIdentities,
     );
     await resolutions.restore(
       remembered,
@@ -1189,6 +1276,7 @@ final class DavObjectRepository {
     required String? etag,
     required IcalSemanticDocument semantic,
     required Map<String, String> componentIds,
+    required Map<(String, String?), Map<String, Object?>> taskIdentities,
   }) async {
     await _deleteProjections(objectId);
     if (semantic.components.isEmpty) return;
@@ -1212,6 +1300,7 @@ final class DavObjectRepository {
         etag: etag,
         semantic: semantic,
         componentIds: componentIds,
+        taskIdentities: taskIdentities,
       );
     }
   }
@@ -1375,6 +1464,7 @@ final class DavObjectRepository {
     required String? etag,
     required IcalSemanticDocument semantic,
     required Map<String, String> componentIds,
+    required Map<(String, String?), Map<String, Object?>> taskIdentities,
   }) async {
     final taskListId = 'dav-task-list-${commit.collectionId}';
     final taskList =
@@ -1437,6 +1527,7 @@ final class DavObjectRepository {
         timeZoneResolver: timeZoneResolver,
       );
       final metadata = {
+        ...?taskIdentities[(taskId, component.uid)],
         'transport': 'caldav',
         'uid': component.uid,
         if (component == currentHistory &&

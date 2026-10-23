@@ -25,6 +25,7 @@ import '../domain/task_remote_client.dart';
 import '../domain/task_remote_models.dart';
 import '../domain/google_task_assignment_policy.dart';
 import '../domain/task_source_links.dart';
+import '../domain/task_occurrence.dart';
 
 import 'package:busymax/src/providers/busy_provider.dart';
 
@@ -296,6 +297,18 @@ class TaskEntity {
   final String? webViewLink;
   final String? assignmentInfoJson;
 
+  String? get occurrenceKey => davTaskOccurrenceKey(
+    davCollectionId: davCollectionId,
+    recurrenceJson: recurrenceJson,
+    recurrenceIdKey: recurrenceIdKey,
+    providerMetadataJson: providerMetadataJson,
+  );
+
+  /// Prior local scopes established by supported moves of this exact task.
+  /// Equal IDs or a missing source row alone do not establish this relationship.
+  Set<String> get previousTaskListIds =>
+      _taskPreviousListIds(providerMetadataJson);
+
   bool matchesIdentity(String taskId) =>
       id == taskId ||
       _taskIdentityAliases(providerMetadataJson).contains(taskId);
@@ -431,21 +444,38 @@ class TaskPatchInput {
     this.locationChange = const LocationChange.unchanged(),
     this.observedTask,
     this.completionIntent,
+    this.observedOccurrenceKey,
   });
 
   factory TaskPatchInput.completion(
     bool completed, {
     bool includeCompletedTimestamp = true,
-  }) => TaskPatchInput({
-    'status': completed ? 'completed' : 'needsAction',
-    if (includeCompletedTimestamp)
-      'completed': completed ? DateTime.now().toUtc().toIso8601String() : null,
-  }, completionIntent: completed);
+    String? observedOccurrenceKey,
+  }) => TaskPatchInput(
+    {
+      'status': completed ? 'completed' : 'needsAction',
+      if (includeCompletedTimestamp)
+        'completed': completed
+            ? DateTime.now().toUtc().toIso8601String()
+            : null,
+    },
+    completionIntent: completed,
+    observedOccurrenceKey: observedOccurrenceKey,
+  );
 
   final Map<String, Object?> fields;
   final LocationChange locationChange;
   final TaskEntity? observedTask;
   final bool? completionIntent;
+  final String? observedOccurrenceKey;
+}
+
+/// A checkbox action is bound to the occurrence that supplied its row.
+class TaskOccurrenceChangedException implements Exception {
+  const TaskOccurrenceChangedException();
+
+  @override
+  String toString() => 'This task now represents another occurrence.';
 }
 
 /// A draft may only replace fields that still match what its editor observed.
@@ -988,22 +1018,24 @@ class TasksRepository {
     required String parentTaskId,
     required String title,
   }) async {
-    final task = await _requiredTask(taskListId, parentTaskId);
-    parentTaskId = task.id;
-    final items = List<TaskChecklistItemEntity>.of(
-      decodeTaskChecklistItems(task.microsoftChecklistItemsJson),
-    );
+    // Validate availability early, but do not carry this projection/identity
+    // across the transaction boundary: creation acknowledgement can replace it.
+    await _requiredTask(taskListId, parentTaskId);
     final now = _now();
     final localId = 'local-checklist-${_uuid.v4()}';
-    items.add(
-      TaskChecklistItemEntity.fromJson({
-        'id': localId,
-        'displayName': title,
-        'isChecked': false,
-        'createdDateTime': now,
-      }),
-    );
     await _database.transaction(() async {
+      await _requiredTaskList(taskListId);
+      final task = await _requiredTask(taskListId, parentTaskId);
+      parentTaskId = task.id;
+      final items = [
+        ...decodeTaskChecklistItems(task.microsoftChecklistItemsJson),
+        TaskChecklistItemEntity.fromJson({
+          'id': localId,
+          'displayName': title,
+          'isChecked': false,
+          'createdDateTime': now,
+        }),
+      ];
       await _writeChecklistProjection(taskListId, parentTaskId, items, now);
       await _enqueueChecklistOperation(
         operation: 'create_task_checklist_item',
@@ -1054,11 +1086,16 @@ class TasksRepository {
         taskList,
         taskId,
         fields,
-        beforeMutation: () async => _validateObservedTask(
-          input.observedTask,
-          TaskEntity.fromRow(await _requiredTask(taskListId, taskId)),
-          fields.keys,
-        ),
+        beforeMutation: () async {
+          final current = TaskEntity.fromRow(
+            await _requiredTask(taskListId, taskId),
+          );
+          if (input.observedOccurrenceKey != null &&
+              input.observedOccurrenceKey != current.occurrenceKey) {
+            throw const TaskOccurrenceChangedException();
+          }
+          await _validateObservedDavTask(input.observedTask, current, fields);
+        },
       );
       return;
     }
@@ -1249,6 +1286,11 @@ class TasksRepository {
           taskListId: Value(
             input.destinationTaskListId ?? input.sourceTaskListId,
           ),
+          providerMetadataJson:
+              input.destinationTaskListId != null &&
+                  input.destinationTaskListId != input.sourceTaskListId
+              ? Value(_taskMetadataAfterListMove(baseline))
+              : const Value.absent(),
           parent: Value(parentId),
           pendingMove: const Value(true),
           localDirty: const Value(true),
@@ -1808,6 +1850,71 @@ class TasksRepository {
     }
   }
 
+  Future<void> _validateObservedDavTask(
+    TaskEntity? observed,
+    TaskEntity current,
+    Map<String, Object?> fields,
+  ) async {
+    if (observed == null) return;
+    const lifecycleFields = {
+      'status',
+      'completed',
+      'taskStatus',
+      'percentComplete',
+      'completedAtUtc',
+    };
+    if (!fields.keys.any(lifecycleFields.contains)) {
+      _validateObservedTask(observed, current, fields.keys);
+      return;
+    }
+    final objectId = current.davObjectId;
+    final String baseline;
+    if (objectId == null) {
+      final create = await _pendingDavCreateForProjection(current.id);
+      if (create == null) {
+        throw StateError('The pending DAV task create is unavailable.');
+      }
+      baseline = _pendingDavCreateRawIcs(create);
+    } else {
+      baseline = await DavPendingOperationQueue(database: _database)
+          .editableRawIcsForObject(
+            accountId: _accountId,
+            collectionId: current.davCollectionId!,
+            objectId: objectId,
+          );
+    }
+    final patch = _buildDavTaskMutationPatch(
+      target: IcalComponentKey(
+        componentType: 'VTODO',
+        uid: current.icalUid!,
+        recurrenceIdKey: current.recurrenceIdKey,
+      ),
+      baselineRawIcs: baseline,
+      fields: fields,
+      mutationNowUtc: _nowUtc().toUtc(),
+    );
+    final properties = patch?.changedProperties ?? const <String>{};
+    // A percentage/completion transition writes all three lifecycle values.
+    // An explicit cancellation writes STATUS only. Derive that distinction
+    // from the actual patch so an untouched timestamp remains mergeable.
+    final affected = {
+      for (final field in fields.keys)
+        if (!lifecycleFields.contains(field)) field,
+      if (properties.contains('STATUS')) 'taskStatus',
+      if (properties.contains('PERCENT-COMPLETE')) 'percentComplete',
+      if (properties.contains('COMPLETED')) 'completedAtUtc',
+      // Recurring completion can write a detached history component while
+      // leaving the advancing master's wire state open. Its effective local
+      // lifecycle still belongs to the editor's observed occurrence.
+      if (properties.contains('COMPONENT-SET')) ...{
+        'taskStatus',
+        'percentComplete',
+        'completedAtUtc',
+      },
+    };
+    _validateObservedTask(observed, current, affected);
+  }
+
   Future<void> _updateDavTaskWithHierarchy(
     TaskList taskList,
     String taskId,
@@ -2074,48 +2181,74 @@ class TasksRepository {
       );
       return;
     }
-    final parent = await _davParent(
-      taskList.id,
-      input.parentTaskId,
-      childTaskId: task.id,
-    );
-    final ordering = await _davSortOrderForMove(
-      taskList.id,
-      parentId: parent?.id,
-      previousSiblingTaskId: input.previousSiblingTaskId,
-      movingTaskId: task.id,
-    );
-    for (final adjustment in ordering.adjustments) {
-      await _updateDavTask(taskList, adjustment.taskId, {
-        'sortOrder': adjustment.sortOrder,
-      }, announce: false);
-    }
-    final sortOrder = ordering.movingSortOrder;
-    final fields = <String, Object?>{
-      'parentUid': parent?.icalUid,
-      'sortOrder': sortOrder,
-    };
-    await _updateDavTask(taskList, task.id, fields, announce: false);
-    if (parent != null &&
-        _davTaskCompleted(parent) &&
-        !_davTaskCompleted(task)) {
-      await _updateDavTaskHierarchyNode(taskList, task.id, const {
-        'percentComplete': 100,
-      }, visited: <String>{});
-    }
-    await _writeLocalTask(
-      taskList.id,
-      task.id,
-      TasksCompanion(
-        parent: Value(parent?.id),
-        parentUid: Value(parent?.icalUid),
-        sortOrder: Value(sortOrder),
-        position: Value('$sortOrder'),
-        pendingMove: const Value(true),
-        localDirty: const Value(true),
-        updatedLocalAtUtc: Value(_now()),
-      ),
-    );
+    await _database.transaction(() async {
+      final task = await _requiredTask(taskList.id, input.taskId);
+      await _ensureDavTaskMutable(taskList, task);
+      final parent = await _davParent(
+        taskList.id,
+        input.parentTaskId,
+        childTaskId: task.id,
+      );
+      final ordering = await _davSortOrderForMove(
+        taskList.id,
+        parentId: parent?.id,
+        previousSiblingTaskId: input.previousSiblingTaskId,
+        movingTaskId: task.id,
+      );
+      for (final adjustment in ordering.adjustments) {
+        await _ensureDavTaskMutable(
+          taskList,
+          await _requiredTask(taskList.id, adjustment.taskId),
+        );
+      }
+      if (parent != null &&
+          _davTaskCompleted(parent) &&
+          !_davTaskCompleted(task)) {
+        final visited = <String>{};
+        Future<void> preflightCompletion(Task member) async {
+          if (!visited.add(member.id)) {
+            throw StateError('The DAV task hierarchy contains a cycle.');
+          }
+          await _ensureDavTaskMutable(taskList, member);
+          for (final child in await _davChildren(taskList.id, member)) {
+            if (!_davTaskClosed(child)) await preflightCompletion(child);
+          }
+        }
+
+        await preflightCompletion(task);
+      }
+      for (final adjustment in ordering.adjustments) {
+        await _updateDavTask(taskList, adjustment.taskId, {
+          'sortOrder': adjustment.sortOrder,
+        }, announce: false);
+      }
+      final sortOrder = ordering.movingSortOrder;
+      final fields = <String, Object?>{
+        'parentUid': parent?.icalUid,
+        'sortOrder': sortOrder,
+      };
+      await _updateDavTask(taskList, task.id, fields, announce: false);
+      if (parent != null &&
+          _davTaskCompleted(parent) &&
+          !_davTaskCompleted(task)) {
+        await _updateDavTaskHierarchyNode(taskList, task.id, const {
+          'percentComplete': 100,
+        }, visited: <String>{});
+      }
+      await _writeLocalTask(
+        taskList.id,
+        task.id,
+        TasksCompanion(
+          parent: Value(parent?.id),
+          parentUid: Value(parent?.icalUid),
+          sortOrder: Value(sortOrder),
+          position: Value('$sortOrder'),
+          pendingMove: const Value(true),
+          localDirty: const Value(true),
+          updatedLocalAtUtc: Value(_now()),
+        ),
+      );
+    });
   }
 
   Future<String> _moveDavTaskTreeToCollection({
@@ -2268,6 +2401,7 @@ class TasksRepository {
         TasksCompanion(
           taskListId: Value(destinationList.id),
           davCollectionId: Value(destinationList.davCollectionId),
+          providerMetadataJson: Value(_taskMetadataAfterListMove(task)),
           locationLatitude: fields.containsKey('locationPoint')
               ? Value(
                   GeographicPoint.fromJson(fields['locationPoint'])?.latitude,
@@ -2349,6 +2483,33 @@ class TasksRepository {
                 updatedLocalAtUtc: Value(now),
               ),
             );
+        final movedRows =
+            await (_database.select(_database.tasks)..where(
+                  (row) =>
+                      row.accountId.equals(_accountId) &
+                      row.davObjectId.equals(objectId),
+                ))
+                .get();
+        for (final moved in movedRows) {
+          // Each history projection has its own native temporal metadata.
+          // Add only the established source scope to that row's metadata.
+          await (_database.update(_database.tasks)..where(
+                (row) =>
+                    row.accountId.equals(_accountId) &
+                    row.taskListId.equals(destinationList.id) &
+                    row.id.equals(moved.id),
+              ))
+              .write(
+                TasksCompanion(
+                  providerMetadataJson: Value(
+                    _taskMetadataAfterListMove(
+                      moved,
+                      sourceListId: sourceList.id,
+                    ),
+                  ),
+                ),
+              );
+        }
       });
     }
     return operationId;
@@ -2981,6 +3142,12 @@ class TasksRepository {
       parentTaskId,
       checklistItemId,
     );
+    final parentCreation = predecessor == null
+        ? await _pendingTaskCreate(parentTaskId)
+        : null;
+    if (parentCreation != null && parentCreation.taskListId != taskListId) {
+      throw StateError('The checklist parent is unavailable.');
+    }
     await _database.pendingOpsDao.enqueue(
       PendingOpsCompanion.insert(
         id: _uuid.v4(),
@@ -2990,7 +3157,7 @@ class TasksRepository {
         taskListId: Value(taskListId),
         taskId: Value(parentTaskId),
         localTempId: Value(localTempId),
-        dependsOnOpId: Value(predecessor?.id),
+        dependsOnOpId: Value(predecessor?.id ?? parentCreation?.id),
         requestJson: jsonEncode(request),
         baselineRawJson: Value(baselineRawJson),
         createdAtUtc: createdAtUtc,
@@ -3927,12 +4094,40 @@ Set<String> _taskIdentityAliases(String? metadata) {
     return aliases is List
         ? aliases
               .whereType<String>()
-              .where((id) => id.startsWith('local-task-'))
+              .where(
+                (id) =>
+                    id.startsWith('local-task-') || id.startsWith('dav-task-'),
+              )
               .toSet()
         : const {};
   } on FormatException {
     return const {};
   }
+}
+
+Set<String> _taskPreviousListIds(String? metadata) {
+  if (metadata == null) return const {};
+  try {
+    final json = jsonDecode(metadata);
+    final scopes = json is Map ? json['_busymaxTaskPreviousListIds'] : null;
+    return scopes is List ? scopes.whereType<String>().toSet() : const {};
+  } on FormatException {
+    return const {};
+  }
+}
+
+String _taskMetadataAfterListMove(Task task, {String? sourceListId}) {
+  final source = task.providerMetadataJson;
+  final metadata = source == null
+      ? <String, Object?>{}
+      : (jsonDecode(source) as Map).cast<String, Object?>();
+  return jsonEncode({
+    ...metadata,
+    '_busymaxTaskPreviousListIds': {
+      ..._taskPreviousListIds(source),
+      sourceListId ?? task.taskListId,
+    }.toList(),
+  });
 }
 
 Task? _matchingIdentityRow(Iterable<Task> rows, String taskId) {

@@ -12,6 +12,7 @@ class TaskListMutationIntent {
     required this.generation,
     this.checklistItemId,
     this.completed,
+    this.occurrenceKey,
   });
 
   final TaskListMutationPresentation presentation;
@@ -20,7 +21,19 @@ class TaskListMutationIntent {
   final String taskId;
   final String? checklistItemId;
   final bool? completed;
+  final String? occurrenceKey;
   final int generation;
 
   String get taskKey => '$accountId\u0000$taskListId\u0000$taskId';
+
+  bool completionAppliesTo(String? currentOccurrenceKey) =>
+      occurrenceKey == null || occurrenceKey == currentOccurrenceKey;
+
+  bool completionSettled({
+    required bool currentCompleted,
+    required String? currentOccurrenceKey,
+  }) =>
+      completed == null ||
+      !completionAppliesTo(currentOccurrenceKey) ||
+      currentCompleted == completed;
 }

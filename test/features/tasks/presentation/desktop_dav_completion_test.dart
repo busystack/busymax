@@ -2,6 +2,7 @@ import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/busymax_window_close.dart';
+import 'package:busymax/src/dav/ical/ical_document.dart';
 import 'package:busymax/src/dav/ical/ical_semantics.dart';
 import 'package:busymax/src/dav/mutation/dav_conditional_mutation_service.dart';
 import 'package:busymax/src/dav/mutation/dav_mutation_patch.dart';
@@ -14,6 +15,7 @@ import 'package:busymax/src/features/schedule/presentation/schedule_workspace.da
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
+import 'package:busymax/src/features/tasks/presentation/task_details_pane.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/schedule/schedule_repository.dart';
 import 'package:busymax/src/schedule/schedule_item.dart';
@@ -31,6 +33,427 @@ import '../../../support/memory_settings_store.dart';
 import '../../../test_localized_app.dart';
 
 void main() {
+  for (final windows in [false, true]) {
+    testWidgets(
+      'R02 ${windows ? 'Windows' : 'Linux'} recurring child result retains the acted occurrence',
+      (tester) async {
+        tester.view.physicalSize = const Size(1400, 1400);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        final fixture = await _Fixture.create(recurringChild: true);
+        addTearDown(fixture.database.close);
+        final beforeRow =
+            (await fixture.database.select(fixture.database.tasks).get())
+                .singleWhere((row) => row.icalUid == 'child');
+        final before = TaskEntity.fromRow(beforeRow);
+        TaskMutationResult? result;
+        if (windows) {
+          await _openDetails(
+            tester,
+            fixture,
+            onCommitted: (value) => result = value,
+          );
+        } else {
+          await _openLinuxDetails(
+            tester,
+            fixture,
+            onClose: () {},
+            onCommitted: (value) => result = value,
+          );
+        }
+        final checkbox = windows
+            ? find.byWidgetPredicate(
+                (widget) => widget is fluent.Checkbox && widget.content == null,
+              )
+            : _checkbox('Child', windows: false);
+        await tester.ensureVisible(checkbox);
+        await tester.tap(checkbox);
+        for (var attempt = 0; attempt < 100 && result == null; attempt++) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 5)),
+          );
+          await tester.pump();
+        }
+        await tester.pumpAndSettle();
+        expect(result, isNotNull);
+        expect(result!.taskId, before.id);
+        expect(result!.completed, isTrue);
+        expect(result!.occurrenceKey, before.occurrenceKey);
+        final after = await fixture.repository.readTask(
+          fixture.listId,
+          before.id,
+        );
+        expect(after!.status, 'needsAction');
+        expect(after.occurrenceKey, isNot(before.occurrenceKey));
+        final input =
+            (fixture.repository as _RecordingRepository).received.single;
+        expect(input.observedOccurrenceKey, before.occurrenceKey);
+        await fixture.replay(1, null);
+        final resource = fixture.remote.resources.values.singleWhere(
+          (resource) => resource.raw.contains('UID:child'),
+        );
+        expect(
+          IcalSemanticDocument.parse(resource.raw).components
+              .where((component) => component.recurrenceIdKey != null),
+          hasLength(1),
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets(
+    'R02 Windows recurring root Save result retains the acted occurrence',
+    (tester) async {
+      tester.view.physicalSize = const Size(1400, 1100);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final fixture = await _Fixture.create(recurringParent: true);
+      addTearDown(fixture.database.close);
+      final before = await fixture.repository.readTask(
+        fixture.listId,
+        fixture.parentId,
+      );
+      TaskMutationResult? result;
+      await _openDetails(
+        tester,
+        fixture,
+        onCommitted: (value) => result = value,
+      );
+      await tester.tap(find.widgetWithText(fluent.Checkbox, 'Completed'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(fluent.FilledButton, 'Save'));
+      await tester.pumpAndSettle();
+      expect(result, isNotNull);
+      expect(result!.completed, isTrue);
+      expect(result!.occurrenceKey, before!.occurrenceKey);
+      final after = await fixture.repository.readTask(
+        fixture.listId,
+        fixture.parentId,
+      );
+      expect(after!.status, 'needsAction');
+      expect(after.occurrenceKey, isNot(before.occurrenceKey));
+      await fixture.replay(2, null);
+    },
+  );
+
+  for (final completion in [true, false]) {
+    testWidgets(
+      'R02 Windows stale recurring editor ${completion ? 'completion conflicts' : 'title merges'}',
+      (tester) async {
+        tester.view.physicalSize = const Size(1400, 1100);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        final fixture = await _Fixture.create(recurringParent: true);
+        addTearDown(fixture.database.close);
+        await _openDetails(tester, fixture);
+        final l10n = AppLocalizations.of(
+          tester.element(find.byType(fluent.ContentDialog)),
+        );
+        if (completion) {
+          await tester.tap(find.widgetWithText(fluent.Checkbox, 'Completed'));
+        } else {
+          final title = find.byWidgetPredicate(
+            (widget) =>
+                widget is fluent.TextBox && widget.controller?.text == 'Parent',
+          );
+          await tester.enterText(title, 'Independent title');
+        }
+        await tester.pumpAndSettle();
+        await fixture.repository.patchTask(
+          fixture.listId,
+          fixture.parentId,
+          TaskPatchInput.completion(true),
+        );
+        await fixture.replay(2, null);
+        final before = await fixture.repository.readTask(
+          fixture.listId,
+          fixture.parentId,
+        );
+        final rawBefore = fixture.remote.resources.values
+            .singleWhere((resource) => resource.raw.contains('UID:parent'))
+            .raw;
+        final historyBefore = IcalSemanticDocument.parse(rawBefore).components
+            .where((component) => component.recurrenceIdKey != null)
+            .toList();
+        expect(historyBefore, hasLength(1));
+        final rowsBefore = await fixture.database
+            .select(fixture.database.tasks)
+            .get();
+        await tester.tap(find.widgetWithText(fluent.FilledButton, 'Save'));
+        await tester.pumpAndSettle();
+        if (completion) {
+          expect(find.text(l10n.taskDraftConflict), findsOneWidget);
+          expect(find.byType(fluent.ContentDialog), findsOneWidget);
+          expect(
+            tester
+                .widget<fluent.Checkbox>(
+                  find.widgetWithText(fluent.Checkbox, 'Completed'),
+                )
+                .checked,
+            isTrue,
+          );
+          expect(
+            await fixture.database.select(fixture.database.tasks).get(),
+            rowsBefore,
+          );
+          expect(
+            await fixture.database.select(fixture.database.pendingOps).get(),
+            isEmpty,
+          );
+          expect(fixture.remote.puts, 2);
+        } else {
+          expect(find.byType(fluent.ContentDialog), findsNothing);
+          final after = await fixture.repository.readTask(
+            fixture.listId,
+            fixture.parentId,
+          );
+          expect(after!.title, 'Independent title');
+          expect(after.microsoftDueDateTime, before!.microsoftDueDateTime);
+          expect(after.recurrenceJson, before.recurrenceJson);
+          await fixture.replay(1, null);
+          final rawAfter = fixture.remote.resources.values
+              .singleWhere((resource) => resource.raw.contains('UID:parent'))
+              .raw;
+          final historyAfter = IcalSemanticDocument.parse(rawAfter).components
+              .where((component) => component.recurrenceIdKey != null)
+              .toList();
+          expect(historyAfter, hasLength(1));
+          expect(
+            historyAfter.single.semanticHash,
+            historyBefore.single.semanticHash,
+          );
+        }
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  for (final windows in [false, true]) {
+    for (final initialPercent in windows ? [0, 20] : [20]) {
+      for (final concurrent in [
+        'cancel',
+        'completedTime',
+        'notes',
+        'unchanged',
+      ]) {
+        testWidgets(
+          'R01 ${windows ? 'Windows checkbox' : 'Linux progress'} $initialPercent protects semantic state ($concurrent)',
+          (tester) async {
+            tester.view.physicalSize = const Size(1400, 1400);
+            tester.view.devicePixelRatio = 1;
+            addTearDown(tester.view.reset);
+            final fixture = await _Fixture.create();
+            addTearDown(fixture.database.close);
+            await fixture.projectParent(
+              status: initialPercent == 0 ? 'NEEDS-ACTION' : 'IN-PROCESS',
+              percent: initialPercent,
+              notes: 'Original notes',
+            );
+            var closed = false;
+            if (windows) {
+              await _openDetails(tester, fixture);
+              final title = find.byWidgetPredicate(
+                (widget) =>
+                    widget is fluent.TextBox &&
+                    widget.controller?.text == 'Parent',
+              );
+              await tester.enterText(title, 'Retained local title  ');
+              await tester.pump();
+              await tester.tap(
+                find.widgetWithText(fluent.Checkbox, 'Completed'),
+              );
+            } else {
+              await _openLinuxDetails(
+                tester,
+                fixture,
+                onClose: () => closed = true,
+              );
+              final title = find.byWidgetPredicate(
+                (widget) =>
+                    widget is TextField &&
+                    widget.decoration?.labelText == 'Title',
+              );
+              await tester.enterText(title, 'Retained local title  ');
+              await tester.pump();
+              final slider = find.descendant(
+                of: find.byKey(const ValueKey('ical-task-progress')),
+                matching: find.byType(Slider),
+              );
+              await tester.ensureVisible(slider);
+              await tester.tapAt(tester.getCenter(slider));
+              await tester.pumpAndSettle();
+              expect(tester.widget<Slider>(slider).value, 50);
+            }
+            await tester.pumpAndSettle();
+            if (concurrent != 'unchanged') {
+              await fixture.projectParent(
+                status: concurrent == 'cancel'
+                    ? 'CANCELLED'
+                    : initialPercent == 0
+                    ? 'NEEDS-ACTION'
+                    : 'IN-PROCESS',
+                percent: initialPercent,
+                notes: concurrent == 'notes'
+                    ? 'Remote notes'
+                    : 'Original notes',
+                completedAt: concurrent == 'completedTime'
+                    ? '20261021T100000Z'
+                    : null,
+              );
+            }
+            await tester.pumpAndSettle();
+            final rowsBefore =
+                (await fixture.database.select(fixture.database.tasks).get())
+                    .map((row) => row.toJson())
+                    .toList();
+            final resourcesBefore =
+                (await fixture.database
+                        .select(fixture.database.davObjects)
+                        .get())
+                    .map((row) => row.toJson())
+                    .toList();
+            final save = windows
+                ? find.widgetWithText(fluent.FilledButton, 'Save')
+                : find.text('Save');
+            final l10n = AppLocalizations.of(
+              tester.element(
+                windows
+                    ? find.byType(fluent.ContentDialog)
+                    : find.byType(TaskDetailsPane),
+              ),
+            );
+            await tester.ensureVisible(save);
+            if (!windows) {
+              final button = find.ancestor(
+                of: save,
+                matching: find.byType(ElevatedButton),
+              );
+              expect(
+                tester.widget<ElevatedButton>(button).onPressed,
+                isNotNull,
+              );
+            }
+            await tester.tap(save);
+            for (var attempt = 0; attempt < 100; attempt++) {
+              if (closed ||
+                  (windows &&
+                      find.byType(fluent.ContentDialog).evaluate().isEmpty) ||
+                  find.text(l10n.taskDraftConflict).evaluate().isNotEmpty ||
+                  find.text(l10n.operationFailed).evaluate().isNotEmpty) {
+                break;
+              }
+              await tester.runAsync(
+                () => Future<void>.delayed(const Duration(milliseconds: 5)),
+              );
+              await tester.pump();
+            }
+            await tester.pumpAndSettle();
+            expect(
+              (fixture.repository as _RecordingRepository).received,
+              hasLength(1),
+            );
+            final received =
+                (fixture.repository as _RecordingRepository).received.single;
+            expect(received.observedTask!.percentComplete, initialPercent);
+            expect(
+              received.observedTask!.providerStatus,
+              initialPercent == 0 ? 'NEEDS-ACTION' : 'IN-PROCESS',
+            );
+            if (windows) {
+              expect(received.completionIntent, isTrue);
+            } else {
+              expect(received.fields['percentComplete'], 50);
+              expect(received.fields.containsKey('taskStatus'), isFalse);
+            }
+            expect(find.text(l10n.operationFailed), findsNothing);
+            final conflict =
+                concurrent == 'cancel' || concurrent == 'completedTime';
+            if (conflict) {
+              expect(find.text(l10n.taskDraftConflict), findsOneWidget);
+              expect(closed, isFalse);
+              expect(
+                (await fixture.database.select(fixture.database.tasks).get())
+                    .map((row) => row.toJson())
+                    .toList(),
+                rowsBefore,
+              );
+              expect(
+                (await fixture.database
+                        .select(fixture.database.davObjects)
+                        .get())
+                    .map((row) => row.toJson())
+                    .toList(),
+                resourcesBefore,
+              );
+              expect(
+                await fixture.database
+                    .select(fixture.database.pendingOps)
+                    .get(),
+                isEmpty,
+              );
+              expect(
+                find.byWidgetPredicate(
+                  (widget) => windows
+                      ? widget is fluent.TextBox &&
+                            widget.controller?.text == 'Retained local title  '
+                      : widget is TextField &&
+                            widget.controller?.text == 'Retained local title  ',
+                ),
+                findsOneWidget,
+              );
+              if (windows) {
+                expect(
+                  tester
+                      .widget<fluent.Checkbox>(
+                        find.widgetWithText(fluent.Checkbox, 'Completed'),
+                      )
+                      .checked,
+                  isTrue,
+                );
+              } else {
+                final slider = find.descendant(
+                  of: find.byKey(const ValueKey('ical-task-progress')),
+                  matching: find.byType(Slider),
+                );
+                expect(tester.widget<Slider>(slider).value, 50);
+              }
+              expect(fixture.remote.puts, 0);
+            } else {
+              final parent = await fixture.repository.readTask(
+                fixture.listId,
+                fixture.parentId,
+              );
+              expect(parent!.title, 'Retained local title');
+              expect(parent.percentComplete, windows ? 100 : 50);
+              expect(
+                parent.notes,
+                concurrent == 'notes' ? 'Remote notes' : 'Original notes',
+              );
+              await fixture.replay(windows ? 2 : 1, null);
+              final resource = fixture.remote.resources.values.singleWhere(
+                (resource) => resource.raw.contains('UID:parent'),
+              );
+              expect(
+                IcalSemanticDocument.parse(resource.raw)
+                    .components
+                    .single
+                    .description,
+                parent.notes,
+              );
+              final component = IcalSemanticDocument.parse(resource.raw)
+                  .components
+                  .single;
+              expect(component.status, windows ? 'COMPLETED' : 'IN-PROCESS');
+              expect(component.percentComplete, windows ? 100 : 50);
+            }
+            expect(tester.takeException(), isNull);
+          },
+        );
+      }
+    }
+  }
+
   for (final windows in [false, true]) {
     testWidgets(
       '${windows ? 'Windows' : 'Linux'} root and subtask checkboxes use the DAV percentage lifecycle',
@@ -212,7 +635,63 @@ void main() {
   });
 }
 
-Future<void> _openDetails(WidgetTester tester, _Fixture fixture) async {
+Future<void> _openLinuxDetails(
+  WidgetTester tester,
+  _Fixture fixture, {
+  required VoidCallback onClose,
+  TaskMutationCommittedCallback? onCommitted,
+}) async {
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        databaseProvider.overrideWithValue(fixture.database),
+        accountsRepositoryProvider.overrideWithValue(
+          AccountsRepository(database: fixture.database),
+        ),
+        localTimeZoneProvider.overrideWithValue('UTC'),
+        tasksRepositoryForAccountProvider.overrideWith(
+          (ref, _) => fixture.repository,
+        ),
+        taskListsRepositoryForAccountProvider.overrideWith(
+          (ref, _) => TaskListsRepository(
+            database: fixture.database,
+            accountId: DavTaskInventoryFixture.accountId,
+          ),
+        ),
+        davTaskCollectionCapabilitiesProvider.overrideWith(
+          (ref, _) => Stream.value(nextcloudTaskCollectionCapabilities),
+        ),
+      ],
+      child: localizedTestApp(
+        child: Scaffold(
+          body: TaskDetailsPane(
+            accountId: DavTaskInventoryFixture.accountId,
+            taskListId: fixture.listId,
+            taskId: fixture.parentId,
+            onClose: onClose,
+            onTaskMutationCommitted: onCommitted,
+          ),
+        ),
+      ),
+    ),
+  );
+  for (
+    var attempt = 0;
+    attempt < 100 &&
+        find.byKey(const ValueKey('ical-task-progress')).evaluate().isEmpty;
+    attempt++
+  ) {
+    await tester.pump(const Duration(milliseconds: 20));
+  }
+  await tester.pumpAndSettle();
+  expect(find.byKey(const ValueKey('ical-task-progress')), findsOneWidget);
+}
+
+Future<void> _openDetails(
+  WidgetTester tester,
+  _Fixture fixture, {
+  TaskMutationCommittedCallback? onCommitted,
+}) async {
   Object? openError;
   final task = await fixture.repository.readTask(
     fixture.listId,
@@ -255,6 +734,7 @@ Future<void> _openDetails(WidgetTester tester, _Fixture fixture) async {
                     completed: task.status == 'completed',
                     allDay: true,
                   ),
+                  onTaskMutationCommitted: onCommitted,
                 );
               } on Object catch (error) {
                 openError = error;
@@ -400,8 +880,66 @@ class _Fixture {
   final String listId;
   final String parentId;
   final _StatefulRemote remote;
+  var externalRevision = 0;
 
-  static Future<_Fixture> create() async {
+  Future<void> projectParent({
+    required String status,
+    required int percent,
+    String? notes,
+    String? completedAt,
+  }) async {
+    final collection = await database
+        .select(database.davCollections)
+        .getSingle();
+    final object = (await database.select(database.davObjects).get())
+        .singleWhere((object) => object.rawIcsBody.contains('UID:parent'));
+    final raw =
+        DavMutationPatch(
+          target: IcalComponentKey(componentType: 'VTODO', uid: 'parent'),
+          scope: DavMutationScope.recurrenceMaster,
+          operations: [
+            DavPatchOperation.setRaw('STATUS', status),
+            DavPatchOperation.setRaw('PERCENT-COMPLETE', '$percent'),
+            DavPatchOperation.setRaw('COMPLETED', completedAt),
+            DavPatchOperation.setText('DESCRIPTION', notes),
+          ],
+        ).applyTo(
+          remote.resources[object.hrefKey]!.raw,
+          nowUtc: DateTime.now().toUtc(),
+        );
+    final etag = '"external-${++externalRevision}"';
+    remote.resources[object.hrefKey] = (raw: raw, etag: etag);
+    await DavObjectRepository(database: database).commit(
+      DavCollectionCommit(
+        accountId: DavTaskInventoryFixture.accountId,
+        collectionId: collection.id,
+        provider: BusyProvider.nextcloud,
+        objects: [
+          DavPreparedObject.parse(
+            hrefKey: object.hrefKey,
+            requestUri: Uri.parse(object.requestUri),
+            etag: etag,
+            contentType: 'text/calendar',
+            rawIcsBody: raw,
+          ),
+        ],
+        deletedHrefKeys: const {},
+        completeMembership: false,
+        membershipHrefKeys: {object.hrefKey},
+        finalCursorKind: 'dav_sync_token',
+        finalCursorValue: 'external-$externalRevision',
+        baselineGeneration: 1,
+        completedAtUtc: DateTime.now().toUtc(),
+        projectionRangeStartUtc: DateTime.utc(2026),
+        projectionRangeEndUtc: DateTime.utc(2027),
+      ),
+    );
+  }
+
+  static Future<_Fixture> create({
+    bool recurringParent = false,
+    bool recurringChild = false,
+  }) async {
     final database = AppDatabase.memoryForTests();
     final inventory = DavTaskInventoryFixture(database);
     await inventory.seedAccount();
@@ -432,6 +970,8 @@ class _Fixture {
             if (child) 'RELATED-TO:parent',
             'DTSTAMP:20261022T120000Z',
             'DUE;VALUE=DATE:$date',
+            if ((recurringParent && !child) || (recurringChild && child))
+              'RRULE:FREQ=DAILY;COUNT=3',
             'X-KEEP:opaque',
             'END:VTODO',
             'END:VCALENDAR',
@@ -459,7 +999,7 @@ class _Fixture {
     final tasks = await database.select(database.tasks).get();
     return _Fixture(
       database,
-      TasksRepository(
+      _RecordingRepository(
         database: database,
         accountId: DavTaskInventoryFixture.accountId,
       ),
@@ -515,6 +1055,21 @@ class _Fixture {
         isTrue,
       );
     }
+  }
+}
+
+class _RecordingRepository extends TasksRepository {
+  _RecordingRepository({required super.database, required super.accountId});
+  final received = <TaskPatchInput>[];
+
+  @override
+  Future<void> patchTask(
+    String taskListId,
+    String taskId,
+    TaskPatchInput input,
+  ) {
+    received.add(input);
+    return super.patchTask(taskListId, taskId, input);
   }
 }
 

@@ -379,6 +379,18 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
           patch,
           locationChange: draft.locationChange,
           observedTask: draft.observedTask,
+          observedOccurrenceKey:
+              patch.keys.any(
+                const {
+                  'status',
+                  'completed',
+                  'taskStatus',
+                  'percentComplete',
+                  'completedAtUtc',
+                }.contains,
+              )
+              ? draft.observedTask?.occurrenceKey
+              : null,
         ),
       );
       mutated = true;
@@ -423,6 +435,7 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
           taskListId: moving ? task.taskListId : draft.taskListId,
           taskId: task.id,
           completed: completed,
+          occurrenceKey: draft.observedTask?.occurrenceKey,
         ),
       );
     }
@@ -557,7 +570,10 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
         await repository.patchTask(
           task.taskListId,
           task.id,
-          TaskPatchInput.completion(completed),
+          TaskPatchInput.completion(
+            completed,
+            observedOccurrenceKey: task.occurrenceKey,
+          ),
         );
       } else {
         await repository.patchChecklistSubtask(
@@ -578,6 +594,7 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
               ? subtask.id
               : null,
           completed: completed,
+          occurrenceKey: affectedTask?.occurrenceKey,
         ),
       );
     } on Object catch (error) {
@@ -644,12 +661,15 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          context.l10n.syncFailed(
-            syncFailureMessage(
-              error,
-              networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
-            ),
-          ),
+          error is TaskOccurrenceChangedException
+              ? context.l10n.taskDraftConflict
+              : context.l10n.syncFailed(
+                  syncFailureMessage(
+                    error,
+                    networkUnavailableMessage:
+                        context.l10n.networkOfflineTryAgain,
+                  ),
+                ),
         ),
       ),
     );

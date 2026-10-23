@@ -8,6 +8,8 @@ import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
+import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
+import 'package:busymax/src/features/tasks/presentation/desktop_date_time_fields.dart';
 import 'package:busymax/src/features/tasks/presentation/new_task_dialog.dart';
 import 'package:busymax/src/features/tasks/presentation/task_details_editor.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
@@ -21,6 +23,104 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../../test_localized_app.dart';
 
 void main() {
+  for (final invalid in ['url', 'dates']) {
+    for (final keyboard in [false, true]) {
+      testWidgets(
+        'R11 hidden $invalid survives account switching and permits Google ${keyboard ? 'Ctrl+S' : 'Create'}',
+        (tester) async {
+          final fixture = await _open(
+            tester,
+            dialog: true,
+            secondAccount: true,
+            nextcloudFirst: true,
+          );
+          fixture.lists.emit(fixture.destinations);
+          await tester.pumpAndSettle();
+          await _typeDraft(tester);
+          if (invalid == 'url') {
+            final url = find.byKey(const ValueKey('ical-task-url'));
+            await tester.ensureVisible(url);
+            await tester.enterText(url, 'invalid URL retained  ');
+          } else {
+            final rows = tester.widgetList<DesktopDateValueRow>(
+              find.byType(DesktopDateValueRow),
+            );
+            rows
+                .singleWhere((row) => row.label == 'Start date')
+                .onChanged('2026-08-14');
+            await tester.pump();
+            tester
+                .widgetList<DesktopDateValueRow>(
+                  find.byType(DesktopDateValueRow),
+                )
+                .singleWhere((row) => row.label == 'Due date')
+                .onChanged('2026-08-12');
+          }
+          await tester.pumpAndSettle();
+          expect(_create(tester).onPressed, isNull);
+          await _choose(tester, 'Account', _otherAccountId, settle: false);
+          fixture.otherLists!.emit(fixture.otherDestinations!);
+          await tester.pumpAndSettle();
+          expect(find.byKey(const ValueKey('ical-task-url')), findsNothing);
+          expect(_create(tester).onPressed, isNotNull);
+          // Returning to the provider exposes the preserved invalid content.
+          await _choose(tester, 'Account', _accountId, settle: false);
+          fixture.lists.emit(fixture.destinations);
+          await tester.pumpAndSettle();
+          expect(_create(tester).onPressed, isNull);
+          if (invalid == 'url') {
+            expect(
+              tester
+                  .widget<TextField>(
+                    find.byKey(const ValueKey('ical-task-url')),
+                  )
+                  .controller!
+                  .text,
+              'invalid URL retained  ',
+            );
+          } else {
+            final rows = tester.widgetList<DesktopDateValueRow>(
+              find.byType(DesktopDateValueRow),
+            );
+            expect(
+              rows.singleWhere((row) => row.label == 'Start date').date,
+              '2026-08-14',
+            );
+            expect(
+              rows.singleWhere((row) => row.label == 'Due date').date,
+              '2026-08-12',
+            );
+          }
+          await _choose(tester, 'Account', _otherAccountId, settle: false);
+          fixture.otherLists!.emit(fixture.otherDestinations!);
+          await tester.pumpAndSettle();
+          if (keyboard) {
+            await tester.tap(_field('Title'));
+            await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+            await tester.sendKeyEvent(LogicalKeyboardKey.keyS);
+            await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+            await tester.pumpAndSettle();
+          } else {
+            await _submit(tester);
+          }
+          await _expectOneDurableTask(
+            fixture,
+            accountId: _otherAccountId,
+            taskListId: 'other-destination',
+          );
+          final operation = await fixture.database
+              .select(fixture.database.pendingOps)
+              .getSingle();
+          final body =
+              (jsonDecode(operation.requestJson) as Map)['body'] as Map;
+          expect(body.keys, isNot(contains('taskUrl')));
+          expect(body.keys, isNot(contains('startDateTime')));
+          expect(body.keys, isNot(contains('microsoftStartDateTime')));
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+  }
   testWidgets(
     'new task distinguishes initial list loading from a confirmed empty list',
     (tester) async {
@@ -191,6 +291,7 @@ Future<_Fixture> _open(
   WidgetTester tester, {
   bool dialog = false,
   bool secondAccount = false,
+  bool nextcloudFirst = false,
 }) async {
   tester.view
     ..physicalSize = const Size(1200, 1100)
@@ -203,10 +304,12 @@ Future<_Fixture> _open(
       .insert(
         AccountsCompanion.insert(
           id: _accountId,
-          provider: 'google',
-          authority: 'https://accounts.google.com',
+          provider: nextcloudFirst ? 'nextcloud' : 'google',
+          authority: nextcloudFirst
+              ? 'https://dav.example.invalid'
+              : 'https://accounts.google.com',
           providerAccountId: 'qa',
-          credentialKind: 'oauth',
+          credentialKind: nextcloudFirst ? 'nextcloud_app_password' : 'oauth',
           authState: const Value('signed_in'),
           createdAtUtc: '',
           updatedAtUtc: '',
@@ -284,12 +387,18 @@ Future<_Fixture> _open(
   fixture
     ..otherLists = otherLists
     ..otherDestinations = otherDestinations;
-  final accounts = [_account, if (secondAccount) _otherAccount];
+  final accounts = [
+    nextcloudFirst ? _davAccount : _account,
+    if (secondAccount) _otherAccount,
+  ];
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         databaseProvider.overrideWithValue(database),
         localTimeZoneProvider.overrideWithValue('UTC'),
+        davTaskCollectionCapabilitiesProvider.overrideWith(
+          (ref, _) => Stream.value(nextcloudTaskCollectionCapabilities),
+        ),
         tasksRepositoryForAccountProvider.overrideWith((ref, accountId) {
           expect(accounts.map((account) => account.id), contains(accountId));
           return accountId == _accountId
@@ -491,6 +600,14 @@ const _account = AccountEntity(
   providerAccountId: 'qa',
   authState: 'signed_in',
   displayName: 'QA primary',
+);
+const _davAccount = AccountEntity(
+  id: _accountId,
+  provider: BusyProvider.nextcloud,
+  authority: 'https://dav.example.invalid',
+  providerAccountId: 'dav-qa',
+  authState: 'signed_in',
+  displayName: 'QA Nextcloud',
 );
 const _otherAccount = AccountEntity(
   id: _otherAccountId,

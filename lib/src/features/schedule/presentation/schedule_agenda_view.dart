@@ -106,7 +106,12 @@ class _ScheduleAgendaViewState extends State<ScheduleAgendaView> {
           intent.completed != null) {
         final checklistItemId = intent.checklistItemId;
         if (checklistItemId == null) {
-          if (task.completed != intent.completed) return;
+          if (!intent.completionSettled(
+            currentCompleted: task.completed,
+            currentOccurrenceKey: task.occurrenceKey,
+          )) {
+            return;
+          }
         } else {
           final checklistItem = task.checklistItems
               .where((item) => item.id == checklistItemId)
@@ -380,7 +385,8 @@ class _ScheduleAgendaViewState extends State<ScheduleAgendaView> {
         intent == null ||
         intent.presentation != TaskListMutationPresentation.completion ||
         intent.checklistItemId != null ||
-        intent.taskKey != _agendaTaskKey(task)) {
+        intent.taskKey != _agendaTaskKey(task) ||
+        !intent.completionAppliesTo(task.occurrenceKey)) {
       return null;
     }
     return intent.completed;

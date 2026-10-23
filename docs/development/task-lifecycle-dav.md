@@ -237,3 +237,159 @@ in [development.md](../development.md#live-provider-tests). Reference behavior
 was checked against the versioned [tasks.js](https://github.com/nextcloud/tasks/blob/v0.18.1/src/store/tasks.js)
 and [storeHelper.js](https://github.com/nextcloud/tasks/blob/v0.18.1/src/store/storeHelper.js).
 Duration relationships follow [RFC 5545 section 3.6.2](https://www.rfc-editor.org/rfc/rfc5545#section-3.6.2).
+
+## Follow-up review from `cd725b1`
+
+| ID | Disposition | Causal evidence and correction |
+| --- | --- | --- |
+| R01 | Confirmed | Windows details checkbox normalization compared only percentage, and Linux IN-PROCESS 20→50 could also compare only percentage. An unseen CANCELLED transition retaining that percentage was overwritten. DAV validation now derives lifecycle writes from the actual candidate patch's `changedProperties` inside the existing hierarchy transaction, before any hierarchy write. Percentage/completion writes validate STATUS, PERCENT-COMPLETE and COMPLETED; cancellation-only writes validate STATUS and preserve unrelated completion-time changes. The shared/cloud validator contract is unchanged. |
+| R02 (editor integration) | Confirmed | A loaded recurring Windows editor could complete occurrence D after another durable completion had advanced the same master to D+1. Lifecycle-only editor Save now submits the originally observed occurrence key; title/notes-only saves remain independent. Linux/Windows child checkbox commands submit their child's original key. Completion results retain the acted-on key so list feedback cannot attach to the advancing occurrence. Shared consumer handling is recorded by the coordinating work. |
+| R09 | Confirmed | Same-list normalization of PUBLIC A/order0, PRIVATE B/order1 and PUBLIC C/order3 queued A/order1 before rejecting B, leaving duplicate order1 values. Same-list plans now preflight all adjusted members and actual completion descendants, and commit normalization, parent changes, hierarchy completion, candidate/outbox changes and pendingMove together in one transaction. This is local atomicity, not a claim of remote multi-resource atomicity. |
+| D01 (related to Android R03 Save) | Confirmed | Ordinary notes Save always constructed removal of X-ALT-DESC, but that single property was absent from the mutation allowlist, causing DavMutationPatchInvalid even with no HTML alternative. The allowlist now accepts the property already used by the established notes mutation; no general extension-property authoring was enabled. |
+
+R01 before coverage failed **6** real UI conflict cases while **6** unchanged/
+remote-notes controls passed. It uses the actual Fluent checkbox and Linux
+percentage slider, received repository inputs, SQLite and controlled provider
+imports. Windows is covered from both 0% and 20%; Linux starts at IN-PROCESS20
+and the actual pointer interaction selects 50%. Imported cancellation retains
+the original percentage. Afterward, each conflict shows the existing useful
+draft explanation, retains the exact title/selected completion or percentage,
+and leaves the imported rows, resources and empty outbox unchanged. Independent
+notes survive successful Save and stateful provider replay. A separate valid
+COMPLETED100 task with an unseen new completion timestamp failed its progress
+regression before repair; the explicit cancellation-only control already
+preserved that timestamp. The focused after run passed **14/14** tests.
+
+R09 before coverage failed the second-private-member case and both injected
+late SQLite failures, including the failure after a reparent had completed its
+child and grandchild. The private-first denial and all-public success controls
+already passed. All **5** pass after repair. Tests compare exact task rows,
+stored resources, editable resource overlays and pending operations. The
+all-public case closes/reopens SQLite, acknowledges exactly three stateful
+provider mutations, restarts again and projects the retained C/A/B order with
+0/1/2 values and cleared pending state.
+
+R02's actual stale Windows editor completion failed before repair; its disjoint
+title-only-after-advance control passed. The completed/acknowledged D+1 resource
+has exactly one history before stale Save. Afterward stale Save retains its
+draft, D+1 row and unchanged empty outbox, while title Save preserves the
+history semantic hash. The final **5/5** focused cases also exercise actual
+Linux/Windows recurring child controls and Windows recurring root Save: result
+keys identify the old acted-on occurrence, the same master advances, and replay
+retains exactly one completion history.
+
+D01's plain and HTML fixtures both failed before repair and pass **2/2**
+afterward through the production repository/outbox and stateful replay. A
+title-only control retains the original alternative. Explicit notes replacement
+removes only the target master's stale alternative; detached history HTML and
+semantic hashes, UID/parent, RRULE, timezone component, alarm and opaque values
+remain intact. Android's real notes-Save coverage is recorded separately.
+
+```sh
+flutter test test/features/tasks/presentation/desktop_dav_completion_test.dart test/dav/mutation/dav_repository_mutation_integration_test.dart --plain-name R01 --concurrency=2 --reporter expanded
+flutter test test/dav/mutation/dav_repository_mutation_integration_test.dart --plain-name R09 --reporter expanded
+flutter test test/features/tasks/presentation/desktop_dav_completion_test.dart --plain-name R02 --reporter expanded
+flutter test test/dav/mutation/dav_repository_mutation_integration_test.dart --plain-name D01 --reporter expanded
+```
+
+The first complete five-suite DAV/desktop run after R01/R09 passed **168 tests**.
+After the editor-result and notes changes, the final eight affected suites
+passed **271 tests**, with no failures or skips:
+
+```sh
+flutter test \
+  test/features/tasks/presentation/desktop_dav_completion_test.dart \
+  test/dav/mutation/dav_repository_mutation_integration_test.dart \
+  test/dav/mutation/dav_mutation_patch_test.dart \
+  test/dav/mutation/dav_pending_operations_test.dart \
+  test/dav/ical/ical_task_recurrence_test.dart \
+  test/features/tasks/presentation/task_details_pane_test.dart \
+  test/platform/windows/windows_existing_task_recurrence_test.dart \
+  test/platform/windows/windows_task_details_dialog_test.dart \
+  --concurrency=2 --reporter expanded
+```
+
+Focused analysis of all seven owned source/test files reported
+no issues; formatting verification required no changes and `git diff --check`
+was clean. One test-only braces lint and early test harness mistakes were
+corrected before the final checks. No original production source was swapped.
+No dependency/SDK pin, provider capability, account/notification policy or F10
+timezone/recurrence compatibility model was changed. These are SQLite/stateful
+provider-fake checks and production Yaru/Fluent widget tests hosted on Linux;
+no live DAV server or native Windows/Android acceptance is claimed for this
+follow-up.
+
+### R11 destination capability emission
+
+R11's related location-output gap is **confirmed**. In the actual Linux
+creation panel, entering a supported Nextcloud location, switching to Google,
+returning to Nextcloud to verify the exact retained location, and switching to
+Google again left Create enabled. Before repair, real Google repository
+creation rejected the still-present location mutation with
+`UnsupportedError: This task collection does not support locations.` The
+regression observed zero task rows and zero pending operations after that
+failure. `TaskDetailsDraft.toCreateInput` now forwards a location mutation only
+when the selected destination supports locations; the draft remains intact
+for returning to Nextcloud.
+
+The actual Linux recurrence editor/account-switch path already omitted its
+hidden recurrence correctly. Factory-created recurrence also already reports
+`unsupportedDestination` and rejects creation for Google. Both controls remain
+covered without changing recurrence validation or provider capabilities.
+
+The before run had **one failure and two passing controls**. After repair,
+the new three-case production panel/SQLite/repository tests, existing draft
+tests and existing creation loading/account-switch tests passed **27 tests**
+with no failures or skips:
+
+```sh
+flutter test test/features/tasks/presentation/new_task_capability_emission_test.dart test/features/tasks/presentation/task_details_draft_test.dart test/features/tasks/presentation/new_task_loading_test.dart --concurrency=2 --reporter expanded
+flutter analyze lib/src/features/tasks/presentation/task_details_draft.dart test/features/tasks/presentation/new_task_capability_emission_test.dart
+```
+
+The successful Google cases commit exactly one task and one operation owned by
+the selected account/list, with no location, location-point or recurrence
+payload. Focused analysis found no issues; final formatting required no
+changes. These are production Linux widget controls and real local persistence
+checks, not native/live-provider acceptance.
+
+### R03 verified DAV move identity
+
+R03's DAV integration is **confirmed**. Before the coordinated repair, a real
+parent → recurring child with completion history → grandchild cross-list
+move placed each local row in its destination without retaining its source
+scope. The smallest one-history regression failed before modification. Local
+scope metadata alone then passed, but three integration cases exposed its loss
+at successful provider MOVE acknowledgment, including partial tree replay.
+Confirmed MOVE deletes source projections and creates destination projections;
+ordinary reprojection also replaces rows.
+
+The corrected production path records prior scopes only for a committed local
+cross-list move. At confirmed MOVE, it transfers the exact source projection's
+ID alias and prior scopes to the matching destination UID/recurrence key
+before source deletion. Subsequent reprojection retains only those two client
+identity keys for the same projection ID and UID; each native component
+supplies its own temporal, recurrence and alarm metadata. No relationship is
+inferred from a missing source row.
+
+Both one- and three-history tree fixtures now prove the source identity and
+scope survive stateful provider acknowledgment, destination provider refresh
+and persistent database restart. They compare every row's native metadata
+against its original component. A provider's unrelated replacement UID at the
+same member href inherits neither old identity nor prior scope. Same-list
+reordering and private/preflight rejection retain empty prior scopes; partial
+provider rejection retains the committed local move evidence through restart
+and explicit retry. Full resources, history, dependency order and existing
+pending-state assertions remain covered.
+
+The final affected suite passed **82 tests**, with no failures or skips:
+
+```sh
+flutter test test/dav/mutation/dav_repository_mutation_integration_test.dart --concurrency=2 --reporter expanded
+flutter analyze test/dav/mutation/dav_repository_mutation_integration_test.dart
+```
+
+Focused analysis found no issues; formatting required no changes and
+`git diff --check` was clean. This verifies local identity continuity and the
+client's stateful replay behavior, not remote tree atomicity or native/live
+server acceptance. Android recovery integration is recorded by its owner.

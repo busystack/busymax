@@ -504,6 +504,7 @@ const _editableProperties = {
   'ORGANIZER',
   'ATTENDEE',
   'DESCRIPTION',
+  'X-ALT-DESC',
   'LOCATION',
   'GEO',
   'DTSTART',

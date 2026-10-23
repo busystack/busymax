@@ -49,6 +49,1002 @@ void main() {
     await database.close();
   });
 
+  for (final fullUpdate in [false, true]) {
+    for (final diverged in [false, true]) {
+      test(
+        'R05 ${fullUpdate ? 'PUT' : 'PATCH'} retains prior dispatch through an unsent reconciliation read (diverged $diverged)',
+        () async {
+          final directory = await createPersistenceTestDirectory(
+            'busymax-write-evidence-',
+          );
+          final file = File('${directory.path}/tasks.sqlite');
+          final previousWarning =
+              driftRuntimeOptions.dontWarnAboutMultipleDatabases;
+          driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
+          var disk = AppDatabase(NativeDatabase(file));
+          final provider = _LifecycleTaskRemoteClient();
+          try {
+            await _insertAccount(disk);
+            await disk.taskListsDao.upsertTaskList(_taskList('list-1'));
+            final original = _taskDto(
+              'task-1',
+              title: 'A',
+              notes: 'N',
+              updated: DateTime.utc(2026, 6, 4),
+            );
+            provider.members['list-1'] = {'task-1': original};
+            await disk.tasksDao.upsertTask(
+              taskFromDto('account', 'list-1', original, _now),
+            );
+            final repository = TasksRepository(
+              database: disk,
+              accountId: 'account',
+            );
+            if (fullUpdate) {
+              await repository.updateTaskFull(
+                'list-1',
+                'task-1',
+                const TaskPutInput({'title': 'B'}),
+              );
+            } else {
+              await repository.patchTask(
+                'list-1',
+                'task-1',
+                const TaskPatchInput({'title': 'B'}),
+              );
+            }
+            await repository.patchTask(
+              'list-1',
+              'task-1',
+              const TaskPatchInput({'notes': 'L'}),
+            );
+            provider.loseNextPatchResponse = true;
+            Future<int> replay(int hour) => PendingOpsReplayer(
+              database: disk,
+              apiClient: provider,
+              accountId: 'account',
+              nowUtc: () => DateTime.utc(2026, 6, 4, hour),
+            ).replayDueOps();
+            expect(await replay(1), 0);
+            final sent = (await disk.select(disk.pendingOps).get()).singleWhere(
+              (op) =>
+                  op.operation == (fullUpdate ? 'update_task' : 'patch_task') &&
+                  jsonDecode(op.requestJson)['title'] == 'B',
+            );
+            expect(sent.state, 'in_progress');
+            provider.nextGetError = const KnownUnsentRequestException(
+              kind: RequestPreDispatchFailureKind.connectivity,
+            );
+            expect(await replay(3), 0);
+            final afterReadFailure = await disk.pendingOpsDao.getOp(sent.id);
+            expect(afterReadFailure!.state, 'in_progress');
+            expect(afterReadFailure.requestJson, sent.requestJson);
+            expect(afterReadFailure.baselineRawJson, sent.baselineRawJson);
+            await disk.close();
+            disk = AppDatabase(NativeDatabase(file));
+            if (diverged) {
+              provider.members['list-1']!['task-1'] = TaskDto.fromJson({
+                ...provider.members['list-1']!['task-1']!.rawJson,
+                'title': 'Remote C',
+                'updated': '2026-06-04T04:00:00.000Z',
+              });
+            }
+            await PendingOpResolutionService(
+              database: disk,
+              apiClient: provider,
+              accountId: 'account',
+              syncTasks: () async {},
+              syncCalendar: () async {},
+              nowUtc: () => DateTime.utc(2026, 6, 4, 5),
+            ).retryNow(sent.id);
+            expect(
+              (await disk.pendingOpsDao.getOp(sent.id))!.state,
+              'in_progress',
+            );
+            expect(await replay(6), diverged ? 0 : 2);
+            expect(provider.patchCount, diverged ? 1 : 2);
+            expect(provider.putCount, fullUpdate ? 1 : 0);
+            final local = await disk.select(disk.tasks).getSingle();
+            expect(local.title, 'B');
+            expect(local.notes, 'L');
+            if (diverged) {
+              expect(
+                (await disk.pendingOpsDao.getOp(sent.id))!.lastErrorCode,
+                'conflict',
+              );
+              expect(provider.members['list-1']!['task-1']!.title, 'Remote C');
+              expect(await disk.select(disk.pendingOps).get(), hasLength(2));
+            } else {
+              expect(provider.members['list-1']!['task-1']!.title, 'B');
+              expect(provider.members['list-1']!['task-1']!.notes, 'L');
+              expect(local.localDirty, isFalse);
+              expect(await disk.select(disk.pendingOps).get(), isEmpty);
+            }
+          } finally {
+            await disk.close();
+            await directory.delete(recursive: true);
+            driftRuntimeOptions.dontWarnAboutMultipleDatabases =
+                previousWarning;
+          }
+        },
+      );
+    }
+  }
+
+  test(
+    'R05 first mutation prevented before dispatch remains retryable',
+    () async {
+      final provider = _LifecycleTaskRemoteClient();
+      final original = _taskDto(
+        'task-1',
+        title: 'A',
+        updated: DateTime.utc(2026, 6, 4),
+      );
+      provider.members['list-1'] = {'task-1': original};
+      await database.tasksDao.upsertTask(
+        taskFromDto('account', 'list-1', original, _now),
+      );
+      await TasksRepository(
+        database: database,
+        accountId: 'account',
+      ).patchTask('list-1', 'task-1', const TaskPatchInput({'title': 'B'}));
+      provider.nextMutationError = const KnownUnsentRequestException(
+        kind: RequestPreDispatchFailureKind.authentication,
+      );
+      Future<int> replay(int hour) => PendingOpsReplayer(
+        database: database,
+        apiClient: provider,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4, hour),
+      ).replayDueOps();
+      expect(await replay(1), 0);
+      expect(provider.patchCount, 0);
+      expect(
+        (await database.select(database.pendingOps).getSingle()).state,
+        'retry',
+      );
+      expect(await replay(3), 1);
+      expect(provider.patchCount, 1);
+      expect(provider.members['list-1']!['task-1']!.title, 'B');
+    },
+  );
+
+  for (final edit in ['rename', 'check', 'uncheck']) {
+    for (final remoteChange in ['none', 'untouched', 'missing']) {
+      test(
+        'R06 Microsoft checklist $edit reconciles a lost acknowledgment after read failure and restart ($remoteChange)',
+        () async {
+          final directory = await createPersistenceTestDirectory(
+            'busymax-checklist-ack-',
+          );
+          final file = File('${directory.path}/tasks.sqlite');
+          final previousWarning =
+              driftRuntimeOptions.dontWarnAboutMultipleDatabases;
+          driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
+          var disk = AppDatabase(NativeDatabase(file));
+          final graph = _LostChecklistMicrosoftTodoApiClient();
+          final adapter = _microsoftAdapter(graph);
+          try {
+            await _insertAccount(disk);
+            await (disk.update(disk.accounts)
+                  ..where((row) => row.id.equals('account')))
+                .write(const AccountsCompanion(provider: Value('microsoft')));
+            await disk.taskListsDao.upsertTaskList(_taskList('list-1'));
+            final original = <String, Object?>{
+              'id': 'step',
+              'displayName': 'A',
+              'isChecked': edit == 'uncheck',
+              'createdDateTime': _now,
+              if (edit == 'uncheck') 'checkedDateTime': _now,
+            };
+            graph.items['step'] = original;
+            graph.items['sibling'] = {
+              'id': 'sibling',
+              'displayName': 'Sibling',
+              'isChecked': false,
+            };
+            await disk.tasksDao.upsertTask(
+              _task(
+                'list-1',
+                'task-1',
+                checklistItemsJson: jsonEncode(graph.items.values.toList()),
+              ),
+            );
+            final repository = TasksRepository(
+              database: disk,
+              accountId: 'account',
+              apiClient: adapter,
+            );
+            await repository.patchChecklistSubtask(
+              taskListId: 'list-1',
+              parentTaskId: 'task-1',
+              checklistItemId: 'step',
+              title: edit == 'rename' ? 'B' : null,
+              completed: edit == 'rename' ? null : edit == 'check',
+            );
+            await repository.patchChecklistSubtask(
+              taskListId: 'list-1',
+              parentTaskId: 'task-1',
+              checklistItemId: 'step',
+              title: edit == 'rename' ? null : 'Local C',
+              completed: edit == 'rename' ? true : null,
+            );
+            final queued = await disk.select(disk.pendingOps).get();
+            final first = queued.singleWhere((op) => op.dependsOnOpId == null);
+            final dependent = queued.singleWhere((op) => op.id != first.id);
+            final dependentBaseline =
+                jsonDecode(dependent.baselineRawJson!) as Map;
+            Future<int> replay(int hour) => PendingOpsReplayer(
+              database: disk,
+              apiClient: adapter,
+              accountId: 'account',
+              nowUtc: () => DateTime.utc(2026, 6, 4, hour),
+            ).replayDueOps();
+            expect(await replay(1), 0);
+            expect(graph.updates, hasLength(1));
+            expect(
+              (await disk.pendingOpsDao.getOp(first.id))!.state,
+              'in_progress',
+            );
+            graph.nextSecondPageError = const KnownUnsentRequestException(
+              kind: RequestPreDispatchFailureKind.connectivity,
+            );
+            expect(await replay(3), 0);
+            expect(
+              (await disk.pendingOpsDao.getOp(first.id))!.state,
+              'in_progress',
+            );
+            expect(graph.pages, [
+              null,
+              _checklistSecondPage,
+              null,
+              _checklistSecondPage,
+            ]);
+            graph.items['sibling'] = {
+              ...graph.items['sibling']!,
+              'displayName': 'Remote sibling',
+            };
+            if (remoteChange == 'missing') {
+              graph.items.remove('step');
+            } else if (remoteChange == 'untouched') {
+              graph.items['step'] = {
+                ...graph.items['step']!,
+                if (edit == 'rename')
+                  'isChecked': true
+                else
+                  'displayName': 'Remote R',
+              };
+            }
+            await disk.close();
+            disk = AppDatabase(NativeDatabase(file));
+            await PendingOpResolutionService(
+              database: disk,
+              apiClient: adapter,
+              accountId: 'account',
+              syncTasks: () async {},
+              syncCalendar: () async {},
+              nowUtc: () => DateTime.utc(2026, 6, 4, 4),
+            ).retryNow(first.id);
+            expect(
+              await replay(5),
+              remoteChange == 'none'
+                  ? 2
+                  : remoteChange == 'missing'
+                  ? 0
+                  : 1,
+            );
+            expect(graph.updates, hasLength(remoteChange == 'none' ? 2 : 1));
+            expect(graph.items['sibling']!['displayName'], 'Remote sibling');
+            final local = decodeTaskChecklistItems(
+              (await disk.select(disk.tasks).getSingle())
+                  .microsoftChecklistItemsJson,
+            ).singleWhere((item) => item.id == 'step');
+            expect(local.title, edit == 'rename' ? 'B' : 'Local C');
+            expect(local.completed, edit != 'uncheck');
+            if (remoteChange == 'none') {
+              expect(await disk.select(disk.pendingOps).get(), isEmpty);
+              expect(
+                graph.items['step']!['displayName'],
+                edit == 'rename' ? 'B' : 'Local C',
+              );
+              expect(graph.items['step']!['isChecked'], edit != 'uncheck');
+            } else {
+              final retained = await disk.pendingOpsDao.getOp(
+                remoteChange == 'missing' ? first.id : dependent.id,
+              );
+              expect(retained!.lastErrorCode, 'conflict');
+              if (remoteChange == 'untouched') {
+                final baseline = jsonDecode(retained.baselineRawJson!) as Map;
+                final untouched = edit == 'rename'
+                    ? 'isChecked'
+                    : 'displayName';
+                expect(baseline[untouched], dependentBaseline[untouched]);
+                expect(retained.requestJson, dependent.requestJson);
+                expect(await disk.pendingOpsDao.getOp(first.id), isNull);
+              }
+            }
+          } finally {
+            await disk.close();
+            await directory.delete(recursive: true);
+            driftRuntimeOptions.dontWarnAboutMultipleDatabases =
+                previousWarning;
+          }
+        },
+      );
+    }
+  }
+
+  test('R05 unsent reconciliation read retains uncertain recurring completion protection', () async {
+    await (database.update(database.accounts)
+          ..where((row) => row.id.equals('account')))
+        .write(const AccountsCompanion(provider: Value('microsoft')));
+    final provider = _LifecycleTaskRemoteClient();
+    final original = TaskDto.fromJson({
+      'id': 'task-1',
+      'title': 'Recurring task',
+      'status': 'needsAction',
+      'updated': _now,
+      'recurrence': {
+        'pattern': {'type': 'daily', 'interval': 1},
+      },
+    });
+    provider.members['list-1'] = {'task-1': original};
+    await database.tasksDao.upsertTask(
+      taskFromDto('account', 'list-1', original, _now),
+    );
+    await TasksRepository(database: database, accountId: 'account').patchTask(
+      'list-1',
+      'task-1',
+      const TaskPatchInput({'status': 'completed'}),
+    );
+    provider.loseNextPatchResponse = true;
+    Future<int> replay(int hour) => PendingOpsReplayer(
+      database: database,
+      apiClient: provider,
+      accountId: 'account',
+      nowUtc: () => DateTime.utc(2026, 6, 4, hour),
+    ).replayDueOps();
+    expect(await replay(1), 0);
+    provider.nextGetError = const KnownUnsentRequestException(
+      kind: RequestPreDispatchFailureKind.authentication,
+    );
+    expect(await replay(3), 0);
+    final retained = await database.select(database.pendingOps).getSingle();
+    expect(retained.state, 'in_progress');
+    expect(await replay(5), 0);
+    expect(provider.patchCount, 1);
+    final protected = await database.select(database.pendingOps).getSingle();
+    expect(protected.state, 'recovery_required');
+    expect(protected.lastErrorCode, 'completion_outcome_unknown');
+    expect(protected.requestJson, retained.requestJson);
+  });
+
+  test('R06 Microsoft checklist acknowledgment and dependent projection commit together', () async {
+    final directory = await createPersistenceTestDirectory(
+      'busymax-checklist-ack-transaction-',
+    );
+    final file = File('${directory.path}/tasks.sqlite');
+    final previousWarning = driftRuntimeOptions.dontWarnAboutMultipleDatabases;
+    driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
+    final barrier = _CommitInterruption();
+    final disk = AppDatabase(NativeDatabase(file).interceptWith(barrier));
+    AppDatabase? reopened;
+    Future<int>? interrupted;
+    final graph = _LostChecklistMicrosoftTodoApiClient();
+    final adapter = _microsoftAdapter(graph);
+    try {
+      await _insertAccount(disk);
+      await (disk.update(disk.accounts)
+            ..where((row) => row.id.equals('account')))
+          .write(const AccountsCompanion(provider: Value('microsoft')));
+      await disk.taskListsDao.upsertTaskList(_taskList('list-1'));
+      graph.items['step'] = {
+        'id': 'step',
+        'displayName': 'A',
+        'isChecked': false,
+      };
+      graph.items['sibling'] = {
+        'id': 'sibling',
+        'displayName': 'Sibling',
+        'isChecked': false,
+      };
+      await disk.tasksDao.upsertTask(
+        _task(
+          'list-1',
+          'task-1',
+          checklistItemsJson: jsonEncode(graph.items.values.toList()),
+        ),
+      );
+      final repository = TasksRepository(
+        database: disk,
+        accountId: 'account',
+        apiClient: adapter,
+      );
+      await repository.patchChecklistSubtask(
+        taskListId: 'list-1',
+        parentTaskId: 'task-1',
+        checklistItemId: 'step',
+        title: 'B',
+      );
+      await repository.patchChecklistSubtask(
+        taskListId: 'list-1',
+        parentTaskId: 'task-1',
+        checklistItemId: 'step',
+        completed: true,
+      );
+      final queued = await disk.select(disk.pendingOps).get();
+      final first = queued.singleWhere((op) => op.dependsOnOpId == null);
+      final dependent = queued.singleWhere((op) => op.id != first.id);
+      expect(
+        await PendingOpsReplayer(
+          database: disk,
+          apiClient: adapter,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+        ).replayDueOps(),
+        0,
+      );
+      barrier.arm();
+      interrupted = PendingOpsReplayer(
+        database: disk,
+        apiClient: adapter,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4, 3),
+      ).replayDueOps();
+      await barrier.commitReached.future;
+      reopened = AppDatabase(NativeDatabase(file));
+      expect(await reopened.pendingOpsDao.getOp(first.id), isNull);
+      final retained = await reopened.pendingOpsDao.getOp(dependent.id);
+      expect(jsonDecode(retained!.baselineRawJson!)['displayName'], 'B');
+      expect(jsonDecode(retained.baselineRawJson!)['isChecked'], false);
+      expect(retained.requestJson, dependent.requestJson);
+      final local = decodeTaskChecklistItems(
+        (await reopened.select(reopened.tasks).getSingle())
+            .microsoftChecklistItemsJson,
+      ).singleWhere((item) => item.id == 'step');
+      expect(local.title, 'B');
+      expect(local.completed, isTrue);
+      expect(
+        await PendingOpsReplayer(
+          database: reopened,
+          apiClient: adapter,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 4, 4),
+        ).replayDueOps(),
+        1,
+      );
+      expect(graph.updates, [
+        {'displayName': 'B'},
+        {'isChecked': true},
+      ]);
+      expect(await reopened.select(reopened.pendingOps).get(), isEmpty);
+      barrier.resume();
+      expect(await interrupted, 1);
+    } finally {
+      barrier.resume();
+      await interrupted;
+      await reopened?.close();
+      await disk.close();
+      await directory.delete(recursive: true);
+      driftRuntimeOptions.dontWarnAboutMultipleDatabases = previousWarning;
+    }
+  });
+
+  for (final chain in [
+    'clear-delete-list',
+    'delete-child-delete-list',
+    'move-clear-destination',
+  ]) {
+    for (final blocked in [false, true]) {
+      test(
+        'R08 Google $chain waits for ${blocked ? 'blocked' : 'deferred'} predecessor across restart and acknowledges only its own effects',
+        () async {
+          final directory = await createPersistenceTestDirectory(
+            'busymax-destructive-chain-',
+          );
+          final file = File('${directory.path}/tasks.sqlite');
+          final previousWarning =
+              driftRuntimeOptions.dontWarnAboutMultipleDatabases;
+          driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
+          var disk = AppDatabase(NativeDatabase(file));
+          final provider = _GoogleLifecycleTaskRemoteClient();
+          try {
+            await _insertAccount(disk);
+            for (final listId in ['list-1', 'list-2']) {
+              await disk.taskListsDao.upsertTaskList(_taskList(listId));
+              provider.members[listId] = {};
+            }
+            final original = TaskDto.fromJson({
+              'id': 'task-1',
+              'title': 'A',
+              'notes': 'N',
+              'status': chain == 'delete-child-delete-list'
+                  ? 'needsAction'
+                  : 'completed',
+              'hidden': false,
+              'updated': _now,
+            });
+            provider.members['list-1']!['task-1'] = original;
+            final other = _taskDto(
+              'other',
+              title: 'Other',
+              status: 'needsAction',
+              updated: DateTime.utc(2026, 6, 4),
+            );
+            provider.members[chain == 'move-clear-destination'
+                    ? 'list-2'
+                    : 'list-1']!['other'] =
+                other;
+            await disk.tasksDao.upsertTask(
+              taskFromDto('account', 'list-1', original, _now),
+            );
+            await disk.tasksDao.upsertTask(
+              taskFromDto(
+                'account',
+                chain == 'move-clear-destination' ? 'list-2' : 'list-1',
+                other,
+                _now,
+              ),
+            );
+            final repository = TasksRepository(
+              database: disk,
+              accountId: 'account',
+            );
+            if (chain == 'clear-delete-list') {
+              await repository.clearCompleted('list-1');
+            } else if (chain == 'delete-child-delete-list') {
+              await repository.deleteTask('list-1', 'task-1');
+            } else {
+              await repository.moveTask(
+                const TaskMoveInput(
+                  sourceTaskListId: 'list-1',
+                  taskId: 'task-1',
+                  destinationTaskListId: 'list-2',
+                ),
+              );
+            }
+            if (chain == 'move-clear-destination') {
+              await repository.clearCompleted('list-2');
+            } else {
+              await TaskListsRepository(
+                database: disk,
+                accountId: 'account',
+              ).deleteTaskList('list-1');
+            }
+            final operations = await disk.select(disk.pendingOps).get();
+            final first = operations.singleWhere(
+              (op) =>
+                  op.operation ==
+                  (chain == 'clear-delete-list'
+                      ? 'clear_completed_tasks'
+                      : chain == 'delete-child-delete-list'
+                      ? 'delete_task'
+                      : 'move_task'),
+            );
+            final following = operations.singleWhere((op) => op.id != first.id);
+            await (disk.update(
+              disk.pendingOps,
+            )..where((row) => row.id.equals(first.id))).write(
+              PendingOpsCompanion(
+                nextAttemptAtUtc: Value(
+                  blocked
+                      ? '9999-12-31T00:00:00.000Z'
+                      : '2026-06-09T00:00:00.000Z',
+                ),
+                state: Value(blocked ? 'failed' : 'retry'),
+              ),
+            );
+            Future<int> replay() => PendingOpsReplayer(
+              database: disk,
+              apiClient: provider,
+              accountId: 'account',
+              nowUtc: () => DateTime.utc(2026, 6, 4, 6),
+            ).replayDueOps();
+            expect(await replay(), 0);
+            expect(provider.effects, isEmpty);
+            expect(
+              (await disk.pendingOpsDao.getOp(following.id))!.requestJson,
+              following.requestJson,
+            );
+            await disk.close();
+            disk = AppDatabase(NativeDatabase(file));
+            expect(await replay(), 0);
+            await PendingOpResolutionService(
+              database: disk,
+              apiClient: provider,
+              accountId: 'account',
+              syncTasks: () async {},
+              syncCalendar: () async {},
+              nowUtc: () => DateTime.utc(2026, 6, 4, 5),
+            ).retryNow(first.id);
+            expect(await replay(), 2);
+            expect(await disk.select(disk.pendingOps).get(), isEmpty);
+            if (chain == 'move-clear-destination') {
+              expect(provider.effects, [
+                'move:task-1:list-1:list-2',
+                'clear:list-2',
+              ]);
+              expect(provider.members['list-1'], isEmpty);
+              expect(provider.members['list-2']!['task-1']!.hidden, isTrue);
+              expect(
+                (await disk.select(disk.tasks).get())
+                    .singleWhere((task) => task.id == 'task-1')
+                    .hidden,
+                isTrue,
+              );
+            } else {
+              expect(provider.deletedLists, ['list-1']);
+              expect(provider.effects, [
+                chain == 'clear-delete-list' ? 'clear:list-1' : 'delete:task-1',
+                'delete-list:list-1',
+              ]);
+              expect(provider.sawHidden, chain == 'clear-delete-list');
+              expect(
+                provider.sawTombstone,
+                chain == 'delete-child-delete-list',
+              );
+            }
+            expect(
+              provider.pageReads.any((request) => request.endsWith(':1')),
+              isTrue,
+            );
+          } finally {
+            await disk.close();
+            await directory.delete(recursive: true);
+            driftRuntimeOptions.dontWarnAboutMultipleDatabases =
+                previousWarning;
+          }
+        },
+      );
+    }
+  }
+
+  for (final chain in [
+    'clear-delete-list',
+    'delete-child-delete-list',
+    'move-clear-destination',
+  ]) {
+    test(
+      'R08 Google $chain commits predecessor acknowledgment and approved snapshots together',
+      () async {
+        final directory = await createPersistenceTestDirectory(
+          'busymax-destructive-ack-transaction-',
+        );
+        final file = File('${directory.path}/tasks.sqlite');
+        final previousWarning =
+            driftRuntimeOptions.dontWarnAboutMultipleDatabases;
+        driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
+        final barrier = _CommitInterruption();
+        final disk = AppDatabase(NativeDatabase(file).interceptWith(barrier));
+        AppDatabase? reopened;
+        Future<int>? interrupted;
+        final provider = _GoogleLifecycleTaskRemoteClient();
+        try {
+          final (first, following) = await _queueGoogleDestructiveChain(
+            disk,
+            provider,
+            chain,
+          );
+          barrier.arm();
+          interrupted = PendingOpsReplayer(
+            database: disk,
+            apiClient: provider,
+            accountId: 'account',
+            nowUtc: () => DateTime.utc(2026, 6, 4, 3),
+          ).replayDueOps();
+          await barrier.commitReached.future;
+          reopened = AppDatabase(NativeDatabase(file));
+          expect(await reopened.pendingOpsDao.getOp(first.id), isNull);
+          final retained = await reopened.pendingOpsDao.getOp(following.id);
+          expect(retained, isNot(isNull));
+          final request = jsonDecode(retained!.requestJson) as Map;
+          final approved =
+              request[chain == 'move-clear-destination'
+                      ? '_busymaxCompletedTaskBaselines'
+                      : '_busymaxChildTaskConflictBaselines']
+                  as Map;
+          final rows = await reopened.select(reopened.tasks).get();
+          if (chain == 'delete-child-delete-list') {
+            expect(approved.containsKey('task-1'), isFalse);
+            expect(rows.where((task) => task.id == 'task-1'), isEmpty);
+            expect(provider.members['list-1']!['task-1']!.deleted, isTrue);
+          } else {
+            final raw = (approved['task-1'] as Map)['rawJson'] as Map;
+            expect(raw['notes'], 'N');
+            final local = rows.singleWhere((task) => task.id == 'task-1');
+            if (chain == 'clear-delete-list') {
+              expect(raw['hidden'], isTrue);
+              expect(local.hidden, isTrue);
+              expect(jsonDecode(local.rawJson)['hidden'], isTrue);
+            } else {
+              expect(
+                (approved['task-1'] as Map)['updatedUtc'],
+                provider.members['list-2']!['task-1']!.updated!
+                    .toIso8601String(),
+              );
+              expect(local.taskListId, 'list-2');
+            }
+          }
+          expect(provider.effects, hasLength(1));
+          expect(
+            await PendingOpsReplayer(
+              database: reopened,
+              apiClient: provider,
+              accountId: 'account',
+              nowUtc: () => DateTime.utc(2026, 6, 4, 4),
+            ).replayDueOps(),
+            1,
+          );
+          expect(provider.effects, hasLength(2));
+          expect(await reopened.select(reopened.pendingOps).get(), isEmpty);
+          barrier.resume();
+          expect(await interrupted, 1);
+        } finally {
+          barrier.resume();
+          await interrupted;
+          await reopened?.close();
+          await disk.close();
+          await directory.delete(recursive: true);
+          driftRuntimeOptions.dontWarnAboutMultipleDatabases = previousWarning;
+        }
+      },
+    );
+  }
+
+  for (final remoteNotesChanged in [false, true]) {
+    test(
+      'R08 related list deletion after clear acknowledgment preserves its known hidden effect (remote notes $remoteNotesChanged)',
+      () async {
+        final provider = _GoogleLifecycleTaskRemoteClient();
+        final original = TaskDto.fromJson({
+          'id': 'task-1',
+          'title': 'A',
+          'notes': 'N',
+          'status': 'completed',
+          'hidden': false,
+          'updated': _now,
+        });
+        provider.members['list-1'] = {'task-1': original};
+        await database.tasksDao.upsertTask(
+          taskFromDto('account', 'list-1', original, _now),
+        );
+        final repository = TasksRepository(
+          database: database,
+          accountId: 'account',
+        );
+        Future<int> replay() => PendingOpsReplayer(
+          database: database,
+          apiClient: provider,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 4, 6),
+        ).replayDueOps();
+        await repository.clearCompleted('list-1');
+        expect(await replay(), 1);
+        if (remoteNotesChanged) {
+          provider.members['list-1']!['task-1'] = TaskDto.fromJson({
+            ...provider.members['list-1']!['task-1']!.rawJson,
+            'notes': 'Remote R',
+            'updated': '2026-06-04T03:00:00.000Z',
+          });
+        }
+        await TaskListsRepository(
+          database: database,
+          accountId: 'account',
+        ).deleteTaskList('list-1');
+        expect(await replay(), remoteNotesChanged ? 0 : 1);
+        if (remoteNotesChanged) {
+          final retained = await database
+              .select(database.pendingOps)
+              .getSingle();
+          expect(retained.lastErrorCode, 'conflict');
+          final baseline =
+              (jsonDecode(
+                        retained.requestJson,
+                      )['_busymaxChildTaskConflictBaselines']
+                      as Map)['task-1']
+                  as Map;
+          expect((baseline['rawJson'] as Map)['notes'], 'N');
+          expect(provider.deletedLists, isEmpty);
+          expect(provider.members['list-1']!['task-1']!.notes, 'Remote R');
+        } else {
+          expect(provider.deletedLists, ['list-1']);
+          expect(await database.select(database.pendingOps).get(), isEmpty);
+        }
+      },
+    );
+  }
+
+  for (final changedNotes in [false, true]) {
+    test(
+      'R08 related incoming move retains the approved destination deletion notes baseline (remote notes $changedNotes)',
+      () async {
+        final provider = _GoogleLifecycleTaskRemoteClient();
+        provider.members['list-1'] = {};
+        provider.members['list-2'] = {};
+        await database.taskListsDao.upsertTaskList(_taskList('list-2'));
+        final original = TaskDto.fromJson({
+          'id': 'task-1',
+          'title': 'A',
+          'notes': 'N',
+          'status': 'needsAction',
+          'hidden': false,
+          'updated': _now,
+        });
+        provider.members['list-1']!['task-1'] = original;
+        await database.tasksDao.upsertTask(
+          taskFromDto('account', 'list-1', original, _now),
+        );
+        await TasksRepository(
+          database: database,
+          accountId: 'account',
+        ).moveTask(
+          const TaskMoveInput(
+            sourceTaskListId: 'list-1',
+            taskId: 'task-1',
+            destinationTaskListId: 'list-2',
+          ),
+        );
+        await TaskListsRepository(
+          database: database,
+          accountId: 'account',
+        ).deleteTaskList('list-2');
+        if (changedNotes) {
+          provider.afterMove = (listId) {
+            provider.members[listId]!['task-1'] = TaskDto.fromJson({
+              ...provider.members[listId]!['task-1']!.rawJson,
+              'notes': 'Remote R',
+              'updated': '2026-06-04T03:00:00.000Z',
+            });
+          };
+        }
+        expect(
+          await PendingOpsReplayer(
+            database: database,
+            apiClient: provider,
+            accountId: 'account',
+            nowUtc: () => DateTime.utc(2026, 6, 4, 6),
+          ).replayDueOps(),
+          changedNotes ? 1 : 2,
+        );
+        if (changedNotes) {
+          final retained = await database
+              .select(database.pendingOps)
+              .getSingle();
+          expect(retained.lastErrorCode, 'conflict');
+          final approved =
+              (jsonDecode(
+                        retained.requestJson,
+                      )['_busymaxChildTaskConflictBaselines']
+                      as Map)['task-1']
+                  as Map;
+          expect((approved['rawJson'] as Map)['notes'], 'N');
+          expect(provider.deletedLists, isEmpty);
+          expect(provider.members['list-2']!['task-1']!.notes, 'Remote R');
+        } else {
+          expect(provider.deletedLists, ['list-2']);
+          expect(await database.select(database.pendingOps).get(), isEmpty);
+        }
+      },
+    );
+  }
+
+  for (final change in [
+    'notes',
+    'clear-notes',
+    'new-live-child',
+    'new-completed',
+  ]) {
+    test(
+      'R08 Google own acknowledgment retains the $change negative control',
+      () async {
+        final provider = _GoogleLifecycleTaskRemoteClient();
+        provider.members['list-1'] = {};
+        provider.members['list-2'] = {};
+        await database.taskListsDao.upsertTaskList(_taskList('list-2'));
+        final original = TaskDto.fromJson({
+          'id': 'task-1',
+          'title': 'A',
+          'notes': 'N',
+          'status': 'completed',
+          'hidden': false,
+          'updated': _now,
+        });
+        provider.members['list-1']!['task-1'] = original;
+        await database.tasksDao.upsertTask(
+          taskFromDto('account', 'list-1', original, _now),
+        );
+        final repository = TasksRepository(
+          database: database,
+          accountId: 'account',
+        );
+        if (change == 'new-live-child' || change == 'clear-notes') {
+          await repository.clearCompleted('list-1');
+          await TaskListsRepository(
+            database: database,
+            accountId: 'account',
+          ).deleteTaskList('list-1');
+          provider.afterClear = (listId) {
+            if (change == 'clear-notes') {
+              provider.members[listId]!['task-1'] = TaskDto.fromJson({
+                ...provider.members[listId]!['task-1']!.rawJson,
+                'notes': 'Remote R',
+                'updated': '2026-06-04T03:00:00.000Z',
+              });
+              return;
+            }
+            provider.members[listId]!['remote-child'] = _taskDto(
+              'remote-child',
+              title: 'Remote child',
+              status: 'needsAction',
+              updated: DateTime.utc(2026, 6, 4, 2),
+            );
+          };
+        } else {
+          await repository.moveTask(
+            const TaskMoveInput(
+              sourceTaskListId: 'list-1',
+              taskId: 'task-1',
+              destinationTaskListId: 'list-2',
+            ),
+          );
+          await repository.clearCompleted('list-2');
+          provider.afterMove = (listId) {
+            if (change == 'notes') {
+              provider.members[listId]!['task-1'] = TaskDto.fromJson({
+                ...provider.members[listId]!['task-1']!.rawJson,
+                'notes': 'Remote R',
+                'updated': '2026-06-04T03:00:00.000Z',
+              });
+            } else {
+              provider.members[listId]!['remote-completed'] = _taskDto(
+                'remote-completed',
+                title: 'Remote completed',
+                status: 'completed',
+                updated: DateTime.utc(2026, 6, 4, 3),
+              );
+            }
+          };
+        }
+        expect(
+          await PendingOpsReplayer(
+            database: database,
+            apiClient: provider,
+            accountId: 'account',
+            nowUtc: () => DateTime.utc(2026, 6, 4, 6),
+          ).replayDueOps(),
+          1,
+        );
+        final retained = await database.select(database.pendingOps).getSingle();
+        expect(retained.lastErrorCode, 'conflict');
+        if (change == 'new-live-child' || change == 'clear-notes') {
+          expect(provider.deletedLists, isEmpty);
+          if (change == 'clear-notes') {
+            expect(provider.members['list-1']!['task-1']!.notes, 'Remote R');
+            final entry =
+                (jsonDecode(
+                          retained.requestJson,
+                        )['_busymaxChildTaskConflictBaselines']
+                        as Map)['task-1']
+                    as Map;
+            expect((entry['rawJson'] as Map)['notes'], 'N');
+          } else {
+            expect(provider.members['list-1']!['remote-child'], isNot(isNull));
+          }
+        } else {
+          expect(provider.clearCount, 0);
+          expect(provider.members['list-2']!['task-1']!.hidden, isFalse);
+          final baseline =
+              (jsonDecode(
+                        retained.requestJson,
+                      )['_busymaxCompletedTaskBaselines']
+                      as Map)['task-1']
+                  as Map;
+          expect((baseline['rawJson'] as Map)['notes'], 'N');
+        }
+      },
+    );
+  }
+
   for (final action in ['rename', 'delete', 'complete', 'missing', 'sibling']) {
     test(
       'F06 checklist $action checks the observed item through all provider pages',
@@ -5756,12 +6752,236 @@ void main() {
   });
 }
 
+Future<(PendingOp, PendingOp)> _queueGoogleDestructiveChain(
+  AppDatabase database,
+  _GoogleLifecycleTaskRemoteClient provider,
+  String chain,
+) async {
+  await _insertAccount(database);
+  for (final listId in ['list-1', 'list-2']) {
+    await database.taskListsDao.upsertTaskList(_taskList(listId));
+    provider.members[listId] = {};
+  }
+  final task = TaskDto.fromJson({
+    'id': 'task-1',
+    'title': 'A',
+    'notes': 'N',
+    'status': chain == 'delete-child-delete-list' ? 'needsAction' : 'completed',
+    'hidden': false,
+    'updated': _now,
+  });
+  provider.members['list-1']!['task-1'] = task;
+  await database.tasksDao.upsertTask(
+    taskFromDto('account', 'list-1', task, _now),
+  );
+  final repository = TasksRepository(database: database, accountId: 'account');
+  final firstOperation = switch (chain) {
+    'clear-delete-list' => 'clear_completed_tasks',
+    'delete-child-delete-list' => 'delete_task',
+    _ => 'move_task',
+  };
+  switch (chain) {
+    case 'clear-delete-list':
+      await repository.clearCompleted('list-1');
+    case 'delete-child-delete-list':
+      await repository.deleteTask('list-1', 'task-1');
+    default:
+      await repository.moveTask(
+        const TaskMoveInput(
+          sourceTaskListId: 'list-1',
+          taskId: 'task-1',
+          destinationTaskListId: 'list-2',
+        ),
+      );
+  }
+  if (chain == 'move-clear-destination') {
+    await repository.clearCompleted('list-2');
+  } else {
+    await TaskListsRepository(
+      database: database,
+      accountId: 'account',
+    ).deleteTaskList('list-1');
+  }
+  final operations = await database.select(database.pendingOps).get();
+  final first = operations.singleWhere((op) => op.operation == firstOperation);
+  return (first, operations.singleWhere((op) => op.id != first.id));
+}
+
 MicrosoftTodoTaskRemoteClient _microsoftAdapter(MicrosoftTodoApiClient client) {
   return MicrosoftTodoTaskRemoteClient(
     client: client,
     defaultTimeZone: 'UTC',
     nowUtc: () => DateTime.utc(2026, 6, 4),
   );
+}
+
+const _checklistSecondPage =
+    'https://graph.microsoft.test/checklist?page=second';
+
+class _LostChecklistMicrosoftTodoApiClient
+    implements MicrosoftTodoApiClient, MicrosoftTodoChecklistApiClient {
+  final items = <String, Map<String, Object?>>{};
+  final pages = <String?>[];
+  final updates = <Map<String, Object?>>[];
+  bool loseNextUpdateResponse = true;
+  Object? nextSecondPageError;
+
+  @override
+  Future<MicrosoftTodoChecklistItemsPageDto> listChecklistItemsPage({
+    required String taskListId,
+    required String taskId,
+    String? nextLink,
+  }) async {
+    pages.add(nextLink);
+    if (nextLink != null) {
+      final error = nextSecondPageError;
+      nextSecondPageError = null;
+      if (error != null) throw error;
+    }
+    return MicrosoftTodoChecklistItemsPageDto(
+      items: [
+        for (final entry in items.entries)
+          if ((nextLink == null) == (entry.key == 'sibling'))
+            MicrosoftTodoChecklistItemDto.fromJson(entry.value),
+      ],
+      nextLink: nextLink == null ? _checklistSecondPage : null,
+      rawJson: const {},
+    );
+  }
+
+  @override
+  Future<MicrosoftTodoChecklistItemDto> updateChecklistItem({
+    required String taskListId,
+    required String taskId,
+    required String checklistItemId,
+    required Map<String, Object?> patch,
+  }) async {
+    updates.add(Map.of(patch));
+    final current = {...items[checklistItemId]!, ...patch};
+    if (patch.containsKey('isChecked')) {
+      if (patch['isChecked'] == true) {
+        current['checkedDateTime'] = '2026-06-04T01:00:00.0000000Z';
+      } else {
+        current.remove('checkedDateTime');
+      }
+    }
+    items[checklistItemId] = current;
+    if (loseNextUpdateResponse) {
+      loseNextUpdateResponse = false;
+      throw StateError('QA checklist response lost after commit');
+    }
+    return MicrosoftTodoChecklistItemDto.fromJson(current);
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _GoogleLifecycleTaskRemoteClient extends _LifecycleTaskRemoteClient {
+  final effects = <String>[];
+  final pageReads = <String>[];
+  bool sawTombstone = false;
+  bool sawHidden = false;
+  void Function(String taskListId)? afterClear;
+  void Function(String taskListId)? afterMove;
+
+  @override
+  Future<void> clearCompletedTasks(String taskListId) async {
+    clearCount++;
+    effects.add('clear:$taskListId');
+    final tasks = members[taskListId]!;
+    for (final task in tasks.values.toList()) {
+      if (task.status == 'completed' && task.deleted != true) {
+        tasks[task.id] = TaskDto.fromJson({
+          ...task.rawJson,
+          'hidden': true,
+          'updated': '2026-06-04T02:00:00.000Z',
+        });
+      }
+    }
+    afterClear?.call(taskListId);
+  }
+
+  @override
+  Future<void> deleteTask({
+    required String taskListId,
+    required String taskId,
+  }) async {
+    final before = await getTask(taskListId: taskListId, taskId: taskId);
+    members[taskListId]![taskId] = TaskDto.fromJson({
+      ...before.rawJson,
+      'deleted': true,
+      'updated': '2026-06-04T02:00:00.000Z',
+    });
+    effects.add('delete:$taskId');
+  }
+
+  @override
+  Future<TaskDto> moveTask({
+    required String sourceTaskListId,
+    required String taskId,
+    String? parentTaskId,
+    String? previousSiblingTaskId,
+    String? destinationTaskListId,
+  }) async {
+    final moved = await super.moveTask(
+      sourceTaskListId: sourceTaskListId,
+      taskId: taskId,
+      parentTaskId: parentTaskId,
+      previousSiblingTaskId: previousSiblingTaskId,
+      destinationTaskListId: destinationTaskListId,
+    );
+    final destination = destinationTaskListId ?? sourceTaskListId;
+    effects.add('move:$taskId:$sourceTaskListId:$destination');
+    afterMove?.call(destination);
+    return members[destination]?[taskId] ?? moved;
+  }
+
+  @override
+  Future<void> deleteTaskList(String taskListId) async {
+    effects.add('delete-list:$taskListId');
+    await super.deleteTaskList(taskListId);
+  }
+
+  @override
+  Future<TasksPageDto> listTasksPage({
+    required String taskListId,
+    DateTime? completedMax,
+    DateTime? completedMin,
+    DateTime? dueMax,
+    DateTime? dueMin,
+    int maxResults = 100,
+    String? pageToken,
+    bool showCompleted = true,
+    bool showDeleted = false,
+    bool showHidden = false,
+    DateTime? updatedMin,
+    bool showAssigned = false,
+  }) async {
+    final all = (members[taskListId]?.values ?? <TaskDto>[])
+        .where(
+          (task) =>
+              (showCompleted || task.status != 'completed') &&
+              (showDeleted || task.deleted != true) &&
+              (showHidden || task.hidden != true) &&
+              (updatedMin == null ||
+                  task.updated == null ||
+                  !task.updated!.isBefore(updatedMin)),
+        )
+        .toList();
+    final offset = int.tryParse(pageToken ?? '') ?? 0;
+    final result = all.skip(offset).take(1).toList();
+    sawTombstone = sawTombstone || result.any((task) => task.deleted == true);
+    sawHidden = sawHidden || result.any((task) => task.hidden == true);
+    pageReads.add(
+      '$taskListId:$showCompleted:$showDeleted:$showHidden:$offset',
+    );
+    return TasksPageDto(
+      items: result,
+      nextPageToken: offset + 1 < all.length ? '${offset + 1}' : null,
+      rawJson: const {},
+    );
+  }
 }
 
 class _ThrowingMicrosoftTodoApiClient implements MicrosoftTodoApiClient {
@@ -6356,6 +7576,9 @@ class _LifecycleTaskRemoteClient extends _FakeTaskRemoteClient {
   int patchCount = 0;
   int clearCount = 0;
   bool loseNextPatchResponse = false;
+  Object? nextGetError;
+  Object? nextMutationError;
+  int putCount = 0;
   Future<void> Function()? onListRead;
 
   @override
@@ -6374,6 +7597,9 @@ class _LifecycleTaskRemoteClient extends _FakeTaskRemoteClient {
     required String taskListId,
     required String taskId,
   }) async {
+    final readError = nextGetError;
+    nextGetError = null;
+    if (readError != null) throw readError;
     final task = members[taskListId]?[taskId];
     if (task == null) {
       throw const TaskRemoteError(statusCode: 404, message: 'Missing QA task');
@@ -6387,6 +7613,9 @@ class _LifecycleTaskRemoteClient extends _FakeTaskRemoteClient {
     required String taskId,
     required TaskPatch patch,
   }) async {
+    final mutationError = nextMutationError;
+    nextMutationError = null;
+    if (mutationError != null) throw mutationError;
     final before = await getTask(taskListId: taskListId, taskId: taskId);
     patchCount++;
     final updated = TaskDto.fromJson({
@@ -6400,6 +7629,20 @@ class _LifecycleTaskRemoteClient extends _FakeTaskRemoteClient {
       throw StateError('QA response lost after provider commit');
     }
     return updated;
+  }
+
+  @override
+  Future<TaskDto> updateTask({
+    required String taskListId,
+    required String taskId,
+    required TaskPut replacement,
+  }) async {
+    putCount++;
+    return patchTask(
+      taskListId: taskListId,
+      taskId: taskId,
+      patch: TaskPatch.fields(replacement.fields),
+    );
   }
 
   @override

@@ -149,6 +149,100 @@ void main() {
             ),
       ).replayDueOperations();
 
+  Future<
+    ({
+      List<Task> tasks,
+      List<DavObject> objects,
+      List<PendingOp> operations,
+      Map<String, String> editable,
+    })
+  >
+  sameListState() async {
+    final objects = await database.select(database.davObjects).get();
+    final queue = DavPendingOperationQueue(
+      database: database,
+      nowUtc: () => _now,
+    );
+    return (
+      tasks: await database.select(database.tasks).get(),
+      objects: objects,
+      operations: await database.select(database.pendingOps).get(),
+      editable: {
+        for (final object in objects)
+          object.id: await queue.editableRawIcsForObject(
+            accountId: _accountId,
+            collectionId: _collectionId,
+            objectId: object.id,
+          ),
+      },
+    );
+  }
+
+  Future<void> seedSameListOrder({
+    String? privateUid,
+    bool completedParent = false,
+  }) async {
+    await _seedScheduling(database, 'alex@example.test');
+    await (database.update(
+      database.davCollections,
+    )..where((row) => row.id.equals(_collectionId))).write(
+      const DavCollectionsCompanion(
+        ownerHref: Value('/remote.php/dav/principals/users/other/'),
+      ),
+    );
+    await _commitObjects(objectRepository, [
+      if (completedParent)
+        _prepared(
+          href: '${_collectionHref}order-parent.ics',
+          etag: '"parent"',
+          body: _taskResource(
+            uid: 'order-parent',
+            summary: 'Parent',
+            extra: const [
+              'CLASS:PUBLIC',
+              'STATUS:COMPLETED',
+              'PERCENT-COMPLETE:100',
+              'COMPLETED:20260808T110000Z',
+            ],
+          ),
+        ),
+      for (final member in [
+        (uid: 'order-a', title: 'A', order: 0),
+        (uid: 'order-b', title: 'B', order: 1),
+        (uid: 'order-c', title: 'C', order: 3),
+      ])
+        _prepared(
+          href: '$_collectionHref${member.uid}.ics',
+          etag: '"${member.uid}"',
+          body: _taskResource(
+            uid: member.uid,
+            summary: member.title,
+            extra: [
+              'CLASS:${member.uid == privateUid ? 'PRIVATE' : 'PUBLIC'}',
+              'X-APPLE-SORT-ORDER:${member.order}',
+              if (completedParent && member.uid != 'order-c')
+                'RELATED-TO:order-parent',
+              'X-KEEP:opaque-${member.uid}',
+            ],
+          ),
+        ),
+      if (completedParent)
+        _prepared(
+          href: '${_collectionHref}order-grandchild.ics',
+          etag: '"grandchild"',
+          body: _taskResource(
+            uid: 'order-grandchild',
+            summary: 'Grandchild',
+            extra: const [
+              'CLASS:PUBLIC',
+              'RELATED-TO:order-c',
+              'X-KEEP:opaque-grandchild',
+            ],
+          ),
+        ),
+    ]);
+  }
+
   setUp(() async {
     persistenceDirectory = null;
     objectSequence = 0;
@@ -162,6 +256,284 @@ void main() {
     await database.close();
     await persistenceDirectory?.delete(recursive: true);
   });
+
+  for (final alternative in [false, true]) {
+    test('D01 ordinary DAV notes save preserves the full resource (HTML $alternative)', () async {
+      var raw = _taskHistoryResource(2).replaceFirst(
+        'SUMMARY:Child',
+        'SUMMARY:Child\r\nDESCRIPTION:Original notes\r\n${alternative ? 'X-ALT-DESC;FMTTYPE=text/html:<p>Original notes</p>\r\n' : ''}X-OPAQUE-MASTER:retained',
+      );
+      raw = raw.replaceFirst(
+        'SUMMARY:History 0',
+        'SUMMARY:History 0\r\nX-ALT-DESC;FMTTYPE=text/html:<p>History HTML</p>',
+      );
+      const href = '${_collectionHref}notes-preservation.ics';
+      await _commitObjects(objectRepository, [
+        _prepared(href: href, etag: '"notes"', body: raw),
+      ]);
+      final original = IcalSemanticDocument.parse(raw);
+      final originalHistory = {
+        for (final component in original.components.where(
+          (component) => component.recurrenceIdKey != null,
+        ))
+          component.recurrenceIdKey: component.semanticHash,
+      };
+      final master = (await database.select(database.tasks).get()).singleWhere(
+        (task) => task.recurrenceIdKey == null,
+      );
+      final remote = _StatefulTaskTreeRemote(
+        await database.select(database.davObjects).get(),
+      );
+      await tasksRepository.patchTask(
+        _taskListId,
+        master.id,
+        const TaskPatchInput({'title': 'Renamed task'}),
+      );
+      expect((await replayTree(remote)).appliedCount, 1);
+      final afterRename = IcalSemanticDocument.parse(
+        remote.resources[href]!.raw,
+      );
+      expect(
+        afterRename.components
+            .singleWhere((component) => component.recurrenceIdKey == null)
+            .documentComponent
+            .firstProperty('X-ALT-DESC')
+            ?.rawValue,
+        alternative ? '<p>Original notes</p>' : null,
+      );
+      final observed = await tasksRepository.readTask(_taskListId, master.id);
+      await tasksRepository.patchTask(
+        _taskListId,
+        master.id,
+        TaskPatchInput({
+          'notes': 'New notes\nSecond line',
+        }, observedTask: observed),
+      );
+      final operation = await database.select(database.pendingOps).getSingle();
+      final candidate = DavMutationPatch.fromJsonString(
+        operation.mutationPatchJson!,
+      ).applyTo(operation.baselineRawIcs!, nowUtc: _now);
+      final document = IcalSemanticDocument.parse(candidate);
+      final changedMaster = document.components.singleWhere(
+        (component) => component.recurrenceIdKey == null,
+      );
+      expect(changedMaster.description, 'New notes\nSecond line');
+      expect(
+        changedMaster.documentComponent.firstProperty('X-ALT-DESC'),
+        isNull,
+      );
+      expect(changedMaster.uid, 'history-child');
+      expect(changedMaster.parentUid, 'history-parent');
+      expect(changedMaster.recurrenceRules, ['FREQ=DAILY;COUNT=3']);
+      expect(candidate, contains('X-OPAQUE-MASTER:retained'));
+      expect(candidate, contains('TZID:Etc/UTC'));
+      expect(candidate, contains('TRIGGER;RELATED=END:-PT15M'));
+      expect({
+        for (final component in document.components.where(
+          (component) => component.recurrenceIdKey != null,
+        ))
+          component.recurrenceIdKey: component.semanticHash,
+      }, originalHistory);
+      expect(
+        (await tasksRepository.readTask(_taskListId, master.id))!.notes,
+        'New notes\nSecond line',
+      );
+      expect((await replayTree(remote)).appliedCount, 1);
+      expect(remote.mutations, hasLength(2));
+      expect(
+        IcalSemanticDocument.parse(remote.resources[href]!.raw).components
+            .singleWhere((component) => component.recurrenceIdKey == null)
+            .description,
+        'New notes\nSecond line',
+      );
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+    });
+  }
+
+  for (final mutation in ['progress', 'cancel']) {
+    test(
+      'R01 completion timestamp protection follows actual $mutation writes',
+      () async {
+        String resource(String completed) => _taskResource(
+          uid: 'completion-observed',
+          summary: 'Completion observed',
+          extra: [
+            'STATUS:COMPLETED',
+            'PERCENT-COMPLETE:100',
+            'COMPLETED:$completed',
+            'X-KEEP:completion-observed',
+          ],
+        );
+        const href = '${_collectionHref}completion-observed.ics';
+        await _commitObjects(objectRepository, [
+          _prepared(
+            href: href,
+            etag: '"observed"',
+            body: resource('20260808T090000Z'),
+          ),
+        ]);
+        final observed = TaskEntity.fromRow(
+          await database.select(database.tasks).getSingle(),
+        );
+        final changed = resource('20260808T100000Z');
+        await _commitObjects(objectRepository, [
+          _prepared(href: href, etag: '"remote"', body: changed),
+        ]);
+        final before = await sameListState();
+        final remote = _StatefulTaskTreeRemote(before.objects);
+        final input = TaskPatchInput(
+          mutation == 'progress'
+              ? {'percentComplete': 50}
+              : {'taskStatus': 'CANCELLED'},
+          observedTask: observed,
+        );
+        if (mutation == 'progress') {
+          await expectLater(
+            tasksRepository.patchTask(_taskListId, observed.id, input),
+            throwsA(isA<TaskDraftConflictException>()),
+          );
+          final after = await sameListState();
+          expect(after.tasks, before.tasks);
+          expect(after.editable, before.editable);
+          expect(after.operations, isEmpty);
+          expect(remote.mutations, isEmpty);
+        } else {
+          await tasksRepository.patchTask(_taskListId, observed.id, input);
+          final operation = await database
+              .select(database.pendingOps)
+              .getSingle();
+          final candidate = DavMutationPatch.fromJsonString(
+            operation.mutationPatchJson!,
+          ).applyTo(operation.baselineRawIcs!, nowUtc: _now);
+          expect(candidate, contains('STATUS:CANCELLED'));
+          expect(candidate, contains('COMPLETED:20260808T100000Z'));
+          expect(candidate, contains('PERCENT-COMPLETE:100'));
+          expect((await replayTree(remote)).appliedCount, 1);
+          expect(
+            remote.resources[href]!.raw,
+            contains('COMPLETED:20260808T100000Z'),
+          );
+          expect(remote.resources[href]!.raw, contains('STATUS:CANCELLED'));
+        }
+      },
+    );
+  }
+
+  for (final privateUid in ['order-a', 'order-b']) {
+    test(
+      'R09 same-list reorder rejects $privateUid without partial normalization',
+      () async {
+        await seedSameListOrder(privateUid: privateUid);
+        final before = await sameListState();
+        final moving = before.tasks.singleWhere(
+          (task) => task.icalUid == 'order-c',
+        );
+        await expectLater(
+          tasksRepository.moveTask(
+            TaskMoveInput(sourceTaskListId: _taskListId, taskId: moving.id),
+          ),
+          throwsA(isA<UnsupportedError>()),
+        );
+        final after = await sameListState();
+        expect(after.tasks, before.tasks);
+        expect(
+          after.tasks.every((task) => _previousTaskLists(task).isEmpty),
+          isTrue,
+        );
+        expect(after.objects, before.objects);
+        expect(after.operations, before.operations);
+        expect(after.editable, before.editable);
+      },
+    );
+  }
+
+  for (final completedParent in [false, true]) {
+    test(
+      'R09 late same-list database failure rolls back hierarchy effects ($completedParent)',
+      () async {
+        await seedSameListOrder(completedParent: completedParent);
+        final before = await sameListState();
+        final moving = before.tasks.singleWhere(
+          (task) => task.icalUid == 'order-c',
+        );
+        final parent = before.tasks
+            .where((task) => task.icalUid == 'order-parent')
+            .firstOrNull;
+        await database.customStatement(
+          "CREATE TRIGGER reject_late_move BEFORE UPDATE OF pending_move ON tasks WHEN NEW.ical_uid = 'order-c' AND NEW.pending_move = 1 BEGIN SELECT RAISE(ABORT, 'QA late move failure'); END",
+        );
+        await expectLater(
+          tasksRepository.moveTask(
+            TaskMoveInput(
+              sourceTaskListId: _taskListId,
+              taskId: moving.id,
+              parentTaskId: parent?.id,
+            ),
+          ),
+          throwsA(isA<Exception>()),
+        );
+        final after = await sameListState();
+        expect(after.tasks, before.tasks);
+        expect(after.objects, before.objects);
+        expect(after.operations, before.operations);
+        expect(after.editable, before.editable);
+      },
+    );
+  }
+
+  test(
+    'R09 all-public same-list normalization acknowledges once across restart',
+    () async {
+      await usePersistentFixture();
+      await seedSameListOrder();
+      final original = await sameListState();
+      final moving = original.tasks.singleWhere(
+        (task) => task.icalUid == 'order-c',
+      );
+      final remote = _StatefulTaskTreeRemote(original.objects);
+      await tasksRepository.moveTask(
+        TaskMoveInput(sourceTaskListId: _taskListId, taskId: moving.id),
+      );
+      var tree = await tasksRepository
+          .watchTaskTree(_taskListId, const TaskViewFilter())
+          .first;
+      expect(tree.map((node) => node.task.title), ['C', 'A', 'B']);
+      expect(await database.select(database.pendingOps).get(), hasLength(3));
+      await reopen();
+      expect((await replayTree(remote)).appliedCount, 3);
+      expect(remote.mutations, hasLength(3));
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+      await reopen();
+      tree = await tasksRepository
+          .watchTaskTree(_taskListId, const TaskViewFilter())
+          .first;
+      expect(tree.map((node) => node.task.title), ['C', 'A', 'B']);
+      final rows = await database.select(database.tasks).get();
+      expect(rows.every((row) => !row.pendingMove && !row.localDirty), isTrue);
+      expect(rows.every((row) => _previousTaskLists(row).isEmpty), isTrue);
+      expect(
+        {for (final row in rows) row.title: row.sortOrder},
+        {'C': 0, 'A': 1, 'B': 2},
+      );
+      for (final resource in remote.resources.values) {
+        final component = IcalSemanticDocument.parse(resource.raw)
+            .components
+            .single;
+        expect(
+          component.documentComponent
+              .propertiesNamed('X-APPLE-SORT-ORDER')
+              .single
+              .rawValue,
+          switch (component.uid) {
+            'order-c' => '0',
+            'order-a' => '1',
+            _ => '2',
+          },
+        );
+        expect(resource.raw, contains('X-KEEP:opaque-${component.uid}'));
+      }
+    },
+  );
 
   for (final deadline in [false, true]) {
     test(
@@ -2626,6 +2998,65 @@ void main() {
     );
   }
 
+  test(
+    'R03 same-href UID replacement cannot inherit DAV move identity',
+    () async {
+      await _seedDestinationTaskList(database);
+      await _commitObjects(objectRepository, [
+        _prepared(
+          href: '${_collectionHref}replaced.ics',
+          etag: '"original"',
+          body: _taskResource(
+            uid: 'original-moved-task',
+            summary: 'Original task',
+          ),
+        ),
+      ]);
+      final original = await database.select(database.tasks).getSingle();
+      final remote = _StatefulTaskTreeRemote(
+        await database.select(database.davObjects).get(),
+      );
+      await tasksRepository.moveTask(
+        TaskMoveInput(
+          sourceTaskListId: _taskListId,
+          taskId: original.id,
+          destinationTaskListId: _destinationTaskListId,
+        ),
+      );
+      expect((await replayTree(remote)).appliedCount, 1);
+      final acknowledged = await database.select(database.tasks).getSingle();
+      expect(
+        TaskEntity.fromRow(acknowledged).matchesIdentity(original.id),
+        isTrue,
+      );
+      expect(_previousTaskLists(acknowledged), {_taskListId});
+      final href = remote.resources.keys.single;
+      remote.resources[href] = (
+        raw: _taskResource(
+          uid: 'unrelated-replacement',
+          summary: 'Replacement task',
+        ),
+        etag: '"replacement"',
+      );
+      await _commitObjects(objectRepository, [
+        _prepared(
+          href: href,
+          etag: remote.resources[href]!.etag,
+          body: remote.resources[href]!.raw,
+        ),
+      ], collectionId: _destinationCollectionId);
+      final replacement = await database.select(database.tasks).getSingle();
+      expect(replacement.icalUid, 'unrelated-replacement');
+      expect(replacement.title, 'Replacement task');
+      expect(
+        TaskEntity.fromRow(replacement).matchesIdentity(original.id),
+        isFalse,
+      );
+      expect(_previousTaskLists(replacement), isEmpty);
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+    },
+  );
+
   for (final historyCount in [1, 3]) {
     for (final action in ['duplicate', 'delete', 'move']) {
       test(
@@ -2656,6 +3087,10 @@ void main() {
           ]);
           if (historyCount > 1) await reopen();
           final original = await database.select(database.tasks).get();
+          expect(
+            original.every((row) => _previousTaskLists(row).isEmpty),
+            isTrue,
+          );
           final remote = _StatefulTaskTreeRemote(
             await database.select(database.davObjects).get(),
           );
@@ -2761,6 +3196,16 @@ void main() {
                 ),
                 hasLength(historyCount),
               );
+              for (final row in rows) {
+                expect(_previousTaskLists(row), {_taskListId});
+                expect(
+                  _nativeTaskMetadata(row),
+                  _nativeTaskMetadata(
+                    original.singleWhere((before) => before.id == row.id),
+                  ),
+                  reason: 'Moving a whole resource must retain each history row’s native metadata.',
+                );
+              }
             }
           }
           if (historyCount > 1) await reopen();
@@ -2801,6 +3246,46 @@ void main() {
                 ),
                 isTrue,
               );
+              Future<void> expectRetainedMove(String phase) async {
+                final moved = await database.select(database.tasks).get();
+                expect(moved, hasLength(original.length));
+                for (final row in moved) {
+                  final before = original.singleWhere(
+                    (before) =>
+                        before.icalUid == row.icalUid &&
+                        before.recurrenceIdKey == row.recurrenceIdKey,
+                  );
+                  expect(row.taskListId, _destinationTaskListId);
+                  expect(
+                    TaskEntity.fromRow(row).matchesIdentity(before.id),
+                    isTrue,
+                    reason:
+                        '$phase retains the exact original identity of ${row.icalUid}/${row.recurrenceIdKey}.',
+                  );
+                  expect(_previousTaskLists(row), {_taskListId}, reason: phase);
+                  expect(
+                    _nativeTaskMetadata(row),
+                    _nativeTaskMetadata(before),
+                    reason:
+                        '$phase retains each component’s own native metadata.',
+                  );
+                }
+              }
+
+              await expectRetainedMove('provider MOVE acknowledgment');
+              await _commitObjects(objectRepository, [
+                for (final member in remote.resources.entries)
+                  _prepared(
+                    href: member.key,
+                    etag: member.value.etag,
+                    body: member.value.raw,
+                  ),
+              ], collectionId: _destinationCollectionId);
+              await expectRetainedMove('provider collection refresh');
+              if (historyCount > 1) {
+                await reopen();
+                await expectRetainedMove('restart after refresh');
+              }
             }
           }
         },
@@ -2889,6 +3374,14 @@ void main() {
           rejectedId,
         );
         final retained = await database.select(database.tasks).get();
+        if (action == 'move') {
+          expect(
+            retained.every(
+              (row) => _previousTaskLists(row).contains(_taskListId),
+            ),
+            isTrue,
+          );
+        }
         await reopen();
         expect(await database.select(database.tasks).get(), retained);
         expect((await replayTree(remote)).appliedCount, 0);
@@ -2901,6 +3394,14 @@ void main() {
         expect((await replayTree(remote)).appliedCount, 2);
         expect(remote.mutations, hasLength(3));
         expect(await database.select(database.pendingOps).get(), isEmpty);
+        if (action == 'move') {
+          expect(
+            (await database.select(database.tasks).get()).every(
+              (row) => _previousTaskLists(row).contains(_taskListId),
+            ),
+            isTrue,
+          );
+        }
         if (action == 'delete') {
           expect(remote.resources, isEmpty);
         } else {
@@ -2978,6 +3479,7 @@ void main() {
           ),
         }, throwsA(isA<UnsupportedError>()));
         expect(await database.select(database.tasks).get(), before);
+        expect(before.every((row) => _previousTaskLists(row).isEmpty), isTrue);
         expect(await database.select(database.pendingOps).get(), isEmpty);
       },
     );
@@ -3565,12 +4067,13 @@ DavPreparedObject _prepared({
 
 Future<void> _commitObjects(
   DavObjectRepository repository,
-  List<DavPreparedObject> objects,
-) {
+  List<DavPreparedObject> objects, {
+  String collectionId = _collectionId,
+}) {
   return repository.commit(
     DavCollectionCommit(
       accountId: _accountId,
-      collectionId: _collectionId,
+      collectionId: collectionId,
       provider: BusyProvider.nextcloud,
       objects: objects,
       deletedHrefKeys: const {},
@@ -3585,6 +4088,14 @@ Future<void> _commitObjects(
     ),
   );
 }
+
+Set<String> _previousTaskLists(Task task) =>
+    TaskEntity.fromRow(task).previousTaskListIds;
+
+Map<String, Object?> _nativeTaskMetadata(Task task) =>
+    (jsonDecode(task.providerMetadataJson!) as Map).cast<String, Object?>()
+      ..remove('_busymaxTaskPreviousListIds')
+      ..remove('_busymaxTaskIdAliases');
 
 Future<void> _seedDavAccount(AppDatabase database) async {
   final now = _now.toIso8601String();

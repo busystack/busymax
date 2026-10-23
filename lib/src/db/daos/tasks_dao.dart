@@ -138,18 +138,20 @@ class TasksDao extends DatabaseAccessor<AppDatabase> with _$TasksDaoMixin {
     final source = existing?.providerMetadataJson;
     if (source != null) {
       final previous = jsonDecode(source);
-      final aliases = previous is Map
-          ? previous['_busymaxTaskIdAliases']
-          : null;
-      if (aliases is List && aliases.isNotEmpty) {
+      for (final key in const [
+        '_busymaxTaskIdAliases',
+        '_busymaxTaskPreviousListIds',
+      ]) {
+        final aliases = previous is Map ? previous[key] : null;
+        if (aliases is! List || aliases.isEmpty) continue;
         final raw = row.providerMetadataJson.present
             ? row.providerMetadataJson.value
             : source;
         final next = raw == null
             ? <String, Object?>{}
             : (jsonDecode(raw) as Map).cast<String, Object?>();
-        final nextAliases = next['_busymaxTaskIdAliases'];
-        next['_busymaxTaskIdAliases'] = {
+        final nextAliases = next[key];
+        next[key] = {
           ...aliases.whereType<String>(),
           if (nextAliases is List) ...nextAliases.whereType<String>(),
         }.toList();
