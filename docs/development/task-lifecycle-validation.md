@@ -260,9 +260,9 @@ dependency, lockfile, database schema or localization catalog change was needed.
 | R02 | Confirmed/repaired | Actual Android Tasks, Windows Tasks and Linux agenda retained a checked overlay after a real COUNT=3 master advanced under its same ID. Linux/Android also lacked a per-task in-flight guard. Completion intents now carry the authored occurrence identity, settle when it advances and never overlay the next occurrence. An atomic repository guard rejects callbacks bound to an older occurrence; deliberate completion of the newly rendered open occurrence remains valid. Rendered/raw-resource tests verify D+1, COUNT=2, one history, stale callback rejection, in-flight activation, ordinary completion and final COUNT=1. A separately reproduced stale Windows editor Save also receives the lifecycle-only occurrence guard; title-only edits still merge after advancement. The earlier explicit-status Android stale-editor probe was already protected; D03 below records the separately confirmed omitted-status task after an acknowledged move. |
 | R03 | Confirmed/repaired | Actual parent→child→parent navigation let a hidden editor overwrite durably saved L2 with older L1 in an isolated copy of the checkout's original Android path. Rapid row activation across a controlled task-read boundary separately opened two editors. Hierarchy navigation now reuses the mounted editor/exact draft through existing dirty-close decisions. Bounded Navigator/account/list/verified-identity reservations also prevent duplicate top-level owners and converge temporary aliases; independent creation requests remain independent. Controlled IO retains the newest notes across timers/recreation and drains pending writes before Save/Discard cleanup. Dirty-child cancellation retains both routes/drafts. See Android ledger for exact before/after evidence and scope controls. |
 | R04 | Confirmed/repaired | Actual Android Schedule agenda/search and Windows day/week checkboxes completed only the parent through the explicit-status branch before repair. The missed callers now use `TaskPatchInput.completion`; Android retains status-only Google/Microsoft payloads and Windows retains its completion timestamp. Real DAV rows/candidates and stateful replay/reload check descendants, ancestor reopening and absence of cancellation. Existing explicit status/progress/cancellation and task-page controls remain covered. |
-| R05 | Confirmed/repaired | A provider committed PATCH/PUT, lost its response, then an unsent reconciliation GET erased the durable `in_progress` evidence. Earlier dispatch uncertainty now survives failed reads, retry scheduling, manual Retry and restart. Stateful/disk-backed tests establish one remote write, dependent progress and retained genuine divergence; a first genuinely unsent write remains retryable and uncertain recurrence remains recovery-required. See replay ledger. |
+| R05 | Confirmed/repaired | A provider committed PATCH/PUT, lost its response, then an unsent reconciliation GET erased the durable `in_progress` evidence. Earlier dispatch uncertainty now survives failed reads, retry scheduling, manual Retry and restart. Stateful/disk-backed tests establish one remote write, dependent progress and retained genuine divergence; a first genuinely unsent write remains retryable and uncertain recurrence remains recovery-required. See replay ledger.  Its read-failure regression covered an unsent request; [S02](#synchronization-follow-up-s01-and-s02) qualifies the dispatched-rejection path. |
 | R06 | Confirmed/repaired | Actual Microsoft adapter with paginated mutable checklist state committed rename/check/uncheck then lost the response; retry self-conflicted. Item updates now persist attempt evidence and acknowledge only established touched-field postconditions. Acknowledgment, dependent baselines, visible overlay and removal commit together. Tests cover failed reconciliation reads, restart, second-connection commit barriers, unrelated fields, missing/sibling items and existing create/alias safeguards. Graph's final read/write window remains unguarded by any proven endpoint precondition. |
-| R07 | Confirmed/repaired | A real SQLite interceptor held delivery of an already-read temporary parent while acknowledgment committed its server identity; creation then queued the obsolete ID and could replace newer sibling state. Parent identity/items are reread and merged inside the projection/outbox transaction, with parent-create dependencies. The regression preserves an acknowledged sibling alias plus its later edit and makes exactly one remote creation for the held item. Ack-before-read and ack-after-enqueue controls pass. A related unavailable-list race was also reproduced and repaired below. |
+| R07 | Confirmed/repaired | A real SQLite interceptor held delivery of an already-read temporary parent while acknowledgment committed its server identity; creation then queued the obsolete ID and could replace newer sibling state. Parent identity/items are reread and merged inside the projection/outbox transaction, with parent-create dependencies. The regression preserves an acknowledged sibling alias plus its later edit and makes exactly one remote creation for the held item. Ack-before-read and ack-after-enqueue controls pass. A related unavailable-list race was also reproduced and repaired below.  This identity result did not establish parent cleanliness after checklist acknowledgment; see [S01](#synchronization-follow-up-s01-and-s02). |
 | R08 | Confirmed/repaired | Stateful paginated Google responses reproduced clear→list-delete hidden self-conflict, child-delete→list-delete tombstone membership self-conflict and incoming completed-move→destination-clear self-conflict. Only captured predecessor effects rebase approved snapshots, including both move endpoints, hidden state and live-versus-deleted membership. Acknowledgment/projection/dependent updates/removal are atomic locally. Restart, deferred/blocked predecessors and second-connection barriers pass; external notes/new live children/new completed tasks still block. Related snapshot defects are listed in the replay ledger. Google's endpoint check/clear race remains. |
 | R09 | Confirmed/repaired | Same-list DAV C→top with A PUBLIC/0, B PRIVATE/1 and C PUBLIC/3 partially changed A before rejecting B. The complete local plan now preflights affected members and commits sibling normalization, hierarchy effects, candidates, outbox and pending marker in one transaction. Exact before/after snapshots remain equal on privacy rejection and late SQLite failures. All-public acknowledgment/restart and private-first controls pass. Remote multi-resource atomicity is not claimed. |
 | R10 | Confirmed/repaired | Discarding current-v2 recovery without an observed snapshot (or rejecting malformed late-parsed metadata) poisoned fresh Android Save with recovery-only comparison flags. Those flags/source metadata are now accepted only with the restored draft and reset on discard/rejection. Fresh edits queue once against the loaded task; Restore without a historical snapshot remains review-only. No legacy format or guessed baseline was added. |
@@ -541,3 +541,74 @@ method pages were reread during this follow-up. They do not specify a verified
 conditional-write mechanism for these endpoints. That is insufficient evidence
 to implement or claim atomic protection, and does not prove such support is
 absent. No disposable Google fixture was enabled for an endpoint experiment.
+
+## Synchronization follow-up S01 and S02
+
+Revalidated on 2026-10-23 from clean commit `6bc44e5`. No applicable AGENTS.md
+was present. Development, provider, iCalendar and lifecycle/replay contracts
+were reread. Flutter 3.47.5 / bundled Dart 3.13.4 and the pinned shared
+checkouts passed their existing checkers. No SDK, dependency, schema or locale
+pin changed. The detailed [replay evidence](task-lifecycle-replay.md#synchronization-follow-up-s01-and-s02)
+records the production paths, before/after commands and controls.
+
+| ID | Disposition | Verified outcome and correction |
+|---|---|---|
+| S01 | Confirmed/repaired | The R07 after-enqueue sequence left an acknowledged Microsoft parent dirty with an empty outbox. A stateful, file-backed repository/replayer/SyncEngine regression then retained `Parent` instead of importing `Remote title` on an ordinary full pull. Identity dependencies are still traversed/rewritten, but only actual task mutations retain the parent's optimistic fields or receive parent-field baseline rebasing. Checklist-only work preserves its own projection, aliases and baselines without keeping the parent dirty. Full pulls, full pulls after database restart, Microsoft's ordinary full-refresh incremental path, a controlled checklist-acknowledgment barrier, pending parent patch/replay and pending parent deletion controls pass. This was persistent exclusion from regular sync, not unrecoverable loss: an acknowledged parent edit already cleared it. |
+| S02 | Confirmed/repaired | Stateful PATCH and PUT committed B and lost the response; a parsed non-quota HTTP 403 from the reconciliation GET changed `in_progress` to `failed`. Blocked feedback/timing now preserve an existing task-write marker, which survives real resolution-service Retry, restored account eligibility and database restart. The applied title is acknowledged without another title write, and the separate dependent notes edit proceeds. Remote C still conflicts; first rejected/unsent writes are not treated as prior uncertain writes. Recurring completion retains `recovery_required` and cannot be resent automatically. Paginated Microsoft checklist PATCH already retained its marker; adapter-decoded 403 rename/check/uncheck controls remain passing. |
+
+The unchanged-production before run completed **11 passed / 8 failed**: two
+S01 state/import failures, four ordinary S02 PATCH/PUT failures and two S02
+recurrence-marker failures. First-write rejection and checklist 403 controls
+passed. The initial run had one extra fixture failure: a parent edit scheduled
+at the identity-recovery sentinel was correctly unblocked by acknowledgment.
+Using a genuine future retry date fixed that control without changing code or
+erasing an operation. The focused passing-after command completed **25 tests**;
+the four affected suites completed **249 tests**. These counts overlap and are
+not added together. The finalized affected command passed **249** in 0:06
+after adding acknowledgment-barrier cleanup and actual Graph-error decoding.
+
+New preparation and normal-check executions used the pinned executables:
+
+```sh
+dart tool/verify_flutter_sdk.dart --flutter /home/albert/flutter/bin/flutter --dart /home/albert/flutter/bin/cache/dart-sdk/bin/dart --expected-flutter 3.47.5 --expected-dart 3.13.4
+python3 tool/checkout_shared_dependencies.py
+flutter pub get --enforce-lockfile
+flutter gen-l10n
+dart run build_runner build --delete-conflicting-outputs --force-jit
+dart run tool/check_generated_sources.dart snapshot /tmp/busymax-s01-s02-generated-20261023.json
+flutter gen-l10n
+dart run build_runner build --delete-conflicting-outputs --force-jit
+dart run tool/check_generated_sources.dart verify /tmp/busymax-s01-s02-generated-20261023.json
+dart format --output=none --set-exit-if-changed .
+flutter analyze
+dart run tool/check_platform_boundaries.dart
+```
+
+The snapshot was created fresh for this follow-up before the final regeneration;
+no historical ledger snapshot was reused. SDK/shared checks, lockfile-enforced
+resolution and both setup/generation sequences passed. The final builder took
+48.5 seconds, retained the existing deprecated-flag/Drift warnings and produced
+no checked-in generated diff. Fresh verification passed. Formatting passed
+**950 files, zero changes** (12.57 seconds); analysis reported **no issues**
+(7.3 seconds); platform boundaries passed. No validation or exclusion changed.
+
+Final aggregate command:
+
+```sh
+flutter test --concurrency=2 --reporter=expanded
+```
+
+It passed **4,266 tests**, **10 existing provider-gated skips**, **no failures**
+in **10:10**, exit 0. The skips require eight enabled Nextcloud fixtures/stages
+and two enabled iCloud fixtures; none is counted as passed. No Google/Microsoft
+live pass is inferred. Source hashes confirm the repaired replayer and both
+regression files stayed unchanged during that run. The final diff check was
+clean; only the two ledgers, replayer and two regression files changed.
+
+No production account or live provider was accessed. No new native acceptance
+is claimed here; prior software-rendered Android evidence remains bounded.
+F05 remains blocked on endpoint-specific Google PATCH/PUT evidence or explicitly
+enabled disposable QA. F10 remains withdrawn. The Google clear and Graph
+checklist check/write windows, account/notification policies, DAV explicit
+cancellation, percentage checkbox semantics, recovery ownership and occurrence
+guards are unchanged.

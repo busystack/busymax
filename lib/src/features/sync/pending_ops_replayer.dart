@@ -606,12 +606,19 @@ class PendingOpsReplayer {
         foundDependent = true;
       }
     }
-    if (dependents.isEmpty) {
+    // Checklist operations need the parent's identity, but their baselines and
+    // optimistic projection belong to the item. They do not protect stale
+    // parent fields from an acknowledged task response. Keep traversing their
+    // dependencies above, and rewrite their identities separately as before.
+    final taskMutations = dependents
+        .where((operation) => operation.entityType == 'task')
+        .toList();
+    if (taskMutations.isEmpty) {
       return false;
     }
 
     final serverSnapshot = _normalizeTaskConflictSnapshot(serverTask.rawJson);
-    for (final dependent in dependents) {
+    for (final dependent in taskMutations) {
       final initializesServerBaseline =
           completedOp.operation == 'create_task' &&
           dependent.baselineUpdatedUtc == null;
@@ -1882,6 +1889,9 @@ class PendingOpsReplayer {
     String errorCode,
     String errorMessage,
   ) async {
+    // A denied reconciliation read cannot disprove an earlier write dispatch.
+    // Retain that marker alongside blocked feedback and manual-retry timing.
+    // A first rejected task mutation still has no uncertain prior attempt.
     await _database.pendingOpsDao.updateAttempt(
       id: op.id,
       attemptCount: op.attemptCount + 1,
@@ -1890,8 +1900,9 @@ class PendingOpsReplayer {
       lastErrorMessage: errorMessage,
       state:
           _isCreationOp(op) ||
-              op.operation == 'patch_task' ||
-              op.operation == 'update_task'
+              ((op.operation == 'patch_task' ||
+                      op.operation == 'update_task') &&
+                  op.state != 'in_progress')
           ? 'failed'
           : null,
     );

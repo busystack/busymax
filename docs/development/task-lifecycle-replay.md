@@ -143,7 +143,7 @@ read behavior is not evidence of provider conditional writes or native delivery.
 
 | ID | Disposition | Reachable reproduction and controls | Correction and executable evidence |
 |---|---|---|---|
-| R05 | Confirmed | Queue title A→B and dependent notes N→L. The provider commits B and loses the response. A later reconciliation GET fails with `RequestNotDispatchedException`; the old handler reset PATCH/PUT to `retry`, erasing the earlier write's durable uncertainty. Four initial PATCH/PUT cases failed because the retained state became `retry`; the first genuinely unsent mutation control passed. | Preserve an existing `in_progress` marker across an unsent reconciliation read and scheduling/manual Retry. A first mutation prevented from dispatch remains safely retryable. After file close/reopen and explicit Retry, the intended postcondition acknowledges one title mutation and permits the dependent notes mutation. A value different from baseline and desired still conflicts and retains both local intents. A recurring-completion control retains `recovery_required` protection after an unsent read; it does not demonstrate provider occurrence advancement. |
+| R05 | Confirmed | Queue title A→B and dependent notes N→L. The provider commits B and loses the response. A later reconciliation GET fails with `RequestNotDispatchedException`; the old handler reset PATCH/PUT to `retry`, erasing the earlier write's durable uncertainty. Four initial PATCH/PUT cases failed because the retained state became `retry`; the first genuinely unsent mutation control passed. | Preserve an existing `in_progress` marker across an unsent reconciliation read and scheduling/manual Retry. A first mutation prevented from dispatch remains safely retryable. After file close/reopen and explicit Retry, the intended postcondition acknowledges one title mutation and permits the dependent notes mutation. A value different from baseline and desired still conflicts and retains both local intents. A recurring-completion control retains `recovery_required` protection after an unsent read; it does not demonstrate provider occurrence advancement.  This established the unsent-read path only; see [S02](#synchronization-follow-up-s01-and-s02) for a dispatched HTTP rejection. |
 | R06 | Confirmed | Actual `MicrosoftTodoTaskRemoteClient` over a stateful Graph checklist interface commits rename/check/uncheck, then loses its response. Before repair, all nine valid initial cases observed one provider mutation but no durable dispatched marker (`pending` remained). The fixture also fails a later second-page reconciliation read and closes/reopens SQLite. | Mark the item update immediately before dispatch. Supported paginated reads may establish only that item's requested, adapter-normalized fields. Use the same transaction for acknowledgment, field-scoped dependent baseline updates, visible projection overlay and operation removal. Rename/check/uncheck each cover normal dependent progress, an independently changed untouched field that must still conflict, a missing remote item, and sibling independence. The acknowledgment-commit barrier opens a second database connection and verifies exact dependent baseline, retained visible completion, one rename and one dependent check. Existing temporary-create/alias and uncertain-create protections remain covered by the affected suite. No Graph atomic-write contract is claimed. |
 | R08 | Confirmed | All three offline compositions reproduced: clear→list deletion conflicted with its own hidden flag; child deletion→list deletion misclassified returned Google tombstones as live membership; completed move A→B→clear B did not rebase the destination clear. Six initial deferred/blocked restart variants applied only the predecessor (1 instead of 2). External notes, new live child and new completed-task controls blocked destruction. | Rebase only approved hidden effects, captured move fields/membership and their acknowledged revisions. Read all pages with the existing Google flags; exclude true deletion tombstones from live membership while unexpected missing/live members still conflict. A clear's empty response establishes hidden=true, so its narrow durable marker explains a revision advance only when the complete approved semantic snapshot still matches. It never replaces untouched fields. Source/destination clear handling requires the captured move and never adds absent approved members. Predecessor acknowledgment, dependent snapshots, local projection and operation removal commit together. Three commit barriers inspect these states from a second SQLite connection before permitting the remaining destructive operation. |
 
@@ -225,3 +225,126 @@ explicit disposable QA endpoint test; no If-Match fallback or atomicity claim
 was added. Microsoft checklist read/compare has the previously documented final
 read/write window. F10 remains withdrawn from automatic repair, and the pinned
 Nextcloud recurrence, account and notification policies remain unchanged.
+
+## Synchronization follow-up S01 and S02
+
+These findings were reproduced against unchanged production source at
+`6bc44e5` on 2026-10-23, before either repair. Only test source had changed for
+the before runs. The historical F/U/R evidence above remains intact; the R07
+identity result did not establish parent cleanliness after all acknowledgments,
+and R05's earlier failure injection established only an unsent read.
+
+### S01: checklist identity dependency versus parent fields
+
+Reachable path: `TasksRepository.createTask` → `createSubtask` → dependent
+checklist create/edit → parent acknowledgment in `_replaceLocalTaskId` →
+checklist acknowledgment → ordinary `SyncEngine.fullSync`/incremental pull.
+The existing R07 after-enqueue case now additionally checks parent cleanliness.
+Before repair it had an empty outbox and correct parent/step identities, but
+`localDirty == true`. The new disk-backed stateful provider test changed the
+remote parent title/deadline/completion and ran the actual SyncEngine; its
+first full pull still showed `Parent` rather than `Remote title`.
+
+`_rebaseDependentTaskMutations` previously counted checklist-only identity
+dependents as parent mutations. It now traverses the same identity/dependency
+chains but filters the parent-field protection/rebase set to task entities.
+`_mutatesSameTask` itself and all identity/location callers remain intact:
+`_applyTaskEditResult` and `_replaceLocalTaskId` use the narrower result;
+`_moveTask` keeps real task dependents protected; `_dependentTaskProjectionListId`
+still follows the original identity chain. Checklist references and temporary
+aliases are rewritten by the existing acknowledgment transaction. No
+unconditional dirty-flag cleanup was added to checklist acknowledgment.
+
+The stateful fake reflects every successful parent/step write and implements
+ordinary list/task reads plus paginated checklist reads. It proves exactly one
+parent creation and one step creation. A barrier after step-create acknowledgment
+but before the dependent step PATCH inspects the persisted server IDs, original
+item baseline, exact retained rename, alias and parent flag. The item edit then
+replays successfully. A genuine deferred parent title edit remains dirty and
+visible through checklist acknowledgment and an ordinary pull; actual
+resolution-service Retry replays it once and imports independent remote notes.
+The clean parent subsequently imports title, due and completion changes via a
+full pull, a full pull after file-database close/reopen and the Microsoft
+full-refresh incremental path. The temporary task and checklist aliases survive.
+A further real pending parent deletion remains dirty/pending with its exact
+operation intact while checklist PATCH succeeds and a normal pull runs. This
+negative control deliberately retains the pending deletion; it does not erase
+it to produce a clean flag. Existing task move/delete and R07 scope/dependency
+controls remain in the affected suites.
+
+The ack-before-read and read-delivery-barrier controls still pass. The original
+bug was recoverable through explicit refresh or a later acknowledged parent edit;
+it did not physically delete the local draft or provider data.
+
+### S02: dispatched reconciliation rejection retains write evidence
+
+Reachable path: repository PATCH/PUT → stateful provider commits then loses its
+response → GET returns decoded non-quota `GoogleTasksApiError` HTTP 403 →
+`_blockOp` → restored account eligibility → actual
+`PendingOpResolutionService.retryNow` → file-database restart → replay.
+Before repair all four ordinary PATCH/PUT success/divergence variants and both
+recurring variants lost `in_progress` and became `failed` at the rejected read.
+The Graph checklist rename/check/uncheck negative controls already retained it.
+
+`_blockOp` now preserves an existing `in_progress` task-write marker while
+recording the same useful 403 message/code, incremented attempt and blocked
+schedule. Retry and restart retain that marker through the existing persistence
+model; no schema, scheduling, account or provider-precondition change was needed.
+A first definitively rejected task mutation still becomes `failed`, as before.
+
+The tests inspect the blocked operation, original payload/baseline, projection,
+account eligibility gate, real Retry callback, file-database restart, provider
+state and field-specific writes. They count one title write plus the distinct
+dependent notes write; remote C retains both local intents and conflicts.
+Definitive first-write rejection controls either retry safely against unchanged
+A or retain a genuine conflict when another client independently supplied B.
+The existing KnownUnsentRequestException controls remain. Unknown recurring
+PATCH/PUT completion reaches `recovery_required` after the failed read/Retry and
+cannot be retried/resubmitted; no provider occurrence advancement is claimed by
+that fake. The actual Microsoft adapter's paginated checklist controls decode a
+Graph 403 and still acknowledge one already-applied item write, rebase only its
+touched fields, and permit the separate dependent item edit.
+Here PATCH/PUT identify the two queued task mutation forms. The Microsoft
+adapter maps both task-edit interfaces to Graph PATCH; no Graph PUT capability
+or live provider recurrence behavior is inferred from these tests.
+
+### Commands and results
+
+Commands below use `/home/albert/flutter/bin/flutter` and that installation's
+bundled `dart`. Per-run logs remain in `/tmp` without credentials or personal
+task content.
+
+```sh
+flutter test test/features/tasks/data/checklist_creation_identity_test.dart test/features/sync/pending_ops_replayer_test.dart --name 'S01|S02|R07' --concurrency=1 --reporter=expanded
+flutter test test/features/tasks/data/checklist_creation_identity_test.dart test/features/sync/pending_ops_replayer_test.dart --name 'S01|S02|R07|R05' --concurrency=1 --reporter=expanded
+flutter test test/features/tasks/data/checklist_creation_identity_test.dart test/features/sync/pending_ops_replayer_test.dart test/features/sync/sync_engine_test.dart test/features/sync/pending_op_resolution_service_test.dart --concurrency=2 --reporter=expanded
+```
+
+The final valid before command returned exit 1 with **11 passed, 8 failed**.
+Its first smaller iteration returned **6 passed, 7 failed**; one extra failure
+was the fixture's use of `9999-12-31` for a parent patch. Identity acknowledgment
+correctly unblocked that sentinel, so an ordinary future retry date was used to
+hold real pending work instead. That control then passed on unchanged code.
+The focused after command passed **25**. The affected command passed **249**;
+the final controlled-barrier cleanup and adapter-decoded Graph error were also
+run in the final affected command. Targeted analysis reported no issues.
+No existing protective assertion or queued payload was removed to pass.
+
+Preparation used the SDK checker, pinned shared-checkout verifier,
+`flutter pub get --enforce-lockfile`, `flutter gen-l10n` and
+`dart run build_runner build --delete-conflicting-outputs --force-jit`.
+Fresh generated-source verification and normal offline checks are recorded in
+the central S01/S02 ledger. No native or live-provider pass is claimed for this
+follow-up. F05 remains blocked; F10 and all documented provider/account/
+notification boundaries, including both check/write windows, remain unchanged.
+
+Final S01/S02 normal checks passed: `dart format --output=none
+--set-exit-if-changed .` (**950 files, zero changes**), `flutter analyze`
+(**no issues**), `dart run tool/check_platform_boundaries.dart`, and a freshly
+created `/tmp/busymax-s01-s02-generated-20261023.json` snapshot → localization/
+build-runner regeneration → verification, without a generated diff. The final
+`flutter test --concurrency=2 --reporter=expanded` run passed **4,266 tests**
+with **10 existing provider-gated skips**, no failures, exit 0 in **10:10**.
+These are new executions, not the earlier F/U/R totals. The final four affected
+suites passed **249** in 0:06 after the final harness/error-decoding controls.
+Production and regression-source hashes were unchanged during the aggregate.
