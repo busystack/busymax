@@ -3779,4 +3779,38 @@ class AppLocalizationsVi extends AppLocalizations {
   @override
   String get notificationItemUnavailable =>
       'Lời nhắc này không còn khả dụng. Mục có thể đã được thay đổi hoặc xóa.';
+
+  @override
+  String clearCompletedGoogleConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return 'Xóa các công việc đã hoàn thành trong “$list” ($account)?\n\nGoogle Tasks sẽ xóa hoặc ẩn các mục đã hoàn thành. Hiện đã hoàn thành: $count.';
+  }
+
+  @override
+  String clearCompletedNextcloudConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return 'Xóa $count cây công việc gốc đã đóng khỏi “$list” ($account)?\n\nCác công việc con cũng sẽ bị xóa.';
+  }
+
+  @override
+  String get taskMoveAfterSaveFailed =>
+      'Các chỉnh sửa đã được lưu nhưng không thể di chuyển công việc. Hãy thử di chuyển lại.';
+
+  @override
+  String get taskDraftConflict =>
+      'Công việc này đã thay đổi kể từ khi bạn mở. Các chỉnh sửa được giữ lại. Hãy xem công việc mới nhất trước khi thử lại.';
+
+  @override
+  String get taskUnavailableDraftRetained =>
+      'Công việc này không khả dụng. Các thay đổi chưa lưu được giữ lại.';
+
+  @override
+  String get taskDurationRequiresStart =>
+      'Đặt thời hạn trước khi xóa thời điểm bắt đầu của công việc có thời lượng.';
 }

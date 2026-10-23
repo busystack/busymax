@@ -3820,4 +3820,38 @@ class AppLocalizationsFi extends AppLocalizations {
   @override
   String get notificationItemUnavailable =>
       'Tämä muistutus ei ole enää saatavilla. Kohdetta on voitu muuttaa tai se on poistettu.';
+
+  @override
+  String clearCompletedGoogleConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return 'Poistetaanko valmiit tehtävät luettelosta ”$list” ($account)?\n\nGoogle Tasks poistaa tai piilottaa valmiit kohteet. Valmiita nyt: $count.';
+  }
+
+  @override
+  String clearCompletedNextcloudConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return 'Poistetaanko $count suljettujen päätehtävien puuta luettelosta ”$list” ($account)?\n\nMyös niiden alitehtävät poistetaan.';
+  }
+
+  @override
+  String get taskMoveAfterSaveFailed =>
+      'Muutokset tallennettiin, mutta tehtävää ei voitu siirtää. Yritä siirtoa uudelleen.';
+
+  @override
+  String get taskDraftConflict =>
+      'Tehtävä on muuttunut avaamisen jälkeen. Muutoksesi säilytetään. Tarkista nykyinen tehtävä ennen uutta yritystä.';
+
+  @override
+  String get taskUnavailableDraftRetained =>
+      'Tehtävä ei ole käytettävissä. Tallentamattomat muutoksesi säilytetään.';
+
+  @override
+  String get taskDurationRequiresStart =>
+      'Aseta määräaika ennen keston sisältävän tehtävän alun poistamista.';
 }

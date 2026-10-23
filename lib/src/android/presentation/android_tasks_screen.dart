@@ -14,11 +14,13 @@ import '../../app/app_bootstrap.dart';
 import '../../app/common/busymax_mutation_list.dart';
 import '../../features/accounts/data/accounts_repository.dart';
 import '../../dav/ical/ical_task_alarm.dart';
+import '../../dav/dav_errors.dart';
 import '../../features/task_lists/data/task_lists_repository.dart';
 import '../../features/tasks/data/tasks_repository.dart';
 import '../../features/tasks/domain/task_capabilities.dart';
 import '../../features/tasks/domain/task_source_links.dart';
 import '../../features/tasks/presentation/task_details_draft.dart';
+import '../../features/tasks/presentation/task_recurrence.dart';
 import '../../features/recurrence/domain/event_recurrence_codec.dart';
 import '../../features/recurrence/domain/recurrence_rule.dart';
 import '../../features/schedule/presentation/schedule_event_details_format.dart';
@@ -117,11 +119,13 @@ class _AndroidTasksScreenState extends ConsumerState<AndroidTasksScreen> {
   bool _showCompleted = true;
   bool _showNoDate = true;
   var _mutationGeneration = 0;
+  bool _clearingCompleted = false;
   TaskListMutationIntent? _mutationIntent;
 
   @override
   Widget build(BuildContext context) {
-    final lists = ref.watch(scheduleTaskListsProvider).valueOrNull ?? const [];
+    final listsState = ref.watch(scheduleTaskListsProvider);
+    final lists = listsState.valueOrNull ?? const [];
     final accounts =
         ref.watch(accountsStreamProvider).valueOrNull ??
         const <AccountEntity>[];
@@ -132,21 +136,37 @@ class _AndroidTasksScreenState extends ConsumerState<AndroidTasksScreen> {
         .where((account) => account.id == _accountId)
         .firstOrNull;
     if (_listId != null &&
+        !listsState.isLoading &&
+        !listsState.hasError &&
         !lists.any(
           (list) => list.id == _listId && list.accountId == _accountId,
         )) {
       _accountId = null;
       _listId = null;
     }
-    final tasks = ref.watch(
-      _androidTasksProvider((
-        query: _query,
-        accountId: _accountId,
-        listId: _listId,
-        completed: _showCompleted,
-        noDate: _showNoDate,
-        notificationDate: widget.notificationDate,
-      )),
+    final taskQuery = (
+      query: _query,
+      accountId: _accountId,
+      listId: _listId,
+      completed: _showCompleted,
+      noDate: _showNoDate,
+      notificationDate: widget.notificationDate,
+    );
+    final tasks = ref.watch(_androidTasksProvider(taskQuery));
+    void retry() {
+      ref.invalidate(scheduleTaskListsProvider);
+      ref.invalidate(_androidTasksProvider(taskQuery));
+    }
+
+    Widget loadFailure() => Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(context.l10n.collectionsLoadFailed),
+          TextButton(onPressed: retry, child: Text(context.l10n.retry)),
+        ],
+      ),
     );
     return Scaffold(
       appBar: AppBar(
@@ -248,67 +268,78 @@ class _AndroidTasksScreenState extends ConsumerState<AndroidTasksScreen> {
                 ),
               ),
       ),
-      body: tasks.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text('$error')),
-        data: (items) => BusyMaxMutationList<TaskScheduleItem>(
-          items: items,
-          mutation: _mutationIntent,
-          identityOf: (task) =>
-              '${task.accountId}\u0000${task.sourceId}\u0000${task.id}',
-          mutationApplied: (task, mutation) =>
-              mutation.completed == null ||
-              task.completed == mutation.completed,
-          onMutationConsumed: (mutation) {
-            if (!mounted) return;
-            if (_mutationIntent?.generation == mutation.generation) {
-              setState(() => _mutationIntent = null);
-            }
-          },
-          emptyBuilder: (context) => Center(child: Text(context.l10n.noTasks)),
-          padding: const EdgeInsets.fromLTRB(8, 8, 8, 96),
-          separatorBuilder: (_, _) => const Divider(height: 1),
-          itemBuilder: (context, task, index) {
-            final displayedCompleted = _displayedCompletion(task);
-            return ListTile(
-              contentPadding: EdgeInsets.only(
-                left: 8.0 + 16 * task.hierarchyDepth.clamp(0, 3),
-                right: 12,
+      body: Column(
+        children: [
+          if (listsState.hasError || (tasks.hasError && tasks.hasValue))
+            loadFailure(),
+          Expanded(
+            child: tasks.when(
+              skipError: tasks.hasValue,
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, _) => Center(child: loadFailure()),
+              data: (items) => BusyMaxMutationList<TaskScheduleItem>(
+                items: items,
+                mutation: _mutationIntent,
+                identityOf: (task) =>
+                    '${task.accountId}\u0000${task.sourceId}\u0000${task.id}',
+                mutationApplied: (task, mutation) =>
+                    mutation.completed == null ||
+                    task.completed == mutation.completed,
+                onMutationConsumed: (mutation) {
+                  if (!mounted) return;
+                  if (_mutationIntent?.generation == mutation.generation) {
+                    setState(() => _mutationIntent = null);
+                  }
+                },
+                emptyBuilder: (context) =>
+                    Center(child: Text(context.l10n.noTasks)),
+                padding: const EdgeInsets.fromLTRB(8, 8, 8, 96),
+                separatorBuilder: (_, _) => const Divider(height: 1),
+                itemBuilder: (context, task, index) {
+                  final displayedCompleted = _displayedCompletion(task);
+                  return ListTile(
+                    contentPadding: EdgeInsets.only(
+                      left: 8.0 + 16 * task.hierarchyDepth.clamp(0, 3),
+                      right: 12,
+                    ),
+                    leading: IconButton(
+                      iconSize: 30,
+                      tooltip: displayedCompleted
+                          ? context.l10n.taskStatusCompleted
+                          : context.l10n.taskStatusInProcess,
+                      onPressed: task.capabilities.canEdit
+                          ? () => _toggle(task)
+                          : null,
+                      icon: AndroidTaskCompletionIcon(
+                        completed: displayedCompleted,
+                        size: 30,
+                        animate: _animatesCompletion(task),
+                      ),
+                    ),
+                    title: AndroidTaskTitle(
+                      title: task.title,
+                      completed: displayedCompleted,
+                      animate: _animatesCompletion(task),
+                    ),
+                    subtitle: Text(
+                      [
+                        task.sourceName ?? task.provider.displayName,
+                        if (task.cancelled) context.l10n.taskStatusCancelled,
+                        if (task.start != null)
+                          DateFormat.yMMMd().format(task.start!),
+                        if (task.parentTitle != null) task.parentTitle!,
+                      ].join(' · '),
+                    ),
+                    trailing: task.hasSubtasks
+                        ? const Icon(Icons.account_tree_outlined)
+                        : null,
+                    onTap: () => _edit(task),
+                  );
+                },
               ),
-              leading: IconButton(
-                iconSize: 30,
-                tooltip: displayedCompleted
-                    ? context.l10n.taskStatusCompleted
-                    : context.l10n.taskStatusInProcess,
-                onPressed: task.capabilities.canEdit
-                    ? () => _toggle(task)
-                    : null,
-                icon: AndroidTaskCompletionIcon(
-                  completed: displayedCompleted,
-                  size: 30,
-                  animate: _animatesCompletion(task),
-                ),
-              ),
-              title: AndroidTaskTitle(
-                title: task.title,
-                completed: displayedCompleted,
-                animate: _animatesCompletion(task),
-              ),
-              subtitle: Text(
-                [
-                  task.sourceName ?? task.provider.displayName,
-                  if (task.start != null)
-                    DateFormat.yMMMd().format(task.start!),
-                  if (task.parentTitle != null) task.parentTitle!,
-                ].join(' · '),
-              ),
-              trailing: task.hasSubtasks
-                  ? const Icon(Icons.account_tree_outlined)
-                  : null,
-              onTap: () => _edit(task),
-            );
-          },
-        ),
+            ),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
         heroTag: 'android-tasks-add',
@@ -336,9 +367,10 @@ class _AndroidTasksScreenState extends ConsumerState<AndroidTasksScreen> {
           .patchTask(
             task.sourceId,
             task.id,
-            TaskPatchInput({
-              'status': task.completed ? 'needsAction' : 'completed',
-            }),
+            TaskPatchInput.completion(
+              !task.completed,
+              includeCompletedTimestamp: false,
+            ),
           );
     } on Object catch (error) {
       if (mounted) {
@@ -371,16 +403,63 @@ class _AndroidTasksScreenState extends ConsumerState<AndroidTasksScreen> {
   Future<void> _clearCompleted() async {
     final accountId = _accountId;
     final listId = _listId;
-    if (accountId == null || listId == null) return;
+    if (accountId == null || listId == null || _clearingCompleted) return;
+    setState(() => _clearingCompleted = true);
     try {
-      await ref
-          .read(tasksRepositoryForAccountProvider(accountId))
-          .clearCompleted(listId);
+      final repository = ref.read(tasksRepositoryForAccountProvider(accountId));
+      final count = await repository.countClearCompleted(listId);
+      if (!mounted) return;
+      final account =
+          (ref.read(accountsStreamProvider).valueOrNull ??
+                  const <AccountEntity>[])
+              .where((value) => value.id == accountId)
+              .firstOrNull;
+      final list =
+          (ref.read(scheduleTaskListsProvider).valueOrNull ??
+                  const <TaskListEntity>[])
+              .where(
+                (value) => value.accountId == accountId && value.id == listId,
+              )
+              .firstOrNull;
+      if (account == null || list == null) return;
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(context.l10n.clearCompleted),
+          content: Text(
+            account.provider == BusyProvider.google
+                ? context.l10n.clearCompletedGoogleConfirmation(
+                    list.title,
+                    account.displayLabel,
+                    count,
+                  )
+                : context.l10n.clearCompletedNextcloudConfirmation(
+                    list.title,
+                    account.displayLabel,
+                    count,
+                  ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text(context.l10n.cancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: Text(context.l10n.clearCompleted),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+      await repository.clearCompleted(listId);
     } on Object catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('$error')));
       }
+    } finally {
+      if (mounted) setState(() => _clearingCompleted = false);
     }
   }
 
@@ -612,12 +691,27 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
     text: _draft.categories.join(', '),
   );
   bool _saving = false;
+  bool _showValidation = false;
+  final _titleFocus = FocusNode();
+  final _formScroll = ScrollController();
+  final _titleFieldKey = GlobalKey();
+  final _urlFieldKey = GlobalKey();
+  var _validationGeneration = 0;
+  final _urlFocus = FocusNode();
+  final _timingFeedbackKey = GlobalKey();
+  late TaskEntity? _observedTask = widget.task;
+  TaskEntity? _recoveryComparisonTask;
+  bool _recoveryBaselineUnavailable = false;
+  String? _recoveryOriginalBaseTitle;
   bool _allowPop = false;
   bool _recoveryLoaded = false;
+  String? _recoverySourceKey;
+  bool _recoveredConcurrentState = false;
+  String? _pendingMoveDestinationId;
   bool _recoveryWritesBlocked = false;
   Future<void> _recoveryIo = Future.value();
   Timer? _recoveryTimer;
-  late final TaskDetailsDraft _initialDraft = _draft;
+  late TaskDetailsDraft _initialDraft = _draft;
   late RecurrenceFrequency _recurrenceFrequency = _taskRecurrence().frequency;
 
   TaskCollectionCapabilities get _capabilities => switch (widget.provider) {
@@ -636,11 +730,17 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
     BusyProvider.webCal => noTaskCollectionCapabilities,
   };
 
-  bool get _canWrite => widget.task == null
-      ? _capabilities.canCreateTasks
-      : _capabilities.canUpdateTasks;
+  bool get _canWrite =>
+      !_saving &&
+      _recoveryLoaded &&
+      (widget.task == null
+          ? _capabilities.canCreateTasks
+          : _capabilities.canUpdateTasks);
 
-  bool get _hasPendingEdits => !_draft.hasSameValues(_initialDraft);
+  bool get _hasDraftEdits => !_draft.hasSameValues(_initialDraft);
+
+  bool get _hasPendingEdits =>
+      _hasDraftEdits || _pendingMoveDestinationId != null;
 
   String get _recoveryKey =>
       'busymax.android.task-draft.${widget.accountId}.'
@@ -663,6 +763,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
     if (_recoveryLoaded && _hasPendingEdits && !_allowPop) {
       unawaited(_persistRecovery());
     }
+    _formScroll.dispose();
+    _titleFocus.dispose();
+    _urlFocus.dispose();
     _title.dispose();
     _notes.dispose();
     _location.dispose();
@@ -685,7 +788,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
     final capabilities = _capabilities;
     final canWrite = _canWrite;
     return PopScope<void>(
-      canPop: _allowPop || !_hasPendingEdits,
+      canPop: _allowPop || (!_saving && !_hasPendingEdits),
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop || _saving || _allowPop) return;
         if (await _confirmDiscardChanges() && mounted) {
@@ -715,6 +818,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
           ],
         ),
         body: ListView(
+          controller: _formScroll,
           padding: const EdgeInsets.all(16),
           children: [
             Card(
@@ -753,8 +857,8 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
                     onPressed: () => setState(() {
                       final key = (
                         accountId: widget.accountId,
-                        taskListId: widget.task!.taskListId,
-                        taskId: widget.task!.id,
+                        taskListId: _draft.taskListId,
+                        taskId: (_observedTask?.id ?? widget.task!.id),
                       );
                       ref.invalidate(microsoftTaskLinkedResourcesProvider(key));
                       _linkedResourcesFuture = ref.read(
@@ -815,8 +919,8 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
                     onPressed: () => setState(() {
                       final key = (
                         accountId: widget.accountId,
-                        taskListId: widget.task!.taskListId,
-                        taskId: widget.task!.id,
+                        taskListId: _draft.taskListId,
+                        taskId: (_observedTask?.id ?? widget.task!.id),
                       );
                       ref.invalidate(microsoftTaskAttachmentsProvider(key));
                       _attachmentsFuture = ref.read(
@@ -827,7 +931,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
                   ),
                   if (canWrite &&
                       !widget.task!.pendingDelete &&
-                      !widget.task!.id.startsWith('local-task-'))
+                      !(_observedTask?.id ?? widget.task!.id).startsWith(
+                        'local-task-',
+                      ))
                     TextButton.icon(
                       onPressed:
                           _attachmentBusy ||
@@ -836,8 +942,8 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
                                   .canSubmit(
                                     AttachmentUploadCoordinator.taskKey(
                                       widget.accountId,
-                                      widget.task!.taskListId,
-                                      widget.task!.id,
+                                      _draft.taskListId,
+                                      (_observedTask?.id ?? widget.task!.id),
                                     ),
                                   )
                           ? null
@@ -850,8 +956,8 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
                           .retryAfter(
                             AttachmentUploadCoordinator.taskKey(
                               widget.accountId,
-                              widget.task!.taskListId,
-                              widget.task!.id,
+                              _draft.taskListId,
+                              (_observedTask?.id ?? widget.task!.id),
                             ),
                           ) !=
                       null)
@@ -861,8 +967,8 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
                       .needsReconciliation(
                         AttachmentUploadCoordinator.taskKey(
                           widget.accountId,
-                          widget.task!.taskListId,
-                          widget.task!.id,
+                          _draft.taskListId,
+                          (_observedTask?.id ?? widget.task!.id),
                         ),
                       )) ...[
                     Text(
@@ -871,8 +977,8 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
                                   .confirmedId(
                                     AttachmentUploadCoordinator.taskKey(
                                       widget.accountId,
-                                      widget.task!.taskListId,
-                                      widget.task!.id,
+                                      _draft.taskListId,
+                                      (_observedTask?.id ?? widget.task!.id),
                                     ),
                                   ) ==
                               null
@@ -888,8 +994,8 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
                         .hasResumableSession(
                           AttachmentUploadCoordinator.taskKey(
                             widget.accountId,
-                            widget.task!.taskListId,
-                            widget.task!.id,
+                            _draft.taskListId,
+                            (_observedTask?.id ?? widget.task!.id),
                           ),
                         ))
                       TextButton(
@@ -901,8 +1007,8 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
                         .canResolveManually(
                           AttachmentUploadCoordinator.taskKey(
                             widget.accountId,
-                            widget.task!.taskListId,
-                            widget.task!.id,
+                            _draft.taskListId,
+                            (_observedTask?.id ?? widget.task!.id),
                           ),
                         )) ...[
                       TextButton(
@@ -944,9 +1050,8 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
                                 trailing:
                                     canWrite &&
                                         !widget.task!.pendingDelete &&
-                                        !widget.task!.id.startsWith(
-                                          'local-task-',
-                                        )
+                                        !(_observedTask?.id ?? widget.task!.id)
+                                            .startsWith('local-task-')
                                     ? IconButton(
                                         tooltip: context.l10n.delete,
                                         onPressed: _attachmentBusy
@@ -969,10 +1074,17 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
               ),
             const SizedBox(height: 12),
             TextField(
+              key: _titleFieldKey,
               controller: _title,
+              focusNode: _titleFocus,
               enabled: canWrite,
               autofocus: widget.task == null,
-              decoration: InputDecoration(labelText: context.l10n.title),
+              decoration: InputDecoration(
+                labelText: context.l10n.title,
+                errorText: _showValidation && _draft.title.trim().isEmpty
+                    ? context.l10n.invalidCollectionValue
+                    : null,
+              ),
               onChanged: (v) =>
                   setState(() => _draft = _draft.copyWith(title: v)),
             ),
@@ -988,6 +1100,19 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
               onChanged: (v) =>
                   setState(() => _draft = _draft.copyWith(notes: v)),
             ),
+            if (_showValidation &&
+                _draft.scheduleIssueFor(capabilities) != TaskScheduleIssue.none)
+              Padding(
+                key: _timingFeedbackKey,
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text(
+                  _draft.scheduleIssueFor(capabilities) ==
+                          TaskScheduleIssue.dueBeforeStart
+                      ? context.l10n.taskDueBeforeStart
+                      : context.l10n.taskStartDueTimeModeMismatch,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ),
             if (capabilities.supportsDueDate)
               ListTile(
                 contentPadding: EdgeInsets.zero,
@@ -1227,10 +1352,19 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
             if (capabilities.supportsUrl) ...[
               const SizedBox(height: 12),
               TextField(
+                key: _urlFieldKey,
                 controller: _url,
+                focusNode: _urlFocus,
                 enabled: canWrite,
                 keyboardType: TextInputType.url,
-                decoration: InputDecoration(labelText: context.l10n.taskUrl),
+                decoration: InputDecoration(
+                  labelText: context.l10n.taskUrl,
+                  errorText:
+                      _showValidation &&
+                          !_draft.hasValidTaskUrlFor(capabilities)
+                      ? context.l10n.invalidTaskUrl
+                      : null,
+                ),
                 onChanged: (value) =>
                     setState(() => _draft = _draft.copyWith(taskUrl: value)),
               ),
@@ -1397,7 +1531,10 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
               StreamBuilder<TaskHierarchySnapshot>(
                 stream: ref
                     .read(tasksRepositoryForAccountProvider(widget.accountId))
-                    .watchTaskHierarchy(_draft.taskListId, widget.task!.id),
+                    .watchTaskHierarchy(
+                      _draft.taskListId,
+                      (_observedTask?.id ?? widget.task!.id),
+                    ),
                 builder: (context, snapshot) => _taskHierarchySection(
                   snapshot.data ??
                       const TaskHierarchySnapshot(parent: null, subtasks: []),
@@ -1431,6 +1568,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   }
 
   Future<void> _pickDue() async {
+    if (!_canWrite) return;
     final current = DateTime.tryParse(_draft.dueDate ?? '') ?? DateTime.now();
     final value = await showBusyMaxDatePicker(
       context: context,
@@ -1438,7 +1576,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       firstDate: DateTime(1970),
       lastDate: DateTime(2200),
     );
-    if (value != null) {
+    if (value != null && mounted && _canWrite) {
       setState(() => _draft = _draft.copyWith(dueDate: _date(value)));
     }
   }
@@ -1459,28 +1597,53 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
           leading: const Icon(Icons.account_tree_outlined),
           title: Text(parent.title),
           subtitle: Text(context.l10n.parent),
-          onTap: () => _openHierarchyTask(parent),
+          onTap: _canWrite ? () => _openHierarchyTask(parent) : null,
         ),
       for (final subtask in hierarchy.subtasks)
         ListTile(
           contentPadding: EdgeInsets.zero,
           leading: IconButton(
-            onPressed: capabilities.canUpdateTasks
+            onPressed: _canWrite && capabilities.canUpdateTasks
                 ? () => _toggleSubtask(subtask)
                 : null,
             icon: AndroidTaskCompletionIcon(completed: subtask.completed),
           ),
           title: Text(subtask.title),
-          trailing: subtask.hasChildren
+          trailing: subtask.kind == TaskSubtaskKind.checklistItem
+              ? PopupMenuButton<String>(
+                  key: ValueKey('android-checklist-actions-${subtask.id}'),
+                  enabled: _canWrite && capabilities.canUpdateTasks,
+                  onSelected: (action) {
+                    if (action == 'edit') {
+                      unawaited(_editChecklistSubtask(subtask));
+                    }
+                    if (action == 'delete') {
+                      unawaited(_deleteChecklistSubtask(subtask));
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    PopupMenuItem(
+                      value: 'edit',
+                      child: Text(context.l10n.rename),
+                    ),
+                    if (capabilities.canDeleteTasks)
+                      PopupMenuItem(
+                        value: 'delete',
+                        child: Text(context.l10n.delete),
+                      ),
+                  ],
+                )
+              : subtask.hasChildren
               ? const Icon(Icons.account_tree_outlined)
               : null,
-          onTap: subtask.task == null
+          onTap: !_canWrite || subtask.task == null
               ? null
               : () => _openHierarchyTask(subtask.task!),
         ),
       OutlinedButton.icon(
         onPressed:
-            capabilities.canCreateTasks &&
+            _canWrite &&
+                capabilities.canCreateTasks &&
                 !(widget.task?.googleAssignment.isAssigned ?? false)
             ? _createSubtask
             : null,
@@ -1491,6 +1654,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   );
 
   Future<void> _openHierarchyTask(TaskEntity task) async {
+    if (!_canWrite) return;
     await Navigator.of(context).push<AndroidTaskEditorResult>(
       MaterialPageRoute<AndroidTaskEditorResult>(
         fullscreenDialog: true,
@@ -1509,6 +1673,8 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   }
 
   Future<void> _toggleSubtask(TaskSubtaskEntity subtask) async {
+    if (!_canWrite) return;
+    setState(() => _saving = true);
     try {
       final repository = ref.read(
         tasksRepositoryForAccountProvider(widget.accountId),
@@ -1516,17 +1682,19 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       if (subtask.kind == TaskSubtaskKind.checklistItem) {
         await repository.patchChecklistSubtask(
           taskListId: _draft.taskListId,
-          parentTaskId: widget.task!.id,
+          parentTaskId: (_observedTask?.id ?? widget.task!.id),
           checklistItemId: subtask.id,
+          observedItem: subtask.checklistItem,
           completed: !subtask.completed,
         );
       } else {
         await repository.patchTask(
           _draft.taskListId,
           subtask.id,
-          TaskPatchInput({
-            'status': subtask.completed ? 'needsAction' : 'completed',
-          }),
+          TaskPatchInput.completion(
+            !subtask.completed,
+            includeCompletedTimestamp: false,
+          ),
         );
       }
     } on Object catch (error) {
@@ -1534,13 +1702,137 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('$error')));
       }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _editChecklistSubtask(TaskSubtaskEntity subtask) async {
+    if (!_canWrite) return;
+    final controller = TextEditingController(text: subtask.title);
+    var busy = false;
+    String? error;
+    final route = DialogRoute<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          Future<void> save() async {
+            if (busy) return;
+            final title = controller.text.trim();
+            if (title.isEmpty) {
+              setDialogState(() => error = context.l10n.invalidCollectionValue);
+              return;
+            }
+            setDialogState(() {
+              busy = true;
+              error = null;
+            });
+            setState(() => _saving = true);
+            try {
+              await ref
+                  .read(tasksRepositoryForAccountProvider(widget.accountId))
+                  .patchChecklistSubtask(
+                    taskListId: _draft.taskListId,
+                    parentTaskId: _observedTask?.id ?? widget.task!.id,
+                    checklistItemId: subtask.id,
+                    observedItem: subtask.checklistItem,
+                    title: title,
+                  );
+              if (dialogContext.mounted) Navigator.pop(dialogContext);
+            } on Object catch (failure) {
+              if (dialogContext.mounted) {
+                setDialogState(() {
+                  busy = false;
+                  error = '$failure';
+                });
+              }
+            } finally {
+              if (mounted) setState(() => _saving = false);
+            }
+          }
+
+          return PopScope<void>(
+            canPop: !busy,
+            child: AlertDialog(
+              title: Text(context.l10n.rename),
+              content: TextField(
+                key: const ValueKey('android-checklist-title'),
+                controller: controller,
+                autofocus: true,
+                enabled: !busy,
+                textInputAction: TextInputAction.done,
+                decoration: InputDecoration(
+                  labelText: context.l10n.title,
+                  errorText: error,
+                ),
+                onSubmitted: (_) => unawaited(save()),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: busy ? null : () => Navigator.pop(dialogContext),
+                  child: Text(context.l10n.cancel),
+                ),
+                FilledButton(
+                  onPressed: busy ? null : save,
+                  child: Text(context.l10n.save),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+    await Navigator.of(context, rootNavigator: true).push(route);
+    await route.completed;
+    controller.dispose();
+  }
+
+  Future<void> _deleteChecklistSubtask(TaskSubtaskEntity subtask) async {
+    if (!_canWrite) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(context.l10n.delete),
+        content: Text(context.l10n.deleteTaskConfirmation(subtask.title)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(context.l10n.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(context.l10n.delete),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted || !_canWrite) return;
+    setState(() => _saving = true);
+    try {
+      await ref
+          .read(tasksRepositoryForAccountProvider(widget.accountId))
+          .deleteChecklistSubtask(
+            taskListId: _draft.taskListId,
+            parentTaskId: _observedTask?.id ?? widget.task!.id,
+            checklistItemId: subtask.id,
+            observedItem: subtask.checklistItem,
+          );
+    } on Object catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$error')));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
   }
 
   Future<void> _createSubtask() async {
+    if (!_canWrite) return;
     if (widget.task?.googleAssignment.isAssigned ?? false) return;
     final controller = TextEditingController();
-    final title = await showDialog<String>(
+    final route = DialogRoute<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text(context.l10n.createSubtask),
@@ -1569,14 +1861,16 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
         ],
       ),
     );
+    final title = await Navigator.of(context, rootNavigator: true).push(route);
+    await route.completed;
     controller.dispose();
-    if (title == null) return;
+    if (title == null || !mounted || !_canWrite) return;
     try {
       await ref
           .read(tasksRepositoryForAccountProvider(widget.accountId))
           .createSubtask(
             taskListId: _draft.taskListId,
-            parentTaskId: widget.task!.id,
+            parentTaskId: (_observedTask?.id ?? widget.task!.id),
             title: title,
           );
     } on Object catch (error) {
@@ -1588,6 +1882,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   }
 
   Future<void> _pickDueTime() async {
+    if (!_canWrite) return;
     final parts = (_draft.microsoftDueTime ?? '09:00').split(':');
     final value = await showTimePicker(
       context: context,
@@ -1596,7 +1891,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
         minute: int.parse(parts[1]),
       ),
     );
-    if (value != null) {
+    if (value != null && mounted && _canWrite) {
       setState(
         () => _draft = _draft.copyWith(
           microsoftDueTime:
@@ -1607,6 +1902,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   }
 
   Future<void> _pickStartDate() async {
+    if (!_canWrite) return;
     final current =
         DateTime.tryParse(_draft.microsoftStartDate ?? '') ?? DateTime.now();
     final value = await showBusyMaxDatePicker(
@@ -1615,7 +1911,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       firstDate: DateTime(1970),
       lastDate: DateTime(2200),
     );
-    if (value != null) {
+    if (value != null && mounted && _canWrite) {
       setState(
         () => _draft = _draft.copyWith(microsoftStartDate: _date(value)),
       );
@@ -1623,8 +1919,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   }
 
   Future<void> _pickStartTime() async {
+    if (!_canWrite) return;
     final value = await _pickTime(_draft.microsoftStartTime);
-    if (value != null) {
+    if (value != null && mounted && _canWrite) {
       setState(() => _draft = _draft.copyWith(microsoftStartTime: value));
     }
   }
@@ -1648,6 +1945,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   }
 
   Future<void> _pickReminderDate() async {
+    if (!_canWrite) return;
     final current =
         DateTime.tryParse(_draft.microsoftReminderDate ?? '') ?? DateTime.now();
     final value = await showBusyMaxDatePicker(
@@ -1656,7 +1954,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       firstDate: DateTime(1970),
       lastDate: DateTime(2200),
     );
-    if (value != null) {
+    if (value != null && mounted && _canWrite) {
       setState(
         () => _draft = _draft.copyWith(microsoftReminderDate: _date(value)),
       );
@@ -1664,8 +1962,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   }
 
   Future<void> _pickReminderTime() async {
+    if (!_canWrite) return;
     final value = await _pickTime(_draft.microsoftReminderTime);
-    if (value != null) {
+    if (value != null && mounted && _canWrite) {
       setState(() => _draft = _draft.copyWith(microsoftReminderTime: value));
     }
   }
@@ -1745,6 +2044,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   }
 
   Future<void> _pickCompletionDate() async {
+    if (!_canWrite) return;
     final current =
         DateTime.tryParse(_draft.completedDate ?? '') ?? DateTime.now();
     final value = await showBusyMaxDatePicker(
@@ -1753,7 +2053,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       firstDate: DateTime(1970),
       lastDate: DateTime(2200),
     );
-    if (value == null) return;
+    if (value == null || !mounted || !_canWrite) return;
     setState(
       () => _draft = _draft.copyWith(
         completedDate: _date(value),
@@ -1765,8 +2065,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   }
 
   Future<void> _pickCompletionTime() async {
+    if (!_canWrite) return;
     final value = await _pickTime(_draft.completedTime);
-    if (value != null) {
+    if (value != null && mounted && _canWrite) {
       setState(() => _draft = _draft.copyWith(completedTime: value));
     }
   }
@@ -1785,6 +2086,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   );
 
   Future<void> _addAlarm() async {
+    if (!_canWrite) return;
     final mode = await showModalBottomSheet<String>(
       context: context,
       showDragHandle: true,
@@ -1813,7 +2115,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
         ),
       ),
     );
-    if (mode == null || !mounted) return;
+    if (mode == null || !mounted || !_canWrite) return;
     IcalTaskAlarm? alarm;
     if (mode == 'absolute') {
       final initial = DateTime.now().add(const Duration(minutes: 10));
@@ -1823,12 +2125,12 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
         firstDate: DateTime(1970),
         lastDate: DateTime(2200),
       );
-      if (date == null || !mounted) return;
+      if (date == null || !mounted || !_canWrite) return;
       final time = await showTimePicker(
         context: context,
         initialTime: TimeOfDay.fromDateTime(initial),
       );
-      if (time == null) return;
+      if (time == null || !mounted || !_canWrite) return;
       alarm = IcalTaskAlarm.displayAbsolute(
         DateTime(
           date.year,
@@ -1846,7 +2148,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
             context: context,
             builder: (_) => _AndroidRelativeAlarmDialog(allDay: allDay),
           );
-      if (selection == null) return;
+      if (selection == null || !mounted || !_canWrite) return;
       final duration = allDay
           ? IcalAllDayAlarmOffset(
               amount: selection.amount,
@@ -1962,6 +2264,11 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   }
 
   Future<void> _save() async {
+    if (!_canWrite) return;
+    if (_pendingMoveDestinationId != null) {
+      await _moveToList();
+      return;
+    }
     if (_draft.hasNewPastReminder(
       original: widget.task,
       capabilities: _capabilities,
@@ -1974,7 +2281,11 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       return;
     }
     setState(_syncDraftFromControllers);
-    if (!_draftIsValid) return;
+    if (!_validateDraft()) return;
+    if (_recoveryBaselineUnavailable && _hasDraftEdits) {
+      _showRecoveryBaselineReview();
+      return;
+    }
     setState(() => _saving = true);
     final existing = widget.task;
     final pendingResult = existing == null
@@ -1993,14 +2304,13 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
     try {
       final taskId = await _persistTaskDraft();
       mutationPersisted = true;
-      final result =
-          pendingResult ??
-          AndroidTaskEditorResult(
-            action: AndroidTaskEditorAction.created,
-            accountId: widget.accountId,
-            taskListId: _draft.taskListId,
-            taskId: taskId,
-          );
+      final result = AndroidTaskEditorResult(
+        action: pendingResult?.action ?? AndroidTaskEditorAction.created,
+        accountId: widget.accountId,
+        taskListId: _draft.taskListId,
+        taskId: taskId,
+        completed: pendingResult?.completed,
+      );
       widget.onMutationCommitted?.call(result);
       if (mounted) {
         await _clearRecovery(finalCleanup: true);
@@ -2013,13 +2323,93 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
         widget.onMutationFailed?.call();
       }
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('$error')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_taskMutationError(error)),
+            action:
+                error is TaskDraftConflictException && !error.current.localDirty
+                ? SnackBarAction(
+                    label: context.l10n.keepServerVersion,
+                    onPressed: () => unawaited(_useLatestTask()),
+                  )
+                : null,
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
   }
+
+  void _showRecoveryBaselineReview() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(context.l10n.taskDraftConflict),
+        action: SnackBarAction(
+          label: context.l10n.keepServerVersion,
+          onPressed: () => unawaited(_useLatestTask()),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _useLatestTask() async {
+    if (!_canWrite ||
+        !await _confirmDiscardChanges() ||
+        !mounted ||
+        !_canWrite) {
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      final latest = await ref
+          .read(tasksRepositoryForAccountProvider(widget.accountId))
+          .readTask(_draft.taskListId, _draft.taskId);
+      if (!mounted) return;
+      if (latest == null || latest.localDirty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              latest == null
+                  ? context.l10n.taskUnavailableDraftRetained
+                  : context.l10n.taskDraftConflict,
+            ),
+          ),
+        );
+        return;
+      }
+      setState(() {
+        _observedTask = latest;
+        _recoveryComparisonTask = null;
+        _recoveryBaselineUnavailable = false;
+        _recoveryOriginalBaseTitle = null;
+        _draft = TaskDetailsDraft.fromTask(
+          latest,
+          ref.read(localTimeZoneProvider),
+        );
+        _initialDraft = _draft;
+        _pendingMoveDestinationId = null;
+        _showValidation = false;
+        _recurrenceFrequency = _taskRecurrence().frequency;
+        _syncControllersFromDraft();
+      });
+      await _clearRecovery();
+    } on Object catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(_taskMutationError(error))));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  String _taskMutationError(Object error) => switch (error) {
+    TaskDraftConflictException() => context.l10n.taskDraftConflict,
+    DavException(code: 'DavTaskDurationRequiresStart') =>
+      context.l10n.taskDurationRequiresStart,
+    _ => '$error',
+  };
 
   bool? get _draftCompletion {
     final original = widget.task;
@@ -2034,12 +2424,20 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
     return completed == originalCompleted ? null : completed;
   }
 
+  void _syncControllersFromDraft() {
+    _title.text = _draft.title;
+    _notes.text = _draft.notes;
+    _location.text = _draft.location;
+    _url.text = _draft.taskUrl;
+    _categories.text = _draft.categories.join(', ');
+  }
+
   void _syncDraftFromControllers() {
     _draft = _draft.copyWith(
-      title: _title.text.trim(),
+      title: _title.text,
       notes: _notes.text,
       location: _location.text,
-      taskUrl: _url.text.trim(),
+      taskUrl: _url.text,
       categories: _categories.text
           .split(',')
           .map((e) => e.trim())
@@ -2053,11 +2451,60 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       _draft.hasValidTaskUrlFor(_capabilities) &&
       _draft.scheduleIssueFor(_capabilities) == TaskScheduleIssue.none;
 
+  bool _validateDraft() {
+    if (_draftIsValid) return true;
+    setState(() => _showValidation = true);
+    if (_draft.title.trim().isEmpty) {
+      unawaited(_revealInvalidField(_titleFieldKey, _titleFocus));
+    } else if (!_draft.hasValidTaskUrlFor(_capabilities)) {
+      unawaited(_revealInvalidField(_urlFieldKey, _urlFocus));
+    } else {
+      unawaited(_revealInvalidField(_timingFeedbackKey, null));
+    }
+    return false;
+  }
+
+  Future<void> _revealInvalidField(GlobalKey key, FocusNode? focus) async {
+    final generation = ++_validationGeneration;
+    bool active() => mounted && !_saving && generation == _validationGeneration;
+    await WidgetsBinding.instance.endOfFrame;
+    if (!active() || !_formScroll.hasClients) return;
+    if (key.currentContext == null) {
+      _formScroll.jumpTo(0);
+      await WidgetsBinding.instance.endOfFrame;
+    }
+    // The form lazily builds its fields. Walk the bounded editor until the
+    // invalid field is mounted, then use its real geometry to reveal it.
+    for (
+      var attempt = 0;
+      attempt < 40 && active() && key.currentContext == null;
+      attempt++
+    ) {
+      final position = _formScroll.position;
+      final next = (position.pixels + 400)
+          .clamp(0, position.maxScrollExtent)
+          .toDouble();
+      if (next <= position.pixels) break;
+      _formScroll.jumpTo(next);
+      await WidgetsBinding.instance.endOfFrame;
+    }
+    if (!active()) return;
+    final field = key.currentContext;
+    if (field != null && field.mounted) {
+      await Scrollable.ensureVisible(
+        field,
+        alignment: 0.1,
+        duration: const Duration(milliseconds: 150),
+      );
+      if (active()) focus?.requestFocus();
+    }
+  }
+
   Future<String> _persistTaskDraft() async {
     final changed = widget.task == null
         ? null
         : _draft.toPatch(
-            widget.task!,
+            _observedTask!,
             _capabilities,
             localTimeZone: ref.read(localTimeZoneProvider),
           );
@@ -2115,13 +2562,30 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       _draft.taskId,
       TaskPatchInput(
         _draft.toPatch(
-          widget.task!,
+          _observedTask!,
           _capabilities,
           localTimeZone: ref.read(localTimeZoneProvider),
         ),
+        observedTask: _observedTask,
       ),
     );
-    return widget.task!.id;
+    final committed = await repository.readTask(
+      _draft.taskListId,
+      _draft.taskId,
+    );
+    if (committed != null) {
+      _observedTask = committed;
+      _draft = TaskDetailsDraft.fromTask(
+        committed,
+        ref.read(localTimeZoneProvider),
+      );
+      _syncControllersFromDraft();
+      _recoveryComparisonTask = null;
+      _recoveryBaselineUnavailable = false;
+      _recoveryOriginalBaseTitle = null;
+      _initialDraft = _draft;
+    }
+    return committed?.id ?? (_observedTask?.id ?? widget.task!.id);
   }
 
   RecurrenceRule _taskRecurrence() {
@@ -2133,7 +2597,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       return EventRecurrenceCodec.decode(
         widget.provider,
         jsonDecode(raw),
-        baseDate: DateTime.tryParse(_draft.dueDate ?? ''),
+        baseDate: widget.provider == BusyProvider.nextcloud
+            ? _recurrenceReference?.dateTime
+            : DateTime.tryParse(_draft.dueDate ?? ''),
       );
     } on Object {
       return const RecurrenceRule.none();
@@ -2147,25 +2613,34 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
     _applyRecurrence(rule, base);
   }
 
+  TaskRecurrenceReference? get _recurrenceReference =>
+      taskDraftRecurrenceReference(
+        _draft,
+        localTimeZone: ref.read(localTimeZoneProvider),
+      );
+
   Future<void> _editAdvancedRecurrence() async {
+    if (!_canWrite) return;
     final initial = _taskRecurrence();
     if (!initial.isSupported) return;
-    final base =
-        DateTime.tryParse(_draft.microsoftStartDate ?? _draft.dueDate ?? '') ??
-        DateTime.now();
+    final reference = _recurrenceReference;
+    final base = reference?.dateTime ?? DateTime.now();
     final result = await showDialog<RecurrenceRule>(
       context: context,
       builder: (_) => _AndroidRecurrenceDialog(
         initial: initial,
         baseDate: base,
         provider: widget.provider,
-        allDay:
-            _draft.microsoftDueTime == null &&
-            _draft.microsoftStartTime == null,
-        timeZone: _draft.microsoftStartTimeZone,
+        allDay: reference?.allDay ?? true,
+        timeZone: reference?.timeZone,
       ),
     );
-    if (result != null && mounted) _applyRecurrence(result, base);
+    if (result != null &&
+        mounted &&
+        _canWrite &&
+        result.toJsonString() != initial.toJsonString()) {
+      _applyRecurrence(result, base);
+    }
   }
 
   void _applyRecurrence(RecurrenceRule rule, DateTime base) {
@@ -2181,8 +2656,8 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
                 widget.provider,
                 rule,
                 baseDate: base,
-                allDay: _draft.microsoftDueTime == null,
-                timeZone: _draft.microsoftDueTimeZone,
+                allDay: _recurrenceReference?.allDay ?? true,
+                timeZone: _recurrenceReference?.timeZone,
                 original: _draft.recurrenceJson == null
                     ? null
                     : jsonDecode(_draft.recurrenceJson!),
@@ -2196,6 +2671,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   }
 
   Future<void> _delete() async {
+    if (!_canWrite) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -2217,13 +2693,13 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
         ],
       ),
     );
-    if (confirmed != true) return;
+    if (confirmed != true || !mounted || !_canWrite) return;
     setState(() => _saving = true);
     final result = AndroidTaskEditorResult(
       action: AndroidTaskEditorAction.deleted,
       accountId: widget.accountId,
-      taskListId: widget.task!.taskListId,
-      taskId: widget.task!.id,
+      taskListId: _draft.taskListId,
+      taskId: (_observedTask?.id ?? widget.task!.id),
     );
     widget.onMutationStarted?.call(result);
     var mutationPersisted = false;
@@ -2231,8 +2707,8 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       await ref
           .read(tasksRepositoryForAccountProvider(widget.accountId))
           .deleteTask(
-            widget.task!.taskListId,
-            widget.task!.id,
+            _draft.taskListId,
+            (_observedTask?.id ?? widget.task!.id),
             confirmedAssignedSourceDeletion:
                 widget.task!.googleAssignment.isAssigned,
           );
@@ -2256,11 +2732,15 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   }
 
   Future<void> _duplicate() async {
+    if (!_canWrite) return;
     setState(() => _saving = true);
     try {
       final duplicateId = await ref
           .read(tasksRepositoryForAccountProvider(widget.accountId))
-          .duplicateTask(_draft.taskListId, widget.task!.id);
+          .duplicateTask(
+            _draft.taskListId,
+            (_observedTask?.id ?? widget.task!.id),
+          );
       widget.onMutationCommitted?.call(
         AndroidTaskEditorResult(
           action: AndroidTaskEditorAction.created,
@@ -2284,6 +2764,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   }
 
   Future<void> _moveToList() async {
+    if (!_canWrite) return;
     late final List<TaskListEntity> lists;
     try {
       lists =
@@ -2299,19 +2780,24 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       }
       return;
     }
-    if (!mounted || lists.isEmpty) return;
-    final destination = await selectAndroidTaskList(
-      context,
-      lists,
-      title: context.l10n.list,
-      accountLabels: {
-        widget.accountId: widget.accountLabel ?? widget.accountId,
-      },
-    );
-    if (destination == null || !mounted) return;
+    if (!mounted || !_canWrite || lists.isEmpty) return;
+    final previousDestination = lists
+        .where((list) => list.id == _pendingMoveDestinationId)
+        .firstOrNull;
+    final destination =
+        previousDestination ??
+        await selectAndroidTaskList(
+          context,
+          lists,
+          title: context.l10n.list,
+          accountLabels: {
+            widget.accountId: widget.accountLabel ?? widget.accountId,
+          },
+        );
+    if (destination == null || !mounted || !_canWrite) return;
     setState(_syncDraftFromControllers);
     var saveEdits = false;
-    if (_hasPendingEdits) {
+    if (_hasDraftEdits) {
       final decision = await showDialog<bool>(
         context: context,
         barrierDismissible: false,
@@ -2336,41 +2822,67 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       );
       if (decision == null || !mounted) return;
       saveEdits = decision;
-      if (saveEdits && !_draftIsValid) return;
+      if (saveEdits && !_validateDraft()) return;
+      if (saveEdits && _recoveryBaselineUnavailable) {
+        _showRecoveryBaselineReview();
+        return;
+      }
     }
-    setState(() => _saving = true);
+    setState(() {
+      _pendingMoveDestinationId = destination.id;
+      _saving = true;
+    });
     final result = AndroidTaskEditorResult(
       action: AndroidTaskEditorAction.moved,
       accountId: widget.accountId,
       taskListId: destination.id,
-      taskId: widget.task!.id,
+      taskId: (_observedTask?.id ?? widget.task!.id),
       previousTaskListId: _draft.taskListId,
     );
     widget.onMutationStarted?.call(result);
     var mutationPersisted = false;
+    var patchPersisted = false;
     try {
       final repository = ref.read(
         tasksRepositoryForAccountProvider(widget.accountId),
       );
-      if (saveEdits) await _persistTaskDraft();
+      if (saveEdits) {
+        await _persistTaskDraft();
+        patchPersisted = true;
+        await _persistRecovery();
+      }
       await repository.moveTask(
         TaskMoveInput(
           sourceTaskListId: _draft.taskListId,
           destinationTaskListId: destination.id,
-          taskId: widget.task!.id,
+          taskId: (_observedTask?.id ?? widget.task!.id),
         ),
       );
       mutationPersisted = true;
-      widget.onMutationCommitted?.call(result);
+      final committedResult = AndroidTaskEditorResult(
+        action: result.action,
+        accountId: result.accountId,
+        taskListId: result.taskListId,
+        taskId: _observedTask?.id ?? result.taskId,
+        previousTaskListId: result.previousTaskListId,
+      );
+      widget.onMutationCommitted?.call(committedResult);
       await _clearRecovery(finalCleanup: true);
       if (!mounted) return;
       setState(() => _allowPop = true);
-      Navigator.pop(context, result);
+      Navigator.pop(context, committedResult);
     } on Object catch (error) {
       if (!mutationPersisted) widget.onMutationFailed?.call();
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('$error')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              patchPersisted
+                  ? context.l10n.taskMoveAfterSaveFailed
+                  : _taskMutationError(error),
+            ),
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -2378,6 +2890,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   }
 
   Future<void> _moveToTop() async {
+    if (!_canWrite) return;
     setState(() => _saving = true);
     try {
       await ref
@@ -2385,7 +2898,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
           .moveTask(
             TaskMoveInput(
               sourceTaskListId: _draft.taskListId,
-              taskId: widget.task!.id,
+              taskId: (_observedTask?.id ?? widget.task!.id),
             ),
           );
       if (mounted) {
@@ -2632,7 +3145,10 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
     try {
       final raw = await ref
           .read(tasksRepositoryForAccountProvider(widget.accountId))
-          .nativeTaskExport(_draft.taskListId, widget.task!.id);
+          .nativeTaskExport(
+            _draft.taskListId,
+            (_observedTask?.id ?? widget.task!.id),
+          );
       if (raw == null) return;
       await BusyMaxAndroidPlatform.instance.createDocument(
         suggestedName: 'task.ics',
@@ -2649,6 +3165,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   }
 
   Future<void> _requestClose() async {
+    if (_saving) return;
     if (!_hasPendingEdits || await _confirmDiscardChanges()) {
       if (!mounted) return;
       await _clearRecovery(finalCleanup: true);
@@ -2681,7 +3198,22 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
 
   Future<void> _restoreRecovery() async {
     try {
-      final raw = await ref.read(secureStorageProvider).read(key: _recoveryKey);
+      final storage = ref.read(secureStorageProvider);
+      String? raw;
+      final keys = <String>{_recoveryKey};
+      final task = widget.task;
+      if (task != null) {
+        for (final identity in task.identityIds) {
+          keys.add('busymax.android.task-draft.${widget.accountId}.$identity');
+        }
+      }
+      for (final key in keys) {
+        raw = await storage.read(key: key);
+        if (raw != null) {
+          _recoverySourceKey = key;
+          break;
+        }
+      }
       if (raw == null) return;
       final value = jsonDecode(raw);
       if (value is! Map) return;
@@ -2690,48 +3222,182 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       if (savedAt == null ||
           DateTime.now().difference(savedAt).abs() > const Duration(days: 14) ||
           map['v'] != 2 ||
-          map['baseTitle'] != _initialDraft.title ||
           map['accountId'] != widget.accountId ||
-          map['taskListId'] != _initialDraft.taskListId) {
+          (widget.task == null &&
+              map['taskListId'] != _initialDraft.taskListId) ||
+          (widget.task != null &&
+              map['taskId'] != null &&
+              !widget.task!.matchesIdentity(map['taskId'].toString()))) {
         await _clearRecovery();
         return;
       }
+      TaskEntity? recoveredObserved;
+      final rawObserved = map['observedTask'];
+      _recoveryBaselineUnavailable = widget.task != null && rawObserved is! Map;
+      _recoveryOriginalBaseTitle = map['baseTitle'] as String?;
+      if (widget.task != null && rawObserved is Map) {
+        recoveredObserved = TaskEntity.fromDraftBaselineJson(
+          rawObserved.cast<String, Object?>(),
+        );
+        if (recoveredObserved.accountId != widget.accountId ||
+            !widget.task!.matchesIdentity(recoveredObserved.id)) {
+          await _clearRecovery();
+          return;
+        }
+      }
+      final rawComparison = map['originalObservedTask'];
+      _recoveryComparisonTask = rawComparison is Map
+          ? TaskEntity.fromDraftBaselineJson(
+              rawComparison.cast<String, Object?>(),
+            )
+          : recoveredObserved;
+      final currentValues = _recoveryValues(_draft);
+      final baselineValues = recoveredObserved == null
+          ? {...currentValues, 'title': map['baseTitle']}
+          : _recoveryValues(
+              TaskDetailsDraft.fromTask(
+                recoveredObserved,
+                ref.read(localTimeZoneProvider),
+              ),
+            );
+      final restoredValues = <String, Object?>{...currentValues};
+      for (final key in currentValues.keys) {
+        if (map.containsKey(key) &&
+            jsonEncode(map[key]) != jsonEncode(baselineValues[key])) {
+          restoredValues[key] = map[key];
+        }
+      }
+      if (recoveredObserved != null && widget.task != null) {
+        final original = recoveredObserved.toDraftBaselineJson();
+        final composed = widget.task!.toDraftBaselineJson();
+        for (final field in ['rawJson', 'etag', 'updatedUtc']) {
+          composed[field] = original[field];
+        }
+        const groups = <String, List<String>>{
+          'title': ['title'],
+          'notes': ['notes', 'bodyContent', 'bodyContentType'],
+          'dueDate': ['dueUtc', 'microsoftDueDateTime', 'microsoftDueTimeZone'],
+          'dueTime': ['dueUtc', 'microsoftDueDateTime', 'microsoftDueTimeZone'],
+          'dueTimeZone': [
+            'dueUtc',
+            'microsoftDueDateTime',
+            'microsoftDueTimeZone',
+          ],
+          'startDate': ['microsoftStartDateTime', 'microsoftStartTimeZone'],
+          'startTime': ['microsoftStartDateTime', 'microsoftStartTimeZone'],
+          'startTimeZone': ['microsoftStartDateTime', 'microsoftStartTimeZone'],
+          'reminderEnabled': [
+            'microsoftIsReminderOn',
+            'microsoftReminderDateTime',
+            'microsoftReminderTimeZone',
+          ],
+          'reminderDate': [
+            'microsoftIsReminderOn',
+            'microsoftReminderDateTime',
+            'microsoftReminderTimeZone',
+          ],
+          'reminderTime': [
+            'microsoftIsReminderOn',
+            'microsoftReminderDateTime',
+            'microsoftReminderTimeZone',
+          ],
+          'reminderTimeZone': [
+            'microsoftIsReminderOn',
+            'microsoftReminderDateTime',
+            'microsoftReminderTimeZone',
+          ],
+          'recurrenceJson': ['recurrenceJson'],
+          'importance': ['importance'],
+          'categories': ['categoriesJson'],
+          'icalPriority': ['icalPriority'],
+          'percentComplete': [
+            'percentComplete',
+            'providerStatus',
+            'status',
+            'completedUtc',
+          ],
+          'taskStatus': [
+            'percentComplete',
+            'providerStatus',
+            'status',
+            'completedUtc',
+          ],
+          'completedDate': [
+            'percentComplete',
+            'providerStatus',
+            'status',
+            'completedUtc',
+          ],
+          'completedTime': [
+            'percentComplete',
+            'providerStatus',
+            'status',
+            'completedUtc',
+          ],
+          'location': ['taskLocation', 'locationLatitude', 'locationLongitude'],
+          'taskUrl': ['taskUrl'],
+          'classification': ['taskClassification'],
+          'pinned': ['taskPinned'],
+          'hideSubtasks': ['taskHideSubtasks'],
+          'hideCompletedSubtasks': ['taskHideCompletedSubtasks'],
+          'alarms': ['taskAlarmsJson'],
+        };
+        for (final entry in groups.entries) {
+          if (map.containsKey(entry.key) &&
+              jsonEncode(map[entry.key]) !=
+                  jsonEncode(baselineValues[entry.key])) {
+            for (final field in entry.value) {
+              composed[field] = original[field];
+            }
+          }
+        }
+        recoveredObserved = TaskEntity.fromDraftBaselineJson(composed);
+      }
+      _recoveredConcurrentState =
+          widget.task != null &&
+          (map['baseTitle'] != _initialDraft.title ||
+              map['taskListId'] != _initialDraft.taskListId ||
+              (recoveredObserved != null &&
+                  jsonEncode(baselineValues) != jsonEncode(currentValues)));
+      final values = widget.task == null ? map : restoredValues;
       final alarms = <IcalTaskAlarm>[];
-      for (final rawAlarm in map['alarms'] as List? ?? const []) {
+      for (final rawAlarm in values['alarms'] as List? ?? const []) {
         if (rawAlarm is Map) {
           alarms.add(IcalTaskAlarm.fromJson(rawAlarm.cast<String, Object?>()));
         }
       }
       var recovered = _draft.copyWith(
-        title: map['title']?.toString() ?? _draft.title,
-        notes: map['notes']?.toString() ?? _draft.notes,
-        dueDate: map['dueDate'],
-        microsoftDueTime: map['dueTime'],
-        microsoftDueTimeZone: map['dueTimeZone']?.toString(),
-        microsoftStartDate: map['startDate'],
-        microsoftStartTime: map['startTime'],
-        microsoftStartTimeZone: map['startTimeZone']?.toString(),
+        observedTask: recoveredObserved ?? _observedTask,
+        title: values['title']?.toString() ?? _draft.title,
+        notes: values['notes']?.toString() ?? _draft.notes,
+        dueDate: values['dueDate'],
+        microsoftDueTime: values['dueTime'],
+        microsoftDueTimeZone: values['dueTimeZone']?.toString(),
+        microsoftStartDate: values['startDate'],
+        microsoftStartTime: values['startTime'],
+        microsoftStartTimeZone: values['startTimeZone']?.toString(),
         microsoftReminderEnabled:
-            map['reminderEnabled'] as bool? ?? _draft.microsoftReminderEnabled,
-        microsoftReminderDate: map['reminderDate'],
-        microsoftReminderTime: map['reminderTime'],
-        microsoftReminderTimeZone: map['reminderTimeZone']?.toString(),
-        recurrenceJson: map['recurrenceJson'],
-        importance: map['importance']?.toString(),
-        categories: (map['categories'] as List? ?? const [])
+            values['reminderEnabled'] as bool? ??
+            _draft.microsoftReminderEnabled,
+        microsoftReminderDate: values['reminderDate'],
+        microsoftReminderTime: values['reminderTime'],
+        microsoftReminderTimeZone: values['reminderTimeZone']?.toString(),
+        recurrenceJson: values['recurrenceJson'],
+        importance: values['importance']?.toString(),
+        categories: (values['categories'] as List? ?? const [])
             .map((value) => value.toString())
             .toList(),
-        icalPriority: map['icalPriority'] as int?,
-        percentComplete: map['percentComplete'] as int?,
-        taskStatus: map['taskStatus'],
-        completedDate: map['completedDate'],
-        completedTime: map['completedTime'],
-        location: map['location']?.toString(),
-        taskUrl: map['taskUrl']?.toString(),
-        classification: map['classification']?.toString(),
-        pinned: map['pinned'] as bool?,
-        hideSubtasks: map['hideSubtasks'] as bool?,
-        hideCompletedSubtasks: map['hideCompletedSubtasks'] as bool?,
+        icalPriority: values['icalPriority'] as int?,
+        percentComplete: values['percentComplete'] as int?,
+        taskStatus: values['taskStatus'],
+        completedDate: values['completedDate'],
+        completedTime: values['completedTime'],
+        location: values['location']?.toString(),
+        taskUrl: values['taskUrl']?.toString(),
+        classification: values['classification']?.toString(),
+        pinned: values['pinned'] as bool?,
+        hideSubtasks: values['hideSubtasks'] as bool?,
+        hideCompletedSubtasks: values['hideCompletedSubtasks'] as bool?,
         alarms: alarms,
       );
       RecurrenceRule? creationRule;
@@ -2764,7 +3430,11 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
         barrierDismissible: false,
         builder: (dialogContext) => AlertDialog(
           title: Text(context.l10n.discardChanges),
-          content: Text(context.l10n.discardChangesConfirmation),
+          content: Text(
+            _recoveredConcurrentState
+                ? context.l10n.taskDraftConflict
+                : context.l10n.discardChangesConfirmation,
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, false),
@@ -2783,21 +3453,56 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       }
       if (!mounted) return;
       setState(() {
+        _observedTask = recoveredObserved ?? _observedTask;
+        _pendingMoveDestinationId = map['pendingMoveDestinationId'] as String?;
+        if (_pendingMoveDestinationId == recovered.taskListId) {
+          _pendingMoveDestinationId = null;
+        }
         _draft = recovered;
         _recurrenceFrequency =
             creationRule?.frequency ?? _taskRecurrence().frequency;
-        _title.text = recovered.title;
-        _notes.text = recovered.notes;
-        _location.text = recovered.location;
-        _url.text = recovered.taskUrl;
-        _categories.text = recovered.categories.join(', ');
+        _syncControllersFromDraft();
       });
     } on Object {
       // A malformed/locked recovery entry must never block the editor.
     } finally {
-      _recoveryLoaded = true;
+      if (mounted) {
+        setState(() => _recoveryLoaded = true);
+      } else {
+        _recoveryLoaded = true;
+      }
     }
   }
+
+  Map<String, Object?> _recoveryValues(TaskDetailsDraft draft) => {
+    'title': draft.title,
+    'notes': draft.notes,
+    'dueDate': draft.dueDate,
+    'dueTime': draft.microsoftDueTime,
+    'dueTimeZone': draft.microsoftDueTimeZone,
+    'startDate': draft.microsoftStartDate,
+    'startTime': draft.microsoftStartTime,
+    'startTimeZone': draft.microsoftStartTimeZone,
+    'reminderEnabled': draft.microsoftReminderEnabled,
+    'reminderDate': draft.microsoftReminderDate,
+    'reminderTime': draft.microsoftReminderTime,
+    'reminderTimeZone': draft.microsoftReminderTimeZone,
+    'recurrenceJson': draft.recurrenceJson,
+    'importance': draft.importance,
+    'categories': draft.categories,
+    'icalPriority': draft.icalPriority,
+    'percentComplete': draft.percentComplete,
+    'taskStatus': draft.taskStatus,
+    'completedDate': draft.completedDate,
+    'completedTime': draft.completedTime,
+    'location': draft.location,
+    'taskUrl': draft.taskUrl,
+    'classification': draft.classification,
+    'pinned': draft.pinned,
+    'hideSubtasks': draft.hideSubtasks,
+    'hideCompletedSubtasks': draft.hideCompletedSubtasks,
+    'alarms': [for (final alarm in draft.alarms) alarm.toJson()],
+  };
 
   Future<void> _persistRecovery() async {
     if (!_recoveryLoaded ||
@@ -2810,47 +3515,33 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
     final payload = jsonEncode({
       'v': 2,
       'savedAt': DateTime.now().toIso8601String(),
-      'baseTitle': _initialDraft.title,
+      'baseTitle': _recoveryBaselineUnavailable
+          ? _recoveryOriginalBaseTitle ?? _initialDraft.title
+          : _observedTask?.title ?? _initialDraft.title,
       'accountId': widget.accountId,
       'taskListId': _draft.taskListId,
-      'title': _draft.title,
-      'notes': _draft.notes,
-      'dueDate': _draft.dueDate,
-      'dueTime': _draft.microsoftDueTime,
-      'dueTimeZone': _draft.microsoftDueTimeZone,
-      'startDate': _draft.microsoftStartDate,
-      'startTime': _draft.microsoftStartTime,
-      'startTimeZone': _draft.microsoftStartTimeZone,
-      'reminderEnabled': _draft.microsoftReminderEnabled,
-      'reminderDate': _draft.microsoftReminderDate,
-      'reminderTime': _draft.microsoftReminderTime,
-      'reminderTimeZone': _draft.microsoftReminderTimeZone,
-      'recurrenceJson': _draft.recurrenceJson,
+      if (_pendingMoveDestinationId != null)
+        'pendingMoveDestinationId': _pendingMoveDestinationId,
+      ..._recoveryValues(_draft),
       if (creationRecurrence != null)
         'creationRecurrence': {
           'provider': creationRecurrence.provider.name,
           'rule': creationRecurrence.rule.toJsonString(),
         },
-      'importance': _draft.importance,
-      'categories': _draft.categories,
-      'icalPriority': _draft.icalPriority,
-      'percentComplete': _draft.percentComplete,
-      'taskStatus': _draft.taskStatus,
-      'completedDate': _draft.completedDate,
-      'completedTime': _draft.completedTime,
-      'location': _draft.location,
-      'taskUrl': _draft.taskUrl,
-      'classification': _draft.classification,
-      'pinned': _draft.pinned,
-      'hideSubtasks': _draft.hideSubtasks,
-      'hideCompletedSubtasks': _draft.hideCompletedSubtasks,
-      'alarms': [for (final alarm in _draft.alarms) alarm.toJson()],
+      if (_observedTask != null && !_recoveryBaselineUnavailable)
+        'observedTask': _observedTask!.toDraftBaselineJson(),
+      if (_recoveryComparisonTask != null)
+        'originalObservedTask': _recoveryComparisonTask!.toDraftBaselineJson(),
+      if (widget.task != null) 'taskId': _observedTask?.id ?? widget.task!.id,
     });
     await _enqueueRecovery(() async {
       if (_recoveryWritesBlocked) return;
       await ref
           .read(secureStorageProvider)
           .write(key: _recoveryKey, value: payload);
+      if (_recoverySourceKey != null && _recoverySourceKey != _recoveryKey) {
+        await ref.read(secureStorageProvider).delete(key: _recoverySourceKey!);
+      }
     });
   }
 
@@ -2859,9 +3550,12 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       _recoveryWritesBlocked = true;
       _recoveryTimer?.cancel();
     }
-    return _enqueueRecovery(
-      () => ref.read(secureStorageProvider).delete(key: _recoveryKey),
-    );
+    return _enqueueRecovery(() async {
+      await ref.read(secureStorageProvider).delete(key: _recoveryKey);
+      if (_recoverySourceKey != null && _recoverySourceKey != _recoveryKey) {
+        await ref.read(secureStorageProvider).delete(key: _recoverySourceKey!);
+      }
+    });
   }
 
   Future<void> _enqueueRecovery(Future<void> Function() operation) {
@@ -2996,10 +3690,11 @@ class _AndroidRecurrenceDialogState extends State<_AndroidRecurrenceDialog> {
       : _value.untilRaw != null
       ? _AndroidRecurrenceEnd.until
       : _AndroidRecurrenceEnd.never;
+  bool _endingChanged = false;
   late final _interval = TextEditingController(text: '${_value.interval}');
   late final _count = TextEditingController(text: '${_value.count ?? 10}');
   late DateTime _until =
-      DateTime.tryParse(_value.untilDate ?? '') ??
+      DateTime.tryParse(_value.untilDateFor(timeZone: widget.timeZone) ?? '') ??
       DateTime(
         widget.baseDate.year,
         widget.baseDate.month + 1,
@@ -3148,6 +3843,7 @@ class _AndroidRecurrenceDialogState extends State<_AndroidRecurrenceDialog> {
             if (_value.repeats) ...[
               const SizedBox(height: 16),
               DropdownButtonFormField<_AndroidRecurrenceEnd>(
+                key: const ValueKey('android-task-recurrence-end'),
                 initialValue: _end,
                 decoration: InputDecoration(labelText: context.l10n.repeatEnd),
                 items: [
@@ -3164,8 +3860,10 @@ class _AndroidRecurrenceDialogState extends State<_AndroidRecurrenceDialog> {
                     child: Text(context.l10n.repeatAfter),
                   ),
                 ],
-                onChanged: (value) =>
-                    setState(() => _end = value ?? _AndroidRecurrenceEnd.never),
+                onChanged: (value) => setState(() {
+                  _endingChanged = true;
+                  _end = value ?? _AndroidRecurrenceEnd.never;
+                }),
               ),
               if (_end == _AndroidRecurrenceEnd.count) ...[
                 const SizedBox(height: 12),
@@ -3184,6 +3882,7 @@ class _AndroidRecurrenceDialogState extends State<_AndroidRecurrenceDialog> {
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.event_outlined),
+                  key: const ValueKey('android-task-recurrence-until'),
                   title: Text(context.l10n.repeatUntil),
                   subtitle: Text(_date(_until)),
                   onTap: _pickUntil,
@@ -3223,7 +3922,11 @@ class _AndroidRecurrenceDialogState extends State<_AndroidRecurrenceDialog> {
         (result.count == null || result.count! < 1 || result.count! > 3500)) {
       return null;
     }
-    if (_end == _AndroidRecurrenceEnd.until) {
+    if (_end == _AndroidRecurrenceEnd.until &&
+        !_endingChanged &&
+        widget.initial.untilRaw != null) {
+      result = result.copyWith(untilRaw: widget.initial.untilRaw);
+    } else if (_end == _AndroidRecurrenceEnd.until) {
       if (_until.isBefore(
         DateTime(
           widget.baseDate.year,
@@ -3257,7 +3960,12 @@ class _AndroidRecurrenceDialogState extends State<_AndroidRecurrenceDialog> {
       ),
       lastDate: DateTime(2200),
     );
-    if (value != null) setState(() => _until = value);
+    if (value != null && mounted) {
+      setState(() {
+        _endingChanged = true;
+        _until = value;
+      });
+    }
   }
 }
 

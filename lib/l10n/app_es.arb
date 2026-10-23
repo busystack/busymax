@@ -1414,5 +1414,11 @@
   "notificationInexactAlarms": "El acceso a alarmas exactas no está disponible. Android puede entregar los recordatorios más tarde.",
   "dailySummaryScope": "Todas las cuentas",
   "notificationsSystemBlocked": "Los ajustes de notificaciones del sistema bloquean BusyMax. Tus recordatorios están guardados.",
-  "notificationItemUnavailable": "Este recordatorio ya no está disponible. Es posible que el elemento haya cambiado o se haya eliminado."
+  "notificationItemUnavailable": "Este recordatorio ya no está disponible. Es posible que el elemento haya cambiado o se haya eliminado.",
+  "clearCompletedGoogleConfirmation": "¿Limpiar las tareas completadas de «{list}» ({account})?\n\nGoogle Tasks eliminará u ocultará los elementos completados. Completados actualmente: {count}.",
+  "clearCompletedNextcloudConfirmation": "¿Eliminar {count} árboles de tareas raíz cerradas de «{list}» ({account})?\n\nSus subtareas también se eliminarán.",
+  "taskMoveAfterSaveFailed": "Tus cambios se guardaron, pero no se pudo mover la tarea. Vuelve a intentar moverla.",
+  "taskDraftConflict": "Esta tarea ha cambiado desde que la abriste. Tus cambios se conservan. Revisa la tarea actual antes de reintentar.",
+  "taskUnavailableDraftRetained": "Esta tarea no está disponible. Tus cambios sin guardar se conservan.",
+  "taskDurationRequiresStart": "Establece una fecha límite antes de quitar el inicio de una tarea con duración."
 }

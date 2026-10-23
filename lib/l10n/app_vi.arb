@@ -1351,5 +1351,11 @@
   "notificationInexactAlarms": "Không có quyền báo thức chính xác. Android có thể gửi lời nhắc muộn hơn.",
   "dailySummaryScope": "Tất cả tài khoản",
   "notificationsSystemBlocked": "Cài đặt thông báo của hệ thống đang chặn BusyMax. Lời nhắc đã được lưu.",
-  "notificationItemUnavailable": "Lời nhắc này không còn khả dụng. Mục có thể đã được thay đổi hoặc xóa."
+  "notificationItemUnavailable": "Lời nhắc này không còn khả dụng. Mục có thể đã được thay đổi hoặc xóa.",
+  "clearCompletedGoogleConfirmation": "Xóa các công việc đã hoàn thành trong “{list}” ({account})?\n\nGoogle Tasks sẽ xóa hoặc ẩn các mục đã hoàn thành. Hiện đã hoàn thành: {count}.",
+  "clearCompletedNextcloudConfirmation": "Xóa {count} cây công việc gốc đã đóng khỏi “{list}” ({account})?\n\nCác công việc con cũng sẽ bị xóa.",
+  "taskMoveAfterSaveFailed": "Các chỉnh sửa đã được lưu nhưng không thể di chuyển công việc. Hãy thử di chuyển lại.",
+  "taskDraftConflict": "Công việc này đã thay đổi kể từ khi bạn mở. Các chỉnh sửa được giữ lại. Hãy xem công việc mới nhất trước khi thử lại.",
+  "taskUnavailableDraftRetained": "Công việc này không khả dụng. Các thay đổi chưa lưu được giữ lại.",
+  "taskDurationRequiresStart": "Đặt thời hạn trước khi xóa thời điểm bắt đầu của công việc có thời lượng."
 }

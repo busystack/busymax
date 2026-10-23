@@ -216,10 +216,10 @@ class _ScheduleAgendaViewState extends State<ScheduleAgendaView> {
     final rangeStart = ScheduleProjection.day(widget.range.start);
     final rangeEnd = ScheduleProjection.day(widget.range.end);
     final overdueTasks = dated.whereType<TaskScheduleItem>().where((item) {
-      final start = item.start;
-      return start != null &&
-          !item.completed &&
-          ScheduleProjection.day(start).isBefore(rangeStart);
+      final due = item.due;
+      return due != null &&
+          item.actionable &&
+          ScheduleProjection.day(due).isBefore(rangeStart);
     }).toList()..sort(compareScheduleItems);
     final orderedOverdueTasks = ScheduleProjection.arrangeHierarchy(
       overdueTasks,
@@ -522,6 +522,7 @@ class _ScheduleAgendaViewState extends State<ScheduleAgendaView> {
           );
         }
         final values = [
+          if (task.cancelled) context.l10n.taskStatusCancelled,
           _nestedTaskScheduleLabel(context, task, hierarchyRoot),
           if (showSource) ScheduleProjection.sourceLabelForScheduleItem(task),
         ].where((value) => value.trim().isNotEmpty);
@@ -971,6 +972,7 @@ class _AgendaItemSubtitle extends StatelessWidget {
   Widget build(BuildContext context) {
     final task = item is TaskScheduleItem ? item as TaskScheduleItem : null;
     final values = [
+      if (task?.cancelled == true) context.l10n.taskStatusCancelled,
       scheduleTimeRange(context, item),
       if (task?.parentTitle != null)
         '${context.l10n.parent}: ${task!.parentTitle}',

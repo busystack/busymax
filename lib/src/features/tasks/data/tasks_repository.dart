@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:logging/logging.dart';
+
 import '../../maps/domain/geographic_point.dart';
 import '../../maps/domain/location_result.dart';
 import '../../maps/data/location_resolution_repository.dart';
@@ -27,6 +29,7 @@ import '../domain/task_source_links.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 
 import '../../notifications/notification_schedule_service.dart';
+import '../../sync/task_mutation_barrier.dart';
 
 class TaskTreeNode {
   const TaskTreeNode({required this.task, required this.children});
@@ -293,6 +296,84 @@ class TaskEntity {
   final String? webViewLink;
   final String? assignmentInfoJson;
 
+  bool matchesIdentity(String taskId) =>
+      id == taskId ||
+      _taskIdentityAliases(providerMetadataJson).contains(taskId);
+
+  Set<String> get identityIds => {
+    id,
+    ..._taskIdentityAliases(providerMetadataJson),
+  };
+
+  /// The observed editable projection travels with a recoverable draft. This
+  /// does not replace the provider's complete resource or its conflict ETag.
+  Map<String, Object?> toDraftBaselineJson() => {
+    'accountId': accountId,
+    'taskListId': taskListId,
+    'id': id,
+    'title': title,
+    'notes': notes,
+    'rawJson': rawJson,
+    'updatedUtc': updatedUtc,
+    'etag': etag,
+    'updatedLocalAtUtc': updatedLocalAtUtc,
+    'localDirty': localDirty,
+    'pendingDelete': pendingDelete,
+    'pendingMove': pendingMove,
+    'davCollectionId': davCollectionId,
+    'davObjectId': davObjectId,
+    'icalUid': icalUid,
+    'recurrenceIdKey': recurrenceIdKey,
+    'parent': parent,
+    'parentUid': parentUid,
+    'position': position,
+    'sortOrder': sortOrder,
+    'status': status,
+    'providerStatus': providerStatus,
+    'dueUtc': dueUtc,
+    'completedUtc': completedUtc,
+    'bodyContent': bodyContent,
+    'bodyContentType': bodyContentType,
+    'microsoftDueDateTime': microsoftDueDateTime,
+    'microsoftDueTimeZone': microsoftDueTimeZone,
+    'microsoftStartDateTime': microsoftStartDateTime,
+    'microsoftStartTimeZone': microsoftStartTimeZone,
+    'microsoftReminderDateTime': microsoftReminderDateTime,
+    'microsoftReminderTimeZone': microsoftReminderTimeZone,
+    'microsoftIsReminderOn': microsoftIsReminderOn,
+    'recurrenceJson': recurrenceJson,
+    'importance': importance,
+    'categoriesJson': categoriesJson,
+    'icalPriority': icalPriority,
+    'percentComplete': percentComplete,
+    'taskLocation': taskLocation,
+    'locationLatitude': locationPoint?.latitude,
+    'locationLongitude': locationPoint?.longitude,
+    'taskUrl': taskUrl,
+    'taskClassification': taskClassification,
+    'taskPinned': taskPinned,
+    'taskHideSubtasks': taskHideSubtasks,
+    'taskHideCompletedSubtasks': taskHideCompletedSubtasks,
+    'taskAlarmsJson': taskAlarmsJson,
+    'providerMetadataJson': providerMetadataJson,
+    'assignmentInfoJson': assignmentInfoJson,
+  };
+
+  factory TaskEntity.fromDraftBaselineJson(Map<String, Object?> json) =>
+      TaskEntity.fromRow(
+        Task.fromJson({
+          'projectionVersion': 1,
+          'serverMissing': false,
+          'localDirty': false,
+          'pendingDelete': false,
+          'pendingMove': false,
+          'localCreated': false,
+          'createdLocalAtUtc': '',
+          'updatedLocalAtUtc': '',
+          ...json,
+        }),
+      );
+
   GoogleTaskAssignmentPolicy get googleAssignment =>
       GoogleTaskAssignmentPolicy.fromJson(assignmentInfoJson);
 
@@ -348,10 +429,46 @@ class TaskPatchInput {
   const TaskPatchInput(
     this.fields, {
     this.locationChange = const LocationChange.unchanged(),
+    this.observedTask,
+    this.completionIntent,
   });
+
+  factory TaskPatchInput.completion(
+    bool completed, {
+    bool includeCompletedTimestamp = true,
+  }) => TaskPatchInput({
+    'status': completed ? 'completed' : 'needsAction',
+    if (includeCompletedTimestamp)
+      'completed': completed ? DateTime.now().toUtc().toIso8601String() : null,
+  }, completionIntent: completed);
 
   final Map<String, Object?> fields;
   final LocationChange locationChange;
+  final TaskEntity? observedTask;
+  final bool? completionIntent;
+}
+
+/// A draft may only replace fields that still match what its editor observed.
+class TaskDraftConflictException implements Exception {
+  const TaskDraftConflictException(this.fields, this.observed, this.current);
+
+  final Set<String> fields;
+  final TaskEntity observed;
+  final TaskEntity current;
+
+  @override
+  String toString() =>
+      'The task changed while it was being edited. '
+      'Your unsaved changes have been retained.';
+}
+
+class TaskSavePartialException implements Exception {
+  const TaskSavePartialException(this.committedTask, this.cause);
+  final TaskEntity committedTask;
+  final Object cause;
+
+  @override
+  String toString() => 'Task changes were saved, but the move failed.';
 }
 
 class TaskPutInput {
@@ -424,6 +541,8 @@ class TasksRepository {
     TaskRemoteClient? apiClient,
     void Function()? onMutationQueued,
     Future<void> Function()? onNotificationScheduleChanged,
+    Future<void> Function(Object error, StackTrace stackTrace)?
+    onAuxiliaryFailure,
     Future<void> Function()? beforeChecklistDeleteTransaction,
     Uuid uuid = const Uuid(),
     DateTime Function()? nowUtc,
@@ -432,6 +551,7 @@ class TasksRepository {
        _apiClient = apiClient,
        _onMutationQueued = onMutationQueued,
        _onNotificationScheduleChanged = onNotificationScheduleChanged,
+       _onAuxiliaryFailure = onAuxiliaryFailure,
        _beforeChecklistDeleteTransaction = beforeChecklistDeleteTransaction,
        _uuid = uuid,
        _nowUtc = nowUtc ?? (() => DateTime.now().toUtc());
@@ -441,6 +561,8 @@ class TasksRepository {
   final TaskRemoteClient? _apiClient;
   final void Function()? _onMutationQueued;
   final Future<void> Function()? _onNotificationScheduleChanged;
+  final Future<void> Function(Object error, StackTrace stackTrace)?
+  _onAuxiliaryFailure;
   final Future<void> Function()? _beforeChecklistDeleteTransaction;
   final Uuid _uuid;
   final DateTime Function() _nowUtc;
@@ -464,22 +586,27 @@ class TasksRepository {
           .where((row) => row.deleted != true && row.hidden != true)
           .map(TaskEntity.fromRow)
           .toList();
-      final current = entities.firstWhereOrNull((task) => task.id == taskId);
+      final current = entities.firstWhereOrNull(
+        (task) => task.matchesIdentity(taskId),
+      );
       if (current == null) {
         return const TaskHierarchySnapshot(parent: null, subtasks: []);
       }
       final parent = entities.firstWhereOrNull(
         (task) =>
-            task.id == current.parent ||
-            (current.parentUid != null && task.icalUid == current.parentUid),
+            task.recurrenceIdKey == null &&
+            (task.id == current.parent ||
+                (current.parentUid != null &&
+                    task.icalUid == current.parentUid)),
       );
       final taskChildren =
           entities
               .where(
                 (task) =>
-                    task.parent == current.id ||
-                    (current.icalUid != null &&
-                        task.parentUid == current.icalUid),
+                    task.recurrenceIdKey == null &&
+                    (task.parent == current.id ||
+                        (current.icalUid != null &&
+                            task.parentUid == current.icalUid)),
               )
               .toList()
             ..sort(_compareTaskOrder);
@@ -490,9 +617,10 @@ class TasksRepository {
             hasChildren:
                 entities.any(
                   (candidate) =>
-                      candidate.parent == child.id ||
-                      (child.icalUid != null &&
-                          candidate.parentUid == child.icalUid),
+                      candidate.recurrenceIdKey == null &&
+                      (candidate.parent == child.id ||
+                          (child.icalUid != null &&
+                              candidate.parentUid == child.icalUid)),
                 ) ||
                 child.microsoftChecklistItems.isNotEmpty,
           ),
@@ -550,14 +678,30 @@ class TasksRepository {
         (row) =>
             row.accountId.equals(_accountId) &
             row.taskListId.equals(taskListId) &
-            row.id.equals(taskId) &
             row.pendingDelete.equals(false) &
             row.serverMissing.equals(false),
       );
-    return query.watchSingleOrNull().map(
-      (row) => row == null ? null : TaskEntity.fromRow(row),
-    );
+    return query.watch().map((rows) {
+      final row = _matchingIdentityRow(rows, taskId);
+      return row == null ? null : TaskEntity.fromRow(row);
+    });
   }
+
+  Future<TaskEntity?> readTask(String taskListId, String taskId) async {
+    final row = await _baselineRow(taskListId, taskId);
+    return row == null || row.pendingDelete || row.serverMissing
+        ? null
+        : TaskEntity.fromRow(row);
+  }
+
+  /// Used within selective-discard's transaction to overlay retained intent.
+  /// It deliberately neither queues a request nor changes its original baseline.
+  Future<void> restorePendingTaskProjection(
+    String taskListId,
+    String taskId,
+    Map<String, Object?> fields,
+    String nowUtc,
+  ) => _patchLocalTask(taskListId, taskId, fields, nowUtc);
 
   Stream<List<String>> watchCategorySuggestions() {
     final query = _database.select(_database.tasks)
@@ -599,8 +743,19 @@ class TasksRepository {
     final now = _now();
     final localId = 'local-task-${_uuid.v4()}';
     final fields = input.toFields();
+    var parentTaskId = input.parentTaskId;
+    var previousSiblingTaskId = input.previousSiblingTaskId;
     final title = fields['title']?.toString() ?? input.title;
     await _database.transaction(() async {
+      await _requiredTaskList(taskListId);
+      if (parentTaskId != null) {
+        parentTaskId = (await _requiredTask(taskListId, parentTaskId!)).id;
+      }
+      if (previousSiblingTaskId != null) {
+        previousSiblingTaskId =
+            (await _baselineRow(taskListId, previousSiblingTaskId!))?.id ??
+            previousSiblingTaskId;
+      }
       await _database.tasksDao.upsertTask(
         TasksCompanion.insert(
           accountId: _accountId,
@@ -608,7 +763,7 @@ class TasksRepository {
           id: localId,
           title: title,
           status: Value(fields['status']?.toString() ?? 'needsAction'),
-          parent: Value(input.parentTaskId),
+          parent: Value(parentTaskId),
           rawJson: jsonEncode({'id': localId, 'title': title}),
           localDirty: const Value(true),
           localCreated: const Value(true),
@@ -617,9 +772,9 @@ class TasksRepository {
         ),
       );
       await _patchLocalTask(taskListId, localId, fields, now);
-      final parentCreate = input.parentTaskId == null
+      final parentCreate = parentTaskId == null
           ? null
-          : await _pendingTaskCreate(input.parentTaskId!);
+          : await _pendingTaskCreate(parentTaskId!);
       final createOperationId = await _enqueue(
         operation: 'create_task',
         taskListId: taskListId,
@@ -627,14 +782,13 @@ class TasksRepository {
         localTempId: localId,
         request: {
           'body': _remoteTaskFields(fields),
-          if (input.parentTaskId != null) 'parent': input.parentTaskId,
-          if (input.previousSiblingTaskId != null)
-            'previous': input.previousSiblingTaskId,
+          if (parentTaskId != null) 'parent': parentTaskId,
+          if (previousSiblingTaskId != null) 'previous': previousSiblingTaskId,
         },
         createdAtUtc: now,
         dependsOnOpId: parentCreate?.id,
       );
-      if (input.parentTaskId != null) {
+      if (parentTaskId != null) {
         final moveCreatedAt = DateTime.parse(now)
             .add(const Duration(milliseconds: 1))
             .toIso8601String();
@@ -643,9 +797,9 @@ class TasksRepository {
           taskListId: taskListId,
           taskId: localId,
           request: {
-            'parent': input.parentTaskId,
-            if (input.previousSiblingTaskId != null)
-              'previous': input.previousSiblingTaskId,
+            'parent': parentTaskId,
+            if (previousSiblingTaskId != null)
+              'previous': previousSiblingTaskId,
           },
           createdAtUtc: moveCreatedAt,
           dependsOnOpId: createOperationId,
@@ -686,6 +840,7 @@ class TasksRepository {
     required String checklistItemId,
     String? title,
     bool? completed,
+    TaskChecklistItemEntity? observedItem,
   }) async {
     if (_apiClient is! TaskChecklistRemoteClient) {
       throw UnsupportedError('This provider does not use checklist subtasks.');
@@ -713,6 +868,7 @@ class TasksRepository {
     };
     await _database.transaction(() async {
       final currentTask = await _requiredTask(taskListId, parentTaskId);
+      parentTaskId = currentTask.id;
       final currentItems = List<TaskChecklistItemEntity>.of(
         decodeTaskChecklistItems(currentTask.microsoftChecklistItemsJson),
       );
@@ -722,7 +878,18 @@ class TasksRepository {
       if (currentIndex < 0) {
         throw StateError('The checklist subtask is unavailable.');
       }
-      final currentItemId = currentItems[currentIndex].id;
+      final originalItem = currentItems[currentIndex];
+      if (observedItem != null &&
+          ((normalizedTitle != null &&
+                  observedItem.title != originalItem.title) ||
+              (completed != null &&
+                  observedItem.completed != originalItem.completed))) {
+        throw StateError(
+          'The checklist step changed while it was being edited. '
+          'Your changes have been retained.',
+        );
+      }
+      final currentItemId = originalItem.id;
       final raw = currentItems[currentIndex].toJson();
       if (normalizedTitle != null) raw['displayName'] = normalizedTitle;
       if (completed != null) {
@@ -746,6 +913,7 @@ class TasksRepository {
         parentTaskId: parentTaskId,
         checklistItemId: currentItemId,
         request: {'checklistItemId': currentItemId, 'body': body},
+        baselineRawJson: jsonEncode(originalItem.toJson()),
         createdAtUtc: now,
       );
     });
@@ -756,6 +924,7 @@ class TasksRepository {
     required String taskListId,
     required String parentTaskId,
     required String checklistItemId,
+    TaskChecklistItemEntity? observedItem,
   }) async {
     if (_apiClient is! TaskChecklistRemoteClient) {
       throw UnsupportedError('This provider does not use checklist subtasks.');
@@ -764,6 +933,7 @@ class TasksRepository {
     await _beforeChecklistDeleteTransaction?.call();
     await _database.transaction(() async {
       final currentTask = await _requiredTask(taskListId, parentTaskId);
+      parentTaskId = currentTask.id;
       final currentItems = decodeTaskChecklistItems(
         currentTask.microsoftChecklistItemsJson,
       );
@@ -772,6 +942,11 @@ class TasksRepository {
       );
       if (currentItem == null) {
         throw StateError('The checklist subtask is unavailable.');
+      }
+      if (observedItem != null &&
+          (observedItem.title != currentItem.title ||
+              observedItem.completed != currentItem.completed)) {
+        throw StateError('The checklist step changed before deletion.');
       }
       final currentItemId = currentItem.id;
       await _writeChecklistProjection(taskListId, parentTaskId, [
@@ -800,6 +975,7 @@ class TasksRepository {
           parentTaskId: parentTaskId,
           checklistItemId: currentItemId,
           request: {'checklistItemId': currentItemId},
+          baselineRawJson: jsonEncode(currentItem.toJson()),
           createdAtUtc: now,
         );
       }
@@ -813,6 +989,7 @@ class TasksRepository {
     required String title,
   }) async {
     final task = await _requiredTask(taskListId, parentTaskId);
+    parentTaskId = task.id;
     final items = List<TaskChecklistItemEntity>.of(
       decodeTaskChecklistItems(task.microsoftChecklistItemsJson),
     );
@@ -850,13 +1027,39 @@ class TasksRepository {
     TaskPatchInput input,
   ) async {
     final taskList = await _requiredTaskList(taskListId);
+    if (input.fields.isEmpty &&
+        !input.locationChange.changed &&
+        input.completionIntent == null) {
+      await _requiredTask(taskListId, taskId);
+      return;
+    }
     if (taskList.davCollectionId != null) {
       final fields = {
-        ...input.fields,
+        for (final entry in input.fields.entries)
+          if (input.completionIntent == null ||
+              !const {
+                'status',
+                'completed',
+                'taskStatus',
+                'completedAtUtc',
+                'percentComplete',
+              }.contains(entry.key))
+            entry.key: entry.value,
+        if (input.completionIntent != null)
+          'percentComplete': input.completionIntent! ? 100 : 0,
         if (input.locationChange.changed)
           'locationPoint': input.locationChange.selection?.point.toJson(),
       };
-      await _updateDavTaskWithHierarchy(taskList, taskId, fields);
+      await _updateDavTaskWithHierarchy(
+        taskList,
+        taskId,
+        fields,
+        beforeMutation: () async => _validateObservedTask(
+          input.observedTask,
+          TaskEntity.fromRow(await _requiredTask(taskListId, taskId)),
+          fields.keys,
+        ),
+      );
       return;
     }
     if (input.locationChange.changed) {
@@ -871,15 +1074,23 @@ class TasksRepository {
     }
     final now = _now();
     await _database.transaction(() async {
-      final baseline = await _baselineRow(taskListId, taskId);
+      await _requiredTaskList(taskListId);
+      final baseline = await _requiredTask(taskListId, taskId);
+      taskId = baseline.id;
+      _validateObservedTask(
+        input.observedTask,
+        TaskEntity.fromRow(baseline),
+        input.fields.keys,
+      );
+      if (input.fields.isEmpty) return;
       await _patchLocalTask(taskListId, taskId, input.fields, now);
       await _enqueue(
         operation: 'patch_task',
         taskListId: taskListId,
         taskId: taskId,
         request: _remoteTaskFields(input.fields),
-        baselineUpdatedUtc: baseline?.updatedUtc,
-        baselineRawJson: baseline?.rawJson,
+        baselineUpdatedUtc: baseline.updatedUtc,
+        baselineRawJson: baseline.rawJson,
         createdAtUtc: now,
       );
     });
@@ -903,15 +1114,17 @@ class TasksRepository {
     }
     final now = _now();
     await _database.transaction(() async {
-      final baseline = await _baselineRow(taskListId, taskId);
+      await _requiredTaskList(taskListId);
+      final baseline = await _requiredTask(taskListId, taskId);
+      taskId = baseline.id;
       await _patchLocalTask(taskListId, taskId, input.fields, now);
       await _enqueue(
         operation: 'update_task',
         taskListId: taskListId,
         taskId: taskId,
         request: _remoteTaskFields(input.fields),
-        baselineUpdatedUtc: baseline?.updatedUtc,
-        baselineRawJson: baseline?.rawJson,
+        baselineUpdatedUtc: baseline.updatedUtc,
+        baselineRawJson: baseline.rawJson,
         createdAtUtc: now,
       );
     });
@@ -934,6 +1147,8 @@ class TasksRepository {
     final now = _now();
     var queuedRemoteDelete = false;
     await _database.transaction(() async {
+      await _requiredTaskList(taskListId);
+      taskId = (await _requiredTask(taskListId, taskId)).id;
       final pendingCreate = await _pendingUnsentTaskCreate(taskId);
       if (pendingCreate != null) {
         await _cancelPendingTaskCreation(pendingCreate);
@@ -1006,15 +1221,35 @@ class TasksRepository {
     }
     final now = _now();
     await _database.transaction(() async {
-      final baseline = await _baselineRow(input.sourceTaskListId, input.taskId);
-      await _writeLocalTask(
+      await _requiredTaskList(input.sourceTaskListId);
+      if (input.destinationTaskListId != null) {
+        await _requiredTaskList(input.destinationTaskListId!);
+      }
+      final baseline = await _requiredTask(
         input.sourceTaskListId,
         input.taskId,
+      );
+      final parentId = input.parentTaskId == null
+          ? null
+          : (await _requiredTask(
+              input.destinationTaskListId ?? input.sourceTaskListId,
+              input.parentTaskId!,
+            )).id;
+      final previousId = input.previousSiblingTaskId == null
+          ? null
+          : (await _baselineRow(
+                  input.destinationTaskListId ?? input.sourceTaskListId,
+                  input.previousSiblingTaskId!,
+                ))?.id ??
+                input.previousSiblingTaskId;
+      await _writeLocalTask(
+        input.sourceTaskListId,
+        baseline.id,
         TasksCompanion(
           taskListId: Value(
             input.destinationTaskListId ?? input.sourceTaskListId,
           ),
-          parent: Value(input.parentTaskId),
+          parent: Value(parentId),
           pendingMove: const Value(true),
           localDirty: const Value(true),
           updatedLocalAtUtc: Value(now),
@@ -1023,16 +1258,15 @@ class TasksRepository {
       await _enqueue(
         operation: 'move_task',
         taskListId: input.sourceTaskListId,
-        taskId: input.taskId,
+        taskId: baseline.id,
         request: {
-          if (input.parentTaskId != null) 'parent': input.parentTaskId,
-          if (input.previousSiblingTaskId != null)
-            'previous': input.previousSiblingTaskId,
+          if (parentId != null) 'parent': parentId,
+          if (previousId != null) 'previous': previousId,
           if (input.destinationTaskListId != null)
             'destinationTasklist': input.destinationTaskListId,
         },
-        baselineUpdatedUtc: baseline?.updatedUtc,
-        baselineRawJson: baseline?.rawJson,
+        baselineUpdatedUtc: baseline.updatedUtc,
+        baselineRawJson: baseline.rawJson,
         createdAtUtc: now,
       );
     });
@@ -1045,17 +1279,62 @@ class TasksRepository {
       return _clearCompletedDavTasks(taskList);
     }
     final now = _now();
-    final baselineUpdatedUtc = await _completedTasksBaselineUpdatedUtc(
-      taskListId,
-    );
-    await _enqueue(
-      operation: 'clear_completed_tasks',
-      taskListId: taskListId,
-      request: const {},
-      baselineUpdatedUtc: baselineUpdatedUtc,
-      createdAtUtc: now,
-    );
+    await _database.transaction(() async {
+      await _requiredTaskList(taskListId);
+      final rows =
+          await (_database.select(_database.tasks)..where(
+                (row) =>
+                    row.accountId.equals(_accountId) &
+                    row.taskListId.equals(taskListId) &
+                    row.status.equals('completed') &
+                    row.serverMissing.equals(false) &
+                    row.pendingDelete.equals(false) &
+                    (row.deleted.isNull() | row.deleted.equals(false)) &
+                    (row.hidden.isNull() | row.hidden.equals(false)),
+              ))
+              .get();
+      final operations = await (_database.select(
+        _database.pendingOps,
+      )..where((row) => row.accountId.equals(_accountId))).get();
+      await _enqueue(
+        operation: 'clear_completed_tasks',
+        taskListId: taskListId,
+        request: {
+          '_busymaxCompletedTaskBaselines': {
+            for (final row in rows)
+              row.id: {
+                'updatedUtc': row.updatedUtc,
+                'rawJson': jsonDecode(row.rawJson),
+              },
+          },
+          taskBarrierOperationIdsKey: [
+            for (final operation in operations)
+              if (taskOperationTouchesList(operation, taskListId)) operation.id,
+          ],
+        },
+        baselineUpdatedUtc: await _completedTasksBaselineUpdatedUtc(taskListId),
+        createdAtUtc: now,
+      );
+    });
     _onMutationQueued?.call();
+  }
+
+  Future<int> countClearCompleted(String taskListId) async {
+    final taskList = await _requiredTaskList(taskListId);
+    if (taskList.davCollectionId != null) {
+      return (await _closedDavTaskRoots(taskList)).length;
+    }
+    final tasks = await _database.tasksDao.listTasks(_accountId, taskListId);
+    return tasks
+        .where(
+          (task) =>
+              task.status == 'completed' &&
+              !task.pendingDelete &&
+              !task.serverMissing &&
+              task.hidden != true &&
+              task.deleted != true,
+        )
+        .length;
   }
 
   Future<String> duplicateTask(String taskListId, String taskId) async {
@@ -1190,7 +1469,21 @@ class TasksRepository {
     required String? parentId,
     required String? parentUid,
     required String? dependsOnOperationId,
+    bool preflight = true,
   }) async {
+    if (preflight) {
+      return _database.transaction(() async {
+        await _preflightDavTaskTree(taskList, source);
+        return _duplicateDavTaskNode(
+          taskList,
+          source,
+          parentId: parentId,
+          parentUid: parentUid,
+          dependsOnOperationId: dependsOnOperationId,
+          preflight: false,
+        );
+      });
+    }
     await _ensureDavTaskMutable(taskList, source);
     final collectionId = taskList.davCollectionId!;
     final sourceUid = source.icalUid;
@@ -1336,6 +1629,7 @@ class TasksRepository {
         parentId: localId,
         parentUid: newUid,
         dependsOnOperationId: lastOperationId,
+        preflight: false,
       );
       lastOperationId = duplicate.lastOperationId;
     }
@@ -1517,14 +1811,18 @@ class TasksRepository {
   Future<void> _updateDavTaskWithHierarchy(
     TaskList taskList,
     String taskId,
-    Map<String, Object?> fields,
-  ) async {
-    await _updateDavTaskHierarchyNode(
-      taskList,
-      taskId,
-      fields,
-      visited: <String>{},
-    );
+    Map<String, Object?> fields, {
+    Future<void> Function()? beforeMutation,
+  }) async {
+    await _database.transaction(() async {
+      await beforeMutation?.call();
+      await _updateDavTaskHierarchyNode(
+        taskList,
+        taskId,
+        fields,
+        visited: <String>{},
+      );
+    });
     await _rebuildTaskNotifications();
     _onMutationQueued?.call();
   }
@@ -1594,8 +1892,20 @@ class TasksRepository {
     TaskList taskList,
     String taskId, {
     String? dependsOnOperationId,
+    bool preflight = true,
   }) async {
     final task = await _requiredTask(taskList.id, taskId);
+    if (preflight) {
+      return _database.transaction(() async {
+        await _preflightDavTaskTree(taskList, task);
+        return _deleteDavTask(
+          taskList,
+          task.id,
+          dependsOnOperationId: dependsOnOperationId,
+          preflight: false,
+        );
+      });
+    }
     await _ensureDavTaskMutable(taskList, task);
     if (task.recurrenceIdKey != null) {
       throw UnsupportedError(
@@ -1612,6 +1922,7 @@ class TasksRepository {
         taskList,
         child.id,
         dependsOnOperationId: dependency,
+        preflight: false,
       );
     }
     final queue = DavPendingOperationQueue(
@@ -1815,7 +2126,27 @@ class TasksRepository {
     required String? parentUid,
     required bool completeSubtree,
     required String? dependsOnOperationId,
+    bool preflight = true,
   }) async {
+    if (preflight) {
+      return _database.transaction(() async {
+        await _preflightDavTaskTree(
+          sourceList,
+          task,
+          destination: destinationList,
+        );
+        return _moveDavTaskTreeToCollection(
+          sourceList: sourceList,
+          destinationList: destinationList,
+          task: task,
+          parentId: parentId,
+          parentUid: parentUid,
+          completeSubtree: completeSubtree,
+          dependsOnOperationId: dependsOnOperationId,
+          preflight: false,
+        );
+      });
+    }
     await _ensureDavTaskMutable(sourceList, task);
     await _ensureDavDestinationAllowsTask(destinationList, task);
     var dependency = dependsOnOperationId;
@@ -1829,6 +2160,7 @@ class TasksRepository {
         parentUid: task.icalUid,
         completeSubtree: completeSubtree,
         dependsOnOperationId: dependency,
+        preflight: false,
       );
     }
 
@@ -2022,12 +2354,13 @@ class TasksRepository {
     return operationId;
   }
 
-  Future<void> _clearCompletedDavTasks(TaskList taskList) async {
+  Future<List<Task>> _closedDavTaskRoots(TaskList taskList) async {
     final rows =
         await (_database.select(_database.tasks)..where(
               (row) =>
                   row.accountId.equals(_accountId) &
                   row.taskListId.equals(taskList.id) &
+                  row.recurrenceIdKey.isNull() &
                   row.pendingDelete.equals(false) &
                   row.serverMissing.equals(false),
             ))
@@ -2037,15 +2370,21 @@ class TasksRepository {
       for (final task in rows)
         if (task.icalUid case final uid?) uid,
     };
-    final roots = rows.where((task) {
-      if (task.recurrenceIdKey != null || !_davTaskClosed(task)) return false;
-      final parent = task.parent;
-      final parentUid = task.parentUid;
-      final parentAvailable =
-          (parent != null && ids.contains(parent)) ||
-          (parentUid != null && uids.contains(parentUid));
-      return !parentAvailable;
-    });
+    return rows
+        .where((task) {
+          if (!_davTaskClosed(task)) return false;
+          final parent = task.parent;
+          final parentUid = task.parentUid;
+          final parentAvailable =
+              (parent != null && ids.contains(parent)) ||
+              (parentUid != null && uids.contains(parentUid));
+          return !parentAvailable;
+        })
+        .toList(growable: false);
+  }
+
+  Future<void> _clearCompletedDavTasks(TaskList taskList) async {
+    final roots = await _closedDavTaskRoots(taskList);
     final failures = <String>[];
     var queued = 0;
     for (final task in roots) {
@@ -2107,6 +2446,7 @@ class TasksRepository {
               (row) =>
                   row.accountId.equals(_accountId) &
                   row.taskListId.equals(taskListId) &
+                  row.recurrenceIdKey.isNull() &
                   row.serverMissing.equals(false) &
                   row.pendingDelete.equals(false),
             ))
@@ -2130,6 +2470,7 @@ class TasksRepository {
             (row) =>
                 row.accountId.equals(_accountId) &
                 row.taskListId.equals(taskListId) &
+                row.recurrenceIdKey.isNull() &
                 row.pendingDelete.equals(false) &
                 row.serverMissing.equals(false) &
                 (row.parent.equals(task.id) |
@@ -2153,6 +2494,7 @@ class TasksRepository {
             (row) =>
                 row.accountId.equals(_accountId) &
                 row.taskListId.equals(taskListId) &
+                row.recurrenceIdKey.isNull() &
                 row.pendingDelete.equals(false) &
                 row.serverMissing.equals(false) &
                 ((parentId == null
@@ -2164,6 +2506,58 @@ class TasksRepository {
           )
           ..limit(1))
         .getSingleOrNull();
+  }
+
+  /// Validate the whole actionable tree before queueing its first member.
+  /// Detached history belongs to each master's complete resource and never
+  /// becomes a second hierarchy action. The surrounding transaction also
+  /// rolls back later queue/candidate validation failures.
+  Future<void> _preflightDavTaskTree(
+    TaskList taskList,
+    Task root, {
+    TaskList? destination,
+  }) async {
+    final active = <String>{};
+    final visited = <String>{};
+    Future<void> visit(Task task) async {
+      if (!active.add(task.id)) {
+        throw StateError('The DAV task hierarchy contains a cycle.');
+      }
+      if (!visited.add(task.id)) {
+        active.remove(task.id);
+        return;
+      }
+      if (task.recurrenceIdKey != null) {
+        throw UnsupportedError(
+          'An individual recurring DAV task occurrence cannot be mutated.',
+        );
+      }
+      await _ensureDavTaskMutable(taskList, task);
+      if (destination != null) {
+        await _ensureDavDestinationAllowsTask(destination, task);
+      }
+      if (task.icalUid == null || task.icalUid!.isEmpty) {
+        throw StateError('The DAV task UID is unavailable.');
+      }
+      if (task.davObjectId == null) {
+        if (await _pendingDavCreateForProjection(task.id) == null) {
+          throw StateError('The pending DAV task is unavailable.');
+        }
+      } else {
+        final object = await (_database.select(
+          _database.davObjects,
+        )..where((row) => row.id.equals(task.davObjectId!))).getSingleOrNull();
+        if (object == null || object.collectionId != taskList.davCollectionId) {
+          throw StateError('The DAV task baseline is unavailable.');
+        }
+      }
+      for (final child in await _davChildren(taskList.id, task)) {
+        await visit(child);
+      }
+      active.remove(task.id);
+    }
+
+    await visit(root);
   }
 
   Future<void> _ensureDavCreateAllowed(
@@ -2367,11 +2761,30 @@ class TasksRepository {
   }
 
   Future<void> _rebuildTaskNotifications() async {
-    await NotificationScheduleService(
-      database: _database,
-      nowUtc: _nowUtc,
-    ).rebuildUpcomingTaskNotifications(_accountId);
-    await _onNotificationScheduleChanged?.call();
+    try {
+      await NotificationScheduleService(
+        database: _database,
+        nowUtc: _nowUtc,
+      ).rebuildUpcomingTaskNotifications(_accountId);
+      await _onNotificationScheduleChanged?.call();
+    } on Object catch (error, stackTrace) {
+      // The task/outbox transaction has committed. Report this auxiliary
+      // failure separately so a caller never repeats an already durable write.
+      Logger('TasksRepository').warning(
+        'Task committed; notification schedule refresh failed.',
+        error,
+        stackTrace,
+      );
+      try {
+        await _onAuxiliaryFailure?.call(error, stackTrace);
+      } on Object catch (reportError, reportStack) {
+        Logger('TasksRepository').warning(
+          'Could not report the notification refresh failure.',
+          reportError,
+          reportStack,
+        );
+      }
+    }
   }
 
   Future<void> _patchLocalTask(
@@ -2524,15 +2937,17 @@ class TasksRepository {
     String taskListId,
     String taskId,
     TasksCompanion companion,
-  ) {
+  ) async {
+    final current = await _requiredTask(taskListId, taskId);
     final update = _database.update(_database.tasks)
       ..where(
         (row) =>
             row.accountId.equals(_accountId) &
             row.taskListId.equals(taskListId) &
-            row.id.equals(taskId),
+            row.id.equals(current.id),
       );
-    return update.write(companion);
+    final count = await update.write(companion);
+    if (count != 1) throw StateError('The task is unavailable.');
   }
 
   Future<void> _writeChecklistProjection(
@@ -2559,6 +2974,7 @@ class TasksRepository {
     required Map<String, Object?> request,
     required String createdAtUtc,
     String? localTempId,
+    String? baselineRawJson,
   }) async {
     final predecessor = await _latestPendingChecklistOperation(
       taskListId,
@@ -2576,6 +2992,7 @@ class TasksRepository {
         localTempId: Value(localTempId),
         dependsOnOpId: Value(predecessor?.id),
         requestJson: jsonEncode(request),
+        baselineRawJson: Value(baselineRawJson),
         createdAtUtc: createdAtUtc,
         updatedAtUtc: createdAtUtc,
       ),
@@ -2837,14 +3254,15 @@ class TasksRepository {
         .go();
   }
 
-  Future<Task?> _baselineRow(String taskListId, String taskId) {
-    return (_database.select(_database.tasks)..where(
-          (row) =>
-              row.accountId.equals(_accountId) &
-              row.taskListId.equals(taskListId) &
-              row.id.equals(taskId),
-        ))
-        .getSingleOrNull();
+  Future<Task?> _baselineRow(String taskListId, String taskId) async {
+    final rows =
+        await (_database.select(_database.tasks)..where(
+              (row) =>
+                  row.accountId.equals(_accountId) &
+                  row.taskListId.equals(taskListId),
+            ))
+            .get();
+    return _matchingIdentityRow(rows, taskId);
   }
 
   Future<String?> _completedTasksBaselineUpdatedUtc(String taskListId) async {
@@ -3499,6 +3917,104 @@ String _accountLabel(Account account) {
     return address;
   }
   return BusyProviderCodec.requireStorageValue(account.provider).displayName;
+}
+
+Set<String> _taskIdentityAliases(String? metadata) {
+  if (metadata == null) return const {};
+  try {
+    final json = jsonDecode(metadata);
+    final aliases = json is Map ? json['_busymaxTaskIdAliases'] : null;
+    return aliases is List
+        ? aliases
+              .whereType<String>()
+              .where((id) => id.startsWith('local-task-'))
+              .toSet()
+        : const {};
+  } on FormatException {
+    return const {};
+  }
+}
+
+Task? _matchingIdentityRow(Iterable<Task> rows, String taskId) {
+  final exact = rows.where((task) => task.id == taskId).firstOrNull;
+  if (exact != null) return exact;
+  final matches = rows
+      .where(
+        (task) =>
+            _taskIdentityAliases(task.providerMetadataJson).contains(taskId),
+      )
+      .toList();
+  if (matches.length > 1) throw StateError('The task identity is ambiguous.');
+  return matches.firstOrNull;
+}
+
+Object? _draftJsonValue(String? json) => json == null ? null : jsonDecode(json);
+
+Map<String, Object?> _taskDraftSnapshot(TaskEntity task) => {
+  'title': task.title,
+  'notes': task.notes ?? '',
+  'due': normalizeGoogleDueDateValue(task.dueUtc),
+  'status': task.status,
+  'completed': task.completedUtc,
+  'bodyContent': task.bodyContent,
+  'bodyContentType': task.bodyContentType,
+  'microsoftDueDateTime': {
+    'dateTime': task.microsoftDueDateTime,
+    'timeZone': task.microsoftDueTimeZone,
+  },
+  'microsoftDueTimeZone': task.microsoftDueTimeZone,
+  'microsoftStartDateTime': {
+    'dateTime': task.microsoftStartDateTime,
+    'timeZone': task.microsoftStartTimeZone,
+  },
+  'microsoftStartTimeZone': task.microsoftStartTimeZone,
+  'microsoftReminderDateTime': {
+    'dateTime': task.microsoftReminderDateTime,
+    'timeZone': task.microsoftReminderTimeZone,
+  },
+  'microsoftReminderTimeZone': task.microsoftReminderTimeZone,
+  'microsoftIsReminderOn': task.microsoftIsReminderOn ?? false,
+  'recurrence': _draftJsonValue(task.recurrenceJson),
+  'importance': task.importance ?? 'normal',
+  'categories': _draftJsonValue(task.categoriesJson) ?? const [],
+  'icalPriority': task.icalPriority ?? 0,
+  'percentComplete': task.percentComplete ?? 0,
+  'taskStatus': task.providerStatus,
+  'completedAtUtc': task.completedUtc,
+  'location': task.taskLocation ?? '',
+  'locationPoint': task.locationPoint?.toJson(),
+  'taskUrl': task.taskUrl ?? '',
+  'taskClassification': task.taskClassification ?? 'PUBLIC',
+  'taskPinned': task.taskPinned ?? false,
+  'taskHideSubtasks': task.taskHideSubtasks ?? false,
+  'taskHideCompletedSubtasks': task.taskHideCompletedSubtasks ?? false,
+  'taskAlarms': _draftJsonValue(task.taskAlarmsJson) ?? const [],
+};
+
+void _validateObservedTask(
+  TaskEntity? observed,
+  TaskEntity current,
+  Iterable<String> fields,
+) {
+  if (observed == null) return;
+  if (observed.accountId != current.accountId ||
+      !(current.matchesIdentity(observed.id) ||
+          observed.matchesIdentity(current.id))) {
+    throw StateError('The draft belongs to another task.');
+  }
+  final before = _taskDraftSnapshot(observed);
+  final latest = _taskDraftSnapshot(current);
+  final conflicts = fields
+      .where(
+        (field) => !const DeepCollectionEquality().equals(
+          before[field],
+          latest[field],
+        ),
+      )
+      .toSet();
+  if (conflicts.isNotEmpty) {
+    throw TaskDraftConflictException(conflicts, observed, current);
+  }
 }
 
 Map<String, Object?> _remoteTaskFields(Map<String, Object?> fields) {

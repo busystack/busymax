@@ -1749,6 +1749,9 @@ final tasksRepositoryProvider = Provider<TasksRepository?>((ref) {
     onMutationQueued: ref.watch(pendingMutationSyncRequesterProvider)?.request,
     onNotificationScheduleChanged: () =>
         ref.read(notificationReconcilerProvider).reconcile(),
+    onAuxiliaryFailure: (error, _) => ref
+        .read(operationalNotificationReporterProvider)
+        .notifySyncFailure(error, accountId: accountId),
   );
 });
 
@@ -1763,6 +1766,9 @@ final tasksRepositoryForAccountProvider =
             .request,
         onNotificationScheduleChanged: () =>
             ref.read(notificationReconcilerProvider).reconcile(),
+        onAuxiliaryFailure: (error, _) => ref
+            .read(operationalNotificationReporterProvider)
+            .notifySyncFailure(error, accountId: accountId),
       );
     });
 

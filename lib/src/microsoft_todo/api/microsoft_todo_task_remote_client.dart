@@ -1,3 +1,4 @@
+import '../../core/time/provider_date_time.dart';
 import '../../features/tasks/domain/task_remote_client.dart';
 import '../../features/tasks/domain/task_remote_error.dart';
 import '../../features/tasks/domain/task_remote_models.dart';
@@ -28,6 +29,11 @@ class MicrosoftTodoTaskRemoteClient
     Map<String, Object?> snapshot,
   ) {
     final normalized = Map<String, Object?>.from(snapshot);
+    // Reopening uses BusyMax's shared completion intent; Graph writes the
+    // native notStarted value. Preserve all other native statuses distinctly.
+    if (normalized['status'] == 'needsAction') {
+      normalized['status'] = 'notStarted';
+    }
     if (!normalized.containsKey('notes') && snapshot.containsKey('body')) {
       final body = snapshot['body'];
       final content = body is Map ? body['content']?.toString() ?? '' : '';
@@ -68,6 +74,14 @@ class MicrosoftTodoTaskRemoteClient
       dateTimeField: 'microsoftCompletedDateTime',
       timeZoneField: 'microsoftCompletedTimeZone',
     );
+    if (!normalized.containsKey('completed') &&
+        snapshot.containsKey('completedDateTime')) {
+      final value = snapshot['completedDateTime'];
+      normalized['completed'] = providerDateTimeAsUtcInstant(
+        _dateTimePart(value),
+        value is Map ? value['timeZone']?.toString() : null,
+      )?.toIso8601String();
+    }
     if (!normalized.containsKey('microsoftIsReminderOn') &&
         snapshot.containsKey('isReminderOn')) {
       normalized['microsoftIsReminderOn'] = snapshot['isReminderOn'];

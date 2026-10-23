@@ -217,12 +217,7 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
           .patchTask(
             task.sourceId,
             task.id,
-            TaskPatchInput({
-              'status': completed ? 'completed' : 'needsAction',
-              'completed': completed
-                  ? DateTime.now().toUtc().toIso8601String()
-                  : null,
-            }),
+            TaskPatchInput.completion(completed),
           );
       if (mounted) _reload();
     } on Object catch (_) {
@@ -583,6 +578,7 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
                             ),
                             subtitle: Text(
                               [
+                                if (task.cancelled) l10n.taskStatusCancelled,
                                 due,
                                 ?task.accountEmail ?? task.accountDisplayName,
                                 ?task.sourceName,

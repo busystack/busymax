@@ -1000,6 +1000,11 @@ DavMutationPatch? buildDavTaskUpdatePatch({
   }
   if (_containsTaskTemporal(fields, prefix: 'Due')) {
     final due = _taskTemporal(fields, prefix: 'Due');
+    if (due != null) {
+      // An explicit deadline replaces duration-based task timing (RFC 5545
+      // section 3.6.2); unrelated edits retain the authored DURATION.
+      operations.add(DavPatchOperation.setRaw('DURATION', null));
+    }
     operations.add(
       DavPatchOperation.setRaw(
         'DUE',

@@ -695,7 +695,11 @@ List<Widget> _taskDetails(
   return [
     _ScheduleDetailRow(
       icon: item.completed ? YaruIcons.checkmark : Icons.radio_button_unchecked,
-      text: item.completed ? context.l10n.completed : context.l10n.openStatus,
+      text: item.cancelled
+          ? context.l10n.taskStatusCancelled
+          : item.completed
+          ? context.l10n.completed
+          : context.l10n.openStatus,
     ),
     if (item.reminder != null)
       _ScheduleDetailRow(

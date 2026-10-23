@@ -3769,4 +3769,38 @@ class AppLocalizationsEt extends AppLocalizations {
   @override
   String get notificationItemUnavailable =>
       'See meeldetuletus pole enam saadaval. Üksust võidi muuta või eemaldada.';
+
+  @override
+  String clearCompletedGoogleConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return 'Kas tühjendada lõpetatud ülesanded loendist „$list” ($account)?\n\nGoogle Tasks eemaldab või peidab lõpetatud üksused. Praegu lõpetatud: $count.';
+  }
+
+  @override
+  String clearCompletedNextcloudConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return 'Kas kustutada $count suletud juurülesannete puud loendist „$list” ($account)?\n\nKustutatakse ka nende alamülesanded.';
+  }
+
+  @override
+  String get taskMoveAfterSaveFailed =>
+      'Muudatused salvestati, kuid ülesannet ei saanud teisaldada. Proovi teisaldamist uuesti.';
+
+  @override
+  String get taskDraftConflict =>
+      'Ülesanne on pärast avamist muutunud. Sinu muudatused säilitatakse. Vaata praegune ülesanne enne uuesti proovimist üle.';
+
+  @override
+  String get taskUnavailableDraftRetained =>
+      'Ülesanne pole saadaval. Sinu salvestamata muudatused säilitatakse.';
+
+  @override
+  String get taskDurationRequiresStart =>
+      'Määra tähtaeg enne kestusega ülesande alguse eemaldamist.';
 }

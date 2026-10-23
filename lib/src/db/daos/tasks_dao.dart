@@ -124,8 +124,39 @@ class TasksDao extends DatabaseAccessor<AppDatabase> with _$TasksDaoMixin {
     return query.get();
   }
 
-  Future<void> upsertTask(TasksCompanion row) {
-    return into(tasks).insertOnConflictUpdate(row);
+  Future<void> upsertTask(TasksCompanion row) async {
+    // Provider refreshes replace metadata but cannot retire identities that
+    // still belong to active editors and durable Android recovery records.
+    final existing =
+        await (select(tasks)..where(
+              (task) =>
+                  task.accountId.equals(row.accountId.value) &
+                  task.taskListId.equals(row.taskListId.value) &
+                  task.id.equals(row.id.value),
+            ))
+            .getSingleOrNull();
+    final source = existing?.providerMetadataJson;
+    if (source != null) {
+      final previous = jsonDecode(source);
+      final aliases = previous is Map
+          ? previous['_busymaxTaskIdAliases']
+          : null;
+      if (aliases is List && aliases.isNotEmpty) {
+        final raw = row.providerMetadataJson.present
+            ? row.providerMetadataJson.value
+            : source;
+        final next = raw == null
+            ? <String, Object?>{}
+            : (jsonDecode(raw) as Map).cast<String, Object?>();
+        final nextAliases = next['_busymaxTaskIdAliases'];
+        next['_busymaxTaskIdAliases'] = {
+          ...aliases.whereType<String>(),
+          if (nextAliases is List) ...nextAliases.whereType<String>(),
+        }.toList();
+        row = row.copyWith(providerMetadataJson: Value(jsonEncode(next)));
+      }
+    }
+    await into(tasks).insertOnConflictUpdate(row);
   }
 
   Future<List<Task>> dirtyTasks(String accountId) {

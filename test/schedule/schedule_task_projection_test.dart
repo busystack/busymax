@@ -14,6 +14,7 @@ import 'package:busymax/src/schedule/schedule_item.dart';
 import 'package:busymax/src/schedule/schedule_projection.dart';
 import 'package:busymax/src/schedule/schedule_range.dart';
 import 'package:busymax/src/schedule/schedule_repository.dart';
+import 'package:busymax/src/schedule/schedule_search_match.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -89,6 +90,100 @@ void main() {
       final dto = await adapter.getTask(taskListId: list, taskId: id);
       await database.tasksDao.upsertTask(taskFromDto(account, list, dto, ''));
     }
+
+    test('F17 task workspace retains acknowledged sibling order', () async {
+      await task(id: 'alpha');
+      await task(id: 'zulu');
+      await (database.update(
+        database.tasks,
+      )..where((t) => t.id.equals('alpha'))).write(
+        const TasksCompanion(title: Value('Alpha'), position: Value('0002')),
+      );
+      await (database.update(
+        database.tasks,
+      )..where((t) => t.id.equals('zulu'))).write(
+        const TasksCompanion(title: Value('Zulu'), position: Value('0001')),
+      );
+      final rows = await ScheduleRepository(database).listAllTasks();
+      expect(rows.map((t) => t.title), ['Zulu', 'Alpha']);
+    });
+
+    test(
+      'F18 overdue eligibility uses deadline while placement uses start',
+      () async {
+        await task(
+          id: 'future-deadline',
+          start: '2026-07-01',
+          due: '2026-07-09',
+        );
+        await task(id: 'start-only', start: '2026-07-01');
+        await task(id: 'expired', start: '2026-07-01', due: '2026-07-01');
+        final repository = ScheduleRepository(database);
+        final before = DateTime(2026, 7, 2);
+        final page = await repository.listOverdueTasks(
+          before: before,
+          limit: 1,
+        );
+        expect(page.items.map((t) => t.id), ['expired']);
+        expect(page.hasMore, isFalse);
+        final all = await repository.listAllTasks();
+        expect(
+          all.firstWhere((t) => t.id == 'future-deadline').start,
+          DateTime(2026, 7, 1),
+        );
+        final filters = ScheduleFilters(
+          ignoreDateRange: true,
+          taskDueState: ScheduleTaskDueState.overdue,
+          referenceDate: before,
+        );
+        expect(
+          all
+              .where(
+                (t) => matchesScheduleFilters(
+                  t,
+                  filters,
+                  range: ScheduleRange.day(before),
+                ),
+              )
+              .map((t) => t.id),
+          ['expired'],
+        );
+      },
+    );
+
+    test(
+      'F19 cancelled remains in All but is absent from Open and overdue',
+      () async {
+        await task(id: 'cancelled', due: '2026-07-01');
+        await (database.update(
+          database.tasks,
+        )..where((t) => t.id.equals('cancelled'))).write(
+          const TasksCompanion(
+            status: Value('cancelled'),
+            providerStatus: Value('CANCELLED'),
+          ),
+        );
+        final repository = ScheduleRepository(database);
+        final open = await repository.listAllTasks(
+          filters: const ScheduleFilters(
+            taskCompletion: ScheduleTaskCompletion.open,
+            showNoDateTasks: true,
+          ),
+        );
+        expect(open, isEmpty);
+        final all = await repository.listAllTasks();
+        expect(all.single.completed, isFalse);
+        expect(
+          matchesTaskCompletion(all.single, ScheduleTaskCompletion.completed),
+          isFalse,
+        );
+        final overdue = await repository.listOverdueTasks(
+          before: DateTime(2026, 7, 2),
+          limit: 10,
+        );
+        expect(overdue.items, isEmpty);
+      },
+    );
 
     test('unfiltered All Tasks hides a pending-deleted populated list with account isolation', () async {
       await task();

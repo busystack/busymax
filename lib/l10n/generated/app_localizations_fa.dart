@@ -3817,4 +3817,46 @@ class AppLocalizationsFa extends AppLocalizations {
   @override
   String get notificationItemUnavailable =>
       'این یادآوری دیگر در دسترس نیست. ممکن است مورد تغییر کرده یا حذف شده باشد.';
+
+  @override
+  String clearCompletedGoogleConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'کارهای تکمیل‌شده در «⁨$list⁩» (⁨$account⁩) پاک شوند؟\n\nGoogle Tasks موارد تکمیل‌شده را پاک یا پنهان می‌کند. تعداد تکمیل‌شدهٔ فعلی: ⁨$countString⁩.';
+  }
+
+  @override
+  String clearCompletedNextcloudConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return '⁨$countString⁩ درخت کار ریشه‌ای بسته‌شده از «⁨$list⁩» (⁨$account⁩) حذف شوند؟\n\nزیرکارهای آن‌ها نیز حذف خواهند شد.';
+  }
+
+  @override
+  String get taskMoveAfterSaveFailed =>
+      'ویرایش‌ها ذخیره شدند، اما جابه‌جایی کار انجام نشد. جابه‌جایی را دوباره امتحان کنید.';
+
+  @override
+  String get taskDraftConflict =>
+      'این کار از زمان بازشدن تغییر کرده است. ویرایش‌های شما حفظ شده‌اند. پیش از تلاش دوباره، کار فعلی را بررسی کنید.';
+
+  @override
+  String get taskUnavailableDraftRetained =>
+      'این کار در دسترس نیست. تغییرات ذخیره‌نشدهٔ شما حفظ شده‌اند.';
+
+  @override
+  String get taskDurationRequiresStart =>
+      'پیش از حذف زمان آغاز کار دارای مدت، یک مهلت تعیین کنید.';
 }

@@ -3829,4 +3829,38 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get notificationItemUnavailable =>
       'Это напоминание больше недоступно. Возможно, элемент был изменён или удалён.';
+
+  @override
+  String clearCompletedGoogleConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return 'Очистить завершённые задачи в «$list» ($account)?\n\nGoogle Tasks очистит или скроет завершённые элементы. Сейчас завершено: $count.';
+  }
+
+  @override
+  String clearCompletedNextcloudConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return 'Удалить $count деревьев закрытых корневых задач из «$list» ($account)?\n\nИх подзадачи также будут удалены.';
+  }
+
+  @override
+  String get taskMoveAfterSaveFailed =>
+      'Изменения сохранены, но задачу не удалось переместить. Повторите перемещение.';
+
+  @override
+  String get taskDraftConflict =>
+      'Эта задача изменилась после открытия. Ваши изменения сохранены. Проверьте актуальную задачу перед повторной попыткой.';
+
+  @override
+  String get taskUnavailableDraftRetained =>
+      'Эта задача недоступна. Ваши несохранённые изменения сохранены.';
+
+  @override
+  String get taskDurationRequiresStart =>
+      'Укажите срок выполнения перед удалением начала задачи с длительностью.';
 }

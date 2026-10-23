@@ -2672,9 +2672,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     if (draft == null) {
       return;
     }
-    final taskId = await ref
-        .read(tasksRepositoryForAccountProvider(draft.accountId))
-        .createTask(draft.taskListId, draft.input);
+    final taskId = draft.committedTaskId!;
     unawaited(
       ref
           .read(appSettingsControllerProvider.notifier)
@@ -2718,10 +2716,6 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   }
 
   Future<void> _setTaskCompleted(TaskScheduleItem item, bool completed) async {
-    final fields = <String, Object?>{
-      'status': completed ? 'completed' : 'needsAction',
-      'completed': completed ? DateTime.now().toUtc().toIso8601String() : null,
-    };
     final intent = TaskListMutationIntent(
       presentation: TaskListMutationPresentation.completion,
       accountId: item.accountId,
@@ -2734,12 +2728,20 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     try {
       await ref
           .read(tasksRepositoryForAccountProvider(item.accountId))
-          .patchTask(item.sourceId, item.id, TaskPatchInput(fields));
+          .patchTask(
+            item.sourceId,
+            item.id,
+            TaskPatchInput.completion(completed),
+          );
     } on Object {
-      if (mounted && _taskListMutationIntent?.generation == intent.generation) {
-        setState(() => _taskListMutationIntent = null);
+      if (mounted) {
+        if (_taskListMutationIntent?.generation == intent.generation) {
+          setState(() => _taskListMutationIntent = null);
+        }
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(context.l10n.operationFailed)));
       }
-      rethrow;
     }
   }
 

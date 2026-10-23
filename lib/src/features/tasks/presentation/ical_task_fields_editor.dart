@@ -18,6 +18,7 @@ import '../../recurrence/presentation/recurrence_editor.dart';
 import '../domain/task_capabilities.dart';
 import 'desktop_date_time_fields.dart';
 import 'task_details_draft.dart';
+import 'task_recurrence.dart';
 import '../../maps/application/external_location_launcher.dart';
 import '../../maps/application/location_destination_resolver.dart';
 import '../../maps/domain/geographic_point.dart';
@@ -510,6 +511,7 @@ class _IcalTaskFieldsEditorState extends ConsumerState<IcalTaskFieldsEditor> {
   }
 
   void _setStatus(String? status) {
+    if (!widget.enabled) return;
     final draft = widget.draft;
     final now = DateTime.now();
     final next = switch (status) {
@@ -544,6 +546,7 @@ class _IcalTaskFieldsEditorState extends ConsumerState<IcalTaskFieldsEditor> {
   }
 
   void _setProgress(int percent) {
+    if (!widget.enabled) return;
     final draft = widget.draft;
     final now = DateTime.now();
     widget.onChanged(switch (percent) {
@@ -569,6 +572,7 @@ class _IcalTaskFieldsEditorState extends ConsumerState<IcalTaskFieldsEditor> {
   }
 
   void _setCompletionDate(String? value) {
+    if (!widget.enabled) return;
     final draft = widget.draft;
     if (value == null) {
       widget.onChanged(
@@ -596,24 +600,27 @@ class _IcalTaskFieldsEditorState extends ConsumerState<IcalTaskFieldsEditor> {
   }
 
   Future<void> _addReminder() async {
+    if (!widget.enabled) return;
     final alarm = await _showReminderDialog(context, initial: null);
-    if (alarm == null || !mounted) return;
+    if (alarm == null || !mounted || !widget.enabled) return;
     widget.onChanged(
       widget.draft.copyWith(alarms: [...widget.draft.alarms, alarm]),
     );
   }
 
   Future<void> _editReminder(int index) async {
+    if (!widget.enabled) return;
     final current = widget.draft.alarms[index];
     if (!_canEditReminder(current)) return;
     final alarm = await _showReminderDialog(context, initial: current);
-    if (alarm == null || !mounted) return;
+    if (alarm == null || !mounted || !widget.enabled) return;
     final alarms = [...widget.draft.alarms];
     alarms[index] = alarm;
     widget.onChanged(widget.draft.copyWith(alarms: alarms));
   }
 
   void _removeReminder(int index) {
+    if (!widget.enabled) return;
     widget.onChanged(
       widget.draft.copyWith(
         alarms: [
@@ -652,29 +659,27 @@ class _IcalTaskFieldsEditorState extends ConsumerState<IcalTaskFieldsEditor> {
   }
 
   Future<void> _editRecurrence() async {
+    if (!widget.enabled) return;
+    final reference = _recurrenceReference;
     final initial = RecurrenceRule.fromJson(
       widget.draft.recurrenceJson,
       baseDate: _recurrenceBaseDate,
     );
     if (!initial.isSupported) return;
-    final baseDate = _recurrenceBaseDate ?? DateTime.now();
-    final allDay =
-        widget.draft.microsoftDueTime == null &&
-        widget.draft.microsoftStartTime == null;
+    final baseDate = reference?.dateTime ?? DateTime.now();
+    final allDay = reference?.allDay ?? true;
     final result = await showRecurrenceEditorDialog(
       context,
       initial: initial,
       allDay: allDay,
-      floating:
-          !allDay &&
-          (widget.draft.microsoftStartTimeZone?.trim().isEmpty ?? true),
+      floating: reference?.floating ?? false,
       baseDate: baseDate,
       minimumDate: baseDate,
-      timeZone: widget.draft.microsoftStartTimeZone,
+      timeZone: reference?.timeZone,
       useNativeDatePicker: widget.useNativeDatePicker,
       barrierColor: widget.dialogBarrierColor,
     );
-    if (result == null || !mounted) return;
+    if (result == null || !mounted || !widget.enabled) return;
     widget.onChanged(
       widget.draft.copyWith(recurrenceJson: result.toJsonString()),
     );
@@ -735,12 +740,16 @@ class _IcalTaskFieldsEditorState extends ConsumerState<IcalTaskFieldsEditor> {
   String _recurrenceSummary(RecurrenceRule recurrence) => recurrenceRuleSummary(
     context,
     recurrence,
-    timeZone: widget.draft.microsoftStartTimeZone,
+    timeZone: _recurrenceReference?.timeZone,
   );
 
-  DateTime? get _recurrenceBaseDate => DateTime.tryParse(
-    widget.draft.microsoftStartDate ?? widget.draft.dueDate ?? '',
-  );
+  DateTime? get _recurrenceBaseDate => _recurrenceReference?.dateTime;
+
+  TaskRecurrenceReference? get _recurrenceReference =>
+      taskDraftRecurrenceReference(
+        widget.draft,
+        localTimeZone: ref.read(localTimeZoneProvider),
+      );
 }
 
 class _TaskValueSliderRow extends StatelessWidget {

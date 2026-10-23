@@ -1414,5 +1414,11 @@
   "notificationInexactAlarms": "Der Zugriff auf genaue Alarme ist nicht verfügbar. Android kann Erinnerungen später zustellen.",
   "dailySummaryScope": "Alle Konten",
   "notificationsSystemBlocked": "Die Benachrichtigungseinstellungen des Systems blockieren BusyMax. Deine Erinnerungen sind gespeichert.",
-  "notificationItemUnavailable": "Diese Erinnerung ist nicht mehr verfügbar. Der Eintrag wurde möglicherweise geändert oder entfernt."
+  "notificationItemUnavailable": "Diese Erinnerung ist nicht mehr verfügbar. Der Eintrag wurde möglicherweise geändert oder entfernt.",
+  "clearCompletedGoogleConfirmation": "Erledigte Aufgaben in „{list}“ ({account}) entfernen?\n\nGoogle Tasks entfernt erledigte Einträge oder blendet sie aus. Derzeit erledigt: {count}.",
+  "clearCompletedNextcloudConfirmation": "{count} geschlossene Aufgabenbäume der obersten Ebene aus „{list}“ ({account}) löschen?\n\nIhre Unteraufgaben werden ebenfalls gelöscht.",
+  "taskMoveAfterSaveFailed": "Deine Änderungen wurden gespeichert, aber die Aufgabe konnte nicht verschoben werden. Versuche das Verschieben erneut.",
+  "taskDraftConflict": "Diese Aufgabe wurde seit dem Öffnen geändert. Deine Änderungen bleiben erhalten. Prüfe die aktuelle Aufgabe vor einem erneuten Versuch.",
+  "taskUnavailableDraftRetained": "Diese Aufgabe ist nicht verfügbar. Deine ungespeicherten Änderungen bleiben erhalten.",
+  "taskDurationRequiresStart": "Lege ein Fälligkeitsdatum fest, bevor du den Beginn einer Aufgabe mit Dauer entfernst."
 }

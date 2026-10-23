@@ -2032,5 +2032,11 @@
   "notificationInexactAlarms": "Dostęp do dokładnych alarmów jest niedostępny. Android może dostarczać przypomnienia później.",
   "dailySummaryScope": "Wszystkie konta",
   "notificationsSystemBlocked": "Systemowe ustawienia powiadomień blokują BusyMax. Przypomnienia zostały zapisane.",
-  "notificationItemUnavailable": "To przypomnienie nie jest już dostępne. Element mógł zostać zmieniony lub usunięty."
+  "notificationItemUnavailable": "To przypomnienie nie jest już dostępne. Element mógł zostać zmieniony lub usunięty.",
+  "clearCompletedGoogleConfirmation": "Wyczyścić ukończone zadania z „{list}” ({account})?\n\nGoogle Tasks wyczyści lub ukryje ukończone elementy. Obecnie ukończone: {count}.",
+  "clearCompletedNextcloudConfirmation": "Usunąć {count} drzew zamkniętych zadań głównych z „{list}” ({account})?\n\nIch podzadania również zostaną usunięte.",
+  "taskMoveAfterSaveFailed": "Zmiany zostały zapisane, ale nie udało się przenieść zadania. Ponów przenoszenie.",
+  "taskDraftConflict": "To zadanie zmieniło się od jego otwarcia. Twoje zmiany zostały zachowane. Sprawdź aktualne zadanie przed ponowieniem.",
+  "taskUnavailableDraftRetained": "To zadanie jest niedostępne. Niezapisane zmiany zostały zachowane.",
+  "taskDurationRequiresStart": "Ustaw termin przed usunięciem początku zadania z określonym czasem trwania."
 }

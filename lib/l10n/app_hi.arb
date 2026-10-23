@@ -1351,5 +1351,11 @@
   "notificationInexactAlarms": "सटीक अलार्म की अनुमति उपलब्ध नहीं है। Android रिमाइंडर देर से दिखा सकता है।",
   "dailySummaryScope": "सभी खाते",
   "notificationsSystemBlocked": "सिस्टम की सूचना सेटिंग BusyMax को रोक रही है। आपके रिमाइंडर सहेजे गए हैं।",
-  "notificationItemUnavailable": "यह रिमाइंडर अब उपलब्ध नहीं है। हो सकता है आइटम बदला गया हो या हटा दिया गया हो।"
+  "notificationItemUnavailable": "यह रिमाइंडर अब उपलब्ध नहीं है। हो सकता है आइटम बदला गया हो या हटा दिया गया हो।",
+  "clearCompletedGoogleConfirmation": "“{list}” ({account}) में पूरे किए गए कार्य साफ़ करें?\n\nGoogle Tasks पूरे किए गए आइटम साफ़ करेगा या छिपाएगा। अभी पूरे किए गए: {count}।",
+  "clearCompletedNextcloudConfirmation": "“{list}” ({account}) से {count} बंद मूल कार्य ट्री मिटाएँ?\n\nउनके उपकार्य भी मिटा दिए जाएँगे।",
+  "taskMoveAfterSaveFailed": "आपके बदलाव सहेज लिए गए, लेकिन कार्य को स्थानांतरित नहीं किया जा सका। फिर से स्थानांतरित करें।",
+  "taskDraftConflict": "यह कार्य खोलने के बाद बदल गया है। आपके बदलाव सुरक्षित हैं। फिर कोशिश करने से पहले नवीनतम कार्य की समीक्षा करें।",
+  "taskUnavailableDraftRetained": "यह कार्य उपलब्ध नहीं है। आपके बिना सहेजे बदलाव सुरक्षित हैं।",
+  "taskDurationRequiresStart": "अवधि वाले कार्य की शुरुआत हटाने से पहले समय-सीमा निर्धारित करें।"
 }

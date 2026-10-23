@@ -189,6 +189,9 @@ class TaskScheduleItem implements ScheduleItem {
     required this.sourceId,
     required this.title,
     required this.completed,
+    this.status,
+    this.position,
+    this.sortOrder,
     required this.allDay,
     this.start,
     this.due,
@@ -229,6 +232,11 @@ class TaskScheduleItem implements ScheduleItem {
   @override
   final bool allDay;
   final bool completed;
+  final String? status;
+  final String? position;
+  final int? sortOrder;
+  bool get cancelled => status?.toLowerCase() == 'cancelled';
+  bool get actionable => !completed && !cancelled;
   final bool isAssigned;
   final String? originalTaskUrl;
   final List<TaskSourceLink> sourceLinks;

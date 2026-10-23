@@ -3811,6 +3811,40 @@ class AppLocalizationsPt extends AppLocalizations {
   @override
   String get notificationItemUnavailable =>
       'This reminder is no longer available. The item may have changed or been removed.';
+
+  @override
+  String clearCompletedGoogleConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return 'Clear completed tasks in “$list” ($account)?\n\nGoogle Tasks will clear or hide completed items. Currently completed: $count.';
+  }
+
+  @override
+  String clearCompletedNextcloudConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return 'Delete $count closed root task trees from “$list” ($account)?\n\nTheir descendants will also be deleted.';
+  }
+
+  @override
+  String get taskMoveAfterSaveFailed =>
+      'Your edits were saved, but the task could not be moved. Retry the move.';
+
+  @override
+  String get taskDraftConflict =>
+      'This task changed since you opened it. Your edits are retained. Review the latest task before retrying.';
+
+  @override
+  String get taskUnavailableDraftRetained =>
+      'This task is unavailable. Your unsaved changes are retained.';
+
+  @override
+  String get taskDurationRequiresStart =>
+      'Set a deadline before removing the start of a task with a duration.';
 }
 
 /// The translations for Portuguese, as used in Portugal (`pt_PT`).
@@ -7624,4 +7658,38 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
   @override
   String get notificationItemUnavailable =>
       'Este lembrete já não está disponível. O item pode ter sido alterado ou removido.';
+
+  @override
+  String clearCompletedGoogleConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return 'Limpar as tarefas concluídas em «$list» ($account)?\n\nO Google Tasks limpará ou ocultará os itens concluídos. Atualmente concluídos: $count.';
+  }
+
+  @override
+  String clearCompletedNextcloudConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return 'Eliminar $count árvores de tarefas principais fechadas de «$list» ($account)?\n\nAs respetivas subtarefas também serão eliminadas.';
+  }
+
+  @override
+  String get taskMoveAfterSaveFailed =>
+      'As alterações foram guardadas, mas não foi possível mover a tarefa. Tente movê-la novamente.';
+
+  @override
+  String get taskDraftConflict =>
+      'Esta tarefa mudou desde que foi aberta. As alterações foram preservadas. Reveja a tarefa atual antes de tentar novamente.';
+
+  @override
+  String get taskUnavailableDraftRetained =>
+      'Esta tarefa está indisponível. As alterações não guardadas foram preservadas.';
+
+  @override
+  String get taskDurationRequiresStart =>
+      'Defina um prazo antes de remover o início de uma tarefa com duração.';
 }

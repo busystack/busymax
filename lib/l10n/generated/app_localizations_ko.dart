@@ -3696,4 +3696,37 @@ class AppLocalizationsKo extends AppLocalizations {
   @override
   String get notificationItemUnavailable =>
       '이 알림은 더 이상 사용할 수 없습니다. 항목이 변경되었거나 삭제되었을 수 있습니다.';
+
+  @override
+  String clearCompletedGoogleConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return '“$list”($account)의 완료된 작업을 지우시겠습니까?\n\nGoogle Tasks에서 완료된 항목을 지우거나 숨깁니다. 현재 완료된 항목: $count개.';
+  }
+
+  @override
+  String clearCompletedNextcloudConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return '“$list”($account)에서 닫힌 최상위 작업 트리 $count개를 삭제하시겠습니까?\n\n하위 작업도 모두 삭제됩니다.';
+  }
+
+  @override
+  String get taskMoveAfterSaveFailed =>
+      '편집 내용은 저장되었지만 작업을 이동하지 못했습니다. 이동을 다시 시도하세요.';
+
+  @override
+  String get taskDraftConflict =>
+      '이 작업은 연 후 변경되었습니다. 편집 내용은 유지됩니다. 최신 작업을 검토한 후 다시 시도하세요.';
+
+  @override
+  String get taskUnavailableDraftRetained =>
+      '이 작업을 사용할 수 없습니다. 저장하지 않은 변경 내용은 유지됩니다.';
+
+  @override
+  String get taskDurationRequiresStart => '기간이 있는 작업의 시작을 제거하기 전에 마감일을 설정하세요.';
 }

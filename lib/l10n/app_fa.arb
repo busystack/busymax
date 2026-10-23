@@ -1425,5 +1425,13 @@
   "notificationInexactAlarms": "دسترسی به زنگ‌های دقیق موجود نیست. ممکن است Android یادآوری‌ها را دیرتر نمایش دهد.",
   "dailySummaryScope": "همهٔ حساب‌ها",
   "notificationsSystemBlocked": "تنظیمات اعلان سیستم BusyMax را مسدود کرده است. یادآوری‌های شما ذخیره شده‌اند.",
-  "notificationItemUnavailable": "این یادآوری دیگر در دسترس نیست. ممکن است مورد تغییر کرده یا حذف شده باشد."
+  "notificationItemUnavailable": "این یادآوری دیگر در دسترس نیست. ممکن است مورد تغییر کرده یا حذف شده باشد.",
+  "clearCompletedGoogleConfirmation": "کارهای تکمیل‌شده در «⁨{list}⁩» (⁨{account}⁩) پاک شوند؟\n\nGoogle Tasks موارد تکمیل‌شده را پاک یا پنهان می‌کند. تعداد تکمیل‌شدهٔ فعلی: ⁨{count}⁩.",
+  "@clearCompletedGoogleConfirmation": {"placeholders": {"count": {"type": "int", "format": "decimalPattern"}}},
+  "clearCompletedNextcloudConfirmation": "⁨{count}⁩ درخت کار ریشه‌ای بسته‌شده از «⁨{list}⁩» (⁨{account}⁩) حذف شوند؟\n\nزیرکارهای آن‌ها نیز حذف خواهند شد.",
+  "@clearCompletedNextcloudConfirmation": {"placeholders": {"count": {"type": "int", "format": "decimalPattern"}}},
+  "taskMoveAfterSaveFailed": "ویرایش‌ها ذخیره شدند، اما جابه‌جایی کار انجام نشد. جابه‌جایی را دوباره امتحان کنید.",
+  "taskDraftConflict": "این کار از زمان بازشدن تغییر کرده است. ویرایش‌های شما حفظ شده‌اند. پیش از تلاش دوباره، کار فعلی را بررسی کنید.",
+  "taskUnavailableDraftRetained": "این کار در دسترس نیست. تغییرات ذخیره‌نشدهٔ شما حفظ شده‌اند.",
+  "taskDurationRequiresStart": "پیش از حذف زمان آغاز کار دارای مدت، یک مهلت تعیین کنید."
 }

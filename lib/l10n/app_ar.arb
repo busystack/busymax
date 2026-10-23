@@ -1351,5 +1351,11 @@
   "notificationInexactAlarms": "الوصول إلى المنبهات الدقيقة غير متاح. قد يعرض Android التذكيرات لاحقًا.",
   "dailySummaryScope": "كل الحسابات",
   "notificationsSystemBlocked": "تحظر إعدادات إشعارات النظام BusyMax. تم حفظ تذكيراتك.",
-  "notificationItemUnavailable": "لم يعد هذا التذكير متاحًا. ربما تم تغيير العنصر أو إزالته."
+  "notificationItemUnavailable": "لم يعد هذا التذكير متاحًا. ربما تم تغيير العنصر أو إزالته.",
+  "clearCompletedGoogleConfirmation": "هل تريد مسح المهام المكتملة في «⁨{list}⁩» (⁨{account}⁩)؟\n\nسيقوم Google Tasks بمسح العناصر المكتملة أو إخفائها. المكتملة حاليًا: ⁨{count}⁩.",
+  "clearCompletedNextcloudConfirmation": "هل تريد حذف ⁨{count}⁩ من أشجار المهام الجذرية المغلقة من «⁨{list}⁩» (⁨{account}⁩)؟\n\nستُحذف المهام الفرعية أيضًا.",
+  "taskMoveAfterSaveFailed": "حُفظت تعديلاتك، لكن تعذّر نقل المهمة. أعد محاولة النقل.",
+  "taskDraftConflict": "تغيّرت هذه المهمة منذ فتحها. تم الاحتفاظ بتعديلاتك. راجع المهمة الحالية قبل المحاولة مجددًا.",
+  "taskUnavailableDraftRetained": "هذه المهمة غير متاحة. تم الاحتفاظ بالتغييرات غير المحفوظة.",
+  "taskDurationRequiresStart": "حدّد موعدًا نهائيًا قبل إزالة بداية مهمة لها مدة."
 }
