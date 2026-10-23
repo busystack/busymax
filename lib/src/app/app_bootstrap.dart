@@ -91,6 +91,7 @@ import '../microsoft_todo/api/microsoft_todo_task_remote_client.dart';
 import '../microsoft_todo/oauth/microsoft_oauth_service.dart';
 import '../platform/common/desktop_services.dart';
 import '../schedule/schedule_commands.dart';
+import '../schedule/schedule_filters.dart';
 import '../schedule/schedule_repository.dart';
 import '../schedule/schedule_sidebar_order.dart';
 import '../webcal/webcal_http_client.dart';
@@ -1125,14 +1126,33 @@ final syncEngineForAccountFactoryProvider =
           apiClient: apiClient,
           accountId: accountId,
           fullRefreshOnly: provider == BusyProvider.microsoft,
-          onTaskListIdReplaced: (oldId, newId) => ref
-              .read(appSettingsControllerProvider.notifier)
-              .replaceSidebarId(
-                SidebarOrderSection.taskLists,
-                oldId,
-                newId,
-                accountId: accountId,
-              ),
+          onTaskListIdReplaced: (oldId, newId) async {
+            final oldKey = ScheduleTaskListKey(
+              accountId: accountId,
+              taskListId: oldId,
+            );
+            final newKey = ScheduleTaskListKey(
+              accountId: accountId,
+              taskListId: newId,
+            );
+            final replacements = ref.read(
+              taskListIdReplacementsProvider.notifier,
+            );
+            replacements.state = Map.unmodifiable({
+              for (final entry in replacements.state.entries)
+                entry.key: entry.value == oldKey ? newKey : entry.value,
+              oldKey: newKey,
+            });
+            ref.invalidate(scheduleTaskListsProvider);
+            await ref
+                .read(appSettingsControllerProvider.notifier)
+                .replaceSidebarId(
+                  SidebarOrderSection.taskLists,
+                  oldId,
+                  newId,
+                  accountId: accountId,
+                );
+          },
           onConflictBlocked: ref
               .read(operationalNotificationReporterProvider)
               .notifyConflict,
@@ -1540,6 +1560,13 @@ final davProjectionCoverageServiceProvider =
       );
     });
 
+/// Committed server identities, kept separate from source deletion. Retaining
+/// aliases also covers filters restored while inventory is being refreshed.
+final taskListIdReplacementsProvider =
+    StateProvider<Map<ScheduleTaskListKey, ScheduleTaskListKey>>(
+      (ref) => const {},
+    );
+
 /// One invalidation source for all presentations, including background sync.
 final scheduleDataRevisionProvider = StreamProvider<int>((ref) async* {
   final changes = ref.watch(scheduleRepositoryProvider).watchChanges();
@@ -1576,7 +1603,7 @@ final scheduleRepositoryProvider = Provider<ScheduleRepository>((ref) {
           sourceIds: filters.sourceIds,
           sourceFilterActive: filters.sourceFilterActive,
         ),
-    ensureProjectionCoverage: (range) async {
+    ensureProjectionCoverage: (range, filters) async {
       final start = range.start.toUtc();
       final end = range.end.toUtc();
       await Future.wait([
@@ -1585,7 +1612,13 @@ final scheduleRepositoryProvider = Provider<ScheduleRepository>((ref) {
             .ensureProjectionCoverage(rangeStartUtc: start, rangeEndUtc: end),
         ref
             .read(davProjectionCoverageServiceProvider)
-            .ensureProjectionCoverage(rangeStartUtc: start, rangeEndUtc: end),
+            .ensureProjectionCoverage(
+              rangeStartUtc: start,
+              rangeEndUtc: end,
+              accountIds: filters.accountIds,
+              sourceIds: filters.sourceIds,
+              sourceFilterActive: filters.sourceFilterActive,
+            ),
       ]);
     },
   );

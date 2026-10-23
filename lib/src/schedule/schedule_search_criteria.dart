@@ -81,6 +81,15 @@ class ScheduleSearchCriteria {
     location: location,
   );
 
+  ScheduleSearchCriteria remapTaskLists(
+    Map<ScheduleTaskListKey, ScheduleTaskListKey> replacements,
+  ) {
+    if (!taskListKeys.any(replacements.containsKey)) return this;
+    return copyWith(
+      taskListKeys: {for (final key in taskListKeys) replacements[key] ?? key},
+    );
+  }
+
   ScheduleSearchCriteria copyWith({
     ScheduleSearchType? type,
     ScheduleSearchDate? date,

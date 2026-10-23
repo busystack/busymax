@@ -34,7 +34,8 @@ export 'schedule_search_match.dart' show matchesScheduleQuery;
 class ScheduleRepository {
   ScheduleRepository(
     this._database, {
-    Future<void> Function(ScheduleRange range)? ensureProjectionCoverage,
+    Future<void> Function(ScheduleRange range, ScheduleFilters filters)?
+    ensureProjectionCoverage,
     Future<bool> Function(ScheduleRange range, ScheduleFilters filters)?
     ensureCloudCoverage,
     DateTime Function()? nowUtc,
@@ -43,7 +44,8 @@ class ScheduleRepository {
        _nowUtc = nowUtc ?? (() => DateTime.now().toUtc());
 
   final AppDatabase _database;
-  final Future<void> Function(ScheduleRange range)? _ensureProjectionCoverage;
+  final Future<void> Function(ScheduleRange range, ScheduleFilters filters)?
+  _ensureProjectionCoverage;
   final Future<bool> Function(ScheduleRange range, ScheduleFilters filters)?
   _ensureCloudCoverage;
   final DateTime Function() _nowUtc;
@@ -222,9 +224,9 @@ class ScheduleRepository {
     required ScheduleRange range,
     ScheduleFilters filters = const ScheduleFilters(),
   }) async {
-    if (filters.includeCalendarEvents && !filters.ignoreDateRange) {
+    if (filters.requiresCalendarCoverage) {
       _requestCloudCoverage(range, filters);
-      await _ensureProjectionCoverage?.call(range);
+      await _ensureProjectionCoverage?.call(range, filters);
     }
     final context = await _accountContext(filters);
     if (context == null) {

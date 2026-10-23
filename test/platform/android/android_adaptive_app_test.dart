@@ -377,7 +377,7 @@ void main() {
           androidScheduleViewMode: ScheduleViewMode.day,
         ),
         populated: true,
-        scheduleProjectionCoverage: (range) async {
+        scheduleProjectionCoverage: (range, _) async {
           initialRangeStart ??= range.start;
           if (range.start != initialRangeStart) await destination.future;
         },
@@ -446,7 +446,12 @@ void main() {
       AppSettings.defaults().copyWith(
         androidScheduleViewMode: ScheduleViewMode.agenda,
       ),
-      scheduleProjectionCoverage: (range) async {
+      seedDatabase: (database) async {
+        await _seedPopulatedSchedule(database);
+        await database.delete(database.calendarEvents).go();
+        await database.delete(database.tasks).go();
+      },
+      scheduleProjectionCoverage: (range, _) async {
         initialRangeStart ??= range.start;
         if (range.start != initialRangeStart) await destination.future;
       },
@@ -6991,7 +6996,8 @@ Future<_AndroidAppHarness> _pumpApp(
   TaskListsRepository Function(AppDatabase database, String accountId)?
   taskListsRepository,
   ScheduleRepository Function(AppDatabase database)? scheduleRepository,
-  Future<void> Function(ScheduleRange range)? scheduleProjectionCoverage,
+  Future<void> Function(ScheduleRange range, ScheduleFilters filters)?
+  scheduleProjectionCoverage,
   TaskCollectionCapabilities? davTaskCapabilities,
 }) async {
   final database = AppDatabase.memoryForTests();

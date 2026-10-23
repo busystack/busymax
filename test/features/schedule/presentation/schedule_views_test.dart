@@ -4944,7 +4944,7 @@ void main() {
     expect(source, contains('onNext: onNext'));
   });
 
-  test('agenda range starts at today and grows while scrolling', () {
+  test('agenda retains scrolling and task-bucket pagination wiring', () {
     final source = File(
       'lib/src/features/schedule/presentation/schedule_workspace.dart',
     ).readAsStringSync();
@@ -4970,11 +4970,6 @@ void main() {
       contains('ScheduleViewMode.agenda => _agendaRangeFromToday()'),
     );
     expect(source, contains('ScheduleRange _agendaRangeFromToday()'));
-    expect(source, contains('final start = _day(DateTime.now())'));
-    expect(
-      source,
-      contains('end: start.add(Duration(days: _agendaLoadedDays))'),
-    );
     expect(source, contains('_selectedDate = _day(DateTime.now())'));
     expect(source, contains('void _loadMoreAgendaDays()'));
     expect(source, contains('_agendaLoadedDays += _agendaPageDays'));

@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:http/http.dart' as http;
 import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/app/busymax_design.dart';
@@ -201,6 +204,94 @@ void main() {
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
     });
+  }
+
+  for (final oldFails in [false, true]) {
+    testWidgets(
+      'Android recipient results ignore superseded responses (old fails: $oldFails)',
+      (tester) async {
+        final fixture = NextcloudAdminFixture();
+        await tester.runAsync(fixture.seed);
+        final oldStarted = Completer<void>();
+        final releaseOld = Completer<void>();
+        addTearDown(() async {
+          if (!releaseOld.isCompleted) releaseOld.complete();
+          await fixture.close();
+        });
+        fixture.principalSearchResponse = (request) async {
+          final old = request.body.contains('Old query');
+          if (old) {
+            if (!oldStarted.isCompleted) oldStarted.complete();
+            await releaseOld.future;
+            if (oldFails) return http.Response('', 503);
+          }
+          final name = old ? 'Old recipient' : 'New recipient';
+          final path =
+              '/remote.php/dav/principals/users/${old ? 'old' : 'new'}/';
+          return fixture.multi(
+            path,
+            '<d:displayname>$name</d:displayname><d:principal-URL><d:href>$path</d:href></d:principal-URL>',
+          );
+        };
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              localSettingsStoreProvider.overrideWithValue(
+                MemorySettingsStore(),
+              ),
+              nextcloudSharingServiceProvider('account')
+                  .overrideWithValue(fixture.sharing),
+            ],
+            child: localizedTestApp(
+              child: const AndroidNextcloudSharingScreen(
+                accountId: 'account',
+                collectionId: 'collection',
+                title: 'Work',
+              ),
+            ),
+          ),
+        );
+        await _settle(tester);
+        final field = find.byWidgetPredicate(
+          (widget) =>
+              widget is TextField &&
+              widget.decoration?.labelText == 'Find people or groups',
+        );
+        await tester.enterText(field, 'Old query');
+        await tester.testTextInput.receiveAction(TextInputAction.done);
+        for (var i = 0; i < 30 && !oldStarted.isCompleted; i++) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 10)),
+          );
+          await tester.pump(const Duration(milliseconds: 20));
+        }
+        expect(oldStarted.isCompleted, isTrue);
+        await tester.enterText(field, 'New query');
+        await tester.testTextInput.receiveAction(TextInputAction.done);
+        await _settle(tester);
+        expect(find.text('New recipient'), findsOneWidget);
+        releaseOld.complete();
+        await _settle(tester);
+        expect(find.text('Old recipient'), findsNothing);
+        expect(find.text('New recipient'), findsOneWidget);
+        expect(find.text('Operation failed'), findsNothing);
+        expect(tester.widget<TextField>(field).controller!.text, 'New query');
+
+        final staleSelection = tester
+            .widget<PopupMenuButton<bool>>(
+              find.byType(PopupMenuButton<bool>).last,
+            )
+            .onSelected!;
+        await tester.enterText(field, 'Edited query');
+        await tester.pump();
+        expect(find.text('New recipient'), findsNothing);
+        staleSelection(false);
+        await _settle(tester);
+        expect(fixture.shares, isEmpty);
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
   }
 
   testWidgets('Android initiates a federated calendar share', (tester) async {

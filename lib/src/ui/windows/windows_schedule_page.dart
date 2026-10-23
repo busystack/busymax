@@ -74,6 +74,7 @@ class WindowsSchedulePage extends ConsumerStatefulWidget {
 class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
   final _searchController = TextEditingController();
   final _searchFocusNode = FocusNode();
+  final _workspaceFocusNode = FocusNode();
   var _selectedDate = DateTime.now();
   var _query = '';
   bool _searchActive = false;
@@ -88,6 +89,8 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
   var _refreshRevision = 0;
   String? _taskListsKey;
   Future<List<TaskListEntity>>? _taskListsFuture;
+  String? _lastTaskListsKey;
+  List<TaskListEntity>? _lastTaskLists;
   Object? _normalItemsKey;
   Future<List<ScheduleItem>>? _normalItemsFuture;
   Object? _searchItemsKey;
@@ -160,6 +163,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     _searchController.dispose();
     _searchFocusNode.removeListener(_searchFocusChanged);
     _searchFocusNode.dispose();
+    _workspaceFocusNode.dispose();
     super.dispose();
   }
 
@@ -244,6 +248,11 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
 
   @override
   Widget build(BuildContext context) {
+    final replacements = ref.watch(taskListIdReplacementsProvider);
+    _searchCriteria = _searchCriteria?.remapTaskLists(replacements);
+    _initialSearchCriteria = _initialSearchCriteria?.remapTaskLists(
+      replacements,
+    );
     final accountsState = ref.watch(accountsStreamProvider);
     _accountInventoryResolved =
         !accountsState.isLoading && !accountsState.hasError;
@@ -285,11 +294,22 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
         return FutureBuilder<List<TaskListEntity>>(
           future: _taskListsFor(accounts),
           builder: (context, listsSnapshot) {
-            if (listsSnapshot.connectionState != ConnectionState.done &&
-                !listsSnapshot.hasData) {
+            final inventoryComplete =
+                listsSnapshot.connectionState == ConnectionState.done;
+            if (inventoryComplete && listsSnapshot.hasData) {
+              _lastTaskListsKey = _taskListsKey;
+              _lastTaskLists = listsSnapshot.data;
+            }
+            final taskLists = _lastTaskListsKey == _taskListsKey
+                ? _lastTaskLists
+                : null;
+            if (taskLists == null && !inventoryComplete) {
               return const ScaffoldPage(content: Center(child: ProgressRing()));
             }
-            final taskLists = listsSnapshot.data ?? const <TaskListEntity>[];
+            if (taskLists == null) {
+              _latestVisibility = null;
+              return ScaffoldPage(content: _scheduleLoadError(context));
+            }
             final settings = ref.watch(appSettingsControllerProvider);
             final visibility = ScheduleSourceVisibility.fromSources(
               calendarSources: sources,
@@ -302,6 +322,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
               sources: sources,
               taskLists: taskLists,
               visibility: visibility,
+              taskListsUnavailable: inventoryComplete && listsSnapshot.hasError,
             );
           },
         );
@@ -315,6 +336,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     required List<CalendarSourceEntity> sources,
     required List<TaskListEntity> taskLists,
     required ScheduleSourceVisibility visibility,
+    bool taskListsUnavailable = false,
   }) {
     _latestVisibility = visibility;
     if (_searchActive && _searchCriteria == null) _initializeSearch();
@@ -523,6 +545,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
                 ),
           },
           child: Focus(
+            focusNode: _workspaceFocusNode,
             autofocus: true,
             child: ScaffoldPage(
               header: PageHeader(
@@ -694,6 +717,15 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
                             ],
                           ),
                         ),
+                        if (taskListsUnavailable)
+                          InfoBar(
+                            title: Text(l10n.scheduleUnavailable),
+                            severity: InfoBarSeverity.error,
+                            action: Button(
+                              onPressed: _reload,
+                              child: Text(l10n.retry),
+                            ),
+                          ),
                         Expanded(
                           child: BusyMaxBinaryPresentation(
                             alternateActive: _searchActive,
@@ -729,30 +761,25 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
       if (snapshot.hasError) {
         return _scheduleLoadError(context);
       }
+      final filters = criteria.filters(query);
+      final searchRange = criteria.range;
+      final coverageComplete =
+          filters.requiresCalendarCoverage && searchRange != null
+          ? ref
+                .read(scheduleRepositoryProvider)
+                .cloudCoverageCompleteFor(searchRange, filters: filters)
+          : true;
       return Column(
         children: [
-          if (criteria.range case final searchRange?)
-            if (ref
-                    .read(scheduleRepositoryProvider)
-                    .cloudCoverageCompleteFor(
-                      searchRange,
-                      filters: criteria.filters(query),
-                    ) !=
-                true)
-              InfoBar(
-                title: Text(
-                  ref
-                              .read(scheduleRepositoryProvider)
-                              .cloudCoverageCompleteFor(
-                                searchRange,
-                                filters: criteria.filters(query),
-                              ) ==
-                          null
-                      ? AppLocalizations.of(context).scheduleLoading
-                      : AppLocalizations.of(context).scheduleRangeIncomplete,
-                ),
-                severity: InfoBarSeverity.info,
+          if (coverageComplete != true)
+            InfoBar(
+              title: Text(
+                coverageComplete == null
+                    ? AppLocalizations.of(context).scheduleLoading
+                    : AppLocalizations.of(context).scheduleRangeIncomplete,
               ),
+              severity: InfoBarSeverity.info,
+            ),
           Expanded(
             child: _AgendaList(
               key: const ValueKey('windows-search-results'),
@@ -1101,7 +1128,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
       firstWeekday: _firstWeekday,
       sourceIds: visibility.visibleCalendarSourceIds,
       taskListKeys: visibility.visibleTaskListKeys,
-    );
+    ).remapTaskLists(ref.read(taskListIdReplacementsProvider));
     _searchCriteria = _initialSearchCriteria;
   }
 
@@ -1166,6 +1193,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     _searchController.clear();
     _query = '';
     _searchFocusNode.unfocus();
+    _workspaceFocusNode.requestFocus();
     _reload();
   }
 

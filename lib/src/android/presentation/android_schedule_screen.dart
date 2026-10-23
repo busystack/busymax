@@ -70,6 +70,11 @@ final _androidScheduleItemsProvider = FutureProvider.autoDispose
       final sources = await ref.watch(calendarSourcesStreamProvider.future);
       final lists = await ref.watch(scheduleTaskListsProvider.future);
       final settings = ref.watch(appSettingsControllerProvider);
+      final visibility = ScheduleSourceVisibility.fromSources(
+        calendarSources: sources,
+        taskLists: lists,
+        settings: settings,
+      );
       return ref
           .watch(scheduleRepositoryProvider)
           .listItems(
@@ -80,21 +85,8 @@ final _androidScheduleItemsProvider = FutureProvider.autoDispose
                 key.search?.filters(key.query) ??
                 ScheduleFilters(
                   query: key.query,
-                  sourceIds: {
-                    for (final source in sources)
-                      if (source.selected) source.id,
-                  },
-                  taskListKeys: {
-                    for (final list in lists)
-                      if (settings.isTaskListVisibleInSchedule(
-                        list.accountId,
-                        list.id,
-                      ))
-                        ScheduleTaskListKey(
-                          accountId: list.accountId,
-                          taskListId: list.id,
-                        ),
-                  },
+                  sourceIds: visibility.visibleCalendarSourceIds,
+                  taskListKeys: visibility.visibleTaskListKeys,
                   sourceFilterActive: true,
                   taskListFilterActive: true,
                   taskCompletion: ScheduleTaskCompletion.all,
@@ -148,6 +140,11 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final replacements = ref.watch(taskListIdReplacementsProvider);
+    _searchCriteria = _searchCriteria?.remapTaskLists(replacements);
+    _initialSearchCriteria = _initialSearchCriteria?.remapTaskLists(
+      replacements,
+    );
     final settings = ref.watch(appSettingsControllerProvider);
     final mode = settings.androidScheduleViewMode ?? ScheduleViewMode.agenda;
     final items = ref.watch(
@@ -170,23 +167,24 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
     final coverageFilters = _searching && searchCriteria != null
         ? searchCriteria.filters(_query)
         : ScheduleFilters(
-            sourceIds: {
-              for (final source
-                  in ref.watch(calendarSourcesStreamProvider).valueOrNull ??
-                      const <CalendarSourceEntity>[])
-                if (source.selected) source.id,
-            },
+            sourceIds: ScheduleSourceVisibility.fromSources(
+              calendarSources:
+                  ref.watch(calendarSourcesStreamProvider).valueOrNull ??
+                  const [],
+              taskLists: const [],
+              settings: settings,
+            ).visibleCalendarSourceIds,
             sourceFilterActive: true,
           );
     final bool? coverageComplete =
-        items.hasValue && searchCriteria?.date != ScheduleSearchDate.any
+        items.hasValue && coverageFilters.requiresCalendarCoverage
         ? ref
               .read(scheduleRepositoryProvider)
               .cloudCoverageCompleteFor(
                 displayedRange,
                 filters: coverageFilters,
               )
-        : null;
+        : true;
     final presentation = _searching && searchCriteria != null
         ? _buildSearchPresentation(
             items: items,
@@ -269,9 +267,7 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
             visible: !_searching,
             child: _navigationRow(context, mode),
           ),
-          if (coverageComplete != true &&
-              items.hasValue &&
-              searchCriteria?.date != ScheduleSearchDate.any)
+          if (coverageComplete != true && items.hasValue)
             Card(
               child: ListTile(
                 leading: Icon(
@@ -411,7 +407,7 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
         firstWeekday: _firstWeekday(context),
         sourceIds: visibility.visibleCalendarSourceIds,
         taskListKeys: visibility.visibleTaskListKeys,
-      );
+      ).remapTaskLists(ref.read(taskListIdReplacementsProvider));
       _searchCriteria = _initialSearchCriteria;
       _searching = true;
     });

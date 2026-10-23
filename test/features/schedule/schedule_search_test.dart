@@ -12,11 +12,187 @@ import 'package:busymax/src/schedule/schedule_filters.dart';
 import 'package:busymax/src/schedule/schedule_range.dart';
 import 'package:busymax/src/schedule/schedule_repository.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
+import 'package:busymax/src/ical/ical_ingestion.dart';
+import 'package:busymax/src/ical/ical_event_projection.dart';
+import 'package:busymax/src/microsoft_calendar/microsoft_calendar_mapper.dart';
 import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  for (final provider in [BusyProvider.appleICloud, BusyProvider.webCal]) {
+    test(
+      '${provider.name} searches projected iCalendar participant identities',
+      () async {
+        final db = AppDatabase.memoryForTests();
+        addTearDown(db.close);
+        await _insertScheduleAccount(db, provider: provider);
+        final calendar = CalendarRepository(database: db);
+        await calendar.upsertSource(
+          accountId: 'account',
+          source: CalendarSourceDto(
+            provider: provider,
+            providerCalendarId: 'calendar',
+            summary: 'Work',
+          ),
+        );
+        final parsed = IcalIngestion.parseString(
+          [
+            'BEGIN:VCALENDAR',
+            'VERSION:2.0',
+            'PRODID:-//BusyMax Test//EN',
+            'BEGIN:VEVENT',
+            'UID:people',
+            'DTSTAMP:20260612T090000Z',
+            'DTSTART:20260612T100000Z',
+            'DTEND:20260612T110000Z',
+            'SUMMARY:Meeting',
+            'ATTENDEE;CN=Alex Smith;PARTSTAT=ACCEPTED:mailto:alex@example.com',
+            'ATTENDEE;CN=Robin Jones:mailto:robin@example.com',
+            'ORGANIZER;CN=Morgan Lee:mailto:morgan@example.com',
+            'END:VEVENT',
+            'END:VCALENDAR',
+            '',
+          ].join('\r\n'),
+          policy: IcalIngestionPolicy.webCal,
+        );
+        final projected = IcalEventProjector()
+            .project(
+              parsed.recurrenceSets.single,
+              rangeStartUtc: DateTime.utc(2026, 6, 12),
+              rangeEndUtc: DateTime.utc(2026, 6, 13),
+              transport: provider.name,
+            )
+            .single;
+        await calendar.upsertEvent(
+          accountId: 'account',
+          event: CalendarEventDto(
+            provider: provider,
+            providerCalendarId: 'calendar',
+            providerEventId: 'people',
+            title: projected.title,
+            startDateTime: projected.startDateTime,
+            endDateTime: projected.endDateTime,
+            attendeesJson: jsonDecode(projected.attendeesJson),
+            organizerJson: jsonDecode(projected.organizerJson!),
+          ),
+        );
+        final repo = ScheduleRepository(db);
+        for (final term in [
+          'Alex Smith',
+          'alex@example.com',
+          'Morgan Lee',
+          'morgan@example.com',
+        ]) {
+          for (final personFilter in [false, true]) {
+            final items = await repo.listItems(
+              range: ScheduleRange.day(DateTime(2026, 6, 12)),
+              filters: ScheduleFilters(
+                ignoreDateRange: true,
+                query: personFilter ? '' : term,
+                person: personFilter ? term : '',
+              ),
+            );
+            expect(
+              items,
+              hasLength(1),
+              reason: '$term (Person: $personFilter)',
+            );
+            expect(
+              scheduleMatchContext(
+                items.single,
+                personFilter ? '' : term,
+                person: personFilter ? term : '',
+              ),
+              personFilter ? contains(term) : isNotEmpty,
+            );
+          }
+        }
+        expect(
+          await repo.listItems(
+            range: ScheduleRange.day(DateTime(2026, 6, 12)),
+            filters: const ScheduleFilters(
+              ignoreDateRange: true,
+              person: 'Alex Jones',
+            ),
+          ),
+          isEmpty,
+        );
+        expect(
+          await repo.listItems(
+            range: ScheduleRange.day(DateTime(2026, 6, 12)),
+            filters: const ScheduleFilters(
+              ignoreDateRange: true,
+              query: 'accepted',
+            ),
+          ),
+          isEmpty,
+        );
+      },
+    );
+  }
+
+  for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
+    test(
+      '${provider.name} search preserves literal notes and normalized HTML',
+      () async {
+        final db = AppDatabase.memoryForTests();
+        addTearDown(db.close);
+        await _insertScheduleAccount(db, provider: provider);
+        if (provider == BusyProvider.google) {
+          await _insertTaskList(db);
+          await db.tasksDao.upsertTask(
+            TasksCompanion.insert(
+              accountId: 'account',
+              taskListId: 'inbox',
+              id: 'literal',
+              title: 'Follow up',
+              notes: const Value('Email <alex@example.com> &amp; keep literal'),
+              rawJson: '{}',
+              createdLocalAtUtc: _now,
+              updatedLocalAtUtc: _now,
+            ),
+          );
+        } else {
+          final calendar = CalendarRepository(database: db);
+          await calendar.upsertSource(
+            accountId: 'account',
+            source: const CalendarSourceDto(
+              provider: BusyProvider.microsoft,
+              providerCalendarId: 'calendar',
+              summary: 'Work',
+            ),
+          );
+          await calendar.upsertEvent(
+            accountId: 'account',
+            event: microsoftCalendarEventFromJson('calendar', {
+              'id': 'literal',
+              'subject': 'Follow up',
+              'start': {'dateTime': '2026-06-12T10:00:00', 'timeZone': 'UTC'},
+              'end': {'dateTime': '2026-06-12T11:00:00', 'timeZone': 'UTC'},
+              'body': {
+                'contentType': 'html',
+                'content': '<p>Email &lt;alex@example.com&gt; &amp;amp; keep literal</p>',
+              },
+            }),
+          );
+        }
+        final matches = await ScheduleRepository(db).listItems(
+          range: ScheduleRange.day(DateTime(2026, 6, 12)),
+          filters: const ScheduleFilters(
+            ignoreDateRange: true,
+            query: 'alex@example.com &amp;',
+          ),
+        );
+        expect(matches, hasLength(1));
+        expect(
+          scheduleMatchContext(matches.single, 'alex@example.com'),
+          'Email <alex@example.com> &amp; keep literal',
+        );
+      },
+    );
+  }
+
   group('shared search criteria', () {
     final today = DateTime(2026, 6, 12);
     final range = ScheduleRange.day(today);
@@ -31,7 +207,9 @@ void main() {
       start: DateTime(2026, 6, 11, 12),
       end: DateTime(2026, 6, 12, 14),
       location: 'Office north',
-      description: '<p>Launch brief</p>',
+      description: 'Launch brief',
+      descriptionContentType: 'html',
+      descriptionHtml: '<p>Launch brief</p>',
       categories: const ['Planning'],
       attendees: const [
         {
@@ -68,6 +246,64 @@ void main() {
     );
     bool matches(ScheduleItem item, ScheduleFilters filters) =>
         matchesScheduleFilters(item, filters, range: range);
+
+    test(
+      'identity remapping preserves other accounts and immutable criteria',
+      () {
+        const temporary = ScheduleTaskListKey(
+          accountId: 'account',
+          taskListId: 'temporary',
+        );
+        const otherAccount = ScheduleTaskListKey(
+          accountId: 'other',
+          taskListId: 'temporary',
+        );
+        const server = ScheduleTaskListKey(
+          accountId: 'account',
+          taskListId: 'server',
+        );
+        final original = ScheduleSearchCriteria(
+          referenceDate: today,
+          firstWeekday: DateTime.monday,
+          type: ScheduleSearchType.tasks,
+          date: ScheduleSearchDate.thisWeek,
+          sourceIds: {'calendar'},
+          taskListKeys: {temporary, otherAccount},
+        );
+        final remapped = original.remapTaskLists({temporary: server});
+        expect(remapped.taskListKeys, {server, otherAccount});
+        expect(remapped.sourceIds, original.sourceIds);
+        expect(remapped.type, original.type);
+        expect(remapped.date, original.date);
+        expect(original.taskListKeys, {temporary, otherAccount});
+        expect(original.remapTaskLists({server: temporary}), same(original));
+      },
+    );
+
+    test(
+      'raw HTML is decoded once while iCalendar descriptions remain literal',
+      () {
+        for (final provider in [BusyProvider.google, BusyProvider.webCal]) {
+          final item = CalendarScheduleItem(
+            id: 'description',
+            accountId: 'account',
+            provider: provider,
+            sourceId: 'calendar',
+            providerCalendarId: 'calendar',
+            title: 'Follow up',
+            allDay: true,
+            description: provider == BusyProvider.google
+                ? '<p>Email &lt;alex@example.com&gt; &amp;amp; retain</p>'
+                : 'Email <alex@example.com> &amp; retain',
+          );
+          expect(matchesScheduleQuery(item, 'alex@example.com &amp;'), isTrue);
+          expect(
+            scheduleMatchContext(item, 'alex@example.com'),
+            'Email <alex@example.com> &amp; retain',
+          );
+        }
+      },
+    );
 
     test('copyWith changes week boundary without losing other filters', () {
       final original = ScheduleSearchCriteria(
@@ -458,7 +694,7 @@ void main() {
         expect(filters.sourceIds, isEmpty);
         return false;
       },
-      ensureProjectionCoverage: (_) async {
+      ensureProjectionCoverage: (_, _) async {
         calls++;
       },
     );
@@ -745,7 +981,7 @@ void main() {
       ScheduleRange? ensuredRange;
       final repository = ScheduleRepository(
         database,
-        ensureProjectionCoverage: (range) async => ensuredRange = range,
+        ensureProjectionCoverage: (range, _) async => ensuredRange = range,
       );
 
       await repository.listItems(
@@ -2174,7 +2410,12 @@ Future<void> _insertScheduleAccount(
               ? 'https://login.microsoftonline.com/common'
               : 'https://accounts.google.com',
           providerAccountId: 'account',
-          credentialKind: 'oauth',
+          credentialKind: switch (provider) {
+            BusyProvider.google || BusyProvider.microsoft => 'oauth',
+            BusyProvider.appleICloud => 'apple_app_specific_password',
+            BusyProvider.nextcloud => 'nextcloud_app_password',
+            BusyProvider.webCal => 'webcal_subscription',
+          },
           displayName: const Value('Ada Lovelace'),
           email: const Value('ada@example.com'),
           authState: const Value('signed_in'),
