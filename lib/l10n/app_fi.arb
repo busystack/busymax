@@ -1351,5 +1351,11 @@
   "notificationInexactAlarms": "Tarkkojen hälytysten käyttö ei ole sallittu. Android saattaa toimittaa muistutukset myöhemmin.",
   "dailySummaryScope": "Kaikki tilit",
   "notificationsSystemBlocked": "Järjestelmän ilmoitusasetukset estävät BusyMaxin ilmoitukset. Muistutuksesi on tallennettu.",
-  "notificationItemUnavailable": "Tämä muistutus ei ole enää saatavilla. Kohdetta on voitu muuttaa tai se on poistettu."
+  "notificationItemUnavailable": "Tämä muistutus ei ole enää saatavilla. Kohdetta on voitu muuttaa tai se on poistettu.",
+  "clearCompletedGoogleConfirmation": "Poistetaanko valmiit tehtävät luettelosta ”{list}” ({account})?\n\nGoogle Tasks poistaa tai piilottaa valmiit kohteet. Valmiita nyt: {count}.",
+  "clearCompletedNextcloudConfirmation": "Poistetaanko {count} suljettujen päätehtävien puuta luettelosta ”{list}” ({account})?\n\nMyös niiden alitehtävät poistetaan.",
+  "taskMoveAfterSaveFailed": "Muutokset tallennettiin, mutta tehtävää ei voitu siirtää. Yritä siirtoa uudelleen.",
+  "taskDraftConflict": "Tehtävä on muuttunut avaamisen jälkeen. Muutoksesi säilytetään. Tarkista nykyinen tehtävä ennen uutta yritystä.",
+  "taskUnavailableDraftRetained": "Tehtävä ei ole käytettävissä. Tallentamattomat muutoksesi säilytetään.",
+  "taskDurationRequiresStart": "Aseta määräaika ennen keston sisältävän tehtävän alun poistamista."
 }

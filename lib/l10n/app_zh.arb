@@ -1351,5 +1351,11 @@
   "notificationInexactAlarms": "精确闹钟权限不可用。Android 可能会延迟发送提醒。",
   "dailySummaryScope": "所有账户",
   "notificationsSystemBlocked": "系统通知设置正在阻止 BusyMax。您的提醒已保存。",
-  "notificationItemUnavailable": "此提醒已不可用。事项可能已更改或删除。"
+  "notificationItemUnavailable": "此提醒已不可用。事项可能已更改或删除。",
+  "clearCompletedGoogleConfirmation": "清除“{list}”（{account}）中的已完成任务？\n\nGoogle Tasks 将清除或隐藏已完成的项目。当前已完成：{count}。",
+  "clearCompletedNextcloudConfirmation": "从“{list}”（{account}）中删除 {count} 个已关闭的根任务树？\n\n其所有子任务也将被删除。",
+  "taskMoveAfterSaveFailed": "编辑内容已保存，但无法移动任务。请重试移动。",
+  "taskDraftConflict": "此任务在打开后已发生更改。你的编辑内容已保留。请查看最新任务后重试。",
+  "taskUnavailableDraftRetained": "此任务不可用。未保存的更改已保留。",
+  "taskDurationRequiresStart": "移除设有持续时间的任务的开始日期前，请先设置截止日期。"
 }

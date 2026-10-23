@@ -90,7 +90,7 @@ bool matchesTaskCompletion(
   TaskScheduleItem item,
   ScheduleTaskCompletion completion,
 ) => switch (completion) {
-  ScheduleTaskCompletion.open => !item.completed,
+  ScheduleTaskCompletion.open => item.actionable,
   ScheduleTaskCompletion.all => true,
   ScheduleTaskCompletion.completed => item.completed,
 };
@@ -154,7 +154,9 @@ bool matchesScheduleFilters(
       case ScheduleTaskDueState.any:
         break;
       case ScheduleTaskDueState.overdue:
-        if (item.completed || item.due == null || !item.due!.isBefore(today)) {
+        if (!item.actionable ||
+            item.due == null ||
+            !item.due!.isBefore(today)) {
           return false;
         }
       case ScheduleTaskDueState.noDueDate:

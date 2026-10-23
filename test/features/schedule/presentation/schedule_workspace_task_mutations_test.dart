@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/busymax_window_close.dart';
@@ -69,6 +71,124 @@ void main() {
     expect(tasks.map((task) => task.title), contains('Created from Schedule'));
     expect(find.text('Created from Schedule'), findsOneWidget);
   });
+
+  testWidgets(
+    'F11 creation waits for durable persistence and retains all values on retry',
+    (tester) async {
+      late _DelayedCreationRepository repository;
+      final harness = await _pumpScheduleWorkspace(
+        tester,
+        tasksRepositoryFactory: (db, id) =>
+            repository = _DelayedCreationRepository(db, id),
+      );
+      await tester.tap(find.byTooltip('Create'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Task'));
+      await tester.pumpAndSettle();
+      final title = find.byWidgetPredicate(
+        (w) => w is TextField && w.decoration?.labelText == 'Title',
+      );
+      final notes = find.byWidgetPredicate(
+        (w) => w is TextField && w.decoration?.labelText == 'Notes',
+      );
+      await tester.enterText(title, 'Durable creation');
+      await tester.enterText(notes, 'Exact creation notes');
+      await tester.pump();
+      await tester.tap(find.text('Create'));
+      for (
+        var frame = 0;
+        frame < 20 && !repository.received.isCompleted;
+        frame++
+      ) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      expect(repository.received.isCompleted, isTrue);
+      await tester.pump();
+      expect(title, findsOneWidget);
+      expect(tester.widget<TextField>(title).enabled, isFalse);
+      await tester.runAsync(() async {
+        expect(
+          await harness.database.select(harness.database.tasks).get(),
+          isEmpty,
+        );
+        expect(
+          await harness.database.select(harness.database.pendingOps).get(),
+          isEmpty,
+        );
+      });
+      repository.failure = StateError('synthetic commit failure');
+      repository.release.complete();
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<TextField>(title).controller!.text,
+        'Durable creation',
+      );
+      expect(
+        tester.widget<TextField>(notes).controller!.text,
+        'Exact creation notes',
+      );
+      expect(find.text('Operation failed'), findsOneWidget);
+      repository.failure = null;
+      await tester.tap(find.text('Create'));
+      await tester.pumpAndSettle();
+      expect(title, findsNothing);
+      await tester.runAsync(() async {
+        final task = await harness.database
+            .select(harness.database.tasks)
+            .getSingle();
+        expect(task.title, 'Durable creation');
+        expect(task.notes, 'Exact creation notes');
+        final op = await harness.database
+            .select(harness.database.pendingOps)
+            .getSingle();
+        expect(op.operation, 'create_task');
+      });
+      expect(repository.calls, 2);
+    },
+  );
+
+  testWidgets(
+    'F11 postcommit notification failure closes successful creation exactly once',
+    (tester) async {
+      var auxiliary = 0;
+      final harness = await _pumpScheduleWorkspace(
+        tester,
+        tasksRepositoryFactory: (db, id) => TasksRepository(
+          database: db,
+          accountId: id,
+          onNotificationScheduleChanged: () async =>
+              throw StateError('synthetic scheduler failure'),
+          onAuxiliaryFailure: (_, _) async {
+            auxiliary++;
+          },
+        ),
+      );
+      await tester.tap(find.byTooltip('Create'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Task'));
+      await tester.pumpAndSettle();
+      final title = find.byWidgetPredicate(
+        (w) => w is TextField && w.decoration?.labelText == 'Title',
+      );
+      await tester.enterText(title, 'Committed once');
+      await tester.pump();
+      await tester.tap(find.text('Create'));
+      await tester.pumpAndSettle();
+      expect(title, findsNothing);
+      expect(find.text('Operation failed'), findsNothing);
+      expect(auxiliary, 1);
+      await tester.runAsync(() async {
+        expect(
+          await harness.database.select(harness.database.tasks).get(),
+          hasLength(1),
+        );
+        expect(
+          await harness.database.select(harness.database.pendingOps).get(),
+          hasLength(1),
+        );
+      });
+    },
+  );
 
   testWidgets('new task uses the shared provider-qualified account label', (
     tester,
@@ -245,6 +365,8 @@ Future<_ScheduleHarness> _pumpScheduleWorkspace(
   String? initialTaskAccountId,
   String? initialTaskListId,
   String? initialTaskId,
+  TasksRepository Function(AppDatabase db, String accountId)?
+  tasksRepositoryFactory,
 }) async {
   final database = AppDatabase.memoryForTests();
   addTearDown(database.close);
@@ -321,7 +443,8 @@ Future<_ScheduleHarness> _pumpScheduleWorkspace(
           return TaskListsRepository(database: database, accountId: accountId);
         }),
         tasksRepositoryForAccountProvider.overrideWith((ref, accountId) {
-          return TasksRepository(database: database, accountId: accountId);
+          return tasksRepositoryFactory?.call(database, accountId) ??
+              TasksRepository(database: database, accountId: accountId);
         }),
       ],
       child: localizedTestApp(
@@ -365,3 +488,20 @@ const _accountId = 'google:schedule-test';
 const _taskListId = 'inbox';
 const _projectListId = 'projects';
 const _nowUtc = '2026-07-19T00:00:00.000Z';
+
+class _DelayedCreationRepository extends TasksRepository {
+  _DelayedCreationRepository(AppDatabase db, String accountId)
+    : super(database: db, accountId: accountId);
+  final received = Completer<void>();
+  final release = Completer<void>();
+  Object? failure;
+  var calls = 0;
+  @override
+  Future<String> createTask(String taskListId, TaskCreateInput input) async {
+    calls++;
+    if (!received.isCompleted) received.complete();
+    await release.future;
+    if (failure != null) throw failure!;
+    return super.createTask(taskListId, input);
+  }
+}

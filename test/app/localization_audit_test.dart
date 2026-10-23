@@ -1200,6 +1200,38 @@ void main() {
     );
   });
 
+  test(
+    'clear-completed Persian confirmations localize counts and isolate names',
+    () {
+      const fsi = '\u2068';
+      const pdi = '\u2069';
+      final fa = AppLocalizationsFa();
+      for (final message in [
+        fa.clearCompletedGoogleConfirmation('Inbox / 2026', 'Acme (EU)', 12),
+        fa.clearCompletedNextcloudConfirmation('Inbox / 2026', 'Acme (EU)', 12),
+      ]) {
+        expect(message, contains('$fsi۱۲$pdi'));
+        expect(message, isNot(contains('${fsi}12$pdi')));
+        expect(message, contains('${fsi}Inbox / 2026$pdi'));
+        expect(message, contains('${fsi}Acme (EU)$pdi'));
+      }
+    },
+  );
+
+  test('clear-completed Arabic confirmations isolate counts and names', () {
+    const fsi = '\u2068';
+    const pdi = '\u2069';
+    final ar = AppLocalizationsAr();
+    for (final message in [
+      ar.clearCompletedGoogleConfirmation('Inbox / 2026', 'Acme (EU)', 12),
+      ar.clearCompletedNextcloudConfirmation('Inbox / 2026', 'Acme (EU)', 12),
+    ]) {
+      expect(message, contains('${fsi}12$pdi'));
+      expect(message, contains('${fsi}Inbox / 2026$pdi'));
+      expect(message, contains('${fsi}Acme (EU)$pdi'));
+    }
+  });
+
   test('Persian dynamic numbers use Persian digits', () {
     const fsi = '\u2068';
     const pdi = '\u2069';

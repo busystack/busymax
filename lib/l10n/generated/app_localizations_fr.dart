@@ -3814,4 +3814,38 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get notificationItemUnavailable =>
       'Ce rappel n’est plus disponible. L’élément a peut-être été modifié ou supprimé.';
+
+  @override
+  String clearCompletedGoogleConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return 'Effacer les tâches terminées dans « $list » ($account) ?\n\nGoogle Tasks effacera ou masquera les éléments terminés. Actuellement terminés : $count.';
+  }
+
+  @override
+  String clearCompletedNextcloudConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return 'Supprimer $count arborescences de tâches racines fermées de « $list » ($account) ?\n\nLeurs sous-tâches seront également supprimées.';
+  }
+
+  @override
+  String get taskMoveAfterSaveFailed =>
+      'Vos modifications ont été enregistrées, mais la tâche n’a pas pu être déplacée. Réessayez le déplacement.';
+
+  @override
+  String get taskDraftConflict =>
+      'Cette tâche a changé depuis son ouverture. Vos modifications sont conservées. Vérifiez la tâche actuelle avant de réessayer.';
+
+  @override
+  String get taskUnavailableDraftRetained =>
+      'Cette tâche est indisponible. Vos modifications non enregistrées sont conservées.';
+
+  @override
+  String get taskDurationRequiresStart =>
+      'Définissez une échéance avant de supprimer le début d’une tâche ayant une durée.';
 }

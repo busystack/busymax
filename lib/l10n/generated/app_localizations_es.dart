@@ -3806,4 +3806,38 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get notificationItemUnavailable =>
       'Este recordatorio ya no está disponible. Es posible que el elemento haya cambiado o se haya eliminado.';
+
+  @override
+  String clearCompletedGoogleConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return '¿Limpiar las tareas completadas de «$list» ($account)?\n\nGoogle Tasks eliminará u ocultará los elementos completados. Completados actualmente: $count.';
+  }
+
+  @override
+  String clearCompletedNextcloudConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return '¿Eliminar $count árboles de tareas raíz cerradas de «$list» ($account)?\n\nSus subtareas también se eliminarán.';
+  }
+
+  @override
+  String get taskMoveAfterSaveFailed =>
+      'Tus cambios se guardaron, pero no se pudo mover la tarea. Vuelve a intentar moverla.';
+
+  @override
+  String get taskDraftConflict =>
+      'Esta tarea ha cambiado desde que la abriste. Tus cambios se conservan. Revisa la tarea actual antes de reintentar.';
+
+  @override
+  String get taskUnavailableDraftRetained =>
+      'Esta tarea no está disponible. Tus cambios sin guardar se conservan.';
+
+  @override
+  String get taskDurationRequiresStart =>
+      'Establece una fecha límite antes de quitar el inicio de una tarea con duración.';
 }

@@ -8,6 +8,7 @@ import '../../../dav/mutation/dav_task_list_mutation_service.dart';
 import '../../accounts/data/accounts_repository.dart';
 import '../../accounts/domain/account_collection_creation_capabilities.dart';
 import '../../notifications/notification_schedule_service.dart';
+import '../../sync/task_mutation_barrier.dart';
 import '../../tasks/domain/task_remote_client.dart';
 import '../../tasks/domain/task_remote_models.dart';
 
@@ -262,9 +263,10 @@ class TaskListsRepository {
     }
     await _database.transaction(() async {
       final current = await _baselineRow(id);
-      final childTaskBaselines = current?.updatedUtc == null
-          ? await _childTaskConflictBaselines(id)
-          : null;
+      final childTaskBaselines = await _childTaskConflictBaselines(id);
+      final taskOperations = await (_database.select(
+        _database.pendingOps,
+      )..where((row) => row.accountId.equals(_accountId))).get();
       await _updateLocalList(
         id,
         TaskListsCompanion(
@@ -277,8 +279,11 @@ class TaskListsRepository {
         operation: 'delete_task_list',
         taskListId: id,
         request: {
-          if (childTaskBaselines != null)
-            _childTaskConflictBaselinesKey: childTaskBaselines,
+          _childTaskConflictBaselinesKey: childTaskBaselines,
+          taskBarrierOperationIdsKey: [
+            for (final operation in taskOperations)
+              if (taskOperationTouchesList(operation, id)) operation.id,
+          ],
         },
         baselineUpdatedUtc: current?.updatedUtc,
         baselineRawJson: current?.rawJson,
@@ -412,6 +417,8 @@ class TaskListsRepository {
         task.id: {
           'updatedUtc': task.updatedUtc,
           'rawJson': jsonDecode(task.rawJson),
+          if (_hasAcknowledgedHiddenEffect(task))
+            acknowledgedTaskHiddenEffectKey: true,
         },
     };
   }
@@ -437,6 +444,15 @@ class TaskListsRepository {
   }
 
   String _now() => _nowUtc().toIso8601String();
+}
+
+bool _hasAcknowledgedHiddenEffect(Task task) {
+  try {
+    final metadata = jsonDecode(task.providerMetadataJson ?? '{}');
+    return metadata is Map && metadata[acknowledgedTaskHiddenEffectKey] == true;
+  } on FormatException {
+    return false;
+  }
 }
 
 const _taskListMutationOperations = {

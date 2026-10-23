@@ -1351,5 +1351,11 @@
   "notificationInexactAlarms": "O acesso a alarmes exatos não está disponível. O Android pode apresentar os lembretes mais tarde.",
   "dailySummaryScope": "Todas as contas",
   "notificationsSystemBlocked": "As definições de notificações do sistema estão a bloquear o BusyMax. Os lembretes estão guardados.",
-  "notificationItemUnavailable": "Este lembrete já não está disponível. O item pode ter sido alterado ou removido."
+  "notificationItemUnavailable": "Este lembrete já não está disponível. O item pode ter sido alterado ou removido.",
+  "clearCompletedGoogleConfirmation": "Limpar as tarefas concluídas em «{list}» ({account})?\n\nO Google Tasks limpará ou ocultará os itens concluídos. Atualmente concluídos: {count}.",
+  "clearCompletedNextcloudConfirmation": "Eliminar {count} árvores de tarefas principais fechadas de «{list}» ({account})?\n\nAs respetivas subtarefas também serão eliminadas.",
+  "taskMoveAfterSaveFailed": "As alterações foram guardadas, mas não foi possível mover a tarefa. Tente movê-la novamente.",
+  "taskDraftConflict": "Esta tarefa mudou desde que foi aberta. As alterações foram preservadas. Reveja a tarefa atual antes de tentar novamente.",
+  "taskUnavailableDraftRetained": "Esta tarefa está indisponível. As alterações não guardadas foram preservadas.",
+  "taskDurationRequiresStart": "Defina um prazo antes de remover o início de uma tarefa com duração."
 }

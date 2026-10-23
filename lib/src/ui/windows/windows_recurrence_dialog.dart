@@ -15,6 +15,7 @@ Future<RecurrenceRule?> showWindowsRecurrenceDialog(
   required String timeZone,
   required String providerLabel,
   required RecurrenceRuleLimits limits,
+  bool floating = false,
 }) {
   var value = initial.isSupported ? initial : const RecurrenceRule.none();
   var end = value.count != null
@@ -147,6 +148,7 @@ Future<RecurrenceRule?> showWindowsRecurrenceDialog(
                                     allDay: allDay,
                                     baseDate: baseDate,
                                     timeZone: timeZone,
+                                    floating: floating,
                                   ),
                             _WindowsRecurrenceEnd.count => value.copyWith(
                               count: value.count ?? 10,
@@ -169,6 +171,7 @@ Future<RecurrenceRule?> showWindowsRecurrenceDialog(
                           allDay: allDay,
                           baseDate: baseDate,
                           timeZone: timeZone,
+                          floating: floating,
                         );
                       }),
                     ),

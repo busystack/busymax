@@ -3692,4 +3692,37 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get notificationItemUnavailable =>
       'このリマインダーは利用できなくなりました。項目が変更または削除された可能性があります。';
+
+  @override
+  String clearCompletedGoogleConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return '「$list」（$account）の完了済みタスクをクリアしますか？\n\nGoogle Tasks が完了済みの項目をクリアまたは非表示にします。現在の完了件数: $count。';
+  }
+
+  @override
+  String clearCompletedNextcloudConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return '「$list」（$account）から終了状態のルートタスクツリー $count 件を削除しますか？\n\n配下のサブタスクも削除されます。';
+  }
+
+  @override
+  String get taskMoveAfterSaveFailed =>
+      '編集内容は保存されましたが、タスクを移動できませんでした。移動を再試行してください。';
+
+  @override
+  String get taskDraftConflict =>
+      'このタスクは開いた後に変更されました。編集内容は保持されています。最新のタスクを確認してから再試行してください。';
+
+  @override
+  String get taskUnavailableDraftRetained => 'このタスクは利用できません。未保存の変更は保持されています。';
+
+  @override
+  String get taskDurationRequiresStart =>
+      '期間が設定されたタスクの開始日時を削除する前に、期限を設定してください。';
 }

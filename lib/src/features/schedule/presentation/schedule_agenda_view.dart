@@ -106,7 +106,12 @@ class _ScheduleAgendaViewState extends State<ScheduleAgendaView> {
           intent.completed != null) {
         final checklistItemId = intent.checklistItemId;
         if (checklistItemId == null) {
-          if (task.completed != intent.completed) return;
+          if (!intent.completionSettled(
+            currentCompleted: task.completed,
+            currentOccurrenceKey: task.occurrenceKey,
+          )) {
+            return;
+          }
         } else {
           final checklistItem = task.checklistItems
               .where((item) => item.id == checklistItemId)
@@ -216,10 +221,10 @@ class _ScheduleAgendaViewState extends State<ScheduleAgendaView> {
     final rangeStart = ScheduleProjection.day(widget.range.start);
     final rangeEnd = ScheduleProjection.day(widget.range.end);
     final overdueTasks = dated.whereType<TaskScheduleItem>().where((item) {
-      final start = item.start;
-      return start != null &&
-          !item.completed &&
-          ScheduleProjection.day(start).isBefore(rangeStart);
+      final due = item.due;
+      return due != null &&
+          item.actionable &&
+          ScheduleProjection.day(due).isBefore(rangeStart);
     }).toList()..sort(compareScheduleItems);
     final orderedOverdueTasks = ScheduleProjection.arrangeHierarchy(
       overdueTasks,
@@ -380,7 +385,8 @@ class _ScheduleAgendaViewState extends State<ScheduleAgendaView> {
         intent == null ||
         intent.presentation != TaskListMutationPresentation.completion ||
         intent.checklistItemId != null ||
-        intent.taskKey != _agendaTaskKey(task)) {
+        intent.taskKey != _agendaTaskKey(task) ||
+        !intent.completionAppliesTo(task.occurrenceKey)) {
       return null;
     }
     return intent.completed;
@@ -522,6 +528,7 @@ class _ScheduleAgendaViewState extends State<ScheduleAgendaView> {
           );
         }
         final values = [
+          if (task.cancelled) context.l10n.taskStatusCancelled,
           _nestedTaskScheduleLabel(context, task, hierarchyRoot),
           if (showSource) ScheduleProjection.sourceLabelForScheduleItem(task),
         ].where((value) => value.trim().isNotEmpty);
@@ -971,6 +978,7 @@ class _AgendaItemSubtitle extends StatelessWidget {
   Widget build(BuildContext context) {
     final task = item is TaskScheduleItem ? item as TaskScheduleItem : null;
     final values = [
+      if (task?.cancelled == true) context.l10n.taskStatusCancelled,
       scheduleTimeRange(context, item),
       if (task?.parentTitle != null)
         '${context.l10n.parent}: ${task!.parentTitle}',

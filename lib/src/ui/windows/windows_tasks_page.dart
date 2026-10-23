@@ -173,6 +173,7 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
         current?.accountId == result.accountId &&
         current?.taskListId == result.taskListId &&
         current?.taskId == taskId &&
+        current?.occurrenceKey == result.occurrenceKey &&
         current?.completed == result.completed) {
       return;
     }
@@ -184,6 +185,7 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
         taskId: taskId,
         checklistItemId: result.checklistItemId,
         completed: result.completed,
+        occurrenceKey: result.occurrenceKey,
         generation: ++_mutationGeneration,
       );
     });
@@ -208,6 +210,7 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
         taskListId: task.sourceId,
         taskId: task.id,
         completed: completed,
+        occurrenceKey: task.occurrenceKey,
         generation: ++_mutationGeneration,
       );
     });
@@ -217,12 +220,10 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
           .patchTask(
             task.sourceId,
             task.id,
-            TaskPatchInput({
-              'status': completed ? 'completed' : 'needsAction',
-              'completed': completed
-                  ? DateTime.now().toUtc().toIso8601String()
-                  : null,
-            }),
+            TaskPatchInput.completion(
+              completed,
+              observedOccurrenceKey: task.occurrenceKey,
+            ),
           );
       if (mounted) _reload();
     } on Object catch (_) {
@@ -257,7 +258,8 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
     return intent?.presentation == TaskListMutationPresentation.completion &&
         intent?.taskKey ==
             '${task.accountId}\u0000${task.sourceId}\u0000${task.id}' &&
-        intent?.completed != null;
+        intent?.completed != null &&
+        intent!.completionAppliesTo(task.occurrenceKey);
   }
 
   bool _displayedCompletion(TaskScheduleItem task) {
@@ -265,8 +267,9 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
     if (intent?.presentation == TaskListMutationPresentation.completion &&
         intent?.taskKey ==
             '${task.accountId}\u0000${task.sourceId}\u0000${task.id}' &&
-        intent?.completed != null) {
-      return intent!.completed!;
+        intent?.completed != null &&
+        intent!.completionAppliesTo(task.occurrenceKey)) {
+      return intent.completed!;
     }
     return task.completed;
   }
@@ -510,8 +513,10 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
                     identityOf: (task) =>
                         '${task.accountId}\u0000${task.sourceId}\u0000${task.id}',
                     mutationApplied: (task, mutation) =>
-                        mutation.completed == null ||
-                        task.completed == mutation.completed,
+                        mutation.completionSettled(
+                          currentCompleted: task.completed,
+                          currentOccurrenceKey: task.occurrenceKey,
+                        ),
                     onMutationConsumed: (mutation) {
                       if (!mounted) return;
                       if (_mutationIntent?.generation == mutation.generation) {
@@ -583,6 +588,7 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
                             ),
                             subtitle: Text(
                               [
+                                if (task.cancelled) l10n.taskStatusCancelled,
                                 due,
                                 ?task.accountEmail ?? task.accountDisplayName,
                                 ?task.sourceName,

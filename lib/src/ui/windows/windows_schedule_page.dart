@@ -105,6 +105,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
   ScheduleNavigationIntent? _navigationIntent;
   var _taskMutationGeneration = 0;
   TaskListMutationIntent? _taskMutationIntent;
+  final _pendingTaskCompletions = <String>{};
 
   @override
   void initState() {
@@ -976,12 +977,17 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
   }
 
   Future<void> _setTaskCompleted(TaskScheduleItem item, bool completed) async {
+    final taskKey = '${item.accountId}\u0000${item.sourceId}\u0000${item.id}';
+    if (!item.capabilities.canEdit || !_pendingTaskCompletions.add(taskKey)) {
+      return;
+    }
     final intent = TaskListMutationIntent(
       presentation: TaskListMutationPresentation.completion,
       accountId: item.accountId,
       taskListId: item.sourceId,
       taskId: item.id,
       completed: completed,
+      occurrenceKey: item.occurrenceKey,
       generation: ++_taskMutationGeneration,
     );
     setState(() => _taskMutationIntent = intent);
@@ -991,19 +997,26 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
           .patchTask(
             item.sourceId,
             item.id,
-            TaskPatchInput({
-              'status': completed ? 'completed' : 'needsAction',
-              'completed': completed
-                  ? DateTime.now().toUtc().toIso8601String()
-                  : null,
-            }),
+            TaskPatchInput.completion(
+              completed,
+              observedOccurrenceKey: item.occurrenceKey,
+            ),
           );
       if (mounted) _reload();
     } on Object {
-      if (mounted && _taskMutationIntent?.generation == intent.generation) {
+      if (!mounted) return;
+      if (_taskMutationIntent?.generation == intent.generation) {
         setState(() => _taskMutationIntent = null);
       }
-      rethrow;
+      await displayInfoBar(
+        context,
+        builder: (context, close) => InfoBar(
+          title: Text(AppLocalizations.of(context).operationFailed),
+          severity: InfoBarSeverity.error,
+        ),
+      );
+    } finally {
+      _pendingTaskCompletions.remove(taskKey);
     }
   }
 
@@ -1051,6 +1064,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
         current?.accountId == result.accountId &&
         current?.taskListId == result.taskListId &&
         current?.taskId == taskId &&
+        current?.occurrenceKey == result.occurrenceKey &&
         current?.checklistItemId == result.checklistItemId &&
         current?.completed == result.completed) {
       return;
@@ -1063,6 +1077,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
         taskId: taskId,
         checklistItemId: result.checklistItemId,
         completed: result.completed,
+        occurrenceKey: result.occurrenceKey,
         generation: ++_taskMutationGeneration,
       );
     });
@@ -2302,8 +2317,10 @@ class _AgendaList extends StatelessWidget {
           : 'event\u0000${item.accountId}\u0000${item.sourceId}\u0000${item.id}',
       mutationApplied: (item, mutation) =>
           item is! TaskScheduleItem ||
-          mutation.completed == null ||
-          item.completed == mutation.completed,
+          mutation.completionSettled(
+            currentCompleted: item.completed,
+            currentOccurrenceKey: item.occurrenceKey,
+          ),
       onMutationConsumed: onTaskMutationConsumed,
       emptyBuilder:
           emptyBuilder ??
@@ -2368,7 +2385,8 @@ class _AgendaList extends StatelessWidget {
         intent?.presentation == TaskListMutationPresentation.completion &&
         intent?.taskKey ==
             '${item.accountId}\u0000${item.sourceId}\u0000${item.id}' &&
-        intent?.completed != null;
+        intent?.completed != null &&
+        intent!.completionAppliesTo(item.occurrenceKey);
   }
 
   bool _displayedCompletion(TaskScheduleItem task) {
@@ -2376,8 +2394,9 @@ class _AgendaList extends StatelessWidget {
     if (intent?.presentation == TaskListMutationPresentation.completion &&
         intent?.taskKey ==
             '${task.accountId}\u0000${task.sourceId}\u0000${task.id}' &&
-        intent?.completed != null) {
-      return intent!.completed!;
+        intent?.completed != null &&
+        intent!.completionAppliesTo(task.occurrenceKey)) {
+      return intent.completed!;
     }
     return task.completed;
   }

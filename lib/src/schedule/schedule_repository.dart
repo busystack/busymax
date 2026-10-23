@@ -21,6 +21,7 @@ import '../features/calendar/domain/google_status_event.dart';
 import '../features/tasks/domain/task_checklist_item.dart';
 import '../features/tasks/domain/google_task_assignment_policy.dart';
 import '../features/tasks/domain/task_source_links.dart';
+import '../features/tasks/domain/task_occurrence.dart';
 import 'schedule_filters.dart';
 import 'schedule_item.dart';
 import 'event_attachment_link.dart';
@@ -302,11 +303,12 @@ class ScheduleRepository {
     return _limitedTaskBucket(
       limit: limit,
       filters: filters,
-      databaseFilter: _taskScheduledBefore(ScheduleProjection.day(before)),
+      databaseFilter: _taskDeadlineBefore(ScheduleProjection.day(before)),
       itemFilter: (item) {
-        final start = item.start;
-        return start != null &&
-            ScheduleProjection.day(start)
+        final due = item.due;
+        return item.actionable &&
+            due != null &&
+            ScheduleProjection.day(due)
                 .isBefore(ScheduleProjection.day(before));
       },
     );
@@ -944,6 +946,15 @@ class ScheduleRepository {
       sourceId: task.taskListId,
       title: task.title,
       completed: task.status == 'completed',
+      status: task.status,
+      position: task.position,
+      sortOrder: task.sortOrder,
+      occurrenceKey: davTaskOccurrenceKey(
+        davCollectionId: task.davCollectionId,
+        recurrenceJson: task.recurrenceJson,
+        recurrenceIdKey: task.recurrenceIdKey,
+        providerMetadataJson: task.providerMetadataJson,
+      ),
       allDay: _taskAllDay(task, provider),
       start: start,
       end: _taskEnd(task, provider),
@@ -1023,7 +1034,8 @@ class ScheduleRepository {
 
   Expression<bool> _taskIncomplete() {
     return _database.tasks.status.isNull() |
-        _database.tasks.status.equals('completed').not();
+        (_database.tasks.status.equals('completed').not() &
+            _database.tasks.status.equals('cancelled').not());
   }
 
   Expression<bool> _taskListFilter(Set<ScheduleTaskListKey> taskListKeys) {
@@ -1050,11 +1062,10 @@ class ScheduleRepository {
       _database.tasks.microsoftStartDateTime.like('%T%') |
       _database.tasks.microsoftDueDateTime.like('%T%');
 
-  Expression<bool> _taskScheduledBefore(DateTime before) {
+  Expression<bool> _taskDeadlineBefore(DateTime before) {
     final beforeKey = _dateKey(before);
     return _providerTimedTask() |
         _textBefore(_database.tasks.dueUtc, beforeKey) |
-        _textBefore(_database.tasks.microsoftStartDateTime, beforeKey) |
         _textBefore(_database.tasks.microsoftDueDateTime, beforeKey);
   }
 

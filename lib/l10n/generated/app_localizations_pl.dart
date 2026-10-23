@@ -3968,4 +3968,38 @@ class AppLocalizationsPl extends AppLocalizations {
   @override
   String get notificationItemUnavailable =>
       'To przypomnienie nie jest już dostępne. Element mógł zostać zmieniony lub usunięty.';
+
+  @override
+  String clearCompletedGoogleConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return 'Wyczyścić ukończone zadania z „$list” ($account)?\n\nGoogle Tasks wyczyści lub ukryje ukończone elementy. Obecnie ukończone: $count.';
+  }
+
+  @override
+  String clearCompletedNextcloudConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return 'Usunąć $count drzew zamkniętych zadań głównych z „$list” ($account)?\n\nIch podzadania również zostaną usunięte.';
+  }
+
+  @override
+  String get taskMoveAfterSaveFailed =>
+      'Zmiany zostały zapisane, ale nie udało się przenieść zadania. Ponów przenoszenie.';
+
+  @override
+  String get taskDraftConflict =>
+      'To zadanie zmieniło się od jego otwarcia. Twoje zmiany zostały zachowane. Sprawdź aktualne zadanie przed ponowieniem.';
+
+  @override
+  String get taskUnavailableDraftRetained =>
+      'To zadanie jest niedostępne. Niezapisane zmiany zostały zachowane.';
+
+  @override
+  String get taskDurationRequiresStart =>
+      'Ustaw termin przed usunięciem początku zadania z określonym czasem trwania.';
 }

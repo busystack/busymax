@@ -3783,4 +3783,38 @@ class AppLocalizationsHi extends AppLocalizations {
   @override
   String get notificationItemUnavailable =>
       'यह रिमाइंडर अब उपलब्ध नहीं है। हो सकता है आइटम बदला गया हो या हटा दिया गया हो।';
+
+  @override
+  String clearCompletedGoogleConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return '“$list” ($account) में पूरे किए गए कार्य साफ़ करें?\n\nGoogle Tasks पूरे किए गए आइटम साफ़ करेगा या छिपाएगा। अभी पूरे किए गए: $count।';
+  }
+
+  @override
+  String clearCompletedNextcloudConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return '“$list” ($account) से $count बंद मूल कार्य ट्री मिटाएँ?\n\nउनके उपकार्य भी मिटा दिए जाएँगे।';
+  }
+
+  @override
+  String get taskMoveAfterSaveFailed =>
+      'आपके बदलाव सहेज लिए गए, लेकिन कार्य को स्थानांतरित नहीं किया जा सका। फिर से स्थानांतरित करें।';
+
+  @override
+  String get taskDraftConflict =>
+      'यह कार्य खोलने के बाद बदल गया है। आपके बदलाव सुरक्षित हैं। फिर कोशिश करने से पहले नवीनतम कार्य की समीक्षा करें।';
+
+  @override
+  String get taskUnavailableDraftRetained =>
+      'यह कार्य उपलब्ध नहीं है। आपके बिना सहेजे बदलाव सुरक्षित हैं।';
+
+  @override
+  String get taskDurationRequiresStart =>
+      'अवधि वाले कार्य की शुरुआत हटाने से पहले समय-सीमा निर्धारित करें।';
 }

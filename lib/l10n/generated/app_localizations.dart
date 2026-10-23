@@ -6365,6 +6365,50 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This reminder is no longer available. The item may have changed or been removed.'**
   String get notificationItemUnavailable;
+
+  /// No description provided for @clearCompletedGoogleConfirmation.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear completed tasks in “{list}” ({account})?\n\nGoogle Tasks will clear or hide completed items. Currently completed: {count}.'**
+  String clearCompletedGoogleConfirmation(
+    String list,
+    String account,
+    int count,
+  );
+
+  /// No description provided for @clearCompletedNextcloudConfirmation.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete {count} closed root task trees from “{list}” ({account})?\n\nTheir descendants will also be deleted.'**
+  String clearCompletedNextcloudConfirmation(
+    String list,
+    String account,
+    int count,
+  );
+
+  /// No description provided for @taskMoveAfterSaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Your edits were saved, but the task could not be moved. Retry the move.'**
+  String get taskMoveAfterSaveFailed;
+
+  /// No description provided for @taskDraftConflict.
+  ///
+  /// In en, this message translates to:
+  /// **'This task changed since you opened it. Your edits are retained. Review the latest task before retrying.'**
+  String get taskDraftConflict;
+
+  /// No description provided for @taskUnavailableDraftRetained.
+  ///
+  /// In en, this message translates to:
+  /// **'This task is unavailable. Your unsaved changes are retained.'**
+  String get taskUnavailableDraftRetained;
+
+  /// No description provided for @taskDurationRequiresStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Set a deadline before removing the start of a task with a duration.'**
+  String get taskDurationRequiresStart;
 }
 
 class _AppLocalizationsDelegate

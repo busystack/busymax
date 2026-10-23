@@ -3837,4 +3837,38 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get notificationItemUnavailable =>
       'لم يعد هذا التذكير متاحًا. ربما تم تغيير العنصر أو إزالته.';
+
+  @override
+  String clearCompletedGoogleConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return 'هل تريد مسح المهام المكتملة في «⁨$list⁩» (⁨$account⁩)؟\n\nسيقوم Google Tasks بمسح العناصر المكتملة أو إخفائها. المكتملة حاليًا: ⁨$count⁩.';
+  }
+
+  @override
+  String clearCompletedNextcloudConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return 'هل تريد حذف ⁨$count⁩ من أشجار المهام الجذرية المغلقة من «⁨$list⁩» (⁨$account⁩)؟\n\nستُحذف المهام الفرعية أيضًا.';
+  }
+
+  @override
+  String get taskMoveAfterSaveFailed =>
+      'حُفظت تعديلاتك، لكن تعذّر نقل المهمة. أعد محاولة النقل.';
+
+  @override
+  String get taskDraftConflict =>
+      'تغيّرت هذه المهمة منذ فتحها. تم الاحتفاظ بتعديلاتك. راجع المهمة الحالية قبل المحاولة مجددًا.';
+
+  @override
+  String get taskUnavailableDraftRetained =>
+      'هذه المهمة غير متاحة. تم الاحتفاظ بالتغييرات غير المحفوظة.';
+
+  @override
+  String get taskDurationRequiresStart =>
+      'حدّد موعدًا نهائيًا قبل إزالة بداية مهمة لها مدة.';
 }

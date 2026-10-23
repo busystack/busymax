@@ -126,6 +126,7 @@ class TaskDetailsDraft {
     required this.hideSubtasks,
     required this.hideCompletedSubtasks,
     required this.alarms,
+    this.observedTask,
   });
 
   /// Creation uses the same validation and capability-aware serializer as edits.
@@ -229,9 +230,12 @@ class TaskDetailsDraft {
     return TaskDetailsDraft(
       taskListId: task.taskListId,
       taskId: task.id,
+      observedTask: task,
       title: task.title,
       notes: task.notes ?? '',
-      dueDate: due.date ?? _dateOnly(task.dueUtc),
+      dueDate:
+          due.date ??
+          (task.davCollectionId == null ? _dateOnly(task.dueUtc) : null),
       microsoftDueTime: due.time,
       microsoftDueTimeZone: due.timeZone,
       microsoftStartDate: start.date,
@@ -263,6 +267,7 @@ class TaskDetailsDraft {
 
   final String taskListId;
   final String taskId;
+  final TaskEntity? observedTask;
   final String title;
   final String notes;
   final String? dueDate;
@@ -441,7 +446,9 @@ class TaskDetailsDraft {
     TaskEntity original,
     TaskCollectionCapabilities capabilities, {
     required String localTimeZone,
+    bool useObservedBaseline = true,
   }) {
+    if (useObservedBaseline) original = observedTask ?? original;
     final fields = <String, Object?>{};
 
     if (title != original.title) {
@@ -456,7 +463,9 @@ class TaskDetailsDraft {
       original.microsoftDueTimeZone,
       localTimeZone,
     );
-    final originalDueDate = originalDue.date ?? _dateOnly(original.dueUtc);
+    final originalDueDate =
+        originalDue.date ??
+        (original.davCollectionId == null ? _dateOnly(original.dueUtc) : null);
     final dueChanged = dueDate != originalDueDate;
     if (dueChanged) {
       fields['due'] = dueDate;
@@ -619,6 +628,7 @@ class TaskDetailsDraft {
       baseline,
       capabilities,
       localTimeZone: localTimeZone,
+      useObservedBaseline: false,
     );
     final trimmedTitle = title.trim();
     fields['title'] = trimmedTitle;
@@ -644,11 +654,15 @@ class TaskDetailsDraft {
       dueUtc: dueDate == null ? null : DateTime.tryParse(dueDate!),
       categories: categories,
       fields: fields,
-      locationChange: locationChange,
+      locationChange: capabilities.supportsLocation
+          ? locationChange
+          : const LocationChange.unchanged(),
     );
   }
 
   TaskDetailsDraft copyWith({
+    String? taskId,
+    TaskEntity? observedTask,
     LocationChange? locationChange,
     String? taskListId,
     String? title,
@@ -682,7 +696,8 @@ class TaskDetailsDraft {
   }) {
     return TaskDetailsDraft(
       taskListId: taskListId ?? this.taskListId,
-      taskId: taskId,
+      taskId: taskId ?? this.taskId,
+      observedTask: observedTask ?? this.observedTask,
       title: title ?? this.title,
       notes: notes ?? this.notes,
       dueDate: dueDate == _unchanged ? this.dueDate : dueDate as String?,

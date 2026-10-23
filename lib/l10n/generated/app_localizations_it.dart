@@ -3819,4 +3819,38 @@ class AppLocalizationsIt extends AppLocalizations {
   @override
   String get notificationItemUnavailable =>
       'Questo promemoria non è più disponibile. L’elemento potrebbe essere stato modificato o rimosso.';
+
+  @override
+  String clearCompletedGoogleConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return 'Rimuovere le attività completate in «$list» ($account)?\n\nGoogle Tasks rimuoverà o nasconderà gli elementi completati. Attualmente completati: $count.';
+  }
+
+  @override
+  String clearCompletedNextcloudConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return 'Eliminare $count alberi di attività principali chiuse da «$list» ($account)?\n\nVerranno eliminate anche le relative sottoattività.';
+  }
+
+  @override
+  String get taskMoveAfterSaveFailed =>
+      'Le modifiche sono state salvate, ma non è stato possibile spostare l’attività. Riprova lo spostamento.';
+
+  @override
+  String get taskDraftConflict =>
+      'Questa attività è cambiata da quando l’hai aperta. Le modifiche sono conservate. Controlla l’attività attuale prima di riprovare.';
+
+  @override
+  String get taskUnavailableDraftRetained =>
+      'Questa attività non è disponibile. Le modifiche non salvate sono conservate.';
+
+  @override
+  String get taskDurationRequiresStart =>
+      'Imposta una scadenza prima di rimuovere l’inizio di un’attività con una durata.';
 }

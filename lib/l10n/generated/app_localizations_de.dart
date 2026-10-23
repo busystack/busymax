@@ -3798,4 +3798,38 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get notificationItemUnavailable =>
       'Diese Erinnerung ist nicht mehr verfügbar. Der Eintrag wurde möglicherweise geändert oder entfernt.';
+
+  @override
+  String clearCompletedGoogleConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return 'Erledigte Aufgaben in „$list“ ($account) entfernen?\n\nGoogle Tasks entfernt erledigte Einträge oder blendet sie aus. Derzeit erledigt: $count.';
+  }
+
+  @override
+  String clearCompletedNextcloudConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return '$count geschlossene Aufgabenbäume der obersten Ebene aus „$list“ ($account) löschen?\n\nIhre Unteraufgaben werden ebenfalls gelöscht.';
+  }
+
+  @override
+  String get taskMoveAfterSaveFailed =>
+      'Deine Änderungen wurden gespeichert, aber die Aufgabe konnte nicht verschoben werden. Versuche das Verschieben erneut.';
+
+  @override
+  String get taskDraftConflict =>
+      'Diese Aufgabe wurde seit dem Öffnen geändert. Deine Änderungen bleiben erhalten. Prüfe die aktuelle Aufgabe vor einem erneuten Versuch.';
+
+  @override
+  String get taskUnavailableDraftRetained =>
+      'Diese Aufgabe ist nicht verfügbar. Deine ungespeicherten Änderungen bleiben erhalten.';
+
+  @override
+  String get taskDurationRequiresStart =>
+      'Lege ein Fälligkeitsdatum fest, bevor du den Beginn einer Aufgabe mit Dauer entfernst.';
 }

@@ -1351,5 +1351,11 @@
   "notificationInexactAlarms": "正確なアラームへのアクセスがありません。Androidがリマインダーを遅れて表示する場合があります。",
   "dailySummaryScope": "すべてのアカウント",
   "notificationsSystemBlocked": "システムの通知設定がBusyMaxをブロックしています。リマインダーは保存されています。",
-  "notificationItemUnavailable": "このリマインダーは利用できなくなりました。項目が変更または削除された可能性があります。"
+  "notificationItemUnavailable": "このリマインダーは利用できなくなりました。項目が変更または削除された可能性があります。",
+  "clearCompletedGoogleConfirmation": "「{list}」（{account}）の完了済みタスクをクリアしますか？\n\nGoogle Tasks が完了済みの項目をクリアまたは非表示にします。現在の完了件数: {count}。",
+  "clearCompletedNextcloudConfirmation": "「{list}」（{account}）から終了状態のルートタスクツリー {count} 件を削除しますか？\n\n配下のサブタスクも削除されます。",
+  "taskMoveAfterSaveFailed": "編集内容は保存されましたが、タスクを移動できませんでした。移動を再試行してください。",
+  "taskDraftConflict": "このタスクは開いた後に変更されました。編集内容は保持されています。最新のタスクを確認してから再試行してください。",
+  "taskUnavailableDraftRetained": "このタスクは利用できません。未保存の変更は保持されています。",
+  "taskDurationRequiresStart": "期間が設定されたタスクの開始日時を削除する前に、期限を設定してください。"
 }

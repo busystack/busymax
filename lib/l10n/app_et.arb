@@ -1529,5 +1529,11 @@
   "notificationInexactAlarms": "Täpsete alarmide juurdepääs puudub. Android võib meeldetuletusi hiljem edastada.",
   "dailySummaryScope": "Kõik kontod",
   "notificationsSystemBlocked": "Süsteemi teavitusseaded blokeerivad BusyMaxi. Meeldetuletused on salvestatud.",
-  "notificationItemUnavailable": "See meeldetuletus pole enam saadaval. Üksust võidi muuta või eemaldada."
+  "notificationItemUnavailable": "See meeldetuletus pole enam saadaval. Üksust võidi muuta või eemaldada.",
+  "clearCompletedGoogleConfirmation": "Kas tühjendada lõpetatud ülesanded loendist „{list}” ({account})?\n\nGoogle Tasks eemaldab või peidab lõpetatud üksused. Praegu lõpetatud: {count}.",
+  "clearCompletedNextcloudConfirmation": "Kas kustutada {count} suletud juurülesannete puud loendist „{list}” ({account})?\n\nKustutatakse ka nende alamülesanded.",
+  "taskMoveAfterSaveFailed": "Muudatused salvestati, kuid ülesannet ei saanud teisaldada. Proovi teisaldamist uuesti.",
+  "taskDraftConflict": "Ülesanne on pärast avamist muutunud. Sinu muudatused säilitatakse. Vaata praegune ülesanne enne uuesti proovimist üle.",
+  "taskUnavailableDraftRetained": "Ülesanne pole saadaval. Sinu salvestamata muudatused säilitatakse.",
+  "taskDurationRequiresStart": "Määra tähtaeg enne kestusega ülesande alguse eemaldamist."
 }

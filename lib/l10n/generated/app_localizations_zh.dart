@@ -3627,6 +3627,36 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get notificationItemUnavailable => '此提醒已不可用。事项可能已更改或删除。';
+
+  @override
+  String clearCompletedGoogleConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return '清除“$list”（$account）中的已完成任务？\n\nGoogle Tasks 将清除或隐藏已完成的项目。当前已完成：$count。';
+  }
+
+  @override
+  String clearCompletedNextcloudConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return '从“$list”（$account）中删除 $count 个已关闭的根任务树？\n\n其所有子任务也将被删除。';
+  }
+
+  @override
+  String get taskMoveAfterSaveFailed => '编辑内容已保存，但无法移动任务。请重试移动。';
+
+  @override
+  String get taskDraftConflict => '此任务在打开后已发生更改。你的编辑内容已保留。请查看最新任务后重试。';
+
+  @override
+  String get taskUnavailableDraftRetained => '此任务不可用。未保存的更改已保留。';
+
+  @override
+  String get taskDurationRequiresStart => '移除设有持续时间的任务的开始日期前，请先设置截止日期。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -7247,6 +7277,36 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get notificationItemUnavailable => '此提醒已不可用。事项可能已更改或删除。';
+
+  @override
+  String clearCompletedGoogleConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return '清除“$list”（$account）中的已完成任务？\n\nGoogle Tasks 将清除或隐藏已完成的项目。当前已完成：$count。';
+  }
+
+  @override
+  String clearCompletedNextcloudConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return '从“$list”（$account）中删除 $count 个已关闭的根任务树？\n\n其所有子任务也将被删除。';
+  }
+
+  @override
+  String get taskMoveAfterSaveFailed => '编辑内容已保存，但无法移动任务。请重试移动。';
+
+  @override
+  String get taskDraftConflict => '此任务在打开后已发生更改。你的编辑内容已保留。请查看最新任务后重试。';
+
+  @override
+  String get taskUnavailableDraftRetained => '此任务不可用。未保存的更改已保留。';
+
+  @override
+  String get taskDurationRequiresStart => '移除设有持续时间的任务的开始日期前，请先设置截止日期。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -10868,4 +10928,34 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get notificationItemUnavailable => '此提醒已無法使用。事項可能已變更或刪除。';
+
+  @override
+  String clearCompletedGoogleConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return '清除「$list」（$account）中的已完成工作？\n\nGoogle Tasks 將清除或隱藏已完成的項目。目前已完成：$count。';
+  }
+
+  @override
+  String clearCompletedNextcloudConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return '從「$list」（$account）刪除 $count 個已關閉的根工作樹？\n\n其所有子工作也將一併刪除。';
+  }
+
+  @override
+  String get taskMoveAfterSaveFailed => '編輯內容已儲存，但無法移動工作。請重試移動。';
+
+  @override
+  String get taskDraftConflict => '此工作在開啟後已發生變更。你的編輯內容已保留。請檢視最新工作後重試。';
+
+  @override
+  String get taskUnavailableDraftRetained => '此工作無法使用。未儲存的變更已保留。';
+
+  @override
+  String get taskDurationRequiresStart => '移除設有持續時間的工作的開始日期前，請先設定截止日期。';
 }

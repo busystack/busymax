@@ -3811,4 +3811,38 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get notificationItemUnavailable =>
       'This reminder is no longer available. The item may have changed or been removed.';
+
+  @override
+  String clearCompletedGoogleConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return 'Clear completed tasks in “$list” ($account)?\n\nGoogle Tasks will clear or hide completed items. Currently completed: $count.';
+  }
+
+  @override
+  String clearCompletedNextcloudConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return 'Delete $count closed root task trees from “$list” ($account)?\n\nTheir descendants will also be deleted.';
+  }
+
+  @override
+  String get taskMoveAfterSaveFailed =>
+      'Your edits were saved, but the task could not be moved. Retry the move.';
+
+  @override
+  String get taskDraftConflict =>
+      'This task changed since you opened it. Your edits are retained. Review the latest task before retrying.';
+
+  @override
+  String get taskUnavailableDraftRetained =>
+      'This task is unavailable. Your unsaved changes are retained.';
+
+  @override
+  String get taskDurationRequiresStart =>
+      'Set a deadline before removing the start of a task with a duration.';
 }

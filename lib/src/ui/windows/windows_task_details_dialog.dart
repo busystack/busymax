@@ -17,6 +17,7 @@ import 'package:intl/intl.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../app/app_bootstrap.dart';
 import '../../dav/ical/ical_task_alarm.dart';
+import '../../dav/dav_errors.dart';
 import '../../features/tasks/domain/task_capabilities.dart';
 import '../../features/tasks/domain/task_mutation_result.dart';
 import '../../features/tasks/data/tasks_repository.dart';
@@ -40,6 +41,10 @@ import '../common/busymax_glyph.dart';
 import '../common/editor_state_builder.dart';
 import 'windows_busymax_glyphs.dart';
 import 'windows_time_zone_dialog.dart';
+import 'windows_recurrence_dialog.dart';
+import '../../features/recurrence/domain/recurrence_rule.dart';
+import '../../features/recurrence/domain/event_recurrence_codec.dart';
+import '../../features/recurrence/presentation/recurrence_summary.dart';
 
 Future<bool> showWindowsTaskDetailsDialog(
   BuildContext context,
@@ -58,7 +63,7 @@ Future<bool> showWindowsTaskDetailsDialog(
   final repository = ref.read(
     tasksRepositoryForAccountProvider(task.accountId),
   );
-  final original = await repository.watchTask(task.sourceId, task.id).first;
+  final loadedTask = await repository.watchTask(task.sourceId, task.id).first;
   final accounts = await ref
       .read(accountsRepositoryProvider)
       .watchAccounts()
@@ -66,7 +71,8 @@ Future<bool> showWindowsTaskDetailsDialog(
   final account = accounts
       .where((value) => value.id == task.accountId)
       .firstOrNull;
-  if (original == null || account == null || !context.mounted) return false;
+  if (loadedTask == null || account == null || !context.mounted) return false;
+  var original = loadedTask;
   var capabilities = switch (account.provider) {
     BusyProvider.nextcloud =>
       await ref.read(
@@ -93,7 +99,7 @@ Future<bool> showWindowsTaskDetailsDialog(
       : const TaskHierarchySnapshot(parent: null, subtasks: []);
   if (!context.mounted) return false;
   final localTimeZone = ref.read(localTimeZoneProvider);
-  final originalDraft = TaskDetailsDraft.fromTask(original, localTimeZone);
+  var originalDraft = TaskDetailsDraft.fromTask(original, localTimeZone);
   final savedDestination = capabilities.supportsLocation
       ? await LocationDestinationResolver(
           ref.read(locationResolutionRepositoryProvider),
@@ -117,7 +123,8 @@ Future<bool> showWindowsTaskDetailsDialog(
   final location = TextEditingController(text: originalDraft.location);
   final taskUrl = TextEditingController(text: originalDraft.taskUrl);
   final subtaskTitle = TextEditingController();
-  var completed = task.completed;
+  var completed = original.status == 'completed';
+  bool? checkboxCompletionIntent;
   var selectedTaskListId = original.taskListId;
   var due = _taskDueDateTime(originalDraft);
   var dueHasTime = originalDraft.microsoftDueTime != null;
@@ -199,10 +206,61 @@ Future<bool> showWindowsTaskDetailsDialog(
     hideCompletedSubtasks: hideCompletedSubtasks,
     alarms: alarms,
   );
+  void retainCommittedPatch(TaskEntity committed) {
+    original = committed;
+    originalDraft = TaskDetailsDraft.fromTask(committed, localTimeZone);
+    title.text = originalDraft.title;
+    notes.text = originalDraft.notes;
+    categories.text = originalDraft.categories.join(', ');
+    location.text = originalDraft.location;
+    taskUrl.text = originalDraft.taskUrl;
+    due = _taskDueDateTime(originalDraft);
+    dueHasTime = originalDraft.microsoftDueTime != null;
+    dueTimeZone = originalDraft.microsoftDueTimeZone ?? localTimeZone;
+    start = _taskDateTime(
+      originalDraft.microsoftStartDate,
+      originalDraft.microsoftStartTime,
+    );
+    startHasTime = originalDraft.microsoftStartTime != null;
+    startTimeZone = originalDraft.microsoftStartTimeZone ?? localTimeZone;
+    reminder = _taskDateTime(
+      originalDraft.microsoftReminderDate,
+      originalDraft.microsoftReminderTime,
+    );
+    reminderEnabled = originalDraft.microsoftReminderEnabled;
+    reminderTimeZone = originalDraft.microsoftReminderTimeZone ?? localTimeZone;
+    recurrenceJson = originalDraft.recurrenceJson;
+    recurrenceType = _recurrenceType(recurrenceJson);
+    importance = originalDraft.importance;
+    priority = originalDraft.icalPriority;
+    taskStatus = originalDraft.taskStatus ?? '';
+    progress = originalDraft.percentComplete;
+    completedAt = _taskDateTime(
+      originalDraft.completedDate,
+      originalDraft.completedTime,
+    );
+    classification = originalDraft.classification;
+    pinned = originalDraft.pinned;
+    hideSubtasks = originalDraft.hideSubtasks;
+    hideCompletedSubtasks = originalDraft.hideCompletedSubtasks;
+    alarms = [...originalDraft.alarms];
+    locationChange = originalDraft.locationChange;
+    completed = committed.status == 'completed';
+    checkboxCompletionIntent = null;
+  }
+
+  RecurrenceRule currentAdvancedRecurrence() => RecurrenceRule.fromJson(
+    recurrenceJson,
+    baseDate: taskDraftRecurrenceReference(
+      currentDraft(),
+      localTimeZone: localTimeZone,
+    )?.dateTime,
+  );
   bool hasPendingEdits() =>
       !currentDraft().hasSameValues(originalDraft) ||
       subtaskTitle.text.isNotEmpty ||
-      (!capabilities.supportsTaskStatus && completed != task.completed);
+      (!capabilities.supportsTaskStatus &&
+          completed != (original.status == 'completed'));
   void report(
     TaskMutationCommittedCallback? callback,
     TaskMutationResult result,
@@ -291,6 +349,7 @@ Future<bool> showWindowsTaskDetailsDialog(
                         ? null
                         : (value) => setState(() {
                             completed = value ?? false;
+                            checkboxCompletionIntent = completed;
                             if (capabilities.supportsTaskStatus) {
                               taskStatus = completed
                                   ? 'COMPLETED'
@@ -962,33 +1021,103 @@ Future<bool> showWindowsTaskDetailsDialog(
                           if (capabilities.supportsRecurrence &&
                               (due != null || start != null)) ...[
                             const SizedBox(height: 12),
-                            _StringCombo(
-                              label: l10n.repeat,
-                              value: recurrenceType,
-                              values: {
-                                'none': l10n.repeatNone,
-                                'daily': l10n.repeatDaily,
-                                'weekly': l10n.repeatWeekly,
-                                'absoluteMonthly': l10n.repeatMonthly,
-                                'absoluteYearly': l10n.repeatYearly,
-                                if (recurrenceType == 'unsupported')
-                                  'unsupported':
-                                      l10n.unsupportedRecurrencePreserved,
-                              },
-                              enabled:
-                                  enabled && recurrenceType != 'unsupported',
-                              onChanged: (value) => setState(() {
-                                recurrenceType = value;
-                                recurrenceJson = encodeSimpleTaskRecurrence(
-                                  value,
-                                  due: due,
-                                  start: start,
-                                  dav:
-                                      account.provider ==
-                                      BusyProvider.nextcloud,
-                                );
-                              }),
-                            ),
+                            if (capabilities.supportsAdvancedRecurrence)
+                              InfoLabel(
+                                label: l10n.repeat,
+                                child: Button(
+                                  key: const ValueKey(
+                                    'task-advanced-recurrence',
+                                  ),
+                                  onPressed:
+                                      !enabled ||
+                                          !currentAdvancedRecurrence()
+                                              .isSupported
+                                      ? null
+                                      : () async {
+                                          final reference =
+                                              taskDraftRecurrenceReference(
+                                                currentDraft(),
+                                                localTimeZone: localTimeZone,
+                                              );
+                                          if (reference == null) return;
+                                          final initial =
+                                              RecurrenceRule.fromJson(
+                                                recurrenceJson,
+                                                baseDate: reference.dateTime,
+                                              );
+                                          final value =
+                                              await showWindowsRecurrenceDialog(
+                                                context,
+                                                initial: initial,
+                                                baseDate: reference.dateTime,
+                                                allDay: reference.allDay,
+                                                timeZone:
+                                                    reference.timeZone ??
+                                                    localTimeZone,
+                                                floating: reference.floating,
+                                                providerLabel: account
+                                                    .provider
+                                                    .displayName,
+                                                limits: RecurrenceRuleLimits
+                                                    .rfc5545,
+                                              );
+                                          if (value == null ||
+                                              busy ||
+                                              !context.mounted ||
+                                              value.toJsonString() ==
+                                                  initial.toJsonString()) {
+                                            return;
+                                          }
+                                          setState(() {
+                                            recurrenceJson = value.repeats
+                                                ? value.toJsonString()
+                                                : null;
+                                            recurrenceType = _recurrenceType(
+                                              recurrenceJson,
+                                            );
+                                          });
+                                        },
+                                  child: Text(
+                                    currentAdvancedRecurrence().isSupported
+                                        ? recurrenceRuleSummary(
+                                            context,
+                                            currentAdvancedRecurrence(),
+                                            timeZone: due != null
+                                                ? dueTimeZone
+                                                : startTimeZone,
+                                          )
+                                        : l10n.unsupportedRecurrencePreserved,
+                                  ),
+                                ),
+                              )
+                            else
+                              _StringCombo(
+                                label: l10n.repeat,
+                                value: recurrenceType,
+                                values: {
+                                  'none': l10n.repeatNone,
+                                  'daily': l10n.repeatDaily,
+                                  'weekly': l10n.repeatWeekly,
+                                  'absoluteMonthly': l10n.repeatMonthly,
+                                  'absoluteYearly': l10n.repeatYearly,
+                                  if (recurrenceType == 'unsupported')
+                                    'unsupported':
+                                        l10n.unsupportedRecurrencePreserved,
+                                },
+                                enabled:
+                                    enabled && recurrenceType != 'unsupported',
+                                onChanged: (value) => setState(() {
+                                  recurrenceType = value;
+                                  recurrenceJson = encodeSimpleTaskRecurrence(
+                                    value,
+                                    due: due,
+                                    start: start,
+                                    dav:
+                                        account.provider ==
+                                        BusyProvider.nextcloud,
+                                  );
+                                }),
+                              ),
                           ],
                         ],
                       ),
@@ -1166,6 +1295,7 @@ Future<bool> showWindowsTaskDetailsDialog(
                               },
                               enabled: enabled,
                               onChanged: (value) => setState(() {
+                                checkboxCompletionIntent = null;
                                 taskStatus = value;
                                 if (value == 'COMPLETED') {
                                   progress = 100;
@@ -1195,6 +1325,7 @@ Future<bool> showWindowsTaskDetailsDialog(
                               divisions: 100,
                               onChanged: enabled
                                   ? (value) => setState(() {
+                                      checkboxCompletionIntent = null;
                                       progress = value.round();
                                       if (progress == 100) {
                                         taskStatus = 'COMPLETED';
@@ -1402,6 +1533,8 @@ Future<bool> showWindowsTaskDetailsDialog(
                                               ? subtask.id
                                               : null,
                                           completed: value ?? false,
+                                          occurrenceKey:
+                                              affectedTask?.occurrenceKey,
                                         );
                                         report(onTaskMutationStarted, mutation);
                                         try {
@@ -1411,16 +1544,11 @@ Future<bool> showWindowsTaskDetailsDialog(
                                             await repository.patchTask(
                                               child.taskListId,
                                               child.id,
-                                              TaskPatchInput({
-                                                'status': value == true
-                                                    ? 'completed'
-                                                    : 'needsAction',
-                                                'completed': value == true
-                                                    ? DateTime.now()
-                                                          .toUtc()
-                                                          .toIso8601String()
-                                                    : null,
-                                              }),
+                                              TaskPatchInput.completion(
+                                                value == true,
+                                                observedOccurrenceKey:
+                                                    child.occurrenceKey,
+                                              ),
                                             );
                                           } else {
                                             await repository
@@ -1447,11 +1575,15 @@ Future<bool> showWindowsTaskDetailsDialog(
                                             changed = true;
                                             error = null;
                                           });
-                                        } on Object catch (_) {
+                                        } on Object catch (failure) {
                                           onTaskMutationFailed?.call();
                                           setState(() {
                                             busy = false;
-                                            error = l10n.operationFailed;
+                                            error =
+                                                failure
+                                                    is TaskOccurrenceChangedException
+                                                ? l10n.taskDraftConflict
+                                                : l10n.operationFailed;
                                           });
                                         }
                                       }
@@ -1893,11 +2025,17 @@ Future<bool> showWindowsTaskDetailsDialog(
                           report(onTaskMutationCommitted, mutation);
                           changed = true;
                           closeDialog();
-                        } on Object catch (_) {
+                        } on Object catch (failure) {
                           onTaskMutationFailed?.call();
                           setState(() {
                             busy = false;
-                            error = l10n.operationFailed;
+                            error = failure is TaskDraftConflictException
+                                ? l10n.taskDraftConflict
+                                : failure is DavException &&
+                                      failure.code ==
+                                          'DavTaskDurationRequiresStart'
+                                ? l10n.taskDurationRequiresStart
+                                : l10n.operationFailed;
                           });
                         }
                       },
@@ -1959,7 +2097,7 @@ Future<bool> showWindowsTaskDetailsDialog(
                             localTimeZone: localTimeZone,
                           );
                           if (!capabilities.supportsTaskStatus &&
-                              completed != task.completed) {
+                              completed != (original.status == 'completed')) {
                             patch
                               ..['status'] = completed
                                   ? 'completed'
@@ -1970,7 +2108,8 @@ Future<bool> showWindowsTaskDetailsDialog(
                           }
                           final moving =
                               selectedTaskListId != original.taskListId;
-                          final completionChanged = completed != task.completed;
+                          final completionChanged =
+                              completed != (original.status == 'completed');
                           final mutation = TaskMutationResult(
                             kind: moving
                                 ? TaskMutationKind.moved
@@ -1981,6 +2120,7 @@ Future<bool> showWindowsTaskDetailsDialog(
                             taskListId: original.taskListId,
                             taskId: task.id,
                             completed: completionChanged ? completed : null,
+                            occurrenceKey: original.occurrenceKey,
                           );
                           report(onTaskMutationStarted, mutation);
                           if (patch.isNotEmpty) {
@@ -1990,26 +2130,74 @@ Future<bool> showWindowsTaskDetailsDialog(
                               TaskPatchInput(
                                 patch,
                                 locationChange: updatedDraft.locationChange,
+                                observedTask: updatedDraft.observedTask,
+                                completionIntent: checkboxCompletionIntent,
+                                observedOccurrenceKey:
+                                    checkboxCompletionIntent != null ||
+                                        patch.keys.any(
+                                          const {
+                                            'status',
+                                            'completed',
+                                            'taskStatus',
+                                            'percentComplete',
+                                            'completedAtUtc',
+                                          }.contains,
+                                        )
+                                    ? updatedDraft.observedTask?.occurrenceKey
+                                    : null,
                               ),
                             );
                           }
                           if (selectedTaskListId != original.taskListId) {
-                            await repository.moveTask(
-                              TaskMoveInput(
-                                sourceTaskListId: original.taskListId,
-                                taskId: original.id,
-                                destinationTaskListId: selectedTaskListId,
-                              ),
-                            );
+                            try {
+                              await repository.moveTask(
+                                TaskMoveInput(
+                                  sourceTaskListId: original.taskListId,
+                                  taskId: original.id,
+                                  destinationTaskListId: selectedTaskListId,
+                                ),
+                              );
+                            } on Object {
+                              if (patch.isEmpty) rethrow;
+                              final committed = await repository.readTask(
+                                original.taskListId,
+                                original.id,
+                              );
+                              if (committed == null) rethrow;
+                              retainCommittedPatch(committed);
+                              changed = true;
+                              report(
+                                onTaskMutationCommitted,
+                                TaskMutationResult(
+                                  kind: TaskMutationKind.updated,
+                                  accountId: committed.accountId,
+                                  taskListId: committed.taskListId,
+                                  taskId: committed.id,
+                                ),
+                              );
+                              setState(() {
+                                busy = false;
+                                error = l10n.taskMoveAfterSaveFailed;
+                              });
+                              return;
+                            }
                           }
                           report(onTaskMutationCommitted, mutation);
                           changed = true;
                           closeDialog();
-                        } on Object catch (_) {
+                        } on Object catch (failure) {
                           onTaskMutationFailed?.call();
                           setState(() {
                             busy = false;
-                            error = l10n.operationFailed;
+                            error =
+                                failure is TaskDraftConflictException ||
+                                    failure is TaskOccurrenceChangedException
+                                ? l10n.taskDraftConflict
+                                : failure is DavException &&
+                                      failure.code ==
+                                          'DavTaskDurationRequiresStart'
+                                ? l10n.taskDurationRequiresStart
+                                : l10n.operationFailed;
                           });
                         }
                       },
