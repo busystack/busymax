@@ -66,6 +66,16 @@ bool FlutterWindow::OnCreate() {
   RegisterPlugins(flutter_controller_->engine());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
+  timezone_channel_ =
+      std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+          flutter_controller_->engine()->messenger(), "busymax/windows/timezone",
+          &flutter::StandardMethodCodec::GetInstance());
+  timezone_channel_->SetMethodCallHandler([this](const auto& call, auto result) {
+    timezone_service_.HandleMethodCall(call, std::move(result));
+  });
+  tray_channel_ = std::make_unique<busymax::WindowsTrayChannel>(
+      flutter_controller_->engine()->messenger(), GetHandle());
+
   clock_channel_ =
       std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
           flutter_controller_->engine()->messenger(), "busymax/windows_clock",
@@ -268,6 +278,8 @@ void FlutterWindow::QueueActivation(std::string activation) {
 }
 
 void FlutterWindow::OnDestroy() {
+  tray_channel_.reset();
+  timezone_channel_.reset();
   clock_channel_.reset();
   weekday_channel_.reset();
   if (flutter_controller_) {
@@ -281,6 +293,10 @@ LRESULT
 FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam,
                               LPARAM const lparam) noexcept {
+  if (tray_channel_) {
+    const auto handled = tray_channel_->HandleMessage(message, wparam, lparam);
+    if (handled) return *handled;
+  }
   // Observe before plugin processing, but retain all existing message handling.
   if (BusyMaxClockRefreshMessage(message, wparam, lparam)) {
     RefreshClockPreference();

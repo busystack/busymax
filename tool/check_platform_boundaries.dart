@@ -166,8 +166,11 @@ void _checkNativePluginIsolation(Directory root, List<String> failures) {
   }
   final windowsSource = windowsPlugins.readAsStringSync();
   for (final plugin in const ['tray_manager', 'flutter_timezone']) {
-    if (!windowsSource.contains(plugin)) {
-      failures.add('Windows plugin graph does not register $plugin.');
+    if (windowsSource.contains(plugin)) {
+      failures.add(
+        'Windows plugin graph still registers retired $plugin; '
+        'BusyMax owns its tray and time-zone OS channels.',
+      );
     }
   }
 }

@@ -6,10 +6,8 @@ list(APPEND FLUTTER_PLUGIN_LIST
   connectivity_plus
   file_selector_windows
   flutter_secure_storage_windows
-  flutter_timezone
   screen_retriever_windows
   system_theme
-  tray_manager
   url_launcher_windows
   window_manager
 )

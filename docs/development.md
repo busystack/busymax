@@ -53,7 +53,6 @@ sudo apt-get install -y \
   pkg-config \
   libgtk-3-dev \
   libhandy-1-dev \
-  libayatana-appindicator3-dev \
   libstdc++-12-dev \
   libsecret-1-dev \
   libjsoncpp-dev \

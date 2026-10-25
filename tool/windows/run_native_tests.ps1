@@ -13,8 +13,7 @@ if (-not (Test-Path -LiteralPath (Join-Path $BuildDirectory 'CMakeCache.txt'))) 
 $resultDirectory = 'build\windows\test-results'
 New-Item -ItemType Directory -Force -Path $resultDirectory | Out-Null
 & cmake -S windows -B $BuildDirectory `
-  -Dinclude_flutter_timezone_tests=ON `
-  -Dinclude_tray_manager_tests=ON 2>&1 | Tee-Object `
+  -DBUSYMAX_NATIVE_OS_TESTS=ON 2>&1 | Tee-Object `
   -FilePath (Join-Path $resultDirectory 'native-configure.log')
 $configureExitCode = $LASTEXITCODE
 if ($configureExitCode -ne 0) {
@@ -22,7 +21,7 @@ if ($configureExitCode -ne 0) {
 }
 & cmake --build $BuildDirectory --config $Configuration `
   --target busymax_runner_native_test busymax_notification_activation_test `
-    busymax_short_time_pattern_test flutter_timezone_test tray_manager_test `
+    busymax_short_time_pattern_test busymax_timezone_native_test busymax_tray_native_test `
     busymax_registration_reader_tests `
   2>&1 | Tee-Object `
   -FilePath (Join-Path $resultDirectory 'native-build.log')
