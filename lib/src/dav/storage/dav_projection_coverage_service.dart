@@ -28,27 +28,45 @@ final class DavProjectionCoverageService {
   Future<void> ensureProjectionCoverage({
     required DateTime rangeStartUtc,
     required DateTime rangeEndUtc,
+    Set<String> accountIds = const {},
+    Set<String> sourceIds = const {},
+    bool sourceFilterActive = false,
   }) async {
     final requestedStart = rangeStartUtc.toUtc();
     final requestedEnd = rangeEndUtc.toUtc();
     if (!requestedEnd.isAfter(requestedStart)) return;
 
-    final collections =
-        await (_database.select(_database.davCollections)..where(
-              (row) =>
-                  row.eventProjectionEnabled.equals(true) &
-                  row.eventsSelected.equals(true) &
-                  row.deleted.equals(false) &
-                  row.serverMissing.equals(false),
-            ))
-            .get();
+    final selectedCollections = sourceFilterActive
+        ? (await (_database.select(_database.calendarSources)..where(
+                    (row) =>
+                        row.id.isIn(sourceIds) & row.isDeleted.equals(false),
+                  ))
+                  .get())
+              .map((source) => source.davCollectionId)
+              .nonNulls
+              .toSet()
+        : const <String>{};
+    final query = _database.select(_database.davCollections)
+      ..where(
+        (row) =>
+            row.eventProjectionEnabled.equals(true) &
+            (sourceFilterActive
+                ? row.id.isIn(selectedCollections)
+                : row.eventsSelected.equals(true)) &
+            row.deleted.equals(false) &
+            row.serverMissing.equals(false),
+      );
+    if (accountIds.isNotEmpty) {
+      query.where((row) => row.accountId.isIn(accountIds));
+    }
+    final collections = await query.get();
     if (collections.isEmpty) return;
-    final accountIds = collections
+    final collectionAccountIds = collections
         .map((collection) => collection.accountId)
         .toSet();
     final accounts = await (_database.select(
       _database.accounts,
-    )..where((row) => row.id.isIn(accountIds))).get();
+    )..where((row) => row.id.isIn(collectionAccountIds))).get();
     final providersByAccount = <String, BusyProvider>{
       for (final account in accounts)
         if (BusyProviderCodec.parseStorageValue(account.provider)

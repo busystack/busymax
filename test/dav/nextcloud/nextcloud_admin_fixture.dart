@@ -16,6 +16,7 @@ class NextcloudAdminFixture {
   final database = AppDatabase(NativeDatabase.memory());
   final secrets = InMemorySecretStore();
   final requests = <http.Request>[];
+  Future<http.Response> Function(http.Request)? principalSearchResponse;
   late final client = MockClient(respond);
   late final collections = NextcloudCollectionService(
     database: database,
@@ -206,6 +207,7 @@ class NextcloudAdminFixture {
     }
     if (request.method == 'REPORT' &&
         request.body.contains('principal-property-search')) {
+      if (principalSearchResponse case final respond?) return respond(request);
       if (request.body.contains('remote.example.test')) {
         return http.Response('<d:multistatus $nextcloudXmlNamespaces/>', 207);
       }

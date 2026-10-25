@@ -56,6 +56,12 @@ class ScheduleFilters {
   /// Query every locally projected record without extending provider history.
   final bool ignoreDateRange;
 
+  /// Only bounded queries with an event source need calendar range coverage.
+  bool get requiresCalendarCoverage =>
+      includeCalendarEvents &&
+      !ignoreDateRange &&
+      (!sourceFilterActive || sourceIds.isNotEmpty);
+
   /// Search dates describe due dates; normal Schedule dates describe scheduling.
   final bool useTaskDueDate;
   final ScheduleTaskDueState taskDueState;

@@ -287,6 +287,17 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
 
   @override
   Widget build(BuildContext context) {
+    final replacements = ref.watch(taskListIdReplacementsProvider);
+    final remappedList = replacements[_listKey] ?? _listKey;
+    if (remappedList != _listKey) {
+      _listKey = remappedList;
+      _tasks = null;
+    }
+    ScheduleTaskListKey listKey(String accountId, String listId) {
+      final key = ScheduleTaskListKey(accountId: accountId, taskListId: listId);
+      return replacements[key] ?? key;
+    }
+
     final l10n = AppLocalizations.of(context);
     final locale = Localizations.localeOf(context).toLanguageTag();
     final accountsState = ref.watch(accountsStreamProvider);
@@ -313,11 +324,7 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
                   (a) => a.id == _listKey!.accountId && a.isTaskCapable,
                 )) ||
             (listsLoaded &&
-                !lists.any(
-                  (l) =>
-                      l.accountId == _listKey!.accountId &&
-                      l.id == _listKey!.taskListId,
-                )));
+                !lists.any((l) => listKey(l.accountId, l.id) == _listKey)));
     if (missingAccount || missingList) {
       if (missingAccount) _accountId = null;
       if (missingList || missingAccount) _listKey = null;
@@ -436,9 +443,7 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
                         placeholder: Text(l10n.allTasks),
                         value:
                             lists.any(
-                              (l) =>
-                                  l.accountId == _listKey?.accountId &&
-                                  l.id == _listKey?.taskListId,
+                              (l) => listKey(l.accountId, l.id) == _listKey,
                             )
                             ? _listKey
                             : null,
@@ -455,10 +460,7 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
                                 _accountId == null || l.accountId == _accountId,
                           ))
                             ComboBoxItem(
-                              value: ScheduleTaskListKey(
-                                accountId: list.accountId,
-                                taskListId: list.id,
-                              ),
+                              value: listKey(list.accountId, list.id),
                               child: Text(
                                 '${accounts.where((a) => a.id == list.accountId).firstOrNull?.selectorLabel ?? list.accountId} · ${list.title}',
                               ),

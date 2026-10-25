@@ -2060,6 +2060,11 @@ class _AndroidNextcloudSharingScreenState
   final _search = TextEditingController();
   NextcloudSharingState? _state;
   List<NextcloudShareRecipient> _recipients = const [];
+  var _recipientSearchGeneration = 0;
+  var _searchingRecipients = false;
+  var _recipientQuery = '';
+  String? _recipientResultsQuery;
+  Object? _recipientSearchError;
   bool _busy = true;
   Object? _error;
 
@@ -2069,11 +2074,13 @@ class _AndroidNextcloudSharingScreenState
   @override
   void initState() {
     super.initState();
+    _search.addListener(_recipientQueryChanged);
     unawaited(_load());
   }
 
   @override
   void dispose() {
+    _search.removeListener(_recipientQueryChanged);
     _search.dispose();
     super.dispose();
   }
@@ -2094,19 +2101,55 @@ class _AndroidNextcloudSharingScreenState
   }
 
   Future<void> _findRecipients() async {
-    if (_search.text.trim().isEmpty) return;
+    final query = _search.text.trim();
+    if (_busy || query.isEmpty) return;
+    final generation = ++_recipientSearchGeneration;
     setState(() {
-      _busy = true;
-      _error = null;
+      _searchingRecipients = true;
+      _recipientSearchError = null;
+      _recipientResultsQuery = null;
+      _recipients = const [];
     });
+    bool current() =>
+        mounted &&
+        generation == _recipientSearchGeneration &&
+        _search.text.trim() == query;
     try {
-      final recipients = await _service.search(_search.text);
-      if (mounted) setState(() => _recipients = recipients);
+      final recipients = await _service.search(query);
+      if (current()) {
+        setState(() {
+          _recipients = recipients;
+          _recipientResultsQuery = query;
+        });
+      }
     } on Object catch (error) {
-      if (mounted) setState(() => _error = error);
+      if (current()) setState(() => _recipientSearchError = error);
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (current()) setState(() => _searchingRecipients = false);
     }
+  }
+
+  void _recipientQueryChanged() {
+    final query = _search.text.trim();
+    if (query == _recipientQuery) return;
+    _recipientQuery = query;
+    _recipientSearchGeneration += 1;
+    setState(() {
+      _searchingRecipients = false;
+      _recipientSearchError = null;
+      _recipientResultsQuery = null;
+      _recipients = const [];
+    });
+  }
+
+  void _shareSearchRecipient(NextcloudShareRecipient recipient, bool writable) {
+    if (_busy ||
+        _searchingRecipients ||
+        _recipientResultsQuery != _search.text.trim() ||
+        !_recipients.contains(recipient)) {
+      return;
+    }
+    unawaited(_changeShare(recipient, writable));
   }
 
   Future<void> _changeShare(
@@ -2120,6 +2163,7 @@ class _AndroidNextcloudSharingScreenState
         recipient,
         writable: writable,
       );
+      if (!mounted) return;
       _search.clear();
       _recipients = const [];
       await _load();
@@ -2174,11 +2218,11 @@ class _AndroidNextcloudSharingScreenState
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
-                  if (_error != null)
+                  if ((_error ?? _recipientSearchError) case final error?)
                     ListTile(
                       leading: const Icon(Icons.error_outline),
                       title: Text(context.l10n.operationFailed),
-                      subtitle: Text('$_error'),
+                      subtitle: Text('$error'),
                     ),
                   if (state?.canPublish ?? false)
                     SwitchListTile(
@@ -2198,15 +2242,19 @@ class _AndroidNextcloudSharingScreenState
                   if (state?.canShare ?? false) ...[
                     TextField(
                       controller: _search,
+                      enabled: !_busy,
                       decoration: InputDecoration(
                         labelText: context.l10n.nextcloudRecipientSearch,
                         suffixIcon: IconButton(
-                          onPressed: _busy ? null : _findRecipients,
+                          onPressed: _busy || _searchingRecipients
+                              ? null
+                              : _findRecipients,
                           icon: const Icon(Icons.search),
                         ),
                       ),
                       onSubmitted: (_) => unawaited(_findRecipients()),
                     ),
+                    if (_searchingRecipients) const LinearProgressIndicator(),
                     for (final recipient in _recipients)
                       ListTile(
                         leading: Icon(
@@ -2214,8 +2262,9 @@ class _AndroidNextcloudSharingScreenState
                         ),
                         title: Text(recipient.label),
                         trailing: PopupMenuButton<bool>(
+                          enabled: !_busy && !_searchingRecipients,
                           onSelected: (value) =>
-                              unawaited(_changeShare(recipient, value)),
+                              _shareSearchRecipient(recipient, value),
                           itemBuilder: (context) => [
                             PopupMenuItem(
                               value: false,

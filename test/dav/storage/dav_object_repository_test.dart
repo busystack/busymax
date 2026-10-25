@@ -16,6 +16,7 @@ import 'package:busymax/src/features/notifications/notification_schedule_service
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/schedule/schedule_range.dart';
 import 'package:busymax/src/schedule/schedule_repository.dart';
+import 'package:busymax/src/schedule/schedule_filters.dart';
 import 'package:drift/drift.dart' hide isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -674,6 +675,77 @@ void main() {
       expect(cursor.stateJson, allOf(contains('2029'), contains('2032')));
     },
   );
+
+  test('explicit search scope projects a disabled DAV calendar without changing visibility', () async {
+    final future = DavPreparedObject.parse(
+      hrefKey: _eventHref,
+      requestUri: Uri.parse('https://cloud.example.test$_eventHref'),
+      etag: '"future"',
+      contentType: 'text/calendar',
+      rawIcsBody: _simpleEvent(
+        'Future',
+        start: '20300101T090000Z',
+        end: '20300101T100000Z',
+      ),
+    );
+    await repository.commit(
+      _commit(objects: [future], membership: {_eventHref}, cursor: 'token-1'),
+    );
+    await (database.update(database.davCollections)
+          ..where((row) => row.id.equals('collection')))
+        .write(const DavCollectionsCompanion(eventsSelected: Value(false)));
+    final coverage = DavProjectionCoverageService(
+      database: database,
+      objectRepository: repository,
+      nowUtc: () => _now,
+    );
+    final range = ScheduleRange(
+      start: DateTime.utc(2030),
+      end: DateTime.utc(2030, 1, 2),
+    );
+    final schedule = ScheduleRepository(
+      database,
+      ensureProjectionCoverage: (range, filters) =>
+          coverage.ensureProjectionCoverage(
+            rangeStartUtc: range.start.toUtc(),
+            rangeEndUtc: range.end.toUtc(),
+            accountIds: filters.accountIds,
+            sourceIds: filters.sourceIds,
+            sourceFilterActive: filters.sourceFilterActive,
+          ),
+    );
+    expect(await schedule.listItems(range: range), isEmpty);
+    expect(
+      await schedule.listItems(
+        range: range,
+        filters: const ScheduleFilters(
+          accountIds: {'another-account'},
+          sourceIds: {'dav-calendar-collection'},
+          sourceFilterActive: true,
+        ),
+      ),
+      isEmpty,
+    );
+    expect(await database.select(database.calendarEvents).get(), isEmpty);
+    final matches = await schedule.listItems(
+      range: range,
+      filters: const ScheduleFilters(
+        accountIds: {'account'},
+        sourceIds: {'dav-calendar-collection'},
+        sourceFilterActive: true,
+      ),
+    );
+    expect(matches.map((item) => item.title), ['Future']);
+    expect(
+      (await database.select(database.davCollections).getSingle())
+          .eventsSelected,
+      isFalse,
+    );
+    expect(
+      (await database.select(database.syncCursors).getSingle()).cursorValue,
+      'token-1',
+    );
+  });
 
   test(
     'navigation expands a pending offline series edit without changing queue',

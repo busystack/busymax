@@ -18,7 +18,7 @@ Iterable<List<String>> scheduleEventPeople(CalendarScheduleItem item) sync* {
     if (item.organizer != null) item.organizer!,
     ...item.attendees,
   ]) {
-    final identity = <String>[];
+    final identity = <String>{};
     for (final key in const [
       'displayName',
       'name',
@@ -30,6 +30,24 @@ Iterable<List<String>> scheduleEventPeople(CalendarScheduleItem item) sync* {
       final value = person[key];
       if (value is String && value.trim().isNotEmpty) identity.add(value);
     }
+    // iCalendar participants retain their CAL-ADDRESS and property parameters.
+    final address = person['value'];
+    if (address is String && address.trim().isNotEmpty) {
+      identity.add(
+        address.trim().replaceFirst(
+          RegExp('^mailto:', caseSensitive: false),
+          '',
+        ),
+      );
+    }
+    final parameters = person['parameters'];
+    if (parameters is List) {
+      for (final parameter in parameters.whereType<Map>()) {
+        if (parameter['name']?.toString().toUpperCase() != 'CN') continue;
+        final values = parameter['values'];
+        if (values is List) identity.addAll(values.whereType<String>());
+      }
+    }
     final nested = person['emailAddress'];
     if (nested is Map) {
       for (final key in const ['name', 'address']) {
@@ -37,7 +55,7 @@ Iterable<List<String>> scheduleEventPeople(CalendarScheduleItem item) sync* {
         if (value is String && value.trim().isNotEmpty) identity.add(value);
       }
     }
-    if (identity.isNotEmpty) yield identity;
+    if (identity.isNotEmpty) yield identity.toList();
   }
 }
 
@@ -52,10 +70,16 @@ String? scheduleItemLocation(ScheduleItem item) => switch (item) {
 };
 
 String _plainDescription(ScheduleItem item) => switch (item) {
-  CalendarScheduleItem() => htmlCalendarDescriptionToPlainText(
-    item.description ?? item.descriptionHtml ?? '',
-  ),
-  TaskScheduleItem() => htmlCalendarDescriptionToPlainText(item.notes ?? ''),
+  // Google events retain the provider's HTML description. Other event
+  // projections already normalize their description to plain text.
+  CalendarScheduleItem(provider: BusyProvider.google) =>
+    htmlCalendarDescriptionToPlainText(
+      item.description ?? item.descriptionHtml ?? '',
+    ),
+  CalendarScheduleItem() =>
+    item.description ??
+        htmlCalendarDescriptionToPlainText(item.descriptionHtml ?? ''),
+  TaskScheduleItem() => item.notes ?? '',
 };
 
 Iterable<String> _contextFields(ScheduleItem item) sync* {

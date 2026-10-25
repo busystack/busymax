@@ -208,6 +208,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   List<CalendarSourceEntity> _searchSources = const [];
   List<TaskListEntity> _searchTaskLists = const [];
   ScheduleSourceVisibility? _searchVisibility;
+  var _searchInventoryReady = false;
   final _searchController = TextEditingController();
   final _workspaceFocusNode = FocusNode();
   var _fallbackSearchFocusRequest = 0;
@@ -301,6 +302,11 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
 
   @override
   Widget build(BuildContext context) {
+    final replacements = ref.watch(taskListIdReplacementsProvider);
+    _searchCriteria = _searchCriteria?.remapTaskLists(replacements);
+    _initialSearchCriteria = _initialSearchCriteria?.remapTaskLists(
+      replacements,
+    );
     // Sync expands recurring cloud events into occurrence rows after the local
     // save. Requery when those rows arrive so the month view updates itself.
     ref.watch(scheduleDataRevisionProvider);
@@ -354,10 +360,20 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                 _searchSources = sources;
                 _searchTaskLists = taskLists;
                 _searchVisibility = visibility;
-                if (_searchActive &&
-                    _searchCriteria == null &&
-                    !sourcesLoading &&
-                    !taskListsLoading) {
+                _searchInventoryReady =
+                    accountsState.hasValue &&
+                    !accountsState.isLoading &&
+                    !accountsState.hasError &&
+                    sourcesSnapshot.hasData &&
+                    (sourcesSnapshot.connectionState ==
+                            ConnectionState.active ||
+                        sourcesSnapshot.connectionState ==
+                            ConnectionState.done) &&
+                    !sourcesSnapshot.hasError &&
+                    listsSnapshot.hasData &&
+                    listsSnapshot.connectionState == ConnectionState.done &&
+                    !listsSnapshot.hasError;
+                if (_searchActive && _searchCriteria == null) {
                   _initializeSearch();
                 }
                 final firstWeekday = _firstWeekday(context);
@@ -697,27 +713,26 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                                 searchActive && _searchCriteria != null,
                             child: buildSidebar(),
                           );
+                          final coverageFilters =
+                              searchActive && _searchCriteria != null
+                              ? _searchCriteria!.filters(_searchQuery)
+                              : ScheduleFilters(
+                                  accountIds: accountIds.toSet(),
+                                  sourceIds:
+                                      visibility.visibleCalendarSourceIds,
+                                  sourceFilterActive: true,
+                                  includeCalendarEvents:
+                                      _scope != ScheduleScope.tasks,
+                                );
                           final cloudCoverage =
                               snapshot.hasData &&
                                   !scheduleLoading &&
-                                  _searchCriteria?.date !=
-                                      ScheduleSearchDate.any
+                                  coverageFilters.requiresCalendarCoverage
                               ? ref
                                     .read(scheduleRepositoryProvider)
                                     .cloudCoverageCompleteFor(
                                       _searchCriteria?.range ?? range,
-                                      filters:
-                                          searchActive &&
-                                              _searchCriteria != null
-                                          ? _searchCriteria!.filters(
-                                              _searchQuery,
-                                            )
-                                          : ScheduleFilters(
-                                              accountIds: accountIds.toSet(),
-                                              sourceIds: visibility
-                                                  .visibleCalendarSourceIds,
-                                              sourceFilterActive: true,
-                                            ),
+                                      filters: coverageFilters,
                                     )
                               : true;
                           final frame = LinuxPageFrame(
@@ -981,11 +996,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   }
 
   ScheduleRange _agendaRangeFromToday() {
-    final start = _day(DateTime.now());
-    return ScheduleRange(
-      start: start,
-      end: start.add(Duration(days: _agendaLoadedDays)),
-    );
+    return ScheduleRange.days(DateTime.now(), count: _agendaLoadedDays);
   }
 
   ScheduleRange _rangeForSearchResults(
@@ -1003,13 +1014,13 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     days.sort();
     return ScheduleRange(
       start: days.first,
-      end: days.last.add(const Duration(days: 1)),
+      end: DateTime(days.last.year, days.last.month, days.last.day + 1),
     );
   }
 
   void _initializeSearch() {
     final visibility = _searchVisibility;
-    if (visibility == null) return;
+    if (!_searchInventoryReady || visibility == null) return;
     _initialSearchCriteria = ScheduleSearchCriteria(
       type: switch (_scope) {
         ScheduleScope.events => ScheduleSearchType.events,
@@ -1020,7 +1031,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       firstWeekday: _firstWeekday(context),
       sourceIds: visibility.visibleCalendarSourceIds,
       taskListKeys: visibility.visibleTaskListKeys,
-    );
+    ).remapTaskLists(ref.read(taskListIdReplacementsProvider));
     _searchCriteria = _initialSearchCriteria;
   }
 
