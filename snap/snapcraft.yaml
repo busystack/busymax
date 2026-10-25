@@ -67,6 +67,7 @@ parts:
     stage-packages:
       - fonts-noto-core
       - libhandy-1-0
+      - libayatana-appindicator3-1
       - libgweather-4-0t64
       - liblzma5
       - libsecret-1-0

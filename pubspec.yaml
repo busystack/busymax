@@ -71,16 +71,11 @@ dev_dependencies:
   file_selector_platform_interface: any
   fake_async: any
 dependency_overrides:
-  fluent_ui:
-    path: third_party/fluent_ui
-  flutter_timezone:
-    path: third_party/flutter_timezone
-  tray_manager:
-    path: third_party/tray_manager
-  yaru_window:
-    path: third_party/yaru_window
-  xdg_status_notifier_item:
-    path: third_party/xdg_status_notifier_item
+  fluent_ui: 4.16.1
+  flutter_timezone: 5.1.0
+  tray_manager: 0.5.3
+  yaru_window: 0.2.2
+  xdg_status_notifier_item: 0.0.1
 
 flutter:
   generate: true

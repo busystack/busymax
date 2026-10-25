@@ -2,7 +2,6 @@ import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:busymax/src/l10n/time_format_scope.dart';
 import 'package:busymax/src/ui/windows/windows_time_picker.dart';
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:fluent_ui/src/controls/pickers/pickers.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -13,7 +12,9 @@ void main() {
       addTearDown(format.dispose);
       final changes = <DateTime>[];
       await _pump(tester, null, format, changes.add);
-      tester.state<TimePickerState>(find.byType(TimePicker)).open();
+      tester
+          .state<WindowsTimePickerState>(find.byType(WindowsTimePicker))
+          .open();
       await tester.pumpAndSettle();
       final wheels = tester
           .widgetList<ListWheelScrollView>(find.byType(ListWheelScrollView))
@@ -62,10 +63,7 @@ void main() {
               (hourWheel.childDelegate as ListWheelChildLoopingListDelegate)
                   .children;
           final texts = labels
-              .map(
-                (child) =>
-                    (((child as ListTile).title as Center).child as Text).data,
-              )
+              .map((child) => ((child as Center).child as Text).data)
               .toList();
           expect(
             texts,
@@ -79,12 +77,19 @@ void main() {
                 (use24 ? 24 : 12),
             use24 ? hour : hour % 12,
           );
-          final selectedTile = labels[use24 ? hour : hour % 12] as ListTile;
-          expect(selectedTile.onPressed, isNull);
+          expect(
+            find.descendant(
+              of: find.byType(ListWheelScrollView).first,
+              matching: find.byType(Button),
+            ),
+            findsNothing,
+          );
           await _confirm(tester);
           expect(changes, isEmpty);
           expect(
-            tester.widget<TimePicker>(find.byType(TimePicker)).selected,
+            tester
+                .widget<WindowsTimePicker>(find.byType(WindowsTimePicker))
+                .selected,
             selected,
           );
         },
@@ -148,14 +153,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('AM').last);
     await tester.pumpAndSettle();
-    await tester.tap(
-      find
-          .descendant(
-            of: find.byType(YesNoPickerControl),
-            matching: find.byType(Button),
-          )
-          .last,
-    );
+    await tester.tap(find.byKey(const ValueKey('time-cancel')));
     await tester.pumpAndSettle();
     expect(changes, isEmpty);
     expect(cancelled, 1);
@@ -202,13 +200,6 @@ Future<void> _pump(
 }
 
 Future<void> _confirm(WidgetTester tester) async {
-  await tester.tap(
-    find
-        .descendant(
-          of: find.byType(YesNoPickerControl),
-          matching: find.byType(Button),
-        )
-        .first,
-  );
+  await tester.tap(find.byKey(const ValueKey('time-confirm')));
   await tester.pumpAndSettle();
 }

@@ -31,9 +31,9 @@ code cannot import Yaru, Ubuntu localization, DBus, freedesktop notification,
 XDG tray, or GTK services. Shared business and Linux code cannot import Fluent
 UI. `tool/check_platform_boundaries.dart` enforces these dependency rules.
 
-Windows registers the vendored `tray_manager` and `flutter_timezone` plugins;
+Windows registers the official `tray_manager` and `flutter_timezone` plugins;
 Linux retains its existing XDG tray and Linux timezone implementation. See the
-[vendoring index](../third_party/README.md) for versions and local packaging
+[dependency index](../third_party/README.md) for versions and upstream packaging
 notes.
 
 ## Fluent composition
