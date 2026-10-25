@@ -16,6 +16,7 @@ Future<AccountRemovalOptions?> showBusyMaxAccountRemovalDialog(
   BuildContext context, {
   required String accountLabel,
   required bool canRevokeGoogleAuthorization,
+  bool revokeNextcloudAppPassword = false,
 }) {
   return showBusyMaxModalDialog<AccountRemovalOptions>(
     context,
@@ -23,6 +24,7 @@ Future<AccountRemovalOptions?> showBusyMaxAccountRemovalDialog(
     builder: (dialogContext) => _AccountRemovalDialog(
       accountLabel: accountLabel,
       canRevokeGoogleAuthorization: canRevokeGoogleAuthorization,
+      revokeNextcloudAppPassword: revokeNextcloudAppPassword,
     ),
   );
 }
@@ -31,10 +33,12 @@ class _AccountRemovalDialog extends StatefulWidget {
   const _AccountRemovalDialog({
     required this.accountLabel,
     required this.canRevokeGoogleAuthorization,
+    required this.revokeNextcloudAppPassword,
   });
 
   final String accountLabel;
   final bool canRevokeGoogleAuthorization;
+  final bool revokeNextcloudAppPassword;
 
   @override
   State<_AccountRemovalDialog> createState() => _AccountRemovalDialogState();
@@ -67,7 +71,10 @@ class _AccountRemovalDialogState extends State<_AccountRemovalDialog> {
         ),
       ],
       children: [
+        Text(widget.accountLabel),
         Text(l10n.removeAccountConfirmation),
+        if (widget.revokeNextcloudAppPassword)
+          Text(l10n.nextcloudRemovalAuthorizationDescription),
         if (widget.canRevokeGoogleAuthorization) ...[
           const SizedBox(height: BusyMaxSpacing.lg),
           BusyMaxYaruFocusBorder(

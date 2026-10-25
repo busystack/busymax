@@ -116,6 +116,7 @@ class AppSettings {
     required this.quietHoursEnd,
     required this.redactTaskContentInDiagnostics,
     required this.lastDueTodayNotificationDate,
+    this.dueTodayNotificationTime = '09:00',
     required this.taskListScheduleVisibility,
     required this.scheduleViewMode,
     this.androidScheduleViewMode,
@@ -255,6 +256,10 @@ class AppSettings {
       redactTaskContentInDiagnostics:
           json['redactTaskContentInDiagnostics'] as bool? ??
           defaults.redactTaskContentInDiagnostics,
+      dueTodayNotificationTime: _normalizedTimeOfDay(
+        json['dueTodayNotificationTime'],
+        defaults.dueTodayNotificationTime,
+      ),
       lastDueTodayNotificationDate: json['lastDueTodayNotificationDate']
           ?.toString(),
       taskListScheduleVisibility: _boolMap(json['taskListScheduleVisibility']),
@@ -297,6 +302,7 @@ class AppSettings {
   final String quietHoursEnd;
   final bool redactTaskContentInDiagnostics;
   final String? lastDueTodayNotificationDate;
+  final String dueTodayNotificationTime;
   final Map<String, bool> taskListScheduleVisibility;
   final ScheduleSidebarOrder sidebarOrder;
   final ScheduleViewMode scheduleViewMode;
@@ -334,6 +340,7 @@ class AppSettings {
       'quietHoursEnd': quietHoursEnd,
       'redactTaskContentInDiagnostics': redactTaskContentInDiagnostics,
       'lastDueTodayNotificationDate': lastDueTodayNotificationDate,
+      'dueTodayNotificationTime': dueTodayNotificationTime,
       'taskListScheduleVisibility': taskListScheduleVisibility,
       'sidebarOrder': sidebarOrder.toJson(),
       'scheduleViewMode': scheduleViewMode.name,
@@ -368,6 +375,7 @@ class AppSettings {
     String? quietHoursEnd,
     bool? redactTaskContentInDiagnostics,
     String? lastDueTodayNotificationDate,
+    String? dueTodayNotificationTime,
     Map<String, bool>? taskListScheduleVisibility,
     ScheduleSidebarOrder? sidebarOrder,
     ScheduleViewMode? scheduleViewMode,
@@ -415,6 +423,8 @@ class AppSettings {
       quietHoursEnd: quietHoursEnd ?? this.quietHoursEnd,
       redactTaskContentInDiagnostics:
           redactTaskContentInDiagnostics ?? this.redactTaskContentInDiagnostics,
+      dueTodayNotificationTime:
+          dueTodayNotificationTime ?? this.dueTodayNotificationTime,
       lastDueTodayNotificationDate: clearLastDueTodayNotificationDate
           ? null
           : lastDueTodayNotificationDate ?? this.lastDueTodayNotificationDate,
@@ -454,6 +464,14 @@ class AppSettings {
 abstract class LocalSettingsStore {
   Future<Map<String, Object?>> load();
   Future<void> save(Map<String, Object?> json);
+}
+
+/// Cross-engine stores rebase a mutation on durable settings under one lock.
+abstract interface class AtomicLocalSettingsStore
+    implements LocalSettingsStore {
+  Future<Map<String, Object?>> update(
+    Map<String, Object?> Function(Map<String, Object?> current) mutation,
+  );
 }
 
 class JsonFileLocalSettingsStore implements LocalSettingsStore {
@@ -515,8 +533,29 @@ class AppSettingsController extends StateNotifier<AppSettings> {
   late Future<void> _writeTail;
   var _loadComplete = false;
   var _disposed = false;
+  var _mutationSerial = 0;
+  final _unsavedMutations = <_AppSettingsMutation>[];
 
   Future<void> get ready => _loadFuture;
+
+  Future<void> reload() {
+    final serial = _mutationSerial;
+    final refresh = _writeTail.then((_) async {
+      final loaded = AppSettings.fromJson(await _store.load());
+      if (_disposed ||
+          serial != _mutationSerial ||
+          _unsavedMutations.isNotEmpty) {
+        return;
+      }
+      _persistenceState = loaded;
+      state = loaded;
+    });
+    _writeTail = refresh.catchError((Object error) {
+      _logger.warning('Could not refresh settings: ${redactForLog(error)}');
+      if (!_disposed) onPersistenceChanged?.call(true);
+    });
+    return _writeTail;
+  }
 
   Future<void> retrySave() => _mutate((settings) => settings);
 
@@ -732,6 +771,15 @@ class AppSettingsController extends StateNotifier<AppSettings> {
     );
   }
 
+  Future<void> setDueTodayNotificationTime(String value) => _mutate(
+    (current) => current.copyWith(
+      dueTodayNotificationTime: _normalizedTimeOfDay(
+        value,
+        current.dueTodayNotificationTime,
+      ),
+    ),
+  );
+
   Future<void> markDueTodayNotified(String date) {
     return _mutate(
       (current) => current.copyWith(lastDueTodayNotificationDate: date),
@@ -772,7 +820,7 @@ class AppSettingsController extends StateNotifier<AppSettings> {
     }
 
     final previousWrite = _writeTail;
-    final write = _persistAfter(previousWrite, mutation);
+    final write = _persistAfter(previousWrite, mutation, ++_mutationSerial);
     _writeTail = write;
     state = next;
     return write;
@@ -781,12 +829,27 @@ class AppSettingsController extends StateNotifier<AppSettings> {
   Future<void> _persistAfter(
     Future<void> previousWrite,
     _AppSettingsMutation mutation,
+    int serial,
   ) async {
     await previousWrite;
     final next = mutation(_persistenceState);
     _persistenceState = next;
     try {
-      await _store.save(next.toJson());
+      if (_store case final AtomicLocalSettingsStore store) {
+        _unsavedMutations.add(mutation);
+        final persisted = await store.update((json) {
+          var current = AppSettings.fromJson(json);
+          for (final pending in _unsavedMutations) {
+            current = pending(current);
+          }
+          return current.toJson();
+        });
+        _unsavedMutations.clear();
+        _persistenceState = AppSettings.fromJson(persisted);
+        if (!_disposed && serial == _mutationSerial) state = _persistenceState;
+      } else {
+        await _store.save(next.toJson());
+      }
       if (!_disposed) onPersistenceChanged?.call(false);
     } on Object catch (error) {
       _logger.warning('Could not save settings: ${redactForLog(error)}');

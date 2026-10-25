@@ -1,5 +1,7 @@
+import '../features/notifications/operational_notification_coordinator.dart';
 import '../core/http/request_dispatch_exception.dart';
 import '../features/sync/domain_sync_schedule.dart';
+import '../features/sync/account_sync_activity.dart';
 import '../core/auth/authorization_persistence.dart';
 import '../core/auth/registration_staging.dart';
 import '../core/auth/oauth_registration.dart';
@@ -151,67 +153,91 @@ final baseHttpClientProvider = Provider<http.Client>((ref) {
 });
 
 final nextcloudLoginFlowV2Provider = Provider<NextcloudLoginFlowV2>((ref) {
-  return NextcloudLoginFlowV2(client: ref.watch(baseHttpClientProvider));
+  final flow = NextcloudLoginFlowV2(client: ref.watch(baseHttpClientProvider));
+  ref.onDispose(flow.cancel);
+  return flow;
 });
 
-final davAccountOnboardingServiceProvider =
-    Provider<DavAccountOnboardingService>((ref) {
-      final client = ref.watch(baseHttpClientProvider);
-      return DavAccountOnboardingService(
-        database: ref.watch(databaseProvider),
-        secretStore: ref.watch(secretStoreProvider),
-        accountsRepository: ref.watch(accountsRepositoryProvider),
-        nextcloudLoginFlow: ref.watch(nextcloudLoginFlowV2Provider),
-        discover:
-            ({
-              required accountId,
-              required provider,
-              required accountAuthority,
-              required credential,
-              cancellationToken,
-            }) {
-              final profile = davProviderProfile(
-                provider,
-                nextcloudServer: provider == BusyProvider.nextcloud
-                    ? accountAuthority
-                    : null,
-              );
-              final transport = DavHttpTransport(
-                client: client,
-                profile: profile,
-                accountAuthority: accountAuthority,
-              );
-              return DavDiscoveryService(
-                transport: transport,
-                profile: profile,
-                accountAuthority: accountAuthority,
-                accountId: accountId,
-                credential: credential,
-              ).discover(
-                correlationId: const Uuid().v4(),
-                cancellationToken: cancellationToken,
-              );
-            },
-        nextcloudCredentialRevoker:
-            ({required accountId, required credential}) {
-              final profile = davProviderProfile(
-                BusyProvider.nextcloud,
-                nextcloudServer: credential.canonicalServer,
-              );
-              return NextcloudAppPasswordRevoker(
-                transport: DavHttpTransport(
-                  client: client,
-                  profile: profile,
-                  accountAuthority: credential.canonicalServer,
-                ),
-              ).revoke(
-                accountId: accountId,
-                credential: credential,
-                correlationId: const Uuid().v4(),
-              );
-            },
+final Provider<DavAccountOnboardingService>
+davAccountOnboardingServiceProvider = Provider<DavAccountOnboardingService>((
+  ref,
+) {
+  final client = ref.watch(baseHttpClientProvider);
+  return DavAccountOnboardingService(
+    database: ref.watch(databaseProvider),
+    secretStore: ref.watch(secretStoreProvider),
+    authorizationPersistence: ref.watch(authorizationPersistenceProvider),
+    accountGate: ref.watch(crossEngineAccountGateProvider),
+    syncCoordinator: ref.watch(accountSyncCoordinatorProvider),
+    onAccountRemovalStarting: (id) => ref
+        .read(busyMaxContactsControllerProvider)
+        .beginLinkedAccountRemoval(id),
+    onAccountRemoving: (id) => ref
+        .read(busyMaxContactsControllerProvider)
+        .prepareLinkedAccountRemoval(id),
+    persistLinkedAccountRemoval: (id) => ref
+        .read(busyMaxContactsControllerProvider)
+        .persistLinkedAccountRemoval(id),
+    onAccountRemovalFailed: (id) => ref
+        .read(busyMaxContactsControllerProvider)
+        .restoreLinkedAccountAfterFailedRemoval(id),
+    onAccountRemoved: () => ref
+        .read(busyMaxContactsControllerProvider)
+        .linkedAccountRemovalCommitted(),
+    onAccountRemovalFinished: (id) => ref
+        .read(busyMaxContactsControllerProvider)
+        .finishLinkedAccountRemoval(id),
+    accountsRepository: ref.watch(accountsRepositoryProvider),
+    nextcloudLoginFlow: ref.watch(nextcloudLoginFlowV2Provider),
+    discover:
+        ({
+          required accountId,
+          required provider,
+          required accountAuthority,
+          required credential,
+          cancellationToken,
+        }) {
+          final profile = davProviderProfile(
+            provider,
+            nextcloudServer: provider == BusyProvider.nextcloud
+                ? accountAuthority
+                : null,
+          );
+          final transport = DavHttpTransport(
+            client: client,
+            profile: profile,
+            accountAuthority: accountAuthority,
+          );
+          return DavDiscoveryService(
+            transport: transport,
+            profile: profile,
+            accountAuthority: accountAuthority,
+            accountId: accountId,
+            credential: credential,
+          ).discover(
+            correlationId: const Uuid().v4(),
+            cancellationToken: cancellationToken,
+          );
+        },
+    nextcloudCredentialRevoker: ({required accountId, required credential}) {
+      final profile = davProviderProfile(
+        BusyProvider.nextcloud,
+        nextcloudServer: credential.canonicalServer,
       );
-    });
+      return NextcloudAppPasswordRevoker(
+        transport: DavHttpTransport(
+          client: client,
+          profile: profile,
+          accountAuthority: credential.canonicalServer,
+        ),
+      ).revoke(
+        accountId: accountId,
+        credential: credential,
+        correlationId: const Uuid().v4(),
+      );
+    },
+  );
+});
 
 final retryingHttpClientProvider = Provider<http.Client>((ref) {
   return RetryingHttpClient(inner: ref.watch(baseHttpClientProvider));
@@ -370,8 +396,8 @@ final busyMaxContactsControllerProvider = Provider<BusyMaxContactsController>((
     deleteDavSecret: (accountId) => storage.delete(key: key(accountId)),
     readLinkedDavCredential: (accountId) async {
       final credential = await ref
-          .read(secretStoreProvider)
-          .readCredential(accountId);
+          .read(authorizationPersistenceProvider)
+          .readCurrentCredential(accountId);
       return credential is NextcloudSecretRecord
           ? BusyMaxLinkedDavCredential(
               server: credential.canonicalServer,
@@ -379,6 +405,28 @@ final busyMaxContactsControllerProvider = Provider<BusyMaxContactsController>((
               password: credential.appPassword,
             )
           : null;
+    },
+    reconnectLinkedDavAccount: (id, cancellation) async {
+      final account = await ref
+          .read(accountsRepositoryProvider)
+          .accountById(id);
+      if (account == null) {
+        throw const ContactsException(
+          ContactsFailure.authentication,
+          'linked-parent-removed',
+        );
+      }
+      final token = DavCancellationToken();
+      if (cancellation.isCancelled) token.cancel();
+      unawaited(cancellation.signal.then((_) => token.cancel()));
+      await ref
+          .read(davAccountOnboardingServiceProvider)
+          .reconnectNextcloud(
+            accountId: id,
+            enteredServer: account.authority,
+            cancellationToken: token,
+          );
+      cancellation.committed();
     },
     launchBrowser: (uri) =>
         launchUrl(uri, mode: LaunchMode.externalApplication),
@@ -413,36 +461,96 @@ final notificationCancellationQueueProvider =
 final desktopNotificationServiceProvider = Provider<DesktopNotificationService>(
   (ref) {
     final settings = ref.watch(appSettingsControllerProvider);
+    final window = ref.watch(desktopWindowServiceProvider);
+    final navigation = ref.watch(desktopNavigationServiceProvider);
+    var disposed = false;
+    ref.onDispose(() => disposed = true);
     return DesktopNotificationService(
       backend: ref.watch(desktopNotificationBackendProvider),
       cancellationQueue: ref.watch(notificationCancellationQueueProvider),
       settings: settings,
       locale: settings.locale,
-      onReconnectActivated: (id) async {
-        await ref.read(desktopWindowServiceProvider).showWindow();
+      deliveryAllowed: () =>
+          !disposed &&
+          ref.read(desktopNotificationReadinessProvider).permissionGranted !=
+              false,
+      onDeliveryStateChanged: (succeeded) {
+        if (disposed) return;
+        final previous = ref.read(desktopNotificationReadinessProvider);
         ref
-            .read(desktopNavigationServiceProvider)
-            .open(
-              DesktopNavigationDestination.settings,
-              reconnectAccountId: id,
-            );
+            .read(desktopNotificationReadinessProvider.notifier)
+            .state = DesktopNotificationReadiness(
+          succeeded
+              ? DesktopNotificationReadinessState.available
+              : previous.state,
+          permissionGranted: previous.permissionGranted,
+          deliveryFailed: !succeeded,
+          diagnosticCode: succeeded ? null : 'native-submission-failed',
+        );
+      },
+      onRoutedNotification: (payload) async {
+        await window.showWindow();
+        navigation.open(
+          payload['notificationRoute'] == 'due-today'
+              ? DesktopNavigationDestination.tasks
+              : DesktopNavigationDestination.settings,
+          notificationPayload: payload,
+        );
+      },
+      onReconnectActivated: (id) async {
+        await window.showWindow();
+        navigation.open(
+          DesktopNavigationDestination.settings,
+          reconnectAccountId: id,
+        );
       },
       onDestinationActivated: (destination) async {
-        await ref.read(desktopWindowServiceProvider).showWindow();
-        ref.read(desktopNavigationServiceProvider).open(destination);
+        await window.showWindow();
+        navigation.open(destination);
       },
     );
   },
 );
 
-final operationalNotificationReporterProvider =
-    Provider<OperationalNotificationReporter>((ref) {
+final operationalNotificationTransportProvider =
+    Provider<OperationalNotificationTransport>((ref) {
       final desktop = ref.watch(desktopNotificationServiceProvider);
-      return CallbackOperationalNotificationReporter(
-        onSyncFailure: desktop.notifySyncFailure,
-        onConflict: desktop.notifyConflict,
+      return OperationalNotificationTransport(
+        deliver: desktop.deliverOperationalIssue,
+        cancel: desktop.cancelReminder,
       );
     });
+
+final operationalNotificationCoordinatorProvider =
+    Provider<OperationalNotificationCoordinator>((ref) {
+      final coordinator = OperationalNotificationCoordinator(
+        database: ref.watch(databaseProvider),
+        settings: () => ref.read(appSettingsControllerProvider),
+        transport: () => ref.read(operationalNotificationTransportProvider),
+      );
+      ref.listen(
+        appSettingsControllerProvider,
+        (previous, next) => coordinator.settingsChanged(
+          withdraw:
+              previous?.notificationDetailLevel !=
+                      next.notificationDetailLevel &&
+                  next.notificationDetailLevel ==
+                      NotificationDetailLevel.private ||
+              previous?.localeTag != next.localeTag,
+          releaseDeferred:
+              previous?.quietHoursEnabled != next.quietHoursEnabled ||
+              previous?.quietHoursStart != next.quietHoursStart ||
+              previous?.quietHoursEnd != next.quietHoursEnd,
+        ),
+      );
+      ref.onDispose(coordinator.stop);
+      return coordinator;
+    });
+
+final operationalNotificationReporterProvider =
+    Provider<OperationalNotificationReporter>(
+      (ref) => ref.watch(operationalNotificationCoordinatorProvider),
+    );
 
 Stream<T> _contactsConfigurationStream<T>(
   BusyMaxContactsController controller,
@@ -1095,7 +1203,7 @@ final davAccountSyncEngineFactoryProvider =
         },
         reportPendingMutationFailure: (accountId, error) => ref
             .read(operationalNotificationReporterProvider)
-            .notifySyncFailure(error),
+            .notifySyncFailure(error, accountId: accountId),
       );
     });
 
@@ -1134,10 +1242,68 @@ final calendarMonthRetrieverProvider = Provider<CalendarMonthRetriever>((ref) {
   );
 });
 
+final accountSyncActivityProvider = ChangeNotifierProvider<AccountSyncActivity>(
+  (ref) => AccountSyncActivity(),
+);
+
+final accountDomainSyncTimesProvider =
+    StreamProvider.family<Map<String, DateTime>, String>((ref, id) {
+      final db = ref.watch(databaseProvider);
+      return (db.select(
+        db.domainSyncSchedules,
+      )..where((r) => r.accountId.equals(id))).watch().map(
+        (rows) => {
+          for (final row in rows)
+            if (DateTime.tryParse(row.lastSuccessfulPullUtc ?? '')
+                case final time?)
+              row.domain: time.toUtc(),
+        },
+      );
+    });
+
+final davAccountDiscoveryProvider =
+    StreamProvider.family<DavAccountService?, String>((ref, id) {
+      final db = ref.watch(databaseProvider);
+      return (db.select(
+        db.davAccountServices,
+      )..where((row) => row.accountId.equals(id))).watchSingleOrNull();
+    });
+
+final independentContactServerProvider = FutureProvider.family<Uri?, String>(
+  (ref, id) =>
+      ref.watch(busyMaxContactsControllerProvider).independentServer(id),
+);
+
+final independentContactAccountIdsProvider = FutureProvider<Set<String>>((ref) {
+  ref.watch(busyMaxContactAccountsProvider);
+  return ref.watch(busyMaxContactsStoreProvider).independentAccountIds();
+});
+
+final calendarVisibilityOperationProvider =
+    StreamProvider.family<PendingOp?, String>((ref, id) {
+      final db = ref.watch(databaseProvider);
+      return (db.select(db.pendingOps)..where(
+            (r) =>
+                r.calendarSourceId.equals(id) &
+                r.operationType.equals('calendar.patch'),
+          ))
+          .watch()
+          .map(
+            (rows) => rows.where((r) {
+              try {
+                return (jsonDecode(r.requestJson) as Map).containsKey('hidden');
+              } on Object {
+                return false;
+              }
+            }).firstOrNull,
+          );
+    });
+
 final accountSyncOperationsProvider = Provider<AccountSyncOperations>((ref) {
   final accountsRepository = ref.watch(accountsRepositoryProvider);
   final connectivity = ref.watch(networkConnectivityMonitorProvider);
   final syncCoordinator = ref.watch(accountSyncCoordinatorProvider);
+  final activity = ref.watch(accountSyncActivityProvider.notifier);
 
   Future<BusyProvider> providerForAccount(String accountId) async {
     final account = await accountsRepository.accountById(accountId);
@@ -1149,56 +1315,68 @@ final accountSyncOperationsProvider = Provider<AccountSyncOperations>((ref) {
 
   final routing = RoutingAccountSyncOperations(
     providerForAccount: providerForAccount,
-    syncDav: (accountId, {required full}) => syncCoordinator.trackTaskImport(
+    syncDav: (accountId, {required full}) => activity.run(
       accountId,
-      () => ref
-          .read(davAccountSyncEngineFactoryProvider)(accountId)
-          .synchronize(full: full),
+      'dav',
+      () => syncCoordinator.trackTaskImport(
+        accountId,
+        () => ref
+            .read(davAccountSyncEngineFactoryProvider)(accountId)
+            .synchronize(full: full),
+      ),
     ),
     syncWebCal: (accountId, {required full}) => ref
         .read(webCalSubscriptionServiceProvider)
         .refreshAccount(accountId, force: full),
-    syncTasksRest: (accountId, {required full}) async {
-      final provider = await providerForAccount(accountId);
-      final engine = ref.read(syncEngineForAccountFactoryProvider)(
-        accountId,
-        provider,
-      );
-      await DomainSyncPolicy(ref.read(databaseProvider)).run(
-        accountId,
-        SyncDomain.tasks,
-        full: full,
-        deferred: engine.dispatchPendingWrites,
-        maintainCached: engine.maintainCachedReminders,
-        pull: () => syncCoordinator.trackTaskImport(accountId, () async {
-          if (full) {
-            await engine.fullSync();
-          } else {
-            await engine.incrementalSync();
-          }
-        }, changedOnFailure: () => engine.remoteImportWroteData),
-      );
+    syncTasksRest: (accountId, {required full}) {
+      var pulled = false;
+      return activity.run(accountId, 'tasks', () async {
+        final provider = await providerForAccount(accountId);
+        final engine = ref.read(syncEngineForAccountFactoryProvider)(
+          accountId,
+          provider,
+        );
+        await DomainSyncPolicy(ref.read(databaseProvider)).run(
+          accountId,
+          SyncDomain.tasks,
+          full: full,
+          deferred: engine.dispatchPendingWrites,
+          maintainCached: engine.maintainCachedReminders,
+          pull: () => syncCoordinator.trackTaskImport(accountId, () async {
+            if (full) {
+              await engine.fullSync();
+            } else {
+              await engine.incrementalSync();
+            }
+            pulled = true;
+          }, changedOnFailure: () => engine.remoteImportWroteData),
+        );
+      }, clearFailureOnSuccess: () => pulled);
     },
-    syncCalendarRest: (accountId, {required full}) async {
-      final provider = await providerForAccount(accountId);
-      final engine = ref.read(calendarSyncEngineForAccountFactoryProvider)(
-        accountId,
-        provider,
-      );
-      await DomainSyncPolicy(ref.read(databaseProvider)).run(
-        accountId,
-        SyncDomain.calendar,
-        full: full,
-        deferred: engine.dispatchPendingWrites,
-        maintainCached: engine.maintainCachedReminders,
-        pull: () async {
-          if (full) {
-            await engine.fullSync();
-          } else {
-            await engine.incrementalSync();
-          }
-        },
-      );
+    syncCalendarRest: (accountId, {required full}) {
+      var pulled = false;
+      return activity.run(accountId, 'calendar', () async {
+        final provider = await providerForAccount(accountId);
+        final engine = ref.read(calendarSyncEngineForAccountFactoryProvider)(
+          accountId,
+          provider,
+        );
+        await DomainSyncPolicy(ref.read(databaseProvider)).run(
+          accountId,
+          SyncDomain.calendar,
+          full: full,
+          deferred: engine.dispatchPendingWrites,
+          maintainCached: engine.maintainCachedReminders,
+          pull: () async {
+            if (full) {
+              await engine.fullSync();
+            } else {
+              await engine.incrementalSync();
+            }
+            pulled = true;
+          },
+        );
+      }, clearFailureOnSuccess: () => pulled);
     },
   );
   return CrossEngineCoordinatedAccountSyncOperations(
@@ -1571,6 +1749,9 @@ final tasksRepositoryProvider = Provider<TasksRepository?>((ref) {
     onMutationQueued: ref.watch(pendingMutationSyncRequesterProvider)?.request,
     onNotificationScheduleChanged: () =>
         ref.read(notificationReconcilerProvider).reconcile(),
+    onAuxiliaryFailure: (error, _) => ref
+        .read(operationalNotificationReporterProvider)
+        .notifySyncFailure(error, accountId: accountId),
   );
 });
 
@@ -1585,6 +1766,9 @@ final tasksRepositoryForAccountProvider =
             .request,
         onNotificationScheduleChanged: () =>
             ref.read(notificationReconcilerProvider).reconcile(),
+        onAuxiliaryFailure: (error, _) => ref
+            .read(operationalNotificationReporterProvider)
+            .notifySyncFailure(error, accountId: accountId),
       );
     });
 
@@ -1791,8 +1975,8 @@ Future<void> _runAccountSyncIfEligible(
       .generation(accountId);
   try {
     await synchronize(ref.read(accountSyncOperationsProvider));
-    ref
-        .read(desktopNotificationServiceProvider)
+    await ref
+        .read(operationalNotificationCoordinatorProvider)
         .clearAccountSyncFailure(accountId);
   } on Object catch (error) {
     throw AuthorizationScopedFailure(
@@ -1814,27 +1998,73 @@ final _reminderActionHandlerProvider = Provider<ScheduledReminderActionHandler>(
 
 final Provider<NotificationScheduler> notificationSchedulerProvider =
     Provider<NotificationScheduler>((ref) {
-      final scheduler = NotificationScheduler(
-        database: ref.watch(databaseProvider),
+      ref.watch(operationalNotificationCoordinatorProvider).start();
+      final database = ref.watch(databaseProvider);
+      final timeZoneSource = ref.watch(localTimeZoneSourceProvider);
+      var disposed = false;
+      String? previousZone;
+      Duration? previousOffset;
+      late final NotificationScheduler scheduler;
+      scheduler = NotificationScheduler(
+        database: database,
         notifications: ref.read(desktopNotificationServiceProvider),
+        beforeCheck: () async {
+          final zone = await timeZoneSource.currentIanaTimeZone();
+          if (disposed) return;
+          final offset = DateTime.now().timeZoneOffset;
+          if (zone == previousZone && offset == previousOffset) return;
+          await scheduler.localTimeChanged();
+          if (disposed) return;
+          final schedules = NotificationScheduleService(
+            database: database,
+            preserveLifecycle: true,
+          );
+          for (final account
+              in await database.select(database.accounts).get()) {
+            if (disposed) return;
+            await schedules.rebuildUpcomingNotifications(account.id);
+          }
+          previousZone = zone;
+          previousOffset = offset;
+        },
         // Read the independent router without making it a dependency of the
         // scheduler it resolves when an action arrives.
         onReminderAction: ref.read(_reminderActionHandlerProvider),
         onNotificationActivated: (row) => _openNotificationSource(ref, row),
+        onUnavailable: () => _reportNotificationUnavailable(ref),
       );
       ref.listen(desktopNotificationServiceProvider, (_, notifications) {
         scheduler.updateNotifications(notifications);
       });
+      ref.listen(desktopNotificationReadinessProvider, (previous, next) {
+        if (previous?.permissionGranted != next.permissionGranted) {
+          scheduler.updateNotifications(
+            ref.read(desktopNotificationServiceProvider),
+          );
+        }
+      });
       scheduler.start();
-      ref.onDispose(scheduler.stop);
+      ref.onDispose(() {
+        disposed = true;
+        scheduler.stop();
+      });
       return scheduler;
     });
 
 final notificationReconcilerProvider = Provider<NotificationReconciler>(
-  (ref) => CallbackNotificationReconciler(
-    ref.watch(notificationSchedulerProvider).checkNow,
-  ),
+  (ref) => CallbackNotificationReconciler(() async {
+    await ref.read(notificationSchedulerProvider).checkNow();
+    await ref.read(operationalNotificationCoordinatorProvider).reconcile();
+  }),
 );
+
+final notificationSourceUnavailableProvider = StateProvider<int>((ref) => 0);
+
+Future<void> _reportNotificationUnavailable(Ref ref) async {
+  final counter = ref.read(notificationSourceUnavailableProvider.notifier);
+  counter.state++;
+  await ref.read(desktopWindowServiceProvider).showWindow();
+}
 
 final _notificationOpenSequenceProvider = StateProvider<int>((ref) => 0);
 
@@ -1864,7 +2094,7 @@ Future<void> _openEventNotification(
           ))
           .getSingleOrNull();
   if (event == null) {
-    await ref.read(desktopWindowServiceProvider).showWindow();
+    await _reportNotificationUnavailable(ref);
     return;
   }
 
@@ -1894,7 +2124,7 @@ Future<void> _openTaskNotification(
             ..limit(1))
           .getSingleOrNull();
   if (task == null) {
-    await ref.read(desktopWindowServiceProvider).showWindow();
+    await _reportNotificationUnavailable(ref);
     return;
   }
 
@@ -1955,7 +2185,6 @@ final dueTodayNotificationProvider = Provider<DueTodayNotificationScheduler>((
   final scheduler = DueTodayNotificationScheduler(
     database: ref.watch(databaseProvider),
     settings: () => ref.read(appSettingsControllerProvider),
-    activeAccountId: () => ref.read(activeAccountProvider),
     notifications: () => ref.read(desktopNotificationServiceProvider),
     markNotified: (date) => ref
         .read(appSettingsControllerProvider.notifier)

@@ -1,3 +1,5 @@
+import '../../features/recurrence/presentation/recurrence_summary.dart';
+
 import 'package:busymax/src/core/auth/authorization_attempt.dart';
 
 import 'dart:async';
@@ -123,6 +125,7 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
   var _navigationDirection = 0;
   var _taskMutationGeneration = 0;
   TaskListMutationIntent? _taskMutationIntent;
+  final Set<String> _taskMutationsInFlight = {};
 
   @override
   void didChangeDependencies() {
@@ -330,6 +333,7 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
             onOpen: (item) => _showItem(context, item),
             onToggleTask: _toggleTask,
             taskMutationIntent: _taskMutationIntent,
+            taskMutationsInFlight: _taskMutationsInFlight,
             onTaskMutationConsumed: _consumeTaskMutation,
             agendaEmptyBuilder: items.isLoading
                 ? (context) => const SizedBox.shrink()
@@ -378,6 +382,7 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
       searchCriteria: criteria,
       searchQuery: query,
       taskMutationIntent: _taskMutationIntent,
+      taskMutationsInFlight: _taskMutationsInFlight,
       onTaskMutationConsumed: _consumeTaskMutation,
       emptyBuilder: (context) => _Message(
         icon: Icons.search_off,
@@ -1156,13 +1161,15 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
   }
 
   Future<void> _toggleTask(TaskScheduleItem task) async {
-    if (!task.capabilities.canEdit) return;
+    final key = '${task.accountId}\u0000${task.sourceId}\u0000${task.id}';
+    if (!task.capabilities.canEdit || !_taskMutationsInFlight.add(key)) return;
     final intent = TaskListMutationIntent(
       presentation: TaskListMutationPresentation.completion,
       accountId: task.accountId,
       taskListId: task.sourceId,
       taskId: task.id,
       completed: !task.completed,
+      occurrenceKey: task.occurrenceKey,
       generation: ++_taskMutationGeneration,
     );
     setState(() => _taskMutationIntent = intent);
@@ -1172,18 +1179,29 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
           .patchTask(
             task.sourceId,
             task.id,
-            TaskPatchInput({
-              'status': task.completed ? 'needsAction' : 'completed',
-            }),
+            TaskPatchInput.completion(
+              !task.completed,
+              includeCompletedTimestamp: false,
+              observedOccurrenceKey: task.occurrenceKey,
+            ),
           );
     } on Object catch (error) {
       if (mounted) {
         if (_taskMutationIntent?.generation == intent.generation) {
           setState(() => _taskMutationIntent = null);
         }
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('$error')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              error is TaskOccurrenceChangedException
+                  ? context.l10n.taskDraftConflict
+                  : '$error',
+            ),
+          ),
+        );
       }
+    } finally {
+      if (mounted) setState(() => _taskMutationsInFlight.remove(key));
     }
   }
 
@@ -1209,6 +1227,7 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
         current?.accountId == result.accountId &&
         current?.taskListId == taskListId &&
         current?.taskId == result.taskId &&
+        current?.occurrenceKey == result.occurrenceKey &&
         current?.completed == result.completed) {
       return;
     }
@@ -1219,6 +1238,7 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
         taskListId: taskListId,
         taskId: result.taskId,
         completed: result.completed,
+        occurrenceKey: result.occurrenceKey,
         generation: ++_taskMutationGeneration,
       );
     });
@@ -1264,6 +1284,7 @@ class _ScheduleBody extends StatelessWidget {
     required this.onOpen,
     required this.onToggleTask,
     this.taskMutationIntent,
+    this.taskMutationsInFlight = const {},
     this.onTaskMutationConsumed,
     this.agendaEmptyBuilder,
   });
@@ -1275,6 +1296,7 @@ class _ScheduleBody extends StatelessWidget {
   final ValueChanged<ScheduleItem> onOpen;
   final ValueChanged<TaskScheduleItem> onToggleTask;
   final TaskListMutationIntent? taskMutationIntent;
+  final Set<String> taskMutationsInFlight;
   final ValueChanged<TaskListMutationIntent>? onTaskMutationConsumed;
   final WidgetBuilder? agendaEmptyBuilder;
 
@@ -1288,6 +1310,7 @@ class _ScheduleBody extends StatelessWidget {
         onSelectDate: onSelectDate,
         onOpen: onOpen,
         onToggleTask: onToggleTask,
+        taskMutationsInFlight: taskMutationsInFlight,
       ),
       ScheduleViewMode.year => _YearView(
         anchor: anchor,
@@ -1308,6 +1331,7 @@ class _ScheduleBody extends StatelessWidget {
         onOpen: onOpen,
         onToggleTask: onToggleTask,
         taskMutationIntent: taskMutationIntent,
+        taskMutationsInFlight: taskMutationsInFlight,
         onTaskMutationConsumed: onTaskMutationConsumed,
         emptyBuilder: agendaEmptyBuilder,
       ),
@@ -1324,6 +1348,7 @@ class _AgendaList extends StatelessWidget {
     required this.onOpen,
     required this.onToggleTask,
     this.taskMutationIntent,
+    this.taskMutationsInFlight = const {},
     this.onTaskMutationConsumed,
     this.emptyBuilder,
   });
@@ -1333,6 +1358,7 @@ class _AgendaList extends StatelessWidget {
   final ValueChanged<ScheduleItem> onOpen;
   final ValueChanged<TaskScheduleItem> onToggleTask;
   final TaskListMutationIntent? taskMutationIntent;
+  final Set<String> taskMutationsInFlight;
   final ValueChanged<TaskListMutationIntent>? onTaskMutationConsumed;
   final WidgetBuilder? emptyBuilder;
   @override
@@ -1349,8 +1375,10 @@ class _AgendaList extends StatelessWidget {
           : 'event\u0000${item.accountId}\u0000${item.sourceId}\u0000${item.id}',
       mutationApplied: (item, mutation) =>
           item is! TaskScheduleItem ||
-          mutation.completed == null ||
-          item.completed == mutation.completed,
+          mutation.completionSettled(
+            currentCompleted: item.completed,
+            currentOccurrenceKey: item.occurrenceKey,
+          ),
       onMutationConsumed: onTaskMutationConsumed,
       emptyBuilder:
           emptyBuilder ??
@@ -1406,7 +1434,11 @@ class _AgendaList extends StatelessWidget {
                         tooltip: displayedCompleted
                             ? context.l10n.taskStatusCompleted
                             : context.l10n.taskStatusInProcess,
-                        onPressed: item.capabilities.canEdit
+                        onPressed:
+                            item.capabilities.canEdit &&
+                                !taskMutationsInFlight.contains(
+                                  '${item.accountId}\u0000${item.sourceId}\u0000${item.id}',
+                                )
                             ? () => onToggleTask(item)
                             : null,
                         icon: AndroidTaskCompletionIcon(
@@ -1452,7 +1484,8 @@ class _AgendaList extends StatelessWidget {
     return intent?.presentation == TaskListMutationPresentation.completion &&
         intent?.taskKey ==
             '${task.accountId}\u0000${task.sourceId}\u0000${task.id}' &&
-        intent?.completed != null;
+        intent!.completionAppliesTo(task.occurrenceKey) &&
+        intent.completed != null;
   }
 
   bool _displayedCompletion(TaskScheduleItem task) {
@@ -1460,8 +1493,9 @@ class _AgendaList extends StatelessWidget {
     if (intent?.presentation == TaskListMutationPresentation.completion &&
         intent?.taskKey ==
             '${task.accountId}\u0000${task.sourceId}\u0000${task.id}' &&
-        intent?.completed != null) {
-      return intent!.completed!;
+        intent!.completionAppliesTo(task.occurrenceKey) &&
+        intent.completed != null) {
+      return intent.completed!;
     }
     return task.completed;
   }
@@ -1884,12 +1918,14 @@ class _MonthView extends StatelessWidget {
     required this.onSelectDate,
     required this.onOpen,
     required this.onToggleTask,
+    this.taskMutationsInFlight = const {},
   });
   final DateTime anchor;
   final List<ScheduleItem> items;
   final ValueChanged<DateTime> onSelectDate;
   final ValueChanged<ScheduleItem> onOpen;
   final ValueChanged<TaskScheduleItem> onToggleTask;
+  final Set<String> taskMutationsInFlight;
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
@@ -1931,6 +1967,7 @@ class _MonthView extends StatelessWidget {
                     items: ScheduleProjection.itemsForDay(items, anchor),
                     onOpen: onOpen,
                     onToggleTask: onToggleTask,
+                    taskMutationsInFlight: taskMutationsInFlight,
                   ),
                 ),
               ],
@@ -3527,12 +3564,80 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
     }
     setState(() => _saving = true);
     try {
+      final seriesTiming = await ref
+          .read(calendarRepositoryProvider)
+          .prepareSeriesTimingChange(draft);
+      if (!mounted) return;
+      if (seriesTiming?.requiresConfirmation == true) {
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: Text(context.l10n.repeat),
+            content: Text(
+              context.l10n.seriesPatternChangeConfirmation(
+                recurrenceRuleSummary(
+                  dialogContext,
+                  seriesTiming!.previewRule(
+                    following:
+                        draft.recurringMutationScope ==
+                        RecurringEventMutationScope.thisAndFuture,
+                    original: true,
+                  ),
+                  timeZone: seriesTiming.timeZone,
+                ),
+                recurrenceRuleSummary(
+                  dialogContext,
+                  seriesTiming.previewRule(
+                    following:
+                        draft.recurringMutationScope ==
+                        RecurringEventMutationScope.thisAndFuture,
+                  ),
+                  timeZone: seriesTiming.timeZone,
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: Text(context.l10n.cancel),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: Text(context.l10n.save),
+              ),
+            ],
+          ),
+        );
+        if (confirmed != true) {
+          if (mounted) setState(() => _saving = false);
+          return;
+        }
+        draft = draft.copyWith(seriesTimingApproval: seriesTiming!.signature);
+      }
       if ((_reminderMinutes ?? -2) >= 0 ||
           androidGooglePopupReminderRows(_editedGoogleReminders).isNotEmpty ||
           (_editedNextcloudReminders?.isNotEmpty ?? false)) {
-        await ref
-            .read(androidNotificationServiceProvider)
-            .requestNotificationPermission();
+        final notifications = ref.read(androidNotificationServiceProvider);
+        final granted = await notifications.requestNotificationPermission();
+        final readiness = notifications.readiness.value;
+        if ((!granted || !readiness.remindersReady) && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                !granted ||
+                        readiness.notificationsAllowed == false ||
+                        readiness.remindersAllowed == false
+                    ? context.l10n.notificationsBlocked
+                    : context.l10n.notificationsUnknown,
+              ),
+              action: SnackBarAction(
+                label: context.l10n.settingsSystem,
+                onPressed: () =>
+                    BusyMaxAndroidPlatform.instance.openNotificationSettings(),
+              ),
+            ),
+          );
+        }
       }
       if (draft.eventId == null) {
         await ref.read(calendarRepositoryProvider).createLocalEvent(draft);

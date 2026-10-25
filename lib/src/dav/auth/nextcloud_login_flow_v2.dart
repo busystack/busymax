@@ -74,7 +74,10 @@ final class NextcloudLoginFlowV2 {
   Future<NextcloudLoginFlowResult>? _activeOperation;
   DavCancellationToken? _activeCancellation;
 
-  Future<NextcloudLoginFlowResult> start(String enteredServer) {
+  Future<NextcloudLoginFlowResult> start(
+    String enteredServer, {
+    DavCancellationToken? cancellationToken,
+  }) {
     if (_activeOperation != null) {
       throw const DavException(
         kind: DavErrorKind.conflict,
@@ -83,8 +86,16 @@ final class NextcloudLoginFlowV2 {
       );
     }
     final cancellation = DavCancellationToken();
+    cancellationToken?.throwIfCancelled();
+    final subscription = cancellationToken?.cancellations.listen(
+      (_) => cancellation.cancel(),
+    );
     _activeCancellation = cancellation;
-    final operation = _run(enteredServer, cancellation);
+    late final Future<NextcloudLoginFlowResult> operation;
+    operation = _run(enteredServer, cancellation).whenComplete(() async {
+      await subscription?.cancel();
+      _clear(operation);
+    });
     _activeOperation = operation;
     unawaited(
       operation.then<void>(
@@ -137,7 +148,7 @@ final class NextcloudLoginFlowV2 {
       allowQuery: true,
     );
     cancellation.throwIfCancelled();
-    final launched = await _browserLauncher(loginUri);
+    final launched = await _wait(_browserLauncher(loginUri), cancellation);
     if (!launched) {
       throw const DavException(
         kind: DavErrorKind.protocol,
@@ -162,7 +173,7 @@ final class NextcloudLoginFlowV2 {
         cancellation: cancellation,
       );
       if (pollResponse.statusCode == HttpStatus.notFound) {
-        await _delay(pollInterval);
+        await _wait(_delay(pollInterval), cancellation);
         continue;
       }
       if (pollResponse.statusCode != HttpStatus.ok) {
@@ -176,6 +187,7 @@ final class NextcloudLoginFlowV2 {
         );
       }
       final completed = _jsonObject(pollResponse.bodyBytes);
+      cancellation.throwIfCancelled();
       final normalizedAuthority = normalizeNextcloudServerAuthority(
         _requiredJsonString(completed, 'server'),
       );
@@ -205,9 +217,14 @@ final class NextcloudLoginFlowV2 {
           !_withinInstallationPath(current.path, trustedBase.path)) {
         throw _redirectError('NextcloudLoginRedirectRejected');
       }
-      final request = http.Request('POST', current)
-        ..followRedirects = false
-        ..headers['accept'] = 'application/json';
+      final request =
+          http.AbortableRequest(
+              'POST',
+              current,
+              abortTrigger: cancellation.whenCancelled,
+            )
+            ..followRedirects = false
+            ..headers['accept'] = 'application/json';
       if (body != null) {
         request.headers['content-type'] =
             'application/x-www-form-urlencoded; charset=utf-8';
@@ -215,7 +232,10 @@ final class NextcloudLoginFlowV2 {
       }
       http.StreamedResponse streamed;
       try {
-        streamed = await _client.send(request).timeout(responseTimeout);
+        streamed = await _wait(
+          _client.send(request).timeout(responseTimeout),
+          cancellation,
+        );
       } on TimeoutException {
         throw const DavException(
           kind: DavErrorKind.timeout,
@@ -228,14 +248,20 @@ final class NextcloudLoginFlowV2 {
           code: 'DavTlsFailure',
           safeMessage: 'The Nextcloud TLS connection could not be verified.',
         );
+      } on DavException {
+        rethrow;
       } on Object {
+        cancellation.throwIfCancelled();
         throw const DavException(
           kind: DavErrorKind.network,
           code: 'DavTransientNetwork',
           safeMessage: 'The Nextcloud login server could not be reached.',
         );
       }
-      final bytes = await _readBody(streamed, cancellation);
+      final bytes = await _wait(
+        _readBody(streamed, cancellation),
+        cancellation,
+      );
       if (!_isRedirect(streamed.statusCode)) {
         return _FlowResponse(
           statusCode: streamed.statusCode,
@@ -256,6 +282,20 @@ final class NextcloudLoginFlowV2 {
       current = destination;
     }
     throw StateError('Unreachable Nextcloud redirect state.');
+  }
+
+  Future<T> _wait<T>(Future<T> work, DavCancellationToken cancellation) {
+    cancellation.throwIfCancelled();
+    return Future.any([
+      work,
+      cancellation.whenCancelled.then<T>((_) {
+        cancellation.throwIfCancelled();
+        throw StateError('Unreachable cancellation');
+      }),
+    ]).then((value) {
+      cancellation.throwIfCancelled();
+      return value;
+    });
   }
 
   Future<Uint8List> _readBody(

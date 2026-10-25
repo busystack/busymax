@@ -1,5 +1,19 @@
 part of '../app_database.dart';
 
+/// A reopened current recurrence uses the master's stable task identity. Its
+/// detached history remains cached, without a second active task or reminder.
+bool isVisibleTaskProjection(Task task) {
+  if (task.recurrenceIdKey == null) return true;
+  final source = task.providerMetadataJson;
+  if (source == null) return true;
+  try {
+    final metadata = jsonDecode(source);
+    return metadata is! Map || metadata['representedByMaster'] != true;
+  } on FormatException {
+    return true;
+  }
+}
+
 @DriftAccessor(tables: [Accounts, DavCollections, TaskLists, Tasks])
 class TasksDao extends DatabaseAccessor<AppDatabase> with _$TasksDaoMixin {
   TasksDao(super.db);
@@ -31,7 +45,11 @@ class TasksDao extends DatabaseAccessor<AppDatabase> with _$TasksDaoMixin {
             OrderingTerm.asc(tasks.title),
           ]);
     return query.watch().map(
-      (rows) => [for (final row in rows) row.readTable(tasks)],
+      (rows) => [
+        for (final row in rows)
+          if (isVisibleTaskProjection(row.readTable(tasks)))
+            row.readTable(tasks),
+      ],
     );
   }
 
@@ -82,11 +100,12 @@ class TasksDao extends DatabaseAccessor<AppDatabase> with _$TasksDaoMixin {
     return query.watch().map((rows) {
       return [
         for (final row in rows)
-          TaskWithContextRow(
-            task: row.readTable(tasks),
-            taskList: row.readTable(taskLists),
-            account: row.readTable(accounts),
-          ),
+          if (isVisibleTaskProjection(row.readTable(tasks)))
+            TaskWithContextRow(
+              task: row.readTable(tasks),
+              taskList: row.readTable(taskLists),
+              account: row.readTable(accounts),
+            ),
       ];
     });
   }
@@ -105,8 +124,41 @@ class TasksDao extends DatabaseAccessor<AppDatabase> with _$TasksDaoMixin {
     return query.get();
   }
 
-  Future<void> upsertTask(TasksCompanion row) {
-    return into(tasks).insertOnConflictUpdate(row);
+  Future<void> upsertTask(TasksCompanion row) async {
+    // Provider refreshes replace metadata but cannot retire identities that
+    // still belong to active editors and durable Android recovery records.
+    final existing =
+        await (select(tasks)..where(
+              (task) =>
+                  task.accountId.equals(row.accountId.value) &
+                  task.taskListId.equals(row.taskListId.value) &
+                  task.id.equals(row.id.value),
+            ))
+            .getSingleOrNull();
+    final source = existing?.providerMetadataJson;
+    if (source != null) {
+      final previous = jsonDecode(source);
+      for (final key in const [
+        '_busymaxTaskIdAliases',
+        '_busymaxTaskPreviousListIds',
+      ]) {
+        final aliases = previous is Map ? previous[key] : null;
+        if (aliases is! List || aliases.isEmpty) continue;
+        final raw = row.providerMetadataJson.present
+            ? row.providerMetadataJson.value
+            : source;
+        final next = raw == null
+            ? <String, Object?>{}
+            : (jsonDecode(raw) as Map).cast<String, Object?>();
+        final nextAliases = next[key];
+        next[key] = {
+          ...aliases.whereType<String>(),
+          if (nextAliases is List) ...nextAliases.whereType<String>(),
+        }.toList();
+        row = row.copyWith(providerMetadataJson: Value(jsonEncode(next)));
+      }
+    }
+    await into(tasks).insertOnConflictUpdate(row);
   }
 
   Future<List<Task>> dirtyTasks(String accountId) {

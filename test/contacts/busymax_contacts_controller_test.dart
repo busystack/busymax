@@ -120,6 +120,7 @@ final class _UnusedAuthorization implements ContactsAuthorizationBroker {
 
     AuthorizationCancellation? cancellation,
     Future<void> Function()? persistContacts,
+    bool forceAuthorization = false,
   }) => throw StateError('authorization is not used by cached lookup');
 
   @override

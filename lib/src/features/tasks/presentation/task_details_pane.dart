@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/app_bootstrap.dart';
+import '../../../app/busymax_design.dart';
 import '../../../app/busymax_dialogs.dart';
 import '../../../l10n/l10n.dart';
 
@@ -67,10 +68,7 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
   late String _effectiveTaskListId;
   late String _effectiveTaskId;
   TaskEntity? _lastTask;
-  List<TaskListEntity> _lastTaskLists = const [];
   AccountEntity? _lastAccount;
-  TaskCollectionCapabilities? _lastCapabilities;
-  String? _lastLocalTimeZone;
   List<String> _lastCategorySuggestions = const [];
   TasksRepository? _taskStreamRepository;
   String? _taskStreamAccountId;
@@ -95,6 +93,8 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
   TaskListsRepository? _customTaskListsRepository;
   var _editorDirty = false;
   var _confirmingTaskSwitch = false;
+  String? _taskLoadWarning;
+  bool _taskUnavailable = false;
 
   @override
   void initState() {
@@ -117,6 +117,12 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
       widget.taskListId,
       widget.taskId,
     )) {
+      return;
+    }
+    if (_lastTask?.accountId == widget.accountId &&
+        _lastTask?.taskListId == widget.taskListId &&
+        _lastTask!.matchesIdentity(widget.taskId)) {
+      _effectiveTaskId = widget.taskId;
       return;
     }
 
@@ -200,35 +206,54 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
     return StreamBuilder<TaskEntity?>(
       stream: taskStream,
       builder: (context, taskSnapshot) {
-        if (taskSnapshot.connectionState == ConnectionState.none ||
-            taskSnapshot.connectionState == ConnectionState.waiting) {
-          if (_editorDirty && _lastTask != null) {
-            return _buildEditor(
-              repository: repository,
-              task: _lastTask!,
-              taskLists: _lastTaskLists,
-              capabilities: _lastCapabilities ?? capabilities,
-              localTimeZone: _lastLocalTimeZone ?? localTimeZone,
-              account: cachedAccount ?? account,
-              categorySuggestions: _lastCategorySuggestions,
-              hierarchy: _lastHierarchy,
+        final waiting =
+            taskSnapshot.connectionState == ConnectionState.none ||
+            taskSnapshot.connectionState == ConnectionState.waiting;
+        final missingDirty =
+            !waiting &&
+            !taskSnapshot.hasError &&
+            taskSnapshot.data == null &&
+            _editorDirty &&
+            _lastTask != null;
+        final task =
+            taskSnapshot.data ??
+            ((waiting || taskSnapshot.hasError || missingDirty)
+                ? _lastTask
+                : null);
+        if (task == null) {
+          if (taskSnapshot.hasError) {
+            return Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(context.l10n.operationFailed),
+                  BusyMaxPushButton.standard(
+                    onPressed: _retryTaskStream,
+                    child: Text(context.l10n.retry),
+                  ),
+                ],
+              ),
             );
           }
-          return const SizedBox.shrink();
-        }
-        final task = taskSnapshot.data;
-        if (task != null &&
-            (task.accountId != _effectiveAccountId ||
-                task.taskListId != _effectiveTaskListId ||
-                task.id != _effectiveTaskId)) {
-          return const SizedBox.shrink();
-        }
-        if (task == null) {
+          if (waiting) return const Center(child: CircularProgressIndicator());
           WidgetsBinding.instance.addPostFrameCallback(
             (_) => widget.onClose?.call(),
           );
           return const SizedBox.shrink();
         }
+        if (task.accountId != _effectiveAccountId ||
+            task.taskListId != _effectiveTaskListId ||
+            !task.matchesIdentity(_effectiveTaskId)) {
+          return const SizedBox.shrink();
+        }
+        _taskUnavailable = missingDirty;
+        _taskLoadWarning = missingDirty
+            ? context.l10n.taskUnavailableDraftRetained
+            : taskSnapshot.hasError
+            ? context.l10n.operationFailed
+            : null;
+        // Cached and live data take the same builder path. Replacing these
+        // stream-builder ancestors would dispose the editor and its draft.
         var effectiveCapabilities =
             task.recurrenceIdKey != null &&
                 !capabilities.supportsRecurringTaskOccurrenceEditing
@@ -263,10 +288,7 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
                     final categorySuggestions =
                         categorySnapshot.data ?? _lastCategorySuggestions;
                     _lastTask = task;
-                    _lastTaskLists = taskLists;
                     _lastAccount = account;
-                    _lastCapabilities = effectiveCapabilities;
-                    _lastLocalTimeZone = localTimeZone;
                     _lastCategorySuggestions = categorySuggestions;
                     _lastHierarchy = hierarchy;
                     return _buildEditor(
@@ -353,18 +375,44 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
       await repository.patchTask(
         task.taskListId,
         task.id,
-        TaskPatchInput(patch, locationChange: draft.locationChange),
+        TaskPatchInput(
+          patch,
+          locationChange: draft.locationChange,
+          observedTask: draft.observedTask,
+          observedOccurrenceKey:
+              patch.keys.any(
+                const {
+                  'status',
+                  'completed',
+                  'taskStatus',
+                  'percentComplete',
+                  'completedAtUtc',
+                }.contains,
+              )
+              ? draft.observedTask?.occurrenceKey
+              : null,
+        ),
       );
       mutated = true;
     }
     if (draft.taskListId != task.taskListId) {
-      await repository.moveTask(
-        TaskMoveInput(
-          sourceTaskListId: task.taskListId,
-          taskId: task.id,
-          destinationTaskListId: draft.taskListId,
-        ),
-      );
+      try {
+        await repository.moveTask(
+          TaskMoveInput(
+            sourceTaskListId: task.taskListId,
+            taskId: task.id,
+            destinationTaskListId: draft.taskListId,
+          ),
+        );
+      } on Object catch (error) {
+        if (mutated) {
+          final committed = await repository.readTask(task.taskListId, task.id);
+          if (committed != null) {
+            throw TaskSavePartialException(committed, error);
+          }
+        }
+        rethrow;
+      }
       mutated = true;
     }
     if (mutated) {
@@ -387,6 +435,7 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
           taskListId: moving ? task.taskListId : draft.taskListId,
           taskId: task.id,
           completed: completed,
+          occurrenceKey: draft.observedTask?.occurrenceKey,
         ),
       );
     }
@@ -402,55 +451,80 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
     required List<String> categorySuggestions,
     required TaskHierarchySnapshot hierarchy,
   }) {
-    return TaskDetailsEditor(
-      task: task,
-      provider: account.provider,
-      taskLists: taskLists,
-      capabilities: capabilities,
-      localTimeZone: localTimeZone,
-      categorySuggestions: categorySuggestions,
-      accountLabel: _accountEditorLabel(context, account),
-      onRefresh: () => unawaited(_refreshTask(repository, task)),
-      onSave: (draft, patch) => _saveDraft(repository, task, draft, patch),
-      hierarchy: hierarchy,
-      onCreateSubtask: (title) => _createSubtask(repository, task, title),
-      onHierarchyTaskSelected: (selectedTask) =>
-          _selectHierarchyTask(selectedTask),
-      onSubtaskCompletionChanged: (subtask, completed) =>
-          _setSubtaskCompleted(repository, task, subtask, completed),
-      onChecklistSubtaskRenamed: (subtask, title) =>
-          _renameChecklistSubtask(repository, task, subtask, title),
-      onChecklistSubtaskDeleted: (subtask) =>
-          _deleteChecklistSubtask(repository, task, subtask),
-      onMoveToTop: () {
-        unawaited(_moveToTop(repository, task));
-      },
-      onDuplicate: () => _duplicateTask(repository, task),
-      onExport: () => _exportTask(repository, task),
-      onDelete: () async {
-        await repository.deleteTask(
-          task.taskListId,
-          task.id,
-          confirmedAssignedSourceDeletion: task.googleAssignment.isAssigned,
-        );
-        await widget.onTaskMutationCommitted?.call(
-          TaskMutationResult(
-            kind: TaskMutationKind.deleted,
-            accountId: task.accountId,
-            taskListId: task.taskListId,
-            taskId: task.id,
+    return Column(
+      children: [
+        if (_taskLoadWarning != null)
+          Row(
+            children: [
+              Expanded(child: Text(_taskLoadWarning!)),
+              BusyMaxPushButton.standard(
+                onPressed: _retryTaskStream,
+                child: Text(context.l10n.retry),
+              ),
+            ],
           ),
-        );
-        widget.onClose?.call();
-      },
-      onCancel: () => widget.onClose?.call(),
-      onSaved: () => widget.onClose?.call(),
-      onTaskSwitchCancelled: widget.onTaskSwitchCancelled,
-      onDirtyChanged: _setEditorDirty,
-      externalLocationLauncher: widget.externalLocationLauncher,
-      dialogBarrierColor: widget.dialogBarrierColor,
+        Expanded(
+          key: const ValueKey('mounted-task-editor'),
+          child: TaskDetailsEditor(
+            task: task,
+            provider: account.provider,
+            taskLists: taskLists,
+            capabilities: capabilities,
+            localTimeZone: localTimeZone,
+            categorySuggestions: categorySuggestions,
+            accountLabel: _accountEditorLabel(context, account),
+            onRefresh: () => unawaited(_refreshTask(repository, task)),
+            onSave: (draft, patch) =>
+                _saveDraft(repository, task, draft, patch),
+            hierarchy: hierarchy,
+            onCreateSubtask: (title) => _createSubtask(repository, task, title),
+            onHierarchyTaskSelected: (selectedTask) =>
+                _selectHierarchyTask(selectedTask),
+            onSubtaskCompletionChanged: (subtask, completed) =>
+                _setSubtaskCompleted(repository, task, subtask, completed),
+            onChecklistSubtaskRenamed: (subtask, title) =>
+                _renameChecklistSubtask(repository, task, subtask, title),
+            onChecklistSubtaskDeleted: (subtask) =>
+                _deleteChecklistSubtask(repository, task, subtask),
+            onMoveToTop: () {
+              unawaited(_moveToTop(repository, task));
+            },
+            onDuplicate: () => _duplicateTask(repository, task),
+            onExport: () => _exportTask(repository, task),
+            onDelete: () async {
+              await repository.deleteTask(
+                task.taskListId,
+                task.id,
+                confirmedAssignedSourceDeletion:
+                    task.googleAssignment.isAssigned,
+              );
+              await widget.onTaskMutationCommitted?.call(
+                TaskMutationResult(
+                  kind: TaskMutationKind.deleted,
+                  accountId: task.accountId,
+                  taskListId: task.taskListId,
+                  taskId: task.id,
+                ),
+              );
+              widget.onClose?.call();
+            },
+            onCancel: () => widget.onClose?.call(),
+            onSaved: () => widget.onClose?.call(),
+            onTaskSwitchCancelled: widget.onTaskSwitchCancelled,
+            onDirtyChanged: _setEditorDirty,
+            externalLocationLauncher: widget.externalLocationLauncher,
+            dialogBarrierColor: widget.dialogBarrierColor,
+            canSaveDraft: (_) => !_taskUnavailable,
+          ),
+        ),
+      ],
     );
   }
+
+  void _retryTaskStream() => setState(() {
+    _taskStream = null;
+    _taskStreamRepository = null;
+  });
 
   Future<void> _createSubtask(
     TasksRepository repository,
@@ -496,12 +570,10 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
         await repository.patchTask(
           task.taskListId,
           task.id,
-          TaskPatchInput({
-            'status': completed ? 'completed' : 'needsAction',
-            'completed': completed
-                ? DateTime.now().toUtc().toIso8601String()
-                : null,
-          }),
+          TaskPatchInput.completion(
+            completed,
+            observedOccurrenceKey: task.occurrenceKey,
+          ),
         );
       } else {
         await repository.patchChecklistSubtask(
@@ -522,6 +594,7 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
               ? subtask.id
               : null,
           completed: completed,
+          occurrenceKey: affectedTask?.occurrenceKey,
         ),
       );
     } on Object catch (error) {
@@ -540,6 +613,7 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
         taskListId: parent.taskListId,
         parentTaskId: parent.id,
         checklistItemId: subtask.id,
+        observedItem: subtask.checklistItem,
         title: title,
       );
       await widget.onTaskMutationCommitted?.call(
@@ -566,6 +640,7 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
         taskListId: parent.taskListId,
         parentTaskId: parent.id,
         checklistItemId: subtask.id,
+        observedItem: subtask.checklistItem,
       );
       await widget.onTaskMutationCommitted?.call(
         TaskMutationResult(
@@ -586,29 +661,36 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          context.l10n.syncFailed(
-            syncFailureMessage(
-              error,
-              networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
-            ),
-          ),
+          error is TaskOccurrenceChangedException
+              ? context.l10n.taskDraftConflict
+              : context.l10n.syncFailed(
+                  syncFailureMessage(
+                    error,
+                    networkUnavailableMessage:
+                        context.l10n.networkOfflineTryAgain,
+                  ),
+                ),
         ),
       ),
     );
   }
 
   Future<void> _moveToTop(TasksRepository repository, TaskEntity task) async {
-    await repository.moveTask(
-      TaskMoveInput(sourceTaskListId: task.taskListId, taskId: task.id),
-    );
-    await widget.onTaskMutationCommitted?.call(
-      TaskMutationResult(
-        kind: TaskMutationKind.reordered,
-        accountId: task.accountId,
-        taskListId: task.taskListId,
-        taskId: task.id,
-      ),
-    );
+    try {
+      await repository.moveTask(
+        TaskMoveInput(sourceTaskListId: task.taskListId, taskId: task.id),
+      );
+      await widget.onTaskMutationCommitted?.call(
+        TaskMutationResult(
+          kind: TaskMutationKind.reordered,
+          accountId: task.accountId,
+          taskListId: task.taskListId,
+          taskId: task.id,
+        ),
+      );
+    } on Object catch (error) {
+      _showTaskMutationError(error);
+    }
   }
 
   Future<void> _duplicateTask(
@@ -709,6 +791,9 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
     _effectiveAccountId = accountId;
     _effectiveTaskListId = taskListId;
     _effectiveTaskId = taskId;
+    _lastTask = null;
+    _taskLoadWarning = null;
+    _taskUnavailable = false;
     _lastHierarchy = const TaskHierarchySnapshot(parent: null, subtasks: []);
   }
 

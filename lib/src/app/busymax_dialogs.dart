@@ -146,6 +146,7 @@ Future<String?> showBusyMaxTextPrompt(
   required String actionLabel,
   String? initialValue,
   String? message,
+  bool obscureText = false,
   Color? barrierColor,
 }) {
   return showBusyMaxModalDialog<String>(
@@ -158,6 +159,7 @@ Future<String?> showBusyMaxTextPrompt(
       actionLabel: actionLabel,
       initialValue: initialValue,
       message: message,
+      obscureText: obscureText,
     ),
   );
 }

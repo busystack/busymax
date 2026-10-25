@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/app_bootstrap.dart';
+import '../../../app/busymax_design.dart';
 import '../../../app/busymax_dialogs.dart';
 import '../../../google_tasks/api/google_tasks_json.dart';
 import '../../../l10n/l10n.dart';
@@ -22,11 +23,13 @@ class NewTaskDraft {
     required this.accountId,
     required this.taskListId,
     required this.input,
+    this.committedTaskId,
   });
 
   final String accountId;
   final String taskListId;
   final TaskCreateInput input;
+  final String? committedTaskId;
 
   String get title => input.title;
   DateTime? get dueUtc => input.dueUtc;
@@ -56,7 +59,21 @@ Future<NewTaskDraft?> showBusyMaxNewTaskDialog(
         initialAccountId: initialAccountId,
         initialListId: initialListId,
         initialDueUtc: initialDueUtc,
-        onSubmitted: (draft) => Navigator.of(dialogContext).pop(draft),
+        onSubmitted: (draft) async {
+          final taskId = await ref
+              .read(tasksRepositoryForAccountProvider(draft.accountId))
+              .createTask(draft.taskListId, draft.input);
+          if (dialogContext.mounted) {
+            Navigator.of(dialogContext).pop(
+              NewTaskDraft(
+                accountId: draft.accountId,
+                taskListId: draft.taskListId,
+                input: draft.input,
+                committedTaskId: taskId,
+              ),
+            );
+          }
+        },
         onCancel: () => Navigator.of(dialogContext).pop(),
       ),
     ),
@@ -90,6 +107,9 @@ class NewTaskEditorPanel extends ConsumerStatefulWidget {
 }
 
 class _NewTaskEditorPanelState extends ConsumerState<NewTaskEditorPanel> {
+  TaskListsRepository? _listsRepository;
+  Stream<List<TaskListEntity>>? _listsStream;
+  List<TaskListEntity> _cachedLists = const [];
   String? _accountId;
   String? _taskListId;
   TaskDetailsDraft? _draftSnapshot;
@@ -113,6 +133,11 @@ class _NewTaskEditorPanelState extends ConsumerState<NewTaskEditorPanel> {
     final repository = ref.watch(
       taskListsRepositoryForAccountProvider(accountId),
     );
+    if (!identical(_listsRepository, repository)) {
+      _listsRepository = repository;
+      _listsStream = repository.watchTaskLists();
+      _cachedLists = const [];
+    }
     final categorySuggestionsStream =
         widget.categorySuggestionsForAccount?.call(accountId) ??
         ref
@@ -124,9 +149,11 @@ class _NewTaskEditorPanelState extends ConsumerState<NewTaskEditorPanel> {
       builder: (context, categorySnapshot) {
         final categorySuggestions = categorySnapshot.data ?? const <String>[];
         return StreamBuilder<List<TaskListEntity>>(
-          stream: repository.watchTaskLists(),
+          key: ObjectKey(repository),
+          stream: _listsStream,
           builder: (context, snapshot) {
-            final taskLists = snapshot.data ?? const <TaskListEntity>[];
+            if (snapshot.hasData) _cachedLists = snapshot.data!;
+            final taskLists = _cachedLists;
             final effectiveListId = _effectiveListId(taskLists);
             final capabilities = _capabilitiesFor(
               provider,
@@ -144,43 +171,75 @@ class _NewTaskEditorPanelState extends ConsumerState<NewTaskEditorPanel> {
               localTimeZone,
             );
 
-            return TaskDetailsEditor(
-              key: ValueKey('new-task-editor-$accountId-$effectiveListId'),
-              task: editorTask,
-              provider: provider,
-              taskLists: taskLists,
-              capabilities: capabilities,
-              localTimeZone: localTimeZone,
-              initialDraft: initialDraft,
-              editorTitle: context.l10n.newTask,
-              saveLabel: context.l10n.create,
-              accountLabel: _accountEditorLabel(context, account, provider),
-              accountIds: [for (final account in widget.accounts) account.id],
-              selectedAccountId: accountId,
-              accountLabelFor: _accountLabel,
-              onAccountSelected: _selectAccount,
-              allowTaskListSelection: true,
-              showAdvancedActions: false,
-              showDeleteAction: false,
-              isCreate: true,
-              confirmTaskSwitch: false,
-              useNativeDatePicker: widget.useNativeDatePicker,
-              categorySuggestions: categorySuggestions,
-              canSaveDraft: (draft) => draft.taskListId.isNotEmpty,
-              onDraftChanged: (draft) {
-                if (_draftSnapshot?.taskListId != draft.taskListId) {
-                  setState(() => _draftSnapshot = draft);
-                } else {
-                  _draftSnapshot = draft;
-                }
-              },
-              onRefresh: () {},
-              onSave: (draft, _) =>
-                  _submit(draft, capabilities, localTimeZone: localTimeZone),
-              onCreateSubtask: (_) async {},
-              onMoveToTop: () {},
-              onDelete: () async {},
-              onCancel: widget.onCancel,
+            return Column(
+              children: [
+                if (snapshot.connectionState == ConnectionState.waiting &&
+                    taskLists.isEmpty)
+                  const LinearProgressIndicator(),
+                if (snapshot.hasError)
+                  Row(
+                    children: [
+                      Expanded(child: Text(context.l10n.collectionsLoadFailed)),
+                      BusyMaxPushButton.standard(
+                        onPressed: () => setState(() {
+                          _listsStream = repository.watchTaskLists();
+                        }),
+                        child: Text(context.l10n.retry),
+                      ),
+                    ],
+                  )
+                else if (snapshot.hasData && taskLists.isEmpty)
+                  Text(context.l10n.noTaskListsSynced),
+                Expanded(
+                  child: TaskDetailsEditor(
+                    key: ValueKey('new-task-editor-$accountId'),
+                    task: editorTask,
+                    provider: provider,
+                    taskLists: taskLists,
+                    capabilities: capabilities,
+                    localTimeZone: localTimeZone,
+                    initialDraft: initialDraft,
+                    editorTitle: context.l10n.newTask,
+                    saveLabel: context.l10n.create,
+                    accountLabel: _accountEditorLabel(
+                      context,
+                      account,
+                      provider,
+                    ),
+                    accountIds: [
+                      for (final account in widget.accounts) account.id,
+                    ],
+                    selectedAccountId: accountId,
+                    accountLabelFor: _accountLabel,
+                    onAccountSelected: _selectAccount,
+                    allowTaskListSelection: true,
+                    showAdvancedActions: false,
+                    showDeleteAction: false,
+                    isCreate: true,
+                    confirmTaskSwitch: false,
+                    useNativeDatePicker: widget.useNativeDatePicker,
+                    categorySuggestions: categorySuggestions,
+                    canSaveDraft: (draft) => draft.taskListId.isNotEmpty,
+                    onDraftChanged: (draft) {
+                      if (_draftSnapshot?.taskListId != draft.taskListId) {
+                        setState(() => _draftSnapshot = draft);
+                      } else {
+                        _draftSnapshot = draft;
+                      }
+                    },
+                    onRefresh: () {},
+                    onSave: (draft, _) => _submit(
+                      draft,
+                      capabilities,
+                      localTimeZone: localTimeZone,
+                    ),
+                    onCreateSubtask: (_) async {},
+                    onMoveToTop: () {},
+                    onDelete: () async {},
+                    onCancel: widget.onCancel,
+                  ),
+                ),
+              ],
             );
           },
         );

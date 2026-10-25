@@ -485,7 +485,10 @@ void main() {
       final nativeSearchTheme = File('linux/runner/gtk_search_entry_theme.cc')
           .readAsStringSync();
 
-      expect(workspace, contains('final header = ScheduleToolbar('));
+      expect(
+        RegExp(r'\bScheduleToolbar\(').allMatches(workspace),
+        hasLength(1),
+      );
       expect(workspace, isNot(contains("'schedule-search-close-button'")));
       expect(
         workspace,

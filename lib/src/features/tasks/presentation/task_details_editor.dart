@@ -18,6 +18,7 @@ import '../../../app/busymax_glyphs.dart';
 import '../../../google_tasks/api/google_tasks_json.dart';
 import '../../../l10n/l10n.dart';
 import '../../../providers/busy_provider.dart';
+import '../../../dav/dav_errors.dart';
 import '../../maps/domain/location_result.dart';
 import '../../maps/application/external_location_launcher.dart';
 
@@ -173,6 +174,36 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
     final sameKey = _loadedTaskKey == nextKey;
     final hasChanges = _hasEditorChanges(_draft);
 
+    if (widget.isCreate &&
+        widget.task.accountId == _editingTask.accountId &&
+        widget.task.id == _editingTask.id) {
+      _loadedTaskKey = nextKey;
+      _editingTask = widget.task;
+      if (_draft?.taskListId != widget.task.taskListId) {
+        _draft = _draft?.copyWith(taskListId: widget.task.taskListId);
+        if (!hasChanges) {
+          _cleanDraftBaseline = _cleanDraftBaseline?.copyWith(
+            taskListId: widget.task.taskListId,
+          );
+        }
+      }
+      return;
+    }
+
+    if (!sameKey &&
+        widget.task.id != _editingTask.id &&
+        widget.task.taskListId == _editingTask.taskListId &&
+        widget.task.accountId == _editingTask.accountId &&
+        widget.task.matchesIdentity(_editingTask.id)) {
+      // Creation acknowledgment changes the provider ID, not draft ownership.
+      _loadedTaskKey = nextKey;
+      _draft = _draft?.copyWith(taskId: widget.task.id);
+      _cleanDraftBaseline = _cleanDraftBaseline?.copyWith(
+        taskId: widget.task.id,
+      );
+      return;
+    }
+
     if (!sameKey) {
       if (hasChanges && widget.confirmTaskSwitch) {
         unawaited(_confirmTaskSelectionChange(widget.task));
@@ -203,14 +234,14 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
     final l10n = context.l10n;
     final hasChanges = _hasEditorChanges(draft);
     final scheduledAllDay = _isScheduledAllDay(draft);
-    final scheduleIssue = draft.scheduleIssue;
+    final scheduleIssue = draft.scheduleIssueFor(widget.capabilities);
     final canSave =
         _canWrite &&
         draft.title.trim().isNotEmpty &&
         hasChanges &&
         !_saving &&
         scheduleIssue == TaskScheduleIssue.none &&
-        draft.hasValidTaskUrl &&
+        draft.hasValidTaskUrlFor(widget.capabilities) &&
         _timeFieldsAreValid(draft, scheduledAllDay) &&
         (widget.canSaveDraft?.call(draft) ?? true);
     final currentList = _listTitle(draft.taskListId);
@@ -708,20 +739,20 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                             BusyMaxActionRow(
                               title: l10n.moveToTop,
                               leading: const Icon(Icons.vertical_align_top),
-                              enabled: widget.capabilities.canUpdateTasks,
-                              onTap: widget.capabilities.canUpdateTasks
-                                  ? widget.onMoveToTop
-                                  : null,
+                              enabled: _canWrite,
+                              onTap: _canWrite ? widget.onMoveToTop : null,
                             ),
                           if (widget.capabilities.supportsDuplicate)
                             BusyMaxActionRow(
                               title: l10n.duplicateTask,
                               leading: const Icon(Icons.copy_outlined),
                               enabled:
+                                  _canWrite &&
                                   widget.capabilities.canCreateTasks &&
                                   widget.onDuplicate != null,
                               onTap:
-                                  widget.capabilities.canCreateTasks &&
+                                  _canWrite &&
+                                      widget.capabilities.canCreateTasks &&
                                       widget.onDuplicate != null
                                   ? () => unawaited(widget.onDuplicate!())
                                   : null,
@@ -803,9 +834,11 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
         widget.onAccountSelected != null;
   }
 
-  bool get _canWrite => widget.isCreate
-      ? widget.capabilities.canCreateTasks
-      : widget.capabilities.canUpdateTasks;
+  bool get _canWrite =>
+      !_saving &&
+      (widget.isCreate
+          ? widget.capabilities.canCreateTasks
+          : widget.capabilities.canUpdateTasks);
 
   bool get _supportsIcalFields =>
       widget.capabilities.supportsIcalPriority ||
@@ -831,7 +864,10 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       values: widget.accountIds,
       selected: widget.selectedAccountId!,
       labelFor: labelFor,
-      onSelected: widget.onAccountSelected!,
+      enabled: !_saving,
+      onSelected: (value) {
+        if (!_saving) widget.onAccountSelected!(value);
+      },
     );
   }
 
@@ -865,7 +901,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       subtitle: widget.accountLabel,
       values: [for (final list in widget.taskLists) list.id],
       selected: draft.taskListId,
-      enabled: widget.isCreate || _canWrite,
+      enabled: !_saving && (widget.isCreate || _canWrite),
       labelFor: (value) => _listTitle(value) ?? l10n.noneValue,
       onSelected: (value) => _updateDraft(draft.copyWith(taskListId: value)),
     );
@@ -1269,8 +1305,8 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
     if (draft == null ||
         _saving ||
         !_canWrite ||
-        draft.scheduleIssue != TaskScheduleIssue.none ||
-        !draft.hasValidTaskUrl ||
+        draft.scheduleIssueFor(widget.capabilities) != TaskScheduleIssue.none ||
+        !draft.hasValidTaskUrlFor(widget.capabilities) ||
         !_timeFieldsAreValid(draft, _isScheduledAllDay(draft))) {
       return;
     }
@@ -1279,6 +1315,17 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       widget.capabilities,
       localTimeZone: widget.localTimeZone,
     );
+    if (draft.hasNewPastReminder(
+      original: widget.isCreate ? null : _editingTask,
+      capabilities: widget.capabilities,
+      localTimeZone: widget.localTimeZone,
+      now: DateTime.now(),
+    )) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(context.l10n.reminderTimeInPast)));
+      return;
+    }
     setState(() {
       _saving = true;
     });
@@ -1290,6 +1337,39 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       _cleanDraftBaseline = draft;
       widget.onDirtyChanged?.call(false);
       widget.onSaved?.call();
+    } on TaskSavePartialException catch (error) {
+      if (!mounted) return;
+      _editingTask = error.committedTask;
+      _draft = TaskDetailsDraft.fromTask(
+        error.committedTask,
+        widget.localTimeZone,
+      ).copyWith(taskListId: draft.taskListId);
+      _titleController.text = _draft!.title;
+      _notesController.text = _draft!.notes;
+      _cleanDraftBaseline = TaskDetailsDraft.fromTask(
+        error.committedTask,
+        widget.localTimeZone,
+      );
+      widget.onDraftChanged?.call(_draft!);
+      widget.onDirtyChanged?.call(true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.l10n.taskMoveAfterSaveFailed)),
+      );
+    } on Object catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            error is TaskDraftConflictException ||
+                    error is TaskOccurrenceChangedException
+                ? context.l10n.taskDraftConflict
+                : error is DavException &&
+                      error.code == 'DavTaskDurationRequiresStart'
+                ? context.l10n.taskDurationRequiresStart
+                : context.l10n.operationFailed,
+          ),
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() {
@@ -1300,6 +1380,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
   }
 
   Future<void> _cancel() async {
+    if (_saving) return;
     final draft = _draft;
     final hasChanges = _hasEditorChanges(draft);
     if (hasChanges) {
@@ -1360,8 +1441,8 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
             trailing: Icon(
               BusyMaxGlyphs.chevronForwardFor(Directionality.of(context)),
             ),
-            enabled: widget.onHierarchyTaskSelected != null,
-            onTap: widget.onHierarchyTaskSelected == null
+            enabled: !_saving && widget.onHierarchyTaskSelected != null,
+            onTap: _saving || widget.onHierarchyTaskSelected == null
                 ? null
                 : () => unawaited(widget.onHierarchyTaskSelected!(parent)),
           ),
@@ -1373,11 +1454,13 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
             BusyMaxGlyphs.subdirectoryFor(Directionality.of(context)),
           ),
           enabled:
+              _canWrite &&
               widget.capabilities.canCreateTasks &&
               !_editingTask.googleAssignment.isAssigned &&
               !_creatingSubtask,
           onTap:
-              widget.capabilities.canCreateTasks &&
+              _canWrite &&
+                  widget.capabilities.canCreateTasks &&
                   !_editingTask.googleAssignment.isAssigned &&
                   !_creatingSubtask
               ? _createSubtask
@@ -1389,9 +1472,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
 
   Widget _subtaskRow(TaskSubtaskEntity subtask) {
     final task = subtask.task;
-    final canToggle =
-        widget.capabilities.canUpdateTasks &&
-        widget.onSubtaskCompletionChanged != null;
+    final canToggle = _canWrite && widget.onSubtaskCompletionChanged != null;
     final title = Text(
       subtask.title,
       maxLines: 2,
@@ -1452,8 +1533,9 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
             ),
         ],
       ),
-      enabled: task == null || widget.onHierarchyTaskSelected != null,
-      onTap: task == null || widget.onHierarchyTaskSelected == null
+      enabled:
+          !_saving && (task == null || widget.onHierarchyTaskSelected != null),
+      onTap: _saving || task == null || widget.onHierarchyTaskSelected == null
           ? null
           : () => unawaited(widget.onHierarchyTaskSelected!(task)),
     );
@@ -1479,6 +1561,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
             normalized == subtask.title) {
           return;
         }
+        if (_saving || !mounted) return;
         await widget.onChecklistSubtaskRenamed?.call(subtask, normalized);
       case _ChecklistSubtaskAction.delete:
         final confirmed = await showBusyMaxConfirm(
@@ -1489,13 +1572,14 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
           destructive: true,
           barrierColor: widget.dialogBarrierColor,
         );
-        if (confirmed) {
+        if (confirmed && !_saving && mounted) {
           await widget.onChecklistSubtaskDeleted?.call(subtask);
         }
     }
   }
 
   Future<void> _createSubtask() async {
+    if (_saving) return;
     if (!widget.capabilities.canCreateTasks ||
         _editingTask.googleAssignment.isAssigned ||
         _creatingSubtask) {
@@ -1513,6 +1597,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
     }
     setState(() => _creatingSubtask = true);
     try {
+      if (_saving || !mounted) return;
       await widget.onCreateSubtask(title.trim());
     } finally {
       if (mounted) setState(() => _creatingSubtask = false);
@@ -1520,7 +1605,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
   }
 
   Future<void> _deleteTask() async {
-    if (_confirmingDelete || !widget.capabilities.canDeleteTasks) {
+    if (_saving || _confirmingDelete || !widget.capabilities.canDeleteTasks) {
       return;
     }
     _confirmingDelete = true;
@@ -1536,7 +1621,14 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
         barrierColor: widget.dialogBarrierColor,
       );
       if (confirmed) {
+        if (_saving || !mounted) return;
         await widget.onDelete();
+      }
+    } on Object {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(context.l10n.operationFailed)));
       }
     } finally {
       _confirmingDelete = false;
@@ -1788,13 +1880,16 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
     _loadedTaskKey = taskKey;
     _invalidTimeFields.clear();
     _draft = draft;
-    _cleanDraftBaseline = draft;
+    _cleanDraftBaseline = widget.isCreate
+        ? TaskDetailsDraft.fromTask(task, widget.localTimeZone)
+        : draft;
     _titleController.text = draft.title;
     _notesController.text = draft.notes;
     widget.onDirtyChanged?.call(false);
   }
 
   void _updateDraft(TaskDetailsDraft draft) {
+    if (!mounted || !_canWrite) return;
     setState(() {
       _draft = draft;
     });
@@ -1831,7 +1926,8 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
         _invalidTimeFields.contains(_TaskTimeField.start)) {
       return false;
     }
-    if (draft.microsoftReminderEnabled &&
+    if (widget.capabilities.supportsReminderDateTime &&
+        draft.microsoftReminderEnabled &&
         _invalidTimeFields.contains(_TaskTimeField.reminder)) {
       return false;
     }
@@ -1883,14 +1979,22 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
           ),
           enabled: _canWrite,
           onTap: _canWrite
-              ? () => _updateDraft(
-                  draft.copyWith(
-                    microsoftReminderEnabled: true,
-                    microsoftReminderDate:
-                        draft.dueDate ?? encodeGoogleDateOnly(DateTime.now()),
-                    microsoftReminderTime: '09:00',
-                  ),
-                )
+              ? () {
+                  final value = TaskDetailsDraft.newReminderDefault(
+                    dueDate: draft.dueDate,
+                    timeZone:
+                        draft.microsoftReminderTimeZone ?? widget.localTimeZone,
+                    now: DateTime.now(),
+                  );
+                  _updateDraft(
+                    draft.copyWith(
+                      microsoftReminderEnabled: true,
+                      microsoftReminderDate: encodeGoogleDateOnly(value),
+                      microsoftReminderTime:
+                          '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}',
+                    ),
+                  );
+                }
               : null,
         ),
       ];

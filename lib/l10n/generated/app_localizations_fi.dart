@@ -14,6 +14,9 @@ class AppLocalizationsFi extends AppLocalizations {
   AppLocalizationsFi([String locale = 'fi']) : super(locale);
 
   @override
+  String get contactsAccountsUnavailable => 'Yhteystietotilejä ei voitu ladata';
+
+  @override
   String get launchAtLoginManagedExternally =>
       'BusyMax käynnistettiin työpöydän automaattisen käynnistyksen asetuksista. Poista sen merkintä sieltä, lopeta BusyMax ja avaa se uudelleen, jotta voit käyttää tätä kytkintä.';
 
@@ -3035,7 +3038,7 @@ class AppLocalizationsFi extends AppLocalizations {
   String get searchClearText => 'Tyhjennä teksti';
 
   @override
-  String get openSharedCalendar => 'Avaa jaettu kalenteri';
+  String get openSharedCalendar => 'Avaa jaettu ensisijainen kalenteri';
 
   @override
   String get manageCalendarSharing => 'Hallitse kalenterin jakamista';
@@ -3621,4 +3624,234 @@ class AppLocalizationsFi extends AppLocalizations {
 
   @override
   String get addSeparateGoogleAccount => 'Lisää erillinen Google-yhteys';
+
+  @override
+  String seriesPatternChangeConfirmation(String before, String after) {
+    return 'Toistumissäännön muuttaminen voi lisätä tai poistaa päivämääriä.\n\nNykyinen: $before\nEhdotettu: $after\n\nTallennetaanko tämä sääntö?';
+  }
+
+  @override
+  String get connectedAccounts => 'Yhdistetyt tilit';
+
+  @override
+  String get contactsIndependentAccounts => 'Erilliset yhteystietotilit';
+
+  @override
+  String get contactsNextcloudReuse =>
+      'Yhteystietoehdotukset käyttävät tämän tilin nykyisiä tunnistetietoja vain luku -integraation kautta.';
+
+  @override
+  String get contactsRetrySync =>
+      'Yritä yhteystietojen synkronointia uudelleen';
+
+  @override
+  String get contactsPreferenceFailed =>
+      'Yhteystietolähteen asetusta ei voitu tallentaa.';
+
+  @override
+  String get contactsSuggestionsDisabled =>
+      'Yhteystietoehdotukset poistettu käytöstä';
+
+  @override
+  String get contactsSyncFailed =>
+      'Yhteystietoja ei voitu synkronoida. Yritä uudelleen tai yhdistä tili uudelleen, jos valtuutus on vanhentunut.';
+
+  @override
+  String get registrationRecoveryDescription =>
+      'Tallennettu rekisteröinti tai sen tunnistetietosidos puuttuu tai on hylätty. Korvaa tämän tilin rekisteröinti erikseen palautusta varten; tiedot säilytetään.';
+
+  @override
+  String get revalidateAccount => 'Tarkista yhteys uudelleen';
+
+  @override
+  String get openSharedPrimaryDescription =>
+      'Avaa annetun omistajan ensisijaisen kalenterin. Muut jaetut kalenterit löytyvät tavallisen tilisynkronoinnin kautta.';
+
+  @override
+  String get showInBusyMax => 'Näytä BusyMaxissa';
+
+  @override
+  String get showInGoogleCalendarList => 'Näytä Googlen kalenteriluettelossa';
+
+  @override
+  String get googleVisibilityHelp =>
+      'BusyMaxin valinta on paikallinen. Google-näkyvyys muuttaa Googlen luetteloa; piilotettuja kalentereita ei voi näyttää BusyMaxissa.';
+
+  @override
+  String get primaryCalendarVisibilityExplanation =>
+      'Googlen ensisijainen kalenteri pysyy luettelossa.';
+
+  @override
+  String get accountsLoading => 'Ladataan tilejä…';
+
+  @override
+  String get accountsLoadFailed =>
+      'Tilejä ei voitu ladata. Avaa Tilit uudelleen.';
+
+  @override
+  String get collectionsLoading => 'Ladataan kokoelmia…';
+
+  @override
+  String get collectionsLoadFailed =>
+      'Kokoelmia ei voitu ladata. Välimuisti säilytetään; yritä synkronointia uudelleen.';
+
+  @override
+  String get collectionsNotDiscovered =>
+      'Haku ei ole vielä valmis. Päivitä tai yhdistä tämä tili uudelleen.';
+
+  @override
+  String get collectionsEmpty => 'Kokoelmia ei löytynyt.';
+
+  @override
+  String get accountReadyToSync => 'Valmis synkronointiin';
+
+  @override
+  String get accountSyncProblem => 'Synkronointi vaatii huomiota';
+
+  @override
+  String get accountServiceUnreachable => 'Palveluun ei saatu yhteyttä';
+
+  @override
+  String get accountSyncDetails => 'Synkronoinnin tiedot';
+
+  @override
+  String get accountReconnectStatus => 'Yhdistä tili uudelleen';
+
+  @override
+  String get accountRegistrationStatus =>
+      'Sovellusrekisteröinti vaatii huomiota';
+
+  @override
+  String get collectionsUnavailable => 'Kokoelmat eivät ole käytettävissä';
+
+  @override
+  String get accountContactSuggestions =>
+      'Ehdota vieraita tämän tilin yhteystiedoista';
+
+  @override
+  String get accountLoadingSignInSettings => 'Ladataan kirjautumisasetuksia…';
+
+  @override
+  String get contactsNoAddressBooks => 'Osoitekirjoja ei ole käytettävissä';
+
+  @override
+  String get contactsSourcesUnavailable => 'Osoitekirjoja ei voitu ladata';
+
+  @override
+  String get syncNoRecord =>
+      'Onnistuneen synkronoinnin aikaa ei ole tallennettu';
+
+  @override
+  String get cachedSyncError =>
+      'Synkronointi epäonnistui; välimuistin tiedot voivat olla vanhentuneita.';
+
+  @override
+  String get calendarRemotePending => 'Googlen näkyvyysmuutos odottaa';
+
+  @override
+  String get calendarRemoteFailed =>
+      'Näkyvyyden muuttaminen Googlessa epäonnistui. Googlen viimeisin vahvistettu tila näytetään. BusyMax noudattaa yhä odottavaa muutosta. Yritä uudelleen tai hylkää muutos.';
+
+  @override
+  String discardCalendarSettingsConfirmation(String calendar, String settings) {
+    return 'Hylätäänkö kalenterin ”$calendar” odottavat muutokset?\n\nNämä asetukset palautetaan aiempiin arvoihinsa:\n$settings\n\nBusyMaxin kalenterivalintasi säilyy. Googlelle ei lähetetä muutoksia.';
+  }
+
+  @override
+  String get sharedCalendarUnavailable =>
+      'Ei käyttöoikeutta; näytetään välimuistin tiedot. Yritä synkronointia uudelleen tai poista kalenteri luettelosta.';
+
+  @override
+  String get invalidCollectionColor =>
+      'Anna kuusi- tai kahdeksannumeroinen heksaväri, joka alkaa #-merkillä.';
+
+  @override
+  String get invalidCollectionOrder => 'Anna kokonaisluku.';
+
+  @override
+  String get invalidCollectionTimezone =>
+      'Anna kelvollinen kalenterin aikavyöhykeasiakirja, joka sisältää VTIMEZONE- ja TZID-tiedot.';
+
+  @override
+  String get invalidCollectionValue => 'Korjaa tämä arvo ennen tallentamista.';
+
+  @override
+  String get accountAlreadyConnected =>
+      'Tämä tili on jo yhdistetty. Käytä sen uudelleenyhdistämistoimintoa.';
+
+  @override
+  String get nextcloudRemovalAuthorizationDescription =>
+      'BusyMax yrittää myös perua tämän tilin Nextcloud-sovellussalasanan. Paikallinen poisto voi onnistua, vaikka peruminen epäonnistuu.';
+
+  @override
+  String get dailySummaryTime => 'Päivittäisen yhteenvedon aika';
+
+  @override
+  String get reminderTimeInPast =>
+      'Valitse nykyinen minuutti tai tuleva muistutusaika.';
+
+  @override
+  String get notificationsBlocked =>
+      'Android estää ilmoitukset tai ilmoitusluokan. Muistutuksesi on tallennettu. Tarkista järjestelmän ilmoitusasetukset.';
+
+  @override
+  String get notificationsAllowed =>
+      'Järjestelmäasetukset sallivat BusyMaxin ilmoitukset.';
+
+  @override
+  String get notificationsUnknown =>
+      'Ilmoitusten toimitustila ei ole saatavilla. Tarkista järjestelmäasetukset.';
+
+  @override
+  String get notificationExactAlarms =>
+      'Tarkkojen hälytysten käyttö on sallittu.';
+
+  @override
+  String get notificationInexactAlarms =>
+      'Tarkkojen hälytysten käyttö ei ole sallittu. Android saattaa toimittaa muistutukset myöhemmin.';
+
+  @override
+  String get dailySummaryScope => 'Kaikki tilit';
+
+  @override
+  String get notificationsSystemBlocked =>
+      'Järjestelmän ilmoitusasetukset estävät BusyMaxin ilmoitukset. Muistutuksesi on tallennettu.';
+
+  @override
+  String get notificationItemUnavailable =>
+      'Tämä muistutus ei ole enää saatavilla. Kohdetta on voitu muuttaa tai se on poistettu.';
+
+  @override
+  String clearCompletedGoogleConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return 'Poistetaanko valmiit tehtävät luettelosta ”$list” ($account)?\n\nGoogle Tasks poistaa tai piilottaa valmiit kohteet. Valmiita nyt: $count.';
+  }
+
+  @override
+  String clearCompletedNextcloudConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return 'Poistetaanko $count suljettujen päätehtävien puuta luettelosta ”$list” ($account)?\n\nMyös niiden alitehtävät poistetaan.';
+  }
+
+  @override
+  String get taskMoveAfterSaveFailed =>
+      'Muutokset tallennettiin, mutta tehtävää ei voitu siirtää. Yritä siirtoa uudelleen.';
+
+  @override
+  String get taskDraftConflict =>
+      'Tehtävä on muuttunut avaamisen jälkeen. Muutoksesi säilytetään. Tarkista nykyinen tehtävä ennen uutta yritystä.';
+
+  @override
+  String get taskUnavailableDraftRetained =>
+      'Tehtävä ei ole käytettävissä. Tallentamattomat muutoksesi säilytetään.';
+
+  @override
+  String get taskDurationRequiresStart =>
+      'Aseta määräaika ennen keston sisältävän tehtävän alun poistamista.';
 }

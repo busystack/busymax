@@ -4,6 +4,8 @@ import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 
+import '../../features/notifications/daily_summary_policy.dart';
+
 const busyMaxStartMinimizedArgument = '--start-minimized';
 
 abstract interface class DesktopWindowService {
@@ -175,11 +177,25 @@ final class DesktopActivation {
             !uri.hasFragment;
       case DesktopActivationKind.notification:
         if (payload?.containsKey('notificationRoute') ?? false) {
-          return const {'default', 'open'}.contains(action) &&
-              (payload!.length == 1 ||
+          final route = payload!['notificationRoute'];
+          final validShape = switch (route) {
+            'due-today' =>
+              payload!.length == 2 &&
+                  parseNotificationDate(payload!['date']) != null,
+            'sync-failure' || 'conflict' =>
+              payload!.length == 1 ||
                   payload!.length == 2 &&
-                      payload!['notificationRoute'] == 'sync-failure' &&
-                      (payload!['accountId']?.isNotEmpty ?? false)) &&
+                      (payload!['accountId']?.trim().isNotEmpty ?? false),
+            _ => false,
+          };
+          return const {'default', 'open'}.contains(action) &&
+              validShape &&
+              payload!.entries.every(
+                (entry) =>
+                    entry.value.trim().isNotEmpty &&
+                    utf8.encode(entry.value).length <= 2048 &&
+                    !entry.value.contains('\u0000'),
+              ) &&
               notificationDestination != null;
         }
         const permittedActions = {'default', 'open', 'snooze', 'dismiss'};
@@ -197,8 +213,9 @@ final class DesktopActivation {
             payload!.entries.every(
               (entry) =>
                   permittedPayloadKeys.contains(entry.key) &&
-                  entry.value.isNotEmpty &&
-                  entry.value.length <= 2048,
+                  entry.value.trim().isNotEmpty &&
+                  utf8.encode(entry.value).length <= 2048 &&
+                  !entry.value.contains('\u0000'),
             );
     }
   }
@@ -238,7 +255,12 @@ enum DesktopNavigationDestination { schedule, tasks, settings }
 
 @immutable
 final class DesktopNavigationRequest {
-  const DesktopNavigationRequest(this.destination, {this.reconnectAccountId});
+  const DesktopNavigationRequest(
+    this.destination, {
+    this.reconnectAccountId,
+    this.notificationPayload,
+  });
+  final Map<String, String>? notificationPayload;
   final String? reconnectAccountId;
 
   final DesktopNavigationDestination destination;
@@ -250,6 +272,7 @@ abstract interface class DesktopNavigationService {
   void open(
     DesktopNavigationDestination destination, {
     String? reconnectAccountId,
+    Map<String, String>? notificationPayload,
   });
 }
 
@@ -265,11 +288,13 @@ final class QueuedDesktopNavigationService implements DesktopNavigationService {
   void open(
     DesktopNavigationDestination destination, {
     String? reconnectAccountId,
+    Map<String, String>? notificationPayload,
   }) {
     _requests.add(
       DesktopNavigationRequest(
         destination,
         reconnectAccountId: reconnectAccountId,
+        notificationPayload: notificationPayload,
       ),
     );
   }

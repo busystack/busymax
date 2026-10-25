@@ -13,6 +13,7 @@ import 'package:busymax/src/features/connectivity/network_connectivity_service.d
 import 'package:busymax/src/l10n/week_preferences_scope.dart';
 import 'package:busymax/src/platform/common/desktop_services.dart';
 import 'package:busymax/src/platform/gtk_font_service.dart';
+import 'package:busymax/src/ui/windows/windows_tasks_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -61,11 +62,22 @@ void main() {
               const DesktopActivation(
                 kind: DesktopActivationKind.notification,
                 action: 'open',
-                payload: {'notificationRoute': 'due-today'},
+                payload: {
+                  'notificationRoute': 'due-today',
+                  'date': '2026-10-21',
+                },
               ),
             );
-            await harness.pumpFrames(1);
-            expect(windowsAppRouter.state.uri.path, '/tasks');
+            await harness.pumpUntil(find.byType(WindowsTasksPage));
+            expect(find.byType(WindowsTasksPage), findsOneWidget);
+            expect(
+              tester
+                  .widget<WindowsTasksPage>(find.byType(WindowsTasksPage))
+                  .notificationDate,
+              DateTime(2026, 10, 21),
+            );
+            windowsRootNavigatorKey.currentState!.pop();
+            await harness.pumpFrames(3);
           }
 
           if (find.text('Cancel').evaluate().isNotEmpty) {

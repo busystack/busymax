@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:drift/drift.dart';
@@ -43,6 +44,8 @@ part 'daos/tasks_dao.dart';
     NotificationSchedule,
     AndroidNotificationMappings,
     AndroidDailySummarySchedules,
+    NotificationIssues,
+    DailySummaryHistory,
     LocationResolutions,
   ],
   daos: [TaskListsDao, TasksDao, PendingOpsDao, SyncRunsDao],

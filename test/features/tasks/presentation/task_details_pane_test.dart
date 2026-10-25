@@ -121,6 +121,235 @@ final class _ImmediateTodoAttachmentsClient
 }
 
 void main() {
+  for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
+    testWidgets('F04 Linux Save protects observed title for ${provider.name}', (
+      tester,
+    ) async {
+      final database = await _lifecycleEditorDatabase(provider);
+      addTearDown(database.close);
+      final accountId = provider == BusyProvider.google
+          ? 'google:g'
+          : 'microsoft:m';
+      final repository = TasksRepository(
+        database: database,
+        accountId: accountId,
+      );
+      var closed = false;
+      await _pumpDetails(
+        tester,
+        provider == BusyProvider.google
+            ? googleTaskCollectionCapabilities
+            : microsoftTaskCollectionCapabilities,
+        database: database,
+        repository: repository,
+        onClose: () => closed = true,
+      );
+      final title = find.byWidgetPredicate(
+        (w) => w is TextField && w.decoration?.labelText == 'Title',
+      );
+      await tester.enterText(title, 'C');
+      await tester.runAsync(() async {
+        await (database.update(
+          database.tasks,
+        )..where((row) => row.id.equals('task-1'))).write(
+          const TasksCompanion(
+            title: Value('B'),
+            updatedUtc: Value('2026-08-01T01:00:00Z'),
+            rawJson: Value(
+              '{"id":"task-1","title":"B","notes":"N","updated":"2026-08-01T01:00:00Z"}',
+            ),
+          ),
+        );
+      });
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(title).controller!.text, 'C');
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+      expect(closed, isFalse);
+      expect(tester.widget<TextField>(title).controller!.text, 'C');
+      expect(
+        find.text(
+          'This task changed since you opened it. Your edits are retained. Review the latest task before retrying.',
+        ),
+        findsOneWidget,
+      );
+      await tester.runAsync(() async {
+        expect((await database.select(database.tasks).getSingle()).title, 'B');
+        expect(await database.select(database.pendingOps).get(), isEmpty);
+      });
+    });
+  }
+
+  testWidgets(
+    'U04 initial task stream error shows Retry and later cached error preserves draft',
+    (tester) async {
+      final repository = _SwitchingTasksRepository();
+      addTearDown(repository.dispose);
+      await _pumpSwitchingDetails(tester, repository, taskId: 'task-1');
+      for (
+        var frame = 0;
+        frame < 10 && !repository.isWatching('task-1');
+        frame++
+      ) {
+        await tester.pump();
+      }
+      expect(repository.isWatching('task-1'), isTrue);
+      repository.fail('task-1');
+      await tester.pumpAndSettle();
+      expect(find.text('Operation failed'), findsOneWidget);
+      expect(find.text('Retry'), findsOneWidget);
+      expect(find.byType(TaskDetailsEditor), findsNothing);
+      await tester.tap(find.text('Retry'));
+      await tester.pump();
+      repository.emit(_switchTask('task-1', 'Loaded'));
+      await tester.pumpAndSettle();
+      final title = find.byWidgetPredicate(
+        (w) => w is TextField && w.decoration?.labelText == 'Title',
+      );
+      await tester.enterText(title, 'Exact dirty draft');
+      repository.fail('task-1');
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<TextField>(title).controller!.text,
+        'Exact dirty draft',
+      );
+      expect(find.text('Retry'), findsOneWidget);
+      repository.missing('task-1');
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<TextField>(title).controller!.text,
+        'Exact dirty draft',
+      );
+      expect(_headerButtonOnPressed(tester, 'Save'), isNull);
+      expect(
+        find.text(
+          'This task is unavailable. Your unsaved changes are retained.',
+        ),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'F11 combined patch and move reports partial success and retries only move',
+    (tester) async {
+      final database = await _lifecycleEditorDatabase(BusyProvider.google);
+      addTearDown(database.close);
+      await database.taskListsDao.upsertTaskList(
+        TaskListsCompanion.insert(
+          accountId: 'google:g',
+          id: 'list-2',
+          title: 'Other',
+          rawJson: '{}',
+          createdLocalAtUtc: '',
+          updatedLocalAtUtc: '',
+        ),
+      );
+      final repository = _PartialEditorRepository(database);
+      await _pumpDetails(
+        tester,
+        googleTaskCollectionCapabilities,
+        database: database,
+        repository: repository,
+      );
+      final title = find.byWidgetPredicate(
+        (w) => w is TextField && w.decoration?.labelText == 'Title',
+      );
+      await tester.enterText(title, 'Committed title');
+      await tester.pump();
+      final list = tester.widget<BusyMaxComboRow<String>>(
+        find.byWidgetPredicate(
+          (w) => w is BusyMaxComboRow<String> && w.title == 'List',
+        ),
+      );
+      list.onSelected('list-2');
+      await tester.pump();
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text(
+          'Your edits were saved, but the task could not be moved. Retry the move.',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        tester.widget<TextField>(title).controller!.text,
+        'Committed title',
+      );
+      await tester.runAsync(() async {
+        final task = await database.select(database.tasks).getSingle();
+        expect(task.title, 'Committed title');
+        expect(task.taskListId, 'list-1');
+        expect(await database.select(database.pendingOps).get(), hasLength(1));
+      });
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+      await tester.runAsync(() async {
+        final task = await database.select(database.tasks).getSingle();
+        expect(task.taskListId, 'list-2');
+        final operations = await database.select(database.pendingOps).get();
+        expect(operations.map((op) => op.operation), [
+          'patch_task',
+          'move_task',
+        ]);
+      });
+      expect(repository.patchCalls, 1);
+      expect(repository.moveCalls, 2);
+    },
+  );
+
+  testWidgets(
+    'F08 Linux inputs lock after persistence receives args and exact retry succeeds',
+    (tester) async {
+      final database = await _lifecycleEditorDatabase(BusyProvider.google);
+      addTearDown(database.close);
+      final repository = _GatedEditorRepository(database);
+      await _pumpDetails(
+        tester,
+        googleTaskCollectionCapabilities,
+        database: database,
+        repository: repository,
+      );
+      final title = find.byWidgetPredicate(
+        (w) => w is TextField && w.decoration?.labelText == 'Title',
+      );
+      final notes = find.byWidgetPredicate(
+        (w) => w is TextField && w.decoration?.labelText == 'Notes',
+      );
+      await tester.enterText(title, 'Exact submitted title');
+      await tester.enterText(notes, 'Exact submitted notes');
+      await tester.pump();
+      await tester.tap(find.text('Save'));
+      await tester.pump();
+      expect(repository.received.isCompleted, isTrue);
+      expect(tester.widget<TextField>(title).enabled, isFalse);
+      expect(tester.widget<TextField>(notes).enabled, isFalse);
+      repository.failure = StateError('synthetic precommit failure');
+      repository.release.complete();
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(title).enabled, isTrue);
+      expect(
+        tester.widget<TextField>(title).controller!.text,
+        'Exact submitted title',
+      );
+      expect(
+        tester.widget<TextField>(notes).controller!.text,
+        'Exact submitted notes',
+      );
+      expect(find.text('Operation failed'), findsOneWidget);
+      repository.failure = null;
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+      await tester.runAsync(() async {
+        final task = await database.select(database.tasks).getSingle();
+        expect(task.title, 'Exact submitted title');
+        expect(task.notes, 'Exact submitted notes');
+        expect(await database.select(database.pendingOps).get(), hasLength(1));
+      });
+      expect(repository.calls, 2);
+    },
+  );
+
   testWidgets(
     'task attachment upload retains its target across selection changes',
     (tester) async {
@@ -2963,7 +3192,7 @@ Future<void> _pumpDetails(
   Locale locale = const Locale('en'),
   bool? alwaysUse24HourFormat,
   bool reminderOn = false,
-  _FakeTasksRepository? repository,
+  TasksRepository? repository,
   VoidCallback? onClose,
   String? accountIdOverride,
   bool includeAccountIdentity = true,
@@ -3433,6 +3662,19 @@ class _SwitchingTasksRepository implements TasksRepository {
         .add(task);
   }
 
+  bool isWatching(String id) => _controllers[id]?.hasListener ?? false;
+
+  void fail(String id) => _controllers
+      .putIfAbsent(id, () => StreamController<TaskEntity?>.broadcast())
+      .addError(StateError('synthetic stream failure'));
+
+  void missing(String id) {
+    _latest.remove(id);
+    _controllers
+        .putIfAbsent(id, () => StreamController<TaskEntity?>.broadcast())
+        .add(null);
+  }
+
   void dispose() {
     for (final controller in _controllers.values) {
       unawaited(controller.close());
@@ -3597,4 +3839,86 @@ class _FakeTaskListsRepository implements TaskListsRepository {
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+Future<AppDatabase> _lifecycleEditorDatabase(BusyProvider provider) async {
+  final db = AppDatabase.memoryForTests();
+  final id = provider == BusyProvider.google ? 'google:g' : 'microsoft:m';
+  await db
+      .into(db.accounts)
+      .insert(
+        AccountsCompanion.insert(
+          id: id,
+          provider: provider.storageValue,
+          authority: _testAuthority(provider),
+          providerAccountId: 'synthetic',
+          credentialKind: 'oauth',
+          authState: const Value('signed_in'),
+          createdAtUtc: '',
+          updatedAtUtc: '',
+        ),
+      );
+  await db.taskListsDao.upsertTaskList(
+    TaskListsCompanion.insert(
+      accountId: id,
+      id: 'list-1',
+      title: 'Inbox',
+      rawJson: '{}',
+      createdLocalAtUtc: '',
+      updatedLocalAtUtc: '',
+    ),
+  );
+  await db.tasksDao.upsertTask(
+    TasksCompanion.insert(
+      accountId: id,
+      taskListId: 'list-1',
+      id: 'task-1',
+      title: 'A',
+      notes: const Value('N'),
+      updatedUtc: const Value('2026-08-01T00:00:00Z'),
+      rawJson: '{"id":"task-1","title":"A","notes":"N","updated":"2026-08-01T00:00:00Z"}',
+      createdLocalAtUtc: '',
+      updatedLocalAtUtc: '',
+    ),
+  );
+  return db;
+}
+
+class _GatedEditorRepository extends TasksRepository {
+  _GatedEditorRepository(AppDatabase database)
+    : super(database: database, accountId: 'google:g');
+  final received = Completer<void>();
+  final release = Completer<void>();
+  Object? failure;
+  var calls = 0;
+  @override
+  Future<void> patchTask(
+    String listId,
+    String taskId,
+    TaskPatchInput input,
+  ) async {
+    calls++;
+    if (!received.isCompleted) received.complete();
+    await release.future;
+    if (failure != null) throw failure!;
+    await super.patchTask(listId, taskId, input);
+  }
+}
+
+class _PartialEditorRepository extends TasksRepository {
+  _PartialEditorRepository(AppDatabase database)
+    : super(database: database, accountId: 'google:g');
+  var patchCalls = 0;
+  var moveCalls = 0;
+  @override
+  Future<void> patchTask(String listId, String id, TaskPatchInput input) async {
+    patchCalls++;
+    await super.patchTask(listId, id, input);
+  }
+
+  @override
+  Future<void> moveTask(TaskMoveInput input) async {
+    if (++moveCalls == 1) throw StateError('synthetic move failure');
+    await super.moveTask(input);
+  }
 }

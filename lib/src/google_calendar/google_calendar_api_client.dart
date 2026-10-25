@@ -7,6 +7,7 @@ import '../calendar_providers/calendar_provider_capabilities.dart';
 import '../calendar_providers/calendar_sync_dto.dart';
 import '../calendar_providers/cloud_calendar_client.dart';
 import '../core/http/request_dispatch_exception.dart';
+import '../core/time/provider_date_time.dart';
 
 import 'package:busymax/src/providers/busy_provider.dart';
 
@@ -18,6 +19,7 @@ class GoogleCalendarApiClient
     implements
         CloudCalendarClient,
         CompleteRecurringInstanceClient,
+        SeriesExceptionClient,
         PrivateCalendarImportClient,
         DetailedFreeBusyClient,
         CalendarListManagementClient {
@@ -633,6 +635,124 @@ class GoogleCalendarApiClient
     recurringEventId: recurringEventId,
     originalStart: originalStart,
   );
+
+  @override
+  Future<List<CalendarEventDto>> readSeriesExceptions({
+    required String calendarId,
+    required CalendarEventDto master,
+  }) async {
+    final uid = master.rawJson['iCalUID']?.toString();
+    if (uid == null || uid.isEmpty) {
+      throw const FormatException('The Google series UID is unavailable.');
+    }
+    final resources = await eventsWithICalUid(
+      calendarId: calendarId,
+      iCalUid: uid,
+      includeCancelled: true,
+    );
+    final result = <CalendarEventDto>[];
+    for (final event in resources.where(
+      (event) => event.providerRecurringEventId == master.providerEventId,
+    )) {
+      result.add(
+        event.isDeleted
+            ? event
+            : await getEvent(
+                calendarId: calendarId,
+                eventId: event.providerEventId,
+              ),
+      );
+    }
+    return result;
+  }
+
+  @override
+  Future<CalendarEventDto> findSeriesInstance({
+    required String calendarId,
+    required String recurringEventId,
+    required DateTime originalStart,
+    required bool allDay,
+    required String? timeZone,
+  }) async {
+    final key = allDay
+        ? originalStart.toIso8601String().substring(0, 10)
+        : providerDateTimeAsUtcInstant(
+            providerWallTimeIso8601String(originalStart),
+            timeZone,
+          )!.toIso8601String();
+    final resources = await findImportEventInstances(
+      calendarId: calendarId,
+      recurringEventId: recurringEventId,
+      originalStart: key,
+    );
+    final matches = resources.where((event) {
+      final original = event.providerOriginalStartKey;
+      return event.providerRecurringEventId == recurringEventId &&
+          original != null &&
+          (allDay
+              ? original == key
+              : DateTime.tryParse(original) == DateTime.tryParse(key));
+    }).toList();
+    if (matches.length != 1) {
+      throw const FormatException(
+        'The revised Google occurrence is not uniquely identifiable.',
+      );
+    }
+    return matches.single.isDeleted
+        ? matches.single
+        : getEvent(
+            calendarId: calendarId,
+            eventId: matches.single.providerEventId,
+          );
+  }
+
+  @override
+  Future<CalendarEventDto> restoreSeriesException({
+    required String calendarId,
+    required CalendarEventDto instance,
+    required CalendarEventDto exception,
+    required CalendarGuestUpdatePolicy guestUpdatePolicy,
+  }) async {
+    if (exception.isDeleted) {
+      if (!instance.isDeleted) {
+        await deleteEvent(
+          calendarId: calendarId,
+          eventId: instance.providerEventId,
+          guestUpdatePolicy: guestUpdatePolicy,
+          ifMatch: instance.etagOrChangeKey,
+        );
+      }
+      return googleCalendarEventFromJson(calendarId, {
+        'id': instance.providerEventId,
+        'recurringEventId': instance.providerRecurringEventId,
+        'originalStartTime': instance.rawJson['originalStartTime'],
+        'status': 'cancelled',
+      });
+    }
+    final body =
+        googleEventMutationToJson(
+            CalendarEventMutation(providerRaw: exception.rawJson),
+          )
+          ..remove('eventType')
+          ..['status'] = exception.rawJson['status'] ?? 'confirmed';
+    final json = await _requestJson(
+      'PATCH',
+      _uri(
+        '/calendar/v3/calendars/${_enc(calendarId)}/events/${_enc(instance.providerEventId)}',
+        query: {
+          'supportsAttachments': 'true',
+          'conferenceDataVersion': '1',
+          'sendUpdates': _googleGuestUpdatePolicy(guestUpdatePolicy),
+        },
+      ),
+      body: body,
+      headers: {
+        if (instance.etagOrChangeKey != null)
+          'If-Match': instance.etagOrChangeKey!,
+      },
+    );
+    return googleCalendarEventFromJson(calendarId, json);
+  }
 
   Future<List<CalendarEventDto>> _listEventInstances({
     required String calendarId,

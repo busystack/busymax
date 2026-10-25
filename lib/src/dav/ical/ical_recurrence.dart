@@ -102,6 +102,33 @@ final class IcalRecurrenceExpander {
 
   final IcalRecurrenceLimits limits;
 
+  /// Candidates in one rule period, before DTSTART/COUNT/UNTIL truncation.
+  /// Series edits use this to map an existing recurrence position without
+  /// confusing a detached occurrence's effective date with its identity.
+  List<DateTime> rulePeriodCandidates({
+    required String recurrenceRule,
+    required DateTime anchor,
+    required int period,
+  }) {
+    if (period < 0 || period >= limits.maximumPeriods) {
+      throw ArgumentError.value(period, 'period');
+    }
+    return _RecurrenceRule.parse(
+      recurrenceRule,
+      anchor: IcalTemporalValue(
+        rawValue: '',
+        kind: IcalTemporalKind.floatingDateTime,
+        localValue: anchor,
+        timeZoneId: null,
+      ),
+      maximumValues: limits.maximumRuleValues,
+    ).candidatesForPeriod(
+      anchor,
+      period,
+      maximumCandidates: limits.maximumCandidatesPerPeriod,
+    );
+  }
+
   /// Returns the next RRULE occurrence after [current].
   ///
   /// Nextcloud Tasks advances a recurring VTODO from its current DTSTART or
@@ -197,6 +224,23 @@ final class IcalRecurrenceExpander {
           ..sort((left, right) => _compareRecurrenceIds(left, right));
 
     final masterDuration = _componentDuration(master, timeZoneResolver);
+    final recurrenceDates = [
+      for (final property in master.documentComponent.propertiesNamed('RDATE'))
+        ..._parseRecurrenceDates(property, anchor, timeZoneResolver),
+    ];
+    final periodDurations = <String, _OccurrenceDuration>{};
+    for (final date in recurrenceDates) {
+      final duration = date.duration;
+      if (duration == null) continue;
+      final key = _temporalIdentity(date.start);
+      final previous = periodDurations[key];
+      if (previous != null &&
+          (previous.calendarDays != duration.calendarDays ||
+              previous.exact != duration.exact)) {
+        throw _invalidRule();
+      }
+      periodDurations[key] = duration;
+    }
     final candidateBounds = _candidateProjectionBounds(
       rangeStart,
       rangeEnd,
@@ -213,6 +257,7 @@ final class IcalRecurrenceExpander {
     void retainIfRelevant(IcalTemporalValue value) {
       final key = _temporalIdentity(value);
       if (excludedStartKeys.contains(key)) return;
+      final duration = periodDurations[key] ?? masterDuration;
       final exception = overrides[key];
       final inheritedOverride = exception == null
           ? _rangeOverrideFor(value, rangeOverrides)
@@ -226,13 +271,13 @@ final class IcalRecurrenceExpander {
           ? _occurrenceEnd(
               exception,
               effectiveStart,
-              masterDuration,
+              duration,
               timeZoneResolver,
             )
           : _rangeOccurrenceEnd(
               inheritedOverride,
               effectiveStart,
-              masterDuration,
+              duration,
               timeZoneResolver,
             );
       if (_overlaps(
@@ -266,10 +311,8 @@ final class IcalRecurrenceExpander {
         retainIfRelevant,
       );
     }
-    for (final property in master.documentComponent.propertiesNamed('RDATE')) {
-      for (final value in _parseDateList(property, anchor)) {
-        retainIfRelevant(value);
-      }
+    for (final date in recurrenceDates) {
+      retainIfRelevant(date.start);
     }
     for (final entry in overrides.entries) {
       final exception = entry.value;
@@ -278,7 +321,7 @@ final class IcalRecurrenceExpander {
       final effectiveEnd = _occurrenceEnd(
         exception,
         effectiveStart,
-        masterDuration,
+        periodDurations[entry.key] ?? masterDuration,
         timeZoneResolver,
       );
       if (!excludedStartKeys.contains(entry.key) &&
@@ -301,6 +344,7 @@ final class IcalRecurrenceExpander {
     final result = <IcalOccurrence>[];
     for (final entry in starts.entries) {
       final originalStart = entry.value;
+      final duration = periodDurations[entry.key] ?? masterDuration;
       final exception = overrides[entry.key];
       final inheritedOverride = exception == null
           ? _rangeOverrideFor(originalStart, rangeOverrides)
@@ -314,13 +358,13 @@ final class IcalRecurrenceExpander {
           ? _occurrenceEnd(
               exception,
               effectiveStart,
-              masterDuration,
+              duration,
               timeZoneResolver,
             )
           : _rangeOccurrenceEnd(
               inheritedOverride,
               effectiveStart,
-              masterDuration,
+              duration,
               timeZoneResolver,
             );
       if (!_overlaps(
@@ -630,7 +674,37 @@ final class _RecurrenceRule {
     IcalTemporalValue anchor,
     IcalTimeZoneResolver timeZoneResolver,
   ) {
-    final wall = _periodAnchor(anchor.localValue, period);
+    final periodAnchor = _periodAnchor(anchor.localValue, period);
+    // Selectors can expand earlier than DTSTART's day or clock fields within
+    // a period. Use the lower bound of that candidate domain, not DTSTART
+    // shifted into the period (e.g. February 1, not February 26).
+    final wall = switch (frequency) {
+      _Frequency.secondly => periodAnchor,
+      _Frequency.minutely => _wall(
+        periodAnchor.year,
+        periodAnchor.month,
+        periodAnchor.day,
+        periodAnchor.hour,
+        periodAnchor.minute,
+      ),
+      _Frequency.hourly => _wall(
+        periodAnchor.year,
+        periodAnchor.month,
+        periodAnchor.day,
+        periodAnchor.hour,
+      ),
+      _Frequency.daily => _wall(
+        periodAnchor.year,
+        periodAnchor.month,
+        periodAnchor.day,
+      ),
+      _Frequency.weekly => _startOfWeek(
+        _wall(periodAnchor.year, periodAnchor.month, periodAnchor.day),
+        weekStart,
+      ),
+      _Frequency.monthly => _wall(periodAnchor.year, periodAnchor.month),
+      _Frequency.yearly => _wall(periodAnchor.year),
+    };
     return icalTemporalToUtc(
       _withWallValue(anchor, wall),
       resolver: timeZoneResolver,
@@ -758,7 +832,11 @@ final class _RecurrenceRule {
         if (_matchesWeekNumber(date)) dates.add(date);
       }
     } else {
-      final months = byMonth.isEmpty ? [start.month] : byMonth;
+      final months = byMonth.isNotEmpty
+          ? byMonth
+          : byMonthDay.isNotEmpty
+          ? List.generate(12, (index) => index + 1)
+          : [start.month];
       for (final month in months) {
         for (final day in _monthDays(year, month, start.day)) {
           dates.add(_wall(year, month, day));
@@ -895,6 +973,45 @@ List<IcalTemporalValue> _parseDateList(
     );
   }
   return result;
+}
+
+List<({IcalTemporalValue start, _OccurrenceDuration? duration})>
+_parseRecurrenceDates(
+  IcalProperty property,
+  IcalTemporalValue anchor,
+  IcalTimeZoneResolver resolver,
+) {
+  final dates = <({IcalTemporalValue start, _OccurrenceDuration? duration})>[];
+  IcalTemporalValue temporal(String raw) =>
+      _parseDateList((property.deepCopy()..rawValue = raw), anchor).single;
+  for (final entry in property.rawValue.split(',')) {
+    final parts = entry.trim().split('/');
+    final start = temporal(parts.first);
+    if (parts.length == 1) {
+      dates.add((start: start, duration: null));
+      continue;
+    }
+    if (parts.length != 2 || start.isDate) throw _invalidRule();
+    final isDuration = RegExp(r'^[+-]?P').hasMatch(parts[1]);
+    final duration = isDuration
+        ? _OccurrenceDuration.fromIcal(parseIcalDuration(parts[1])!)
+        : _OccurrenceDuration.exact(
+            icalTemporalToUtc(
+              temporal(parts[1]),
+              resolver: resolver,
+            ).difference(icalTemporalToUtc(start, resolver: resolver)),
+          );
+    final end = _applyDuration(start, duration, resolver);
+    if (end == null ||
+        !icalTemporalToUtc(
+          end,
+          resolver: resolver,
+        ).isAfter(icalTemporalToUtc(start, resolver: resolver))) {
+      throw _invalidRule();
+    }
+    dates.add((start: start, duration: duration));
+  }
+  return dates;
 }
 
 List<IcalParameter> _parametersForPrototype(IcalTemporalValue prototype) =>
@@ -1159,6 +1276,16 @@ IcalTemporalValue? _applyDuration(
   }
   return _withWallValue(value, value.localValue.add(duration.exact));
 }
+
+/// Applies civil weeks/days before elapsed hours/minutes/seconds, using the
+/// resource's own timezone rules, as required by RFC 5545 section 3.3.6.
+IcalTemporalValue addIcalDuration(
+  IcalTemporalValue start,
+  IcalDuration duration, {
+  required IcalTimeZoneResolver resolver,
+}) =>
+    _applyDuration(start, _OccurrenceDuration.fromIcal(duration), resolver) ??
+    start;
 
 DateTime _wallDateTime(DateTime value) => DateTime.utc(
   value.year,

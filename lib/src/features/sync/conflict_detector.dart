@@ -29,9 +29,11 @@ class ConflictDetector {
 
     final overlapping = <String>{};
     for (final field in localPendingFields.keys) {
-      final lastValue = _comparableValue(field, lastServerJson[field]);
-      final currentValue = _comparableValue(field, currentServerJson[field]);
-      if (!const DeepCollectionEquality().equals(lastValue, currentValue)) {
+      if (!fieldValuesEqual(
+        field,
+        lastServerJson[field],
+        currentServerJson[field],
+      )) {
         overlapping.add(field);
       }
     }
@@ -40,6 +42,13 @@ class ConflictDetector {
       entityType: entityType,
       entityId: entityId,
       changedFields: overlapping,
+    );
+  }
+
+  bool fieldValuesEqual(String field, Object? first, Object? second) {
+    return const DeepCollectionEquality().equals(
+      _comparableValue(field, first),
+      _comparableValue(field, second),
     );
   }
 

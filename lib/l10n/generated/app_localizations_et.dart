@@ -14,6 +14,10 @@ class AppLocalizationsEt extends AppLocalizations {
   AppLocalizationsEt([String locale = 'et']) : super(locale);
 
   @override
+  String get contactsAccountsUnavailable =>
+      'Kontaktikontosid ei õnnestunud laadida';
+
+  @override
   String get launchAtLoginManagedExternally =>
       'BusyMax käivitati töölaua automaatkäivituse seadete kaudu. Eemalda sealt selle kirje, seejärel sulge BusyMax täielikult ja ava see lüliti kasutamiseks uuesti.';
 
@@ -2985,7 +2989,7 @@ class AppLocalizationsEt extends AppLocalizations {
   String get searchClearText => 'Tühjenda tekst';
 
   @override
-  String get openSharedCalendar => 'Ava jagatud kalender';
+  String get openSharedCalendar => 'Ava jagatud põhikalender';
 
   @override
   String get manageCalendarSharing => 'Halda kalendri jagamist';
@@ -3570,4 +3574,233 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String get addSeparateGoogleAccount => 'Lisa eraldi Google’i ühendus';
+
+  @override
+  String seriesPatternChangeConfirmation(String before, String after) {
+    return 'Kordusmustri muutmine võib kuupäevi lisada või eemaldada.\n\nPraegune: $before\nPakutud: $after\n\nKas salvestada see muster?';
+  }
+
+  @override
+  String get connectedAccounts => 'Ühendatud kontod';
+
+  @override
+  String get contactsIndependentAccounts => 'Sõltumatud kontaktikontod';
+
+  @override
+  String get contactsNextcloudReuse =>
+      'Kontaktisoovitused kasutavad selle konto olemasolevaid pääsuandmeid kirjutuskaitstud kontaktide integratsiooni kaudu.';
+
+  @override
+  String get contactsRetrySync => 'Proovi kontaktide sünkroonimist uuesti';
+
+  @override
+  String get contactsPreferenceFailed =>
+      'Kontaktiallika eelistust ei saanud salvestada.';
+
+  @override
+  String get contactsSuggestionsDisabled =>
+      'Kontaktisoovitused on välja lülitatud';
+
+  @override
+  String get contactsSyncFailed =>
+      'Kontakte ei saanud sünkroonida. Proovi uuesti või ühenda konto uuesti, kui volitus on aegunud.';
+
+  @override
+  String get registrationRecoveryDescription =>
+      'Salvestatud registreering või selle pääsuandmete seos pole saadaval või on tagasi lükatud. Taastamiseks asenda selle konto registreering sõnaselgelt; andmed säilivad.';
+
+  @override
+  String get revalidateAccount => 'Kontrolli ühendust uuesti';
+
+  @override
+  String get openSharedPrimaryDescription =>
+      'Avab määratud omaniku põhikalendri. Muud jagatud kalendrid leitakse konto tavapärase sünkroonimise käigus.';
+
+  @override
+  String get showInBusyMax => 'Kuva BusyMaxis';
+
+  @override
+  String get showInGoogleCalendarList => 'Kuva Google’i kalendriloendis';
+
+  @override
+  String get googleVisibilityHelp =>
+      'BusyMaxi valik on kohalik. Google’i nähtavus muudab sinu loendit Google’is; peidetud kalendreid ei saa BusyMaxis kuvada.';
+
+  @override
+  String get primaryCalendarVisibilityExplanation =>
+      'Google’i põhikalender jääb loendisse.';
+
+  @override
+  String get accountsLoading => 'Kontode laadimine…';
+
+  @override
+  String get accountsLoadFailed =>
+      'Kontosid ei saanud laadida. Ava Kontod uuesti.';
+
+  @override
+  String get collectionsLoading => 'Kogumite laadimine…';
+
+  @override
+  String get collectionsLoadFailed =>
+      'Kogumeid ei saanud laadida. Vahemälu säilib; proovi sünkroonimist uuesti.';
+
+  @override
+  String get collectionsNotDiscovered =>
+      'Tuvastamine pole lõppenud. Värskenda või ühenda konto uuesti.';
+
+  @override
+  String get collectionsEmpty => 'Kogumeid ei leitud.';
+
+  @override
+  String get accountReadyToSync => 'Sünkroonimiseks valmis';
+
+  @override
+  String get accountSyncProblem => 'Sünkroonimine vajab tähelepanu';
+
+  @override
+  String get accountServiceUnreachable => 'Teenusega ei saanud ühendust';
+
+  @override
+  String get accountSyncDetails => 'Sünkroonimise üksikasjad';
+
+  @override
+  String get accountReconnectStatus => 'Ühenda konto uuesti';
+
+  @override
+  String get accountRegistrationStatus =>
+      'Rakenduse registreering vajab tähelepanu';
+
+  @override
+  String get collectionsUnavailable => 'Kogud pole saadaval';
+
+  @override
+  String get accountContactSuggestions =>
+      'Soovita külalisi selle konto kontaktidest';
+
+  @override
+  String get accountLoadingSignInSettings => 'Sisselogimisseadete laadimine…';
+
+  @override
+  String get contactsNoAddressBooks => 'Aadressiraamatud pole saadaval';
+
+  @override
+  String get contactsSourcesUnavailable =>
+      'Aadressiraamatuid ei saanud laadida';
+
+  @override
+  String get syncNoRecord => 'Eduka sünkroonimise aega pole salvestatud';
+
+  @override
+  String get cachedSyncError =>
+      'Sünkroonimine nurjus; vahemälu andmed võivad olla aegunud.';
+
+  @override
+  String get calendarRemotePending => 'Google’i nähtavuse muudatus on ootel';
+
+  @override
+  String get calendarRemoteFailed =>
+      'Google’i nähtavuse muutmine ebaõnnestus. Kuvatakse Google’i viimane kinnitatud olek. BusyMax järgib endiselt ootel muudatust. Proovi uuesti või loobu muudatusest.';
+
+  @override
+  String discardCalendarSettingsConfirmation(String calendar, String settings) {
+    return 'Kas hüljata kalendri „$calendar“ ootel muudatused?\n\nNende seadete eelmised väärtused taastatakse:\n$settings\n\nSinu BusyMaxi kalendrivalik säilib. Google’ile ei saadeta muudatusi.';
+  }
+
+  @override
+  String get sharedCalendarUnavailable =>
+      'Juurdepääs puudub; kuvatakse vahemälu andmed. Proovi sünkroonimist uuesti või eemalda kalender loendist.';
+
+  @override
+  String get invalidCollectionColor =>
+      'Sisesta kuue- või kaheksakohaline kuueteistkümnendvärv, alustades märgiga #.';
+
+  @override
+  String get invalidCollectionOrder => 'Sisesta täisarv.';
+
+  @override
+  String get invalidCollectionTimezone =>
+      'Sisesta kehtiv kalendri ajavööndi dokument, mis sisaldab VTIMEZONE ja TZID väärtusi.';
+
+  @override
+  String get invalidCollectionValue => 'Paranda see väärtus enne salvestamist.';
+
+  @override
+  String get accountAlreadyConnected =>
+      'See konto on juba ühendatud. Kasuta selle uuesti ühendamise toimingut.';
+
+  @override
+  String get nextcloudRemovalAuthorizationDescription =>
+      'BusyMax proovib tühistada ka selle konto Nextcloudi rakenduse parooli. Kohalik eemaldamine võib õnnestuda ka siis, kui tühistamine nurjub.';
+
+  @override
+  String get dailySummaryTime => 'Igapäevase kokkuvõtte kellaaeg';
+
+  @override
+  String get reminderTimeInPast =>
+      'Vali praegune minut või tulevane meeldetuletuse aeg.';
+
+  @override
+  String get notificationsBlocked =>
+      'Android blokeerib teavitused või teavituste kategooria. Meeldetuletused on salvestatud. Kontrolli süsteemi teavitusseadeid.';
+
+  @override
+  String get notificationsAllowed =>
+      'Süsteemi seaded lubavad BusyMaxi teavitusi.';
+
+  @override
+  String get notificationsUnknown =>
+      'Teavituste edastamise olek pole saadaval. Kontrolli süsteemi seadeid.';
+
+  @override
+  String get notificationExactAlarms =>
+      'Täpsete alarmide juurdepääs on lubatud.';
+
+  @override
+  String get notificationInexactAlarms =>
+      'Täpsete alarmide juurdepääs puudub. Android võib meeldetuletusi hiljem edastada.';
+
+  @override
+  String get dailySummaryScope => 'Kõik kontod';
+
+  @override
+  String get notificationsSystemBlocked =>
+      'Süsteemi teavitusseaded blokeerivad BusyMaxi. Meeldetuletused on salvestatud.';
+
+  @override
+  String get notificationItemUnavailable =>
+      'See meeldetuletus pole enam saadaval. Üksust võidi muuta või eemaldada.';
+
+  @override
+  String clearCompletedGoogleConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return 'Kas tühjendada lõpetatud ülesanded loendist „$list” ($account)?\n\nGoogle Tasks eemaldab või peidab lõpetatud üksused. Praegu lõpetatud: $count.';
+  }
+
+  @override
+  String clearCompletedNextcloudConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return 'Kas kustutada $count suletud juurülesannete puud loendist „$list” ($account)?\n\nKustutatakse ka nende alamülesanded.';
+  }
+
+  @override
+  String get taskMoveAfterSaveFailed =>
+      'Muudatused salvestati, kuid ülesannet ei saanud teisaldada. Proovi teisaldamist uuesti.';
+
+  @override
+  String get taskDraftConflict =>
+      'Ülesanne on pärast avamist muutunud. Sinu muudatused säilitatakse. Vaata praegune ülesanne enne uuesti proovimist üle.';
+
+  @override
+  String get taskUnavailableDraftRetained =>
+      'Ülesanne pole saadaval. Sinu salvestamata muudatused säilitatakse.';
+
+  @override
+  String get taskDurationRequiresStart =>
+      'Määra tähtaeg enne kestusega ülesande alguse eemaldamist.';
 }

@@ -22,6 +22,7 @@ import '../../app/app_bootstrap.dart';
 import '../../calendar_providers/calendar_colors.dart';
 import '../../core/auth/oauth_models.dart';
 import '../../dav/dav_errors.dart';
+import '../../dav/http/dav_http_transport.dart';
 import '../../dav/mutation/dav_conflict_repository.dart';
 import '../../dav/nextcloud/nextcloud_sharing_service.dart';
 import '../../dav/nextcloud/nextcloud_trash_service.dart';
@@ -48,7 +49,13 @@ import 'android_feedback_screen.dart';
 import 'android_nextcloud_scheduling_screen.dart';
 
 class AndroidSettingsScreen extends ConsumerStatefulWidget {
-  const AndroidSettingsScreen({super.key});
+  const AndroidSettingsScreen({
+    super.key,
+    this.notificationAccountId,
+    this.notificationConflicts = false,
+  });
+  final String? notificationAccountId;
+  final bool notificationConflicts;
 
   @override
   ConsumerState<AndroidSettingsScreen> createState() =>
@@ -87,6 +94,36 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 96),
         children: [
+          if (widget.notificationConflicts)
+            _Section(
+              title: context.l10n.syncConflicts,
+              children: [
+                for (final conflict in conflicts.where(
+                  (conflict) =>
+                      widget.notificationAccountId == null ||
+                      conflict.accountId == widget.notificationAccountId,
+                ))
+                  ListTile(
+                    leading: const Icon(Icons.warning_amber),
+                    title: Text(conflict.itemTitle),
+                    subtitle: Text(
+                      '${conflict.accountLabel} · ${conflict.collectionName}',
+                    ),
+                    onTap: () => unawaited(_resolveConflict(conflict)),
+                  ),
+                ListTile(
+                  title: Text(context.l10n.blockedPendingOperations),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push<void>(
+                    MaterialPageRoute(
+                      builder: (_) => AndroidDiagnosticsScreen(
+                        accountId: widget.notificationAccountId,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           const AndroidContactsSettings(),
           _Section(
             title: context.l10n.accounts,
@@ -96,7 +133,11 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                   leading: const Icon(Icons.account_circle_outlined),
                   title: Text(context.l10n.providerConnectionDescription),
                 ),
-              for (final account in accounts) ...[
+              for (final account in accounts.where(
+                (account) =>
+                    widget.notificationAccountId == null ||
+                    account.id == widget.notificationAccountId,
+              )) ...[
                 if (account.provider == BusyProvider.microsoft ||
                     account.provider == BusyProvider.google)
                   _AndroidRegistrationCard(
@@ -142,7 +183,7 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                                 account.needsReconnect)
                               PopupMenuItem(
                                 value: 'reconnect',
-                                child: Text(context.l10n.connectAccountAction),
+                                child: Text(context.l10n.reconnectAccount),
                               ),
                             PopupMenuItem(
                               value: 'remove',
@@ -539,18 +580,69 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                       ),
                 ),
               ),
+              ValueListenableBuilder<AndroidNotificationReadiness>(
+                valueListenable: ref
+                    .read(androidNotificationServiceProvider)
+                    .readiness,
+                builder: (context, status, _) => Column(
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.notifications_outlined),
+                      title: Text(context.l10n.notifications),
+                      subtitle: Text(
+                        [
+                          if (status.failed ||
+                              !status.initialized ||
+                              status.notificationsAllowed == null)
+                            context.l10n.notificationsUnknown
+                          else if (status.notificationsAllowed == false ||
+                              status.remindersAllowed == false ||
+                              status.summariesAllowed == false ||
+                              status.statusAllowed == false)
+                            context.l10n.notificationsBlocked
+                          else
+                            context.l10n.notificationsAllowed,
+                          if (status.remindersAllowed == false)
+                            context.l10n.reminders,
+                          if (status.summariesAllowed == false)
+                            context.l10n.notifyDueToday,
+                          if (status.statusAllowed == false) context.l10n.sync,
+                        ].join('\n'),
+                      ),
+                      onTap: () => BusyMaxAndroidPlatform.instance
+                          .openNotificationSettings(),
+                      trailing: TextButton(
+                        onPressed: () => unawaited(
+                          BusyMaxAndroidPlatform.instance
+                              .openNotificationSettings(),
+                        ),
+                        child: Text(context.l10n.settingsSystem),
+                      ),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.alarm_outlined),
+                      title: Text(context.l10n.reminders),
+                      subtitle: Text(
+                        status.exactAlarms
+                            ? context.l10n.notificationExactAlarms
+                            : context.l10n.notificationInexactAlarms,
+                      ),
+                      trailing: status.exactAlarms
+                          ? null
+                          : TextButton(
+                              onPressed: () => unawaited(_requestExactAlarms()),
+                              child: Text(context.l10n.settingsSystem),
+                            ),
+                    ),
+                  ],
+                ),
+              ),
               ListTile(
-                leading: const Icon(Icons.alarm),
-                title: Text(context.l10n.reminders),
-                subtitle: Text(
-                  ref
-                      .read(androidNotificationServiceProvider)
-                      .precisionDiagnostic,
-                ),
-                trailing: TextButton(
-                  onPressed: () => unawaited(_requestExactAlarms()),
-                  child: Text(context.l10n.settingsSystem),
-                ),
+                title: Text(context.l10n.dailySummaryTime),
+                subtitle: Text(context.l10n.dailySummaryScope),
+                trailing: Text(settings.dueTodayNotificationTime),
+                enabled: settings.notifyDueToday,
+                onTap: _pickSummaryTime,
               ),
               SwitchListTile(
                 secondary: const Icon(Icons.bedtime_outlined),
@@ -582,14 +674,6 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                   onTap: () => unawaited(_pickQuietTime(false)),
                 ),
               ],
-              ListTile(
-                leading: const Icon(Icons.notifications_active_outlined),
-                title: Text(context.l10n.notifications),
-                trailing: const Icon(Icons.open_in_new),
-                onTap: () => unawaited(
-                  BusyMaxAndroidPlatform.instance.openNotificationSettings(),
-                ),
-              ),
             ],
           ),
           _Section(
@@ -631,7 +715,11 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                   leading: const Icon(Icons.check_circle_outline),
                   title: Text(context.l10n.noBlockedPendingOperations),
                 ),
-              for (final conflict in conflicts)
+              for (final conflict in conflicts.where(
+                (conflict) =>
+                    widget.notificationAccountId == null ||
+                    conflict.accountId == widget.notificationAccountId,
+              ))
                 ListTile(
                   leading: const Icon(Icons.warning_amber),
                   title: Text(conflict.itemTitle),
@@ -705,8 +793,14 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
   String _accountSubtitle(AccountEntity account) {
     final state = account.isSignedIn
         ? context.l10n.signedInAccount
+        : account.needsReconnect
+        ? context.l10n.accountReconnectRequired
         : account.authState;
-    final synced = account.lastSuccessfulSyncAtUtc;
+    final synced =
+        account.provider == BusyProvider.nextcloud ||
+            account.provider == BusyProvider.appleICloud
+        ? account.lastSuccessfulSyncAtUtc
+        : null;
     return synced == null
         ? '${account.provider.displayName} · $state'
         : '${account.provider.displayName} · $state\n${context.l10n.davLastSuccessfulSync(DateFormat.yMd().add_jm().format(synced.toLocal()))}';
@@ -723,6 +817,8 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
     }
     final ownedCancellation = AuthorizationCancellation();
     _authorizationCancellation = ownedCancellation;
+    final davCancellation = DavCancellationToken();
+    unawaited(ownedCancellation.signal.then((_) => davCancellation.cancel()));
     try {
       final localNetworkDenied = context.l10n.nextcloudOperationDenied;
       String? email;
@@ -801,24 +897,35 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                 ? (await service.connectAppleICloud(
                     email: email!,
                     appSpecificPassword: password!,
+                    cancellationToken: davCancellation,
                   )).accountId
                 : (await service.replaceAppleAppSpecificPassword(
                     accountId: reconnecting.id,
                     appSpecificPassword: password!,
+                    cancellationToken: davCancellation,
                   )).accountId;
           case BusyProvider.nextcloud:
             final service = ref.read(davAccountOnboardingServiceProvider);
             accountId = reconnecting == null
-                ? (await service.connectNextcloud(enteredServer: server!))
-                      .accountId
+                ? (await service.connectNextcloud(
+                    enteredServer: server!,
+                    cancellationToken: davCancellation,
+                  )).accountId
                 : (await service.reconnectNextcloud(
                     accountId: reconnecting.id,
                     enteredServer: server!,
+                    cancellationToken: davCancellation,
                   )).accountId;
           case BusyProvider.webCal:
             return;
         }
-        if (accountId != null) unawaited(_syncAccount(accountId));
+        if (accountId != null) {
+          ownedCancellation.committed();
+          if (mounted &&
+              identical(_authorizationCancellation, ownedCancellation)) {
+            unawaited(_syncAccount(accountId));
+          }
+        }
       } on Object catch (error) {
         if (error is OAuthException && error.code == 'OAuthSignInCancelled') {
           return;
@@ -826,7 +933,10 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
         if (error is DavException && error.kind == DavErrorKind.cancelled) {
           return;
         }
-        if (mounted) _message(localizedAuthorizationError(context.l10n, error));
+        if (mounted &&
+            identical(_authorizationCancellation, ownedCancellation)) {
+          _message(localizedAuthorizationError(context.l10n, error));
+        }
       } finally {
         if (mounted &&
             identical(_authorizationCancellation, ownedCancellation)) {
@@ -861,6 +971,8 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(context.l10n.removeAccountConfirmation),
+              if (account.provider == BusyProvider.nextcloud)
+                Text(context.l10n.nextcloudRemovalAuthorizationDescription),
               if (account.provider == BusyProvider.google)
                 CheckboxListTile(
                   contentPadding: EdgeInsets.zero,
@@ -888,21 +1000,30 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
     if (confirmed != true) return;
     setState(() => _removing.add(account.id));
     try {
-      await ref.read(crossEngineAccountGateProvider).run(account.id, () async {
-        if (account.provider == BusyProvider.appleICloud ||
-            account.provider == BusyProvider.nextcloud) {
-          await ref
-              .read(davAccountOnboardingServiceProvider)
-              .removeAccount(account.id);
-        } else {
-          await ref
-              .read(authRepositoryProvider)
-              .removeAccount(
-                accountId: account.id,
-                revokeAuthorization: revoke,
-              );
+      if (account.provider == BusyProvider.appleICloud ||
+          account.provider == BusyProvider.nextcloud) {
+        // DAV onboarding owns this account gate, including contact preparation.
+        final result = await ref
+            .read(davAccountOnboardingServiceProvider)
+            .removeAccount(account.id);
+        if (mounted &&
+            result.remoteRevocationAttempted &&
+            !result.remoteRevocationSucceeded) {
+          _message(l10n.nextcloudAccountRemovedRevokeFailed);
         }
-      });
+      } else {
+        await ref
+            .read(crossEngineAccountGateProvider)
+            .run(
+              account.id,
+              () => ref
+                  .read(authRepositoryProvider)
+                  .removeAccount(
+                    accountId: account.id,
+                    revokeAuthorization: revoke,
+                  ),
+            );
+      }
       await ref.read(notificationReconcilerProvider).reconcile();
     } on Object catch (error) {
       _message(localizedAccountRemovalError(l10n, error));
@@ -1586,7 +1707,7 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
       final granted = await ref
           .read(androidNotificationServiceProvider)
           .requestNotificationPermission();
-      if (!granted) return;
+      if (!granted && mounted) _message(context.l10n.notificationsBlocked);
     }
     await save(enabled);
     await ref.read(notificationReconcilerProvider).reconcile();
@@ -1599,6 +1720,27 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
         .requestExactAlarmPermission();
     await ref.read(notificationReconcilerProvider).reconcile();
     if (mounted) setState(() {});
+  }
+
+  Future<void> _pickSummaryTime() async {
+    final parts = ref
+        .read(appSettingsControllerProvider)
+        .dueTodayNotificationTime
+        .split(':');
+    final selected = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(
+        hour: int.parse(parts[0]),
+        minute: int.parse(parts[1]),
+      ),
+    );
+    if (selected == null) return;
+    await ref
+        .read(appSettingsControllerProvider.notifier)
+        .setDueTodayNotificationTime(
+          '${selected.hour.toString().padLeft(2, '0')}:${selected.minute.toString().padLeft(2, '0')}',
+        );
+    await ref.read(notificationReconcilerProvider).reconcile();
   }
 
   Future<void> _pickQuietTime(bool start) async {

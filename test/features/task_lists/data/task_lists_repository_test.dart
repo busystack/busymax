@@ -218,9 +218,17 @@ void main() {
         onNotificationScheduleChanged: scheduler.checkNow,
       );
       await repository.deleteTaskList('list-1');
+      final retained =
+          (await database.select(database.notificationSchedule).get()).single;
+      expect(retained.sourceId, 'task-9');
+      expect(retained.sentAtUtc, now.millisecondsSinceEpoch);
+      expect(retained.title, isEmpty);
       expect(
-        await database.select(database.notificationSchedule).get(),
-        isEmpty,
+        await NotificationScheduleService(
+          database: database,
+          nowUtc: () => now,
+        ).isReminderSourceEligible(retained),
+        isFalse,
       );
       expect(backend.cancelledIds, contains(backend.requests.single.stableId));
       expect(backend.cancelledIds, hasLength(2));

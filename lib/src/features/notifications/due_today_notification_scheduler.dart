@@ -2,19 +2,18 @@ import 'dart:async';
 
 import 'package:drift/drift.dart';
 
-import '../../core/time/stored_temporal_projection.dart';
+import 'daily_summary_policy.dart';
+import '../accounts/data/accounts_repository.dart';
 import '../../app/app_settings.dart';
 import '../../db/app_database.dart';
 import 'desktop_notification_service.dart';
 
-/// Evaluates the active account's summary, preserving the app-wide once-per-day
-/// preference. Task imports, local midnight, settings, and retries all enter the
+/// Evaluates the all-account summary with app-wide once-per-local-day history. Task imports, local midnight, settings, and retries all enter the
 /// same serialized path.
 class DueTodayNotificationScheduler {
   DueTodayNotificationScheduler({
     required AppDatabase database,
     required AppSettings Function() settings,
-    required String? Function() activeAccountId,
     required DesktopNotificationService Function() notifications,
     required Future<void> Function(String date) markNotified,
     FutureOr<bool> Function(String accountId)? syncBlocksDelivery,
@@ -23,7 +22,6 @@ class DueTodayNotificationScheduler {
     Duration interval = const Duration(minutes: 1),
   }) : _database = database,
        _settings = settings,
-       _activeAccountId = activeAccountId,
        _notifications = notifications,
        _markNotified = markNotified,
        _syncBlocksDelivery = syncBlocksDelivery ?? _neverBlocked,
@@ -33,7 +31,6 @@ class DueTodayNotificationScheduler {
 
   final AppDatabase _database;
   final AppSettings Function() _settings;
-  final String? Function() _activeAccountId;
   final DesktopNotificationService Function() _notifications;
   final Future<void> Function(String date) _markNotified;
   final FutureOr<bool> Function(String accountId) _syncBlocksDelivery;
@@ -48,8 +45,12 @@ class DueTodayNotificationScheduler {
   bool _running = false;
   bool _stopped = false;
   bool _checking = false;
+  Future<void>? _checkingFuture;
   bool _checkAgain = false;
   int _inputRevision = 0;
+  AppSettings? _presentationSettings;
+  String? _evaluatedDate;
+  DesktopNotificationService? _cleanupService;
 
   void start() {
     if (_stopped || _running) return;
@@ -63,7 +64,7 @@ class DueTodayNotificationScheduler {
         )
         .listen((_) => unawaited(checkNow()));
     _accountSyncSubscription = _accountSyncChanges.listen((accountId) {
-      if (accountId == _activeAccountId()) unawaited(checkNow());
+      unawaited(checkNow());
     });
     // Also catches resume from suspension and system clock/time-zone changes.
     _clockTimer = Timer.periodic(_interval, (_) => unawaited(checkNow()));
@@ -86,12 +87,16 @@ class DueTodayNotificationScheduler {
     unawaited(_accountSyncSubscription?.cancel());
   }
 
-  Future<void> checkNow() async {
-    if (_stopped) return;
+  Future<void> checkNow() {
+    if (_stopped) return Future<void>.value();
     if (_checking) {
       _checkAgain = true;
-      return;
+      return _checkingFuture ?? Future<void>.value();
     }
+    return _checkingFuture = _checkLoop();
+  }
+
+  Future<void> _checkLoop() async {
     _checking = true;
     try {
       do {
@@ -100,6 +105,7 @@ class DueTodayNotificationScheduler {
       } while (!_stopped && _checkAgain);
     } finally {
       _checking = false;
+      _checkingFuture = null;
       _scheduleNextCheck();
     }
   }
@@ -108,59 +114,103 @@ class DueTodayNotificationScheduler {
     final now = _now();
     final today = _date(now);
     final settings = _settings();
-    final accountId = _activeAccountId();
+    final previous = _presentationSettings;
+    if (_cleanupService != null &&
+        await _cleanupService!.cancelReminder('due-today')) {
+      _cleanupService = null;
+    }
     if (!settings.notifyDueToday ||
-        accountId == null ||
-        await _syncBlocksDelivery(accountId) ||
-        settings.lastDueTodayNotificationDate == today ||
+        previous == null &&
+            settings.notificationDetailLevel ==
+                NotificationDetailLevel.private ||
+        previous != null &&
+            (previous.notificationDetailLevel !=
+                        settings.notificationDetailLevel &&
+                    settings.notificationDetailLevel ==
+                        NotificationDetailLevel.private ||
+                previous.localeTag != settings.localeTag) ||
+        _evaluatedDate != null && _evaluatedDate != today) {
+      final notifications = _notifications();
+      if (!await notifications.cancelReminder('due-today')) {
+        _cleanupService = notifications;
+      }
+    }
+    _presentationSettings = settings;
+    _evaluatedDate = today;
+    final accountIds =
+        (await (_database.select(_database.accounts)..where(
+                  (row) =>
+                      row.authState.isIn(accountLocalReminderEligibleStates),
+                ))
+                .get())
+            .map((row) => row.id)
+            .toList();
+    if (!settings.notifyDueToday ||
+        accountIds.isEmpty ||
+        now.isBefore(
+          dailySummaryTime(now, settings.dueTodayNotificationTime),
+        ) ||
         (_retryAt != null && now.isBefore(_retryAt!))) {
       return;
     }
-    final taskLists = _database.taskLists;
-    final eligibleLists = _database.selectOnly(taskLists)
-      ..addColumns([taskLists.id])
-      ..where(
-        taskLists.accountId.equals(accountId) &
-            taskLists.pendingDelete.equals(false) &
-            taskLists.serverMissing.equals(false),
-      );
-    final tasks =
-        await (_database.select(_database.tasks)..where(
-              (row) =>
-                  row.accountId.equals(accountId) &
-                  row.taskListId.isInQuery(eligibleLists) &
-                  row.dueUtc.isNotNull() &
-                  row.pendingDelete.equals(false) &
-                  row.serverMissing.equals(false) &
-                  (row.deleted.isNull() | row.deleted.equals(false)) &
-                  (row.hidden.isNull() | row.hidden.equals(false)),
-            ))
-            .get();
+    for (final id in accountIds) {
+      if (await _syncBlocksDelivery(id)) return;
+    }
+    final tasks = await notificationTasksDueOn(_database, now);
     if (_stopped) return;
-    if (_activeAccountId() != accountId || _date(_now()) != today) {
+    if (_date(_now()) != today) {
       _checkAgain = true;
       return;
     }
     // Synchronization may have started while the task query was awaiting the
     // database. Its completion transition will trigger a fresh evaluation.
-    if (await _syncBlocksDelivery(accountId)) return;
-    if (!_settings().notifyDueToday ||
-        _settings().lastDueTodayNotificationDate == today) {
+    for (final id in accountIds) {
+      if (await _syncBlocksDelivery(id)) return;
+    }
+    if (!_settings().notifyDueToday) return;
+    final count = tasks.length;
+    if (count == 0) {
+      await _notifications().cancelReminder('due-today');
       return;
     }
-    final count = tasks.where((task) {
-      if (task.status == 'completed' || task.status == 'cancelled') {
-        return false;
-      }
-      final due = taskDueAsLocal(task);
-      return due != null && _date(due) == today;
-    }).length;
-    if (count == 0) return;
+    if (_settings().lastDueTodayNotificationDate == today) return;
+    if (await (_database.select(
+          _database.dailySummaryHistory,
+        )..where((row) => row.localDate.equals(today))).getSingleOrNull() !=
+        null) {
+      return;
+    }
     final revision = _inputRevision;
-    final result = await _notifications().notifyDueToday(count);
+    final notifications = _notifications();
+    final result = await notifications.notifyDueToday(count, date: today);
+    // A browsing/settings write during submission does not invalidate this
+    // all-account snapshot. Withdrawing it would consume the day's opportunity
+    // without leaving a post the user can open. Privacy/category/locale/date
+    // changes still withdraw a submission that completed with stale content.
+    final current = _stopped ? null : _settings();
+    if (result.status == ReminderDeliveryStatus.delivered &&
+        (current == null ||
+            !current.notifyDueToday ||
+            current.notificationDetailLevel ==
+                    NotificationDetailLevel.private &&
+                !notifications.isPrivate ||
+            current.localeTag != notifications.presentationSettings.localeTag ||
+            _date(_now()) != today)) {
+      if (!await notifications.cancelReminder('due-today')) {
+        _cleanupService = notifications;
+      }
+    }
     if (_stopped) return;
     if (result.status == ReminderDeliveryStatus.delivered) {
       _retryAt = null;
+      await _database
+          .into(_database.dailySummaryHistory)
+          .insertOnConflictUpdate(
+            DailySummaryHistoryCompanion.insert(
+              localDate: today,
+              consumedAtUtc: _now().toUtc().millisecondsSinceEpoch,
+            ),
+          );
       await _markNotified(today);
     } else if (revision == _inputRevision) {
       _retryAt = result.retryAtUtc?.toLocal();
@@ -171,7 +221,13 @@ class DueTodayNotificationScheduler {
     if (_stopped || !_running) return;
     _nextCheckTimer?.cancel();
     final now = _now();
-    var next = DateTime(now.year, now.month, now.day + 1);
+    var next = dailySummaryTime(now, _settings().dueTodayNotificationTime);
+    if (!next.isAfter(now)) {
+      next = dailySummaryTime(
+        DateTime(now.year, now.month, now.day + 1),
+        _settings().dueTodayNotificationTime,
+      );
+    }
     final retryAt = _retryAt;
     if (retryAt != null && retryAt.isAfter(now) && retryAt.isBefore(next)) {
       next = retryAt;

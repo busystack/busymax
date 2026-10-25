@@ -490,7 +490,8 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
         ),
         const SizedBox(height: 20),
         _SectionTitle(l10n.notifications),
-        if (!notificationReadiness.canNotify) ...[
+        if (!notificationReadiness.canNotify ||
+            notificationReadiness.permissionGranted == null) ...[
           WindowsNotificationReadinessInfoBar(readiness: notificationReadiness),
           const SizedBox(height: 8),
         ],
@@ -518,9 +519,23 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
               _SettingsRow(
                 icon: BusyMaxGlyph.today,
                 title: l10n.notifyDueToday,
+                subtitle: l10n.dailySummaryScope,
                 child: ToggleSwitch(
                   checked: settings.notifyDueToday,
                   onChanged: controller.setNotifyDueToday,
+                ),
+              ),
+              const Divider(),
+              _SettingsRow(
+                icon: BusyMaxGlyph.reminder,
+                title: l10n.dailySummaryTime,
+                child: WindowsTimePicker(
+                  selected: _timeStringDateTime(
+                    settings.dueTodayNotificationTime,
+                  ),
+                  onChanged: (value) => controller.setDueTodayNotificationTime(
+                    _timeString(value),
+                  ),
                 ),
               ),
               const Divider(),
@@ -1231,6 +1246,26 @@ class WindowsNotificationReadinessInfoBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    if (readiness.state == DesktopNotificationReadinessState.available &&
+        !readiness.deliveryFailed) {
+      return InfoBar(
+        title: Text(l10n.notifications),
+        content: Text(
+          readiness.permissionGranted == false
+              ? l10n.notificationsSystemBlocked
+              : readiness.permissionGranted == true
+              ? l10n.notificationsAllowed
+              : l10n.notificationsUnknown,
+        ),
+        severity: readiness.permissionGranted == false
+            ? InfoBarSeverity.warning
+            : InfoBarSeverity.info,
+        action: Button(
+          child: Text(l10n.settingsSystem),
+          onPressed: () => launchUrl(Uri.parse('ms-settings:notifications')),
+        ),
+      );
+    }
     final unpackaged =
         readiness.state ==
         DesktopNotificationReadinessState.unavailableUnpackaged;
@@ -1306,7 +1341,10 @@ Future<void> _removeWindowsAccount(
   final l10n = AppLocalizations.of(context);
   final options = await showWindowsAccountRemovalDialog(
     context,
-    accountLabel: account.displayLabel,
+    accountLabel: account.provider == BusyProvider.nextcloud
+        ? '${account.displayLabel} · ${account.authority}'
+        : account.displayLabel,
+    revokeNextcloudAppPassword: account.provider == BusyProvider.nextcloud,
     canRevokeGoogleAuthorization:
         account.provider == BusyProvider.google && account.isSignedIn,
   );
@@ -1331,8 +1369,11 @@ Future<void> _removeWindowsAccount(
     final remaining = await ref
         .read(accountsRepositoryProvider)
         .listVisibleAccounts();
-    ref.read(selectedAccountIdProvider.notifier).state =
-        remaining.firstOrNull?.id;
+    final selected = ref.read(selectedAccountIdProvider);
+    if (selected == account.id || !remaining.any((a) => a.id == selected)) {
+      ref.read(selectedAccountIdProvider.notifier).state =
+          remaining.firstOrNull?.id;
+    }
     await ref.read(authSessionControllerProvider.notifier).load();
     if (!context.mounted) return;
     if (authResult?.authorizationRevocationFailed ?? false) {
@@ -1843,11 +1884,7 @@ class _WindowsRegistrationCardState
       _authorizationCancellation = cancellation;
       try {
         AuthorizationRequest request;
-        if (replace ||
-            account.provider == BusyProvider.google &&
-                (account.needsReconnect ||
-                    summary == null ||
-                    summary.origin == RegistrationOrigin.retiringShared)) {
+        if (replace) {
           final handle = await showWindowsRegistrationSetup(
             context,
             ref,
@@ -1978,15 +2015,7 @@ class _WindowsRegistrationCardState
             ),
           Button(
             onPressed: connecting ? null : () => connect(false),
-            child: Text(
-              account.needsReconnect ||
-                      summary == null ||
-                      summary.origin == RegistrationOrigin.retiringShared
-                  ? (account.provider == BusyProvider.google
-                        ? l10n.reconnectGoogleAccount
-                        : l10n.reconnectAccount)
-                  : l10n.connectAccountAction,
-            ),
+            child: Text(l10n.reconnectAccount),
           ),
         ],
       ),

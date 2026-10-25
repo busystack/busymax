@@ -455,9 +455,15 @@ _NormalizedEditorRule? _normalizeEditorRule({
         defaultMonthDay: baseDate?.day,
       );
     case RecurrenceFrequency.yearly:
-      final months = byMonth.isEmpty && baseDate != null
-          ? [baseDate.month]
-          : byMonth;
+      // Explicit month days expand throughout the year. An anniversary
+      // without selectors still inherits its month from DTSTART.
+      final months = byMonth.isNotEmpty
+          ? byMonth
+          : byMonthDay.isNotEmpty
+          ? List.generate(12, (index) => index + 1)
+          : baseDate == null
+          ? const <int>[]
+          : [baseDate.month];
       if (months.isEmpty) return null;
       return _normalizeMonthlyOrYearly(
         byDay: byDay,

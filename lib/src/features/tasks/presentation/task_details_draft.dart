@@ -19,6 +19,79 @@ enum TaskScheduleIssue { none, dueBeforeStart, mixedTimeModes }
 enum TaskRecurrenceIssue { none, unsupportedDestination, missingDate }
 
 class TaskDetailsDraft {
+  /// Re-evaluated when Add reminder is invoked. A due-day morning is useful
+  /// only while it is still ahead; otherwise give ten minutes to finish saving.
+  static DateTime newReminderDefault({
+    String? dueDate,
+    required String timeZone,
+    required DateTime now,
+  }) {
+    final morning = providerDateTimeAsUtcInstant(
+      dueDate == null ? null : '${dueDate}T09:00:00',
+      timeZone,
+    );
+    final instant = morning != null && morning.isAfter(now.toUtc())
+        ? morning
+        : now.toUtc().add(const Duration(minutes: 10));
+    return providerUtcInstantAsWallTime(instant, timeZone);
+  }
+
+  /// Preserve historical saved/imported alarms. Only a newly enabled or edited
+  /// alarm is validated, allowing the current minute to cross its trigger.
+  bool hasNewPastReminder({
+    TaskEntity? original,
+    required TaskCollectionCapabilities capabilities,
+    required String localTimeZone,
+    required DateTime now,
+  }) {
+    final minuteStart = now.toUtc().subtract(
+      Duration(
+        seconds: now.second,
+        milliseconds: now.millisecond,
+        microseconds: now.microsecond,
+      ),
+    );
+    if (capabilities.supportsReminderDateTime && microsoftReminderEnabled) {
+      final changed =
+          original == null ||
+          toPatch(
+            original,
+            capabilities,
+            localTimeZone: localTimeZone,
+          ).containsKey('microsoftReminderDateTime');
+      if (changed) {
+        final instant = providerDateTimeAsUtcInstant(
+          '${microsoftReminderDate ?? ''}T${microsoftReminderTime ?? ''}:00',
+          microsoftReminderTimeZone ?? localTimeZone,
+        );
+        if (instant == null || instant.isBefore(minuteStart)) return true;
+      }
+    }
+    if (capabilities.supportsMultipleReminders) {
+      final previous = original == null
+          ? const <IcalTaskAlarm>[]
+          : decodeIcalTaskAlarms(original.taskAlarmsJson);
+      for (final alarm in alarms) {
+        if (previous.any(
+          (item) => jsonEncode(item.toJson()) == jsonEncode(alarm.toJson()),
+        )) {
+          continue;
+        }
+        final reference = reminderReferenceUtc(
+          due: alarm.isRelatedToDue,
+          localTimeZone: localTimeZone,
+        );
+        final instant =
+            alarm.absoluteUtc ??
+            (reference == null || alarm.relativeOffset == null
+                ? null
+                : reference.add(alarm.relativeOffset!));
+        if (instant != null && instant.isBefore(minuteStart)) return true;
+      }
+    }
+    return false;
+  }
+
   const TaskDetailsDraft({
     required this.taskListId,
     required this.taskId,
@@ -53,6 +126,7 @@ class TaskDetailsDraft {
     required this.hideSubtasks,
     required this.hideCompletedSubtasks,
     required this.alarms,
+    this.observedTask,
   });
 
   /// Creation uses the same validation and capability-aware serializer as edits.
@@ -156,9 +230,12 @@ class TaskDetailsDraft {
     return TaskDetailsDraft(
       taskListId: task.taskListId,
       taskId: task.id,
+      observedTask: task,
       title: task.title,
       notes: task.notes ?? '',
-      dueDate: due.date ?? _dateOnly(task.dueUtc),
+      dueDate:
+          due.date ??
+          (task.davCollectionId == null ? _dateOnly(task.dueUtc) : null),
       microsoftDueTime: due.time,
       microsoftDueTimeZone: due.timeZone,
       microsoftStartDate: start.date,
@@ -190,6 +267,7 @@ class TaskDetailsDraft {
 
   final String taskListId;
   final String taskId;
+  final TaskEntity? observedTask;
   final String title;
   final String notes;
   final String? dueDate;
@@ -368,7 +446,9 @@ class TaskDetailsDraft {
     TaskEntity original,
     TaskCollectionCapabilities capabilities, {
     required String localTimeZone,
+    bool useObservedBaseline = true,
   }) {
+    if (useObservedBaseline) original = observedTask ?? original;
     final fields = <String, Object?>{};
 
     if (title != original.title) {
@@ -383,7 +463,9 @@ class TaskDetailsDraft {
       original.microsoftDueTimeZone,
       localTimeZone,
     );
-    final originalDueDate = originalDue.date ?? _dateOnly(original.dueUtc);
+    final originalDueDate =
+        originalDue.date ??
+        (original.davCollectionId == null ? _dateOnly(original.dueUtc) : null);
     final dueChanged = dueDate != originalDueDate;
     if (dueChanged) {
       fields['due'] = dueDate;
@@ -546,6 +628,7 @@ class TaskDetailsDraft {
       baseline,
       capabilities,
       localTimeZone: localTimeZone,
+      useObservedBaseline: false,
     );
     final trimmedTitle = title.trim();
     fields['title'] = trimmedTitle;
@@ -571,11 +654,15 @@ class TaskDetailsDraft {
       dueUtc: dueDate == null ? null : DateTime.tryParse(dueDate!),
       categories: categories,
       fields: fields,
-      locationChange: locationChange,
+      locationChange: capabilities.supportsLocation
+          ? locationChange
+          : const LocationChange.unchanged(),
     );
   }
 
   TaskDetailsDraft copyWith({
+    String? taskId,
+    TaskEntity? observedTask,
     LocationChange? locationChange,
     String? taskListId,
     String? title,
@@ -609,7 +696,8 @@ class TaskDetailsDraft {
   }) {
     return TaskDetailsDraft(
       taskListId: taskListId ?? this.taskListId,
-      taskId: taskId,
+      taskId: taskId ?? this.taskId,
+      observedTask: observedTask ?? this.observedTask,
       title: title ?? this.title,
       notes: notes ?? this.notes,
       dueDate: dueDate == _unchanged ? this.dueDate : dueDate as String?,

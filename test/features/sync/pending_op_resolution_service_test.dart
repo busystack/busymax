@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:busymax/src/calendar_providers/calendar_mutation.dart';
 import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
@@ -17,7 +18,11 @@ import 'package:busymax/src/features/tasks/domain/task_remote_client.dart';
 import 'package:busymax/src/google_tasks/api/google_tasks_api_error.dart';
 import 'package:busymax/src/features/tasks/domain/task_remote_models.dart';
 import 'package:busymax/src/features/tasks/domain/task_checklist_item.dart';
+import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
+import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
+
+import '../../support/persistence_test_directory.dart';
 
 void main() {
   late AppDatabase database;
@@ -135,6 +140,302 @@ void main() {
       expect(taskSyncCalls, 1);
     },
   );
+
+  test('F12 selective patch discard restores surviving notes and their genuine conflict baseline', () async {
+    final baseline = TaskDto.fromJson({
+      'id': 'task-1',
+      'title': 'A',
+      'notes': 'N',
+      'updated': _now,
+    });
+    await database.tasksDao.upsertTask(
+      taskFromDto('account', 'list-1', baseline, _now),
+    );
+    final repository = TasksRepository(
+      database: database,
+      accountId: 'account',
+    );
+    await repository.patchTask(
+      'list-1',
+      'task-1',
+      const TaskPatchInput({'title': 'P'}),
+    );
+    await repository.patchTask(
+      'list-1',
+      'task-1',
+      const TaskPatchInput({'notes': 'Q'}),
+    );
+    final queued = await database.select(database.pendingOps).get();
+    final discarded = queued.singleWhere(
+      (op) => jsonDecode(op.requestJson).containsKey('title'),
+    );
+    final retained = queued.singleWhere(
+      (op) => jsonDecode(op.requestJson).containsKey('notes'),
+    );
+    apiClient.remoteTask = TaskDto.fromJson({
+      ...baseline.rawJson,
+      'title': 'B',
+      'notes': 'R',
+      'updated': '2026-06-04T01:00:00.000Z',
+    });
+    await service.discard(discarded.id);
+    final projected = await database.select(database.tasks).getSingle();
+    expect(projected.title, 'B');
+    expect(projected.notes, 'Q');
+    expect(projected.localDirty, isTrue);
+    expect(
+      (await database.pendingOpsDao.getOp(retained.id))!.baselineRawJson,
+      retained.baselineRawJson,
+    );
+    expect(
+      await PendingOpsReplayer(
+        database: database,
+        apiClient: apiClient,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4, 2),
+      ).replayDueOps(),
+      0,
+    );
+    expect(
+      (await database.pendingOpsDao.getOp(retained.id))!.lastErrorCode,
+      'conflict',
+    );
+    expect((await database.select(database.tasks).getSingle()).notes, 'Q');
+    apiClient.remoteTask = TaskDto.fromJson({
+      ...apiClient.remoteTask!.rawJson,
+      'notes': 'N',
+      'updated': '2026-06-04T03:00:00.000Z',
+    });
+    await (database.update(database.pendingOps)
+          ..where((row) => row.id.equals(retained.id)))
+        .write(const PendingOpsCompanion(nextAttemptAtUtc: Value(null)));
+    expect(
+      await PendingOpsReplayer(
+        database: database,
+        apiClient: apiClient,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4, 4),
+      ).replayDueOps(),
+      1,
+    );
+    expect(apiClient.remoteTask!.notes, 'Q');
+    expect(await database.select(database.pendingOps).get(), isEmpty);
+  });
+
+  test('F12 selective list rename discard retains a later rename', () async {
+    await database.taskListsDao.upsertTaskList(
+      taskListFromDto(
+        'account',
+        TaskListDto.fromJson({'id': 'list-1', 'title': 'A', 'updated': _now}),
+        _now,
+      ),
+    );
+    final repository = TaskListsRepository(
+      database: database,
+      accountId: 'account',
+    );
+    await repository.renameTaskList('list-1', 'P');
+    await repository.renameTaskList('list-1', 'Q');
+    final operations = await database.select(database.pendingOps).get();
+    final discarded = operations.singleWhere(
+      (op) => jsonDecode(op.requestJson)['title'] == 'P',
+    );
+    final retained = operations.singleWhere(
+      (op) => jsonDecode(op.requestJson)['title'] == 'Q',
+    );
+    apiClient.remoteTaskList = TaskListDto.fromJson({
+      'id': 'list-1',
+      'title': 'Remote B',
+      'updated': '2026-06-04T01:00:00.000Z',
+    });
+    await service.discard(discarded.id);
+    final list = await database.select(database.taskLists).getSingle();
+    expect(list.title, 'Q');
+    expect(list.localDirty, isTrue);
+    expect(
+      (await database.pendingOpsDao.getOp(retained.id))!.baselineRawJson,
+      retained.baselineRawJson,
+    );
+  });
+
+  test(
+    'F12 surviving conflicting notes remain visible after a database restart',
+    () async {
+      final directory = await createPersistenceTestDirectory(
+        'busymax-selective-discard-',
+      );
+      final file = File('${directory.path}/tasks.sqlite');
+      final previousDatabaseWarning =
+          driftRuntimeOptions.dontWarnAboutMultipleDatabases;
+      driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
+      var disk = AppDatabase(NativeDatabase(file));
+      try {
+        await _insertAccount(disk);
+        await disk.taskListsDao.upsertTaskList(_localTaskList('list-1'));
+        final original = TaskDto.fromJson({
+          'id': 'task-1',
+          'title': 'A',
+          'notes': 'N',
+          'updated': _now,
+        });
+        await disk.tasksDao.upsertTask(
+          taskFromDto('account', 'list-1', original, _now),
+        );
+        final repository = TasksRepository(
+          database: disk,
+          accountId: 'account',
+        );
+        await repository.patchTask(
+          'list-1',
+          'task-1',
+          const TaskPatchInput({'title': 'P'}),
+        );
+        await repository.patchTask(
+          'list-1',
+          'task-1',
+          const TaskPatchInput({'notes': 'Q'}),
+        );
+        final queued = await disk.select(disk.pendingOps).get();
+        final titleOp = queued.singleWhere(
+          (op) => jsonDecode(op.requestJson).containsKey('title'),
+        );
+        final notesOp = queued.singleWhere(
+          (op) => jsonDecode(op.requestJson).containsKey('notes'),
+        );
+        apiClient.remoteTask = TaskDto.fromJson({
+          ...original.rawJson,
+          'title': 'B',
+          'notes': 'R',
+          'updated': '2026-06-04T01:00:00.000Z',
+        });
+        await PendingOpResolutionService(
+          database: disk,
+          apiClient: apiClient,
+          accountId: 'account',
+          syncTasks: () async {},
+          syncCalendar: () async {},
+        ).discard(titleOp.id);
+        expect(
+          await PendingOpsReplayer(
+            database: disk,
+            apiClient: apiClient,
+            accountId: 'account',
+            nowUtc: () => DateTime.utc(2026, 6, 4, 2),
+          ).replayDueOps(),
+          0,
+        );
+        await disk.close();
+        disk = AppDatabase(NativeDatabase(file));
+        final projected = await TasksRepository(
+          database: disk,
+          accountId: 'account',
+        ).readTask('list-1', 'task-1');
+        expect(projected!.title, 'B');
+        expect(projected.notes, 'Q');
+        expect(projected.localDirty, isTrue);
+        final retained = await disk.pendingOpsDao.getOp(notesOp.id);
+        expect(retained!.baselineRawJson, notesOp.baselineRawJson);
+        expect(retained.lastErrorCode, 'conflict');
+        apiClient.remoteTask = TaskDto.fromJson({
+          ...apiClient.remoteTask!.rawJson,
+          'notes': 'N',
+          'updated': '2026-06-04T03:00:00.000Z',
+        });
+        await PendingOpResolutionService(
+          database: disk,
+          apiClient: apiClient,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 4, 4),
+          syncTasks: () async {
+            await PendingOpsReplayer(
+              database: disk,
+              apiClient: apiClient,
+              accountId: 'account',
+              nowUtc: () => DateTime.utc(2026, 6, 4, 4),
+            ).replayDueOps();
+          },
+          syncCalendar: () async {},
+        ).retryNow(notesOp.id);
+        expect(await disk.select(disk.pendingOps).get(), isEmpty);
+        expect(apiClient.remoteTask!.notes, 'Q');
+        expect((await disk.select(disk.tasks).getSingle()).localDirty, isFalse);
+      } finally {
+        await disk.close();
+        await directory.delete(recursive: true);
+        driftRuntimeOptions.dontWarnAboutMultipleDatabases =
+            previousDatabaseWarning;
+      }
+    },
+  );
+
+  for (final retainedAction in ['complete', 'move', 'delete']) {
+    test(
+      'F12 selective discard retains a later $retainedAction projection and intent',
+      () async {
+        final original = TaskDto.fromJson({
+          'id': 'task-1',
+          'title': 'A',
+          'status': 'needsAction',
+          'updated': _now,
+        });
+        await database.tasksDao.upsertTask(
+          taskFromDto('account', 'list-1', original, _now),
+        );
+        await database.taskListsDao.upsertTaskList(_localTaskList('list-2'));
+        final repository = TasksRepository(
+          database: database,
+          accountId: 'account',
+        );
+        await repository.patchTask(
+          'list-1',
+          'task-1',
+          const TaskPatchInput({'title': 'P'}),
+        );
+        switch (retainedAction) {
+          case 'complete':
+            await repository.patchTask(
+              'list-1',
+              'task-1',
+              const TaskPatchInput({'status': 'completed'}),
+            );
+          case 'move':
+            await repository.moveTask(
+              const TaskMoveInput(
+                sourceTaskListId: 'list-1',
+                taskId: 'task-1',
+                destinationTaskListId: 'list-2',
+              ),
+            );
+          case 'delete':
+            await repository.deleteTask('list-1', 'task-1');
+        }
+        final queued = await database.select(database.pendingOps).get();
+        final discarded = queued.singleWhere(
+          (op) => jsonDecode(op.requestJson).containsKey('title'),
+        );
+        final retained = queued.singleWhere((op) => op.id != discarded.id);
+        apiClient.remoteTask = TaskDto.fromJson({
+          ...original.rawJson,
+          'title': 'Remote B',
+          'updated': '2026-06-04T01:00:00.000Z',
+        });
+        await service.discard(discarded.id);
+        final task = await database.select(database.tasks).getSingle();
+        expect(task.title, 'Remote B');
+        expect(task.localDirty, isTrue);
+        expect(
+          task.status,
+          retainedAction == 'complete' ? 'completed' : 'needsAction',
+        );
+        expect(task.taskListId, retainedAction == 'move' ? 'list-2' : 'list-1');
+        expect(task.pendingMove, retainedAction == 'move');
+        expect(task.pendingDelete, retainedAction == 'delete');
+        final survivor = await database.pendingOpsDao.getOp(retained.id);
+        expect(survivor!.requestJson, retained.requestJson);
+        expect(survivor.baselineRawJson, retained.baselineRawJson);
+      },
+    );
+  }
 
   test(
     'discard blocked task delete with remote task present refreshes local row',
@@ -1612,7 +1913,13 @@ class _FakeTaskRemoteClient
     required TaskPatch patch,
   }) async {
     patchedTaskIds.add(taskId);
-    return _taskDto(taskId, title: patch.fields['title']?.toString() ?? 'Task');
+    return remoteTask = TaskDto.fromJson({
+      ...?remoteTask?.rawJson,
+      'id': taskId,
+      'title': remoteTask?.title ?? 'Task',
+      ...patch.fields,
+      'updated': '2026-06-04T05:00:00.000Z',
+    });
   }
 
   @override

@@ -2036,6 +2036,24 @@ void _validateTaskTemporalRange(IcalSemanticDocument document) {
     }
     final start = component.start;
     final due = component.due;
+    if (component.duration != null) {
+      if (due != null) {
+        throw const DavException(
+          kind: DavErrorKind.invalidCalendarData,
+          code: 'DavTaskDueAndDuration',
+          safeMessage: 'A task cannot contain both a deadline and a duration.',
+        );
+      }
+      if (start == null) {
+        throw const DavException(
+          kind: DavErrorKind.invalidCalendarData,
+          code: 'DavTaskDurationRequiresStart',
+          safeMessage:
+              'A task with a duration needs a start. Set a deadline before '
+              'removing its start.',
+        );
+      }
+    }
     if (start == null || due == null) {
       continue;
     }

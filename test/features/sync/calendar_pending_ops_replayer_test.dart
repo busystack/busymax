@@ -65,6 +65,144 @@ void main() {
     await database.close();
   });
 
+  test('a further reminder change between checked GET and PATCH is protected by the checked ETag', () async {
+    Map<String, Object?> reminders(int minutes) => {
+      'useDefault': false,
+      'overrides': [
+        {'method': 'popup', 'minutes': minutes},
+      ],
+    };
+    Map<String, Object?> resource(int minutes, String etag) => {
+      'id': 'reminder-race',
+      'summary': 'Reminder',
+      'organizer': {'self': true},
+      'start': {'dateTime': '2026-06-08T09:00:00Z', 'timeZone': 'UTC'},
+      'end': {'dateTime': '2026-06-08T10:00:00Z', 'timeZone': 'UTC'},
+      'updated': '2026-06-08T00:00:00Z',
+      'etag': etag,
+      'reminders': reminders(minutes),
+    };
+    final repository = CalendarRepository(database: database);
+    await repository.upsertEvent(
+      accountId: 'account',
+      event: googleCalendarEventFromJson('cal-1', resource(10, '"baseline"')),
+    );
+    final local = await database.select(database.calendarEvents).getSingle();
+    await repository.updateLocalEvent(
+      EventEditorDraft.fromEventDetail(
+        (await repository.loadEventDetail(local.id))!,
+      ).copyWith(reminders: reminders(30)),
+    );
+    var remote = resource(10, '"checked"');
+    var patches = 0;
+    final api = GoogleCalendarApiClient(
+      baseUri: Uri.parse('https://www.googleapis.com'),
+      httpClient: MockClient((request) async {
+        if (request.method == 'GET') {
+          return http.Response(jsonEncode(remote), 200);
+        }
+        expect(request.method, 'PATCH');
+        expect(request.headers['if-match'], '"checked"');
+        expect(jsonDecode(request.body)['reminders'], reminders(30));
+        remote = resource(15, '"changed-after-get"');
+        patches++;
+        return http.Response(
+          '{"error":{"status":"PRECONDITION_FAILED","message":"ETag changed"}}',
+          412,
+        );
+      }),
+    );
+    expect(
+      await CalendarPendingOpsReplayer(
+        database: database,
+        client: api,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 8),
+      ).replayDueOps(),
+      0,
+    );
+    expect(patches, 1);
+    expect(remote['reminders'], reminders(15));
+    final pending = await database.select(database.pendingOps).getSingle();
+    expect(pending.lastErrorCode, 'conflict');
+    expect(jsonDecode(pending.requestJson)['remindersJson'], reminders(30));
+  });
+
+  for (final conflictingReminder in [false, true]) {
+    test(
+      'Google reminder edits protect the baseline (remote reminder conflict: $conflictingReminder)',
+      () async {
+        Map<String, Object?> reminders(int minutes) => {
+          'useDefault': false,
+          'overrides': [
+            {'method': 'popup', 'minutes': minutes},
+          ],
+        };
+        final repository = CalendarRepository(database: database);
+        final baseline = client._event(
+          'reminder-event',
+          title: 'Base',
+          organizerJson: {'self': true},
+          remindersJson: reminders(10),
+          etagOrChangeKey: '"baseline"',
+        );
+        await repository.upsertEvent(accountId: 'account', event: baseline);
+        final detail = (await repository.loadEventDetail(
+          CalendarRepository.eventId(
+            accountId: 'account',
+            provider: BusyProvider.google,
+            providerCalendarId: 'cal-1',
+            providerEventId: 'reminder-event',
+          ),
+        ))!;
+        await repository.updateLocalEvent(
+          EventEditorDraft.fromEventDetail(detail)
+              .copyWith(reminders: reminders(30)),
+        );
+        client.remoteEvent = client._event(
+          'reminder-event',
+          title: 'Base',
+          organizerJson: {'self': true},
+          description: conflictingReminder ? null : 'Remote description',
+          remindersJson: reminders(conflictingReminder ? 15 : 10),
+          etagOrChangeKey: '"checked"',
+          updatedAtServer: conflictingReminder
+              ? baseline.updatedAtServer!
+              : '2026-06-08T00:01:00.000Z',
+        );
+        client.persistEventUpdates = true;
+        final applied = await CalendarPendingOpsReplayer(
+          database: database,
+          client: client,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 9),
+        ).replayDueOps();
+        if (conflictingReminder) {
+          expect(applied, 0);
+          expect(client.updatedMutations, isEmpty);
+          expect(
+            (await database.select(database.pendingOps).getSingle())
+                .lastErrorCode,
+            'conflict',
+          );
+          expect(client.remoteEvent!.remindersJson, reminders(15));
+          expect(
+            jsonDecode(
+              (await database.select(database.calendarEvents).getSingle())
+                  .remindersJson!,
+            ),
+            reminders(30),
+          );
+        } else {
+          expect(applied, 1);
+          expect(client.ifMatches, ['"checked"']);
+          expect(client.updatedMutations.single.description, isNull);
+          expect(client.remoteEvent!.description, 'Remote description');
+        }
+      },
+    );
+  }
+
   test('guarded timing edit replays exact endpoints and guest policy without moving ownership', () async {
     final repository = CalendarRepository(database: database);
     final id = await _insertEvent(
@@ -3078,15 +3216,14 @@ END:VEVENT
 
   test('zoned guarded series edit replays the same civil delta', () async {
     final repository = CalendarRepository(database: database);
-    final id = await _insertGoogleOccurrence(repository, day: 8);
-    await database
-        .update(database.calendarEvents)
-        .write(
-          const CalendarEventsCompanion(
-            startTimeZone: Value('America/Vancouver'),
-            endTimeZone: Value('America/Vancouver'),
-          ),
-        );
+    // Ingest the provider's zone together with its timestamps. Rewriting only
+    // the zone columns would turn the master's zone-less 09:00 into 09:00
+    // Vancouver while leaving this 09:00Z occurrence at 02:00 Vancouver.
+    final id = await _insertGoogleOccurrence(
+      repository,
+      day: 8,
+      timeZone: 'America/Vancouver',
+    );
     final detail = (await repository.loadEventDetail(id))!;
     await repository.updateLocalEvent(
       EventEditorDraft.fromEventDetail(detail).copyWith(
@@ -3206,6 +3343,128 @@ END:VEVENT
         expect(rows.map((row) => row.syncStatus), everyElement('synced'));
       },
       skip: !(Platform.isLinux || Platform.isMacOS),
+    );
+  }
+
+  test('ordinary following edit preserves the earlier local weekday across UTC midnight', () async {
+    final repository = CalendarRepository(database: database);
+    const zone = 'America/Vancouver';
+    final master = googleCalendarEventFromJson('cal-1', {
+      ..._googleSeriesMaster(
+        timeZone: zone,
+        start: '2026-06-01T23:00:00-07:00',
+        end: '2026-06-02T00:00:00-07:00',
+      ).rawJson,
+      'recurrence': ['RRULE:FREQ=WEEKLY;COUNT=5'],
+    });
+    await repository.upsertEvent(accountId: 'account', event: master);
+    final selected = await _insertGoogleOccurrence(
+      repository,
+      day: 8,
+      start: '2026-06-08T23:00:00-07:00',
+      end: '2026-06-09T00:00:00-07:00',
+      timeZone: zone,
+    );
+    final detail = (await repository.loadEventDetail(selected))!;
+    await repository.updateLocalEvent(
+      EventEditorDraft.fromEventDetail(detail).copyWith(
+        start: providerCivilDateTime(DateTime.utc(2026, 6, 9, 23)),
+        end: providerCivilDateTime(DateTime.utc(2026, 6, 10)),
+        recurringMutationScope: RecurringEventMutationScope.thisAndFuture,
+      ),
+    );
+    client.remoteEvent = master;
+    client.eventInstances = [
+      for (final day in [1, 8, 15, 22, 29])
+        googleCalendarEventFromJson('cal-1', {
+          'id': 'night-$day',
+          'recurringEventId': 'series-master',
+          'originalStartTime': {
+            'dateTime': DateTime.utc(2026, 6, day + 1, 6).toIso8601String(),
+          },
+          'start': {
+            'dateTime': DateTime.utc(2026, 6, day + 1, 6).toIso8601String(),
+            'timeZone': zone,
+          },
+          'end': {
+            'dateTime': DateTime.utc(2026, 6, day + 1, 7).toIso8601String(),
+            'timeZone': zone,
+          },
+        }),
+    ];
+    expect(
+      await CalendarPendingOpsReplayer(
+        database: database,
+        client: client,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 1),
+      ).replayDueOps(),
+      1,
+    );
+    final trimmed =
+        googleEventMutationToJson(client.updatedMutations.single)['recurrence']
+            as List;
+    expect(trimmed.single, contains('BYDAY=MO'));
+    expect(trimmed.single, contains('UNTIL=20260609T055959Z'));
+    expect(
+      googleEventMutationToJson(
+        client.createdMutations.single,
+      )['recurrence'].toString(),
+      contains('BYDAY=TU'),
+    );
+  });
+
+  for (final following in [false, true]) {
+    test(
+      'ordinary cross-day ${following ? 'following' : 'entire-series'} edit agrees with the weekly provider pattern',
+      () async {
+        final repository = CalendarRepository(database: database);
+        final ids = [
+          for (final day in [1, 8, 15])
+            await _insertGoogleOccurrence(repository, day: day),
+        ];
+        final detail = (await repository.loadEventDetail(ids[1]))!;
+        await repository.updateLocalEvent(
+          EventEditorDraft.fromEventDetail(detail).copyWith(
+            start: DateTime.utc(2026, 6, 9, 9),
+            end: DateTime.utc(2026, 6, 9, 10),
+            recurringMutationScope: following
+                ? RecurringEventMutationScope.thisAndFuture
+                : RecurringEventMutationScope.entireSeries,
+          ),
+        );
+        final optimistic = (await repository.loadEventDetail(ids[2]))!;
+        expect(
+          providerDateTimeAsUtcInstant(
+            optimistic.startDateTime,
+            optimistic.startTimeZone,
+          ),
+          DateTime.utc(2026, 6, 16, 9),
+        );
+        if (following) {
+          expect(
+            (await repository.loadEventDetail(ids[0]))!.startDateTime,
+            '2026-06-01T09:00:00.000Z',
+          );
+        }
+        client.remoteEvent = _googleSeriesMaster();
+        client.eventInstances = [
+          for (final day in [1, 8, 15, 22, 29]) _googleSeriesInstance(day: day),
+        ];
+        expect(
+          await CalendarPendingOpsReplayer(
+            database: database,
+            client: client,
+            accountId: 'account',
+            nowUtc: () => DateTime.utc(2026, 6, 8),
+          ).replayDueOps(),
+          1,
+        );
+        final mutation = following
+            ? client.createdMutations.single
+            : client.updatedMutations.single;
+        expect(mutation.recurrence.toString(), contains('BYDAY=TU'));
+      },
     );
   }
 
@@ -3400,8 +3659,13 @@ END:VEVENT
         expect(await replay(8), 1);
         expect(client.remoteEvent!.startDateTime, '2026-06-01T10:00:00.000');
         expect(client.remoteEvent!.endDateTime, '2026-06-01T11:00:00.000');
-        for (final id in ids) {
-          final detail = (await repository.loadEventDetail(id))!;
+        final optimistic =
+            (await database.select(database.calendarEvents).get())
+                .where((row) => row.providerRecurringEventId == 'series-master')
+                .toList();
+        expect(optimistic, hasLength(ids.length));
+        for (final row in optimistic) {
+          final detail = (await repository.loadEventDetail(row.id))!;
           expect(detail.syncStatus, 'pending');
           expect(
             providerDateTimeAsCivilTime(detail.startDateTime, 'UTC')!.hour,
@@ -3711,6 +3975,7 @@ END:VEVENT
     final splitSeriesId = operation.id.replaceAll('-', '').toLowerCase();
     client
       ..remoteEvent = _googleSeriesMaster(location: 'Room 2')
+      ..persistEventUpdates = true
       ..eventInstances = [
         _googleSeriesInstance(day: 1, location: 'Room 2'),
         _googleSeriesInstance(day: 8, location: 'Room 2'),
@@ -6278,7 +6543,28 @@ Future<String> _insertGoogleOccurrence(
   if (await repository.loadEventDetail(masterId) == null) {
     await repository.upsertEvent(
       accountId: 'account',
-      event: _googleSeriesMaster(timeZone: timeZone, location: location),
+      event: _googleSeriesMaster(
+        timeZone: timeZone,
+        location: location,
+        start: providerWallTimeIso8601String(
+          DateTime.utc(
+            providerDateTimeAsCivilTime(start, timeZone)!.year,
+            providerDateTimeAsCivilTime(start, timeZone)!.month,
+            1,
+            providerDateTimeAsCivilTime(start, timeZone)!.hour,
+            providerDateTimeAsCivilTime(start, timeZone)!.minute,
+          ),
+        ),
+        end: providerWallTimeIso8601String(
+          DateTime.utc(
+            providerDateTimeAsCivilTime(end, timeZone)!.year,
+            providerDateTimeAsCivilTime(end, timeZone)!.month,
+            1,
+            providerDateTimeAsCivilTime(end, timeZone)!.hour,
+            providerDateTimeAsCivilTime(end, timeZone)!.minute,
+          ),
+        ),
+      ),
     );
   }
   await repository.upsertEvent(
@@ -6343,7 +6629,16 @@ CalendarEventDto _googleSeriesMaster({
   String updatedAtServer = '2026-05-30T00:00:00.000Z',
   String? location,
 }) {
-  const recurrence = ['RRULE:FREQ=WEEKLY;INTERVAL=1;BYDAY=MO;COUNT=5'];
+  final day = const [
+    'MO',
+    'TU',
+    'WE',
+    'TH',
+    'FR',
+    'SA',
+    'SU',
+  ][providerDateTimeAsCivilTime(start, timeZone)!.weekday - 1];
+  final recurrence = ['RRULE:FREQ=WEEKLY;INTERVAL=1;BYDAY=$day;COUNT=5'];
   return CalendarEventDto(
     provider: BusyProvider.google,
     providerCalendarId: 'cal-1',
@@ -6473,6 +6768,7 @@ String _icalCalendar(String components) =>
 class _FakeCalendarClient
     implements
         CloudCalendarClient,
+        SeriesExceptionClient,
         CompleteRecurringInstanceClient,
         PrivateCalendarImportClient,
         CalendarListManagementClient {
@@ -6677,6 +6973,7 @@ class _FakeCalendarClient
       providerCalendarId: calendarId,
       startDateTime: mutation.startDateTime ?? current?.startDateTime,
       endDateTime: mutation.endDateTime ?? current?.endDateTime,
+      recurrenceJson: mutation.recurrence ?? current?.recurrenceJson,
     );
     if (persistEventUpdates) {
       if (createdIdentity != null) {
@@ -6890,6 +7187,45 @@ class _FakeCalendarClient
         })
         .toList(growable: false);
   }
+
+  @override
+  Future<List<CalendarEventDto>> readSeriesExceptions({
+    required String calendarId,
+    required CalendarEventDto master,
+  }) async => const [];
+
+  @override
+  Future<CalendarEventDto> findSeriesInstance({
+    required String calendarId,
+    required String recurringEventId,
+    required DateTime originalStart,
+    required bool allDay,
+    required String? timeZone,
+  }) async {
+    final start = providerWallTimeToInstant(originalStart, timeZone);
+    final master = remoteEventsById[recurringEventId] ?? remoteEvent;
+    final raw = <String, Object?>{
+      'id': 'resolved-${originalStart.toIso8601String()}',
+      'recurringEventId': recurringEventId,
+      'originalStartTime': {'dateTime': start.toIso8601String()},
+      'summary': master?.title ?? 'Base',
+      if (master?.location != null) 'location': master!.location,
+      'start': {'dateTime': start.toIso8601String(), 'timeZone': timeZone},
+      'end': {
+        'dateTime': start.add(const Duration(hours: 1)).toIso8601String(),
+        'timeZone': timeZone,
+      },
+    };
+    return googleCalendarEventFromJson(calendarId, raw);
+  }
+
+  @override
+  Future<CalendarEventDto> restoreSeriesException({
+    required String calendarId,
+    required CalendarEventDto instance,
+    required CalendarEventDto exception,
+    required CalendarGuestUpdatePolicy guestUpdatePolicy,
+  }) async => throw UnimplementedError();
 
   @override
   Future<List<CalendarEventDto>> listAllEventInstances({

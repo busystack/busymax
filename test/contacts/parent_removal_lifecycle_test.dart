@@ -275,6 +275,52 @@ class LifecycleFixture {
 }
 
 void main() {
+  for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
+    for (final revoked in [false, true]) {
+      test(
+        '$provider contacts retain the authorization classification; revoked=$revoked',
+        () async {
+          final f = LifecycleFixture(provider);
+          addTearDown(f.close);
+          await f.seed(enabled: true);
+          final saved =
+              await f.h.secrets.readCredential(f.id) as BoundOAuthSecretRecord;
+          await f.h.secrets.saveCredential(
+            f.id,
+            saved.withTokens(
+              saved.tokenSet.copyWith(expiresAtUtc: DateTime.utc(2000)),
+            ),
+          );
+          f.h.beforeRequest = (_) async {
+            if (revoked) return http.Response('{"error":"invalid_grant"}', 400);
+            throw http.ClientException('synthetic offline');
+          };
+          final classification = revoked ? 'expiredGrant' : 'network';
+          await expectLater(
+            f.controller.synchronizeAccount(f.contactId),
+            throwsA(
+              isA<ContactsException>().having(
+                (e) => e.code,
+                'safe classification',
+                'oauth:$classification',
+              ),
+            ),
+          );
+          expect(
+            (await f.store.read((tx) => tx.account(f.contactId)))!.errorCode,
+            'oauth:$classification',
+          );
+          expect(
+            (await f.h.secrets.readCredential(
+              f.id,
+            ) as BoundOAuthSecretRecord).subject,
+            saved.subject,
+          );
+        },
+      );
+    }
+  }
+
   test(
     'revoked Google authorization never restores contacts after local rollback',
     () async {
@@ -324,7 +370,7 @@ void main() {
           tenantId: provider == BusyProvider.microsoft ? tenant : null,
           grantedScopes: scopes.join(' '),
         );
-        await f.controller.reconnectContactsAccount(f.contactId);
+        await f.controller.enableLinkedContacts(f.id);
         await f.controller.synchronizeAccount(f.contactId);
         await f.seedUncertainMutations(queued: true);
         await f.h.db.customStatement(

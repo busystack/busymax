@@ -27,7 +27,9 @@ String localizedOAuthFailure(
   OAuthFailureKind? kind,
   String fallback,
 ) => switch (kind) {
-  OAuthFailureKind.registrationUnavailable ||
+  OAuthFailureKind.alreadyConnected => l10n.accountAlreadyConnected,
+  OAuthFailureKind.registrationUnavailable =>
+    l10n.registrationRecoveryDescription,
   OAuthFailureKind.expiredGrant => l10n.accountReconnectRequired,
   OAuthFailureKind.identityUnverified => l10n.googleIdentityUnverified,
   OAuthFailureKind.clientRejected => l10n.oauthRegistrationRejected,
@@ -39,7 +41,8 @@ String localizedOAuthFailure(
   OAuthFailureKind.temporary => l10n.oauthProviderTemporaryFailure,
   OAuthFailureKind.timeout => l10n.oauthAuthorizationTimedOut,
   OAuthFailureKind.wrongAccount => l10n.oauthWrongAccount,
-  OAuthFailureKind.storage => l10n.oauthSecureStorageUnavailable,
+  OAuthFailureKind.storage ||
+  OAuthFailureKind.corruptRecord => l10n.oauthSecureStorageUnavailable,
   _ => fallback,
 };
 

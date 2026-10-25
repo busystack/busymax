@@ -145,7 +145,9 @@ ProjectedIcalEvent _projectOccurrence(
   final categories = component.categories.isEmpty
       ? master.categories
       : component.categories;
-  final alarms = component.alarms.isEmpty ? master.alarms : component.alarms;
+  // Generated instances use the master as their effective component. A
+  // detached or THISANDFUTURE component owns its alarm list, including empty.
+  final alarms = component.alarms;
   final startUtc = _resolvedUtc(occurrence.start, resolver);
   final endUtc = occurrence.end == null
       ? null

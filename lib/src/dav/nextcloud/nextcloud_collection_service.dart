@@ -294,43 +294,77 @@ final nextcloudWritableProperties = <DavPropertyName>{
   DavPropertyName(owncloudNamespace, 'calendar-enabled'),
 };
 
-void _validateChanges(Map<DavPropertyName, String> changes) {
+enum NextcloudCollectionValidation { required, color, order, timezone, value }
+
+final class NextcloudCollectionValidationException extends ArgumentError {
+  NextcloudCollectionValidationException(this.fields)
+    : super('Invalid collection settings');
+  final Map<DavPropertyName, NextcloudCollectionValidation> fields;
+}
+
+Map<DavPropertyName, NextcloudCollectionValidation>
+validateNextcloudCollectionChanges(Map<DavPropertyName, String> changes) {
+  final errors = <DavPropertyName, NextcloudCollectionValidation>{};
   for (final entry in changes.entries) {
-    if (!nextcloudWritableProperties.contains(entry.key) ||
-        entry.value.length > 65536) {
-      throw ArgumentError('Unsupported collection property');
-    }
     final value = entry.value;
-    switch (entry.key.localName) {
-      case 'displayname':
-        if (value.trim().isEmpty) throw ArgumentError('Empty collection name');
-      case 'calendar-color':
-        if (!RegExp(r'^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$').hasMatch(value)) {
-          throw ArgumentError('Invalid collection color');
-        }
-      case 'calendar-order':
-        if (int.tryParse(value) == null) {
-          throw ArgumentError('Invalid collection order');
-        }
-      case 'calendar-enabled':
-        if (value != '0' && value != '1') {
-          throw ArgumentError('Invalid enabled state');
-        }
-      case 'schedule-calendar-transp':
-        if (value != 'opaque' && value != 'transparent') {
-          throw ArgumentError('Invalid transparency');
-        }
-      case 'calendar-timezone':
-        if (value.isNotEmpty) {
-          final document = IcalDocument.parse(value);
-          if (document.root.name != 'VCALENDAR' ||
-              document.root.components.isEmpty ||
-              document.root.components.any((c) => c.name != 'VTIMEZONE')) {
-            throw ArgumentError('Invalid calendar timezone document');
+    NextcloudCollectionValidation? error;
+    if (!nextcloudWritableProperties.contains(entry.key) ||
+        value.length > 65536) {
+      error = NextcloudCollectionValidation.value;
+    } else {
+      switch (entry.key.localName) {
+        case 'displayname':
+          if (value.trim().isEmpty) {
+            error = NextcloudCollectionValidation.required;
           }
-        }
+        case 'calendar-color':
+          if (!RegExp(r'^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$').hasMatch(value)) {
+            error = NextcloudCollectionValidation.color;
+          }
+        case 'calendar-order':
+          if (int.tryParse(value) == null) {
+            error = NextcloudCollectionValidation.order;
+          }
+        case 'calendar-enabled':
+          if (value != '0' && value != '1') {
+            error = NextcloudCollectionValidation.value;
+          }
+        case 'schedule-calendar-transp':
+          if (value != 'opaque' && value != 'transparent') {
+            error = NextcloudCollectionValidation.value;
+          }
+        case 'calendar-timezone':
+          if (value.isNotEmpty) {
+            try {
+              final document = IcalDocument.parse(value);
+              if (document.root.name != 'VCALENDAR' ||
+                  document.root.components.isEmpty ||
+                  document.root.components.any((c) => c.name != 'VTIMEZONE') ||
+                  document.root.components.any(
+                    (c) =>
+                        c
+                            .firstProperty('TZID')
+                            ?.decodedTextValue
+                            .trim()
+                            .isEmpty !=
+                        false,
+                  )) {
+                error = NextcloudCollectionValidation.timezone;
+              }
+            } on Object {
+              error = NextcloudCollectionValidation.timezone;
+            }
+          }
+      }
     }
+    if (error != null) errors[entry.key] = error;
   }
+  return Map.unmodifiable(errors);
+}
+
+void _validateChanges(Map<DavPropertyName, String> changes) {
+  final errors = validateNextcloudCollectionChanges(changes);
+  if (errors.isNotEmpty) throw NextcloudCollectionValidationException(errors);
 }
 
 String _propertyXml(DavPropertyName name, String value) {

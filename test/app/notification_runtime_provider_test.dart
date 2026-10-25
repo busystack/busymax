@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/db/app_database.dart';
+import 'package:busymax/src/platform/common/desktop_services.dart';
 import 'package:drift/drift.dart' hide isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +12,30 @@ import '../support/memory_settings_store.dart';
 import '../support/recording_notification_backend.dart';
 
 void main() {
+  test(
+    'retired startup cannot reopen its database after a delayed zone lookup',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      final backend = RecordingNotificationBackend();
+      final zone = _DelayedZone();
+      final container = ProviderContainer(
+        overrides: [
+          databaseProvider.overrideWithValue(database),
+          initialAppSettingsProvider.overrideWithValue(AppSettings.defaults()),
+          localSettingsStoreProvider.overrideWithValue(MemorySettingsStore()),
+          desktopNotificationBackendProvider.overrideWithValue(backend),
+          localTimeZoneSourceProvider.overrideWithValue(zone),
+        ],
+      );
+      container.read(notificationSchedulerProvider);
+      await zone.started.future;
+      container.dispose();
+      await database.close();
+      zone.result.complete('Etc/UTC');
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(backend.requests, isEmpty);
+    },
+  );
   test(
     'visible Linux actions reach the current scheduler after invalidation',
     () async {
@@ -243,6 +268,18 @@ void main() {
       expect(backend.activeIds, {newId});
     },
   );
+}
+
+class _DelayedZone implements LocalTimeZoneSource {
+  final started = Completer<void>();
+  final result = Completer<String>();
+  @override
+  String? get diagnostic => null;
+  @override
+  Future<String> currentIanaTimeZone() {
+    if (!started.isCompleted) started.complete();
+    return result.future;
+  }
 }
 
 Future<void> _waitUntil(FutureOr<bool> Function() condition) async {

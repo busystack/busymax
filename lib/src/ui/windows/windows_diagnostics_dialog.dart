@@ -15,21 +15,26 @@ import '../../features/sync/sync_auth_error.dart';
 import '../common/busymax_glyph.dart';
 import 'windows_busymax_glyphs.dart';
 
-Future<void> showWindowsDiagnosticsDialog(BuildContext context, WidgetRef ref) {
+Future<void> showWindowsDiagnosticsDialog(
+  BuildContext context,
+  WidgetRef ref, {
+  String? accountId,
+}) {
   return showDialog<void>(
     context: context,
-    builder: (context) => const _WindowsDiagnosticsDialog(),
+    builder: (context) => _WindowsDiagnosticsDialog(accountId: accountId),
   );
 }
 
 class _WindowsDiagnosticsDialog extends ConsumerWidget {
-  const _WindowsDiagnosticsDialog();
+  const _WindowsDiagnosticsDialog({this.accountId});
+  final String? accountId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final methods = implementedGoogleTasksMethods.toList()..sort();
-    final accountId = ref.watch(activeAccountProvider);
+    final accountId = this.accountId ?? ref.watch(activeAccountProvider);
     final settings = ref.watch(appSettingsControllerProvider);
     final timeZone = ref.watch(localTimeZoneProvider);
     final timeZoneDiagnostic = ref

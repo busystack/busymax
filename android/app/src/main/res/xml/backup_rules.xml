@@ -2,5 +2,8 @@
 <full-backup-content>
     <!-- Includes MSAL, GIS bindings and flutter_secure_storage metadata. -->
     <exclude domain="sharedpref" path="." />
+    <!-- Application support (including busymax.sqlite and its sidecars). -->
+    <exclude domain="file" path="." />
+    <exclude domain="database" path="." />
     <exclude domain="root" path="flutter_secure_storage" />
 </full-backup-content>

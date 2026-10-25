@@ -9,6 +9,7 @@ import 'package:busymax/src/android/presentation/android_feedback_screen.dart';
 import 'package:busymax/src/android/presentation/android_schedule_screen.dart';
 import 'package:busymax/src/android/presentation/android_settings_screen.dart';
 import 'package:busymax/src/android/presentation/android_tasks_screen.dart';
+import 'package:busymax/src/android/presentation/android_task_motion.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/calendar_providers/cloud_calendar_client.dart';
 import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
@@ -16,6 +17,8 @@ import 'package:busymax/src/config/build_config.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/dav/storage/dav_object_repository.dart';
 import 'package:busymax/src/dav/mutation/dav_mutation_patch.dart';
+import 'package:busymax/src/dav/mutation/dav_pending_operations.dart';
+import 'package:busymax/src/dav/mutation/dav_conditional_mutation_service.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
 import 'package:busymax/src/features/feedback/data/feedback_api_client.dart';
@@ -26,6 +29,7 @@ import 'package:busymax/src/features/recurrence/domain/recurrence_rule.dart';
 import 'package:busymax/src/features/sync/pending_mutation_sync_requester.dart';
 import 'package:busymax/src/google_calendar/google_calendar_api_client.dart';
 import 'package:busymax/src/google_calendar/google_calendar_models.dart';
+import 'package:busymax/src/l10n/l10n.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_api_client.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_models.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_shared_calendar_address.dart';
@@ -33,6 +37,12 @@ import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_client.dart';
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
+import 'package:busymax/src/features/tasks/domain/task_checklist_item.dart';
+import 'package:busymax/src/features/tasks/domain/task_remote_client.dart';
+import 'package:busymax/src/features/tasks/domain/task_remote_models.dart';
+import 'package:busymax/src/features/sync/pending_ops_replayer.dart';
+import 'package:busymax/src/schedule/schedule_filters.dart';
+import 'package:busymax/src/schedule/schedule_item.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/schedule/schedule_repository.dart';
 import 'package:busymax/src/schedule/schedule_range.dart';
@@ -47,6 +57,7 @@ import 'package:http/testing.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../support/memory_settings_store.dart';
+import '../../support/stateful_task_dav_remote.dart';
 import '../../test_localized_app.dart';
 
 final _longScheduleDetailsNotes = List.generate(
@@ -2074,8 +2085,22 @@ void main() {
     await tester.enterText(find.widgetWithText(TextField, 'Notes'), 'Keep it');
     await tester.pump(const Duration(milliseconds: 1100));
     await tester.pumpAndSettle();
-    final saved = (jsonDecode(secureStorage[key]!) as Map)
-        .cast<String, Object?>();
+    expect(secureStorage, isNot(contains(key)));
+    final saved = secureStorage.entries
+        .where(
+          (entry) => entry.key.startsWith('busymax.android.task-draft.v2.new.'),
+        )
+        .map(
+          (entry) => (jsonDecode(entry.value) as Map).cast<String, Object?>(),
+        )
+        .where(
+          (record) =>
+              record['accountId'] == list.accountId &&
+              record['taskListId'] == list.id,
+        )
+        .single;
+    expect(saved['v'], 2);
+    expect(saved['notes'], 'Keep it');
     final creation = (saved['creationRecurrence']! as Map)
         .cast<String, Object?>();
     final recoveredRule = RecurrenceRule.fromJson(
@@ -2092,6 +2117,3963 @@ void main() {
     expect(saved['reminderTimeZone'], 'America/Vancouver');
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'Android task save locks the submitted draft until persistence finishes',
+    (tester) async {
+      final received = Completer<void>();
+      final release = Completer<void>();
+      late _GatedTaskRepository repository;
+      final harness = await _pumpApp(
+        tester,
+        AppSettings.defaults(),
+        taskRepository: (database, accountId) =>
+            repository = _GatedTaskRepository(
+              database: database,
+              accountId: accountId,
+              received: received,
+              release: release,
+            ),
+      );
+      addTearDown(harness.dispose);
+      await _seedMovableTask(harness.database);
+      await _openMovableTaskEditor(tester, _movableTask());
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Title'),
+        'Submitted title',
+      );
+      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.pump();
+      await received.future;
+      expect(repository.submittedFields, {'title': 'Submitted title'});
+      expect(
+        tester
+            .widget<TextField>(find.widgetWithText(TextField, 'Title'))
+            .enabled,
+        isFalse,
+      );
+      expect(
+        tester
+            .widget<TextField>(find.widgetWithText(TextField, 'Notes'))
+            .enabled,
+        isFalse,
+      );
+      expect(
+        tester
+            .widget<TextButton>(find.widgetWithText(TextButton, 'Save'))
+            .onPressed,
+        isNull,
+      );
+      release.complete();
+      await tester.pumpAndSettle();
+      expect(find.byType(AndroidTaskEditor), findsNothing);
+      final row = await _taskRow(harness.database, 'source-list');
+      expect(row!.title, 'Submitted title');
+      expect(
+        await harness.database.select(harness.database.pendingOps).get(),
+        hasLength(1),
+      );
+    },
+  );
+
+  testWidgets('Android empty task title shows feedback and retains draft', (
+    tester,
+  ) async {
+    final harness = await _pumpApp(tester, AppSettings.defaults());
+    addTearDown(harness.dispose);
+    await _seedMovableTask(harness.database);
+    await _openMovableTaskEditor(tester, _movableTask());
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Notes'),
+      'Retain these notes',
+    );
+    await tester.enterText(find.widgetWithText(TextField, 'Title'), '');
+    await tester.tap(find.widgetWithText(TextButton, 'Save'));
+    await tester.pumpAndSettle();
+    expect(find.text('Correct this value before saving.'), findsOneWidget);
+    expect(find.text('Retain these notes'), findsOneWidget);
+    expect(find.byType(AndroidTaskEditor), findsOneWidget);
+    expect(
+      await harness.database.select(harness.database.pendingOps).get(),
+      isEmpty,
+    );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Title'),
+      'Corrected title',
+    );
+    await tester.tap(find.widgetWithText(TextButton, 'Save'));
+    await tester.pumpAndSettle();
+    expect(find.byType(AndroidTaskEditor), findsNothing);
+    expect(
+      await harness.database.select(harness.database.pendingOps).get(),
+      hasLength(1),
+    );
+  });
+
+  testWidgets(
+    'Android task recovery retains notes after a remote rename and movement',
+    (tester) async {
+      final client = _AndroidRecoveryMoveClient();
+      final harness = await _pumpApp(
+        tester,
+        AppSettings.defaults(),
+        taskRepository: (database, accountId) => TasksRepository(
+          database: database,
+          accountId: accountId,
+          apiClient: client,
+        ),
+      );
+      addTearDown(harness.dispose);
+      await _seedMovableTask(harness.database);
+      await _openMovableTaskEditor(tester, _movableTask());
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Notes'),
+        'Unsaved recovery notes',
+      );
+      await tester.pump(const Duration(milliseconds: 1100));
+      final key = _scopedTaskRecoveryKey(
+        'google:move',
+        'source-list',
+        'move-task',
+      );
+      final stored = secureStorage[key]!;
+      // End the first editor session, then perform the supported repository
+      // move and acknowledge it. A second independently inserted equal-ID
+      // source/destination row does not establish task movement.
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpAndSettle();
+      final repository = harness.container.read(
+        tasksRepositoryForAccountProvider('google:move'),
+      );
+      await repository.moveTask(
+        const TaskMoveInput(
+          sourceTaskListId: 'source-list',
+          destinationTaskListId: 'destination-list',
+          taskId: 'move-task',
+        ),
+      );
+      expect(
+        await PendingOpsReplayer(
+          database: harness.database,
+          apiClient: client,
+          accountId: 'google:move',
+        ).replayDueOps(),
+        1,
+      );
+      expect(await _taskRow(harness.database, 'source-list'), isNull);
+      client.rename('Remote renamed title');
+      await harness.database.tasksDao.upsertTask(
+        taskFromDto(
+          'google:move',
+          'destination-list',
+          await client.getTask(
+            taskListId: 'destination-list',
+            taskId: 'move-task',
+          ),
+          '2026-09-16T00:00:00.000Z',
+        ),
+      );
+      final accounts = await harness.database
+          .select(harness.database.accounts)
+          .get();
+      final lists = await harness.database
+          .select(harness.database.taskLists)
+          .get();
+      final tasks = await harness.database.select(harness.database.tasks).get();
+      expect(
+        TaskEntity.fromRow(tasks.single).previousTaskListIds,
+        contains('source-list'),
+      );
+      await harness.dispose();
+      await tester.pumpAndSettle();
+      secureStorage[key] = stored;
+      final changedHarness = await _pumpApp(
+        tester,
+        AppSettings.defaults(),
+        seedDatabase: (database) async {
+          for (final account in accounts) {
+            await database
+                .into(database.accounts)
+                .insert(account.toCompanion(true));
+          }
+          for (final list in lists) {
+            await database.taskListsDao.upsertTaskList(list.toCompanion(true));
+          }
+          for (final task in tasks) {
+            await database.tasksDao.upsertTask(task.toCompanion(true));
+          }
+        },
+      );
+      addTearDown(changedHarness.dispose);
+      final changedRow = await _taskRow(
+        changedHarness.database,
+        'destination-list',
+      );
+      await _openMovableTaskEditor(tester, TaskEntity.fromRow(changedRow!));
+      expect(find.text('Restore'), findsOneWidget);
+      expect(secureStorage, contains(key));
+      await tester.tap(find.text('Restore'));
+      await tester.pumpAndSettle();
+      expect(find.text('Remote renamed title'), findsOneWidget);
+      expect(find.text('Unsaved recovery notes'), findsOneWidget);
+      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.pumpAndSettle();
+      final saved = await _taskRow(changedHarness.database, 'destination-list');
+      expect(saved!.title, 'Remote renamed title');
+      expect(saved.notes, 'Unsaved recovery notes');
+      expect(secureStorage, isNot(contains(key)));
+      final operation = await changedHarness.database
+          .select(changedHarness.database.pendingOps)
+          .getSingle();
+      expect(operation.taskListId, 'destination-list');
+      expect(jsonDecode(operation.requestJson), {
+        'notes': 'Unsaved recovery notes',
+      });
+      expect(
+        await PendingOpsReplayer(
+          database: changedHarness.database,
+          apiClient: client,
+          accountId: 'google:move',
+        ).replayDueOps(),
+        1,
+      );
+      expect(client.task['title'], 'Remote renamed title');
+      expect(client.task['notes'], 'Unsaved recovery notes');
+      expect(client.mutations, [
+        'move:source-list:destination-list',
+        'patch:destination-list',
+      ]);
+    },
+  );
+
+  testWidgets(
+    'Android task save failure keeps exact fields and permits one retry',
+    (tester) async {
+      final received = Completer<void>();
+      final release = Completer<void>();
+      late _GatedTaskRepository repository;
+      final harness = await _pumpApp(
+        tester,
+        AppSettings.defaults(),
+        taskRepository: (database, accountId) =>
+            repository = _GatedTaskRepository(
+              database: database,
+              accountId: accountId,
+              received: received,
+              release: release,
+              failFirst: true,
+            ),
+      );
+      addTearDown(harness.dispose);
+      await _seedMovableTask(harness.database);
+      await _openMovableTaskEditor(tester, _movableTask());
+      const notes = 'Exact unsaved notes\nSecond line  ';
+      await tester.enterText(find.widgetWithText(TextField, 'Notes'), notes);
+      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.pump();
+      await received.future;
+      release.complete();
+      await tester.pumpAndSettle();
+      expect(find.byType(AndroidTaskEditor), findsOneWidget);
+      expect(
+        tester
+            .widget<TextField>(find.widgetWithText(TextField, 'Notes'))
+            .controller!
+            .text,
+        notes,
+      );
+      expect(
+        tester
+            .widget<TextField>(find.widgetWithText(TextField, 'Notes'))
+            .enabled,
+        isTrue,
+      );
+      expect(find.textContaining('Local persistence failed'), findsOneWidget);
+      expect(
+        await harness.database.select(harness.database.pendingOps).get(),
+        isEmpty,
+      );
+      await tester.pump(const Duration(milliseconds: 1100));
+      final recovered = jsonDecode(
+        secureStorage[_scopedTaskRecoveryKey(
+          'google:move',
+          'source-list',
+          'move-task',
+        )]!,
+      ) as Map;
+      expect(recovered['notes'], notes);
+      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.pumpAndSettle();
+      expect(repository.calls, 2);
+      expect(find.byType(AndroidTaskEditor), findsNothing);
+      expect((await _taskRow(harness.database, 'source-list'))!.notes, notes);
+      expect(
+        await harness.database.select(harness.database.pendingOps).get(),
+        hasLength(1),
+      );
+    },
+  );
+
+  testWidgets(
+    'Android ignores a date picker result after repository submission',
+    (tester) async {
+      final received = Completer<void>();
+      final release = Completer<void>();
+      final harness = await _pumpApp(
+        tester,
+        AppSettings.defaults(),
+        taskRepository: (database, accountId) => _GatedTaskRepository(
+          database: database,
+          accountId: accountId,
+          received: received,
+          release: release,
+        ),
+      );
+      addTearDown(harness.dispose);
+      await _seedMovableTask(harness.database);
+      await _openMovableTaskEditor(tester, _movableTask());
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Title'),
+        'Submitted before picker',
+      );
+      final save = tester
+          .widget<TextButton>(find.widgetWithText(TextButton, 'Save'))
+          .onPressed!;
+      await tester.tap(find.widgetWithText(ListTile, 'Due date'));
+      await tester.pumpAndSettle();
+      expect(find.byType(DatePickerDialog), findsOneWidget);
+      save();
+      await tester.pump();
+      await received.future;
+      await tester.tap(find.text('20').last);
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+      release.complete();
+      await tester.pumpAndSettle();
+      final row = await _taskRow(harness.database, 'source-list');
+      expect(row!.title, 'Submitted before picker');
+      expect(row.dueUtc, isNull);
+      expect(
+        await harness.database.select(harness.database.pendingOps).get(),
+        hasLength(1),
+      );
+    },
+  );
+
+  for (final issue in ['url', 'range', 'modes']) {
+    testWidgets('Android explains invalid task $issue and queues no mutation', (
+      tester,
+    ) async {
+      final harness = await _pumpApp(tester, AppSettings.defaults());
+      addTearDown(harness.dispose);
+      final task = await _seedAndroidEditorTask(
+        harness.database,
+        taskUrl: issue == 'url' ? 'relative/path' : null,
+        due: issue == 'range'
+            ? '2026-08-01T09:00:00'
+            : issue == 'modes'
+            ? '2026-08-02'
+            : null,
+        start: issue == 'range' || issue == 'modes'
+            ? '2026-08-02T09:00:00'
+            : null,
+      );
+      await _openAndroidTaskEditor(tester, task, BusyProvider.nextcloud);
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Notes'),
+        'Retained invalid draft',
+      );
+      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.pumpAndSettle();
+      final expected = switch (issue) {
+        'url' => 'Enter an absolute URL, including its scheme.',
+        'range' => 'Due must not be before start.',
+        _ => 'Set times for both start and due, or make the task all day.',
+      };
+      expect(find.text(expected), findsOneWidget);
+      expect(
+        await harness.database.select(harness.database.pendingOps).get(),
+        isEmpty,
+      );
+      expect(find.byType(AndroidTaskEditor), findsOneWidget);
+    });
+  }
+
+  testWidgets(
+    'hidden unsupported Google fields do not invalidate a task save',
+    (tester) async {
+      final harness = await _pumpApp(tester, AppSettings.defaults());
+      addTearDown(harness.dispose);
+      final task = await _seedAndroidEditorTask(
+        harness.database,
+        provider: BusyProvider.google,
+        taskUrl: 'relative/path',
+        due: '2026-08-01T09:00:00',
+        start: '2026-08-02T09:00:00',
+      );
+      await _openAndroidTaskEditor(tester, task, BusyProvider.google);
+      expect(find.widgetWithText(TextField, 'URL'), findsNothing);
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Title'),
+        'Google allowed change',
+      );
+      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AndroidTaskEditor), findsNothing);
+      final operations = await harness.database
+          .select(harness.database.pendingOps)
+          .get();
+      expect(operations, hasLength(1));
+      expect(jsonDecode(operations.single.requestJson), {
+        'title': 'Google allowed change',
+      });
+    },
+  );
+
+  testWidgets(
+    'Android task advanced recurrence unchanged Save preserves exact timed UNTIL',
+    (tester) async {
+      final harness = await _pumpApp(tester, AppSettings.defaults());
+      addTearDown(harness.dispose);
+      const raw =
+          '{"rules":["FREQ=DAILY;UNTIL=20260812T090000Z"],"dates":[],"excludedDates":[]}';
+      final task = await _seedAndroidEditorTask(
+        harness.database,
+        due: '2026-08-01T09:00:00',
+        recurrence: raw,
+      );
+      await _openAndroidTaskEditor(tester, task, BusyProvider.nextcloud);
+      final recurrence = find.byKey(
+        const ValueKey('android-task-advanced-recurrence'),
+      );
+      await _scrollUntilBuilt(tester, recurrence);
+      await tester.tap(recurrence);
+      await tester.pumpAndSettle();
+      expect(find.text('2026-08-12'), findsOneWidget);
+      await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AndroidTaskEditor), findsNothing);
+      final row = (await harness.database.tasksDao.listTasks(
+        task.accountId,
+        task.taskListId,
+      )).single;
+      expect(row.recurrenceJson, raw);
+      expect(
+        await harness.database.select(harness.database.pendingOps).get(),
+        isEmpty,
+      );
+    },
+  );
+
+  for (final anchor in ['due', 'start', 'date']) {
+    testWidgets(
+      'Android task advanced recurrence UNTIL keeps the $anchor anchor',
+      (tester) async {
+        final harness = await _pumpApp(tester, AppSettings.defaults());
+        addTearDown(harness.dispose);
+        final task = await _seedAndroidEditorTask(
+          harness.database,
+          due: anchor == 'due'
+              ? '2026-08-01T09:00:00'
+              : anchor == 'date'
+              ? '2026-08-01'
+              : null,
+          start: anchor == 'start' ? '2026-08-01T09:00:00' : null,
+          recurrence: '{"rules":["FREQ=DAILY"],"dates":[],"excludedDates":[]}',
+        );
+        await _openAndroidTaskEditor(tester, task, BusyProvider.nextcloud);
+        final recurrence = find.byKey(
+          const ValueKey('android-task-advanced-recurrence'),
+        );
+        await _scrollUntilBuilt(tester, recurrence);
+        await tester.tap(recurrence);
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(const ValueKey('android-task-recurrence-end')),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('On date').last);
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(const ValueKey('android-task-recurrence-until')),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.byTooltip('Switch to input'));
+        await tester.pumpAndSettle();
+        await tester.enterText(find.byType(TextFormField).last, '08/12/2026');
+        await tester.tap(find.text('OK'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(TextButton, 'Save'));
+        await tester.pumpAndSettle();
+        final row = (await harness.database.tasksDao.listTasks(
+          task.accountId,
+          task.taskListId,
+        )).single;
+        final rule = RecurrenceRule.fromJson(
+          row.recurrenceJson,
+          baseDate: DateTime(2026, 8, 1, 9),
+        );
+        expect(
+          rule.untilRaw,
+          anchor == 'date' ? '20260812' : '20260812T090000Z',
+        );
+        expect(
+          await harness.database.select(harness.database.pendingOps).get(),
+          hasLength(1),
+        );
+      },
+    );
+  }
+
+  testWidgets(
+    'Android Clear completed confirms the selected Google list and cancellation queues nothing',
+    (tester) async {
+      final harness = await _pumpApp(tester, AppSettings.defaults());
+      addTearDown(harness.dispose);
+      await _seedMovableTask(harness.database);
+      await (harness.database.update(harness.database.tasks)
+            ..where((row) => row.id.equals('move-task')))
+          .write(const TasksCompanion(status: Value('completed')));
+      await _openAndroidTasksScreen(tester);
+      await tester.tap(find.text('All tasks').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Source list · Move account').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.filter_list));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Clear completed'));
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('Google Tasks will clear or hide'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Source list'), findsWidgets);
+      expect(find.textContaining('Currently completed: 1'), findsOneWidget);
+      expect(
+        await harness.database.select(harness.database.pendingOps).get(),
+        isEmpty,
+      );
+      await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+      await tester.pumpAndSettle();
+      expect(
+        await harness.database.select(harness.database.pendingOps).get(),
+        isEmpty,
+      );
+      await tester.tap(find.byIcon(Icons.filter_list));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Clear completed'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Clear completed'));
+      await tester.pumpAndSettle();
+      final operations = await harness.database
+          .select(harness.database.pendingOps)
+          .get();
+      expect(operations.single.operation, 'clear_completed_tasks');
+      expect(operations.single.taskListId, 'source-list');
+    },
+  );
+
+  testWidgets(
+    'Android Nextcloud Clear completed counts root trees once and warns about descendants',
+    (tester) async {
+      final harness = await _pumpApp(tester, AppSettings.defaults());
+      addTearDown(harness.dispose);
+      final root = await _seedAndroidEditorTask(harness.database);
+      await harness.database
+          .into(harness.database.davCollections)
+          .insert(
+            DavCollectionsCompanion.insert(
+              id: 'android-dav',
+              accountId: root.accountId,
+              hrefKey: '/tasks/',
+              requestUri: 'https://example.test/tasks/',
+              displayName: 'Editor tasks',
+              supportedComponentMask: const Value(2),
+              createdAtUtc: '2026-08-01T00:00:00Z',
+              updatedAtUtc: '2026-08-01T00:00:00Z',
+            ),
+          );
+      await (harness.database.update(
+        harness.database.taskLists,
+      )..where((row) => row.accountId.equals(root.accountId))).write(
+        const TaskListsCompanion(davCollectionId: Value('android-dav')),
+      );
+      await (harness.database.update(
+        harness.database.tasks,
+      )..where((row) => row.accountId.equals(root.accountId))).write(
+        const TasksCompanion(
+          davCollectionId: Value('android-dav'),
+          icalUid: Value('root-uid'),
+          status: Value('completed'),
+          providerStatus: Value('COMPLETED'),
+        ),
+      );
+      for (final id in ['child', 'history-1', 'history-2']) {
+        await harness.database.tasksDao.upsertTask(
+          TasksCompanion.insert(
+            accountId: root.accountId,
+            taskListId: root.taskListId,
+            id: id,
+            title: id,
+            rawJson: '{}',
+            davCollectionId: const Value('android-dav'),
+            icalUid: const Value('child-uid'),
+            parent: Value(root.id),
+            parentUid: const Value('root-uid'),
+            recurrenceIdKey: Value(id == 'child' ? null : id),
+            status: const Value('completed'),
+            createdLocalAtUtc: '2026-08-01T00:00:00Z',
+            updatedLocalAtUtc: '2026-08-01T00:00:00Z',
+          ),
+        );
+      }
+      await _openAndroidTasksScreen(tester);
+      await tester.tap(find.text('All tasks').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Editor tasks · Editor account').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.filter_list));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Clear completed'));
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('Delete 1 closed root task trees'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('descendants will also be deleted'),
+        findsOneWidget,
+      );
+      await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+      await tester.pumpAndSettle();
+      expect(
+        await harness.database.select(harness.database.pendingOps).get(),
+        isEmpty,
+      );
+    },
+  );
+
+  testWidgets(
+    'Android checklist rename keeps an offline draft when remote rename conflicts',
+    (tester) async {
+      final client = _AndroidChecklistClient();
+      final harness = await _pumpApp(
+        tester,
+        AppSettings.defaults(),
+        taskRepository: (database, accountId) => TasksRepository(
+          database: database,
+          accountId: accountId,
+          apiClient: client,
+        ),
+      );
+      addTearDown(harness.dispose);
+      final task = await _seedAndroidChecklistTask(harness.database, client);
+      await _openAndroidTaskEditor(tester, task, BusyProvider.microsoft);
+      await _openChecklistAction(tester, 'Rename');
+      await tester.enterText(
+        find.byKey(const ValueKey('android-checklist-title')),
+        'Cancelled rename',
+      );
+      await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+      await tester.pumpAndSettle();
+      expect(
+        await harness.database.select(harness.database.pendingOps).get(),
+        isEmpty,
+      );
+      await _openChecklistAction(tester, 'Rename');
+      await tester.enterText(
+        find.byKey(const ValueKey('android-checklist-title')),
+        'Offline rename',
+      );
+      await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+      await tester.pumpAndSettle();
+      client.items['step-1']!['displayName'] = 'Remote rename';
+      final applied = await PendingOpsReplayer(
+        database: harness.database,
+        apiClient: client,
+        accountId: task.accountId,
+      ).replayDueOps();
+      await tester.pumpAndSettle();
+      expect(applied, 0);
+      expect(client.mutations, isEmpty);
+      expect(client.items['step-1']!['displayName'], 'Remote rename');
+      final row = (await harness.database.tasksDao.listTasks(
+        task.accountId,
+        task.taskListId,
+      )).single;
+      expect(
+        decodeTaskChecklistItems(row.microsoftChecklistItemsJson).first.title,
+        'Offline rename',
+      );
+      final op =
+          (await harness.database.select(harness.database.pendingOps).get())
+              .single;
+      expect(op.state, 'pending');
+      expect(op.lastErrorCode, 'conflict');
+      expect(DateTime.parse(op.nextAttemptAtUtc!).year, 9999);
+      expect((jsonDecode(op.requestJson) as Map)['body'], {
+        'displayName': 'Offline rename',
+      });
+      expect(client.readPages, greaterThanOrEqualTo(2));
+    },
+  );
+
+  testWidgets(
+    'Android checklist completion merges a remote rename and sibling edits',
+    (tester) async {
+      final client = _AndroidChecklistClient();
+      final harness = await _pumpApp(
+        tester,
+        AppSettings.defaults(),
+        taskRepository: (database, accountId) => TasksRepository(
+          database: database,
+          accountId: accountId,
+          apiClient: client,
+        ),
+      );
+      addTearDown(harness.dispose);
+      final task = await _seedAndroidChecklistTask(harness.database, client);
+      await _openAndroidTaskEditor(tester, task, BusyProvider.microsoft);
+      final step = find.widgetWithText(ListTile, 'Original step');
+      await _scrollUntilBuilt(tester, step);
+      await tester.tap(
+        find.descendant(of: step, matching: find.byType(IconButton)).first,
+      );
+      await tester.pumpAndSettle();
+      client.items['step-1']!['displayName'] = 'Remote rename';
+      client.items['step-2']!['displayName'] = 'Remote sibling';
+      expect(
+        await PendingOpsReplayer(
+          database: harness.database,
+          apiClient: client,
+          accountId: task.accountId,
+        ).replayDueOps(),
+        1,
+      );
+      await tester.pumpAndSettle();
+      expect(client.items['step-1']!['displayName'], 'Remote rename');
+      expect(client.items['step-1']!['isChecked'], isTrue);
+      expect(client.items['step-2']!['displayName'], 'Remote sibling');
+      expect(client.mutations, ['patch:step-1']);
+      expect(
+        await harness.database.select(harness.database.pendingOps).get(),
+        isEmpty,
+      );
+    },
+  );
+
+  testWidgets(
+    'Android checklist deletion confirms and retains the pending delete on remote edit',
+    (tester) async {
+      final client = _AndroidChecklistClient();
+      final harness = await _pumpApp(
+        tester,
+        AppSettings.defaults(),
+        taskRepository: (database, accountId) => TasksRepository(
+          database: database,
+          accountId: accountId,
+          apiClient: client,
+        ),
+      );
+      addTearDown(harness.dispose);
+      final task = await _seedAndroidChecklistTask(harness.database, client);
+      await _openAndroidTaskEditor(tester, task, BusyProvider.microsoft);
+      await _openChecklistAction(tester, 'Delete');
+      await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+      await tester.pumpAndSettle();
+      expect(
+        await harness.database.select(harness.database.pendingOps).get(),
+        isEmpty,
+      );
+      await _openChecklistAction(tester, 'Delete');
+      await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
+      await tester.pumpAndSettle();
+      client.items['step-1']!['displayName'] = 'Remote changed step';
+      expect(
+        await PendingOpsReplayer(
+          database: harness.database,
+          apiClient: client,
+          accountId: task.accountId,
+        ).replayDueOps(),
+        0,
+      );
+      expect(client.mutations, isEmpty);
+      expect(client.items, contains('step-1'));
+      final op =
+          (await harness.database.select(harness.database.pendingOps).get())
+              .single;
+      expect(op.operation, 'delete_task_checklist_item');
+      expect(op.state, 'pending');
+      expect(op.lastErrorCode, 'conflict');
+      expect(DateTime.parse(op.nextAttemptAtUtc!).year, 9999);
+      final row = (await harness.database.tasksDao.listTasks(
+        task.accountId,
+        task.taskListId,
+      )).single;
+      expect(
+        decodeTaskChecklistItems(row.microsoftChecklistItemsJson)
+            .map((item) => item.id),
+        isNot(contains('step-1')),
+      );
+    },
+  );
+
+  testWidgets(
+    'Android task list initial error has localized Retry and recovers',
+    (tester) async {
+      late _AndroidRetryScheduleRepository schedule;
+      final harness = await _pumpApp(
+        tester,
+        AppSettings.defaults(),
+        scheduleRepository: (database) =>
+            schedule = _AndroidRetryScheduleRepository(database)..fail = true,
+      );
+      addTearDown(harness.dispose);
+      await _seedMovableTask(harness.database);
+      await _openAndroidTasksScreen(tester);
+      expect(
+        find.text(
+          'Collections could not be loaded. Cached data is retained; retry synchronization.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('test task query failure'), findsNothing);
+      schedule.fail = false;
+      await tester.tap(find.text('Retry'));
+      await tester.pumpAndSettle();
+      expect(find.text('Original move task'), findsOneWidget);
+      expect(find.text('Retry'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'Android Tasks reconciles an advancing recurring occurrence to its open master',
+    (tester) async {
+      final harness = await _pumpApp(tester, AppSettings.defaults());
+      addTearDown(harness.dispose);
+      final parent = await _seedAndroidDavTree(
+        harness.database,
+        recurringCount: 3,
+      );
+      await _openAndroidTasksScreen(tester);
+      final tile = _androidMutationTile(parent);
+      final staleToggle = tester
+          .widget<IconButton>(
+            find.descendant(of: tile, matching: find.byType(IconButton)).first,
+          )
+          .onPressed!;
+      await tester.tap(
+        find.descendant(of: tile, matching: find.byType(IconButton)).first,
+      );
+      await tester.pumpAndSettle();
+      final rows = await harness.database.tasksDao.listTasks(
+        parent.accountId,
+        parent.taskListId,
+      );
+      final master = rows.singleWhere((row) => row.id == parent.id);
+      expect(master.status, 'needsAction');
+      expect(master.recurrenceJson, contains('COUNT=2'));
+      expect(
+        rows.where(
+          (row) => row.icalUid == parent.icalUid && row.recurrenceIdKey != null,
+        ),
+        hasLength(1),
+      );
+      expect(
+        tester
+            .widget<AndroidTaskTitle>(
+              find.descendant(
+                of: tile,
+                matching: find.byType(AndroidTaskTitle),
+              ),
+            )
+            .completed,
+        isFalse,
+      );
+      expect(
+        tester
+            .widget<AndroidTaskCompletionIcon>(
+              find.descendant(
+                of: tile,
+                matching: find.byType(AndroidTaskCompletionIcon),
+              ),
+            )
+            .completed,
+        isFalse,
+      );
+      final acknowledgedOperations = await harness.database
+          .select(harness.database.pendingOps)
+          .get();
+      staleToggle();
+      await tester.pumpAndSettle();
+      var currentRows = await harness.database.tasksDao.listTasks(
+        parent.accountId,
+        parent.taskListId,
+      );
+      expect(
+        currentRows.singleWhere((row) => row.id == parent.id).dueUtc,
+        master.dueUtc,
+      );
+      expect(
+        currentRows.where(
+          (row) => row.icalUid == parent.icalUid && row.recurrenceIdKey != null,
+        ),
+        hasLength(1),
+      );
+      expect(
+        (await harness.database.select(harness.database.pendingOps).get()).map(
+          (op) => op.mutationPatchJson,
+        ),
+        acknowledgedOperations.map((op) => op.mutationPatchJson),
+      );
+      await tester.tap(
+        find.descendant(of: tile, matching: find.byType(IconButton)).first,
+      );
+      await tester.pumpAndSettle();
+      currentRows = await harness.database.tasksDao.listTasks(
+        parent.accountId,
+        parent.taskListId,
+      );
+      expect(
+        currentRows.singleWhere((row) => row.id == parent.id).recurrenceJson,
+        contains('COUNT=1'),
+      );
+      expect(
+        currentRows.where(
+          (row) => row.icalUid == parent.icalUid && row.recurrenceIdKey != null,
+        ),
+        hasLength(2),
+      );
+      expect(
+        tester
+            .widget<AndroidTaskTitle>(
+              find.descendant(
+                of: tile,
+                matching: find.byType(AndroidTaskTitle),
+              ),
+            )
+            .completed,
+        isFalse,
+      );
+      await tester.tap(
+        find.descendant(of: tile, matching: find.byType(IconButton)).first,
+      );
+      await tester.pumpAndSettle();
+      currentRows = await harness.database.tasksDao.listTasks(
+        parent.accountId,
+        parent.taskListId,
+      );
+      expect(
+        currentRows.singleWhere((row) => row.id == parent.id).status,
+        'completed',
+      );
+      expect(
+        tester
+            .widget<AndroidTaskTitle>(
+              find.descendant(
+                of: tile,
+                matching: find.byType(AndroidTaskTitle),
+              ),
+            )
+            .completed,
+        isTrue,
+      );
+    },
+  );
+
+  testWidgets(
+    'Android Tasks ignores a second activation while an occurrence is persisting',
+    (tester) async {
+      final received = Completer<void>();
+      final release = Completer<void>();
+      late _GatedTaskRepository repository;
+      final harness = await _pumpApp(
+        tester,
+        AppSettings.defaults(),
+        taskRepository: (database, accountId) =>
+            repository = _GatedTaskRepository(
+              database: database,
+              accountId: accountId,
+              received: received,
+              release: release,
+            ),
+      );
+      addTearDown(harness.dispose);
+      final parent = await _seedAndroidDavTree(
+        harness.database,
+        recurringCount: 3,
+      );
+      await _openAndroidTasksScreen(tester);
+      final toggle = find
+          .descendant(
+            of: find.widgetWithText(ListTile, 'Parent'),
+            matching: find.byType(IconButton),
+          )
+          .first;
+      await tester.tap(toggle);
+      await tester.pump();
+      expect(received.isCompleted, isTrue);
+      await tester.tap(toggle);
+      await tester.pump();
+      final callsWhileBlocked = repository.calls;
+      release.complete();
+      await tester.pumpAndSettle();
+      expect(callsWhileBlocked, 1);
+      final rows = await harness.database.tasksDao.listTasks(
+        parent.accountId,
+        parent.taskListId,
+      );
+      expect(
+        rows.singleWhere((row) => row.id == parent.id).recurrenceJson,
+        contains('COUNT=2'),
+      );
+      expect(
+        rows.where(
+          (row) => row.icalUid == parent.icalUid && row.recurrenceIdKey != null,
+        ),
+        hasLength(1),
+      );
+    },
+  );
+
+  testWidgets(
+    'Android recurring editor completion cannot advance an occurrence newer than its draft',
+    (tester) async {
+      final harness = await _pumpApp(tester, AppSettings.defaults());
+      addTearDown(harness.dispose);
+      final parent = await _seedAndroidDavTree(
+        harness.database,
+        recurringCount: 3,
+      );
+      await _openAndroidTaskEditor(tester, parent, BusyProvider.nextcloud);
+      final progress = find.byType(Slider);
+      await _scrollUntilBuilt(tester, progress);
+      tester.widget<Slider>(progress).onChanged!(100);
+      await tester.pump();
+      await harness.container
+          .read(tasksRepositoryForAccountProvider(parent.accountId))
+          .patchTask(
+            parent.taskListId,
+            parent.id,
+            TaskPatchInput.completion(
+              true,
+              observedOccurrenceKey: parent.occurrenceKey,
+            ),
+          );
+      final before = await harness.database.tasksDao.listTasks(
+        parent.accountId,
+        parent.taskListId,
+      );
+      final advanced = before.singleWhere((row) => row.id == parent.id);
+      expect(advanced.recurrenceJson, contains('COUNT=2'));
+      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.pumpAndSettle();
+      final after = await harness.database.tasksDao.listTasks(
+        parent.accountId,
+        parent.taskListId,
+      );
+      expect(
+        after.singleWhere((row) => row.id == parent.id).dueUtc,
+        advanced.dueUtc,
+      );
+      expect(
+        after.singleWhere((row) => row.id == parent.id).recurrenceJson,
+        contains('COUNT=2'),
+      );
+      expect(
+        after.where(
+          (row) => row.icalUid == parent.icalUid && row.recurrenceIdKey != null,
+        ),
+        hasLength(1),
+      );
+      expect(find.byType(AndroidTaskEditor), findsOneWidget);
+      expect(
+        find.text(
+          tester.element(find.byType(AndroidTaskEditor)).l10n.taskDraftConflict,
+        ),
+        findsOneWidget,
+      );
+    },
+  );
+
+  for (final surface in ['editor', 'Tasks', 'Schedule', 'hierarchy']) {
+    testWidgets(
+      'Android stale occurrence conflicts use the selected locale in $surface',
+      (tester) async {
+        tester.view.physicalSize = const Size(1200, 900);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        late TaskEntity parent;
+        late TaskEntity target;
+        final harness = await _pumpApp(
+          tester,
+          AppSettings.defaults().copyWith(
+            localeTag: 'de',
+            androidScheduleViewMode: ScheduleViewMode.agenda,
+          ),
+          seedDatabase: (database) async {
+            parent = await _seedAndroidDavTree(
+              database,
+              recurringCount: 3,
+              recurringChild: surface == 'hierarchy',
+            );
+            target = surface == 'hierarchy'
+                ? TaskEntity.fromRow(
+                    (await database.tasksDao.listTasks(
+                      parent.accountId,
+                      parent.taskListId,
+                    )).singleWhere((row) => row.icalUid == 'child-uid'),
+                  )
+                : parent;
+          },
+        );
+        addTearDown(harness.dispose);
+        final remote = StatefulTaskDavRemote(
+          await harness.database.select(harness.database.davObjects).get(),
+        );
+        if (surface != 'Schedule') await _openAndroidTasksScreen(tester);
+        VoidCallback? staleToggle;
+        if (surface == 'editor' || surface == 'hierarchy') {
+          await tester.tap(_androidMutationTile(parent));
+          await _pumpUntilFound(tester, find.byType(AndroidTaskEditor));
+          if (surface == 'editor') {
+            await _scrollUntilBuilt(tester, find.byType(Slider));
+            tester.widget<Slider>(find.byType(Slider)).onChanged!(100);
+            await tester.pump();
+          } else {
+            final child = find.widgetWithText(ListTile, 'Child');
+            await _scrollUntilBuilt(tester, child);
+            staleToggle = tester
+                .widget<IconButton>(
+                  find
+                      .descendant(of: child, matching: find.byType(IconButton))
+                      .first,
+                )
+                .onPressed!;
+          }
+        } else {
+          final tile = surface == 'Tasks'
+              ? _androidMutationTile(parent)
+              : find.widgetWithText(ListTile, 'Parent');
+          staleToggle = tester
+              .widget<IconButton>(
+                find
+                    .descendant(of: tile, matching: find.byType(IconButton))
+                    .first,
+              )
+              .onPressed!;
+        }
+        final localized = tester.element(find.byType(Scaffold).last).l10n;
+        expect(localized.editTask, isNot('Edit Task'));
+        expect(
+          localized.taskDraftConflict,
+          isNot(
+            'This task changed since you opened it. Your edits are retained. Review the latest task before retrying.',
+          ),
+        );
+        await harness.container
+            .read(tasksRepositoryForAccountProvider(target.accountId))
+            .patchTask(
+              target.taskListId,
+              target.id,
+              TaskPatchInput.completion(
+                true,
+                observedOccurrenceKey: target.occurrenceKey,
+              ),
+            );
+        final summary = await DavPendingOperationsReplayer(
+          database: harness.database,
+          accountId: target.accountId,
+          serviceFactory: ({required account, required collection}) async =>
+              DavConditionalMutationService(remoteClient: remote),
+        ).replayDueOperations();
+        expect(summary.appliedCount, surface == 'hierarchy' ? 1 : 2);
+        expect(summary.conflictCount, 0);
+        expect(
+          await harness.database.select(harness.database.pendingOps).get(),
+          isEmpty,
+        );
+        final before = await harness.database.tasksDao.listTasks(
+          target.accountId,
+          target.taskListId,
+        );
+        final advanced = before.singleWhere((row) => row.id == target.id);
+        expect(advanced.recurrenceJson, contains('COUNT=2'));
+        expect(
+          before.where(
+            (row) =>
+                row.icalUid == target.icalUid && row.recurrenceIdKey != null,
+          ),
+          hasLength(1),
+        );
+        final providerBefore = Map.of(remote.resources);
+        if (surface == 'editor') {
+          await tester.tap(find.widgetWithText(TextButton, localized.save));
+        } else {
+          staleToggle!();
+        }
+        await tester.pumpAndSettle();
+        expect(
+          await harness.database.tasksDao.listTasks(
+            target.accountId,
+            target.taskListId,
+          ),
+          before,
+        );
+        expect(
+          await harness.database.select(harness.database.pendingOps).get(),
+          isEmpty,
+        );
+        expect(remote.resources, providerBefore);
+        if (surface == 'editor') {
+          expect(find.byType(AndroidTaskEditor), findsOneWidget);
+          await _scrollUntilBuilt(tester, find.byType(Slider));
+          expect(tester.widget<Slider>(find.byType(Slider)).value, 100);
+        }
+        expect(
+          find.text(localized.taskDraftConflict),
+          findsOneWidget,
+          reason: find
+              .byType(SnackBar)
+              .evaluate()
+              .map(
+                (element) =>
+                    ((element.widget as SnackBar).content as Text).data,
+              )
+              .join(' | '),
+        );
+        expect(
+          find.text('This task now represents another occurrence.'),
+          findsNothing,
+        );
+      },
+    );
+  }
+
+  for (final scenario in [
+    'stale completion',
+    'stale completion with explicit status',
+    'notes after advancement',
+    'completion without advancement',
+  ]) {
+    testWidgets(
+      'R03 verified DAV move preserves the observed occurrence for $scenario',
+      (tester) async {
+        late _ObservedTaskDraftRepository observedRepository;
+        final harness = await _pumpApp(
+          tester,
+          AppSettings.defaults(),
+          taskRepository: (database, accountId) =>
+              observedRepository = _ObservedTaskDraftRepository(
+                database: database,
+                accountId: accountId,
+              ),
+        );
+        addTearDown(harness.dispose);
+        final advanceBeforeMove = scenario != 'completion without advancement';
+        final notesOnly = scenario == 'notes after advancement';
+        final until = _icalDate(DateTime.now().add(const Duration(days: 9)));
+        final parent = await _seedAndroidDavTree(
+          harness.database,
+          recurringRule: 'FREQ=DAILY;UNTIL=$until',
+          explicitParentStatus: scenario.endsWith('explicit status'),
+        );
+        expect(
+          parent.providerStatus,
+          scenario.endsWith('explicit status') ? 'NEEDS-ACTION' : isNull,
+        );
+        expect(parent.percentComplete ?? 0, 0);
+        await _seedAndroidDavMoveDestination(
+          harness.database,
+          parent.accountId,
+        );
+        final remote = StatefulTaskDavRemote(
+          await harness.database.select(harness.database.davObjects).get(),
+        );
+        final repository = harness.container.read(
+          tasksRepositoryForAccountProvider(parent.accountId),
+        );
+        Future<void> replay(int expected) async {
+          final summary = await DavPendingOperationsReplayer(
+            database: harness.database,
+            accountId: parent.accountId,
+            serviceFactory: ({required account, required collection}) async =>
+                DavConditionalMutationService(remoteClient: remote),
+          ).replayDueOperations();
+          expect(summary.appliedCount, expected);
+          expect(summary.conflictCount, 0);
+          expect(summary.retryCount, 0);
+          expect(
+            await harness.database.select(harness.database.pendingOps).get(),
+            isEmpty,
+          );
+        }
+
+        await _openAndroidTasksScreen(tester);
+        await tester.tap(_androidMutationTile(parent));
+        await _pumpUntilFound(tester, find.byType(AndroidTaskEditor));
+        if (notesOnly) {
+          await tester.enterText(
+            find.widgetWithText(TextField, 'Notes'),
+            'Exact notes for the observed occurrence',
+          );
+        } else {
+          final progress = find.byType(Slider);
+          await _scrollUntilBuilt(tester, progress);
+          tester.widget<Slider>(progress).onChanged!(100);
+          await tester.pump();
+        }
+        await tester.pump(const Duration(milliseconds: 1100));
+        Map<String, Object?> recordFor(String listId) => secureStorage.entries
+            .where(
+              (entry) => entry.key.startsWith('busymax.android.task-draft.'),
+            )
+            .map(
+              (entry) =>
+                  (jsonDecode(entry.value) as Map).cast<String, Object?>(),
+            )
+            .singleWhere(
+              (record) =>
+                  record['accountId'] == parent.accountId &&
+                  record['taskListId'] == listId,
+            );
+        Map<String, Object?> draftValues(Map<String, Object?> record) => {
+          for (final entry in record.entries)
+            if (!const {
+              'savedAt',
+              'taskListId',
+              'taskId',
+              'observedTask',
+              'originalObservedTask',
+            }.contains(entry.key))
+              entry.key: entry.value,
+        };
+        final originalRecovery = recordFor(parent.taskListId);
+        if (advanceBeforeMove) {
+          await repository.patchTask(
+            parent.taskListId,
+            parent.id,
+            TaskPatchInput.completion(
+              true,
+              observedOccurrenceKey: parent.occurrenceKey,
+            ),
+          );
+          await replay(2);
+          expect(remote.puts, 2);
+        }
+        final sourceRows = await harness.database.tasksDao.listTasks(
+          parent.accountId,
+          parent.taskListId,
+        );
+        final beforeMove = sourceRows.singleWhere(
+          (row) => row.icalUid == parent.icalUid && row.recurrenceIdKey == null,
+        );
+        expect(beforeMove.recurrenceJson, contains('FREQ=DAILY;UNTIL=$until'));
+        expect(beforeMove.recurrenceJson, isNot(contains('COUNT')));
+        if (advanceBeforeMove) {
+          expect(beforeMove.dueUtc, isNot(parent.dueUtc));
+          expect(
+            sourceRows.where(
+              (row) =>
+                  row.icalUid == parent.icalUid && row.recurrenceIdKey != null,
+            ),
+            hasLength(1),
+          );
+          if (!scenario.endsWith('explicit status')) {
+            expect(beforeMove.providerStatus, parent.providerStatus);
+            expect(
+              beforeMove.percentComplete ?? 0,
+              parent.percentComplete ?? 0,
+            );
+          }
+        }
+        await repository.moveTask(
+          TaskMoveInput(
+            sourceTaskListId: parent.taskListId,
+            destinationTaskListId: 'dav-task-list-editor-destination',
+            taskId: beforeMove.id,
+          ),
+        );
+        await replay(2);
+        expect(remote.moves, 2);
+        expect(
+          await harness.database.tasksDao.listTasks(
+            parent.accountId,
+            parent.taskListId,
+          ),
+          isEmpty,
+        );
+        final movedRows = await harness.database.tasksDao.listTasks(
+          parent.accountId,
+          'dav-task-list-editor-destination',
+        );
+        final moved = TaskEntity.fromRow(
+          movedRows.singleWhere(
+            (row) =>
+                row.icalUid == parent.icalUid && row.recurrenceIdKey == null,
+          ),
+        );
+        expect(moved.previousTaskListIds, contains(parent.taskListId));
+        expect(moved.matchesIdentity(parent.id), isTrue);
+        expect(moved.id, isNot(parent.id));
+        expect(moved.dueUtc, beforeMove.dueUtc);
+        final remoteBeforeSave = Map.of(remote.resources);
+        await tester.pumpAndSettle();
+        final movedTile = find.descendant(
+          of: find.byType(AndroidTasksScreen, skipOffstage: false).last,
+          matching: _androidMutationTile(moved, skipOffstage: false),
+          skipOffstage: false,
+        );
+        tester.widget<ListTile>(movedTile).onTap!();
+        for (var attempt = 0; attempt < 20; attempt++) {
+          await tester.pump(const Duration(milliseconds: 10));
+          await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+        }
+        await tester.pumpAndSettle();
+        expect(
+          find.byType(AndroidTaskEditor, skipOffstage: false),
+          findsOneWidget,
+        );
+        expect(find.text('Restore'), findsNothing);
+        if (!notesOnly) {
+          await _scrollUntilBuilt(tester, find.byType(Slider));
+          expect(tester.widget<Slider>(find.byType(Slider)).value, 100);
+        }
+        await tester.tap(find.widgetWithText(TextButton, 'Save'));
+        await tester.pumpAndSettle();
+        final afterRows = await harness.database.tasksDao.listTasks(
+          parent.accountId,
+          moved.taskListId,
+        );
+        final afterMaster = afterRows.singleWhere(
+          (row) => row.icalUid == parent.icalUid && row.recurrenceIdKey == null,
+        );
+        final afterHistory = afterRows.where(
+          (row) => row.icalUid == parent.icalUid && row.recurrenceIdKey != null,
+        );
+        if (scenario.startsWith('stale completion')) {
+          expect(afterMaster.dueUtc, moved.dueUtc);
+          expect(afterHistory, hasLength(1));
+          expect(afterMaster.status, 'needsAction');
+          expect(
+            await harness.database.select(harness.database.pendingOps).get(),
+            isEmpty,
+          );
+          expect(remote.resources, remoteBeforeSave);
+          expect(find.byType(AndroidTaskEditor), findsOneWidget);
+          expect(
+            observedRepository.lastError,
+            isA<TaskOccurrenceChangedException>(),
+          );
+          expect(
+            observedRepository.lastInput!.observedOccurrenceKey,
+            parent.occurrenceKey,
+          );
+          final retainedObserved = observedRepository.lastInput!.observedTask!;
+          expect(retainedObserved.id, moved.id);
+          expect(retainedObserved.taskListId, moved.taskListId);
+          expect(retainedObserved.matchesIdentity(parent.id), isTrue);
+          expect(
+            retainedObserved.previousTaskListIds,
+            contains(parent.taskListId),
+          );
+          expect(
+            (jsonDecode(retainedObserved.providerMetadataJson!)
+                as Map)['nativeDue'],
+            (jsonDecode(parent.providerMetadataJson!) as Map)['nativeDue'],
+          );
+          expect(
+            find.text(
+              tester
+                  .element(find.byType(AndroidTaskEditor))
+                  .l10n
+                  .taskDraftConflict,
+            ),
+            findsOneWidget,
+          );
+          await _scrollUntilBuilt(tester, find.byType(Slider));
+          expect(tester.widget<Slider>(find.byType(Slider)).value, 100);
+          await tester.pump(const Duration(milliseconds: 1100));
+          final retainedRecovery = recordFor(moved.taskListId);
+          expect(draftValues(retainedRecovery), draftValues(originalRecovery));
+          expect(retainedRecovery['taskId'], moved.id);
+          final retainedBaseline = TaskEntity.fromDraftBaselineJson(
+            (retainedRecovery['observedTask'] as Map).cast<String, Object?>(),
+          );
+          expect(retainedBaseline.occurrenceKey, parent.occurrenceKey);
+          expect(retainedBaseline.matchesIdentity(parent.id), isTrue);
+          expect(
+            retainedBaseline.previousTaskListIds,
+            contains(parent.taskListId),
+          );
+          expect(
+            secureStorage,
+            isNot(
+              contains(
+                _scopedTaskRecoveryKey(
+                  parent.accountId,
+                  parent.taskListId,
+                  parent.id,
+                ),
+              ),
+            ),
+          );
+        } else {
+          expect(find.byType(AndroidTaskEditor), findsNothing);
+          if (notesOnly) {
+            expect(
+              afterMaster.notes,
+              'Exact notes for the observed occurrence',
+            );
+            expect(afterMaster.dueUtc, moved.dueUtc);
+            expect(afterHistory, hasLength(1));
+            await replay(1);
+          } else {
+            expect(afterMaster.dueUtc, isNot(moved.dueUtc));
+            expect(afterHistory, hasLength(1));
+            await replay(2);
+          }
+          expect(
+            remote.resources.values
+                .singleWhere((value) => value.raw.contains('UID:parent-uid'))
+                .raw,
+            notesOnly
+                ? contains(
+                    'DESCRIPTION:Exact notes for the observed occurrence',
+                  )
+                : contains('RECURRENCE-ID'),
+          );
+          expect(
+            secureStorage.keys.where(
+              (key) => key.startsWith('busymax.android.task-draft.'),
+            ),
+            isEmpty,
+          );
+        }
+      },
+    );
+  }
+
+  for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
+    testWidgets(
+      'Android Schedule ${provider.name} checkbox retains the status-only completion payload',
+      (tester) async {
+        final received = Completer<void>();
+        final release = Completer<void>();
+        late _GatedTaskRepository repository;
+        late TaskEntity task;
+        final harness = await _pumpApp(
+          tester,
+          AppSettings.defaults().copyWith(
+            androidScheduleViewMode: ScheduleViewMode.agenda,
+          ),
+          seedDatabase: (database) async {
+            task = await _seedAndroidEditorTask(database, provider: provider);
+          },
+          taskRepository: (database, accountId) =>
+              repository = _GatedTaskRepository(
+                database: database,
+                accountId: accountId,
+                received: received,
+                release: release,
+              ),
+        );
+        addTearDown(harness.dispose);
+        final tile = find.widgetWithText(ListTile, 'Editable task');
+        await tester.tap(
+          find.descendant(of: tile, matching: find.byType(IconButton)).first,
+        );
+        await tester.pump();
+        expect(received.isCompleted, isTrue);
+        expect(repository.submittedFields, {'status': 'completed'});
+        release.complete();
+        await tester.pumpAndSettle();
+        var ops = await harness.database
+            .select(harness.database.pendingOps)
+            .get();
+        expect(jsonDecode(ops.single.requestJson), {'status': 'completed'});
+        await tester.tap(
+          find.descendant(of: tile, matching: find.byType(IconButton)).first,
+        );
+        await tester.pumpAndSettle();
+        expect(repository.submittedFields, {'status': 'needsAction'});
+        ops = await harness.database.select(harness.database.pendingOps).get();
+        expect(ops.map((op) => jsonDecode(op.requestJson)), [
+          {'status': 'completed'},
+          {'status': 'needsAction'},
+        ]);
+        final row = (await harness.database.tasksDao.listTasks(
+          task.accountId,
+          task.taskListId,
+        )).single;
+        expect(row.status, 'needsAction');
+      },
+    );
+  }
+
+  for (final search in [false, true]) {
+    testWidgets(
+      'Android Schedule ${search ? 'search' : 'agenda'} checkbox completes and reopens a DAV hierarchy',
+      (tester) async {
+        late TaskEntity parent;
+        final harness = await _pumpApp(
+          tester,
+          AppSettings.defaults().copyWith(
+            androidScheduleViewMode: ScheduleViewMode.agenda,
+          ),
+          seedDatabase: (database) async {
+            parent = await _seedAndroidDavTree(database);
+          },
+        );
+        addTearDown(harness.dispose);
+        final remote = StatefulTaskDavRemote(
+          await harness.database.select(harness.database.davObjects).get(),
+        );
+        Future<void> replayAndReload({
+          required bool completed,
+          required int puts,
+        }) async {
+          final pending = await harness.database
+              .select(harness.database.pendingOps)
+              .get();
+          expect(pending, hasLength(2));
+          for (final op in pending) {
+            final candidate = DavMutationPatch.fromJsonString(
+              op.mutationPatchJson!,
+            ).applyTo(op.baselineRawIcs!, nowUtc: DateTime.now().toUtc());
+            expect(
+              candidate,
+              contains(completed ? 'STATUS:COMPLETED' : 'STATUS:NEEDS-ACTION'),
+            );
+            expect(candidate, isNot(contains('STATUS:CANCELLED')));
+          }
+          final summary = await DavPendingOperationsReplayer(
+            database: harness.database,
+            accountId: parent.accountId,
+            serviceFactory: ({required account, required collection}) async =>
+                DavConditionalMutationService(remoteClient: remote),
+          ).replayDueOperations();
+          expect(summary.appliedCount, 2);
+          expect(summary.conflictCount, 0);
+          expect(summary.retryCount, 0);
+          expect(remote.puts, puts);
+          expect(
+            remote.resources.values.map((resource) => resource.raw),
+            everyElement(
+              contains(completed ? 'STATUS:COMPLETED' : 'STATUS:NEEDS-ACTION'),
+            ),
+          );
+          expect(
+            await harness.database.select(harness.database.pendingOps).get(),
+            isEmpty,
+          );
+          final reloaded = await harness.container
+              .read(scheduleRepositoryProvider)
+              .listAllTasks(
+                filters: const ScheduleFilters(
+                  includeCalendarEvents: false,
+                  taskCompletion: ScheduleTaskCompletion.all,
+                  showNoDateTasks: true,
+                ),
+              );
+          expect(reloaded, hasLength(2));
+          expect(
+            reloaded.map((task) => task.completed),
+            everyElement(completed),
+          );
+          await tester.pumpAndSettle();
+        }
+
+        if (search) {
+          await tester.tap(find.byIcon(Icons.search));
+          await tester.pumpAndSettle();
+        }
+        final tile = find.widgetWithText(ListTile, 'Parent');
+        expect(tile, findsOneWidget);
+        await tester.tap(
+          find.descendant(of: tile, matching: find.byType(IconButton)).first,
+        );
+        await tester.pumpAndSettle();
+        var rows = await harness.database.tasksDao.listTasks(
+          parent.accountId,
+          parent.taskListId,
+        );
+        expect(rows.map((row) => row.status), everyElement('completed'));
+        await replayAndReload(completed: true, puts: 2);
+        final childTile = find.widgetWithText(ListTile, 'Child');
+        await tester.tap(
+          find
+              .descendant(of: childTile, matching: find.byType(IconButton))
+              .first,
+        );
+        await tester.pumpAndSettle();
+        rows = await harness.database.tasksDao.listTasks(
+          parent.accountId,
+          parent.taskListId,
+        );
+        expect(rows.map((row) => row.status), everyElement('needsAction'));
+        expect(
+          rows.map((row) => row.providerStatus),
+          isNot(contains('CANCELLED')),
+        );
+        await replayAndReload(completed: false, puts: 4);
+      },
+    );
+  }
+
+  testWidgets(
+    'R03 repeated New task activation keeps the existing creation draft owner',
+    (tester) async {
+      final harness = await _pumpApp(tester, AppSettings.defaults());
+      addTearDown(harness.dispose);
+      await _seedAndroidEditorTask(harness.database);
+      await _openAndroidTasksScreen(tester);
+      final create = tester
+          .widget<FloatingActionButton>(
+            find.byWidgetPredicate(
+              (widget) =>
+                  widget is FloatingActionButton &&
+                  widget.heroTag == 'android-tasks-add',
+            ),
+          )
+          .onPressed!;
+      create();
+      await _pumpUntilFound(tester, find.byType(AndroidTaskEditor));
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Title'),
+        'One exact new task draft',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Notes'),
+        'One exact creation recovery',
+      );
+      await tester.pump(const Duration(milliseconds: 1100));
+      create();
+      await tester.pumpAndSettle();
+      expect(
+        find.byType(AndroidTaskEditor, skipOffstage: false),
+        findsOneWidget,
+      );
+      expect(find.text('Restore'), findsNothing);
+      expect(find.text('One exact new task draft'), findsOneWidget);
+      expect(find.text('One exact creation recovery'), findsOneWidget);
+      expect(
+        await harness.database.select(harness.database.pendingOps).get(),
+        isEmpty,
+      );
+    },
+  );
+
+  testWidgets(
+    'R03 differing creation date intents keep independent draft recovery and cleanup',
+    (tester) async {
+      final harness = await _pumpApp(tester, AppSettings.defaults());
+      addTearDown(harness.dispose);
+      final task = await _seedAndroidEditorTask(harness.database);
+      await _openAndroidTasksScreen(tester);
+      final screen = tester.state<ConsumerState<AndroidTasksScreen>>(
+        find.byType(AndroidTasksScreen),
+      );
+      final list =
+          (await harness.container
+                  .read(taskListsRepositoryForAccountProvider(task.accountId))
+                  .listTaskLists())
+              .single;
+      final create = tester
+          .widget<FloatingActionButton>(
+            find.byWidgetPredicate(
+              (widget) =>
+                  widget is FloatingActionButton &&
+                  widget.heroTag == 'android-tasks-add',
+            ),
+          )
+          .onPressed!;
+      create();
+      await _pumpUntilFound(tester, find.byType(AndroidTaskEditor));
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Title'),
+        'Default request exact draft',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Notes'),
+        'Default request recovery',
+      );
+      await tester.pump(const Duration(milliseconds: 1100));
+      void openDated() => unawaited(
+        showAndroidTaskEditor(
+          screen.context,
+          screen.ref,
+          creationList: list,
+          creationProvider: BusyProvider.nextcloud,
+          initialDue: DateTime(2026, 12, 8, 9),
+        ),
+      );
+      openDated();
+      await tester.pumpAndSettle();
+      expect(
+        find.byType(AndroidTaskEditor, skipOffstage: false),
+        findsNWidgets(2),
+      );
+      expect(find.text('Restore'), findsNothing);
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Title'),
+        'Dated request exact draft',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Notes'),
+        'Dated request recovery',
+      );
+      await tester.pump(const Duration(milliseconds: 1100));
+      openDated();
+      await tester.pumpAndSettle();
+      expect(
+        find.byType(AndroidTaskEditor, skipOffstage: false),
+        findsNWidgets(2),
+      );
+      final notes = secureStorage.entries
+          .where((entry) => entry.key.startsWith('busymax.android.task-draft.'))
+          .map((entry) => (jsonDecode(entry.value) as Map)['notes']);
+      expect(
+        notes,
+        containsAll(['Default request recovery', 'Dated request recovery']),
+      );
+      create();
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(TextButton, 'Cancel'), findsOneWidget);
+      await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+      await tester.pumpAndSettle();
+      expect(find.text('Dated request exact draft'), findsOneWidget);
+      expect(
+        find.byType(AndroidTaskEditor, skipOffstage: false),
+        findsNWidgets(2),
+      );
+      create();
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Discard'));
+      await tester.pumpAndSettle();
+      expect(find.text('Default request exact draft'), findsOneWidget);
+      expect(
+        secureStorage.entries
+            .where(
+              (entry) => entry.key.startsWith('busymax.android.task-draft.'),
+            )
+            .map((entry) => (jsonDecode(entry.value) as Map)['notes']),
+        contains('Default request recovery'),
+      );
+      expect(
+        await harness.database.select(harness.database.pendingOps).get(),
+        isEmpty,
+      );
+    },
+  );
+
+  testWidgets(
+    'Android rapid task row activations share one loading editor and recovery owner',
+    (tester) async {
+      final release = Completer<void>();
+      late _GatedTaskReadRepository repository;
+      final harness = await _pumpApp(
+        tester,
+        AppSettings.defaults(),
+        taskRepository: (database, accountId) =>
+            repository = _GatedTaskReadRepository(
+              database: database,
+              accountId: accountId,
+              release: release,
+            ),
+      );
+      addTearDown(harness.dispose);
+      await _seedMovableTask(harness.database);
+      await _openAndroidTasksScreen(tester);
+      final task = find.widgetWithText(ListTile, 'Original move task');
+      await tester.tap(task);
+      await tester.pump();
+      await tester.tap(task);
+      await tester.pump();
+      release.complete();
+      await _pumpUntilFound(tester, find.byType(AndroidTaskEditor));
+      await tester.pumpAndSettle();
+      expect(
+        find.byType(AndroidTaskEditor, skipOffstage: false),
+        findsOneWidget,
+      );
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Notes'),
+        'Only active owner',
+      );
+      await tester.pump(const Duration(milliseconds: 1100));
+      expect(
+        (jsonDecode(
+          secureStorage[_scopedTaskRecoveryKey(
+            'google:move',
+            'source-list',
+            'move-task',
+          )]!,
+        ) as Map)['notes'],
+        'Only active owner',
+      );
+      expect(repository.reads, 1);
+    },
+  );
+
+  testWidgets(
+    'Android concurrent acknowledged aliases converge on the first task editor reservation',
+    (tester) async {
+      final client = _AndroidTaskIdentityClient();
+      final release = Completer<void>();
+      late _GatedTaskReadRepository repository;
+      final harness = await _pumpApp(
+        tester,
+        AppSettings.defaults(),
+        taskRepository: (database, accountId) =>
+            repository = _GatedTaskReadRepository(
+              database: database,
+              accountId: accountId,
+              release: release,
+              apiClient: client,
+            ),
+      );
+      addTearDown(harness.dispose);
+      await _seedMovableTask(harness.database);
+      final tasks = harness.container.read(
+        tasksRepositoryForAccountProvider('google:move'),
+      );
+      final temporaryId = await tasks.createTask(
+        'source-list',
+        const TaskCreateInput(title: 'Acknowledged owner'),
+      );
+      await _openAndroidTasksScreen(tester);
+      final tile = find.widgetWithText(ListTile, 'Acknowledged owner');
+      final oldOpen = tester.widget<ListTile>(tile).onTap!;
+      client.releaseCreation.complete();
+      expect(
+        await PendingOpsReplayer(
+          database: harness.database,
+          apiClient: client,
+          accountId: 'google:move',
+        ).replayDueOps(),
+        1,
+      );
+      await tester.pumpAndSettle();
+      final acknowledged = (await harness.database.tasksDao.listTasks(
+        'google:move',
+        'source-list',
+      )).singleWhere((row) => row.id == 'server-created-task');
+      expect(
+        TaskEntity.fromRow(acknowledged).matchesIdentity(temporaryId),
+        isTrue,
+      );
+      oldOpen();
+      await tester.pump();
+      await tester.tap(tile);
+      await tester.pump();
+      release.complete();
+      await _pumpUntilFound(tester, find.byType(AndroidTaskEditor));
+      await tester.pumpAndSettle();
+      expect(
+        find.byType(AndroidTaskEditor, skipOffstage: false),
+        findsOneWidget,
+      );
+      expect(repository.reads, 2);
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Notes'),
+        'One verified alias owner',
+      );
+      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.pumpAndSettle();
+      final ops = await harness.database
+          .select(harness.database.pendingOps)
+          .get();
+      expect(ops, hasLength(1));
+      expect(ops.single.taskId, 'server-created-task');
+      expect(ops.single.requestJson, isNot(contains(temporaryId)));
+      await tester.tap(tile);
+      await _pumpUntilFound(tester, find.byType(AndroidTaskEditor));
+      await tester.pumpAndSettle();
+      expect(
+        find.byType(AndroidTaskEditor, skipOffstage: false),
+        findsOneWidget,
+      );
+      expect(find.text('One verified alias owner'), findsOneWidget);
+      expect(find.text('Restore'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'Android top-level reopening a hidden parent preserves the child dirty guard',
+    (tester) async {
+      final harness = await _pumpApp(tester, AppSettings.defaults());
+      addTearDown(harness.dispose);
+      await _seedAndroidDavTree(harness.database);
+      await _openAndroidTasksScreen(tester);
+      final parent = find.widgetWithText(ListTile, 'Parent');
+      final reopenParent = tester.widget<ListTile>(parent).onTap!;
+      await tester.tap(parent);
+      await _pumpUntilFound(tester, find.byType(AndroidTaskEditor));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Notes'),
+        'Parent retained',
+      );
+      final child = find.widgetWithText(ListTile, 'Child');
+      await _scrollUntilBuilt(tester, child);
+      await tester.tap(child);
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Notes'),
+        'Child retained',
+      );
+      reopenParent();
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+      await tester.pumpAndSettle();
+      expect(find.text('Child retained'), findsOneWidget);
+      expect(
+        find.byType(AndroidTaskEditor, skipOffstage: false),
+        findsNWidgets(2),
+      );
+      reopenParent();
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Discard'));
+      await tester.pumpAndSettle();
+      expect(
+        find.byType(AndroidTaskEditor, skipOffstage: false),
+        findsOneWidget,
+      );
+      await tester.drag(find.byType(ListView).last, const Offset(0, 5000));
+      await tester.pumpAndSettle();
+      expect(find.text('Parent retained'), findsOneWidget);
+      expect(find.text('Restore'), findsNothing);
+      expect(
+        await harness.database.select(harness.database.pendingOps).get(),
+        isEmpty,
+      );
+    },
+  );
+
+  testWidgets(
+    'R03 a verified moved task reuses its mounted draft owner and cleans only its migrated recovery',
+    (tester) async {
+      final client = _AndroidRecoveryMoveClient();
+      final harness = await _pumpApp(
+        tester,
+        AppSettings.defaults(),
+        taskRepository: (database, accountId) => TasksRepository(
+          database: database,
+          accountId: accountId,
+          apiClient: client,
+        ),
+      );
+      addTearDown(harness.dispose);
+      await _seedMovableTask(harness.database);
+      await _openAndroidTasksScreen(tester);
+      await tester.tap(find.widgetWithText(ListTile, 'Original move task'));
+      await _pumpUntilFound(tester, find.byType(AndroidTaskEditor));
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Notes'),
+        'Exact mounted draft through movement',
+      );
+      await tester.pump(const Duration(milliseconds: 1100));
+      final sourceKey = _scopedTaskRecoveryKey(
+        'google:move',
+        'source-list',
+        'move-task',
+      );
+      expect(secureStorage, contains(sourceKey));
+      await harness.container
+          .read(tasksRepositoryForAccountProvider('google:move'))
+          .moveTask(
+            const TaskMoveInput(
+              sourceTaskListId: 'source-list',
+              destinationTaskListId: 'destination-list',
+              taskId: 'move-task',
+            ),
+          );
+      expect(
+        await PendingOpsReplayer(
+          database: harness.database,
+          apiClient: client,
+          accountId: 'google:move',
+        ).replayDueOps(),
+        1,
+      );
+      expect(await _taskRow(harness.database, 'source-list'), isNull);
+      await tester.pumpAndSettle();
+      final movedRow = find.descendant(
+        of: find.byType(AndroidTasksScreen, skipOffstage: false).last,
+        matching: find.widgetWithText(
+          ListTile,
+          'Original move task',
+          skipOffstage: false,
+        ),
+        skipOffstage: false,
+      );
+      final reopen = tester.widget<ListTile>(movedRow).onTap!;
+      reopen();
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 10));
+        await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      }
+      await tester.pumpAndSettle();
+      expect(
+        find.byType(AndroidTaskEditor, skipOffstage: false),
+        findsOneWidget,
+      );
+      expect(find.text('Restore'), findsNothing);
+      expect(find.text('Exact mounted draft through movement'), findsOneWidget);
+      expect(find.widgetWithText(ListTile, 'Destination list'), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 1100));
+      final destinationKey = _scopedTaskRecoveryKey(
+        'google:move',
+        'destination-list',
+        'move-task',
+      );
+      expect(secureStorage, isNot(contains(sourceKey)));
+      expect(
+        (jsonDecode(secureStorage[destinationKey]!) as Map)['notes'],
+        'Exact mounted draft through movement',
+      );
+      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.pumpAndSettle();
+      final operation = await harness.database
+          .select(harness.database.pendingOps)
+          .getSingle();
+      expect(operation.taskListId, 'destination-list');
+      expect(jsonDecode(operation.requestJson), {
+        'notes': 'Exact mounted draft through movement',
+      });
+      await tester.pump(const Duration(milliseconds: 2200));
+      expect(secureStorage, isNot(contains(sourceKey)));
+      expect(secureStorage, isNot(contains(destinationKey)));
+    },
+  );
+
+  for (final differentAccount in [false, true]) {
+    testWidgets(
+      'Android identified editor reservations keep equal IDs in different ${differentAccount ? 'accounts' : 'lists'} independent',
+      (tester) async {
+        final harness = await _pumpApp(tester, AppSettings.defaults());
+        addTearDown(harness.dispose);
+        await _seedMovableTask(harness.database);
+        final otherAccount = differentAccount
+            ? 'google:other-owner'
+            : 'google:move';
+        final otherList = differentAccount
+            ? 'source-list'
+            : 'other-destination-list';
+        if (differentAccount) {
+          await harness.database
+              .into(harness.database.accounts)
+              .insert(
+                AccountsCompanion.insert(
+                  id: otherAccount,
+                  provider: 'google',
+                  authority: 'https://accounts.google.com',
+                  providerAccountId: 'other-owner',
+                  credentialKind: 'oauth',
+                  authState: const Value('signed_in'),
+                  displayName: const Value('Other account'),
+                  createdAtUtc: '2026-08-01T00:00:00Z',
+                  updatedAtUtc: '2026-08-01T00:00:00Z',
+                ),
+              );
+          await harness.database.taskListsDao.upsertTaskList(
+            TaskListsCompanion.insert(
+              accountId: otherAccount,
+              id: otherList,
+              title: 'Other owner list',
+              rawJson: '{}',
+              createdLocalAtUtc: '2026-08-01T00:00:00Z',
+              updatedLocalAtUtc: '2026-08-01T00:00:00Z',
+            ),
+          );
+        }
+        await harness.database.tasksDao.upsertTask(
+          TasksCompanion.insert(
+            accountId: otherAccount,
+            taskListId: otherList,
+            id: 'move-task',
+            title: 'Independent task',
+            rawJson: '{}',
+            createdLocalAtUtc: '2026-08-01T00:00:00Z',
+            updatedLocalAtUtc: '2026-08-01T00:00:00Z',
+          ),
+        );
+        await _openAndroidTasksScreen(tester);
+        final openOther = tester
+            .widget<ListTile>(find.widgetWithText(ListTile, 'Independent task'))
+            .onTap!;
+        await tester.tap(find.widgetWithText(ListTile, 'Original move task'));
+        await _pumpUntilFound(tester, find.byType(AndroidTaskEditor));
+        await tester.pumpAndSettle();
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Notes'),
+          'First account draft',
+        );
+        await tester.pump(const Duration(milliseconds: 1100));
+        openOther();
+        await _pumpUntilFound(tester, find.text('Independent task'));
+        await tester.pumpAndSettle();
+        final unexpectedRecovery = find.text('Restore').evaluate().isNotEmpty;
+        if (unexpectedRecovery) {
+          // Continue through the currently incorrect cross-scope prompt so the
+          // regression also exercises the later writer and cleanup outcomes.
+          await tester.tap(find.widgetWithText(TextButton, 'Discard'));
+          await tester.pumpAndSettle();
+        }
+        expect(
+          find.byType(AndroidTaskEditor, skipOffstage: false),
+          findsNWidgets(2),
+        );
+        expect(
+          tester
+              .widget<TextField>(find.widgetWithText(TextField, 'Title'))
+              .controller!
+              .text,
+          'Independent task',
+        );
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Notes'),
+          'Other account draft',
+        );
+        await tester.pump(const Duration(milliseconds: 1100));
+        final beforeCleanup = Map<String, String>.of(secureStorage);
+        await tester.tap(find.byTooltip('Close'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(FilledButton, 'Discard'));
+        await tester.pumpAndSettle();
+        final afterCleanup = Map<String, String>.of(secureStorage);
+        List<Map> records(Map<String, String> source) => [
+          for (final entry in source.entries)
+            if (entry.key.startsWith('busymax.android.task-draft.') &&
+                jsonDecode(entry.value) is Map)
+              jsonDecode(entry.value) as Map,
+        ];
+        final firstBefore = records(beforeCleanup).where(
+          (record) =>
+              record['accountId'] == 'google:move' &&
+              record['taskListId'] == 'source-list',
+        );
+        final secondBefore = records(beforeCleanup).where(
+          (record) =>
+              record['accountId'] == otherAccount &&
+              record['taskListId'] == otherList,
+        );
+        expect(
+          firstBefore.map((record) => record['notes']),
+          contains('First account draft'),
+        );
+        expect(
+          secondBefore.map((record) => record['notes']),
+          contains('Other account draft'),
+        );
+        expect(
+          records(afterCleanup)
+              .where(
+                (record) =>
+                    record['accountId'] == 'google:move' &&
+                    record['taskListId'] == 'source-list',
+              )
+              .map((record) => record['notes']),
+          contains('First account draft'),
+        );
+        expect(
+          records(afterCleanup).where(
+            (record) =>
+                record['accountId'] == otherAccount &&
+                record['taskListId'] == otherList,
+          ),
+          isEmpty,
+        );
+        expect(unexpectedRecovery, isFalse);
+        expect(
+          find.byType(AndroidTaskEditor, skipOffstage: false),
+          findsOneWidget,
+        );
+        expect(
+          tester
+              .widget<TextField>(find.widgetWithText(TextField, 'Title'))
+              .controller!
+              .text,
+          'Original move task',
+        );
+        expect(
+          await harness.database.select(harness.database.pendingOps).get(),
+          isEmpty,
+        );
+      },
+    );
+  }
+
+  testWidgets(
+    'R03 a foreign current-v2 canonical record survives another list save failure and discard',
+    (tester) async {
+      final received = Completer<void>();
+      final release = Completer<void>()..complete();
+      final harness = await _pumpApp(
+        tester,
+        AppSettings.defaults(),
+        taskRepository: (database, accountId) => _GatedTaskRepository(
+          database: database,
+          accountId: accountId,
+          received: received,
+          release: release,
+          failFirst: true,
+        ),
+      );
+      addTearDown(harness.dispose);
+      await _seedMovableTask(harness.database);
+      final source = TaskEntity.fromRow(
+        (await _taskRow(harness.database, 'source-list'))!,
+      );
+      const canonicalKey = 'busymax.android.task-draft.google:move.move-task';
+      final canonicalRecord = jsonEncode({
+        'v': 2,
+        'savedAt': DateTime.now().toIso8601String(),
+        'accountId': source.accountId,
+        'taskListId': source.taskListId,
+        'taskId': source.id,
+        'baseTitle': source.title,
+        'title': source.title,
+        'notes': 'Foreign canonical exact notes',
+        'observedTask': source.toDraftBaselineJson(),
+      });
+      secureStorage[canonicalKey] = canonicalRecord;
+      await harness.database.tasksDao.upsertTask(
+        TasksCompanion.insert(
+          accountId: 'google:move',
+          taskListId: 'other-destination-list',
+          id: 'move-task',
+          title: 'Independent task',
+          rawJson: '{}',
+          createdLocalAtUtc: '2026-08-01T00:00:00Z',
+          updatedLocalAtUtc: '2026-08-01T00:00:00Z',
+        ),
+      );
+      await _openAndroidTasksScreen(tester);
+      await tester.tap(find.widgetWithText(ListTile, 'Independent task'));
+      await _pumpUntilFound(tester, find.byType(AndroidTaskEditor));
+      expect(find.text('Restore'), findsNothing);
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Notes'),
+        'Other scoped exact notes',
+      );
+      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.pumpAndSettle();
+      expect(received.isCompleted, isTrue);
+      expect(find.textContaining('Local persistence failed'), findsOneWidget);
+      expect(secureStorage[canonicalKey], canonicalRecord);
+      expect(
+        tester
+            .widget<TextField>(find.widgetWithText(TextField, 'Notes'))
+            .controller!
+            .text,
+        'Other scoped exact notes',
+      );
+      await tester.pump(const Duration(milliseconds: 1100));
+      await tester.tap(find.byTooltip('Close'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Discard'));
+      await tester.pumpAndSettle();
+      expect(secureStorage[canonicalKey], canonicalRecord);
+      expect(
+        secureStorage,
+        isNot(
+          contains(
+            _scopedTaskRecoveryKey(
+              'google:move',
+              'other-destination-list',
+              'move-task',
+            ),
+          ),
+        ),
+      );
+      expect(
+        await harness.database.select(harness.database.pendingOps).get(),
+        isEmpty,
+      );
+      await tester.tap(find.widgetWithText(ListTile, 'Original move task'));
+      await _pumpUntilFound(tester, find.text('Restore'));
+      await tester.tap(find.text('Restore'));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<TextField>(find.widgetWithText(TextField, 'Notes'))
+            .controller!
+            .text,
+        'Foreign canonical exact notes',
+      );
+    },
+  );
+
+  testWidgets(
+    'R03 equal IDs in different live lists restore their own exact drafts after restart',
+    (tester) async {
+      Future<void> seed(AppDatabase database) async {
+        await _seedMovableTask(database);
+        await database.tasksDao.upsertTask(
+          TasksCompanion.insert(
+            accountId: 'google:move',
+            taskListId: 'other-destination-list',
+            id: 'move-task',
+            title: 'Independent task',
+            rawJson: '{}',
+            createdLocalAtUtc: '2026-08-01T00:00:00Z',
+            updatedLocalAtUtc: '2026-08-01T00:00:00Z',
+          ),
+        );
+      }
+
+      final harness = await _pumpApp(
+        tester,
+        AppSettings.defaults(),
+        seedDatabase: seed,
+      );
+      addTearDown(harness.dispose);
+      await _openAndroidTasksScreen(tester);
+      final openOther = tester
+          .widget<ListTile>(find.widgetWithText(ListTile, 'Independent task'))
+          .onTap!;
+      await tester.tap(find.widgetWithText(ListTile, 'Original move task'));
+      await _pumpUntilFound(tester, find.byType(AndroidTaskEditor));
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Notes'),
+        'First scope durable exact notes',
+      );
+      await tester.pump(const Duration(milliseconds: 1100));
+      openOther();
+      await _pumpUntilFound(tester, find.text('Independent task'));
+      await tester.pumpAndSettle();
+      expect(find.text('Restore'), findsNothing);
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Notes'),
+        'Second scope durable exact notes',
+      );
+      await tester.pump(const Duration(milliseconds: 1100));
+      expect(
+        (jsonDecode(
+          secureStorage[_scopedTaskRecoveryKey(
+            'google:move',
+            'source-list',
+            'move-task',
+          )]!,
+        ) as Map)['notes'],
+        'First scope durable exact notes',
+      );
+      expect(
+        (jsonDecode(
+          secureStorage[_scopedTaskRecoveryKey(
+            'google:move',
+            'other-destination-list',
+            'move-task',
+          )]!,
+        ) as Map)['notes'],
+        'Second scope durable exact notes',
+      );
+      expect(
+        await harness.database.select(harness.database.pendingOps).get(),
+        isEmpty,
+      );
+      await harness.dispose();
+      final restarted = await _pumpApp(
+        tester,
+        AppSettings.defaults(),
+        seedDatabase: seed,
+      );
+      addTearDown(restarted.dispose);
+      await _openAndroidTasksScreen(tester);
+      await tester.tap(find.widgetWithText(ListTile, 'Original move task'));
+      await _pumpUntilFound(tester, find.text('Restore'));
+      await tester.tap(find.text('Restore'));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<TextField>(find.widgetWithText(TextField, 'Notes'))
+            .controller!
+            .text,
+        'First scope durable exact notes',
+      );
+      expect(find.text('Second scope durable exact notes'), findsNothing);
+      await tester.tap(find.byTooltip('Close'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Discard'));
+      await tester.pumpAndSettle();
+      final otherKey = _scopedTaskRecoveryKey(
+        'google:move',
+        'other-destination-list',
+        'move-task',
+      );
+      expect(
+        (jsonDecode(secureStorage[otherKey]!) as Map)['notes'],
+        'Second scope durable exact notes',
+      );
+      await tester.tap(find.widgetWithText(ListTile, 'Independent task'));
+      await _pumpUntilFound(tester, find.text('Restore'));
+      await tester.tap(find.text('Restore'));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<TextField>(find.widgetWithText(TextField, 'Notes'))
+            .controller!
+            .text,
+        'Second scope durable exact notes',
+      );
+      expect(find.text('First scope durable exact notes'), findsNothing);
+      expect(
+        await restarted.database.select(restarted.database.pendingOps).get(),
+        isEmpty,
+      );
+    },
+  );
+
+  testWidgets(
+    'R03 late top-level child opening reuses the hierarchy editor after its completed list read',
+    (tester) async {
+      late _GatedCompletedTaskListReadRepository lists;
+      final harness = await _pumpApp(
+        tester,
+        AppSettings.defaults(),
+        taskListsRepository: (database, accountId) =>
+            lists = _GatedCompletedTaskListReadRepository(
+              database: database,
+              accountId: accountId,
+            ),
+      );
+      addTearDown(harness.dispose);
+      await _seedAndroidDavTree(harness.database);
+      await _openAndroidTasksScreen(tester);
+      final openChild = tester
+          .widget<ListTile>(find.widgetWithText(ListTile, 'Child'))
+          .onTap!;
+      await tester.tap(find.widgetWithText(ListTile, 'Parent'));
+      await _pumpUntilFound(tester, find.byType(AndroidTaskEditor));
+      await tester.pumpAndSettle();
+      lists.arm = true;
+      addTearDown(() {
+        if (!lists.release.isCompleted) lists.release.complete();
+      });
+      openChild();
+      for (var i = 0; i < 100 && !lists.entered.isCompleted; i++) {
+        await tester.pump(const Duration(milliseconds: 20));
+        await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      }
+      expect(lists.entered.isCompleted, isTrue);
+      final childLink = find.widgetWithText(ListTile, 'Child');
+      await _scrollUntilBuilt(tester, childLink);
+      await tester.tap(childLink);
+      await tester.pumpAndSettle();
+      expect(
+        find.byType(AndroidTaskEditor, skipOffstage: false),
+        findsNWidgets(2),
+      );
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Notes'),
+        'Hierarchy child exact draft',
+      );
+      await tester.pump(const Duration(milliseconds: 1100));
+      lists.release.complete();
+      await tester.pumpAndSettle();
+      expect(
+        find.byType(AndroidTaskEditor, skipOffstage: false),
+        findsNWidgets(2),
+      );
+      expect(find.text('Restore'), findsNothing);
+      expect(
+        tester
+            .widget<TextField>(find.widgetWithText(TextField, 'Notes'))
+            .controller!
+            .text,
+        'Hierarchy child exact draft',
+      );
+      expect(
+        await harness.database.select(harness.database.pendingOps).get(),
+        isEmpty,
+      );
+    },
+  );
+
+  testWidgets(
+    'Android hierarchy returns to the existing parent draft instead of creating another recovery owner',
+    (tester) async {
+      final harness = await _pumpApp(tester, AppSettings.defaults());
+      addTearDown(harness.dispose);
+      final parent = await _seedAndroidDavTree(harness.database);
+      await _openAndroidTaskEditor(tester, parent, BusyProvider.nextcloud);
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Notes'),
+        'Parent L1',
+      );
+      await tester.pump(const Duration(milliseconds: 1100));
+      final child = find.widgetWithText(ListTile, 'Child');
+      await _scrollUntilBuilt(tester, child);
+      await tester.tap(child);
+      await tester.pumpAndSettle();
+      final parentLink = find.byWidgetPredicate(
+        (widget) =>
+            widget is ListTile &&
+            widget.title is Text &&
+            (widget.title! as Text).data == 'Parent',
+      );
+      await _scrollUntilBuilt(tester, parentLink);
+      await tester.tap(parentLink);
+      await tester.pumpAndSettle();
+      expect(find.text('Restore'), findsNothing);
+      expect(
+        find.byType(AndroidTaskEditor, skipOffstage: false),
+        findsOneWidget,
+      );
+      await tester.drag(find.byType(ListView).last, const Offset(0, 5000));
+      await tester.pumpAndSettle();
+      expect(find.text('Parent L1'), findsOneWidget);
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Notes'),
+        'Parent L2',
+      );
+      await tester.pump(const Duration(milliseconds: 2200));
+      final key = _scopedTaskRecoveryKey(
+        parent.accountId,
+        parent.taskListId,
+        parent.id,
+      );
+      expect((jsonDecode(secureStorage[key]!) as Map)['notes'], 'Parent L2');
+      final route = ModalRoute.of(
+        tester.element(find.byType(AndroidTaskEditor)),
+      )!;
+      tester
+          .state<NavigatorState>(find.byType(Navigator).first)
+          .removeRoute(route);
+      await tester.pumpAndSettle();
+      await _openAndroidTaskEditor(tester, parent, BusyProvider.nextcloud);
+      await tester.tap(find.text('Restore'));
+      await tester.pumpAndSettle();
+      expect(find.text('Parent L2'), findsOneWidget);
+      expect(
+        await harness.database.select(harness.database.pendingOps).get(),
+        isEmpty,
+      );
+    },
+  );
+
+  for (final save in [false, true]) {
+    testWidgets(
+      'Android hierarchy sole recovery owner drains an old write before ${save ? 'Save' : 'Discard'} cleanup',
+      (tester) async {
+        final oldWrite = Completer<void>();
+        final releaseOldWrite = Completer<void>();
+        addTearDown(() {
+          if (!releaseOldWrite.isCompleted) releaseOldWrite.complete();
+        });
+        final harness = await _pumpApp(tester, AppSettings.defaults());
+        addTearDown(harness.dispose);
+        final parent = await _seedAndroidDavTree(harness.database);
+        final key = _scopedTaskRecoveryKey(
+          parent.accountId,
+          parent.taskListId,
+          parent.id,
+        );
+        final writes = <String>[];
+        messenger.setMockMethodCallHandler(secureStorageChannel, (call) async {
+          final args = (call.arguments as Map?)?.cast<String, Object?>() ?? {};
+          final storageKey = args['key']?.toString();
+          if (call.method == 'read') return secureStorage[storageKey];
+          if (call.method == 'delete') {
+            secureStorage.remove(storageKey);
+          } else if (call.method == 'write') {
+            final raw = args['value']!.toString();
+            if (storageKey == key) {
+              final notes = (jsonDecode(raw) as Map)['notes']!.toString();
+              writes.add(notes);
+              if (notes == 'Parent L1' && !oldWrite.isCompleted) {
+                oldWrite.complete();
+                await releaseOldWrite.future;
+              }
+            }
+            secureStorage[storageKey!] = raw;
+          }
+          return null;
+        });
+        await _openAndroidTaskEditor(tester, parent, BusyProvider.nextcloud);
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Notes'),
+          'Parent L1',
+        );
+        await tester.pump(const Duration(milliseconds: 1100));
+        expect(oldWrite.isCompleted, isTrue);
+        final child = find.widgetWithText(ListTile, 'Child');
+        await _scrollUntilBuilt(tester, child);
+        await tester.tap(child);
+        await tester.pumpAndSettle();
+        final parentLink = find.byWidgetPredicate(
+          (widget) =>
+              widget is ListTile &&
+              widget.title is Text &&
+              (widget.title! as Text).data == 'Parent',
+        );
+        await _scrollUntilBuilt(tester, parentLink);
+        await tester.tap(parentLink);
+        await tester.pumpAndSettle();
+        expect(
+          find.byType(AndroidTaskEditor, skipOffstage: false),
+          findsOneWidget,
+        );
+        await tester.drag(find.byType(ListView).last, const Offset(0, 5000));
+        await tester.pumpAndSettle();
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Notes'),
+          'Parent L2',
+        );
+        await tester.pump(const Duration(milliseconds: 1100));
+        expect(writes, ['Parent L1']);
+        if (save) {
+          await tester.tap(find.widgetWithText(TextButton, 'Save'));
+          await tester.pump(const Duration(milliseconds: 100));
+        } else {
+          await tester.tap(find.byTooltip('Close'));
+          await tester.pumpAndSettle();
+          await tester.tap(find.widgetWithText(FilledButton, 'Discard'));
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        releaseOldWrite.complete();
+        await tester.pumpAndSettle();
+        await tester.pump(const Duration(seconds: 3));
+        expect(
+          find.byType(SnackBar),
+          findsNothing,
+          reason: find
+              .byType(SnackBar)
+              .evaluate()
+              .map((element) => (element.widget as SnackBar).content.toString())
+              .join(', '),
+        );
+        expect(secureStorage, isNot(contains(key)));
+        expect(find.byType(AndroidTaskEditor), findsNothing);
+        final rows = await harness.database.tasksDao.listTasks(
+          parent.accountId,
+          parent.taskListId,
+        );
+        expect(
+          rows.singleWhere((row) => row.id == parent.id).notes,
+          save ? 'Parent L2' : isNull,
+        );
+        final ops = await harness.database
+            .select(harness.database.pendingOps)
+            .get();
+        expect(ops, hasLength(save ? 1 : 0));
+      },
+    );
+  }
+
+  testWidgets(
+    'Android hierarchy returning to an ancestor honors the child dirty-close cancellation',
+    (tester) async {
+      final harness = await _pumpApp(tester, AppSettings.defaults());
+      addTearDown(harness.dispose);
+      final parent = await _seedAndroidDavTree(harness.database);
+      await _openAndroidTaskEditor(tester, parent, BusyProvider.nextcloud);
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Notes'),
+        'Parent draft',
+      );
+      final child = find.widgetWithText(ListTile, 'Child');
+      await _scrollUntilBuilt(tester, child);
+      await tester.tap(child);
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Notes'),
+        'Child draft',
+      );
+      await tester.pump(const Duration(milliseconds: 1100));
+      final parentLink = find.byWidgetPredicate(
+        (widget) =>
+            widget is ListTile &&
+            widget.title is Text &&
+            (widget.title! as Text).data == 'Parent',
+      );
+      await _scrollUntilBuilt(tester, parentLink);
+      await tester.tap(parentLink);
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+      await tester.pumpAndSettle();
+      expect(
+        find.byType(AndroidTaskEditor, skipOffstage: false),
+        findsNWidgets(2),
+      );
+      await tester.drag(find.byType(ListView).last, const Offset(0, 5000));
+      await tester.pumpAndSettle();
+      expect(find.text('Child draft'), findsOneWidget);
+      final records = secureStorage.values.map((raw) => jsonDecode(raw) as Map);
+      expect(
+        records.map((record) => record['notes']),
+        containsAll(['Parent draft', 'Child draft']),
+      );
+      expect(
+        await harness.database.select(harness.database.pendingOps).get(),
+        isEmpty,
+      );
+    },
+  );
+
+  for (final malformed in [null, 'categories', 'pendingMoveDestinationId']) {
+    testWidgets(
+      'Android ${malformed == null ? 'discarded review-only' : 'malformed $malformed'} recovery leaves a fresh editable baseline',
+      (tester) async {
+        final harness = await _pumpApp(tester, AppSettings.defaults());
+        addTearDown(harness.dispose);
+        await _seedMovableTask(harness.database);
+        const key = 'busymax.android.task-draft.google:move.move-task';
+        secureStorage[key] = jsonEncode({
+          'v': 2,
+          'savedAt': DateTime.now().toIso8601String(),
+          'accountId': 'google:move',
+          'taskId': 'move-task',
+          'taskListId': 'source-list',
+          'baseTitle': 'Original move task',
+          'title': 'Recovered old title',
+          'notes': 'Recovered old notes',
+          if (malformed == 'categories') 'categories': 'invalid-list',
+          if (malformed == 'pendingMoveDestinationId')
+            'pendingMoveDestinationId': 42,
+        });
+        await _openMovableTaskEditor(tester, _movableTask());
+        if (malformed == null) {
+          await tester.tap(find.widgetWithText(TextButton, 'Discard'));
+          await tester.pumpAndSettle();
+        }
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Notes'),
+          'Fresh notes after recovery rejection',
+        );
+        await tester.tap(find.widgetWithText(TextButton, 'Save'));
+        await tester.pumpAndSettle();
+        final task = await _taskRow(harness.database, 'source-list');
+        expect(task!.title, 'Original move task');
+        expect(task.notes, 'Fresh notes after recovery rejection');
+        final operations = await harness.database
+            .select(harness.database.pendingOps)
+            .get();
+        expect(operations, hasLength(1));
+        final payload = jsonDecode(operations.single.requestJson) as Map;
+        expect(payload['notes'], 'Fresh notes after recovery rejection');
+        expect(payload, isNot(contains('title')));
+      },
+    );
+  }
+
+  testWidgets(
+    'Android read-only DAV hierarchy remains navigable with mutation controls disabled',
+    (tester) async {
+      final harness = await _pumpApp(
+        tester,
+        AppSettings.defaults(),
+        davTaskCapabilities: nextcloudTaskCollectionCapabilities.asReadOnly(),
+      );
+      addTearDown(harness.dispose);
+      final parent = await _seedAndroidDavTree(
+        harness.database,
+        readOnly: true,
+      );
+      await _openAndroidTaskEditor(tester, parent, BusyProvider.nextcloud);
+      expect(
+        tester
+            .widget<TextButton>(find.widgetWithText(TextButton, 'Save'))
+            .onPressed,
+        isNull,
+      );
+      final child = find.widgetWithText(ListTile, 'Child');
+      await _scrollUntilBuilt(tester, child);
+      expect(
+        tester
+            .widget<IconButton>(
+              find
+                  .descendant(of: child, matching: find.byType(IconButton))
+                  .first,
+            )
+            .onPressed,
+        isNull,
+      );
+      expect(
+        tester
+            .widget<OutlinedButton>(
+              find.widgetWithText(OutlinedButton, 'Create subtask'),
+            )
+            .onPressed,
+        isNull,
+      );
+      expect(find.widgetWithText(OutlinedButton, 'Delete task'), findsNothing);
+      await tester.tap(child);
+      await tester.pumpAndSettle();
+      await tester.drag(find.byType(ListView).last, const Offset(0, 5000));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<TextField>(find.widgetWithText(TextField, 'Title'))
+            .controller!
+            .text,
+        'Child',
+      );
+      final parentLink = find.byWidgetPredicate(
+        (widget) =>
+            widget is ListTile &&
+            widget.title is Text &&
+            (widget.title! as Text).data == 'Parent',
+      );
+      await _scrollUntilBuilt(tester, parentLink);
+      await tester.tap(parentLink);
+      await tester.pumpAndSettle();
+      expect(
+        find.byType(AndroidTaskEditor, skipOffstage: false),
+        findsOneWidget,
+      );
+      expect(
+        await harness.database.select(harness.database.pendingOps).get(),
+        isEmpty,
+      );
+      expect(secureStorage, isEmpty);
+    },
+  );
+
+  testWidgets(
+    'Android Nextcloud root and subtask checkboxes use the percentage hierarchy lifecycle',
+    (tester) async {
+      final harness = await _pumpApp(tester, AppSettings.defaults());
+      addTearDown(harness.dispose);
+      final parent = await _seedAndroidDavTree(harness.database);
+      await _openAndroidTasksScreen(tester);
+      final parentTile = find.widgetWithText(ListTile, 'Parent');
+      await tester.tap(
+        find
+            .descendant(of: parentTile, matching: find.byType(IconButton))
+            .first,
+      );
+      await tester.pumpAndSettle();
+      var rows = await harness.database.tasksDao.listTasks(
+        parent.accountId,
+        parent.taskListId,
+      );
+      expect(rows.map((row) => row.status), everyElement('completed'));
+      expect(rows.map((row) => row.percentComplete), everyElement(100));
+      expect(
+        await harness.database.select(harness.database.pendingOps).get(),
+        hasLength(2),
+      );
+      final currentParent = TaskEntity.fromRow(
+        rows.singleWhere((row) => row.title == 'Parent'),
+      );
+      await _openAndroidTaskEditor(
+        tester,
+        currentParent,
+        BusyProvider.nextcloud,
+      );
+      final child = find.widgetWithText(ListTile, 'Child');
+      await _scrollUntilBuilt(tester, child);
+      await tester.tap(
+        find.descendant(of: child, matching: find.byType(IconButton)).first,
+      );
+      await tester.pumpAndSettle();
+      rows = await harness.database.tasksDao.listTasks(
+        parent.accountId,
+        parent.taskListId,
+      );
+      expect(rows.map((row) => row.status), everyElement('needsAction'));
+      expect(rows.map((row) => row.percentComplete), everyElement(isNull));
+      expect(rows.map((row) => row.completedUtc), everyElement(isNull));
+      expect(
+        rows.map((row) => row.providerStatus),
+        isNot(contains('CANCELLED')),
+      );
+      final operations = await harness.database
+          .select(harness.database.pendingOps)
+          .get();
+      expect(operations, hasLength(2));
+      expect(operations.map((op) => op.davObjectId).toSet(), hasLength(2));
+      for (final operation in operations) {
+        final patch = jsonDecode(operation.mutationPatchJson!) as Map;
+        final progress = (patch['operations'] as List).whereType<Map>().where(
+          (entry) => entry['type'] == 'setTaskProgress',
+        );
+        expect(progress.map((entry) => entry['percentComplete']), [100, 0]);
+      }
+    },
+  );
+
+  testWidgets(
+    'Android retries only the move after Save committed and move failed',
+    (tester) async {
+      late _FailFirstMoveTaskRepository repository;
+      final harness = await _pumpApp(
+        tester,
+        AppSettings.defaults(),
+        taskRepository: (database, accountId) =>
+            repository = _FailFirstMoveTaskRepository(
+              database: database,
+              accountId: accountId,
+            ),
+      );
+      addTearDown(harness.dispose);
+      await _seedMovableTask(harness.database);
+      await _openMovableTaskEditor(tester, _movableTask());
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Title'),
+        'Durably edited title',
+      );
+      final move = find.widgetWithText(OutlinedButton, 'List');
+      await _scrollUntilBuilt(tester, move);
+      await tester.tap(move);
+      await _pumpUntilFound(tester, find.text('Destination list'));
+      await tester.tap(find.text('Destination list'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AndroidTaskEditor), findsOneWidget);
+      expect(
+        find.text(
+          'Your edits were saved, but the task could not be moved. Retry the move.',
+        ),
+        findsOneWidget,
+      );
+      var row = await _taskRow(harness.database, 'source-list');
+      expect(row!.title, 'Durably edited title');
+      expect(row.notes, 'Concurrent untouched notes');
+      expect(
+        (await harness.database.select(harness.database.pendingOps).get()).map(
+          (op) => op.operation,
+        ),
+        ['patch_task'],
+      );
+      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AndroidTaskEditor), findsNothing);
+      row = await _taskRow(harness.database, 'destination-list');
+      expect(row!.title, 'Durably edited title');
+      expect(row.notes, 'Concurrent untouched notes');
+      expect(
+        (await harness.database.select(harness.database.pendingOps).get()).map(
+          (op) => op.operation,
+        ),
+        ['patch_task', 'move_task'],
+      );
+      expect(repository.moveCalls, 2);
+    },
+  );
+
+  for (final patchCommitted in [false, true]) {
+    for (final cancelMove in [false, true]) {
+      testWidgets(
+        'Android failed move ${patchCommitted ? 'after' : 'before'} patch commit allows ${cancelMove ? 'cancelling only the move' : 'another destination'}',
+        (tester) async {
+          late _FailedMoveChoiceRepository repository;
+          final harness = await _pumpApp(
+            tester,
+            AppSettings.defaults(),
+            taskRepository: (database, accountId) =>
+                repository = _FailedMoveChoiceRepository(
+                  database: database,
+                  accountId: accountId,
+                  failFirstPatch: !patchCommitted,
+                ),
+          );
+          addTearDown(harness.dispose);
+          await _seedMovableTask(harness.database);
+          await _openMovableTaskEditor(tester, _movableTask());
+          await tester.enterText(
+            find.widgetWithText(TextField, 'Title'),
+            'Retained task edit',
+          );
+          final move = find.widgetWithText(OutlinedButton, 'List');
+          await _scrollUntilBuilt(tester, move);
+          await tester.tap(move);
+          await _pumpUntilFound(tester, find.text('Destination list'));
+          await tester.tap(find.text('Destination list'));
+          await tester.pumpAndSettle();
+          await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+          await tester.pumpAndSettle();
+          expect(find.byType(AndroidTaskEditor), findsOneWidget);
+          await tester.tap(move);
+          await tester.pumpAndSettle();
+          expect(find.text('Other destination list'), findsOneWidget);
+          await tester.tap(
+            find
+                .text(cancelMove ? 'Source list' : 'Other destination list')
+                .last,
+          );
+          await tester.pumpAndSettle();
+          if (cancelMove) {
+            expect(find.byType(AndroidTaskEditor), findsOneWidget);
+            await tester.tap(find.widgetWithText(TextButton, 'Save'));
+          } else if (!patchCommitted) {
+            await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+          }
+          await tester.pumpAndSettle();
+          final rows = await harness.database.tasksDao.listTasks(
+            'google:move',
+            cancelMove ? 'source-list' : 'other-destination-list',
+          );
+          expect(rows.single.title, 'Retained task edit');
+          final ops = await harness.database
+              .select(harness.database.pendingOps)
+              .get();
+          expect(ops.where((op) => op.operation == 'patch_task'), hasLength(1));
+          expect(
+            ops.where((op) => op.operation == 'move_task'),
+            hasLength(cancelMove ? 0 : 1),
+          );
+          expect(repository.patchCalls, patchCommitted && !cancelMove ? 1 : 2);
+          expect(
+            repository.moveDestinations,
+            patchCommitted
+                ? [
+                    'destination-list',
+                    if (!cancelMove) 'other-destination-list',
+                  ]
+                : [if (!cancelMove) 'other-destination-list'],
+          );
+        },
+      );
+    }
+  }
+
+  for (final removeDestination in [false, true]) {
+    testWidgets(
+      'Android failed move recovery ${removeDestination ? 'chooses a surviving destination' : 'can cancel only its restored move'}',
+      (tester) async {
+        late _FailFirstMoveTaskRepository repository;
+        final harness = await _pumpApp(
+          tester,
+          AppSettings.defaults(),
+          taskRepository: (database, accountId) =>
+              repository = _FailFirstMoveTaskRepository(
+                database: database,
+                accountId: accountId,
+              ),
+        );
+        addTearDown(harness.dispose);
+        await _seedMovableTask(harness.database);
+        await _openMovableTaskEditor(tester, _movableTask());
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Title'),
+          'Committed before recovery',
+        );
+        final move = find.widgetWithText(OutlinedButton, 'List');
+        await _scrollUntilBuilt(tester, move);
+        await tester.tap(move);
+        await _pumpUntilFound(tester, find.text('Destination list'));
+        await tester.tap(find.text('Destination list'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+        await tester.pumpAndSettle();
+        final key = _scopedTaskRecoveryKey(
+          'google:move',
+          'source-list',
+          'move-task',
+        );
+        expect(
+          (jsonDecode(secureStorage[key]!) as Map)['pendingMoveDestinationId'],
+          'destination-list',
+        );
+        final route = ModalRoute.of(
+          tester.element(find.byType(AndroidTaskEditor)),
+        )!;
+        tester
+            .state<NavigatorState>(find.byType(Navigator).first)
+            .removeRoute(route);
+        await tester.pumpAndSettle();
+        if (removeDestination) {
+          await (harness.database.update(harness.database.taskLists)
+                ..where((row) => row.id.equals('destination-list')))
+              .write(const TaskListsCompanion(pendingDelete: Value(true)));
+        }
+        final row = (await _taskRow(harness.database, 'source-list'))!;
+        await _openMovableTaskEditor(tester, TaskEntity.fromRow(row));
+        await tester.tap(find.text('Restore'));
+        await tester.pumpAndSettle();
+        if (removeDestination) {
+          await tester.tap(find.widgetWithText(TextButton, 'Save'));
+        } else {
+          await _scrollUntilBuilt(tester, move);
+          await tester.tap(move);
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('Source list').last);
+          await tester.pumpAndSettle();
+          await tester.tap(find.widgetWithText(TextButton, 'Save'));
+        }
+        await tester.pumpAndSettle();
+        final saved = (await _taskRow(
+          harness.database,
+          removeDestination ? 'other-destination-list' : 'source-list',
+        ))!;
+        expect(saved.title, 'Committed before recovery');
+        expect(saved.notes, 'Concurrent untouched notes');
+        final ops = await harness.database
+            .select(harness.database.pendingOps)
+            .get();
+        expect(ops.where((op) => op.operation == 'patch_task'), hasLength(1));
+        expect(
+          ops.where((op) => op.operation == 'move_task'),
+          hasLength(removeDestination ? 1 : 0),
+        );
+        expect(repository.moveCalls, removeDestination ? 2 : 1);
+        expect(secureStorage, isNot(contains(key)));
+      },
+    );
+  }
+
+  testWidgets(
+    'Android hierarchy navigation is blocked while the submitted task draft persists',
+    (tester) async {
+      final received = Completer<void>();
+      final release = Completer<void>();
+      final harness = await _pumpApp(
+        tester,
+        AppSettings.defaults(),
+        taskRepository: (database, accountId) => _GatedTaskRepository(
+          database: database,
+          accountId: accountId,
+          received: received,
+          release: release,
+        ),
+      );
+      addTearDown(harness.dispose);
+      final parent = await _seedAndroidDavTree(harness.database);
+      await _openAndroidTaskEditor(tester, parent, BusyProvider.nextcloud);
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Title'),
+        'Submitted parent title',
+      );
+      final child = find.widgetWithText(ListTile, 'Child');
+      await _scrollUntilBuilt(tester, child);
+      final staleOpen = tester.widget<ListTile>(child).onTap!;
+      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.pump();
+      expect(received.isCompleted, isTrue);
+      expect(tester.widget<ListTile>(child).onTap, isNull);
+      staleOpen();
+      await tester.pump();
+      expect(
+        find.byType(AndroidTaskEditor, skipOffstage: false),
+        findsOneWidget,
+      );
+      release.complete();
+      await tester.pumpAndSettle();
+      expect(find.byType(AndroidTaskEditor), findsNothing);
+      final rows = await harness.database.tasksDao.listTasks(
+        parent.accountId,
+        parent.taskListId,
+      );
+      expect(
+        rows.singleWhere((row) => row.id == parent.id).title,
+        'Submitted parent title',
+      );
+    },
+  );
+
+  testWidgets(
+    'Android task list refresh error retains cached tasks and selected filters',
+    (tester) async {
+      late _AndroidRetryScheduleRepository schedule;
+      final harness = await _pumpApp(
+        tester,
+        AppSettings.defaults(),
+        scheduleRepository: (database) =>
+            schedule = _AndroidRetryScheduleRepository(database),
+      );
+      addTearDown(harness.dispose);
+      await _seedMovableTask(harness.database);
+      await _openAndroidTasksScreen(tester);
+      await tester.tap(find.text('All tasks').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Source list · Move account').last);
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.descendant(
+          of: find.byType(SearchBar),
+          matching: find.byType(TextField),
+        ),
+        'Original',
+      );
+      await tester.pumpAndSettle();
+      schedule.fail = true;
+      await (harness.database.update(harness.database.tasks)
+            ..where((row) => row.id.equals('move-task')))
+          .write(const TasksCompanion(notes: Value('Remote refresh notes')));
+      await tester.pumpAndSettle();
+      expect(find.text('Original move task'), findsOneWidget);
+      expect(find.text('Retry'), findsOneWidget);
+      expect(find.text('Source list · Move account'), findsOneWidget);
+      expect(find.text('Original'), findsOneWidget);
+      schedule.fail = false;
+      await tester.tap(find.text('Retry'));
+      await tester.pumpAndSettle();
+      expect(find.text('Original move task'), findsOneWidget);
+      expect(find.text('Retry'), findsNothing);
+      expect(find.text('Source list · Move account'), findsOneWidget);
+      expect(find.text('Original'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'Android editor keeps title and notes through cloud creation acknowledgement',
+    (tester) async {
+      final client = _AndroidTaskIdentityClient();
+      final harness = await _pumpApp(
+        tester,
+        AppSettings.defaults(),
+        taskRepository: (database, accountId) => TasksRepository(
+          database: database,
+          accountId: accountId,
+          apiClient: client,
+        ),
+      );
+      addTearDown(harness.dispose);
+      await _seedMovableTask(harness.database);
+      final repository = harness.container.read(
+        tasksRepositoryForAccountProvider('google:move'),
+      );
+      final tempId = await repository.createTask(
+        'source-list',
+        const TaskCreateInput(title: 'New task'),
+      );
+      final task = (await repository.readTask('source-list', tempId))!;
+      final replay = PendingOpsReplayer(
+        database: harness.database,
+        apiClient: client,
+        accountId: task.accountId,
+      ).replayDueOps();
+      await client.creationReceived.future;
+      await _openMovableTaskEditor(tester, task);
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Title'),
+        'Draft title after create',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Notes'),
+        'Draft notes after create',
+      );
+      client.releaseCreation.complete();
+      expect(await replay, 1);
+      await tester.pumpAndSettle();
+      expect(find.byType(AndroidTaskEditor), findsOneWidget);
+      expect(find.text('Draft title after create'), findsOneWidget);
+      expect(find.text('Draft notes after create'), findsOneWidget);
+      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.pumpAndSettle();
+      final operation =
+          (await harness.database.select(harness.database.pendingOps).get())
+              .single;
+      expect(operation.taskId, 'server-created-task');
+      expect(operation.requestJson, isNot(contains(tempId)));
+      expect(jsonDecode(operation.requestJson), {
+        'title': 'Draft title after create',
+        'notes': 'Draft notes after create',
+      });
+      expect(
+        await PendingOpsReplayer(
+          database: harness.database,
+          apiClient: client,
+          accountId: task.accountId,
+        ).replayDueOps(),
+        1,
+      );
+      expect(client.task!['title'], 'Draft title after create');
+      expect(client.task!['notes'], 'Draft notes after create');
+      expect(client.mutations, ['create', 'patch:server-created-task']);
+    },
+  );
+
+  testWidgets(
+    'Android recovery follows a verified temporary identity after restart',
+    (tester) async {
+      final client = _AndroidTaskIdentityClient();
+      final harness = await _pumpApp(
+        tester,
+        AppSettings.defaults(),
+        taskRepository: (database, accountId) => TasksRepository(
+          database: database,
+          accountId: accountId,
+          apiClient: client,
+        ),
+      );
+      addTearDown(harness.dispose);
+      await _seedMovableTask(harness.database);
+      final repository = harness.container.read(
+        tasksRepositoryForAccountProvider('google:move'),
+      );
+      final tempId = await repository.createTask(
+        'source-list',
+        const TaskCreateInput(title: 'New task'),
+      );
+      final task = (await repository.readTask('source-list', tempId))!;
+      await _openMovableTaskEditor(tester, task);
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Notes'),
+        'Recovery notes for acknowledged task',
+      );
+      await tester.pump(const Duration(milliseconds: 1100));
+      final oldKey = _scopedTaskRecoveryKey(
+        'google:move',
+        'source-list',
+        tempId,
+      );
+      expect(secureStorage, contains(oldKey));
+      client.releaseCreation.complete();
+      expect(
+        await PendingOpsReplayer(
+          database: harness.database,
+          apiClient: client,
+          accountId: task.accountId,
+        ).replayDueOps(),
+        1,
+      );
+      final acknowledged = (await harness.database.tasksDao.listTasks(
+        task.accountId,
+        task.taskListId,
+      )).singleWhere((row) => row.id == 'server-created-task');
+      await harness.dispose();
+      final restarted = await _pumpApp(tester, AppSettings.defaults());
+      addTearDown(restarted.dispose);
+      await _seedMovableTask(restarted.database);
+      await restarted.database.tasksDao.upsertTask(
+        acknowledged.toCompanion(true),
+      );
+      await _openMovableTaskEditor(tester, TaskEntity.fromRow(acknowledged));
+      expect(find.text('Restore'), findsOneWidget);
+      await tester.tap(find.text('Restore'));
+      await tester.pumpAndSettle();
+      expect(find.text('Recovery notes for acknowledged task'), findsOneWidget);
+      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.pumpAndSettle();
+      final operation =
+          (await restarted.database.select(restarted.database.pendingOps).get())
+              .single;
+      expect(operation.taskId, 'server-created-task');
+      expect(operation.requestJson, isNot(contains(tempId)));
+      expect(secureStorage, isNot(contains(oldKey)));
+      expect(
+        secureStorage,
+        isNot(
+          contains(
+            _scopedTaskRecoveryKey(
+              'google:move',
+              'source-list',
+              'server-created-task',
+            ),
+          ),
+        ),
+      );
+    },
+  );
+
+  testWidgets(
+    'Android checklist rename failure retains the input and retry queues one operation',
+    (tester) async {
+      final client = _AndroidChecklistClient();
+      late _FailFirstChecklistEditRepository repository;
+      final harness = await _pumpApp(
+        tester,
+        AppSettings.defaults(),
+        taskRepository: (database, accountId) =>
+            repository = _FailFirstChecklistEditRepository(
+              database: database,
+              accountId: accountId,
+              apiClient: client,
+            ),
+      );
+      addTearDown(harness.dispose);
+      final task = await _seedAndroidChecklistTask(harness.database, client);
+      await _openAndroidTaskEditor(tester, task, BusyProvider.microsoft);
+      await _openChecklistAction(tester, 'Rename');
+      await tester.enterText(
+        find.byKey(const ValueKey('android-checklist-title')),
+        'Retain rename',
+      );
+      await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('android-checklist-title')),
+        findsOneWidget,
+      );
+      expect(find.text('Retain rename'), findsOneWidget);
+      expect(
+        find.textContaining('Checklist local commit failed'),
+        findsOneWidget,
+      );
+      expect(
+        await harness.database.select(harness.database.pendingOps).get(),
+        isEmpty,
+      );
+      await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+      await tester.pumpAndSettle();
+      expect(repository.calls, 2);
+      expect(
+        find.byKey(const ValueKey('android-checklist-title')),
+        findsNothing,
+      );
+      expect(
+        await harness.database.select(harness.database.pendingOps).get(),
+        hasLength(1),
+      );
+      expect(
+        await PendingOpsReplayer(
+          database: harness.database,
+          apiClient: client,
+          accountId: task.accountId,
+        ).replayDueOps(),
+        1,
+      );
+      expect(client.items['step-1']!['displayName'], 'Retain rename');
+    },
+  );
+
+  testWidgets(
+    'Android checklist pending create then rename replays with the acknowledged step identity',
+    (tester) async {
+      final client = _AndroidChecklistClient();
+      final harness = await _pumpApp(
+        tester,
+        AppSettings.defaults(),
+        taskRepository: (database, accountId) => TasksRepository(
+          database: database,
+          accountId: accountId,
+          apiClient: client,
+        ),
+      );
+      addTearDown(harness.dispose);
+      final task = await _seedAndroidChecklistTask(harness.database, client);
+      await _openAndroidTaskEditor(tester, task, BusyProvider.microsoft);
+      final create = find.widgetWithText(OutlinedButton, 'Create subtask');
+      await _scrollUntilBuilt(tester, create);
+      await tester.tap(create);
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.byType(TextField),
+        ),
+        'New checklist step',
+      );
+      await tester.tap(find.widgetWithText(FilledButton, 'Create'));
+      await tester.pumpAndSettle();
+      var row = (await harness.database.tasksDao.listTasks(
+        task.accountId,
+        task.taskListId,
+      )).single;
+      final temporary = decodeTaskChecklistItems(
+        row.microsoftChecklistItemsJson,
+      ).singleWhere((item) => item.title == 'New checklist step');
+      final actions = find.byKey(
+        ValueKey('android-checklist-actions-${temporary.id}'),
+      );
+      await _scrollUntilBuilt(tester, actions);
+      await tester.tap(actions);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Rename').last);
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('android-checklist-title')),
+        'Renamed before acknowledgement',
+      );
+      await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+      await tester.pumpAndSettle();
+      final pending = await harness.database
+          .select(harness.database.pendingOps)
+          .get();
+      expect(pending.map((op) => op.operation), [
+        'create_task_checklist_item',
+        'patch_task_checklist_item',
+      ]);
+      expect(
+        await PendingOpsReplayer(
+          database: harness.database,
+          apiClient: client,
+          accountId: task.accountId,
+        ).replayDueOps(),
+        2,
+      );
+      row = (await harness.database.tasksDao.listTasks(
+        task.accountId,
+        task.taskListId,
+      )).single;
+      final acknowledged = decodeTaskChecklistItems(
+        row.microsoftChecklistItemsJson,
+      ).singleWhere((item) => item.title == 'Renamed before acknowledgement');
+      expect(acknowledged.id, 'server-step-3');
+      expect(acknowledged.matchesIdentity(temporary.id), isTrue);
+      expect(
+        client.items['server-step-3']!['displayName'],
+        'Renamed before acknowledgement',
+      );
+      expect(client.mutations, ['create:server-step-3', 'patch:server-step-3']);
+      expect(
+        await harness.database.select(harness.database.pendingOps).get(),
+        isEmpty,
+      );
+    },
+  );
+
+  testWidgets(
+    'Android Save protects the observed title and explicit server choice permits another edit',
+    (tester) async {
+      final harness = await _pumpApp(tester, AppSettings.defaults());
+      addTearDown(harness.dispose);
+      await _seedMovableTask(harness.database);
+      await _openMovableTaskEditor(tester, _movableTask());
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Title'),
+        'Local title C',
+      );
+      await tester.pump(const Duration(milliseconds: 1100));
+      final recoveryKey = _scopedTaskRecoveryKey(
+        'google:move',
+        'source-list',
+        'move-task',
+      );
+      await (harness.database.update(
+        harness.database.tasks,
+      )..where((row) => row.id.equals('move-task'))).write(
+        const TasksCompanion(
+          title: Value('Remote title B'),
+          rawJson: Value('{"id":"move-task","title":"Remote title B"}'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.pumpAndSettle();
+      expect(find.text('Local title C'), findsOneWidget);
+      expect(
+        (await _taskRow(harness.database, 'source-list'))!.title,
+        'Remote title B',
+      );
+      expect(
+        await harness.database.select(harness.database.pendingOps).get(),
+        isEmpty,
+      );
+      expect(find.text('Keep server version'), findsOneWidget);
+      await tester.tap(find.text('Keep server version'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+      await tester.pumpAndSettle();
+      expect(find.text('Local title C'), findsOneWidget);
+      expect(secureStorage, contains(recoveryKey));
+      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Keep server version'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Discard'));
+      await tester.pumpAndSettle();
+      expect(find.text('Remote title B'), findsOneWidget);
+      expect(secureStorage, isNot(contains(recoveryKey)));
+      expect(
+        await harness.database.select(harness.database.pendingOps).get(),
+        isEmpty,
+      );
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Title'),
+        'After explicit resolution',
+      );
+      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.pumpAndSettle();
+      final op =
+          (await harness.database.select(harness.database.pendingOps).get())
+              .single;
+      expect(jsonDecode(op.requestJson), {
+        'title': 'After explicit resolution',
+      });
+      expect(
+        (jsonDecode(op.baselineRawJson!) as Map)['title'],
+        'Remote title B',
+      );
+    },
+  );
+
+  testWidgets(
+    'Android Save merges a remote notes change outside the edited title',
+    (tester) async {
+      final harness = await _pumpApp(tester, AppSettings.defaults());
+      addTearDown(harness.dispose);
+      await _seedMovableTask(harness.database);
+      await _openMovableTaskEditor(tester, _movableTask());
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Title'),
+        'Local title C',
+      );
+      await (harness.database.update(
+        harness.database.tasks,
+      )..where((row) => row.id.equals('move-task'))).write(
+        const TasksCompanion(
+          notes: Value('Remote notes R'),
+          rawJson: Value(
+            '{"id":"move-task","title":"Original move task","notes":"Remote notes R"}',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.pumpAndSettle();
+      final row = await _taskRow(harness.database, 'source-list');
+      expect(row!.title, 'Local title C');
+      expect(row.notes, 'Remote notes R');
+      final op =
+          (await harness.database.select(harness.database.pendingOps).get())
+              .single;
+      expect(jsonDecode(op.requestJson), {'title': 'Local title C'});
+      expect(
+        (jsonDecode(op.baselineRawJson!) as Map)['notes'],
+        'Remote notes R',
+      );
+    },
+  );
+
+  testWidgets(
+    'Android recovered notes keep their original comparison when remote notes changed',
+    (tester) async {
+      final harness = await _pumpApp(tester, AppSettings.defaults());
+      addTearDown(harness.dispose);
+      await _seedMovableTask(harness.database);
+      await _openMovableTaskEditor(tester, _movableTask());
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Notes'),
+        'Recovered local notes L',
+      );
+      await tester.pump(const Duration(milliseconds: 1100));
+      await harness.dispose();
+      final restarted = await _pumpApp(tester, AppSettings.defaults());
+      addTearDown(restarted.dispose);
+      await _seedMovableTask(restarted.database);
+      await (restarted.database.update(restarted.database.tasks)
+            ..where((row) => row.id.equals('move-task')))
+          .write(const TasksCompanion(notes: Value('Remote notes R')));
+      final changed = TaskEntity.fromRow(
+        (await _taskRow(restarted.database, 'source-list'))!,
+      );
+      await _openMovableTaskEditor(tester, changed);
+      await tester.tap(find.text('Restore'));
+      await tester.pumpAndSettle();
+      expect(find.text('Recovered local notes L'), findsOneWidget);
+      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.pumpAndSettle();
+      expect(find.text('Recovered local notes L'), findsOneWidget);
+      expect(
+        (await _taskRow(restarted.database, 'source-list'))!.notes,
+        'Remote notes R',
+      );
+      expect(
+        await restarted.database.select(restarted.database.pendingOps).get(),
+        isEmpty,
+      );
+      expect(
+        find.text(
+          'This task changed since you opened it. Your edits are retained. Review the latest task before retrying.',
+        ),
+        findsOneWidget,
+      );
+      await tester.pump(const Duration(milliseconds: 1100));
+      final saved = jsonDecode(
+        secureStorage[_scopedTaskRecoveryKey(
+          'google:move',
+          'source-list',
+          'move-task',
+        )]!,
+      ) as Map;
+      expect((saved['observedTask'] as Map)['notes'], isNull);
+      expect((saved['originalObservedTask'] as Map)['notes'], isNull);
+      expect(saved['notes'], 'Recovered local notes L');
+    },
+  );
+
+  testWidgets(
+    'Android task recurrence dates and exclusions stay read only during unrelated edits',
+    (tester) async {
+      final harness = await _pumpApp(tester, AppSettings.defaults());
+      addTearDown(harness.dispose);
+      const raw =
+          '{"rules":["FREQ=DAILY;UNTIL=20260812T090000Z"],"dates":["20260820T090000Z"],"excludedDates":["20260805T090000Z"]}';
+      final task = await _seedAndroidEditorTask(
+        harness.database,
+        due: '2026-08-01T09:00:00',
+        recurrence: raw,
+      );
+      await _openAndroidTaskEditor(tester, task, BusyProvider.nextcloud);
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Notes'),
+        'Unrelated note',
+      );
+      final recurrence = find.byKey(
+        const ValueKey('android-task-advanced-recurrence'),
+      );
+      await _scrollUntilBuilt(tester, recurrence);
+      expect(tester.widget<ListTile>(recurrence).enabled, isFalse);
+      await tester.tap(recurrence);
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsNothing);
+      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.pumpAndSettle();
+      final row = (await harness.database.tasksDao.listTasks(
+        task.accountId,
+        task.taskListId,
+      )).single;
+      expect(row.recurrenceJson, raw);
+      expect(row.notes, 'Unrelated note');
+      final operation =
+          (await harness.database.select(harness.database.pendingOps).get())
+              .single;
+      expect(jsonDecode(operation.requestJson), {'notes': 'Unrelated note'});
+    },
+  );
+
+  testWidgets(
+    'Android task recurrence displays an existing timed UNTIL in its anchor zone',
+    (tester) async {
+      final harness = await _pumpApp(tester, AppSettings.defaults());
+      addTearDown(harness.dispose);
+      const raw =
+          '{"rules":["FREQ=DAILY;UNTIL=20260813T023000Z"],"dates":[],"excludedDates":[]}';
+      final task = await _seedAndroidEditorTask(
+        harness.database,
+        due: '2026-08-01T19:30:00',
+        timeZone: 'America/Vancouver',
+        recurrence: raw,
+      );
+      await _openAndroidTaskEditor(tester, task, BusyProvider.nextcloud);
+      final recurrence = find.byKey(
+        const ValueKey('android-task-advanced-recurrence'),
+      );
+      await _scrollUntilBuilt(tester, recurrence);
+      await tester.tap(recurrence);
+      await tester.pumpAndSettle();
+      expect(find.text('2026-08-12'), findsOneWidget);
+      expect(find.text('2026-08-13'), findsNothing);
+      await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.pumpAndSettle();
+      final row = (await harness.database.tasksDao.listTasks(
+        task.accountId,
+        task.taskListId,
+      )).single;
+      expect(row.recurrenceJson, raw);
+      expect(
+        await harness.database.select(harness.database.pendingOps).get(),
+        isEmpty,
+      );
+    },
+  );
+
+  testWidgets(
+    'Android recovery without an exact baseline stays review-only and retains original content',
+    (tester) async {
+      final harness = await _pumpApp(tester, AppSettings.defaults());
+      addTearDown(harness.dispose);
+      await _seedMovableTask(harness.database);
+      await (harness.database.update(
+        harness.database.tasks,
+      )..where((row) => row.id.equals('move-task'))).write(
+        const TasksCompanion(
+          title: Value('Remote title B'),
+          notes: Value('Remote notes R'),
+        ),
+      );
+      const key = 'busymax.android.task-draft.google:move.move-task';
+      secureStorage[key] = jsonEncode({
+        'v': 2,
+        'savedAt': DateTime.now().toIso8601String(),
+        'accountId': 'google:move',
+        'taskListId': 'source-list',
+        'baseTitle': 'Original title A',
+        'title': 'Original title A',
+        'notes': 'Recoverable notes L',
+      });
+      final task = TaskEntity.fromRow(
+        (await _taskRow(harness.database, 'source-list'))!,
+      );
+      await _openMovableTaskEditor(tester, task);
+      await tester.tap(find.text('Restore'));
+      await tester.pumpAndSettle();
+      expect(find.text('Remote title B'), findsOneWidget);
+      expect(find.text('Recoverable notes L'), findsOneWidget);
+      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AndroidTaskEditor), findsOneWidget);
+      expect(find.text('Recoverable notes L'), findsOneWidget);
+      expect(find.text('Keep server version'), findsOneWidget);
+      expect(
+        await harness.database.select(harness.database.pendingOps).get(),
+        isEmpty,
+      );
+      expect(
+        (await _taskRow(harness.database, 'source-list'))!.notes,
+        'Remote notes R',
+      );
+      await tester.pump(const Duration(milliseconds: 1100));
+      final retainedKey = _scopedTaskRecoveryKey(
+        'google:move',
+        'source-list',
+        'move-task',
+      );
+      expect(secureStorage, isNot(contains(key)));
+      final retained = jsonDecode(secureStorage[retainedKey]!) as Map;
+      expect(retained['baseTitle'], 'Original title A');
+      expect(retained['notes'], 'Recoverable notes L');
+      expect(retained.containsKey('observedTask'), isFalse);
+      await tester.tap(find.byTooltip('Close'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+      await tester.pumpAndSettle();
+      expect(secureStorage, contains(retainedKey));
+      expect(find.text('Recoverable notes L'), findsOneWidget);
+    },
+  );
+
+  for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
+    testWidgets(
+      'Android ${provider.name} checkbox retains the existing status-only cloud payload',
+      (tester) async {
+        final harness = await _pumpApp(tester, AppSettings.defaults());
+        addTearDown(harness.dispose);
+        final task = await _seedAndroidEditorTask(
+          harness.database,
+          provider: provider,
+        );
+        await _openAndroidTasksScreen(tester);
+        final tile = find.widgetWithText(ListTile, 'Editable task');
+        await tester.tap(
+          find.descendant(of: tile, matching: find.byType(IconButton)).first,
+        );
+        await tester.pumpAndSettle();
+        var operations = await harness.database
+            .select(harness.database.pendingOps)
+            .get();
+        expect(operations, hasLength(1));
+        expect(jsonDecode(operations.single.requestJson), {
+          'status': 'completed',
+        });
+        var row = (await harness.database.tasksDao.listTasks(
+          task.accountId,
+          task.taskListId,
+        )).single;
+        expect(row.status, 'completed');
+        await tester.tap(
+          find.descendant(of: tile, matching: find.byType(IconButton)).first,
+        );
+        await tester.pumpAndSettle();
+        operations = await harness.database
+            .select(harness.database.pendingOps)
+            .get();
+        expect(operations.map((op) => jsonDecode(op.requestJson)), [
+          {'status': 'completed'},
+          {'status': 'needsAction'},
+        ]);
+        row = (await harness.database.tasksDao.listTasks(
+          task.accountId,
+          task.taskListId,
+        )).single;
+        expect(row.status, 'needsAction');
+      },
+    );
+  }
 
   testWidgets('dirty task save-and-move persists edits before moving', (
     tester,
@@ -2153,7 +6135,11 @@ void main() {
     );
     expect(
       secureStorage,
-      isNot(contains('busymax.android.task-draft.google:move.move-task')),
+      isNot(
+        contains(
+          _scopedTaskRecoveryKey('google:move', 'source-list', 'move-task'),
+        ),
+      ),
     );
     expect(tester.takeException(), isNull);
   });
@@ -2212,7 +6198,11 @@ void main() {
       'Recover after move failure',
     );
     await tester.pump(const Duration(milliseconds: 1100));
-    final recoveryKey = 'busymax.android.task-draft.google:move.move-task';
+    final recoveryKey = _scopedTaskRecoveryKey(
+      'google:move',
+      'missing-source',
+      'move-task',
+    );
     expect(secureStorage, contains(recoveryKey));
     final move = find.widgetWithText(OutlinedButton, 'List');
     await _scrollUntilBuilt(tester, move);
@@ -2422,186 +6412,226 @@ void main() {
     },
   );
 
-  testWidgets('Android Nextcloud edits one reminder and keeps sibling alarms', (
-    tester,
-  ) async {
-    final tomorrow = DateTime.now().toUtc().add(const Duration(days: 1));
-    final start = DateTime.utc(tomorrow.year, tomorrow.month, tomorrow.day, 16);
-    final end = start.add(const Duration(hours: 1));
-    String icsDate(DateTime value) =>
-        '${value.toUtc().toIso8601String().split('.').first.replaceAll('-', '').replaceAll(':', '')}Z';
-    const accountId = 'nextcloud:event-reminders';
-    const collectionId = 'reminders-collection';
-    const href = '/remote.php/dav/calendars/user/work/';
-    late CalendarSourceEntity seededSource;
-    late EventEditorDraft seededDraft;
-    late String seededEventId;
-    final raw =
-        'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\n'
-        'UID:reminders@example.test\r\nDTSTART:${icsDate(start)}\r\n'
-        'DTEND:${icsDate(end)}\r\nSUMMARY:Reminders\r\n'
-        'BEGIN:VALARM\r\nACTION:DISPLAY\r\nTRIGGER:-PT15M\r\n'
-        'DESCRIPTION:First\r\nX-KEEP:first\r\nEND:VALARM\r\n'
-        'BEGIN:VALARM\r\nACTION:DISPLAY\r\nTRIGGER:-PT30M\r\n'
-        'DESCRIPTION:Second\r\nX-KEEP:second\r\nEND:VALARM\r\n'
-        'BEGIN:VALARM\r\nACTION:DISPLAY\r\n'
-        'TRIGGER;RELATED=END:-PT0M\r\n'
-        'DESCRIPTION:At end\r\nX-KEEP:end\r\nEND:VALARM\r\n'
-        'BEGIN:VALARM\r\nACTION:AUDIO\r\nTRIGGER:-PT5M\r\n'
-        'X-KEEP:audio\r\nEND:VALARM\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n';
-    final harness = await _pumpApp(
-      tester,
-      AppSettings.defaults(),
-      notificationBackend: _PermissionOnlyNotifications(),
-      onCalendarSync: (_) async {},
-      seedDatabase: (database) async {
-        await tester.runAsync(() async {
-          await database
-              .into(database.accounts)
-              .insert(
-                AccountsCompanion.insert(
-                  id: accountId,
-                  provider: 'nextcloud',
-                  authority: 'https://cloud.example.test',
-                  providerAccountId: 'user',
-                  credentialKind: 'nextcloud_app_password',
-                  authState: const Value('signed_in'),
-                  createdAtUtc: start.toIso8601String(),
-                  updatedAtUtc: start.toIso8601String(),
+  for (final blockedChannel in [false, true]) {
+    testWidgets(
+      'Android Nextcloud edits one reminder and keeps sibling alarms (blocked channel: $blockedChannel)',
+      (tester) async {
+        if (blockedChannel) {
+          messenger.setMockMethodCallHandler(
+            platformChannel,
+            (call) async => switch (call.method) {
+              'notificationCapabilities' => {
+                'notifications': true,
+                'reminders': false,
+                'summaries': true,
+                'status': true,
+              },
+              'googleAuthorizationAvailable' ||
+              'microsoftAuthorizationAvailable' => false,
+              _ => null,
+            },
+          );
+        }
+        final tomorrow = DateTime.now().toUtc().add(const Duration(days: 1));
+        final start = DateTime.utc(
+          tomorrow.year,
+          tomorrow.month,
+          tomorrow.day,
+          16,
+        );
+        final end = start.add(const Duration(hours: 1));
+        String icsDate(DateTime value) =>
+            '${value.toUtc().toIso8601String().split('.').first.replaceAll('-', '').replaceAll(':', '')}Z';
+        const accountId = 'nextcloud:event-reminders';
+        const collectionId = 'reminders-collection';
+        const href = '/remote.php/dav/calendars/user/work/';
+        late CalendarSourceEntity seededSource;
+        late EventEditorDraft seededDraft;
+        late String seededEventId;
+        final raw =
+            'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\n'
+            'UID:reminders@example.test\r\nDTSTART:${icsDate(start)}\r\n'
+            'DTEND:${icsDate(end)}\r\nSUMMARY:Reminders\r\n'
+            'BEGIN:VALARM\r\nACTION:DISPLAY\r\nTRIGGER:-PT15M\r\n'
+            'DESCRIPTION:First\r\nX-KEEP:first\r\nEND:VALARM\r\n'
+            'BEGIN:VALARM\r\nACTION:DISPLAY\r\nTRIGGER:-PT30M\r\n'
+            'DESCRIPTION:Second\r\nX-KEEP:second\r\nEND:VALARM\r\n'
+            'BEGIN:VALARM\r\nACTION:DISPLAY\r\n'
+            'TRIGGER;RELATED=END:-PT0M\r\n'
+            'DESCRIPTION:At end\r\nX-KEEP:end\r\nEND:VALARM\r\n'
+            'BEGIN:VALARM\r\nACTION:AUDIO\r\nTRIGGER:-PT5M\r\n'
+            'X-KEEP:audio\r\nEND:VALARM\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n';
+        final harness = await _pumpApp(
+          tester,
+          AppSettings.defaults(),
+          notificationBackend: _PermissionOnlyNotifications(),
+          onCalendarSync: (_) async {},
+          seedDatabase: (database) async {
+            await tester.runAsync(() async {
+              await database
+                  .into(database.accounts)
+                  .insert(
+                    AccountsCompanion.insert(
+                      id: accountId,
+                      provider: 'nextcloud',
+                      authority: 'https://cloud.example.test',
+                      providerAccountId: 'user',
+                      credentialKind: 'nextcloud_app_password',
+                      authState: const Value('signed_in'),
+                      createdAtUtc: start.toIso8601String(),
+                      updatedAtUtc: start.toIso8601String(),
+                    ),
+                  );
+              await database
+                  .into(database.davCollections)
+                  .insert(
+                    DavCollectionsCompanion.insert(
+                      id: collectionId,
+                      accountId: accountId,
+                      hrefKey: href,
+                      requestUri: 'https://cloud.example.test$href',
+                      displayName: 'Work',
+                      supportedComponentMask: const Value(1),
+                      currentUserPrivilegesJson: const Value(
+                        '["{DAV:}read","{DAV:}write"]',
+                      ),
+                      readOnly: const Value(false),
+                      eventProjectionEnabled: const Value(true),
+                      createdAtUtc: start.toIso8601String(),
+                      updatedAtUtc: start.toIso8601String(),
+                    ),
+                  );
+              await database
+                  .into(database.calendarSources)
+                  .insert(
+                    CalendarSourcesCompanion.insert(
+                      id: 'dav-calendar-$collectionId',
+                      accountId: accountId,
+                      provider: 'nextcloud',
+                      providerCalendarId: href,
+                      davCollectionId: const Value(collectionId),
+                      summary: 'Work',
+                      createdAtLocal: 0,
+                      updatedAtLocal: 0,
+                    ),
+                  );
+              final prepared = DavPreparedObject.parse(
+                hrefKey: '${href}reminders.ics',
+                requestUri: Uri.parse(
+                  'https://cloud.example.test${href}reminders.ics',
                 ),
+                etag: '"v1"',
+                contentType: 'text/calendar',
+                rawIcsBody: raw,
               );
-          await database
-              .into(database.davCollections)
-              .insert(
-                DavCollectionsCompanion.insert(
-                  id: collectionId,
+              await DavObjectRepository(database: database).commit(
+                DavCollectionCommit(
                   accountId: accountId,
-                  hrefKey: href,
-                  requestUri: 'https://cloud.example.test$href',
-                  displayName: 'Work',
-                  supportedComponentMask: const Value(1),
-                  currentUserPrivilegesJson: const Value(
-                    '["{DAV:}read","{DAV:}write"]',
+                  collectionId: collectionId,
+                  provider: BusyProvider.nextcloud,
+                  objects: [prepared],
+                  deletedHrefKeys: const {},
+                  completeMembership: true,
+                  membershipHrefKeys: {prepared.hrefKey},
+                  finalCursorKind: 'dav_sync_token',
+                  finalCursorValue: 'sync-1',
+                  baselineGeneration: 1,
+                  completedAtUtc: DateTime.now().toUtc(),
+                  projectionRangeStartUtc: start.subtract(
+                    const Duration(days: 1),
                   ),
-                  readOnly: const Value(false),
-                  eventProjectionEnabled: const Value(true),
-                  createdAtUtc: start.toIso8601String(),
-                  updatedAtUtc: start.toIso8601String(),
+                  projectionRangeEndUtc: end.add(const Duration(days: 1)),
                 ),
               );
-          await database
-              .into(database.calendarSources)
-              .insert(
-                CalendarSourcesCompanion.insert(
-                  id: 'dav-calendar-$collectionId',
-                  accountId: accountId,
-                  provider: 'nextcloud',
-                  providerCalendarId: href,
-                  davCollectionId: const Value(collectionId),
-                  summary: 'Work',
-                  createdAtLocal: 0,
-                  updatedAtLocal: 0,
-                ),
+              final repository = CalendarRepository(database: database);
+              seededSource = (await repository.watchSourcesForAccounts([
+                accountId,
+              ]).first).single;
+              seededEventId =
+                  (await database.select(database.calendarEvents).getSingle())
+                      .id;
+              seededDraft = EventEditorDraft.fromEventDetail(
+                (await repository.loadEventDetail(seededEventId))!,
               );
-          final prepared = DavPreparedObject.parse(
-            hrefKey: '${href}reminders.ics',
-            requestUri: Uri.parse(
-              'https://cloud.example.test${href}reminders.ics',
+            });
+          },
+        );
+        addTearDown(harness.dispose);
+        final repository = CalendarRepository(database: harness.database);
+        expect(seededSource.capabilities.canEditEvents, isTrue);
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: harness.container,
+            child: localizedTestApp(
+              child: const Scaffold(body: Text('Editor host')),
             ),
-            etag: '"v1"',
-            contentType: 'text/calendar',
-            rawIcsBody: raw,
-          );
-          await DavObjectRepository(database: database).commit(
-            DavCollectionCommit(
-              accountId: accountId,
-              collectionId: collectionId,
-              provider: BusyProvider.nextcloud,
-              objects: [prepared],
-              deletedHrefKeys: const {},
-              completeMembership: true,
-              membershipHrefKeys: {prepared.hrefKey},
-              finalCursorKind: 'dav_sync_token',
-              finalCursorValue: 'sync-1',
-              baselineGeneration: 1,
-              completedAtUtc: DateTime.now().toUtc(),
-              projectionRangeStartUtc: start.subtract(const Duration(days: 1)),
-              projectionRangeEndUtc: end.add(const Duration(days: 1)),
-            ),
-          );
-          final repository = CalendarRepository(database: database);
-          seededSource = (await repository.watchSourcesForAccounts([
-            accountId,
-          ]).first).single;
-          seededEventId =
-              (await database.select(database.calendarEvents).getSingle()).id;
-          seededDraft = EventEditorDraft.fromEventDetail(
-            (await repository.loadEventDetail(seededEventId))!,
-          );
-        });
-      },
-    );
-    addTearDown(harness.dispose);
-    final repository = CalendarRepository(database: harness.database);
-    expect(seededSource.capabilities.canEditEvents, isTrue);
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: harness.container,
-        child: localizedTestApp(
-          child: const Scaffold(body: Text('Editor host')),
-        ),
-      ),
-    );
-    tester
-        .state<NavigatorState>(find.byType(Navigator).first)
-        .push<void>(
-          MaterialPageRoute(
-            builder: (_) =>
-                AndroidEventEditor(sources: [seededSource], draft: seededDraft),
           ),
         );
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
-    final second = find.byKey(const Key('android-event-dav-reminder-1'));
-    await _scrollUntilBuilt(tester, second);
-    expect(
-      find.byKey(const Key('android-event-dav-reminder-0')),
-      findsOneWidget,
-    );
-    tester.widget<DropdownButtonFormField<int>>(second).onChanged!.call(45);
-    await tester.pump();
-    await tester.tap(find.widgetWithText(TextButton, 'Save'));
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 100)),
-    );
-    await tester.pumpAndSettle();
-    expect(tester.takeException(), isNull);
-    expect(find.byType(AndroidEventEditor), findsNothing);
-    final operations = (await tester.runAsync(
-      () => harness.database.select(harness.database.pendingOps).get(),
-    ))!;
-    expect(operations, hasLength(1));
-    expect(operations.single.operationType, 'dav.update');
-    final queuedBody =
-        DavMutationPatch.fromJsonString(operations.single.mutationPatchJson!)
-            .applyTo(
+        tester
+            .state<NavigatorState>(find.byType(Navigator).first)
+            .push<void>(
+              MaterialPageRoute(
+                builder: (_) => AndroidEventEditor(
+                  sources: [seededSource],
+                  draft: seededDraft,
+                ),
+              ),
+            );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 400));
+        final second = find.byKey(const Key('android-event-dav-reminder-1'));
+        await _scrollUntilBuilt(tester, second);
+        expect(
+          find.byKey(const Key('android-event-dav-reminder-0')),
+          findsOneWidget,
+        );
+        tester.widget<DropdownButtonFormField<int>>(second).onChanged!.call(45);
+        await tester.pump();
+        await tester.tap(find.widgetWithText(TextButton, 'Save'));
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 100)),
+        );
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(find.byType(AndroidEventEditor), findsNothing);
+        final operations = (await tester.runAsync(
+          () => harness.database.select(harness.database.pendingOps).get(),
+        ))!;
+        expect(operations, hasLength(1));
+        expect(operations.single.operationType, 'dav.update');
+        final queuedBody =
+            DavMutationPatch.fromJsonString(
+              operations.single.mutationPatchJson!,
+            ).applyTo(
               operations.single.baselineRawIcs!,
               nowUtc: DateTime.now().toUtc(),
             );
-    expect(queuedBody, contains('TRIGGER:-PT45M'));
-    expect(queuedBody, contains('X-KEEP:first'));
-    expect(queuedBody, contains('X-KEEP:second'));
-    expect(queuedBody, contains('TRIGGER;RELATED=END:-PT0M'));
-    expect(queuedBody, contains('X-KEEP:end'));
-    expect(queuedBody, contains('X-KEEP:audio'));
-    final updated = (await tester.runAsync(
-      () => repository.loadEventDetail(seededEventId),
-    ))!;
-    final editedRows = androidNextcloudEditableReminderRows(updated.reminders)!;
-    expect(editedRows.map((row) => row.minutes), [15, 45]);
-    expect(jsonEncode(updated.reminders), contains('X-KEEP'));
-    expect(tester.takeException(), isNull);
-  });
+        expect(
+          find.text(
+            blockedChannel
+                ? 'Android is blocking notifications or a notification category. Your reminders are saved. Review system notification settings.'
+                : 'Notification delivery status is unavailable. Review system settings.',
+          ),
+          findsOneWidget,
+        );
+        expect(queuedBody, contains('TRIGGER:-PT45M'));
+        expect(queuedBody, contains('X-KEEP:first'));
+        expect(queuedBody, contains('X-KEEP:second'));
+        expect(queuedBody, contains('TRIGGER;RELATED=END:-PT0M'));
+        expect(queuedBody, contains('X-KEEP:end'));
+        expect(queuedBody, contains('X-KEEP:audio'));
+        final updated = (await tester.runAsync(
+          () => repository.loadEventDetail(seededEventId),
+        ))!;
+        final editedRows = androidNextcloudEditableReminderRows(
+          updated.reminders,
+        )!;
+        expect(editedRows.map((row) => row.minutes), [15, 45]);
+        expect(jsonEncode(updated.reminders), contains('X-KEEP'));
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 
   testWidgets('Android event label selection queues the scoped ID', (
     tester,
@@ -2861,6 +6891,14 @@ void main() {
   });
 }
 
+String _scopedTaskRecoveryKey(
+  String accountId,
+  String taskListId,
+  String taskId,
+) =>
+    'busymax.android.task-draft.v2.'
+    '${base64Url.encode(utf8.encode(jsonEncode([accountId, taskListId, taskId])))}';
+
 Future<void> _pumpAndSettleGraphIo(WidgetTester tester) async {
   await tester.pump();
   await tester.runAsync(
@@ -2948,7 +6986,13 @@ Future<_AndroidAppHarness> _pumpApp(
   List<MicrosoftMasterCategory>? microsoftCategories,
   MicrosoftTodoApiClient? todoClient,
   AndroidNotificationBackend? notificationBackend,
+  TasksRepository Function(AppDatabase database, String accountId)?
+  taskRepository,
+  TaskListsRepository Function(AppDatabase database, String accountId)?
+  taskListsRepository,
+  ScheduleRepository Function(AppDatabase database)? scheduleRepository,
   Future<void> Function(ScheduleRange range)? scheduleProjectionCoverage,
+  TaskCollectionCapabilities? davTaskCapabilities,
 }) async {
   final database = AppDatabase.memoryForTests();
   if (seedDatabase != null) await seedDatabase(database);
@@ -2963,17 +7007,20 @@ Future<_AndroidAppHarness> _pumpApp(
       buildConfigProvider.overrideWithValue(BuildConfig.forAndroid()),
       databaseProvider.overrideWithValue(database),
       scheduleRepositoryProvider.overrideWithValue(
-        ScheduleRepository(
-          database,
-          ensureProjectionCoverage: scheduleProjectionCoverage,
-        ),
+        scheduleRepository?.call(database) ??
+            ScheduleRepository(
+              database,
+              ensureProjectionCoverage: scheduleProjectionCoverage,
+            ),
       ),
       taskListsRepositoryForAccountProvider.overrideWith(
         (ref, accountId) =>
+            taskListsRepository?.call(database, accountId) ??
             TaskListsRepository(database: database, accountId: accountId),
       ),
       tasksRepositoryForAccountProvider.overrideWith(
         (ref, accountId) =>
+            taskRepository?.call(database, accountId) ??
             TasksRepository(database: database, accountId: accountId),
       ),
       if (onCalendarSync != null)
@@ -3011,14 +7058,18 @@ Future<_AndroidAppHarness> _pumpApp(
           (ref, accountId) => todoClient,
         ),
       initialAppSettingsProvider.overrideWithValue(settings),
-      localSettingsStoreProvider.overrideWithValue(MemorySettingsStore()),
+      localSettingsStoreProvider.overrideWithValue(
+        MemorySettingsStore(settings.toJson()),
+      ),
       allAccountsSyncRunnerProvider.overrideWithValue(() async {}),
       notificationReconcilerProvider.overrideWithValue(
         CallbackNotificationReconciler(() async {}),
       ),
       androidNotificationServiceProvider.overrideWithValue(notifications),
       davTaskCollectionCapabilitiesProvider.overrideWith(
-        (ref, key) => Stream.value(nextcloudTaskCollectionCapabilities),
+        (ref, key) => Stream.value(
+          davTaskCapabilities ?? nextcloudTaskCollectionCapabilities,
+        ),
       ),
     ],
   );
@@ -3427,6 +7478,9 @@ final class _PermissionOnlyNotifications extends Fake
     implements AndroidNotificationBackend {
   @override
   Future<bool> requestNotificationPermission() async => true;
+
+  @override
+  Future<bool> canScheduleExactly() async => true;
 }
 
 final class _AndroidAppHarness {
@@ -3443,5 +7497,699 @@ final class _AndroidAppHarness {
     await tester.pumpWidget(const SizedBox.shrink());
     container.dispose();
     await database.close();
+  }
+}
+
+class _ObservedTaskDraftRepository extends TasksRepository {
+  _ObservedTaskDraftRepository({
+    required super.database,
+    required super.accountId,
+  });
+  TaskPatchInput? lastInput;
+  Object? lastError;
+
+  @override
+  Future<void> patchTask(
+    String taskListId,
+    String taskId,
+    TaskPatchInput input,
+  ) async {
+    lastInput = input;
+    lastError = null;
+    try {
+      await super.patchTask(taskListId, taskId, input);
+    } on Object catch (error) {
+      lastError = error;
+      rethrow;
+    }
+  }
+}
+
+class _GatedTaskRepository extends TasksRepository {
+  _GatedTaskRepository({
+    required super.database,
+    required super.accountId,
+    required this.received,
+    required this.release,
+    this.failFirst = false,
+  });
+  final Completer<void> received;
+  final Completer<void> release;
+  final bool failFirst;
+  var calls = 0;
+  Map<String, Object?>? submittedFields;
+
+  @override
+  Future<void> patchTask(
+    String taskListId,
+    String taskId,
+    TaskPatchInput input,
+  ) async {
+    submittedFields = Map.of(input.fields);
+    calls += 1;
+    if (calls == 1) {
+      received.complete();
+      await release.future;
+      if (failFirst) throw StateError('Local persistence failed');
+    }
+    await super.patchTask(taskListId, taskId, input);
+  }
+}
+
+Future<Task?> _taskRow(AppDatabase database, String listId) =>
+    (database.select(database.tasks)..where(
+          (row) =>
+              row.accountId.equals('google:move') &
+              row.taskListId.equals(listId) &
+              row.id.equals('move-task'),
+        ))
+        .getSingleOrNull();
+
+Future<TaskEntity> _seedAndroidEditorTask(
+  AppDatabase database, {
+  BusyProvider provider = BusyProvider.nextcloud,
+  String? taskUrl,
+  String? due,
+  String? start,
+  String? recurrence,
+  String? timeZone = 'UTC',
+}) async {
+  final accountId = '${provider.name}:android-editor';
+  await database
+      .into(database.accounts)
+      .insert(
+        AccountsCompanion.insert(
+          id: accountId,
+          provider: provider.name,
+          authority: 'https://example.test',
+          providerAccountId: 'android-editor',
+          credentialKind: provider == BusyProvider.nextcloud
+              ? 'nextcloud_app_password'
+              : 'oauth',
+          authState: const Value('signed_in'),
+          displayName: const Value('Editor account'),
+          createdAtUtc: '2026-08-01T00:00:00.000Z',
+          updatedAtUtc: '2026-08-01T00:00:00.000Z',
+        ),
+      );
+  await database.taskListsDao.upsertTaskList(
+    TaskListsCompanion.insert(
+      accountId: accountId,
+      id: 'editor-list',
+      title: 'Editor tasks',
+      rawJson: '{}',
+      createdLocalAtUtc: '2026-08-01T00:00:00.000Z',
+      updatedLocalAtUtc: '2026-08-01T00:00:00.000Z',
+    ),
+  );
+  await database.tasksDao.upsertTask(
+    TasksCompanion.insert(
+      accountId: accountId,
+      taskListId: 'editor-list',
+      id: 'editor-task',
+      title: 'Editable task',
+      rawJson: '{}',
+      taskUrl: Value(taskUrl),
+      dueUtc: Value(due),
+      microsoftDueDateTime: Value(due),
+      microsoftDueTimeZone: Value(timeZone),
+      microsoftStartDateTime: Value(start),
+      microsoftStartTimeZone: Value(timeZone),
+      recurrenceJson: Value(recurrence),
+      createdLocalAtUtc: '2026-08-01T00:00:00.000Z',
+      updatedLocalAtUtc: '2026-08-01T00:00:00.000Z',
+    ),
+  );
+  return TaskEntity.fromRow(
+    (await database.tasksDao.listTasks(accountId, 'editor-list')).single,
+  );
+}
+
+Future<void> _openAndroidTaskEditor(
+  WidgetTester tester,
+  TaskEntity task,
+  BusyProvider provider,
+) async {
+  tester
+      .state<NavigatorState>(find.byType(Navigator).first)
+      .push<void>(
+        MaterialPageRoute(
+          builder: (_) => AndroidTaskEditor(
+            accountId: task.accountId,
+            provider: provider,
+            task: task,
+            accountLabel: 'Editor account',
+            listLabel: 'Editor tasks',
+          ),
+        ),
+      );
+  await tester.pumpAndSettle();
+}
+
+Future<void> _openAndroidTasksScreen(WidgetTester tester) async {
+  tester
+      .state<NavigatorState>(find.byType(Navigator).first)
+      .push<void>(
+        MaterialPageRoute(builder: (_) => const AndroidTasksScreen()),
+      );
+  await tester.pumpAndSettle();
+}
+
+Future<void> _openChecklistAction(WidgetTester tester, String action) async {
+  final actions = find.byKey(
+    const ValueKey('android-checklist-actions-step-1'),
+  );
+  await _scrollUntilBuilt(tester, actions);
+  await tester.tap(actions);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(action).last);
+  await tester.pumpAndSettle();
+}
+
+Future<TaskEntity> _seedAndroidChecklistTask(
+  AppDatabase database,
+  _AndroidChecklistClient client,
+) async {
+  final task = await _seedAndroidEditorTask(
+    database,
+    provider: BusyProvider.microsoft,
+  );
+  await (database.update(
+    database.tasks,
+  )..where((row) => row.accountId.equals(task.accountId))).write(
+    TasksCompanion(
+      microsoftChecklistItemsJson: Value(
+        jsonEncode(client.items.values.toList()),
+      ),
+    ),
+  );
+  return TaskEntity.fromRow(
+    (await database.tasksDao.listTasks(task.accountId, task.taskListId)).single,
+  );
+}
+
+class _AndroidChecklistClient
+    implements TaskRemoteClient, TaskChecklistRemoteClient {
+  final items = <String, Map<String, Object?>>{
+    'step-1': {
+      'id': 'step-1',
+      'displayName': 'Original step',
+      'isChecked': false,
+    },
+    'step-2': {
+      'id': 'step-2',
+      'displayName': 'Sibling step',
+      'isChecked': false,
+    },
+  };
+  final mutations = <String>[];
+  var readPages = 0;
+
+  TaskChecklistItemDto dto(Map<String, Object?> value) => TaskChecklistItemDto(
+    id: value['id']!.toString(),
+    title: value['displayName']!.toString(),
+    completed: value['isChecked'] == true,
+    rawJson: Map.of(value),
+  );
+
+  @override
+  Future<TaskChecklistItemsPageDto> listChecklistItemsPage({
+    required String taskListId,
+    required String taskId,
+    String? pageToken,
+  }) async {
+    readPages += 1;
+    final values = items.values.toList();
+    return TaskChecklistItemsPageDto(
+      items: pageToken == null
+          ? values.take(1).map(dto).toList()
+          : values.skip(1).map(dto).toList(),
+      rawJson: const {},
+      nextPageToken: pageToken == null && values.length > 1
+          ? 'second-page'
+          : null,
+    );
+  }
+
+  @override
+  Future<TaskChecklistItemDto> updateChecklistItem({
+    required String taskListId,
+    required String taskId,
+    required String checklistItemId,
+    String? title,
+    bool? completed,
+  }) async {
+    mutations.add('patch:$checklistItemId');
+    final value = items[checklistItemId]!;
+    if (title != null) value['displayName'] = title;
+    if (completed != null) value['isChecked'] = completed;
+    return dto(value);
+  }
+
+  @override
+  Future<void> deleteChecklistItem({
+    required String taskListId,
+    required String taskId,
+    required String checklistItemId,
+  }) async {
+    mutations.add('delete:$checklistItemId');
+    items.remove(checklistItemId);
+  }
+
+  @override
+  Future<TaskChecklistItemDto> createChecklistItem({
+    required String taskListId,
+    required String taskId,
+    required String title,
+    bool completed = false,
+  }) async {
+    final id = 'server-step-${items.length + 1}';
+    mutations.add('create:$id');
+    final value = {'id': id, 'displayName': title, 'isChecked': completed};
+    items[id] = value;
+    return dto(value);
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnsupportedError(
+    'Unexpected provider call: ${invocation.memberName}',
+  );
+}
+
+class _AndroidRetryScheduleRepository extends ScheduleRepository {
+  _AndroidRetryScheduleRepository(super.database);
+  var fail = false;
+
+  @override
+  Future<List<TaskScheduleItem>> listAllTasks({
+    ScheduleFilters filters = const ScheduleFilters(
+      includeCalendarEvents: false,
+      taskCompletion: ScheduleTaskCompletion.all,
+      showNoDateTasks: true,
+    ),
+  }) {
+    if (fail) return Future.error(StateError('test task query failure'));
+    return super.listAllTasks(filters: filters);
+  }
+}
+
+Future<TaskEntity> _seedAndroidDavTree(
+  AppDatabase database, {
+  int? recurringCount,
+  String? recurringRule,
+  bool explicitParentStatus = true,
+  bool recurringChild = false,
+  bool readOnly = false,
+}) async {
+  final task = await _seedAndroidEditorTask(database);
+  await database.delete(database.tasks).go();
+  await database
+      .into(database.davCollections)
+      .insert(
+        DavCollectionsCompanion.insert(
+          id: 'checkbox-dav',
+          accountId: task.accountId,
+          hrefKey: '/tasks/',
+          requestUri: 'https://example.test/tasks/',
+          displayName: 'Editor tasks',
+          supportedComponentMask: const Value(2),
+          currentUserPrivilegesJson: Value(
+            readOnly ? '["{DAV:}read"]' : '["{DAV:}read","{DAV:}write"]',
+          ),
+          readOnly: Value(readOnly),
+          taskProjectionEnabled: const Value(true),
+          createdAtUtc: '2026-08-01T00:00:00Z',
+          updatedAtUtc: '2026-08-01T00:00:00Z',
+        ),
+      );
+  await (database.update(
+    database.taskLists,
+  )..where((row) => row.accountId.equals(task.accountId))).write(
+    const TaskListsCompanion(
+      id: Value('dav-task-list-checkbox-dav'),
+      davCollectionId: Value('checkbox-dav'),
+    ),
+  );
+  final recurringTitle = recurringChild ? 'Child' : 'Parent';
+  final objects = [
+    for (final title in ['Parent', 'Child'])
+      DavPreparedObject.parse(
+        hrefKey: '/tasks/${title.toLowerCase()}.ics',
+        requestUri: Uri.parse(
+          'https://example.test/tasks/${title.toLowerCase()}.ics',
+        ),
+        etag: '"one"',
+        contentType: 'text/calendar',
+        rawIcsBody: [
+          'BEGIN:VCALENDAR',
+          'VERSION:2.0',
+          'PRODID:-//BusyMax Android test//EN',
+          'BEGIN:VTODO',
+          'UID:${title.toLowerCase()}-uid',
+          'SUMMARY:$title',
+          if (title != 'Parent' || explicitParentStatus) 'STATUS:NEEDS-ACTION',
+          if (title != recurringTitle ||
+              (recurringCount == null && recurringRule == null))
+            'PERCENT-COMPLETE:0',
+          if (title == recurringTitle &&
+              (recurringCount != null || recurringRule != null)) ...[
+            'DUE;VALUE=DATE:${_icalDate(DateTime.now().add(const Duration(days: 2)))}',
+            'RRULE:${recurringRule ?? 'FREQ=DAILY;COUNT=$recurringCount'}',
+          ],
+          if (title == 'Child') 'RELATED-TO:parent-uid',
+          'END:VTODO',
+          'END:VCALENDAR',
+          '',
+        ].join('\r\n'),
+      ),
+  ];
+  await DavObjectRepository(database: database).commit(
+    DavCollectionCommit(
+      accountId: task.accountId,
+      collectionId: 'checkbox-dav',
+      provider: BusyProvider.nextcloud,
+      objects: objects,
+      deletedHrefKeys: const {},
+      completeMembership: true,
+      membershipHrefKeys: objects.map((object) => object.hrefKey).toSet(),
+      finalCursorKind: 'dav_sync_token',
+      finalCursorValue: 'checkbox-sync',
+      baselineGeneration: 1,
+      completedAtUtc: DateTime.utc(2026, 8),
+      projectionRangeStartUtc: DateTime.utc(2026),
+      projectionRangeEndUtc: DateTime.utc(2027),
+    ),
+  );
+  final rows = await database.tasksDao.listTasks(
+    task.accountId,
+    'dav-task-list-checkbox-dav',
+  );
+  return TaskEntity.fromRow(rows.singleWhere((row) => row.title == 'Parent'));
+}
+
+Finder _androidMutationTile(TaskEntity task, {bool skipOffstage = true}) =>
+    find.descendant(
+      of: find.byKey(
+        ValueKey((
+          'mutation-cell',
+          '${task.accountId}\u0000${task.taskListId}\u0000${task.id}',
+        )),
+        skipOffstage: skipOffstage,
+      ),
+      matching: find.byType(ListTile, skipOffstage: skipOffstage),
+      skipOffstage: skipOffstage,
+    );
+
+Future<void> _seedAndroidDavMoveDestination(
+  AppDatabase database,
+  String accountId,
+) async {
+  const timestamp = '2026-08-01T00:00:00Z';
+  await database
+      .into(database.davCollections)
+      .insert(
+        DavCollectionsCompanion.insert(
+          id: 'editor-destination',
+          accountId: accountId,
+          hrefKey: '/other-tasks/',
+          requestUri: 'https://example.test/other-tasks/',
+          displayName: 'Other tasks',
+          supportedComponentMask: const Value(2),
+          currentUserPrivilegesJson: const Value(
+            '["{DAV:}read","{DAV:}write"]',
+          ),
+          readOnly: const Value(false),
+          eventProjectionEnabled: const Value(false),
+          taskProjectionEnabled: const Value(true),
+          createdAtUtc: timestamp,
+          updatedAtUtc: timestamp,
+        ),
+      );
+  await database.taskListsDao.upsertTaskList(
+    TaskListsCompanion.insert(
+      accountId: accountId,
+      id: 'dav-task-list-editor-destination',
+      davCollectionId: const Value('editor-destination'),
+      title: 'Other tasks',
+      rawJson: '{}',
+      createdLocalAtUtc: timestamp,
+      updatedLocalAtUtc: timestamp,
+    ),
+  );
+}
+
+String _icalDate(DateTime value) =>
+    '${value.year}${value.month.toString().padLeft(2, '0')}${value.day.toString().padLeft(2, '0')}';
+
+class _FailFirstMoveTaskRepository extends TasksRepository {
+  _FailFirstMoveTaskRepository({
+    required super.database,
+    required super.accountId,
+  }) : _database = database;
+  final AppDatabase _database;
+  var moveCalls = 0;
+
+  @override
+  Future<void> patchTask(
+    String taskListId,
+    String taskId,
+    TaskPatchInput input,
+  ) async {
+    await super.patchTask(taskListId, taskId, input);
+    await (_database.update(
+      _database.tasks,
+    )..where((row) => row.id.equals(taskId))).write(
+      const TasksCompanion(notes: Value('Concurrent untouched notes')),
+    );
+  }
+
+  @override
+  Future<void> moveTask(TaskMoveInput input) async {
+    moveCalls += 1;
+    if (moveCalls == 1) throw StateError('Move failed before commit');
+    await super.moveTask(input);
+  }
+}
+
+class _AndroidRecoveryMoveClient implements TaskRemoteClient {
+  String listId = 'source-list';
+  int revision = 0;
+  final mutations = <String>[];
+  final task = <String, Object?>{
+    'id': 'move-task',
+    'title': 'Original move task',
+    'status': 'needsAction',
+  };
+
+  void rename(String title) {
+    task['title'] = title;
+    _advance();
+  }
+
+  void _advance() {
+    task['etag'] = 'move-${++revision}';
+    task['updated'] = DateTime.utc(2026, 9, 14, 0, revision).toIso8601String();
+  }
+
+  @override
+  Future<TaskDto> getTask({
+    required String taskListId,
+    required String taskId,
+  }) async {
+    if (taskListId != listId || taskId != task['id']) {
+      throw StateError('Task is not in the requested list');
+    }
+    return TaskDto.fromJson(Map.of(task));
+  }
+
+  @override
+  Future<TaskDto> moveTask({
+    required String sourceTaskListId,
+    required String taskId,
+    String? parentTaskId,
+    String? previousSiblingTaskId,
+    String? destinationTaskListId,
+  }) async {
+    await getTask(taskListId: sourceTaskListId, taskId: taskId);
+    mutations.add('move:$sourceTaskListId:$destinationTaskListId');
+    listId = destinationTaskListId ?? sourceTaskListId;
+    _advance();
+    return TaskDto.fromJson(Map.of(task));
+  }
+
+  @override
+  Future<TaskDto> patchTask({
+    required String taskListId,
+    required String taskId,
+    required TaskPatch patch,
+  }) async {
+    await getTask(taskListId: taskListId, taskId: taskId);
+    mutations.add('patch:$taskListId');
+    task.addAll(patch.toJson());
+    _advance();
+    return TaskDto.fromJson(Map.of(task));
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnsupportedError(
+    'Unexpected provider call: ${invocation.memberName}',
+  );
+}
+
+class _AndroidTaskIdentityClient implements TaskRemoteClient {
+  final creationReceived = Completer<void>();
+  final releaseCreation = Completer<void>();
+  final mutations = <String>[];
+  Map<String, Object?>? task;
+  var revision = 0;
+
+  @override
+  Future<TaskDto> createTask({
+    required String taskListId,
+    String? parentTaskId,
+    String? previousSiblingTaskId,
+    required TaskCreate create,
+  }) async {
+    creationReceived.complete();
+    await releaseCreation.future;
+    mutations.add('create');
+    task = {
+      ...create.toJson(),
+      'id': 'server-created-task',
+      'status': 'needsAction',
+      'etag': 'v${++revision}',
+      'updated': DateTime.now().toUtc().toIso8601String(),
+    };
+    return TaskDto.fromJson(task!);
+  }
+
+  @override
+  Future<TaskDto> getTask({
+    required String taskListId,
+    required String taskId,
+  }) async {
+    if (task?['id'] != taskId) throw StateError('Unexpected task identity');
+    return TaskDto.fromJson(Map.of(task!));
+  }
+
+  @override
+  Future<TaskDto> patchTask({
+    required String taskListId,
+    required String taskId,
+    required TaskPatch patch,
+  }) async {
+    if (task?['id'] != taskId) throw StateError('Obsolete task identity');
+    mutations.add('patch:$taskId');
+    task = {
+      ...task!,
+      ...patch.toJson(),
+      'etag': 'v${++revision}',
+      'updated': DateTime.now().toUtc().toIso8601String(),
+    };
+    return TaskDto.fromJson(Map.of(task!));
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnsupportedError(
+    'Unexpected provider call: ${invocation.memberName}',
+  );
+}
+
+class _FailFirstChecklistEditRepository extends TasksRepository {
+  _FailFirstChecklistEditRepository({
+    required super.database,
+    required super.accountId,
+    required super.apiClient,
+  });
+  var calls = 0;
+
+  @override
+  Future<void> patchChecklistSubtask({
+    required String taskListId,
+    required String parentTaskId,
+    required String checklistItemId,
+    TaskChecklistItemEntity? observedItem,
+    String? title,
+    bool? completed,
+  }) async {
+    calls += 1;
+    if (calls == 1) throw StateError('Checklist local commit failed');
+    await super.patchChecklistSubtask(
+      taskListId: taskListId,
+      parentTaskId: parentTaskId,
+      checklistItemId: checklistItemId,
+      observedItem: observedItem,
+      title: title,
+      completed: completed,
+    );
+  }
+}
+
+class _FailedMoveChoiceRepository extends TasksRepository {
+  _FailedMoveChoiceRepository({
+    required super.database,
+    required super.accountId,
+    required this.failFirstPatch,
+  });
+  final bool failFirstPatch;
+  var patchCalls = 0;
+  final moveDestinations = <String?>[];
+  @override
+  Future<void> patchTask(
+    String taskListId,
+    String taskId,
+    TaskPatchInput input,
+  ) async {
+    patchCalls += 1;
+    if (failFirstPatch && patchCalls == 1) {
+      throw StateError('Patch failed before commit');
+    }
+    await super.patchTask(taskListId, taskId, input);
+  }
+
+  @override
+  Future<void> moveTask(TaskMoveInput input) async {
+    moveDestinations.add(input.destinationTaskListId);
+    if (!failFirstPatch && moveDestinations.length == 1) {
+      throw StateError('Move failed before commit');
+    }
+    await super.moveTask(input);
+  }
+}
+
+class _GatedTaskReadRepository extends TasksRepository {
+  _GatedTaskReadRepository({
+    required super.database,
+    required super.accountId,
+    required this.release,
+    super.apiClient,
+  });
+  final Completer<void> release;
+  var reads = 0;
+  @override
+  Stream<TaskEntity?> watchTask(String taskListId, String taskId) async* {
+    reads += 1;
+    await release.future;
+    yield* super.watchTask(taskListId, taskId);
+  }
+}
+
+class _GatedCompletedTaskListReadRepository extends TaskListsRepository {
+  _GatedCompletedTaskListReadRepository({
+    required super.database,
+    required super.accountId,
+  });
+  bool arm = false;
+  final entered = Completer<void>();
+  final release = Completer<void>();
+  @override
+  Future<List<TaskListEntity>> listTaskLists() async {
+    final result = await super.listTaskLists();
+    if (arm) {
+      arm = false;
+      entered.complete();
+      await release.future;
+    }
+    return result;
   }
 }

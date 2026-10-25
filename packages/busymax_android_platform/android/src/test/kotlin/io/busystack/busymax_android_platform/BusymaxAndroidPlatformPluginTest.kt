@@ -4,6 +4,7 @@ import androidx.core.text.util.LocalePreferences
 import com.microsoft.identity.client.exception.MsalClientException
 import com.microsoft.identity.client.exception.MsalServiceException
 import com.microsoft.identity.client.exception.MsalUiRequiredException
+import com.microsoft.identity.client.IAccount
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.util.Locale
@@ -14,6 +15,34 @@ import sun.misc.Unsafe
 import org.mockito.Mockito
 
 internal class BusymaxAndroidPlatformPluginTest {
+    @Test
+    fun silentRecovery_propagatesForceRefreshIntoPinnedMsalParameters() {
+        val account = object : IAccount {
+            override fun getId() = "qa-account"
+            override fun getAuthority() = "https://login.microsoftonline.com/tenant"
+            override fun getIdToken() = "qa-id-token"
+            override fun getClaims(): Map<String, Any> = emptyMap()
+            override fun getUsername() = "qa@example.test"
+            override fun getTenantId() = "tenant"
+        }
+        val scopes = listOf("User.Read", "Tasks.ReadWrite", "Calendars.ReadWrite.Shared")
+        val authority = "https://login.microsoftonline.com/tenant"
+        for (refresh in listOf(false, true)) {
+            val call = MethodCall("authorizeMicrosoftSilent", mapOf(
+                "forceRefresh" to refresh,
+                "claims" to "{\"access_token\":{\"example\":{\"essential\":true}}}",
+            ))
+            val parameters = microsoftSilentParameters(call, scopes, account, authority)
+            assertEquals(refresh, parameters.forceRefresh)
+            assertEquals(account, parameters.account)
+            assertEquals(scopes, parameters.scopes)
+            assertEquals(authority, parameters.authority)
+            assertNotNull(parameters.claimsRequest)
+        }
+        val ordinary = microsoftSilentParameters(MethodCall("authorizeMicrosoftSilent", emptyMap<String, Any>()), scopes, account, authority)
+        assertEquals(false, ordinary.forceRefresh)
+    }
+
     @Test
     fun scopedCancellation_cannotCancelNewerInteractiveReservation() {
         val plugin = BusymaxAndroidPlatformPlugin()

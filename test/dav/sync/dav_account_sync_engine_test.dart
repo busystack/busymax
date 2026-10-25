@@ -880,6 +880,7 @@ void main() {
         .select(database.notificationSchedule)
         .getSingle();
     expect(scheduled.sentAtUtc, isNotNull);
+    final consumedId = scheduled.id;
 
     final recoveredBody = _eventWithReminder(
       'Recovered appointment',
@@ -926,9 +927,12 @@ void main() {
     ).synchronize();
 
     expect(rebuilds, 1);
-    scheduled = await database
-        .select(database.notificationSchedule)
-        .getSingle();
+    final rebuilt = await database.select(database.notificationSchedule).get();
+    final consumed = rebuilt.singleWhere((row) => row.id == consumedId);
+    expect(consumed.sentAtUtc, isNotNull);
+    expect(consumed.title, isEmpty);
+    expect(await scheduleService.isReminderSourceEligible(consumed), isFalse);
+    scheduled = rebuilt.singleWhere((row) => row.id != consumedId);
     expect(scheduled.title, 'Recovered appointment');
     expect(
       scheduled.scheduledAtUtc,
@@ -937,6 +941,23 @@ void main() {
     expect(scheduled.sentAtUtc, isNull);
     expect(scheduled.dismissedAtUtc, isNull);
     expect(scheduled.snoozedUntilUtc, isNull);
+    expect(await scheduleService.isReminderSourceEligible(scheduled), isTrue);
+    final restarted = NotificationScheduler(
+      database: database,
+      notifications: DesktopNotificationService(
+        backend: notificationBackend,
+        settings: AppSettings.defaults(),
+        now: () => clock,
+      ),
+      nowUtc: () => clock,
+    );
+    addTearDown(restarted.stop);
+    await restarted.checkNow();
+    expect(notificationBackend.requests, hasLength(1));
+    expect(
+      notificationBackend.cancelledIds,
+      contains(notificationBackend.requests.single.stableId),
+    );
   });
 
   test(
@@ -1220,6 +1241,7 @@ final class _UnavailableSecretStore extends InMemorySecretStore {
 
 final class _ReminderRecordingBackend implements DesktopNotificationBackend {
   final requests = <BusyMaxNotificationRequest>[];
+  final cancelledIds = <String>[];
 
   @override
   Future<void> notify(
@@ -1230,7 +1252,7 @@ final class _ReminderRecordingBackend implements DesktopNotificationBackend {
   }
 
   @override
-  Future<void> cancel(String stableId) async {}
+  Future<void> cancel(String stableId) async => cancelledIds.add(stableId);
 
   @override
   Future<void> close() async {}

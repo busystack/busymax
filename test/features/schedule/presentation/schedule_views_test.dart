@@ -1415,7 +1415,24 @@ void main() {
       matching: find.byType(ScheduleItemChip),
     );
     expect(popoverChips, findsWidgets);
-    await tester.tap(popoverChips.at(1));
+    // Scope/sibling order can group accounts without changing which row was
+    // selected. Keep this anchor regression attached to the same actual item.
+    final selectedChip = find.descendant(
+      of: find.byType(ListView),
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is ScheduleItemChip && widget.item.id == 'all-day-task:1',
+      ),
+    );
+    await tester.scrollUntilVisible(
+      selectedChip,
+      100,
+      scrollable: find.descendant(
+        of: find.byType(ListView),
+        matching: find.byType(Scrollable),
+      ),
+    );
+    await tester.tap(selectedChip);
     await tester.pumpAndSettle();
 
     expect(selectedItem?.id, 'all-day-task:1');
@@ -2951,6 +2968,7 @@ void main() {
                   completed: false,
                   allDay: true,
                   start: yesterday,
+                  due: yesterday,
                   sourceName: 'Inbox',
                 ),
                 TaskScheduleItem(
@@ -2962,6 +2980,7 @@ void main() {
                   completed: true,
                   allDay: true,
                   start: yesterday,
+                  due: yesterday,
                   sourceName: 'Inbox',
                 ),
                 ..._itemsFor(selectedDate),
@@ -3493,6 +3512,7 @@ void main() {
       completed: false,
       allDay: true,
       start: selectedDate.subtract(const Duration(days: 1)),
+      due: selectedDate.subtract(const Duration(days: 1)),
       hasSubtasks: true,
       sourceName: 'Projects',
     );

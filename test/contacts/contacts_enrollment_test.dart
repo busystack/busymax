@@ -8,6 +8,7 @@ import 'package:busymax/src/contacts/busymax_contacts_controller.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:logging/logging.dart';
 
 import '../support/contacts_fixture.dart';
 
@@ -250,51 +251,107 @@ void main() {
     () async {
       final uncaught = <Object>[];
       final completion = Completer<void>();
-      runZonedGuarded(() async {
-        try {
-          final f = ContactsFixture(
-            AppDatabase.memoryForTests(),
-            syncInterval: const Duration(milliseconds: 20),
-          );
+      const interval = Duration(milliseconds: 20);
+      _ControlledPeriodicTimer? scheduled;
+      runZonedGuarded(
+        () async {
           try {
-            await f.addParent(BusyProvider.google);
-            await f.addParent(BusyProvider.microsoft);
-            await f.controller.enableLinkedContacts('google');
-            await f.controller.enableLinkedContacts('microsoft');
-            await f.controller.synchronizeAll();
-            f.googleOffline = true;
-            await Future<void>.delayed(const Duration(milliseconds: 1100));
-            expect(
-              (await f.store.read((tx) => tx.account('contacts:google')))!
-                  .errorCode,
-              isNotNull,
+            final f = ContactsFixture(
+              AppDatabase.memoryForTests(),
+              syncInterval: interval,
             );
-            expect(
-              (await f.store.read((tx) => tx.account('contacts:microsoft')))!
-                  .errorCode,
-              isNull,
-            );
-            expect(
-              await f.controller.suggestAttendees(
-                'ada',
-                busyMaxAccountId: 'microsoft',
-              ),
-              hasLength(1),
-            );
-            await expectLater(
-              f.controller.synchronizeAccount('contacts:google'),
-              throwsA(isA<ContactsException>()),
-            );
-          } finally {
-            await f.close();
+            try {
+              await f.addParent(BusyProvider.google);
+              await f.addParent(BusyProvider.microsoft);
+              await f.controller.enableLinkedContacts('google');
+              await f.controller.enableLinkedContacts('microsoft');
+              await f.controller.synchronizeAll();
+              final microsoftRequests = f.requests
+                  .where((request) => request.url.host == 'graph.microsoft.com')
+                  .length;
+              final observedFailure = Logger('busymax.contacts').onRecord
+                  .firstWhere(
+                    (record) =>
+                        record.message == 'Scheduled contacts work failed',
+                  );
+              f.googleOffline = true;
+              expect(scheduled?.isActive, isTrue);
+              scheduled!.fire();
+              expect((await observedFailure).error, isA<ContactsException>());
+              expect(
+                (await f.store.read((tx) => tx.account('contacts:google')))!
+                    .errorCode,
+                isNotNull,
+              );
+              expect(
+                (await f.store.read((tx) => tx.account('contacts:microsoft')))!
+                    .errorCode,
+                isNull,
+              );
+              expect(
+                f.requests
+                    .where(
+                      (request) => request.url.host == 'graph.microsoft.com',
+                    )
+                    .length,
+                greaterThan(microsoftRequests),
+              );
+              expect(
+                await f.controller.suggestAttendees(
+                  'ada',
+                  busyMaxAccountId: 'microsoft',
+                ),
+                hasLength(1),
+              );
+              await expectLater(
+                f.controller.synchronizeAccount('contacts:google'),
+                throwsA(isA<ContactsException>()),
+              );
+            } finally {
+              await f.close();
+            }
+            completion.complete();
+          } catch (e, s) {
+            completion.completeError(e, s);
           }
-          completion.complete();
-        } catch (e, s) {
-          completion.completeError(e, s);
-        }
-      }, (e, s) => uncaught.add(e));
-      await completion.future.timeout(const Duration(seconds: 5));
+        },
+        (e, s) => uncaught.add(e),
+        zoneSpecification: ZoneSpecification(
+          createPeriodicTimer: (self, parent, zone, duration, callback) {
+            if (duration != interval) {
+              return parent.createPeriodicTimer(zone, duration, callback);
+            }
+            expect(scheduled, isNull);
+            return scheduled = _ControlledPeriodicTimer(callback);
+          },
+        ),
+      );
+      await completion.future;
       expect(uncaught, isEmpty);
     },
   );
+}
+
+/// Drives the real controller's scheduled work without wall-clock races.
+final class _ControlledPeriodicTimer implements Timer {
+  _ControlledPeriodicTimer(this._callback);
+
+  final void Function(Timer) _callback;
+  bool _active = true;
+  int _tick = 0;
+
+  void fire() {
+    if (!_active) return;
+    _tick++;
+    _callback(this);
+  }
+
+  @override
+  bool get isActive => _active;
+
+  @override
+  int get tick => _tick;
+
+  @override
+  void cancel() => _active = false;
 }

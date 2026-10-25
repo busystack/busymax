@@ -110,14 +110,17 @@ final class BusyMaxContactsStore implements ContactsStore {
     required ContactAccount account,
     required String busyMaxAccountId,
     required bool reuseAuthorization,
+    void Function()? validate,
   }) => _track(
-    () => database.transaction(
-      () => persistLinkedAccount(
+    () => database.transaction(() async {
+      validate?.call();
+      await persistLinkedAccount(
         account: account,
         busyMaxAccountId: busyMaxAccountId,
         reuseAuthorization: reuseAuthorization,
-      ),
-    ),
+      );
+      validate?.call();
+    }),
     notify: true,
   );
 
@@ -177,6 +180,27 @@ ON CONFLICT(contact_account_id) DO UPDATE SET
         return row?.readNullable<String>('busymax_account_id');
       });
 
+  /// The link row is provenance even after its parent was deleted by an older
+  /// version (ON DELETE SET NULL). A null parent never makes it independent.
+  Future<bool> hasAccountLink(String id) => _track(
+    () async =>
+        (await database
+            .customSelect(
+              'SELECT contact_account_id FROM bm_contact_account_links WHERE contact_account_id = ?',
+              variables: [Variable<String>(id)],
+            )
+            .getSingleOrNull()) !=
+        null,
+  );
+
+  Future<Set<String>> independentAccountIds() => _track(
+    () async => (await database.customSelect('''
+SELECT a.id FROM bm_contact_accounts a
+LEFT JOIN bm_contact_account_links l ON l.contact_account_id = a.id
+WHERE l.contact_account_id IS NULL
+''').get()).map((row) => row.read<String>('id')).toSet(),
+  );
+
   Future<List<String>> linkedContactAccounts(String busyMaxAccountId) => _track(
     () async =>
         (await database
@@ -232,7 +256,10 @@ SELECT a.data AS account_data, s.source_key,
   JOIN bm_contact_sources s ON s.account_id = a.id
   LEFT JOIN bm_contact_account_links l ON l.contact_account_id = a.id
   LEFT JOIN bm_contact_source_preferences p ON p.source_key = s.source_key
- WHERE (? IS NULL OR l.busymax_account_id IS NULL OR l.busymax_account_id = ?)
+ WHERE (l.contact_account_id IS NULL OR
+        (l.busymax_account_id IS NOT NULL AND
+         EXISTS (SELECT 1 FROM accounts parent WHERE parent.id = l.busymax_account_id)))
+   AND (? IS NULL OR l.contact_account_id IS NULL OR l.busymax_account_id = ?)
  ORDER BY a.id, s.source_key
 ''',
               variables: <Variable<Object>>[

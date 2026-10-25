@@ -9,7 +9,12 @@ enum DesktopNotificationReadinessState {
 
 @immutable
 final class DesktopNotificationReadiness {
-  const DesktopNotificationReadiness(this.state, {this.diagnosticCode});
+  const DesktopNotificationReadiness(
+    this.state, {
+    this.diagnosticCode,
+    this.permissionGranted,
+    this.deliveryFailed = false,
+  });
 
   const DesktopNotificationReadiness.initializing()
     : this(DesktopNotificationReadinessState.initializing);
@@ -17,7 +22,15 @@ final class DesktopNotificationReadiness {
   final DesktopNotificationReadinessState state;
   final String? diagnosticCode;
 
-  bool get canNotify => state == DesktopNotificationReadinessState.available;
+  /// Unknown when native APIs cannot establish OS permission. Even true does
+  /// not establish whether Do Not Disturb allowed a banner or sound.
+  final bool? permissionGranted;
+  final bool deliveryFailed;
+
+  bool get canNotify =>
+      state == DesktopNotificationReadinessState.available &&
+      permissionGranted != false &&
+      !deliveryFailed;
 }
 
 typedef DesktopNotificationActionHandler = Future<void> Function(
@@ -73,6 +86,12 @@ abstract interface class DesktopNotificationBackend {
   Future<void> cancel(String stableId);
 
   Future<void> close();
+}
+
+/// Native identities are retained independently of source rows so deletion while
+/// BusyMax was stopped can still withdraw notifications on the next launch.
+abstract interface class DesktopNotificationIdentitySource {
+  Future<Set<String>> knownReminderDeliveryIds();
 }
 
 final class DisabledDesktopNotificationBackend
