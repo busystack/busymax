@@ -140,3 +140,11 @@ off by default.
 
 BusyMax is licensed under the [Apache License 2.0](LICENSE). See
 [NOTICE](NOTICE) for attribution and trademark information.
+
+Dependency verification uses `python3 tool/verify_upstream_packages.py` after
+locked package resolution. It checks the approved Flutter/Dart source revision,
+complete Dart SDK and present desktop/compiler cache files against official
+publisher identities, and restored package source against the checksum-derived
+`tool/upstream_packages.json` inventory. It never repairs or modifies installed
+software. Reviewed dependency/toolchain upgrades must update these publisher
+identities; matching version strings alone do not establish unchanged source.
