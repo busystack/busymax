@@ -11,7 +11,7 @@ import 'package:http/testing.dart';
 
 void main() {
   test(
-    'attendee lookup pages past one hundred contacts without email',
+    'F11 attendee lookup pages past contacts without email and exclusions',
     () async {
       final database = AppDatabase.memoryForTests();
       final store = BusyMaxContactsStore(database);
@@ -40,10 +40,20 @@ void main() {
             _record('enabled', i.toString().padLeft(3, '0'), null),
           );
         }
+        for (var i = 100; i < 200; i++) {
+          await tx.putContact(
+            _record('enabled', '$i', 'excluded@example.test'),
+          );
+        }
         await tx.putContact(_record('enabled', 'zzz', 'alex@example.test'));
       });
-      final matches = await controller.suggestAttendees('Alex');
+      final matches = await controller.suggestAttendees(
+        'Alex',
+        excludedAddresses: {'EXCLUDED@example.test'},
+        limit: 1,
+      );
       expect(matches.map((match) => match.email), ['alex@example.test']);
+      expect(matches.single.identities.single.sourceId, 'enabled');
     },
   );
 
