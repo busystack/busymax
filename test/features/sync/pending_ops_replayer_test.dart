@@ -1,6 +1,7 @@
 import 'package:busymax/src/features/tasks/domain/task_remote_error.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/sync/sync_auth_error.dart';
+import 'package:busymax/src/features/sync/domain_sync_schedule.dart';
 
 import 'dart:async';
 import 'dart:convert';
@@ -50,6 +51,201 @@ void main() {
   tearDown(() async {
     await database.close();
   });
+
+  for (final fullUpdate in [false, true]) {
+    test(
+      'recurring completion retries definitive Graph throttling ($fullUpdate)',
+      () async {
+        await database
+            .update(database.accounts)
+            .write(const AccountsCompanion(provider: Value('microsoft')));
+        final graph = _ThrottledMicrosoftTodoApiClient();
+        final remote = MicrosoftTodoTaskRemoteClient(
+          client: graph,
+          defaultTimeZone: 'UTC',
+        );
+        final original = await remote.getTask(
+          taskListId: 'list-1',
+          taskId: 'task-1',
+        );
+        await database.tasksDao.upsertTask(
+          taskFromDto('account', 'list-1', original, _now),
+        );
+        var now = DateTime.utc(2026, 6, 4, 1);
+        final repository = TasksRepository(
+          database: database,
+          accountId: 'account',
+          nowUtc: () => now,
+        );
+        if (fullUpdate) {
+          await repository.updateTaskFull(
+            'list-1',
+            'task-1',
+            const TaskPutInput({'status': 'completed'}),
+          );
+        } else {
+          await repository.patchTask(
+            'list-1',
+            'task-1',
+            const TaskPatchInput({'status': 'completed'}),
+          );
+        }
+        await repository.patchTask(
+          'list-1',
+          'task-1',
+          const TaskPatchInput({'title': 'After completion'}),
+        );
+        final queued = await database.select(database.pendingOps).get();
+        final completion = queued.singleWhere(
+          (op) => jsonDecode(op.requestJson)['status'] == 'completed',
+        );
+        expect(
+          queued.singleWhere((op) => op.id != completion.id).dependsOnOpId,
+          completion.id,
+        );
+        Future<int> replay() => PendingOpsReplayer(
+          database: database,
+          apiClient: remote,
+          accountId: 'account',
+          nowUtc: () => now,
+          random: Random(0),
+        ).replayDueOps();
+        for (var attempt = 1; attempt <= 2; attempt++) {
+          final dispatchTime = now;
+          await expectLater(
+            replay(),
+            throwsA(
+              isA<TaskRemoteError>()
+                  .having((error) => error.statusCode, 'HTTP status', 429)
+                  .having(
+                    (error) => error.retryAfter,
+                    'Retry-After',
+                    const Duration(minutes: 5),
+                  ),
+            ),
+          );
+          final pending = (await database.pendingOpsDao.getOp(completion.id))!;
+          expect(pending.state, 'retry');
+          expect(pending.attemptCount, attempt);
+          final eligible = DateTime.parse(pending.nextAttemptAtUtc!);
+          expect(eligible.year, lessThan(9999));
+          expect(
+            eligible.isBefore(dispatchTime.add(const Duration(minutes: 5))),
+            isFalse,
+          );
+          expect(graph.updates, attempt);
+          expect(graph.current['status'], 'notStarted');
+          now = eligible.subtract(const Duration(milliseconds: 1));
+          try {
+            await replay();
+          } on DomainCooldownException {
+            /* The domain cooldown also gates dispatch. */
+          }
+          expect(graph.updates, attempt);
+          now = eligible;
+        }
+        expect(await replay(), 2);
+        expect(
+          graph.updates,
+          4,
+        ); // Two rejections, completion, dependent title.
+        expect(graph.completionMutations, 3);
+        expect(
+          graph.readStatuses.where((status) => status == 'notStarted').length,
+          greaterThanOrEqualTo(3),
+        );
+        expect(await database.select(database.pendingOps).get(), isEmpty);
+        final local = await database.select(database.tasks).getSingle();
+        expect(local.status, 'completed');
+        expect(local.title, 'After completion');
+        expect(local.localDirty, isFalse);
+        expect(await replay(), 0);
+        expect(graph.updates, 4);
+      },
+    );
+
+    test(
+      'uncertain recurring completion retains dispatch through Graph read 429 ($fullUpdate)',
+      () async {
+        final graph = _ThrottledMicrosoftTodoApiClient()
+          ..remainingThrottles = 0
+          ..loseCompletionResponse = true;
+        final remote = MicrosoftTodoTaskRemoteClient(
+          client: graph,
+          defaultTimeZone: 'UTC',
+        );
+        await database
+            .update(database.accounts)
+            .write(const AccountsCompanion(provider: Value('microsoft')));
+        final original = await remote.getTask(
+          taskListId: 'list-1',
+          taskId: 'task-1',
+        );
+        await database.tasksDao.upsertTask(
+          taskFromDto('account', 'list-1', original, _now),
+        );
+        var now = DateTime.utc(2026, 6, 4, 1);
+        final repository = TasksRepository(
+          database: database,
+          accountId: 'account',
+          nowUtc: () => now,
+        );
+        if (fullUpdate) {
+          await repository.updateTaskFull(
+            'list-1',
+            'task-1',
+            const TaskPutInput({'status': 'completed'}),
+          );
+        } else {
+          await repository.patchTask(
+            'list-1',
+            'task-1',
+            const TaskPatchInput({'status': 'completed'}),
+          );
+        }
+        Future<int> replay() => PendingOpsReplayer(
+          database: database,
+          apiClient: remote,
+          accountId: 'account',
+          nowUtc: () => now,
+        ).replayDueOps();
+        expect(await replay(), 0);
+        final sent = await database.select(database.pendingOps).getSingle();
+        expect(sent.state, 'in_progress');
+        now = DateTime.utc(2026, 6, 4, 2);
+        graph.throttleRead = true;
+        await expectLater(
+          replay(),
+          throwsA(
+            isA<TaskRemoteError>().having(
+              (error) => error.statusCode,
+              'HTTP status',
+              429,
+            ),
+          ),
+        );
+        final afterRead = (await database.pendingOpsDao.getOp(sent.id))!;
+        expect(afterRead.state, 'in_progress');
+        expect(afterRead.requestJson, sent.requestJson);
+        now = DateTime.utc(2026, 6, 4, 3);
+        expect(await replay(), 0);
+        final protected = (await database.pendingOpsDao.getOp(sent.id))!;
+        expect(protected.state, 'recovery_required');
+        expect(protected.lastErrorCode, 'completion_outcome_unknown');
+        await expectLater(
+          PendingOpResolutionService(
+            database: database,
+            apiClient: remote,
+            accountId: 'account',
+            syncTasks: () async {},
+            syncCalendar: () async {},
+          ).retryNow(sent.id),
+          throwsStateError,
+        );
+        expect(graph.updates, 1);
+      },
+    );
+  }
 
   for (final fullUpdate in [false, true]) {
     for (final rejectedRead in [false, true]) {
@@ -8206,3 +8402,72 @@ Future<void> _waitFor(bool Function() condition) async {
 
 const _now = '2026-06-04T00:00:00.000Z';
 final _later = DateTime.utc(2026, 6, 4, 1);
+
+class _ThrottledMicrosoftTodoApiClient implements MicrosoftTodoApiClient {
+  Map<String, Object?> current = {
+    'id': 'task-1',
+    'title': 'Recurring task',
+    'status': 'notStarted',
+    'lastModifiedDateTime': '2026-06-04T00:00:00.000Z',
+    'recurrence': {
+      'pattern': {'type': 'daily', 'interval': 1},
+      'range': {'type': 'noEnd', 'startDate': '2026-06-04'},
+    },
+  };
+  int remainingThrottles = 2;
+  int updates = 0;
+  int completionMutations = 0;
+  bool loseCompletionResponse = false;
+  bool throttleRead = false;
+  final readStatuses = <String?>[];
+  MicrosoftTodoApiError throttled() => MicrosoftTodoApiError.fromResponse(
+    statusCode: 429,
+    body: '{"error":{"code":"TooManyRequests","message":"QA throttled"}}',
+    headers: {'retry-after': '300'},
+  );
+  @override
+  Future<MicrosoftTodoTaskDto> getTask({
+    required String taskListId,
+    required String taskId,
+  }) async {
+    if (throttleRead) {
+      throttleRead = false;
+      throw throttled();
+    }
+    readStatuses.add(current['status'] as String?);
+    return MicrosoftTodoTaskDto.fromJson(current);
+  }
+
+  @override
+  Future<MicrosoftTodoTaskDto> updateTask({
+    required String taskListId,
+    required String taskId,
+    required Map<String, Object?> patch,
+  }) async {
+    updates++;
+    if (patch['status'] == 'completed') completionMutations++;
+    if (remainingThrottles > 0) {
+      remainingThrottles--;
+      throw throttled();
+    }
+    current = {
+      ...current,
+      ...patch,
+      'lastModifiedDateTime': DateTime.utc(
+        2026,
+        6,
+        4,
+        1,
+        updates,
+      ).toIso8601String(),
+    };
+    if (loseCompletionResponse) {
+      loseCompletionResponse = false;
+      throw StateError('QA response lost after provider commit');
+    }
+    return MicrosoftTodoTaskDto.fromJson(current);
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}

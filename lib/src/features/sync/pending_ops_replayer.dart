@@ -514,11 +514,13 @@ class PendingOpsReplayer {
         await _blockUnsupportedAssignedTask(op);
       }
     }
-    await _markTaskWriteDispatched(op);
-    final dto = await _apiClient.patchTask(
-      taskListId: op.taskListId!,
-      taskId: op.taskId!,
-      patch: TaskPatch.fields(_request(op)),
+    final dto = await _dispatchTaskMutation(
+      op,
+      () => _apiClient.patchTask(
+        taskListId: op.taskListId!,
+        taskId: op.taskId!,
+        patch: TaskPatch.fields(_request(op)),
+      ),
     );
     await _applyTaskEditResult(op, dto);
   }
@@ -550,11 +552,13 @@ class PendingOpsReplayer {
         await _blockUnsupportedAssignedTask(op);
       }
     }
-    await _markTaskWriteDispatched(op);
-    final dto = await _apiClient.updateTask(
-      taskListId: op.taskListId!,
-      taskId: op.taskId!,
-      replacement: TaskPut.fields(_request(op)),
+    final dto = await _dispatchTaskMutation(
+      op,
+      () => _apiClient.updateTask(
+        taskListId: op.taskListId!,
+        taskId: op.taskId!,
+        replacement: TaskPut.fields(_request(op)),
+      ),
     );
     await _applyTaskEditResult(op, dto);
   }
@@ -563,6 +567,25 @@ class PendingOpsReplayer {
     await (_database.update(_database.pendingOps)
           ..where((row) => row.id.equals(op.id)))
         .write(const PendingOpsCompanion(state: Value('in_progress')));
+  }
+
+  Future<TaskDto> _dispatchTaskMutation(
+    PendingOp op,
+    Future<TaskDto> Function() mutation,
+  ) async {
+    await _markTaskWriteDispatched(op);
+    try {
+      return await mutation();
+    } on TaskRemoteError catch (error) {
+      if (error.statusCode == 429) {
+        // Only a rejection of this mutation disproves its dispatch outcome.
+        // A throttled reconciliation read must retain the earlier uncertainty.
+        await (_database.update(_database.pendingOps)
+              ..where((row) => row.id.equals(op.id)))
+            .write(const PendingOpsCompanion(state: Value('retry')));
+      }
+      rethrow;
+    }
   }
 
   Future<void> _applyTaskEditResult(PendingOp op, TaskDto serverTask) async {
