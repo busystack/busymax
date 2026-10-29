@@ -99,7 +99,19 @@ def verify_sdk(root, expected, host=None):
         if kind != b'blob' or mode not in (b'100644', b'100755', b'120000'):
             raise ValueError('Unsupported official SDK source entry: ' + os.fsdecode(relative))
         if mode == b'120000':
-            if not path.is_symlink(): raise ValueError('Flutter SDK source link was replaced: ' + os.fsdecode(relative))
+            if not path.is_symlink():
+                kind = 'file' if path.is_file() else 'directory' if path.is_dir() else 'missing'
+                actual = path.read_bytes() if kind == 'file' else None
+                digest = (hashlib.sha1(b'blob ' + str(len(actual)).encode() + b'\0' + actual).hexdigest()
+                          if actual is not None else 'unavailable')
+                symlinks = subprocess.run(
+                    [*command, 'config', '--local', '--type=bool', '--get', 'core.symlinks'],
+                    env=environment, capture_output=True, text=True, timeout=30,
+                )
+                setting = symlinks.stdout.strip() if symlinks.returncode == 0 else 'unset'
+                raise ValueError('Flutter SDK source link was replaced: ' + os.fsdecode(relative) +
+                                 ' (entry type ' + kind + '; expected blob ' + object_id.decode() +
+                                 ', got ' + digest + '; core.symlinks=' + setting + ')')
             content = os.fsencode(os.readlink(path))
         else:
             if path.is_symlink() or not path.is_file(): raise ValueError('Flutter SDK source is missing or substituted: ' + os.fsdecode(relative))

@@ -118,6 +118,22 @@ class OfficialSdkTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, r'missing or substituted: framework\.dart'):
             self.check()
 
+    def test_link_replacement_diagnostic_reports_identity_without_target_contents(self):
+        source = self.root / 'link-fixture'
+        source.write_bytes(b'fixture-target')
+        self.git('add', 'link-fixture')
+        blob = self.git('rev-parse', ':link-fixture').decode().strip()
+        self.git('update-index', '--cacheinfo', f'120000,{blob},link-fixture')
+        self.git('commit', '-m', 'Synthetic link fixture')
+        self.identity['frameworkRevision'] = self.git('rev-parse', 'HEAD').decode().strip()
+        (self.root / 'bin/cache/flutter.version.json').write_text(json.dumps(self.identity))
+        self.git('config', 'core.symlinks', 'false')
+        with self.assertRaisesRegex(ValueError, 'source link was replaced: link-fixture') as failure:
+            self.check()
+        message = str(failure.exception)
+        self.assertIn(f'entry type file; expected blob {blob}, got {blob}; core.symlinks=false', message)
+        self.assertNotIn('fixture-target', message)
+
     def test_framework_revision_cannot_be_relabelled_by_version_metadata(self):
         self.spec['identity'] = {**self.identity, 'frameworkRevision': '0' * 40}
         (self.root / 'bin/cache/flutter.version.json').write_text(json.dumps(self.spec['identity']))
