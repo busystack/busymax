@@ -52,6 +52,10 @@ function Invoke-BusyMaxSourceGeneration {
   if ($LASTEXITCODE -ne 0) { throw 'Generated source snapshot failed.' }
   & $flutterExecutable pub get --enforce-lockfile
   if ($LASTEXITCODE -ne 0) { throw 'Dependency resolution failed.' }
+  & python tool/verify_upstream_packages.py
+  if ($LASTEXITCODE -ne 0) { throw 'Official dependency integrity failed.' }
+  & python -m unittest discover -s tool -p test_upstream_packages.py
+  if ($LASTEXITCODE -ne 0) { throw 'Official dependency integrity tests failed.' }
   & $flutterExecutable gen-l10n
   if ($LASTEXITCODE -ne 0) { throw 'Localization generation failed.' }
   & $dartExecutable run build_runner build `

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
 
@@ -21,6 +22,7 @@ import 'package:busymax/src/app/busymax_yaru_theme.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/google_calendar/google_calendar_api_client.dart';
 import 'package:busymax/src/google_calendar/google_calendar_models.dart';
+import 'package:busymax/src/google_calendar/google_calendar_mapper.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_models.dart';
 import 'package:busymax/src/platform/native_dialog_service.dart';
 import 'package:busymax/src/platform/native_menu_service.dart';
@@ -41,6 +43,142 @@ const _nativeDialogChannel = MethodChannel(nativeDialogChannelName);
 const _nativeMenuChannel = MethodChannel(nativeMenuChannelName);
 
 void main() {
+  testWidgets(
+    'ordinary monthly series edit shows the exact proposal and requires confirmation',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1400, 1000));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      await database
+          .into(database.accounts)
+          .insert(
+            AccountsCompanion.insert(
+              id: 'account',
+              provider: 'google',
+              authority: 'https://accounts.google.com',
+              providerAccountId: 'fixture',
+              credentialKind: 'oauth',
+              authState: const Value('signed_in'),
+              createdAtUtc: '2026-01-01T00:00:00Z',
+              updatedAtUtc: '2026-01-01T00:00:00Z',
+            ),
+          );
+      final repository = CalendarRepository(database: database);
+      await repository.upsertSource(
+        accountId: 'account',
+        source: const CalendarSourceDto(
+          provider: BusyProvider.google,
+          providerCalendarId: 'calendar',
+          summary: 'Fixture',
+          timeZone: 'UTC',
+          accessRole: 'owner',
+        ),
+      );
+      final master = <String, Object?>{
+        'id': 'series',
+        'summary': 'Monthly',
+        'iCalUID': 'fixture',
+        'organizer': {'self': true},
+        'start': {'dateTime': '2026-01-31T09:00:00Z', 'timeZone': 'UTC'},
+        'end': {'dateTime': '2026-01-31T10:00:00Z', 'timeZone': 'UTC'},
+        'recurrence': ['RRULE:FREQ=MONTHLY;BYMONTHDAY=31;COUNT=4'],
+      };
+      await repository.upsertEvent(
+        accountId: 'account',
+        event: googleCalendarEventFromJson('calendar', master),
+      );
+      await repository.upsertEvent(
+        accountId: 'account',
+        event: googleCalendarEventFromJson('calendar', {
+          ...master,
+          'id': 'occurrence',
+          'recurrence': null,
+          'recurringEventId': 'series',
+          'originalStartTime': {'dateTime': '2026-01-31T09:00:00Z'},
+        }),
+      );
+      final occurrence = (await database.select(database.calendarEvents).get())
+          .singleWhere((row) => row.providerEventId == 'occurrence');
+      final detail = (await repository.loadEventDetail(occurrence.id))!;
+      final desired = EventEditorDraft.fromEventDetail(detail).copyWith(
+        recurringMutationScope: RecurringEventMutationScope.entireSeries,
+      );
+      final source = await database
+          .select(database.calendarSources)
+          .getSingle();
+      EventEditorDraft? saved;
+      final persisted = Completer<void>();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            databaseProvider.overrideWithValue(database),
+            calendarRepositoryProvider.overrideWithValue(repository),
+            googleEventLabelsForCalendarProvider.overrideWith(
+              (ref, key) async => const [],
+            ),
+          ],
+          child: localizedTestApp(
+            child: Scaffold(
+              body: Builder(
+                builder: (context) => ElevatedButton(
+                  onPressed: () async {
+                    final result = await showBusyMaxEventEditorDialog(
+                      context,
+                      initialDraft: desired,
+                      sources: [CalendarSourceEntity.fromRow(source)],
+                      accounts: const [],
+                    );
+                    saved = result?.draft;
+                    if (saved != null) {
+                      await repository.updateLocalEvent(saved!);
+                      persisted.complete();
+                    }
+                  },
+                  child: const Text('Open series editor'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Open series editor'));
+      await tester.pumpAndSettle();
+      tester
+          .widget<DesktopDateValueRow>(
+            find.byWidgetPredicate(
+              (widget) =>
+                  widget is DesktopDateValueRow && widget.label == 'Start date',
+            ),
+          )
+          .onChanged('2026-02-01');
+      await tester.pumpAndSettle();
+      await tester.tap(_headerButtonFinder('Save'));
+      await tester.pumpAndSettle();
+      final confirmation = find.byType(BusyMaxConfirmDialog);
+      expect(confirmation, findsOneWidget);
+      final message = tester.widget<BusyMaxConfirmDialog>(confirmation).message;
+      expect(message, contains('Current: Monthly on day 31 · 4 times'));
+      expect(message, contains('Proposed: Monthly on day 1 · 4 times'));
+      await tester.tap(
+        find.descendant(of: confirmation, matching: find.text('Cancel')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(EventEditor), findsOneWidget);
+      expect(saved, isNull);
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+      await tester.tap(_headerButtonFinder('Save'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.descendant(of: confirmation, matching: find.text('Save')),
+      );
+      await tester.pumpAndSettle();
+      await tester.runAsync(() => persisted.future);
+      expect(saved?.seriesTimingApproval, isNotNull);
+      expect(await database.select(database.pendingOps).get(), hasLength(1));
+    },
+  );
+
   testWidgets('Google all-day Linux availability uses calendar timezone', (
     tester,
   ) async {

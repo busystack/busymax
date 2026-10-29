@@ -1,6 +1,9 @@
 import 'dart:io';
 
 import 'package:busymax/src/features/schedule/presentation/schedule_month_view.dart';
+import 'package:busymax/src/features/schedule/presentation/schedule_agenda_view.dart';
+import 'package:busymax/src/schedule/schedule_item.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/schedule/schedule_range.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -61,6 +64,45 @@ void main() {
         expect(fallBack.end, DateTime(2025, 11, 3));
         expect(fallBack.end.difference(fallBack.start).inHours, 25);
       });
+
+      testWidgets(
+        'Agenda horizons retain the final civil day across autumn DST',
+        (tester) async {
+          final start = DateTime(2026, 10, 23);
+          for (final count in [30, 60]) {
+            final range = ScheduleRange.days(start, count: count);
+            expect(range.end, DateTime(2026, 10, 23 + count));
+            expect(range.end.hour, 0);
+            final finalDay = DateTime(2026, 10, 22 + count, 12);
+            await tester.pumpWidget(
+              localizedTestApp(
+                child: Scaffold(
+                  body: ScheduleAgendaView(
+                    range: range,
+                    items: [
+                      CalendarScheduleItem(
+                        id: 'last-day',
+                        accountId: 'account',
+                        provider: BusyProvider.google,
+                        sourceId: 'calendar',
+                        providerCalendarId: 'calendar',
+                        title: 'Final loaded day',
+                        allDay: false,
+                        start: finalDay,
+                        end: finalDay.add(const Duration(hours: 1)),
+                      ),
+                    ],
+                    onItemSelected: (_, _, [_]) {},
+                    onTaskCompletionChanged: (_, _) {},
+                  ),
+                ),
+              ),
+            );
+            await tester.pumpAndSettle();
+            expect(find.text('Final loaded day'), findsOneWidget);
+          }
+        },
+      );
 
       test('week ranges retain civil midnights at both boundaries', () {
         final springForward = ScheduleRange.week(

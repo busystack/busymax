@@ -60,6 +60,7 @@ abstract interface class MicrosoftContactsAuthorization {
     String accountId, {
     AuthorizationCancellation? cancellation,
     Future<void> Function()? persistContacts,
+    bool forceAuthorization = false,
   });
 
   Future<String> microsoftContactsAuthorizationHeader(
@@ -565,11 +566,13 @@ class MicrosoftOAuthService
     String accountId, {
     AuthorizationCancellation? cancellation,
     Future<void> Function()? persistContacts,
+    bool forceAuthorization = false,
   }) => _optionalConsent(
     accountId,
     microsoftContactsReadScope,
     cancellation,
     persistContacts: persistContacts,
+    forceAuthorization: forceAuthorization,
   );
 
   @override
@@ -602,20 +605,38 @@ class MicrosoftOAuthService
     String scope,
     AuthorizationCancellation? cancellation, {
     Future<void> Function()? persistContacts,
+    bool forceAuthorization = false,
   }) async {
     final attempt = _attempts.begin(_nowUtc, cancellation);
     MicrosoftDesktopCredential? current;
     try {
       final active = await attempt.wait(boundCredentialForAccount(id));
       current = active;
-      if (hasMicrosoftGraphScope(active.tokenSet.scopes, scope) ||
-          scope == microsoftContactsReadScope &&
-              hasMicrosoftGraphScope(
-                active.tokenSet.scopes,
-                microsoftContactsWriteScope,
-              )) {
+      final parent = await (_persistence!.database.select(
+        _persistence.database.accounts,
+      )..where((r) => r.id.equals(id))).getSingleOrNull();
+      if (!forceAuthorization &&
+          parent?.authState == 'signed_in' &&
+          (hasMicrosoftGraphScope(active.tokenSet.scopes, scope) ||
+              scope == microsoftContactsReadScope &&
+                  hasMicrosoftGraphScope(
+                    active.tokenSet.scopes,
+                    microsoftContactsWriteScope,
+                  ))) {
+        final usable = await attempt.wait(validTokenForAccount(id));
+        if (!hasMicrosoftGraphScope(usable.scopes, scope) &&
+            !(scope == microsoftContactsReadScope &&
+                hasMicrosoftGraphScope(
+                  usable.scopes,
+                  microsoftContactsWriteScope,
+                ))) {
+          throw const OAuthException(
+            'MicrosoftOAuthContactsConsentRequired',
+            'Reconnect to restore the requested permission.',
+          );
+        }
         if (persistContacts != null) {
-          final persistence = _persistence!;
+          final persistence = _persistence;
           final generation = active.generation;
           await persistence.run(id, () async {
             attempt.check();
@@ -627,6 +648,13 @@ class MicrosoftOAuthService
             }
             await persistence.database.transaction(() async {
               attempt.check();
+              await (_persistence.database.update(
+                _persistence.database.accounts,
+              )..where((r) => r.id.equals(id))).write(
+                AccountsCompanion(
+                  grantedScopes: Value(usable.scopes.join(' ')),
+                ),
+              );
               await persistContacts();
               attempt.check();
             });
@@ -641,11 +669,12 @@ class MicrosoftOAuthService
         capturedAttempt: attempt,
       );
       await result.commit!(() async {
-        await (_persistence!.database.update(
+        await (_persistence.database.update(
           _persistence.database.accounts,
         )..where((row) => row.id.equals(id))).write(
           AccountsCompanion(
             grantedScopes: Value(result.tokenSet.scopes.join(' ')),
+            authState: const Value('signed_in'),
           ),
         );
         await persistContacts?.call();

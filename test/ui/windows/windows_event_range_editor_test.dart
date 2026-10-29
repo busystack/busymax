@@ -14,6 +14,7 @@ import 'package:drift/native.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:busymax/src/ui/windows/windows_time_picker.dart';
 
 void main() {
   for (final save in [false, true]) {
@@ -110,7 +111,7 @@ void main() {
         );
         expect(find.text('Show on map'), findsNothing);
         final pickers = tester
-            .widgetList<TimePicker>(find.byType(TimePicker))
+            .widgetList<WindowsTimePicker>(find.byType(WindowsTimePicker))
             .toList();
         expect(pickers[0].selected!.hour, 0);
         expect(pickers[0].selected!.minute, 0);
@@ -118,7 +119,7 @@ void main() {
         expect(pickers[1].selected!.minute, 45);
         expect(
           find.descendant(
-            of: find.byType(TimePicker).first,
+            of: find.byType(WindowsTimePicker).first,
             matching: find.text('12'),
           ),
           findsOneWidget,
@@ -134,14 +135,14 @@ void main() {
         expect(tester.element(find.byType(ContentDialog)), same(dialogState));
         expect(
           find.descendant(
-            of: find.byType(TimePicker).first,
+            of: find.byType(WindowsTimePicker).first,
             matching: find.text('00'),
           ),
           findsNWidgets(2),
         );
         expect(
           tester
-              .widgetList<TimePicker>(find.byType(TimePicker))
+              .widgetList<WindowsTimePicker>(find.byType(WindowsTimePicker))
               .map((p) => p.selected),
           timesBefore,
         );

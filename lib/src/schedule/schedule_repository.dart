@@ -1,3 +1,5 @@
+import '../features/notifications/daily_summary_policy.dart';
+
 import 'dart:convert';
 import 'dart:async';
 
@@ -19,6 +21,7 @@ import '../features/calendar/domain/google_status_event.dart';
 import '../features/tasks/domain/task_checklist_item.dart';
 import '../features/tasks/domain/google_task_assignment_policy.dart';
 import '../features/tasks/domain/task_source_links.dart';
+import '../features/tasks/domain/task_occurrence.dart';
 import 'schedule_filters.dart';
 import 'schedule_item.dart';
 import 'event_attachment_link.dart';
@@ -31,7 +34,8 @@ export 'schedule_search_match.dart' show matchesScheduleQuery;
 class ScheduleRepository {
   ScheduleRepository(
     this._database, {
-    Future<void> Function(ScheduleRange range)? ensureProjectionCoverage,
+    Future<void> Function(ScheduleRange range, ScheduleFilters filters)?
+    ensureProjectionCoverage,
     Future<bool> Function(ScheduleRange range, ScheduleFilters filters)?
     ensureCloudCoverage,
     DateTime Function()? nowUtc,
@@ -40,7 +44,8 @@ class ScheduleRepository {
        _nowUtc = nowUtc ?? (() => DateTime.now().toUtc());
 
   final AppDatabase _database;
-  final Future<void> Function(ScheduleRange range)? _ensureProjectionCoverage;
+  final Future<void> Function(ScheduleRange range, ScheduleFilters filters)?
+  _ensureProjectionCoverage;
   final Future<bool> Function(ScheduleRange range, ScheduleFilters filters)?
   _ensureCloudCoverage;
   final DateTime Function() _nowUtc;
@@ -219,9 +224,9 @@ class ScheduleRepository {
     required ScheduleRange range,
     ScheduleFilters filters = const ScheduleFilters(),
   }) async {
-    if (filters.includeCalendarEvents && !filters.ignoreDateRange) {
+    if (filters.requiresCalendarCoverage) {
       _requestCloudCoverage(range, filters);
-      await _ensureProjectionCoverage?.call(range);
+      await _ensureProjectionCoverage?.call(range, filters);
     }
     final context = await _accountContext(filters);
     if (context == null) {
@@ -300,11 +305,12 @@ class ScheduleRepository {
     return _limitedTaskBucket(
       limit: limit,
       filters: filters,
-      databaseFilter: _taskScheduledBefore(ScheduleProjection.day(before)),
+      databaseFilter: _taskDeadlineBefore(ScheduleProjection.day(before)),
       itemFilter: (item) {
-        final start = item.start;
-        return start != null &&
-            ScheduleProjection.day(start)
+        final due = item.due;
+        return item.actionable &&
+            due != null &&
+            ScheduleProjection.day(due)
                 .isBefore(ScheduleProjection.day(before));
       },
     );
@@ -370,7 +376,8 @@ class ScheduleRepository {
           )
           ..where(
             _database.taskLists.id.isNull() |
-                _database.taskLists.serverMissing.equals(false),
+                (_database.taskLists.serverMissing.equals(false) &
+                    _database.taskLists.pendingDelete.equals(false)),
           )
           ..where(
             _database.taskLists.davCollectionId.isNull() |
@@ -380,7 +387,9 @@ class ScheduleRepository {
       query.where(_taskListFilter(filters.taskListKeys));
     }
 
-    final rows = await query.get();
+    final rows = (await query.get())
+        .where((row) => isVisibleTaskProjection(row.readTable(_database.tasks)))
+        .toList();
     if (rows.isEmpty) return List<ScheduleItem>.of(items);
 
     final tasks = <Task>[];
@@ -710,10 +719,13 @@ class ScheduleRepository {
           )
           ..where(
             _database.taskLists.id.isNull() |
-                _database.taskLists.serverMissing.equals(false),
+                (_database.taskLists.serverMissing.equals(false) &
+                    _database.taskLists.pendingDelete.equals(false)),
           )
           ..where(
-            _database.taskLists.davCollectionId.isNull() |
+            (filters.notificationDeadline != null
+                    ? const Constant(true)
+                    : _database.taskLists.davCollectionId.isNull()) |
                 _database.davCollections.tasksSelected.equals(true),
           );
     if (filters.taskListFilterActive) {
@@ -733,10 +745,39 @@ class ScheduleRepository {
           _database.tasks.davCollectionId.isNotNull();
       query.where(filters.showNoDateTasks ? inRange | _taskNoDate() : inRange);
     }
-    final rows = await query.get();
+    final rows = (await query.get())
+        .where((row) => isVisibleTaskProjection(row.readTable(_database.tasks)))
+        .toList();
+    final notificationKeys = filters.notificationDeadline == null
+        ? null
+        : {
+            for (final task in await notificationTasksDueOn(
+              _database,
+              filters.notificationDeadline!,
+            ))
+              '${task.accountId}\u0000${task.taskListId}\u0000${task.id}',
+          };
     final hierarchy = await _taskHierarchy(rows);
     final items = <ScheduleItem>[];
     for (final row in rows) {
+      if (filters.notificationDeadline != null) {
+        final task = row.readTable(_database.tasks);
+        if (!notificationKeys!.contains(
+          '${task.accountId}\u0000${task.taskListId}\u0000${task.id}',
+        )) {
+          continue;
+        }
+        final due = taskDeadlineAsLocal(task);
+        final day = filters.notificationDeadline!;
+        if (due == null ||
+            due.year != day.year ||
+            due.month != day.month ||
+            due.day != day.day ||
+            task.status == 'cancelled' ||
+            task.status == 'completed') {
+          continue;
+        }
+      }
       final item = _taskItemFromRow(
         row,
         providers,
@@ -816,7 +857,8 @@ class ScheduleRepository {
           )
           ..where(
             _database.taskLists.id.isNull() |
-                _database.taskLists.serverMissing.equals(false),
+                (_database.taskLists.serverMissing.equals(false) &
+                    _database.taskLists.pendingDelete.equals(false)),
           )
           ..where(
             _database.taskLists.davCollectionId.isNull() |
@@ -848,7 +890,9 @@ class ScheduleRepository {
       OrderingTerm.asc(_database.tasks.title),
     ]);
 
-    final rows = await query.get();
+    final rows = (await query.get())
+        .where((row) => isVisibleTaskProjection(row.readTable(_database.tasks)))
+        .toList();
     final hierarchy = await _taskHierarchy(rows);
     final items = <TaskScheduleItem>[];
     for (final row in rows) {
@@ -904,6 +948,15 @@ class ScheduleRepository {
       sourceId: task.taskListId,
       title: task.title,
       completed: task.status == 'completed',
+      status: task.status,
+      position: task.position,
+      sortOrder: task.sortOrder,
+      occurrenceKey: davTaskOccurrenceKey(
+        davCollectionId: task.davCollectionId,
+        recurrenceJson: task.recurrenceJson,
+        recurrenceIdKey: task.recurrenceIdKey,
+        providerMetadataJson: task.providerMetadataJson,
+      ),
       allDay: _taskAllDay(task, provider),
       start: start,
       end: _taskEnd(task, provider),
@@ -983,7 +1036,8 @@ class ScheduleRepository {
 
   Expression<bool> _taskIncomplete() {
     return _database.tasks.status.isNull() |
-        _database.tasks.status.equals('completed').not();
+        (_database.tasks.status.equals('completed').not() &
+            _database.tasks.status.equals('cancelled').not());
   }
 
   Expression<bool> _taskListFilter(Set<ScheduleTaskListKey> taskListKeys) {
@@ -1003,17 +1057,25 @@ class ScheduleRepository {
         _database.tasks.microsoftDueDateTime.isNull();
   }
 
-  Expression<bool> _taskScheduledBefore(DateTime before) {
+  // Written provider dates are not local dates for timed Microsoft tasks.
+  // SQLite cannot resolve their named zones. Keep these candidates for the
+  // existing instant-aware projection/filter, as we already do for DAV rows.
+  Expression<bool> _providerTimedTask() =>
+      _database.tasks.microsoftStartDateTime.like('%T%') |
+      _database.tasks.microsoftDueDateTime.like('%T%');
+
+  Expression<bool> _taskDeadlineBefore(DateTime before) {
     final beforeKey = _dateKey(before);
-    return _textBefore(_database.tasks.dueUtc, beforeKey) |
-        _textBefore(_database.tasks.microsoftStartDateTime, beforeKey) |
+    return _providerTimedTask() |
+        _textBefore(_database.tasks.dueUtc, beforeKey) |
         _textBefore(_database.tasks.microsoftDueDateTime, beforeKey);
   }
 
   Expression<bool> _taskScheduledInRange(ScheduleRange range) {
     final startKey = _dateKey(range.start);
     final endKey = _dateKey(range.end);
-    return _textInRange(_database.tasks.dueUtc, startKey, endKey) |
+    return _providerTimedTask() |
+        _textInRange(_database.tasks.dueUtc, startKey, endKey) |
         _textInRange(_database.tasks.microsoftStartDateTime, startKey, endKey) |
         _textInRange(_database.tasks.microsoftDueDateTime, startKey, endKey);
   }
@@ -1209,8 +1271,14 @@ DateTime? _taskDue(Task task, BusyProvider provider) {
 
 DateTime? _taskStart(Task task, BusyProvider provider) {
   if (provider == BusyProvider.microsoft) {
-    return _parseDateTime(task.microsoftStartDateTime) ??
-        _parseDateTime(task.microsoftDueDateTime) ??
+    return providerDateTimeAsLocal(
+          task.microsoftStartDateTime,
+          task.microsoftStartTimeZone,
+        ) ??
+        providerDateTimeAsLocal(
+          task.microsoftDueDateTime,
+          task.microsoftDueTimeZone,
+        ) ??
         _parseDate(task.dueUtc);
   }
   if (_isDavProvider(provider)) {
@@ -1226,7 +1294,7 @@ DateTime? _taskEnd(Task task, BusyProvider provider) {
     return null;
   }
   if (_taskAllDay(task, provider)) {
-    return start.add(const Duration(days: 1));
+    return DateTime(start.year, start.month, start.day + 1);
   }
   return start.add(const Duration(minutes: 30));
 }

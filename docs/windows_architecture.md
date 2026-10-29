@@ -31,10 +31,19 @@ code cannot import Yaru, Ubuntu localization, DBus, freedesktop notification,
 XDG tray, or GTK services. Shared business and Linux code cannot import Fluent
 UI. `tool/check_platform_boundaries.dart` enforces these dependency rules.
 
-Windows registers the vendored `tray_manager` and `flutter_timezone` plugins;
+Windows tray and time-zone services use application-owned runner channels;
 Linux retains its existing XDG tray and Linux timezone implementation. See the
-[vendoring index](../third_party/README.md) for versions and local packaging
+[dependency index](../third_party/README.md) for versions and upstream packaging
 notes.
+
+BusyMax's Windows notification-area recovery and checked time-zone queries
+live in its application runner. The `tray_native_api` and `timezone_native_api`
+adapters were BusyMax additions previously stored inside plugin directories;
+they use public Win32 and Windows ICU APIs. Upstream plugin implementations,
+registration and package sources remain unchanged. The application channels
+also retain the native error, resource ownership and callback-completion
+regressions in `windows/runner/tests`, built by
+`tool/windows/run_native_tests.ps1`.
 
 ## Fluent composition
 
@@ -79,7 +88,7 @@ No secondary process opens BusyMax data.
 
 ## Tray and lifecycle
 
-Windows uses `tray_manager`; Linux uses the XDG/DBus tray adapter. Shared
+Windows uses its application-owned Win32 tray channel; Linux uses the XDG/DBus tray adapter. Shared
 presentation state supplies the menu actions. Close hides the window only when
 background operation is enabled and a tray is available; a tray failure keeps
 the only window visible. The Windows adapter reapplies its icon and menu after
@@ -109,7 +118,8 @@ adapter uses the packaged StartupTask API and distinguishes enabled, disabled,
 user-disabled, policy-disabled, and unpackaged states. There is no registry or
 Startup-folder fallback.
 
-`flutter_timezone` supplies the Windows system IANA zone. Recognized IANA
+The application runner queries Windows and maps its zone through Windows ICU
+on the `busymax/windows/timezone` channel. Recognized IANA
 values are used directly; a deterministic Windows-ID mapping handles fallback
 values. An unavailable or unknown zone records a non-sensitive diagnostic and
 uses `Etc/UTC`. Windows timezone search uses BusyMax's IANA catalog rather

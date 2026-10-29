@@ -32,6 +32,34 @@ void main() {
     await database.close();
   });
 
+  test(
+    'orphaned linkage never becomes an independent suggestions source',
+    () async {
+      await store.saveLinkedAccount(
+        account: _account('linked'),
+        busyMaxAccountId: 'calendar-account',
+        reuseAuthorization: true,
+      );
+      await store.write((tx) async {
+        await tx.putSource(_source('linked'));
+        await tx.putContact(_record('linked', 'one'));
+        await tx.putAccount(_account('independent'));
+        await tx.putSource(_source('independent'));
+      });
+      // Reproduce the old ON DELETE SET NULL path, including existing orphans.
+      await database.customStatement('DELETE FROM accounts WHERE id = ?', [
+        'calendar-account',
+      ]);
+      expect(await store.linkedBusyMaxAccount('linked'), isNull);
+      expect((await store.selection()).accountIds, {'independent'});
+      expect((await store.selection(busyMaxAccountId: 'other')).accountIds, {
+        'independent',
+      });
+      expect(await store.read((tx) => tx.account('independent')), isNotNull);
+      expect(await store.read((tx) => tx.count(accountId: 'linked')), 1);
+    },
+  );
+
   test('data and cursor commit atomically across awaited operations', () async {
     await store.write((transaction) async {
       await transaction.putAccount(_account('contacts'));

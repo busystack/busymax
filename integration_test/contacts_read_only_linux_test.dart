@@ -71,6 +71,28 @@ void main() {
             ),
           );
           await tx.putSource(source);
+          for (var index = 0; index < 200; index++) {
+            final id = ContactIdentity(
+              accountId: source.accountId,
+              provider: source.provider,
+              sourceId: source.id,
+              remoteId: 'no-email-$index.vcf',
+            );
+            final card = newVcard(
+              ContactPatch(
+                name: FieldEdit.set(ContactName(display: 'Ada $index')),
+              ),
+              uid: 'no-email-$index',
+            );
+            await tx.putContact(
+              CardDavContactRecord(
+                identity: id,
+                vcard: card,
+                revision: '"cached"',
+                projection: projectVcard(id, card),
+              ),
+            );
+          }
           await tx.putContact(
             CardDavContactRecord(
               identity: identity,
@@ -101,12 +123,26 @@ void main() {
         await tester.tap(accounts.first);
         await tester.pumpAndSettle();
       }
+      final addContacts = find.byKey(const ValueKey('add-carddav-contacts'));
+      await tester.ensureVisible(addContacts);
+      await tester.tap(addContacts);
+      await tester.pumpAndSettle();
       expect(find.text('Enable contact editing'), findsNothing);
       expect(find.text('Read and write access'), findsNothing);
       expect(
         find.text('Read-only contacts for attendee suggestions'),
         findsWidgets,
       );
+      await tester.tap(find.text('Cancel').last);
+      await tester.pumpAndSettle();
+      final accountEntry = find.byKey(
+        const ValueKey('contact-account-entry-isolated-cache'),
+      );
+      await tester.ensureVisible(accountEntry);
+      await tester.tap(accountEntry);
+      await tester.pumpAndSettle();
+      expect(find.text('Enable contact editing'), findsNothing);
+      expect(find.text('Read and write access'), findsNothing);
       final setting = (await tester.runAsync(controller.sourceSettings))!
           .single;
       final toggle = find.byKey(
@@ -127,6 +163,12 @@ void main() {
           'ada@example.test',
         );
       });
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+      await tester.pumpAndSettle();
+      expect(accountEntry, findsOneWidget);
+      await tester.ensureVisible(addContacts);
       await tester.tap(find.byKey(const ValueKey('add-carddav-contacts')));
       await tester.pumpAndSettle();
       expect(

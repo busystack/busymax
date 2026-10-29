@@ -1,35 +1,24 @@
-# Vendored dependencies
+# Third-party dependencies
 
-BusyMax overrides five packages with source under `third_party/`. Their
-upstream license files and notices remain authoritative and must stay intact.
+BusyMax consumes official, unmodified upstream packages. Exact package versions
+and publisher archive hashes are recorded in `pubspec.lock`; Pub resolves their
+published source. Local path overrides and downstream dependency patches are
+not supported.
 
-| Package | Upstream/version | Local path | License | Why it is vendored |
-|---|---|---|---|---|
-| `fluent_ui` | [bdlukaa/fluent_ui](https://github.com/bdlukaa/fluent_ui), 4.16.1 | [`third_party/fluent_ui`](fluent_ui/) | [BSD-3-Clause](fluent_ui/LICENSE) | Correct time-picker clock conversion, labels and live format changes; see [patch notes](fluent_ui/README.busymax.md) |
-| `flutter_timezone` | [tjarvstrand/flutter_timezone](https://github.com/tjarvstrand/flutter_timezone), 5.1.0 | [`third_party/flutter_timezone`](flutter_timezone/) | [Apache-2.0](flutter_timezone/LICENSE) | Keep the upstream Dart API and Windows plugin without registering another Linux timezone implementation |
-| `tray_manager` | [leanflutter/tray_manager](https://github.com/leanflutter/tray_manager), 0.5.3 | [`third_party/tray_manager`](tray_manager/) | [MIT](tray_manager/LICENSE) | Keep the upstream Dart API and Windows tray plugin while Linux continues to use BusyMax's XDG/DBus tray |
-| `yaru_window` | [ubuntu/yaru_window.dart](https://github.com/ubuntu/yaru_window.dart), 0.2.2 | [`third_party/yaru_window`](yaru_window/) | [MPL-2.0](yaru_window/LICENSE) | Restrict plugin registration to Linux so the Windows runner remains the sole Windows lifecycle owner |
-| `xdg_status_notifier_item` | [canonical/xdg_status_notifier_item.dart](https://github.com/canonical/xdg_status_notifier_item.dart), 0.0.1 | [`third_party/xdg_status_notifier_item`](xdg_status_notifier_item/) | [MPL-2.0](xdg_status_notifier_item/LICENSE) | Provide the Linux StatusNotifierItem and DBusMenu behavior BusyMax needs beyond the published package |
+| Package | Version | Upstream | License |
+|---|---|---|---|
+| fluent_ui | 4.16.1 | https://pub.dev/packages/fluent_ui/versions/4.16.1 | BSD-3-Clause |
+| yaru_window | 0.2.2 | https://pub.dev/packages/yaru_window/versions/0.2.2 | MPL-2.0 |
+| xdg_status_notifier_item | 0.0.1 | https://pub.dev/packages/xdg_status_notifier_item/versions/0.0.1 | MPL-2.0 |
 
-BusyMax-specific notes for the platform-scoped package copies are in:
+Linux tray presentation is owned by `lib/src/platform/application_tray.dart`.
+It composes the upstream client's public registration and menu serialization
+APIs with application identities and presentation. Windows clock draft behavior
+is owned by `lib/src/ui/windows/windows_time_picker.dart`, using public Fluent
+and Flutter controls. Windows notification-area and time-zone services use BusyMax-owned runner
+adapters through public Win32 and ICU APIs. The former tray/time-zone plugins
+are no longer dependencies. These integrations do not change upstream source.
 
-- [flutter_timezone vendoring notes](flutter_timezone/README.busymax.md)
-- [tray_manager vendoring notes](tray_manager/README.busymax.md)
-- [yaru_window vendoring notes](yaru_window/README.busymax.md)
-
-## XDG StatusNotifierItem changes
-
-BusyMax's local patches:
-
-- widen the Dart SDK constraint for Dart 3;
-- export DBusMenu at the tray menu path and support explicit stable item IDs;
-- implement DBusMenu group-property and menu-object properties;
-- support both KDE and freedesktop StatusNotifierItem interfaces;
-- correct callback argument handling for coordinates, scroll deltas, and
-  orientation;
-- expose item/menu paths, `ItemIsMenu`, and diagnostic logging hooks;
-- emit standard title, icon, and tooltip update signals; and
-- correct the tooltip signature and expose accessible title/description text.
-
-MPL-2.0-covered source and local modifications remain under MPL-2.0. Preserve
-the package's upstream license and notices when redistributing it.
+Preserve all upstream licenses, notices and corresponding source obligations in
+application distributions. Native Windows and Linux acceptance must use the
+same unmodified dependency sources selected by the lockfile.

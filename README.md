@@ -109,6 +109,7 @@ Account, provider, and data information:
 - [Apple iCloud Calendar setup](docs/apple_icloud_setup.md)
 - [Nextcloud Calendar and Tasks setup](docs/nextcloud_setup.md)
 - [Privacy and data map](docs/privacy_data_map.md)
+- [Notification delivery and recovery](docs/notifications.md)
 - [Android setup and OAuth registration](docs/android_setup.md)
 
 Development and maintenance:
@@ -139,3 +140,11 @@ off by default.
 
 BusyMax is licensed under the [Apache License 2.0](LICENSE). See
 [NOTICE](NOTICE) for attribution and trademark information.
+
+Dependency verification uses `python3 tool/verify_upstream_packages.py` after
+locked package resolution. It checks the approved Flutter/Dart source revision,
+complete Dart SDK and present desktop/compiler cache files against official
+publisher identities, and restored package source against the checksum-derived
+`tool/upstream_packages.json` inventory. It never repairs or modifies installed
+software. Reviewed dependency/toolchain upgrades must update these publisher
+identities; matching version strings alone do not establish unchanged source.

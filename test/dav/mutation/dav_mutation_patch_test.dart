@@ -1,9 +1,13 @@
+import 'dart:io';
+
 import 'package:busymax/src/dav/ical/ical_document.dart';
 import 'package:busymax/src/dav/ical/ical_semantics.dart';
 import 'package:busymax/src/dav/mutation/dav_conflict_analyzer.dart';
 import 'package:busymax/src/dav/mutation/dav_mutation_patch.dart';
 import 'package:busymax/src/dav/mutation/dav_projection_mutations.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../../support/process_time_zone.dart';
 
 void main() {
   const target = IcalComponentKey(
@@ -72,6 +76,79 @@ void main() {
       expect(partial.status, 'IN-PROCESS');
       expect(partial.percentComplete, 55);
       expect(partial.completed, isNull);
+    },
+  );
+
+  test(
+    'an explicit task deadline replaces duration while retaining the resource',
+    () {
+      final baseline = _task
+          .replaceFirst(
+            'END:VTODO',
+            'DTSTART:20260808T090000Z\r\nDURATION:PT2H\r\nRRULE:FREQ=DAILY;COUNT=3\r\nEND:VTODO',
+          )
+          .replaceFirst(
+            'END:VCALENDAR',
+            [
+              'BEGIN:VTIMEZONE',
+              'TZID:Etc/UTC',
+              'BEGIN:STANDARD',
+              'DTSTART:19700101T000000',
+              'TZOFFSETFROM:+0000',
+              'TZOFFSETTO:+0000',
+              'END:STANDARD',
+              'END:VTIMEZONE',
+              'BEGIN:VTODO',
+              'UID:task@example.test',
+              'RECURRENCE-ID:20260807T090000Z',
+              'DTSTAMP:20260808T000000Z',
+              'DUE:20260807T110000Z',
+              'STATUS:COMPLETED',
+              'X-HISTORY:retained',
+              'END:VTODO',
+              'END:VCALENDAR',
+            ].join('\r\n'),
+          );
+      final patch = buildDavTaskUpdatePatch(
+        target: const IcalComponentKey(
+          componentType: 'VTODO',
+          uid: 'task@example.test',
+        ),
+        baselineRawIcs: baseline,
+        fields: const {
+          'microsoftDueDateTime': {
+            'dateTime': '2026-08-08T12:00:00',
+            'timeZone': 'UTC',
+          },
+          'microsoftDueTimeZone': 'UTC',
+        },
+      )!;
+      final candidate = patch.applyTo(
+        baseline,
+        nowUtc: DateTime.utc(2026, 8, 8),
+      );
+      final document = IcalSemanticDocument.parse(candidate);
+      final component = document.components.singleWhere(
+        (component) => component.recurrenceIdKey == null,
+      );
+      expect(component.duration, isNull);
+      expect(component.due?.rawValue, '20260808T120000Z');
+      expect(component.start?.rawValue, '20260808T090000Z');
+      expect(component.uid, 'task@example.test');
+      expect(candidate, contains('RELATED-TO;RELTYPE=CHILD:child-uid'));
+      expect(document.timeZones, hasLength(1));
+      expect(component.recurrenceRules, ['FREQ=DAILY;COUNT=3']);
+      final history = document.components.singleWhere(
+        (component) => component.recurrenceIdKey != null,
+      );
+      expect(history.recurrenceId?.rawValue, '20260807T090000Z');
+      expect(
+        history.semanticHash,
+        IcalSemanticDocument.parse(baseline).components
+            .singleWhere((component) => component.recurrenceIdKey != null)
+            .semanticHash,
+      );
+      expect(candidate, contains('X-HISTORY:retained'));
     },
   );
 
@@ -415,6 +492,52 @@ END:VCALENDAR\r
       expect(result, contains('BEGIN:VALARM'));
     },
   );
+
+  for (final device in [
+    (zone: 'UTC', advancedDue: '20260811T090000Z'),
+    (zone: 'America/Vancouver', advancedDue: '20260811T160000Z'),
+  ]) {
+    test(
+      'Nextcloud 0.18.1 floating history and device-local advancement parity ${device.zone}',
+      () {
+        final zone = ProcessTimeZone();
+        addTearDown(zone.restore);
+        zone.set(device.zone);
+        final baseline = _recurringTask
+            .replaceFirst(
+              'DTSTART;VALUE=DATE:20260809',
+              'DTSTART;TZID=America/New_York:20260809T090000',
+            )
+            .replaceFirst(
+              'DUE;VALUE=DATE:20260810',
+              'DUE;TZID=America/New_York:20260810T090000',
+            );
+        final completed = buildDavRecurringTaskCompletionPatch(
+          target: const IcalComponentKey(
+            componentType: 'VTODO',
+            uid: 'recurring-task@example.test',
+          ),
+          baselineRawIcs: baseline,
+          nowUtc: () => DateTime.utc(2026, 8, 10, 18),
+        ).applyTo(baseline, nowUtc: DateTime.utc(2026, 8, 10, 18));
+        final components = IcalSemanticDocument.parse(completed).components;
+        final master = components.singleWhere(
+          (component) => component.recurrenceIdKey == null,
+        );
+        final history = components.singleWhere(
+          (component) => component.recurrenceIdKey != null,
+        );
+        expect(master.due?.rawValue, device.advancedDue);
+        expect(master.due?.kind, IcalTemporalKind.utcDateTime);
+        expect(master.recurrenceRules, ['FREQ=DAILY;COUNT=2']);
+        expect(history.recurrenceId?.rawValue, '20260810T090000');
+        expect(history.recurrenceId?.kind, IcalTemporalKind.floatingDateTime);
+        expect(history.due?.rawValue, '20260810T090000');
+        expect(history.due?.kind, IcalTemporalKind.floatingDateTime);
+      },
+      skip: !Platform.isLinux,
+    );
+  }
 
   test('last COUNT occurrence completes both exception and master', () {
     final baseline = _recurringTask.replaceFirst('COUNT=3', 'COUNT=1');

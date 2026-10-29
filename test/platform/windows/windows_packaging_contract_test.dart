@@ -29,6 +29,34 @@ void main() {
     );
   });
 
+  test('packaged plugin DLLs match the generated Windows plugin inventory', () {
+    final plugins = File('windows/flutter/generated_plugins.cmake')
+        .readAsStringSync();
+    final pluginBlock = RegExp(r'list\(APPEND FLUTTER_PLUGIN_LIST\s+([^)]*)\)')
+        .firstMatch(plugins)!;
+    final expected = pluginBlock
+        .group(1)!
+        .trim()
+        .split(RegExp(r'\s+'))
+        .map((plugin) => '${plugin}_plugin.dll');
+    final common = File('tool/windows/common.ps1').readAsStringSync();
+    final runtimeBlock = RegExp(
+      r'function Get-BusyMaxWindowsRuntimeDlls \{([^}]+)\}',
+    ).firstMatch(common)!;
+    final runtimeDlls = RegExp(r"'([^']+\.dll)'")
+        .allMatches(runtimeBlock.group(1)!)
+        .map((match) => match.group(1)!)
+        .toSet();
+
+    expect(runtimeDlls, {
+      'flutter_windows.dll',
+      'sqlite3.dll',
+      'busymax_registration_reader.dll',
+      'flutter_local_notifications_windows.dll',
+      ...expected,
+    });
+  });
+
   test('Store manifest registers only required activation surfaces', () {
     final categories = elements('Extension')
         .map((element) => element.getAttribute('Category'))

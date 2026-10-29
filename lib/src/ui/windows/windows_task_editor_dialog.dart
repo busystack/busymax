@@ -376,10 +376,13 @@ Future<WindowsTaskEditorResult?> showWindowsTaskEditorDialog(
                                   ? null
                                   : (enabled) => setState(
                                       () => reminder = enabled
-                                          ? (due ?? start ?? DateTime.now())
-                                                .subtract(
-                                                  const Duration(minutes: 15),
-                                                )
+                                          ? TaskDetailsDraft.newReminderDefault(
+                                              dueDate: due
+                                                  ?.toIso8601String()
+                                                  .substring(0, 10),
+                                              timeZone: selectedTimeZone,
+                                              now: DateTime.now(),
+                                            )
                                           : null,
                                     ),
                               content: Text(l10n.reminder),
@@ -454,15 +457,9 @@ Future<WindowsTaskEditorResult?> showWindowsTaskEditorDialog(
                                             final value =
                                                 await _showTaskReminderDialog(
                                                   context,
-                                                  initial:
-                                                      (due ??
-                                                              start ??
-                                                              DateTime.now())
-                                                          .subtract(
-                                                            const Duration(
-                                                              minutes: 15,
-                                                            ),
-                                                          ),
+                                                  initial: DateTime.now().add(
+                                                    const Duration(minutes: 10),
+                                                  ),
                                                 );
                                             if (value != null) {
                                               setState(() {
@@ -746,6 +743,14 @@ Future<WindowsTaskEditorResult?> showWindowsTaskEditorDialog(
                         recurrenceIssue != TaskRecurrenceIssue.none
                     ? null
                     : () async {
+                        if (currentDraft().hasNewPastReminder(
+                          capabilities: capability,
+                          localTimeZone: selectedTimeZone,
+                          now: DateTime.now(),
+                        )) {
+                          setState(() => error = l10n.reminderTimeInPast);
+                          return;
+                        }
                         setState(() {
                           saving = true;
                           error = null;
@@ -919,6 +924,7 @@ Future<DateTime?> _showTaskReminderDialog(
   required DateTime initial,
 }) {
   var value = initial;
+  String? error;
   return showDialog<DateTime>(
     context: context,
     barrierDismissible: false,
@@ -929,6 +935,8 @@ Future<DateTime?> _showTaskReminderDialog(
           spacing: 8,
           runSpacing: 8,
           children: [
+            if (error != null)
+              InfoBar(title: Text(error!), severity: InfoBarSeverity.warning),
             DatePicker(
               selected: value,
               onChanged: (date) => setState(() {
@@ -961,7 +969,23 @@ Future<DateTime?> _showTaskReminderDialog(
             child: Text(AppLocalizations.of(context).cancel),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, value),
+            onPressed: () {
+              final now = DateTime.now();
+              final minute = DateTime(
+                now.year,
+                now.month,
+                now.day,
+                now.hour,
+                now.minute,
+              );
+              if (value.isBefore(minute) && value != initial) {
+                setState(
+                  () => error = AppLocalizations.of(context).reminderTimeInPast,
+                );
+              } else {
+                Navigator.pop(dialogContext, value);
+              }
+            },
             child: Text(AppLocalizations.of(context).save),
           ),
         ],

@@ -19,6 +19,7 @@ final class NextcloudCollectionController extends ChangeNotifier {
   bool failed = false;
   bool refreshPending = false;
   Object? error;
+  Map<DavPropertyName, NextcloudCollectionValidation> fieldErrors = {};
   bool _disposed = false;
   int _searchGeneration = 0;
   final values = <DavPropertyName, String>{};
@@ -45,14 +46,20 @@ final class NextcloudCollectionController extends ChangeNotifier {
   });
   void change(DavPropertyName name, String value) {
     values[name] = value;
+    fieldErrors.remove(name);
     _notify();
   }
 
   Future<void> save() => _run(() async {
-    final result = await service.collections.update(collectionId, {
+    final changes = {
       for (final entry in values.entries)
         if (_baseline[entry.key] != entry.value) entry.key: entry.value,
-    });
+    };
+    fieldErrors = Map.of(validateNextcloudCollectionChanges(changes));
+    if (fieldErrors.isNotEmpty) {
+      throw NextcloudCollectionValidationException(fieldErrors);
+    }
+    final result = await service.collections.update(collectionId, changes);
     refreshPending = result == NextcloudMutationOutcome.refreshPending;
     _baseline
       ..clear()

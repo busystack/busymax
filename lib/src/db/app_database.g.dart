@@ -25992,6 +25992,21 @@ class $NotificationScheduleTable extends NotificationSchedule
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _sentPrivateMeta = const VerificationMeta(
+    'sentPrivate',
+  );
+  @override
+  late final GeneratedColumn<bool> sentPrivate = GeneratedColumn<bool>(
+    'sent_private',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("sent_private" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _dismissedAtUtcMeta = const VerificationMeta(
     'dismissedAtUtc',
   );
@@ -26009,6 +26024,39 @@ class $NotificationScheduleTable extends NotificationSchedule
   @override
   late final GeneratedColumn<int> snoozedUntilUtc = GeneratedColumn<int>(
     'snoozed_until_utc',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _expiresAtUtcMeta = const VerificationMeta(
+    'expiresAtUtc',
+  );
+  @override
+  late final GeneratedColumn<int> expiresAtUtc = GeneratedColumn<int>(
+    'expires_at_utc',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _expiredAtUtcMeta = const VerificationMeta(
+    'expiredAtUtc',
+  );
+  @override
+  late final GeneratedColumn<int> expiredAtUtc = GeneratedColumn<int>(
+    'expired_at_utc',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _deferredUntilUtcMeta = const VerificationMeta(
+    'deferredUntilUtc',
+  );
+  @override
+  late final GeneratedColumn<int> deferredUntilUtc = GeneratedColumn<int>(
+    'deferred_until_utc',
     aliasedName,
     true,
     type: DriftSqlType.int,
@@ -26047,8 +26095,12 @@ class $NotificationScheduleTable extends NotificationSchedule
     title,
     body,
     sentAtUtc,
+    sentPrivate,
     dismissedAtUtc,
     snoozedUntilUtc,
+    expiresAtUtc,
+    expiredAtUtc,
+    deferredUntilUtc,
     createdAtLocal,
     updatedAtLocal,
   ];
@@ -26130,6 +26182,15 @@ class $NotificationScheduleTable extends NotificationSchedule
         sentAtUtc.isAcceptableOrUnknown(data['sent_at_utc']!, _sentAtUtcMeta),
       );
     }
+    if (data.containsKey('sent_private')) {
+      context.handle(
+        _sentPrivateMeta,
+        sentPrivate.isAcceptableOrUnknown(
+          data['sent_private']!,
+          _sentPrivateMeta,
+        ),
+      );
+    }
     if (data.containsKey('dismissed_at_utc')) {
       context.handle(
         _dismissedAtUtcMeta,
@@ -26145,6 +26206,33 @@ class $NotificationScheduleTable extends NotificationSchedule
         snoozedUntilUtc.isAcceptableOrUnknown(
           data['snoozed_until_utc']!,
           _snoozedUntilUtcMeta,
+        ),
+      );
+    }
+    if (data.containsKey('expires_at_utc')) {
+      context.handle(
+        _expiresAtUtcMeta,
+        expiresAtUtc.isAcceptableOrUnknown(
+          data['expires_at_utc']!,
+          _expiresAtUtcMeta,
+        ),
+      );
+    }
+    if (data.containsKey('expired_at_utc')) {
+      context.handle(
+        _expiredAtUtcMeta,
+        expiredAtUtc.isAcceptableOrUnknown(
+          data['expired_at_utc']!,
+          _expiredAtUtcMeta,
+        ),
+      );
+    }
+    if (data.containsKey('deferred_until_utc')) {
+      context.handle(
+        _deferredUntilUtcMeta,
+        deferredUntilUtc.isAcceptableOrUnknown(
+          data['deferred_until_utc']!,
+          _deferredUntilUtcMeta,
         ),
       );
     }
@@ -26218,6 +26306,10 @@ class $NotificationScheduleTable extends NotificationSchedule
         DriftSqlType.int,
         data['${effectivePrefix}sent_at_utc'],
       ),
+      sentPrivate: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}sent_private'],
+      )!,
       dismissedAtUtc: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}dismissed_at_utc'],
@@ -26225,6 +26317,18 @@ class $NotificationScheduleTable extends NotificationSchedule
       snoozedUntilUtc: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}snoozed_until_utc'],
+      ),
+      expiresAtUtc: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}expires_at_utc'],
+      ),
+      expiredAtUtc: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}expired_at_utc'],
+      ),
+      deferredUntilUtc: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}deferred_until_utc'],
       ),
       createdAtLocal: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
@@ -26254,8 +26358,12 @@ class NotificationScheduleData extends DataClass
   final String title;
   final String? body;
   final int? sentAtUtc;
+  final bool sentPrivate;
   final int? dismissedAtUtc;
   final int? snoozedUntilUtc;
+  final int? expiresAtUtc;
+  final int? expiredAtUtc;
+  final int? deferredUntilUtc;
   final int createdAtLocal;
   final int updatedAtLocal;
   const NotificationScheduleData({
@@ -26268,8 +26376,12 @@ class NotificationScheduleData extends DataClass
     required this.title,
     this.body,
     this.sentAtUtc,
+    required this.sentPrivate,
     this.dismissedAtUtc,
     this.snoozedUntilUtc,
+    this.expiresAtUtc,
+    this.expiredAtUtc,
+    this.deferredUntilUtc,
     required this.createdAtLocal,
     required this.updatedAtLocal,
   });
@@ -26289,11 +26401,21 @@ class NotificationScheduleData extends DataClass
     if (!nullToAbsent || sentAtUtc != null) {
       map['sent_at_utc'] = Variable<int>(sentAtUtc);
     }
+    map['sent_private'] = Variable<bool>(sentPrivate);
     if (!nullToAbsent || dismissedAtUtc != null) {
       map['dismissed_at_utc'] = Variable<int>(dismissedAtUtc);
     }
     if (!nullToAbsent || snoozedUntilUtc != null) {
       map['snoozed_until_utc'] = Variable<int>(snoozedUntilUtc);
+    }
+    if (!nullToAbsent || expiresAtUtc != null) {
+      map['expires_at_utc'] = Variable<int>(expiresAtUtc);
+    }
+    if (!nullToAbsent || expiredAtUtc != null) {
+      map['expired_at_utc'] = Variable<int>(expiredAtUtc);
+    }
+    if (!nullToAbsent || deferredUntilUtc != null) {
+      map['deferred_until_utc'] = Variable<int>(deferredUntilUtc);
     }
     map['created_at_local'] = Variable<int>(createdAtLocal);
     map['updated_at_local'] = Variable<int>(updatedAtLocal);
@@ -26313,12 +26435,22 @@ class NotificationScheduleData extends DataClass
       sentAtUtc: sentAtUtc == null && nullToAbsent
           ? const Value.absent()
           : Value(sentAtUtc),
+      sentPrivate: Value(sentPrivate),
       dismissedAtUtc: dismissedAtUtc == null && nullToAbsent
           ? const Value.absent()
           : Value(dismissedAtUtc),
       snoozedUntilUtc: snoozedUntilUtc == null && nullToAbsent
           ? const Value.absent()
           : Value(snoozedUntilUtc),
+      expiresAtUtc: expiresAtUtc == null && nullToAbsent
+          ? const Value.absent()
+          : Value(expiresAtUtc),
+      expiredAtUtc: expiredAtUtc == null && nullToAbsent
+          ? const Value.absent()
+          : Value(expiredAtUtc),
+      deferredUntilUtc: deferredUntilUtc == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deferredUntilUtc),
       createdAtLocal: Value(createdAtLocal),
       updatedAtLocal: Value(updatedAtLocal),
     );
@@ -26339,8 +26471,12 @@ class NotificationScheduleData extends DataClass
       title: serializer.fromJson<String>(json['title']),
       body: serializer.fromJson<String?>(json['body']),
       sentAtUtc: serializer.fromJson<int?>(json['sentAtUtc']),
+      sentPrivate: serializer.fromJson<bool>(json['sentPrivate']),
       dismissedAtUtc: serializer.fromJson<int?>(json['dismissedAtUtc']),
       snoozedUntilUtc: serializer.fromJson<int?>(json['snoozedUntilUtc']),
+      expiresAtUtc: serializer.fromJson<int?>(json['expiresAtUtc']),
+      expiredAtUtc: serializer.fromJson<int?>(json['expiredAtUtc']),
+      deferredUntilUtc: serializer.fromJson<int?>(json['deferredUntilUtc']),
       createdAtLocal: serializer.fromJson<int>(json['createdAtLocal']),
       updatedAtLocal: serializer.fromJson<int>(json['updatedAtLocal']),
     );
@@ -26358,8 +26494,12 @@ class NotificationScheduleData extends DataClass
       'title': serializer.toJson<String>(title),
       'body': serializer.toJson<String?>(body),
       'sentAtUtc': serializer.toJson<int?>(sentAtUtc),
+      'sentPrivate': serializer.toJson<bool>(sentPrivate),
       'dismissedAtUtc': serializer.toJson<int?>(dismissedAtUtc),
       'snoozedUntilUtc': serializer.toJson<int?>(snoozedUntilUtc),
+      'expiresAtUtc': serializer.toJson<int?>(expiresAtUtc),
+      'expiredAtUtc': serializer.toJson<int?>(expiredAtUtc),
+      'deferredUntilUtc': serializer.toJson<int?>(deferredUntilUtc),
       'createdAtLocal': serializer.toJson<int>(createdAtLocal),
       'updatedAtLocal': serializer.toJson<int>(updatedAtLocal),
     };
@@ -26375,8 +26515,12 @@ class NotificationScheduleData extends DataClass
     String? title,
     Value<String?> body = const Value.absent(),
     Value<int?> sentAtUtc = const Value.absent(),
+    bool? sentPrivate,
     Value<int?> dismissedAtUtc = const Value.absent(),
     Value<int?> snoozedUntilUtc = const Value.absent(),
+    Value<int?> expiresAtUtc = const Value.absent(),
+    Value<int?> expiredAtUtc = const Value.absent(),
+    Value<int?> deferredUntilUtc = const Value.absent(),
     int? createdAtLocal,
     int? updatedAtLocal,
   }) => NotificationScheduleData(
@@ -26389,12 +26533,18 @@ class NotificationScheduleData extends DataClass
     title: title ?? this.title,
     body: body.present ? body.value : this.body,
     sentAtUtc: sentAtUtc.present ? sentAtUtc.value : this.sentAtUtc,
+    sentPrivate: sentPrivate ?? this.sentPrivate,
     dismissedAtUtc: dismissedAtUtc.present
         ? dismissedAtUtc.value
         : this.dismissedAtUtc,
     snoozedUntilUtc: snoozedUntilUtc.present
         ? snoozedUntilUtc.value
         : this.snoozedUntilUtc,
+    expiresAtUtc: expiresAtUtc.present ? expiresAtUtc.value : this.expiresAtUtc,
+    expiredAtUtc: expiredAtUtc.present ? expiredAtUtc.value : this.expiredAtUtc,
+    deferredUntilUtc: deferredUntilUtc.present
+        ? deferredUntilUtc.value
+        : this.deferredUntilUtc,
     createdAtLocal: createdAtLocal ?? this.createdAtLocal,
     updatedAtLocal: updatedAtLocal ?? this.updatedAtLocal,
   );
@@ -26417,12 +26567,24 @@ class NotificationScheduleData extends DataClass
       title: data.title.present ? data.title.value : this.title,
       body: data.body.present ? data.body.value : this.body,
       sentAtUtc: data.sentAtUtc.present ? data.sentAtUtc.value : this.sentAtUtc,
+      sentPrivate: data.sentPrivate.present
+          ? data.sentPrivate.value
+          : this.sentPrivate,
       dismissedAtUtc: data.dismissedAtUtc.present
           ? data.dismissedAtUtc.value
           : this.dismissedAtUtc,
       snoozedUntilUtc: data.snoozedUntilUtc.present
           ? data.snoozedUntilUtc.value
           : this.snoozedUntilUtc,
+      expiresAtUtc: data.expiresAtUtc.present
+          ? data.expiresAtUtc.value
+          : this.expiresAtUtc,
+      expiredAtUtc: data.expiredAtUtc.present
+          ? data.expiredAtUtc.value
+          : this.expiredAtUtc,
+      deferredUntilUtc: data.deferredUntilUtc.present
+          ? data.deferredUntilUtc.value
+          : this.deferredUntilUtc,
       createdAtLocal: data.createdAtLocal.present
           ? data.createdAtLocal.value
           : this.createdAtLocal,
@@ -26444,8 +26606,12 @@ class NotificationScheduleData extends DataClass
           ..write('title: $title, ')
           ..write('body: $body, ')
           ..write('sentAtUtc: $sentAtUtc, ')
+          ..write('sentPrivate: $sentPrivate, ')
           ..write('dismissedAtUtc: $dismissedAtUtc, ')
           ..write('snoozedUntilUtc: $snoozedUntilUtc, ')
+          ..write('expiresAtUtc: $expiresAtUtc, ')
+          ..write('expiredAtUtc: $expiredAtUtc, ')
+          ..write('deferredUntilUtc: $deferredUntilUtc, ')
           ..write('createdAtLocal: $createdAtLocal, ')
           ..write('updatedAtLocal: $updatedAtLocal')
           ..write(')'))
@@ -26463,8 +26629,12 @@ class NotificationScheduleData extends DataClass
     title,
     body,
     sentAtUtc,
+    sentPrivate,
     dismissedAtUtc,
     snoozedUntilUtc,
+    expiresAtUtc,
+    expiredAtUtc,
+    deferredUntilUtc,
     createdAtLocal,
     updatedAtLocal,
   );
@@ -26481,8 +26651,12 @@ class NotificationScheduleData extends DataClass
           other.title == this.title &&
           other.body == this.body &&
           other.sentAtUtc == this.sentAtUtc &&
+          other.sentPrivate == this.sentPrivate &&
           other.dismissedAtUtc == this.dismissedAtUtc &&
           other.snoozedUntilUtc == this.snoozedUntilUtc &&
+          other.expiresAtUtc == this.expiresAtUtc &&
+          other.expiredAtUtc == this.expiredAtUtc &&
+          other.deferredUntilUtc == this.deferredUntilUtc &&
           other.createdAtLocal == this.createdAtLocal &&
           other.updatedAtLocal == this.updatedAtLocal);
 }
@@ -26498,8 +26672,12 @@ class NotificationScheduleCompanion
   final Value<String> title;
   final Value<String?> body;
   final Value<int?> sentAtUtc;
+  final Value<bool> sentPrivate;
   final Value<int?> dismissedAtUtc;
   final Value<int?> snoozedUntilUtc;
+  final Value<int?> expiresAtUtc;
+  final Value<int?> expiredAtUtc;
+  final Value<int?> deferredUntilUtc;
   final Value<int> createdAtLocal;
   final Value<int> updatedAtLocal;
   final Value<int> rowid;
@@ -26513,8 +26691,12 @@ class NotificationScheduleCompanion
     this.title = const Value.absent(),
     this.body = const Value.absent(),
     this.sentAtUtc = const Value.absent(),
+    this.sentPrivate = const Value.absent(),
     this.dismissedAtUtc = const Value.absent(),
     this.snoozedUntilUtc = const Value.absent(),
+    this.expiresAtUtc = const Value.absent(),
+    this.expiredAtUtc = const Value.absent(),
+    this.deferredUntilUtc = const Value.absent(),
     this.createdAtLocal = const Value.absent(),
     this.updatedAtLocal = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -26529,8 +26711,12 @@ class NotificationScheduleCompanion
     required String title,
     this.body = const Value.absent(),
     this.sentAtUtc = const Value.absent(),
+    this.sentPrivate = const Value.absent(),
     this.dismissedAtUtc = const Value.absent(),
     this.snoozedUntilUtc = const Value.absent(),
+    this.expiresAtUtc = const Value.absent(),
+    this.expiredAtUtc = const Value.absent(),
+    this.deferredUntilUtc = const Value.absent(),
     required int createdAtLocal,
     required int updatedAtLocal,
     this.rowid = const Value.absent(),
@@ -26552,8 +26738,12 @@ class NotificationScheduleCompanion
     Expression<String>? title,
     Expression<String>? body,
     Expression<int>? sentAtUtc,
+    Expression<bool>? sentPrivate,
     Expression<int>? dismissedAtUtc,
     Expression<int>? snoozedUntilUtc,
+    Expression<int>? expiresAtUtc,
+    Expression<int>? expiredAtUtc,
+    Expression<int>? deferredUntilUtc,
     Expression<int>? createdAtLocal,
     Expression<int>? updatedAtLocal,
     Expression<int>? rowid,
@@ -26568,8 +26758,12 @@ class NotificationScheduleCompanion
       if (title != null) 'title': title,
       if (body != null) 'body': body,
       if (sentAtUtc != null) 'sent_at_utc': sentAtUtc,
+      if (sentPrivate != null) 'sent_private': sentPrivate,
       if (dismissedAtUtc != null) 'dismissed_at_utc': dismissedAtUtc,
       if (snoozedUntilUtc != null) 'snoozed_until_utc': snoozedUntilUtc,
+      if (expiresAtUtc != null) 'expires_at_utc': expiresAtUtc,
+      if (expiredAtUtc != null) 'expired_at_utc': expiredAtUtc,
+      if (deferredUntilUtc != null) 'deferred_until_utc': deferredUntilUtc,
       if (createdAtLocal != null) 'created_at_local': createdAtLocal,
       if (updatedAtLocal != null) 'updated_at_local': updatedAtLocal,
       if (rowid != null) 'rowid': rowid,
@@ -26586,8 +26780,12 @@ class NotificationScheduleCompanion
     Value<String>? title,
     Value<String?>? body,
     Value<int?>? sentAtUtc,
+    Value<bool>? sentPrivate,
     Value<int?>? dismissedAtUtc,
     Value<int?>? snoozedUntilUtc,
+    Value<int?>? expiresAtUtc,
+    Value<int?>? expiredAtUtc,
+    Value<int?>? deferredUntilUtc,
     Value<int>? createdAtLocal,
     Value<int>? updatedAtLocal,
     Value<int>? rowid,
@@ -26602,8 +26800,12 @@ class NotificationScheduleCompanion
       title: title ?? this.title,
       body: body ?? this.body,
       sentAtUtc: sentAtUtc ?? this.sentAtUtc,
+      sentPrivate: sentPrivate ?? this.sentPrivate,
       dismissedAtUtc: dismissedAtUtc ?? this.dismissedAtUtc,
       snoozedUntilUtc: snoozedUntilUtc ?? this.snoozedUntilUtc,
+      expiresAtUtc: expiresAtUtc ?? this.expiresAtUtc,
+      expiredAtUtc: expiredAtUtc ?? this.expiredAtUtc,
+      deferredUntilUtc: deferredUntilUtc ?? this.deferredUntilUtc,
       createdAtLocal: createdAtLocal ?? this.createdAtLocal,
       updatedAtLocal: updatedAtLocal ?? this.updatedAtLocal,
       rowid: rowid ?? this.rowid,
@@ -26640,11 +26842,23 @@ class NotificationScheduleCompanion
     if (sentAtUtc.present) {
       map['sent_at_utc'] = Variable<int>(sentAtUtc.value);
     }
+    if (sentPrivate.present) {
+      map['sent_private'] = Variable<bool>(sentPrivate.value);
+    }
     if (dismissedAtUtc.present) {
       map['dismissed_at_utc'] = Variable<int>(dismissedAtUtc.value);
     }
     if (snoozedUntilUtc.present) {
       map['snoozed_until_utc'] = Variable<int>(snoozedUntilUtc.value);
+    }
+    if (expiresAtUtc.present) {
+      map['expires_at_utc'] = Variable<int>(expiresAtUtc.value);
+    }
+    if (expiredAtUtc.present) {
+      map['expired_at_utc'] = Variable<int>(expiredAtUtc.value);
+    }
+    if (deferredUntilUtc.present) {
+      map['deferred_until_utc'] = Variable<int>(deferredUntilUtc.value);
     }
     if (createdAtLocal.present) {
       map['created_at_local'] = Variable<int>(createdAtLocal.value);
@@ -26670,8 +26884,12 @@ class NotificationScheduleCompanion
           ..write('title: $title, ')
           ..write('body: $body, ')
           ..write('sentAtUtc: $sentAtUtc, ')
+          ..write('sentPrivate: $sentPrivate, ')
           ..write('dismissedAtUtc: $dismissedAtUtc, ')
           ..write('snoozedUntilUtc: $snoozedUntilUtc, ')
+          ..write('expiresAtUtc: $expiresAtUtc, ')
+          ..write('expiredAtUtc: $expiredAtUtc, ')
+          ..write('deferredUntilUtc: $deferredUntilUtc, ')
           ..write('createdAtLocal: $createdAtLocal, ')
           ..write('updatedAtLocal: $updatedAtLocal, ')
           ..write('rowid: $rowid')
@@ -26700,9 +26918,6 @@ class $AndroidNotificationMappingsTable extends AndroidNotificationMappings
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: true,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES notification_schedule (id) ON DELETE CASCADE',
-    ),
   );
   static const VerificationMeta _generationMeta = const VerificationMeta(
     'generation',
@@ -27618,6 +27833,827 @@ class AndroidDailySummarySchedulesCompanion
   }
 }
 
+class $NotificationIssuesTable extends NotificationIssues
+    with TableInfo<$NotificationIssuesTable, NotificationIssue> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $NotificationIssuesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _accountIdMeta = const VerificationMeta(
+    'accountId',
+  );
+  @override
+  late final GeneratedColumn<String> accountId = GeneratedColumn<String>(
+    'account_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _revisionMeta = const VerificationMeta(
+    'revision',
+  );
+  @override
+  late final GeneratedColumn<String> revision = GeneratedColumn<String>(
+    'revision',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _submittedRevisionMeta = const VerificationMeta(
+    'submittedRevision',
+  );
+  @override
+  late final GeneratedColumn<String> submittedRevision =
+      GeneratedColumn<String>(
+        'submitted_revision',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _submittedPrivateMeta = const VerificationMeta(
+    'submittedPrivate',
+  );
+  @override
+  late final GeneratedColumn<bool> submittedPrivate = GeneratedColumn<bool>(
+    'submitted_private',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("submitted_private" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _retryAtUtcMeta = const VerificationMeta(
+    'retryAtUtc',
+  );
+  @override
+  late final GeneratedColumn<int> retryAtUtc = GeneratedColumn<int>(
+    'retry_at_utc',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _nativeIdMeta = const VerificationMeta(
+    'nativeId',
+  );
+  @override
+  late final GeneratedColumn<int> nativeId = GeneratedColumn<int>(
+    'native_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _cleanupPendingMeta = const VerificationMeta(
+    'cleanupPending',
+  );
+  @override
+  late final GeneratedColumn<bool> cleanupPending = GeneratedColumn<bool>(
+    'cleanup_pending',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("cleanup_pending" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    accountId,
+    kind,
+    revision,
+    submittedRevision,
+    submittedPrivate,
+    retryAtUtc,
+    nativeId,
+    cleanupPending,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'notification_issues';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<NotificationIssue> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('account_id')) {
+      context.handle(
+        _accountIdMeta,
+        accountId.isAcceptableOrUnknown(data['account_id']!, _accountIdMeta),
+      );
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('revision')) {
+      context.handle(
+        _revisionMeta,
+        revision.isAcceptableOrUnknown(data['revision']!, _revisionMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_revisionMeta);
+    }
+    if (data.containsKey('submitted_revision')) {
+      context.handle(
+        _submittedRevisionMeta,
+        submittedRevision.isAcceptableOrUnknown(
+          data['submitted_revision']!,
+          _submittedRevisionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('submitted_private')) {
+      context.handle(
+        _submittedPrivateMeta,
+        submittedPrivate.isAcceptableOrUnknown(
+          data['submitted_private']!,
+          _submittedPrivateMeta,
+        ),
+      );
+    }
+    if (data.containsKey('retry_at_utc')) {
+      context.handle(
+        _retryAtUtcMeta,
+        retryAtUtc.isAcceptableOrUnknown(
+          data['retry_at_utc']!,
+          _retryAtUtcMeta,
+        ),
+      );
+    }
+    if (data.containsKey('native_id')) {
+      context.handle(
+        _nativeIdMeta,
+        nativeId.isAcceptableOrUnknown(data['native_id']!, _nativeIdMeta),
+      );
+    }
+    if (data.containsKey('cleanup_pending')) {
+      context.handle(
+        _cleanupPendingMeta,
+        cleanupPending.isAcceptableOrUnknown(
+          data['cleanup_pending']!,
+          _cleanupPendingMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  NotificationIssue map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return NotificationIssue(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      accountId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}account_id'],
+      ),
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      revision: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}revision'],
+      )!,
+      submittedRevision: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}submitted_revision'],
+      ),
+      submittedPrivate: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}submitted_private'],
+      )!,
+      retryAtUtc: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}retry_at_utc'],
+      ),
+      nativeId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}native_id'],
+      ),
+      cleanupPending: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}cleanup_pending'],
+      )!,
+    );
+  }
+
+  @override
+  $NotificationIssuesTable createAlias(String alias) {
+    return $NotificationIssuesTable(attachedDatabase, alias);
+  }
+}
+
+class NotificationIssue extends DataClass
+    implements Insertable<NotificationIssue> {
+  final String id;
+  final String? accountId;
+  final String kind;
+  final String revision;
+  final String? submittedRevision;
+  final bool submittedPrivate;
+  final int? retryAtUtc;
+  final int? nativeId;
+  final bool cleanupPending;
+  const NotificationIssue({
+    required this.id,
+    this.accountId,
+    required this.kind,
+    required this.revision,
+    this.submittedRevision,
+    required this.submittedPrivate,
+    this.retryAtUtc,
+    this.nativeId,
+    required this.cleanupPending,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    if (!nullToAbsent || accountId != null) {
+      map['account_id'] = Variable<String>(accountId);
+    }
+    map['kind'] = Variable<String>(kind);
+    map['revision'] = Variable<String>(revision);
+    if (!nullToAbsent || submittedRevision != null) {
+      map['submitted_revision'] = Variable<String>(submittedRevision);
+    }
+    map['submitted_private'] = Variable<bool>(submittedPrivate);
+    if (!nullToAbsent || retryAtUtc != null) {
+      map['retry_at_utc'] = Variable<int>(retryAtUtc);
+    }
+    if (!nullToAbsent || nativeId != null) {
+      map['native_id'] = Variable<int>(nativeId);
+    }
+    map['cleanup_pending'] = Variable<bool>(cleanupPending);
+    return map;
+  }
+
+  NotificationIssuesCompanion toCompanion(bool nullToAbsent) {
+    return NotificationIssuesCompanion(
+      id: Value(id),
+      accountId: accountId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(accountId),
+      kind: Value(kind),
+      revision: Value(revision),
+      submittedRevision: submittedRevision == null && nullToAbsent
+          ? const Value.absent()
+          : Value(submittedRevision),
+      submittedPrivate: Value(submittedPrivate),
+      retryAtUtc: retryAtUtc == null && nullToAbsent
+          ? const Value.absent()
+          : Value(retryAtUtc),
+      nativeId: nativeId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(nativeId),
+      cleanupPending: Value(cleanupPending),
+    );
+  }
+
+  factory NotificationIssue.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return NotificationIssue(
+      id: serializer.fromJson<String>(json['id']),
+      accountId: serializer.fromJson<String?>(json['accountId']),
+      kind: serializer.fromJson<String>(json['kind']),
+      revision: serializer.fromJson<String>(json['revision']),
+      submittedRevision: serializer.fromJson<String?>(
+        json['submittedRevision'],
+      ),
+      submittedPrivate: serializer.fromJson<bool>(json['submittedPrivate']),
+      retryAtUtc: serializer.fromJson<int?>(json['retryAtUtc']),
+      nativeId: serializer.fromJson<int?>(json['nativeId']),
+      cleanupPending: serializer.fromJson<bool>(json['cleanupPending']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'accountId': serializer.toJson<String?>(accountId),
+      'kind': serializer.toJson<String>(kind),
+      'revision': serializer.toJson<String>(revision),
+      'submittedRevision': serializer.toJson<String?>(submittedRevision),
+      'submittedPrivate': serializer.toJson<bool>(submittedPrivate),
+      'retryAtUtc': serializer.toJson<int?>(retryAtUtc),
+      'nativeId': serializer.toJson<int?>(nativeId),
+      'cleanupPending': serializer.toJson<bool>(cleanupPending),
+    };
+  }
+
+  NotificationIssue copyWith({
+    String? id,
+    Value<String?> accountId = const Value.absent(),
+    String? kind,
+    String? revision,
+    Value<String?> submittedRevision = const Value.absent(),
+    bool? submittedPrivate,
+    Value<int?> retryAtUtc = const Value.absent(),
+    Value<int?> nativeId = const Value.absent(),
+    bool? cleanupPending,
+  }) => NotificationIssue(
+    id: id ?? this.id,
+    accountId: accountId.present ? accountId.value : this.accountId,
+    kind: kind ?? this.kind,
+    revision: revision ?? this.revision,
+    submittedRevision: submittedRevision.present
+        ? submittedRevision.value
+        : this.submittedRevision,
+    submittedPrivate: submittedPrivate ?? this.submittedPrivate,
+    retryAtUtc: retryAtUtc.present ? retryAtUtc.value : this.retryAtUtc,
+    nativeId: nativeId.present ? nativeId.value : this.nativeId,
+    cleanupPending: cleanupPending ?? this.cleanupPending,
+  );
+  NotificationIssue copyWithCompanion(NotificationIssuesCompanion data) {
+    return NotificationIssue(
+      id: data.id.present ? data.id.value : this.id,
+      accountId: data.accountId.present ? data.accountId.value : this.accountId,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      revision: data.revision.present ? data.revision.value : this.revision,
+      submittedRevision: data.submittedRevision.present
+          ? data.submittedRevision.value
+          : this.submittedRevision,
+      submittedPrivate: data.submittedPrivate.present
+          ? data.submittedPrivate.value
+          : this.submittedPrivate,
+      retryAtUtc: data.retryAtUtc.present
+          ? data.retryAtUtc.value
+          : this.retryAtUtc,
+      nativeId: data.nativeId.present ? data.nativeId.value : this.nativeId,
+      cleanupPending: data.cleanupPending.present
+          ? data.cleanupPending.value
+          : this.cleanupPending,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('NotificationIssue(')
+          ..write('id: $id, ')
+          ..write('accountId: $accountId, ')
+          ..write('kind: $kind, ')
+          ..write('revision: $revision, ')
+          ..write('submittedRevision: $submittedRevision, ')
+          ..write('submittedPrivate: $submittedPrivate, ')
+          ..write('retryAtUtc: $retryAtUtc, ')
+          ..write('nativeId: $nativeId, ')
+          ..write('cleanupPending: $cleanupPending')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    accountId,
+    kind,
+    revision,
+    submittedRevision,
+    submittedPrivate,
+    retryAtUtc,
+    nativeId,
+    cleanupPending,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is NotificationIssue &&
+          other.id == this.id &&
+          other.accountId == this.accountId &&
+          other.kind == this.kind &&
+          other.revision == this.revision &&
+          other.submittedRevision == this.submittedRevision &&
+          other.submittedPrivate == this.submittedPrivate &&
+          other.retryAtUtc == this.retryAtUtc &&
+          other.nativeId == this.nativeId &&
+          other.cleanupPending == this.cleanupPending);
+}
+
+class NotificationIssuesCompanion extends UpdateCompanion<NotificationIssue> {
+  final Value<String> id;
+  final Value<String?> accountId;
+  final Value<String> kind;
+  final Value<String> revision;
+  final Value<String?> submittedRevision;
+  final Value<bool> submittedPrivate;
+  final Value<int?> retryAtUtc;
+  final Value<int?> nativeId;
+  final Value<bool> cleanupPending;
+  final Value<int> rowid;
+  const NotificationIssuesCompanion({
+    this.id = const Value.absent(),
+    this.accountId = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.revision = const Value.absent(),
+    this.submittedRevision = const Value.absent(),
+    this.submittedPrivate = const Value.absent(),
+    this.retryAtUtc = const Value.absent(),
+    this.nativeId = const Value.absent(),
+    this.cleanupPending = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  NotificationIssuesCompanion.insert({
+    required String id,
+    this.accountId = const Value.absent(),
+    required String kind,
+    required String revision,
+    this.submittedRevision = const Value.absent(),
+    this.submittedPrivate = const Value.absent(),
+    this.retryAtUtc = const Value.absent(),
+    this.nativeId = const Value.absent(),
+    this.cleanupPending = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       kind = Value(kind),
+       revision = Value(revision);
+  static Insertable<NotificationIssue> custom({
+    Expression<String>? id,
+    Expression<String>? accountId,
+    Expression<String>? kind,
+    Expression<String>? revision,
+    Expression<String>? submittedRevision,
+    Expression<bool>? submittedPrivate,
+    Expression<int>? retryAtUtc,
+    Expression<int>? nativeId,
+    Expression<bool>? cleanupPending,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (accountId != null) 'account_id': accountId,
+      if (kind != null) 'kind': kind,
+      if (revision != null) 'revision': revision,
+      if (submittedRevision != null) 'submitted_revision': submittedRevision,
+      if (submittedPrivate != null) 'submitted_private': submittedPrivate,
+      if (retryAtUtc != null) 'retry_at_utc': retryAtUtc,
+      if (nativeId != null) 'native_id': nativeId,
+      if (cleanupPending != null) 'cleanup_pending': cleanupPending,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  NotificationIssuesCompanion copyWith({
+    Value<String>? id,
+    Value<String?>? accountId,
+    Value<String>? kind,
+    Value<String>? revision,
+    Value<String?>? submittedRevision,
+    Value<bool>? submittedPrivate,
+    Value<int?>? retryAtUtc,
+    Value<int?>? nativeId,
+    Value<bool>? cleanupPending,
+    Value<int>? rowid,
+  }) {
+    return NotificationIssuesCompanion(
+      id: id ?? this.id,
+      accountId: accountId ?? this.accountId,
+      kind: kind ?? this.kind,
+      revision: revision ?? this.revision,
+      submittedRevision: submittedRevision ?? this.submittedRevision,
+      submittedPrivate: submittedPrivate ?? this.submittedPrivate,
+      retryAtUtc: retryAtUtc ?? this.retryAtUtc,
+      nativeId: nativeId ?? this.nativeId,
+      cleanupPending: cleanupPending ?? this.cleanupPending,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (accountId.present) {
+      map['account_id'] = Variable<String>(accountId.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (revision.present) {
+      map['revision'] = Variable<String>(revision.value);
+    }
+    if (submittedRevision.present) {
+      map['submitted_revision'] = Variable<String>(submittedRevision.value);
+    }
+    if (submittedPrivate.present) {
+      map['submitted_private'] = Variable<bool>(submittedPrivate.value);
+    }
+    if (retryAtUtc.present) {
+      map['retry_at_utc'] = Variable<int>(retryAtUtc.value);
+    }
+    if (nativeId.present) {
+      map['native_id'] = Variable<int>(nativeId.value);
+    }
+    if (cleanupPending.present) {
+      map['cleanup_pending'] = Variable<bool>(cleanupPending.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('NotificationIssuesCompanion(')
+          ..write('id: $id, ')
+          ..write('accountId: $accountId, ')
+          ..write('kind: $kind, ')
+          ..write('revision: $revision, ')
+          ..write('submittedRevision: $submittedRevision, ')
+          ..write('submittedPrivate: $submittedPrivate, ')
+          ..write('retryAtUtc: $retryAtUtc, ')
+          ..write('nativeId: $nativeId, ')
+          ..write('cleanupPending: $cleanupPending, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $DailySummaryHistoryTable extends DailySummaryHistory
+    with TableInfo<$DailySummaryHistoryTable, DailySummaryHistoryData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DailySummaryHistoryTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _localDateMeta = const VerificationMeta(
+    'localDate',
+  );
+  @override
+  late final GeneratedColumn<String> localDate = GeneratedColumn<String>(
+    'local_date',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _consumedAtUtcMeta = const VerificationMeta(
+    'consumedAtUtc',
+  );
+  @override
+  late final GeneratedColumn<int> consumedAtUtc = GeneratedColumn<int>(
+    'consumed_at_utc',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [localDate, consumedAtUtc];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'daily_summary_history';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DailySummaryHistoryData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('local_date')) {
+      context.handle(
+        _localDateMeta,
+        localDate.isAcceptableOrUnknown(data['local_date']!, _localDateMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_localDateMeta);
+    }
+    if (data.containsKey('consumed_at_utc')) {
+      context.handle(
+        _consumedAtUtcMeta,
+        consumedAtUtc.isAcceptableOrUnknown(
+          data['consumed_at_utc']!,
+          _consumedAtUtcMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_consumedAtUtcMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {localDate};
+  @override
+  DailySummaryHistoryData map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DailySummaryHistoryData(
+      localDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}local_date'],
+      )!,
+      consumedAtUtc: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}consumed_at_utc'],
+      )!,
+    );
+  }
+
+  @override
+  $DailySummaryHistoryTable createAlias(String alias) {
+    return $DailySummaryHistoryTable(attachedDatabase, alias);
+  }
+}
+
+class DailySummaryHistoryData extends DataClass
+    implements Insertable<DailySummaryHistoryData> {
+  final String localDate;
+  final int consumedAtUtc;
+  const DailySummaryHistoryData({
+    required this.localDate,
+    required this.consumedAtUtc,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['local_date'] = Variable<String>(localDate);
+    map['consumed_at_utc'] = Variable<int>(consumedAtUtc);
+    return map;
+  }
+
+  DailySummaryHistoryCompanion toCompanion(bool nullToAbsent) {
+    return DailySummaryHistoryCompanion(
+      localDate: Value(localDate),
+      consumedAtUtc: Value(consumedAtUtc),
+    );
+  }
+
+  factory DailySummaryHistoryData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DailySummaryHistoryData(
+      localDate: serializer.fromJson<String>(json['localDate']),
+      consumedAtUtc: serializer.fromJson<int>(json['consumedAtUtc']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'localDate': serializer.toJson<String>(localDate),
+      'consumedAtUtc': serializer.toJson<int>(consumedAtUtc),
+    };
+  }
+
+  DailySummaryHistoryData copyWith({String? localDate, int? consumedAtUtc}) =>
+      DailySummaryHistoryData(
+        localDate: localDate ?? this.localDate,
+        consumedAtUtc: consumedAtUtc ?? this.consumedAtUtc,
+      );
+  DailySummaryHistoryData copyWithCompanion(DailySummaryHistoryCompanion data) {
+    return DailySummaryHistoryData(
+      localDate: data.localDate.present ? data.localDate.value : this.localDate,
+      consumedAtUtc: data.consumedAtUtc.present
+          ? data.consumedAtUtc.value
+          : this.consumedAtUtc,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DailySummaryHistoryData(')
+          ..write('localDate: $localDate, ')
+          ..write('consumedAtUtc: $consumedAtUtc')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(localDate, consumedAtUtc);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DailySummaryHistoryData &&
+          other.localDate == this.localDate &&
+          other.consumedAtUtc == this.consumedAtUtc);
+}
+
+class DailySummaryHistoryCompanion
+    extends UpdateCompanion<DailySummaryHistoryData> {
+  final Value<String> localDate;
+  final Value<int> consumedAtUtc;
+  final Value<int> rowid;
+  const DailySummaryHistoryCompanion({
+    this.localDate = const Value.absent(),
+    this.consumedAtUtc = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DailySummaryHistoryCompanion.insert({
+    required String localDate,
+    required int consumedAtUtc,
+    this.rowid = const Value.absent(),
+  }) : localDate = Value(localDate),
+       consumedAtUtc = Value(consumedAtUtc);
+  static Insertable<DailySummaryHistoryData> custom({
+    Expression<String>? localDate,
+    Expression<int>? consumedAtUtc,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (localDate != null) 'local_date': localDate,
+      if (consumedAtUtc != null) 'consumed_at_utc': consumedAtUtc,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DailySummaryHistoryCompanion copyWith({
+    Value<String>? localDate,
+    Value<int>? consumedAtUtc,
+    Value<int>? rowid,
+  }) {
+    return DailySummaryHistoryCompanion(
+      localDate: localDate ?? this.localDate,
+      consumedAtUtc: consumedAtUtc ?? this.consumedAtUtc,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (localDate.present) {
+      map['local_date'] = Variable<String>(localDate.value);
+    }
+    if (consumedAtUtc.present) {
+      map['consumed_at_utc'] = Variable<int>(consumedAtUtc.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DailySummaryHistoryCompanion(')
+          ..write('localDate: $localDate, ')
+          ..write('consumedAtUtc: $consumedAtUtc, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $LocationResolutionsTable extends LocationResolutions
     with TableInfo<$LocationResolutionsTable, LocationResolution> {
   @override
@@ -28285,6 +29321,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $AndroidNotificationMappingsTable(this);
   late final $AndroidDailySummarySchedulesTable androidDailySummarySchedules =
       $AndroidDailySummarySchedulesTable(this);
+  late final $NotificationIssuesTable notificationIssues =
+      $NotificationIssuesTable(this);
+  late final $DailySummaryHistoryTable dailySummaryHistory =
+      $DailySummaryHistoryTable(this);
   late final $LocationResolutionsTable locationResolutions =
       $LocationResolutionsTable(this);
   late final TaskListsDao taskListsDao = TaskListsDao(this as AppDatabase);
@@ -28323,6 +29363,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     notificationSchedule,
     androidNotificationMappings,
     androidDailySummarySchedules,
+    notificationIssues,
+    dailySummaryHistory,
     locationResolutions,
   ];
   @override
@@ -28612,15 +29654,6 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('notification_schedule', kind: UpdateKind.delete)],
-    ),
-    WritePropagation(
-      on: TableUpdateQuery.onTableName(
-        'notification_schedule',
-        limitUpdateKind: UpdateKind.delete,
-      ),
-      result: [
-        TableUpdate('android_notification_mappings', kind: UpdateKind.delete),
-      ],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
@@ -47934,8 +48967,12 @@ typedef $$NotificationScheduleTableCreateCompanionBuilder =
       required String title,
       Value<String?> body,
       Value<int?> sentAtUtc,
+      Value<bool> sentPrivate,
       Value<int?> dismissedAtUtc,
       Value<int?> snoozedUntilUtc,
+      Value<int?> expiresAtUtc,
+      Value<int?> expiredAtUtc,
+      Value<int?> deferredUntilUtc,
       required int createdAtLocal,
       required int updatedAtLocal,
       Value<int> rowid,
@@ -47951,8 +48988,12 @@ typedef $$NotificationScheduleTableUpdateCompanionBuilder =
       Value<String> title,
       Value<String?> body,
       Value<int?> sentAtUtc,
+      Value<bool> sentPrivate,
       Value<int?> dismissedAtUtc,
       Value<int?> snoozedUntilUtc,
+      Value<int?> expiresAtUtc,
+      Value<int?> expiredAtUtc,
+      Value<int?> deferredUntilUtc,
       Value<int> createdAtLocal,
       Value<int> updatedAtLocal,
       Value<int> rowid,
@@ -47985,33 +49026,6 @@ final class $$NotificationScheduleTableReferences
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
-    );
-  }
-
-  static MultiTypedResultKey<
-    $AndroidNotificationMappingsTable,
-    List<AndroidNotificationMapping>
-  >
-  _androidNotificationMappingsRefsTable(
-    _$AppDatabase db,
-  ) => MultiTypedResultKey.fromTable(
-    db.androidNotificationMappings,
-    aliasName:
-        'notification_schedule__id__android_notification_mappings__schedule_id',
-  );
-
-  $$AndroidNotificationMappingsTableProcessedTableManager
-  get androidNotificationMappingsRefs {
-    final manager = $$AndroidNotificationMappingsTableTableManager(
-      $_db,
-      $_db.androidNotificationMappings,
-    ).filter((f) => f.scheduleId.id.sqlEquals($_itemColumn<String>('id')!));
-
-    final cache = $_typedResult.readTableOrNull(
-      _androidNotificationMappingsRefsTable($_db),
-    );
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: cache),
     );
   }
 }
@@ -48065,6 +49079,11 @@ class $$NotificationScheduleTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<bool> get sentPrivate => $composableBuilder(
+    column: $table.sentPrivate,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<int> get dismissedAtUtc => $composableBuilder(
     column: $table.dismissedAtUtc,
     builder: (column) => ColumnFilters(column),
@@ -48072,6 +49091,21 @@ class $$NotificationScheduleTableFilterComposer
 
   ColumnFilters<int> get snoozedUntilUtc => $composableBuilder(
     column: $table.snoozedUntilUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get expiresAtUtc => $composableBuilder(
+    column: $table.expiresAtUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get expiredAtUtc => $composableBuilder(
+    column: $table.expiredAtUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get deferredUntilUtc => $composableBuilder(
+    column: $table.deferredUntilUtc,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -48106,35 +49140,6 @@ class $$NotificationScheduleTableFilterComposer
           ),
     );
     return composer;
-  }
-
-  Expression<bool> androidNotificationMappingsRefs(
-    Expression<bool> Function(
-      $$AndroidNotificationMappingsTableFilterComposer f,
-    )
-    f,
-  ) {
-    final $$AndroidNotificationMappingsTableFilterComposer composer =
-        $composerBuilder(
-          composer: this,
-          getCurrentColumn: (t) => t.id,
-          referencedTable: $db.androidNotificationMappings,
-          getReferencedColumn: (t) => t.scheduleId,
-          builder:
-              (
-                joinBuilder, {
-                $addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer,
-              }) => $$AndroidNotificationMappingsTableFilterComposer(
-                $db: $db,
-                $table: $db.androidNotificationMappings,
-                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-                joinBuilder: joinBuilder,
-                $removeJoinBuilderFromRootComposer:
-                    $removeJoinBuilderFromRootComposer,
-              ),
-        );
-    return f(composer);
   }
 }
 
@@ -48187,6 +49192,11 @@ class $$NotificationScheduleTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get sentPrivate => $composableBuilder(
+    column: $table.sentPrivate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get dismissedAtUtc => $composableBuilder(
     column: $table.dismissedAtUtc,
     builder: (column) => ColumnOrderings(column),
@@ -48194,6 +49204,21 @@ class $$NotificationScheduleTableOrderingComposer
 
   ColumnOrderings<int> get snoozedUntilUtc => $composableBuilder(
     column: $table.snoozedUntilUtc,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get expiresAtUtc => $composableBuilder(
+    column: $table.expiresAtUtc,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get expiredAtUtc => $composableBuilder(
+    column: $table.expiredAtUtc,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get deferredUntilUtc => $composableBuilder(
+    column: $table.deferredUntilUtc,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -48270,6 +49295,11 @@ class $$NotificationScheduleTableAnnotationComposer
   GeneratedColumn<int> get sentAtUtc =>
       $composableBuilder(column: $table.sentAtUtc, builder: (column) => column);
 
+  GeneratedColumn<bool> get sentPrivate => $composableBuilder(
+    column: $table.sentPrivate,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<int> get dismissedAtUtc => $composableBuilder(
     column: $table.dismissedAtUtc,
     builder: (column) => column,
@@ -48277,6 +49307,21 @@ class $$NotificationScheduleTableAnnotationComposer
 
   GeneratedColumn<int> get snoozedUntilUtc => $composableBuilder(
     column: $table.snoozedUntilUtc,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get expiresAtUtc => $composableBuilder(
+    column: $table.expiresAtUtc,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get expiredAtUtc => $composableBuilder(
+    column: $table.expiredAtUtc,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get deferredUntilUtc => $composableBuilder(
+    column: $table.deferredUntilUtc,
     builder: (column) => column,
   );
 
@@ -48312,35 +49357,6 @@ class $$NotificationScheduleTableAnnotationComposer
     );
     return composer;
   }
-
-  Expression<T> androidNotificationMappingsRefs<T extends Object>(
-    Expression<T> Function(
-      $$AndroidNotificationMappingsTableAnnotationComposer a,
-    )
-    f,
-  ) {
-    final $$AndroidNotificationMappingsTableAnnotationComposer composer =
-        $composerBuilder(
-          composer: this,
-          getCurrentColumn: (t) => t.id,
-          referencedTable: $db.androidNotificationMappings,
-          getReferencedColumn: (t) => t.scheduleId,
-          builder:
-              (
-                joinBuilder, {
-                $addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer,
-              }) => $$AndroidNotificationMappingsTableAnnotationComposer(
-                $db: $db,
-                $table: $db.androidNotificationMappings,
-                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-                joinBuilder: joinBuilder,
-                $removeJoinBuilderFromRootComposer:
-                    $removeJoinBuilderFromRootComposer,
-              ),
-        );
-    return f(composer);
-  }
 }
 
 class $$NotificationScheduleTableTableManager
@@ -48356,10 +49372,7 @@ class $$NotificationScheduleTableTableManager
           $$NotificationScheduleTableUpdateCompanionBuilder,
           (NotificationScheduleData, $$NotificationScheduleTableReferences),
           NotificationScheduleData,
-          PrefetchHooks Function({
-            bool accountId,
-            bool androidNotificationMappingsRefs,
-          })
+          PrefetchHooks Function({bool accountId})
         > {
   $$NotificationScheduleTableTableManager(
     _$AppDatabase db,
@@ -48391,8 +49404,12 @@ class $$NotificationScheduleTableTableManager
                 Value<String> title = const Value.absent(),
                 Value<String?> body = const Value.absent(),
                 Value<int?> sentAtUtc = const Value.absent(),
+                Value<bool> sentPrivate = const Value.absent(),
                 Value<int?> dismissedAtUtc = const Value.absent(),
                 Value<int?> snoozedUntilUtc = const Value.absent(),
+                Value<int?> expiresAtUtc = const Value.absent(),
+                Value<int?> expiredAtUtc = const Value.absent(),
+                Value<int?> deferredUntilUtc = const Value.absent(),
                 Value<int> createdAtLocal = const Value.absent(),
                 Value<int> updatedAtLocal = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -48406,8 +49423,12 @@ class $$NotificationScheduleTableTableManager
                 title: title,
                 body: body,
                 sentAtUtc: sentAtUtc,
+                sentPrivate: sentPrivate,
                 dismissedAtUtc: dismissedAtUtc,
                 snoozedUntilUtc: snoozedUntilUtc,
+                expiresAtUtc: expiresAtUtc,
+                expiredAtUtc: expiredAtUtc,
+                deferredUntilUtc: deferredUntilUtc,
                 createdAtLocal: createdAtLocal,
                 updatedAtLocal: updatedAtLocal,
                 rowid: rowid,
@@ -48423,8 +49444,12 @@ class $$NotificationScheduleTableTableManager
                 required String title,
                 Value<String?> body = const Value.absent(),
                 Value<int?> sentAtUtc = const Value.absent(),
+                Value<bool> sentPrivate = const Value.absent(),
                 Value<int?> dismissedAtUtc = const Value.absent(),
                 Value<int?> snoozedUntilUtc = const Value.absent(),
+                Value<int?> expiresAtUtc = const Value.absent(),
+                Value<int?> expiredAtUtc = const Value.absent(),
+                Value<int?> deferredUntilUtc = const Value.absent(),
                 required int createdAtLocal,
                 required int updatedAtLocal,
                 Value<int> rowid = const Value.absent(),
@@ -48438,8 +49463,12 @@ class $$NotificationScheduleTableTableManager
                 title: title,
                 body: body,
                 sentAtUtc: sentAtUtc,
+                sentPrivate: sentPrivate,
                 dismissedAtUtc: dismissedAtUtc,
                 snoozedUntilUtc: snoozedUntilUtc,
+                expiresAtUtc: expiresAtUtc,
+                expiredAtUtc: expiredAtUtc,
+                deferredUntilUtc: deferredUntilUtc,
                 createdAtLocal: createdAtLocal,
                 updatedAtLocal: updatedAtLocal,
                 rowid: rowid,
@@ -48455,73 +49484,45 @@ class $$NotificationScheduleTableTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback:
-              ({accountId = false, androidNotificationMappingsRefs = false}) {
-                return PrefetchHooks(
-                  db: db,
-                  explicitlyWatchedTables: [
-                    if (androidNotificationMappingsRefs)
-                      db.androidNotificationMappings,
-                  ],
-                  addJoins:
-                      <
-                        T extends TableManagerState<
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic
-                        >
-                      >(state) {
-                        if (accountId) {
-                          state = state.withJoin(
-                            currentTable: table,
-                            currentColumn: table.accountId,
-                            referencedTable:
-                                $$NotificationScheduleTableReferences
-                                    ._accountIdTable(db),
-                            referencedColumn:
-                                $$NotificationScheduleTableReferences
-                                    ._accountIdTable(db)
-                                    .id,
-                          ) as T;
-                        }
+          prefetchHooksCallback: ({accountId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (accountId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.accountId,
+                        referencedTable: $$NotificationScheduleTableReferences
+                            ._accountIdTable(db),
+                        referencedColumn: $$NotificationScheduleTableReferences
+                            ._accountIdTable(db)
+                            .id,
+                      ) as T;
+                    }
 
-                        return state;
-                      },
-                  getPrefetchedDataCallback: (items) async {
-                    return [
-                      if (androidNotificationMappingsRefs)
-                        await $_getPrefetchedData<
-                          NotificationScheduleData,
-                          $NotificationScheduleTable,
-                          AndroidNotificationMapping
-                        >(
-                          currentTable: table,
-                          referencedTable: $$NotificationScheduleTableReferences
-                              ._androidNotificationMappingsRefsTable(db),
-                          managerFromTypedResult: (p0) =>
-                              $$NotificationScheduleTableReferences(
-                                db,
-                                table,
-                                p0,
-                              ).androidNotificationMappingsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.scheduleId == item.id,
-                              ),
-                          typedResults: items,
-                        ),
-                    ];
+                    return state;
                   },
-                );
+              getPrefetchedDataCallback: (items) async {
+                return [];
               },
+            );
+          },
         ),
       );
 }
@@ -48538,10 +49539,7 @@ typedef $$NotificationScheduleTableProcessedTableManager =
       $$NotificationScheduleTableUpdateCompanionBuilder,
       (NotificationScheduleData, $$NotificationScheduleTableReferences),
       NotificationScheduleData,
-      PrefetchHooks Function({
-        bool accountId,
-        bool androidNotificationMappingsRefs,
-      })
+      PrefetchHooks Function({bool accountId})
     >;
 typedef $$AndroidNotificationMappingsTableCreateCompanionBuilder =
     AndroidNotificationMappingsCompanion Function({
@@ -48564,39 +49562,6 @@ typedef $$AndroidNotificationMappingsTableUpdateCompanionBuilder =
       Value<int> rowid,
     });
 
-final class $$AndroidNotificationMappingsTableReferences
-    extends
-        BaseReferences<
-          _$AppDatabase,
-          $AndroidNotificationMappingsTable,
-          AndroidNotificationMapping
-        > {
-  $$AndroidNotificationMappingsTableReferences(
-    super.$_db,
-    super.$_table,
-    super.$_typedResult,
-  );
-
-  static $NotificationScheduleTable _scheduleIdTable(_$AppDatabase db) =>
-      db.notificationSchedule.createAlias(
-        'android_notification_mappings__schedule_id__notification_schedule__id',
-      );
-
-  $$NotificationScheduleTableProcessedTableManager get scheduleId {
-    final $_column = $_itemColumn<String>('schedule_id')!;
-
-    final manager = $$NotificationScheduleTableTableManager(
-      $_db,
-      $_db.notificationSchedule,
-    ).filter((f) => f.id.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_scheduleIdTable($_db));
-    if (item == null) return manager;
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: [item]),
-    );
-  }
-}
-
 class $$AndroidNotificationMappingsTableFilterComposer
     extends Composer<_$AppDatabase, $AndroidNotificationMappingsTable> {
   $$AndroidNotificationMappingsTableFilterComposer({
@@ -48606,6 +49571,11 @@ class $$AndroidNotificationMappingsTableFilterComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
+  ColumnFilters<String> get scheduleId => $composableBuilder(
+    column: $table.scheduleId,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<String> get generation => $composableBuilder(
     column: $table.generation,
     builder: (column) => ColumnFilters(column),
@@ -48630,29 +49600,6 @@ class $$AndroidNotificationMappingsTableFilterComposer
     column: $table.updatedAtUtc,
     builder: (column) => ColumnFilters(column),
   );
-
-  $$NotificationScheduleTableFilterComposer get scheduleId {
-    final $$NotificationScheduleTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.scheduleId,
-      referencedTable: $db.notificationSchedule,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$NotificationScheduleTableFilterComposer(
-            $db: $db,
-            $table: $db.notificationSchedule,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
 }
 
 class $$AndroidNotificationMappingsTableOrderingComposer
@@ -48664,6 +49611,11 @@ class $$AndroidNotificationMappingsTableOrderingComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
+  ColumnOrderings<String> get scheduleId => $composableBuilder(
+    column: $table.scheduleId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get generation => $composableBuilder(
     column: $table.generation,
     builder: (column) => ColumnOrderings(column),
@@ -48688,30 +49640,6 @@ class $$AndroidNotificationMappingsTableOrderingComposer
     column: $table.updatedAtUtc,
     builder: (column) => ColumnOrderings(column),
   );
-
-  $$NotificationScheduleTableOrderingComposer get scheduleId {
-    final $$NotificationScheduleTableOrderingComposer composer =
-        $composerBuilder(
-          composer: this,
-          getCurrentColumn: (t) => t.scheduleId,
-          referencedTable: $db.notificationSchedule,
-          getReferencedColumn: (t) => t.id,
-          builder:
-              (
-                joinBuilder, {
-                $addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer,
-              }) => $$NotificationScheduleTableOrderingComposer(
-                $db: $db,
-                $table: $db.notificationSchedule,
-                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-                joinBuilder: joinBuilder,
-                $removeJoinBuilderFromRootComposer:
-                    $removeJoinBuilderFromRootComposer,
-              ),
-        );
-    return composer;
-  }
 }
 
 class $$AndroidNotificationMappingsTableAnnotationComposer
@@ -48723,6 +49651,11 @@ class $$AndroidNotificationMappingsTableAnnotationComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
+  GeneratedColumn<String> get scheduleId => $composableBuilder(
+    column: $table.scheduleId,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get generation => $composableBuilder(
     column: $table.generation,
     builder: (column) => column,
@@ -48745,30 +49678,6 @@ class $$AndroidNotificationMappingsTableAnnotationComposer
     column: $table.updatedAtUtc,
     builder: (column) => column,
   );
-
-  $$NotificationScheduleTableAnnotationComposer get scheduleId {
-    final $$NotificationScheduleTableAnnotationComposer composer =
-        $composerBuilder(
-          composer: this,
-          getCurrentColumn: (t) => t.scheduleId,
-          referencedTable: $db.notificationSchedule,
-          getReferencedColumn: (t) => t.id,
-          builder:
-              (
-                joinBuilder, {
-                $addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer,
-              }) => $$NotificationScheduleTableAnnotationComposer(
-                $db: $db,
-                $table: $db.notificationSchedule,
-                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-                joinBuilder: joinBuilder,
-                $removeJoinBuilderFromRootComposer:
-                    $removeJoinBuilderFromRootComposer,
-              ),
-        );
-    return composer;
-  }
 }
 
 class $$AndroidNotificationMappingsTableTableManager
@@ -48784,10 +49693,14 @@ class $$AndroidNotificationMappingsTableTableManager
           $$AndroidNotificationMappingsTableUpdateCompanionBuilder,
           (
             AndroidNotificationMapping,
-            $$AndroidNotificationMappingsTableReferences,
+            BaseReferences<
+              _$AppDatabase,
+              $AndroidNotificationMappingsTable,
+              AndroidNotificationMapping
+            >,
           ),
           AndroidNotificationMapping,
-          PrefetchHooks Function({bool scheduleId})
+          PrefetchHooks Function()
         > {
   $$AndroidNotificationMappingsTableTableManager(
     _$AppDatabase db,
@@ -48854,51 +49767,15 @@ class $$AndroidNotificationMappingsTableTableManager
                     $AndroidNotificationMappingsTable,
                     AndroidNotificationMapping
                   >(table),
-                  $$AndroidNotificationMappingsTableReferences(db, table, e),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $AndroidNotificationMappingsTable,
+                    AndroidNotificationMapping
+                  >(db, table, e),
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({scheduleId = false}) {
-            return PrefetchHooks(
-              db: db,
-              explicitlyWatchedTables: [],
-              addJoins:
-                  <
-                    T extends TableManagerState<
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic
-                    >
-                  >(state) {
-                    if (scheduleId) {
-                      state = state.withJoin(
-                        currentTable: table,
-                        currentColumn: table.scheduleId,
-                        referencedTable:
-                            $$AndroidNotificationMappingsTableReferences
-                                ._scheduleIdTable(db),
-                        referencedColumn:
-                            $$AndroidNotificationMappingsTableReferences
-                                ._scheduleIdTable(db)
-                                .id,
-                      ) as T;
-                    }
-
-                    return state;
-                  },
-              getPrefetchedDataCallback: (items) async {
-                return [];
-              },
-            );
-          },
+          prefetchHooksCallback: null,
         ),
       );
 }
@@ -48915,10 +49792,14 @@ typedef $$AndroidNotificationMappingsTableProcessedTableManager =
       $$AndroidNotificationMappingsTableUpdateCompanionBuilder,
       (
         AndroidNotificationMapping,
-        $$AndroidNotificationMappingsTableReferences,
+        BaseReferences<
+          _$AppDatabase,
+          $AndroidNotificationMappingsTable,
+          AndroidNotificationMapping
+        >,
       ),
       AndroidNotificationMapping,
-      PrefetchHooks Function({bool scheduleId})
+      PrefetchHooks Function()
     >;
 typedef $$AndroidDailySummarySchedulesTableCreateCompanionBuilder =
     AndroidDailySummarySchedulesCompanion Function({
@@ -49195,6 +50076,487 @@ typedef $$AndroidDailySummarySchedulesTableProcessedTableManager =
         >,
       ),
       AndroidDailySummarySchedule,
+      PrefetchHooks Function()
+    >;
+typedef $$NotificationIssuesTableCreateCompanionBuilder =
+    NotificationIssuesCompanion Function({
+      required String id,
+      Value<String?> accountId,
+      required String kind,
+      required String revision,
+      Value<String?> submittedRevision,
+      Value<bool> submittedPrivate,
+      Value<int?> retryAtUtc,
+      Value<int?> nativeId,
+      Value<bool> cleanupPending,
+      Value<int> rowid,
+    });
+typedef $$NotificationIssuesTableUpdateCompanionBuilder =
+    NotificationIssuesCompanion Function({
+      Value<String> id,
+      Value<String?> accountId,
+      Value<String> kind,
+      Value<String> revision,
+      Value<String?> submittedRevision,
+      Value<bool> submittedPrivate,
+      Value<int?> retryAtUtc,
+      Value<int?> nativeId,
+      Value<bool> cleanupPending,
+      Value<int> rowid,
+    });
+
+class $$NotificationIssuesTableFilterComposer
+    extends Composer<_$AppDatabase, $NotificationIssuesTable> {
+  $$NotificationIssuesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get accountId => $composableBuilder(
+    column: $table.accountId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get revision => $composableBuilder(
+    column: $table.revision,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get submittedRevision => $composableBuilder(
+    column: $table.submittedRevision,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get submittedPrivate => $composableBuilder(
+    column: $table.submittedPrivate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get retryAtUtc => $composableBuilder(
+    column: $table.retryAtUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get nativeId => $composableBuilder(
+    column: $table.nativeId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get cleanupPending => $composableBuilder(
+    column: $table.cleanupPending,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$NotificationIssuesTableOrderingComposer
+    extends Composer<_$AppDatabase, $NotificationIssuesTable> {
+  $$NotificationIssuesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get accountId => $composableBuilder(
+    column: $table.accountId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get revision => $composableBuilder(
+    column: $table.revision,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get submittedRevision => $composableBuilder(
+    column: $table.submittedRevision,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get submittedPrivate => $composableBuilder(
+    column: $table.submittedPrivate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get retryAtUtc => $composableBuilder(
+    column: $table.retryAtUtc,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get nativeId => $composableBuilder(
+    column: $table.nativeId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get cleanupPending => $composableBuilder(
+    column: $table.cleanupPending,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$NotificationIssuesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $NotificationIssuesTable> {
+  $$NotificationIssuesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get accountId =>
+      $composableBuilder(column: $table.accountId, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get revision =>
+      $composableBuilder(column: $table.revision, builder: (column) => column);
+
+  GeneratedColumn<String> get submittedRevision => $composableBuilder(
+    column: $table.submittedRevision,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get submittedPrivate => $composableBuilder(
+    column: $table.submittedPrivate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get retryAtUtc => $composableBuilder(
+    column: $table.retryAtUtc,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get nativeId =>
+      $composableBuilder(column: $table.nativeId, builder: (column) => column);
+
+  GeneratedColumn<bool> get cleanupPending => $composableBuilder(
+    column: $table.cleanupPending,
+    builder: (column) => column,
+  );
+}
+
+class $$NotificationIssuesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $NotificationIssuesTable,
+          NotificationIssue,
+          $$NotificationIssuesTableFilterComposer,
+          $$NotificationIssuesTableOrderingComposer,
+          $$NotificationIssuesTableAnnotationComposer,
+          $$NotificationIssuesTableCreateCompanionBuilder,
+          $$NotificationIssuesTableUpdateCompanionBuilder,
+          (
+            NotificationIssue,
+            BaseReferences<
+              _$AppDatabase,
+              $NotificationIssuesTable,
+              NotificationIssue
+            >,
+          ),
+          NotificationIssue,
+          PrefetchHooks Function()
+        > {
+  $$NotificationIssuesTableTableManager(
+    _$AppDatabase db,
+    $NotificationIssuesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$NotificationIssuesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$NotificationIssuesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$NotificationIssuesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String?> accountId = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<String> revision = const Value.absent(),
+                Value<String?> submittedRevision = const Value.absent(),
+                Value<bool> submittedPrivate = const Value.absent(),
+                Value<int?> retryAtUtc = const Value.absent(),
+                Value<int?> nativeId = const Value.absent(),
+                Value<bool> cleanupPending = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => NotificationIssuesCompanion(
+                id: id,
+                accountId: accountId,
+                kind: kind,
+                revision: revision,
+                submittedRevision: submittedRevision,
+                submittedPrivate: submittedPrivate,
+                retryAtUtc: retryAtUtc,
+                nativeId: nativeId,
+                cleanupPending: cleanupPending,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                Value<String?> accountId = const Value.absent(),
+                required String kind,
+                required String revision,
+                Value<String?> submittedRevision = const Value.absent(),
+                Value<bool> submittedPrivate = const Value.absent(),
+                Value<int?> retryAtUtc = const Value.absent(),
+                Value<int?> nativeId = const Value.absent(),
+                Value<bool> cleanupPending = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => NotificationIssuesCompanion.insert(
+                id: id,
+                accountId: accountId,
+                kind: kind,
+                revision: revision,
+                submittedRevision: submittedRevision,
+                submittedPrivate: submittedPrivate,
+                retryAtUtc: retryAtUtc,
+                nativeId: nativeId,
+                cleanupPending: cleanupPending,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$NotificationIssuesTable, NotificationIssue>(
+                    table,
+                  ),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $NotificationIssuesTable,
+                    NotificationIssue
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$NotificationIssuesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $NotificationIssuesTable,
+      NotificationIssue,
+      $$NotificationIssuesTableFilterComposer,
+      $$NotificationIssuesTableOrderingComposer,
+      $$NotificationIssuesTableAnnotationComposer,
+      $$NotificationIssuesTableCreateCompanionBuilder,
+      $$NotificationIssuesTableUpdateCompanionBuilder,
+      (
+        NotificationIssue,
+        BaseReferences<
+          _$AppDatabase,
+          $NotificationIssuesTable,
+          NotificationIssue
+        >,
+      ),
+      NotificationIssue,
+      PrefetchHooks Function()
+    >;
+typedef $$DailySummaryHistoryTableCreateCompanionBuilder =
+    DailySummaryHistoryCompanion Function({
+      required String localDate,
+      required int consumedAtUtc,
+      Value<int> rowid,
+    });
+typedef $$DailySummaryHistoryTableUpdateCompanionBuilder =
+    DailySummaryHistoryCompanion Function({
+      Value<String> localDate,
+      Value<int> consumedAtUtc,
+      Value<int> rowid,
+    });
+
+class $$DailySummaryHistoryTableFilterComposer
+    extends Composer<_$AppDatabase, $DailySummaryHistoryTable> {
+  $$DailySummaryHistoryTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get localDate => $composableBuilder(
+    column: $table.localDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get consumedAtUtc => $composableBuilder(
+    column: $table.consumedAtUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$DailySummaryHistoryTableOrderingComposer
+    extends Composer<_$AppDatabase, $DailySummaryHistoryTable> {
+  $$DailySummaryHistoryTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get localDate => $composableBuilder(
+    column: $table.localDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get consumedAtUtc => $composableBuilder(
+    column: $table.consumedAtUtc,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$DailySummaryHistoryTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DailySummaryHistoryTable> {
+  $$DailySummaryHistoryTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get localDate =>
+      $composableBuilder(column: $table.localDate, builder: (column) => column);
+
+  GeneratedColumn<int> get consumedAtUtc => $composableBuilder(
+    column: $table.consumedAtUtc,
+    builder: (column) => column,
+  );
+}
+
+class $$DailySummaryHistoryTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $DailySummaryHistoryTable,
+          DailySummaryHistoryData,
+          $$DailySummaryHistoryTableFilterComposer,
+          $$DailySummaryHistoryTableOrderingComposer,
+          $$DailySummaryHistoryTableAnnotationComposer,
+          $$DailySummaryHistoryTableCreateCompanionBuilder,
+          $$DailySummaryHistoryTableUpdateCompanionBuilder,
+          (
+            DailySummaryHistoryData,
+            BaseReferences<
+              _$AppDatabase,
+              $DailySummaryHistoryTable,
+              DailySummaryHistoryData
+            >,
+          ),
+          DailySummaryHistoryData,
+          PrefetchHooks Function()
+        > {
+  $$DailySummaryHistoryTableTableManager(
+    _$AppDatabase db,
+    $DailySummaryHistoryTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DailySummaryHistoryTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$DailySummaryHistoryTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$DailySummaryHistoryTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> localDate = const Value.absent(),
+                Value<int> consumedAtUtc = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DailySummaryHistoryCompanion(
+                localDate: localDate,
+                consumedAtUtc: consumedAtUtc,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String localDate,
+                required int consumedAtUtc,
+                Value<int> rowid = const Value.absent(),
+              }) => DailySummaryHistoryCompanion.insert(
+                localDate: localDate,
+                consumedAtUtc: consumedAtUtc,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<
+                    $DailySummaryHistoryTable,
+                    DailySummaryHistoryData
+                  >(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $DailySummaryHistoryTable,
+                    DailySummaryHistoryData
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$DailySummaryHistoryTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $DailySummaryHistoryTable,
+      DailySummaryHistoryData,
+      $$DailySummaryHistoryTableFilterComposer,
+      $$DailySummaryHistoryTableOrderingComposer,
+      $$DailySummaryHistoryTableAnnotationComposer,
+      $$DailySummaryHistoryTableCreateCompanionBuilder,
+      $$DailySummaryHistoryTableUpdateCompanionBuilder,
+      (
+        DailySummaryHistoryData,
+        BaseReferences<
+          _$AppDatabase,
+          $DailySummaryHistoryTable,
+          DailySummaryHistoryData
+        >,
+      ),
+      DailySummaryHistoryData,
       PrefetchHooks Function()
     >;
 typedef $$LocationResolutionsTableCreateCompanionBuilder =
@@ -49708,6 +51070,10 @@ class $AppDatabaseManager {
         _db,
         _db.androidDailySummarySchedules,
       );
+  $$NotificationIssuesTableTableManager get notificationIssues =>
+      $$NotificationIssuesTableTableManager(_db, _db.notificationIssues);
+  $$DailySummaryHistoryTableTableManager get dailySummaryHistory =>
+      $$DailySummaryHistoryTableTableManager(_db, _db.dailySummaryHistory);
   $$LocationResolutionsTableTableManager get locationResolutions =>
       $$LocationResolutionsTableTableManager(_db, _db.locationResolutions);
 }

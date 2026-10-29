@@ -34,6 +34,9 @@ const calendarEventOriginalStartKey = '_originalStart';
 const calendarEventOriginalEndKey = '_originalEnd';
 // Occurrence identity stays in _originalStart; each edit has its own interval.
 const calendarEventTimingBaselineKey = '_timingBaseline';
+const calendarEventSeriesTimingKey = '_seriesTiming';
+const calendarEventSeriesAppliedMasterKey = '_seriesAppliedMaster';
+const calendarEventSeriesCheckedMasterKey = '_seriesCheckedMaster';
 const calendarEventDestinationCalendarIdKey = '_destinationCalendarId';
 const calendarEventDestinationSourceIdKey = '_destinationSourceId';
 const calendarEventCopyConfirmationRequiredKey = '_copyConfirmationRequired';

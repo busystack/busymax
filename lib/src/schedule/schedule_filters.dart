@@ -40,6 +40,7 @@ class ScheduleFilters {
     this.person = '',
     this.location = '',
     this.showNoDateTasks = true,
+    this.notificationDeadline,
   });
 
   final Set<String> accountIds;
@@ -55,6 +56,12 @@ class ScheduleFilters {
   /// Query every locally projected record without extending provider history.
   final bool ignoreDateRange;
 
+  /// Only bounded queries with an event source need calendar range coverage.
+  bool get requiresCalendarCoverage =>
+      includeCalendarEvents &&
+      !ignoreDateRange &&
+      (!sourceFilterActive || sourceIds.isNotEmpty);
+
   /// Search dates describe due dates; normal Schedule dates describe scheduling.
   final bool useTaskDueDate;
   final ScheduleTaskDueState taskDueState;
@@ -62,4 +69,7 @@ class ScheduleFilters {
   final String person;
   final String location;
   final bool showNoDateTasks;
+
+  /// Temporary notification destination; ordinary browsing filters are retained.
+  final DateTime? notificationDeadline;
 }

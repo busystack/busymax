@@ -14,6 +14,10 @@ class AppLocalizationsIt extends AppLocalizations {
   AppLocalizationsIt([String locale = 'it']) : super(locale);
 
   @override
+  String get contactsAccountsUnavailable =>
+      'Impossibile caricare gli account dei contatti';
+
+  @override
   String get launchAtLoginManagedExternally =>
       'BusyMax è stato avviato dalle impostazioni di avvio del desktop. Rimuovi la sua voce da lì, poi esci da BusyMax e riaprilo per usare questo interruttore.';
 
@@ -3026,7 +3030,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get searchClearText => 'Cancella testo';
 
   @override
-  String get openSharedCalendar => 'Apri calendario condiviso';
+  String get openSharedCalendar => 'Apri calendario principale condiviso';
 
   @override
   String get manageCalendarSharing => 'Gestisci condivisione del calendario';
@@ -3617,4 +3621,236 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get addSeparateGoogleAccount => 'Aggiungi connessione Google separata';
+
+  @override
+  String seriesPatternChangeConfirmation(String before, String after) {
+    return 'Questa modifica della ricorrenza può aggiungere o rimuovere date.\n\nAttuale: $before\nProposta: $after\n\nSalvare questa ricorrenza?';
+  }
+
+  @override
+  String get connectedAccounts => 'Account collegati';
+
+  @override
+  String get contactsIndependentAccounts => 'Account di contatti indipendenti';
+
+  @override
+  String get contactsNextcloudReuse =>
+      'I suggerimenti riutilizzano le credenziali di questo account tramite l’integrazione dei contatti in sola lettura.';
+
+  @override
+  String get contactsRetrySync => 'Riprova sincronizzazione contatti';
+
+  @override
+  String get contactsPreferenceFailed =>
+      'Impossibile salvare la preferenza della fonte dei contatti.';
+
+  @override
+  String get contactsSuggestionsDisabled =>
+      'Suggerimenti dei contatti disattivati';
+
+  @override
+  String get contactsSyncFailed =>
+      'Impossibile sincronizzare i contatti. Riprova oppure ricollega l’account se l’autorizzazione è scaduta.';
+
+  @override
+  String get registrationRecoveryDescription =>
+      'La registrazione salvata o il collegamento alle credenziali non è disponibile o è stato rifiutato. Sostituisci esplicitamente la registrazione di questo account per recuperarlo; i dati vengono conservati.';
+
+  @override
+  String get revalidateAccount => 'Verifica di nuovo la connessione';
+
+  @override
+  String get openSharedPrimaryDescription =>
+      'Apre il calendario principale del proprietario specificato. Gli altri calendari condivisi vengono rilevati tramite la normale sincronizzazione.';
+
+  @override
+  String get showInBusyMax => 'Mostra in BusyMax';
+
+  @override
+  String get showInGoogleCalendarList =>
+      'Mostra nell’elenco dei calendari Google';
+
+  @override
+  String get googleVisibilityHelp =>
+      'La selezione di BusyMax è locale. La visibilità Google modifica il tuo elenco su Google; i calendari nascosti non possono essere visualizzati in BusyMax.';
+
+  @override
+  String get primaryCalendarVisibilityExplanation =>
+      'Il calendario principale Google rimane nel suo elenco.';
+
+  @override
+  String get accountsLoading => 'Caricamento account…';
+
+  @override
+  String get accountsLoadFailed =>
+      'Impossibile caricare gli account. Riapri Account.';
+
+  @override
+  String get collectionsLoading => 'Caricamento raccolte…';
+
+  @override
+  String get collectionsLoadFailed =>
+      'Impossibile caricare le raccolte. I dati in cache sono conservati; riprova la sincronizzazione.';
+
+  @override
+  String get collectionsNotDiscovered =>
+      'Il rilevamento non è completo. Aggiorna o ricollega questo account.';
+
+  @override
+  String get collectionsEmpty => 'Nessuna raccolta trovata.';
+
+  @override
+  String get accountReadyToSync => 'Pronto per la sincronizzazione';
+
+  @override
+  String get accountSyncProblem => 'La sincronizzazione richiede attenzione';
+
+  @override
+  String get accountServiceUnreachable => 'Impossibile raggiungere il servizio';
+
+  @override
+  String get accountSyncDetails => 'Dettagli di sincronizzazione';
+
+  @override
+  String get accountReconnectStatus => 'È necessario riconnettere l’account';
+
+  @override
+  String get accountRegistrationStatus =>
+      'La registrazione richiede attenzione';
+
+  @override
+  String get collectionsUnavailable => 'Raccolte non disponibili';
+
+  @override
+  String get accountContactSuggestions =>
+      'Suggerisci invitati dai contatti di questo account';
+
+  @override
+  String get accountLoadingSignInSettings =>
+      'Caricamento delle impostazioni di accesso…';
+
+  @override
+  String get contactsNoAddressBooks => 'Nessuna rubrica disponibile';
+
+  @override
+  String get contactsSourcesUnavailable => 'Impossibile caricare le rubriche';
+
+  @override
+  String get syncNoRecord =>
+      'Nessuna data di sincronizzazione riuscita registrata';
+
+  @override
+  String get cachedSyncError =>
+      'Sincronizzazione non riuscita; i dati in cache potrebbero essere obsoleti.';
+
+  @override
+  String get calendarRemotePending => 'Modifica visibilità Google in attesa';
+
+  @override
+  String get calendarRemoteFailed =>
+      'La modifica della visibilità su Google non è riuscita. Viene mostrato l’ultimo stato confermato da Google. BusyMax continua a seguire la modifica in sospeso. Riprova o scarta la modifica.';
+
+  @override
+  String discardCalendarSettingsConfirmation(String calendar, String settings) {
+    return 'Scartare le modifiche in attesa per «$calendar»?\n\nQueste impostazioni torneranno ai valori precedenti:\n$settings\n\nLa selezione dei calendari in BusyMax viene mantenuta. Non verranno inviate modifiche a Google.';
+  }
+
+  @override
+  String get sharedCalendarUnavailable =>
+      'Accesso non disponibile; vengono mostrati i dati in cache. Riprova o rimuovi il calendario dal tuo elenco.';
+
+  @override
+  String get invalidCollectionColor =>
+      'Inserisci un colore esadecimale di sei o otto cifre che inizi con #.';
+
+  @override
+  String get invalidCollectionOrder => 'Inserisci un numero intero.';
+
+  @override
+  String get invalidCollectionTimezone =>
+      'Inserisci un documento di fuso orario valido contenente VTIMEZONE e TZID.';
+
+  @override
+  String get invalidCollectionValue =>
+      'Correggi questo valore prima di salvare.';
+
+  @override
+  String get accountAlreadyConnected =>
+      'Questo account è già collegato. Usa la sua azione di riconnessione.';
+
+  @override
+  String get nextcloudRemovalAuthorizationDescription =>
+      'BusyMax tenterà anche di revocare la password per app Nextcloud di questo account. La rimozione locale può riuscire anche se la revoca non riesce.';
+
+  @override
+  String get dailySummaryTime => 'Ora del riepilogo giornaliero';
+
+  @override
+  String get reminderTimeInPast =>
+      'Scegli il minuto corrente o un orario futuro per il promemoria.';
+
+  @override
+  String get notificationsBlocked =>
+      'Android blocca le notifiche o una categoria. I promemoria sono salvati. Controlla le impostazioni di notifica del sistema.';
+
+  @override
+  String get notificationsAllowed =>
+      'Le impostazioni di sistema consentono le notifiche di BusyMax.';
+
+  @override
+  String get notificationsUnknown =>
+      'Lo stato di consegna non è disponibile. Controlla le impostazioni di sistema.';
+
+  @override
+  String get notificationExactAlarms =>
+      'L’accesso agli allarmi esatti è attivo.';
+
+  @override
+  String get notificationInexactAlarms =>
+      'L’accesso agli allarmi esatti non è disponibile. Android potrebbe mostrare i promemoria più tardi.';
+
+  @override
+  String get dailySummaryScope => 'Tutti gli account';
+
+  @override
+  String get notificationsSystemBlocked =>
+      'Le impostazioni di notifica del sistema bloccano BusyMax. I promemoria sono salvati.';
+
+  @override
+  String get notificationItemUnavailable =>
+      'Questo promemoria non è più disponibile. L’elemento potrebbe essere stato modificato o rimosso.';
+
+  @override
+  String clearCompletedGoogleConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return 'Rimuovere le attività completate in «$list» ($account)?\n\nGoogle Tasks rimuoverà o nasconderà gli elementi completati. Attualmente completati: $count.';
+  }
+
+  @override
+  String clearCompletedNextcloudConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return 'Eliminare $count alberi di attività principali chiuse da «$list» ($account)?\n\nVerranno eliminate anche le relative sottoattività.';
+  }
+
+  @override
+  String get taskMoveAfterSaveFailed =>
+      'Le modifiche sono state salvate, ma non è stato possibile spostare l’attività. Riprova lo spostamento.';
+
+  @override
+  String get taskDraftConflict =>
+      'Questa attività è cambiata da quando l’hai aperta. Le modifiche sono conservate. Controlla l’attività attuale prima di riprovare.';
+
+  @override
+  String get taskUnavailableDraftRetained =>
+      'Questa attività non è disponibile. Le modifiche non salvate sono conservate.';
+
+  @override
+  String get taskDurationRequiresStart =>
+      'Imposta una scadenza prima di rimuovere l’inizio di un’attività con una durata.';
 }

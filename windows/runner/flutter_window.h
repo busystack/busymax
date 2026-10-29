@@ -13,6 +13,8 @@
 #include <vector>
 
 #include "win32_window.h"
+#include "windows_tray_channel.h"
+#include "windows_timezone_channel.h"
 
 // A window that does nothing but host a Flutter view.
 class FlutterWindow : public Win32Window {
@@ -44,6 +46,10 @@ class FlutterWindow : public Win32Window {
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> clock_channel_;
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>>
       weekday_channel_;
+  busymax::WindowsTimezoneNativeApi timezone_api_;
+  busymax::WindowsTimezoneChannel timezone_service_{&timezone_api_};
+  std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> timezone_channel_;
+  std::unique_ptr<busymax::WindowsTrayChannel> tray_channel_;
   bool uses_24_hour_clock_ = false;
   std::optional<int> first_weekday_;
   void RefreshClockPreference();

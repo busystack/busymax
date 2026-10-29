@@ -207,10 +207,12 @@ void TestSimultaneousStartAndPipeAcknowledgment() {
   // These activations deliberately have no reminder schedule ID.
   int expected_count = 1;
   for (const std::string route : {"due-today", "sync-failure", "conflict"}) {
+    const std::string payload = R"("notificationRoute":")" + route + '"' +
+        (route == "due-today" ? R"(,"date":"2026-06-08")" : "");
     for (const std::string action : {"default", "open"}) {
       const std::string activation =
           R"({"version":1,"kind":"notification","action":")" + action +
-          R"(","payload":{"notificationRoute":")" + route + R"("}})";
+          R"(","payload":{)" + payload + "}}";
       Check(IsValidBusyMaxActivation(activation),
             "runner accepts routed notification activation");
       Check(secondary.ForwardActivation(activation),
@@ -230,15 +232,21 @@ void TestSimultaneousStartAndPipeAcknowledgment() {
     for (const std::string action : {"snooze", "dismiss"}) {
       const std::string activation =
           R"({"version":1,"kind":"notification","action":")" + action +
-          R"(","payload":{"notificationRoute":")" + route + R"("}})";
+          R"(","payload":{)" + payload + "}}";
       Check(!secondary.ForwardActivation(activation),
             "native forwarding rejects reminder actions on summaries");
     }
     Check(!secondary.ForwardActivation(
-              R"({"version":1,"kind":"notification","action":"open","payload":{"notificationRoute":")" +
-              route + R"(","notificationScheduleId":"row-1"}})"),
+              R"({"version":1,"kind":"notification","action":"open","payload":{)" +
+              payload + R"(,"notificationScheduleId":"row-1"}})"),
           "native forwarding rejects mixed route/reminder payloads");
   }
+  Check(!secondary.ForwardActivation(
+            R"({"version":1,"kind":"notification","action":"open","payload":{"notificationRoute":"due-today"}})"),
+        "native forwarding rejects a daily summary without a date");
+  Check(!secondary.ForwardActivation(
+            R"({"version":1,"kind":"notification","action":"open","payload":{"notificationRoute":"due-today","date":"2026-02-30"}})"),
+        "native forwarding rejects a daily summary with an invalid date");
   Check(!secondary.ForwardActivation(
             R"({"version":1,"kind":"notification","action":"open","payload":{"notificationRoute":"unknown"}})"),
         "native forwarding rejects unknown routes");

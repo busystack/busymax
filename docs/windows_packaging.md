@@ -67,23 +67,33 @@ The manifest is rendered from
 activation, localized resources, and BusyMax assets. `MaxVersionTested` comes
 from the Windows SDK selected by the prerequisite check.
 
-The repository keeps the `msix` Dart dependency pinned, but the release path
-uses the selected Windows SDK's `MakeAppx` because the committed manifest
-contains the complete StartupTask, toast activation, and language declarations.
+The release path uses the selected Windows SDK's `MakeAppx`. The committed
+manifest contains the complete StartupTask, toast activation, and language
+declarations.
 The script stages the Flutter release, renders and validates the manifest, and
 runs `MakeAppx pack /v`; no generated package output is hand-edited.
 
 The package includes a whitelisted set of version-matched x64 Visual C++
-runtime DLLs from the selected Visual Studio installation. Branding variants
-come from `assets/branding/busymax-logo.png`. After changing that source,
+runtime DLLs from the selected Visual Studio installation. Staging and validation
+share the required runtime inventory in `Get-BusyMaxWindowsRuntimeDlls` in
+`tool/windows/common.ps1`. It includes the generated Windows plugins, including
+`screen_retriever_windows_plugin.dll` and `window_manager_plugin.dll`, plus the
+notification FFI library, SQLite, Flutter engine and registration reader. Update
+this inventory when the build's plugin configuration changes; contract tests
+compare it with `windows/flutter/generated_plugins.cmake`. Timezone and tray
+support compile into the runner and require no separate plugin DLLs.
+
+Branding assets come from `assets/branding/busymax-logo.png`. After changing that source,
 regenerate and review the committed Windows assets:
 
 ```powershell
 dart run tool/generate_windows_assets.dart
 ```
 
-The current MakeAppx staging path uses the unqualified PNG files referenced by
-the manifest. It rejects scale- or target-size-qualified staged variants and
+The MakeAppx staging path uses the unqualified PNG files referenced by
+the manifest: `StoreLogo.png`, `Square44x44Logo.png`, `Square150x150Logo.png` and
+`FileAssociationLogo.png`. The generator also maintains the application and tray
+ICO files. Staging rejects scale- or target-size-qualified variants and
 does not require `resources.pri`.
 
 ## Local test signing and installation

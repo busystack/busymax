@@ -3,7 +3,7 @@ import 'package:drift/drift.dart';
 import 'app_database.dart';
 import 'location_migration.dart';
 
-const latestSchemaVersion = 20;
+const latestSchemaVersion = 21;
 
 /// A recoverable, non-secret diagnostic raised when an on-disk schema cannot
 /// be migrated without guessing remote identity or losing synchronized data.
@@ -20,93 +20,129 @@ final class BusyMaxMigrationException implements Exception {
 MigrationStrategy busyMaxMigrationStrategy(AppDatabase database) {
   return MigrationStrategy(
     onCreate: (migrator) async {
-      await migrator.createAll();
-      await _createContactsSchema(database);
-      await _createIndexes(database);
-      await createLocationLifecycleTriggers(database);
-      await _verifyForeignKeys(database);
+      await database.transaction(() async {
+        await migrator.createAll();
+        await _createContactsSchema(database);
+        await _createIndexes(database);
+        await createLocationLifecycleTriggers(database);
+        await _verifyForeignKeys(database);
+        await database.customStatement(
+          'PRAGMA user_version = ${database.schemaVersion}',
+        );
+      });
     },
     onUpgrade: (migrator, from, to) async {
-      // Later legacy migrations rebuild the accounts table against the current
-      // schema, so additive account columns must exist before those rebuilds.
-      if (from < 16) {
-        await _addColumnIfMissing(
-          migrator,
-          database,
-          database.accounts,
-          database.accounts.taskImportIncomplete,
-        );
-      }
-      if (from < 2 && await _hasTable(database, 'pending_ops')) {
-        await migrator.addColumn(
-          database.pendingOps,
-          database.pendingOps.baselineRawJson,
-        );
-      }
-      if (from < 3) {
-        await _addV3Columns(migrator, database);
-      }
-      if (from < 4) {
-        await _addV4CalendarTables(migrator, database);
-      }
-      if (from >= 4 && from < 5) {
-        await _addV5CalendarEventCategories(migrator, database);
-      }
-      if (from < 6) {
-        await _migrateToV6(migrator, database);
-      }
-      if (from < 7) {
-        await _migrateToV7(migrator, database);
-      }
-      if (from < 8) {
-        await _migrateToV8(migrator, database);
-      }
-      if (from < 9) {
-        await _migrateToV9(migrator, database);
-      }
-      if (from < 10) {
-        await _migrateToV10(migrator, database);
-      }
-      if (from < 11) {
-        await _migrateToV11(migrator, database);
-      }
-      if (from < 12) {
-        await _migrateToV12(migrator, database);
-      }
-      if (from < 13) {
-        await _migrateToV13(migrator, database);
-      }
-      if (from < 14) await migrateLocationData(migrator, database);
-      if (from < 15) {
-        await _addColumnIfMissing(
-          migrator,
-          database,
-          database.notificationSchedule,
-          database.notificationSchedule.generation,
-        );
-      }
-      if (from < 17) {
-        await migrator.createTable(database.androidNotificationMappings);
-      }
-      if (from < 18) {
-        await migrator.createTable(database.androidDailySummarySchedules);
-      }
-      if (from < 19) {
-        await migrator.createTable(database.oAuthTransitionAccounts);
-        await migrator.createTable(database.accountAuthorizations);
-        await migrator.createTable(database.authorizationCommits);
-        await migrator.createTable(database.authorizationGenerations);
-        await migrator.createTable(database.domainSyncSchedules);
-        await database.customStatement(
-          "INSERT INTO ${database.oAuthTransitionAccounts.actualTableName} (account_id) SELECT id FROM accounts WHERE provider IN ('google', 'microsoft')",
-        );
-      }
-      if (from < 20) {
-        await _createContactsSchema(database);
-      }
-      await _createIndexes(database);
-      await createLocationLifecycleTriggers(database);
-      await _verifyForeignKeys(database);
+      // SQLite ignores foreign_keys changes in a transaction. Table rebuilds
+      // need it disabled before entering the migration, and beforeOpen restores it.
+      await database.customStatement('PRAGMA foreign_keys = OFF');
+      await database.transaction(() async {
+        // Later legacy migrations rebuild the accounts table against the current
+        // schema, so additive account columns must exist before those rebuilds.
+        if (from < 16) {
+          await _addColumnIfMissing(
+            migrator,
+            database,
+            database.accounts,
+            database.accounts.taskImportIncomplete,
+          );
+        }
+        if (from < 2 && await _hasTable(database, 'pending_ops')) {
+          await migrator.addColumn(
+            database.pendingOps,
+            database.pendingOps.baselineRawJson,
+          );
+        }
+        if (from < 3) {
+          await _addV3Columns(migrator, database);
+        }
+        if (from < 4) {
+          await _addV4CalendarTables(migrator, database);
+        }
+        if (from >= 4 && from < 5) {
+          await _addV5CalendarEventCategories(migrator, database);
+        }
+        if (from < 6) {
+          await _migrateToV6(migrator, database);
+        }
+        if (from < 7) {
+          await _migrateToV7(migrator, database);
+        }
+        if (from < 8) {
+          await _migrateToV8(migrator, database);
+        }
+        if (from < 9) {
+          await _migrateToV9(migrator, database);
+        }
+        if (from < 10) {
+          await _migrateToV10(migrator, database);
+        }
+        if (from < 11) {
+          await _migrateToV11(migrator, database);
+        }
+        if (from < 12) {
+          await _migrateToV12(migrator, database);
+        }
+        if (from < 13) {
+          await _migrateToV13(migrator, database);
+        }
+        if (from < 14) await migrateLocationData(migrator, database);
+        if (from < 15) {
+          await _addColumnIfMissing(
+            migrator,
+            database,
+            database.notificationSchedule,
+            database.notificationSchedule.generation,
+          );
+        }
+        if (from < 17) {
+          await migrator.createTable(database.androidNotificationMappings);
+        }
+        if (from < 18) {
+          await migrator.createTable(database.androidDailySummarySchedules);
+        }
+        if (from < 19) {
+          await migrator.createTable(database.oAuthTransitionAccounts);
+          await migrator.createTable(database.accountAuthorizations);
+          await migrator.createTable(database.authorizationCommits);
+          await migrator.createTable(database.authorizationGenerations);
+          await migrator.createTable(database.domainSyncSchedules);
+          await database.customStatement(
+            "INSERT INTO ${database.oAuthTransitionAccounts.actualTableName} (account_id) SELECT id FROM accounts WHERE provider IN ('google', 'microsoft')",
+          );
+        }
+        if (from < 20) {
+          await _createContactsSchema(database);
+        }
+        if (from < 21) {
+          if (from >= 17) {
+            await migrator.alterTable(
+              TableMigration(database.androidNotificationMappings),
+            );
+          }
+          await migrator.createTable(database.notificationIssues);
+          await migrator.createTable(database.dailySummaryHistory);
+          for (final column in [
+            database.notificationSchedule.expiresAtUtc,
+            database.notificationSchedule.expiredAtUtc,
+            database.notificationSchedule.deferredUntilUtc,
+            database.notificationSchedule.sentPrivate,
+          ]) {
+            await _addColumnIfMissing(
+              migrator,
+              database,
+              database.notificationSchedule,
+              column,
+            );
+          }
+        }
+        await _createIndexes(database);
+        await createLocationLifecycleTriggers(database);
+        await _verifyForeignKeys(database);
+        // Drift's native executor sets user_version again after beforeOpen.
+        // Commit it with the schema/data so interruption after this callback
+        // cannot retry an already-committed non-idempotent migration.
+        await database.customStatement('PRAGMA user_version = $to');
+      });
     },
     beforeOpen: (details) async {
       await database.customStatement('PRAGMA foreign_keys = ON');

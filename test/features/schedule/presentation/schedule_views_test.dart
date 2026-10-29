@@ -1415,7 +1415,24 @@ void main() {
       matching: find.byType(ScheduleItemChip),
     );
     expect(popoverChips, findsWidgets);
-    await tester.tap(popoverChips.at(1));
+    // Scope/sibling order can group accounts without changing which row was
+    // selected. Keep this anchor regression attached to the same actual item.
+    final selectedChip = find.descendant(
+      of: find.byType(ListView),
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is ScheduleItemChip && widget.item.id == 'all-day-task:1',
+      ),
+    );
+    await tester.scrollUntilVisible(
+      selectedChip,
+      100,
+      scrollable: find.descendant(
+        of: find.byType(ListView),
+        matching: find.byType(Scrollable),
+      ),
+    );
+    await tester.tap(selectedChip);
     await tester.pumpAndSettle();
 
     expect(selectedItem?.id, 'all-day-task:1');
@@ -2951,6 +2968,7 @@ void main() {
                   completed: false,
                   allDay: true,
                   start: yesterday,
+                  due: yesterday,
                   sourceName: 'Inbox',
                 ),
                 TaskScheduleItem(
@@ -2962,6 +2980,7 @@ void main() {
                   completed: true,
                   allDay: true,
                   start: yesterday,
+                  due: yesterday,
                   sourceName: 'Inbox',
                 ),
                 ..._itemsFor(selectedDate),
@@ -3493,6 +3512,7 @@ void main() {
       completed: false,
       allDay: true,
       start: selectedDate.subtract(const Duration(days: 1)),
+      due: selectedDate.subtract(const Duration(days: 1)),
       hasSubtasks: true,
       sourceName: 'Projects',
     );
@@ -4924,7 +4944,7 @@ void main() {
     expect(source, contains('onNext: onNext'));
   });
 
-  test('agenda range starts at today and grows while scrolling', () {
+  test('agenda retains scrolling and task-bucket pagination wiring', () {
     final source = File(
       'lib/src/features/schedule/presentation/schedule_workspace.dart',
     ).readAsStringSync();
@@ -4950,11 +4970,6 @@ void main() {
       contains('ScheduleViewMode.agenda => _agendaRangeFromToday()'),
     );
     expect(source, contains('ScheduleRange _agendaRangeFromToday()'));
-    expect(source, contains('final start = _day(DateTime.now())'));
-    expect(
-      source,
-      contains('end: start.add(Duration(days: _agendaLoadedDays))'),
-    );
     expect(source, contains('_selectedDate = _day(DateTime.now())'));
     expect(source, contains('void _loadMoreAgendaDays()'));
     expect(source, contains('_agendaLoadedDays += _agendaPageDays'));

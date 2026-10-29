@@ -24,6 +24,7 @@ class TaskMutationResult {
     this.checklistItemId,
     this.createdTaskId,
     this.completed,
+    this.occurrenceKey,
   });
 
   final TaskMutationKind kind;
@@ -33,6 +34,9 @@ class TaskMutationResult {
   final String? checklistItemId;
   final String? createdTaskId;
   final bool? completed;
+
+  /// The occurrence acted on, before a recurring master advances.
+  final String? occurrenceKey;
 }
 
 typedef TaskMutationCommittedCallback = FutureOr<void> Function(

@@ -6,6 +6,7 @@ import '../features/calendar/data/calendar_event_detail.dart';
 import '../features/calendar/data/calendar_repository.dart';
 import '../features/calendar/domain/event_timing_policy.dart';
 import '../features/calendar/presentation/event_editor_draft.dart';
+import '../features/recurrence/domain/series_timing_change.dart';
 import 'schedule_item.dart';
 
 enum ScheduleTimingAction { move, resizeStart, resizeEnd }
@@ -172,11 +173,17 @@ final class ScheduleReschedulingCoordinator {
     required this.chooseScope,
     required this.chooseGuestUpdates,
     required this.requestSync,
+    this.confirmSeriesTimingChange,
   });
   final CalendarRepository repository;
   final ScheduleScopeSelector chooseScope;
   final ScheduleGuestSelector chooseGuestUpdates;
   final Future<void> Function(String accountId) requestSync;
+  final Future<bool> Function(
+    SeriesTimingChange change,
+    RecurringEventMutationScope scope,
+  )?
+  confirmSeriesTimingChange;
 
   Future<ScheduleRescheduleResult> commit(
     ScheduleRescheduleRequest request, {
@@ -263,12 +270,25 @@ final class ScheduleReschedulingCoordinator {
       return providerInstantInTimeZone(value.toUtc(), zone);
     }
 
-    final changed = draft.copyWith(
+    var changed = draft.copyWith(
       start: endpoint(request.interval.start, detail.startTimeZone),
       end: endpoint(request.interval.end, detail.endTimeZone),
       recurringMutationScope: scope,
     );
     if (!active()) return ScheduleRescheduleResult.cancelled;
+    final change = await repository.prepareSeriesTimingChange(
+      changed,
+      timingOnly: true,
+    );
+    if (!active()) return ScheduleRescheduleResult.cancelled;
+    if (change?.requiresConfirmation == true) {
+      final confirm = confirmSeriesTimingChange;
+      if (confirm == null) throw SeriesTimingConfirmationRequired(change!);
+      if (!await confirm(change!, scope!) || !active()) {
+        return ScheduleRescheduleResult.cancelled;
+      }
+      changed = changed.copyWith(seriesTimingApproval: change.signature);
+    }
     var result = ScheduleRescheduleResult.saved;
     try {
       await repository.updateLocalEvent(

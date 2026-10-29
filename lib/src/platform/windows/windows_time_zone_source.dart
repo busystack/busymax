@@ -1,7 +1,6 @@
 import '../../core/time/windows_time_zone_ids.dart';
 export '../../core/time/windows_time_zone_ids.dart' show windowsToIanaTimeZones;
 
-import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:flutter/services.dart';
 import 'package:logging/logging.dart';
 import 'package:timezone/data/latest_all.dart' as time_zone_data;
@@ -12,10 +11,20 @@ import '../common/desktop_services.dart';
 /// Reads the current Windows zone and normalizes it to the IANA identifiers
 /// used by BusyMax and package:timezone.
 final class WindowsLocalTimeZoneSource implements LocalTimeZoneSource {
-  WindowsLocalTimeZoneSource({Future<TimezoneInfo> Function()? load})
-    : _load = load ?? FlutterTimezone.getLocalTimezone;
+  WindowsLocalTimeZoneSource({Future<String> Function()? load})
+    : _load = load ?? _loadWindowsTimezone;
 
-  final Future<TimezoneInfo> Function() _load;
+  static const _channel = MethodChannel('busymax/windows/timezone');
+
+  static Future<String> _loadWindowsTimezone() async {
+    final identifier = await _channel.invokeMethod<String>('getLocalTimezone');
+    if (identifier == null || identifier.isEmpty) {
+      throw PlatformException(code: 'windows-timezone-key-invalid');
+    }
+    return identifier;
+  }
+
+  final Future<String> Function() _load;
   final _logger = Logger('busymax.windows.timezone');
   String? _lastUnrecognizedIdentifier;
   String? _lastFailureCode;
@@ -37,8 +46,7 @@ final class WindowsLocalTimeZoneSource implements LocalTimeZoneSource {
   @override
   Future<String> currentIanaTimeZone() async {
     try {
-      final result = await _load();
-      final identifier = result.identifier.trim();
+      final identifier = (await _load()).trim();
       time_zone_data.initializeTimeZones();
       if (time_zone.timeZoneDatabase.locations.containsKey(identifier)) {
         _lastUnrecognizedIdentifier = null;

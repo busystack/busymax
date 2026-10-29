@@ -1,20 +1,36 @@
 import 'package:busymax/src/platform/windows/windows_time_zone_source.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest_all.dart' as time_zone_data;
 import 'package:timezone/timezone.dart' as time_zone;
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(time_zone_data.initializeTimeZones);
 
+  test(
+    'uses the application channel with an official plugin left untouched',
+    () async {
+      const channel = MethodChannel('busymax/windows/timezone');
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      final calls = <String>[];
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        calls.add(call.method);
+        return 'America/Vancouver';
+      });
+      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+      expect(
+        await WindowsLocalTimeZoneSource().currentIanaTimeZone(),
+        'America/Vancouver',
+      );
+      expect(calls, ['getLocalTimezone']);
+    },
+  );
+
   test('accepts IANA and normalizes UTC', () async {
-    final iana = WindowsLocalTimeZoneSource(
-      load: () async => TimezoneInfo(identifier: 'Asia/Kathmandu'),
-    );
-    final utc = WindowsLocalTimeZoneSource(
-      load: () async => TimezoneInfo(identifier: 'UTC'),
-    );
+    final iana = WindowsLocalTimeZoneSource(load: () async => 'Asia/Kathmandu');
+    final utc = WindowsLocalTimeZoneSource(load: () async => 'UTC');
 
     expect(await iana.currentIanaTimeZone(), 'Asia/Kathmandu');
     expect(await utc.currentIanaTimeZone(), 'Etc/UTC');
@@ -22,11 +38,9 @@ void main() {
 
   test('maps Windows identifiers and reports unknown values', () async {
     final mapped = WindowsLocalTimeZoneSource(
-      load: () async => TimezoneInfo(identifier: 'India Standard Time'),
+      load: () async => 'India Standard Time',
     );
-    final unknown = WindowsLocalTimeZoneSource(
-      load: () async => TimezoneInfo(identifier: 'Etc/Unknown'),
-    );
+    final unknown = WindowsLocalTimeZoneSource(load: () async => 'Etc/Unknown');
 
     expect(await mapped.currentIanaTimeZone(), 'Asia/Kolkata');
     expect(await unknown.currentIanaTimeZone(), 'Etc/UTC');

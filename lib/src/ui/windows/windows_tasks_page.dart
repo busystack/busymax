@@ -23,7 +23,8 @@ import 'windows_nextcloud_dialogs.dart';
 import '../../providers/busy_provider.dart';
 
 class WindowsTasksPage extends ConsumerStatefulWidget {
-  const WindowsTasksPage({super.key});
+  const WindowsTasksPage({super.key, this.notificationDate});
+  final DateTime? notificationDate;
 
   @override
   ConsumerState<WindowsTasksPage> createState() => _WindowsTasksPageState();
@@ -60,6 +61,14 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
 
   Future<List<TaskScheduleItem>> _load() async {
     final repository = ref.read(scheduleRepositoryProvider);
+    if (widget.notificationDate != null) {
+      return repository.listAllTasks(
+        filters: ScheduleFilters(
+          includeCalendarEvents: false,
+          notificationDeadline: widget.notificationDate,
+        ),
+      );
+    }
     final filters = ScheduleFilters(
       query: _query,
       accountIds: {if (_accountId != null) _accountId!},
@@ -164,6 +173,7 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
         current?.accountId == result.accountId &&
         current?.taskListId == result.taskListId &&
         current?.taskId == taskId &&
+        current?.occurrenceKey == result.occurrenceKey &&
         current?.completed == result.completed) {
       return;
     }
@@ -175,6 +185,7 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
         taskId: taskId,
         checklistItemId: result.checklistItemId,
         completed: result.completed,
+        occurrenceKey: result.occurrenceKey,
         generation: ++_mutationGeneration,
       );
     });
@@ -199,6 +210,7 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
         taskListId: task.sourceId,
         taskId: task.id,
         completed: completed,
+        occurrenceKey: task.occurrenceKey,
         generation: ++_mutationGeneration,
       );
     });
@@ -208,12 +220,10 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
           .patchTask(
             task.sourceId,
             task.id,
-            TaskPatchInput({
-              'status': completed ? 'completed' : 'needsAction',
-              'completed': completed
-                  ? DateTime.now().toUtc().toIso8601String()
-                  : null,
-            }),
+            TaskPatchInput.completion(
+              completed,
+              observedOccurrenceKey: task.occurrenceKey,
+            ),
           );
       if (mounted) _reload();
     } on Object catch (_) {
@@ -248,7 +258,8 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
     return intent?.presentation == TaskListMutationPresentation.completion &&
         intent?.taskKey ==
             '${task.accountId}\u0000${task.sourceId}\u0000${task.id}' &&
-        intent?.completed != null;
+        intent?.completed != null &&
+        intent!.completionAppliesTo(task.occurrenceKey);
   }
 
   bool _displayedCompletion(TaskScheduleItem task) {
@@ -256,8 +267,9 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
     if (intent?.presentation == TaskListMutationPresentation.completion &&
         intent?.taskKey ==
             '${task.accountId}\u0000${task.sourceId}\u0000${task.id}' &&
-        intent?.completed != null) {
-      return intent!.completed!;
+        intent?.completed != null &&
+        intent!.completionAppliesTo(task.occurrenceKey)) {
+      return intent.completed!;
     }
     return task.completed;
   }
@@ -275,6 +287,17 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
 
   @override
   Widget build(BuildContext context) {
+    final replacements = ref.watch(taskListIdReplacementsProvider);
+    final remappedList = replacements[_listKey] ?? _listKey;
+    if (remappedList != _listKey) {
+      _listKey = remappedList;
+      _tasks = null;
+    }
+    ScheduleTaskListKey listKey(String accountId, String listId) {
+      final key = ScheduleTaskListKey(accountId: accountId, taskListId: listId);
+      return replacements[key] ?? key;
+    }
+
     final l10n = AppLocalizations.of(context);
     final locale = Localizations.localeOf(context).toLanguageTag();
     final accountsState = ref.watch(accountsStreamProvider);
@@ -301,11 +324,7 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
                   (a) => a.id == _listKey!.accountId && a.isTaskCapable,
                 )) ||
             (listsLoaded &&
-                !lists.any(
-                  (l) =>
-                      l.accountId == _listKey!.accountId &&
-                      l.id == _listKey!.taskListId,
-                )));
+                !lists.any((l) => listKey(l.accountId, l.id) == _listKey)));
     if (missingAccount || missingList) {
       if (missingAccount) _accountId = null;
       if (missingList || missingAccount) _listKey = null;
@@ -320,7 +339,17 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
       },
       child: ScaffoldPage(
         header: PageHeader(
-          title: Text(l10n.tasks),
+          title: Text(
+            widget.notificationDate == null
+                ? l10n.tasks
+                : '${l10n.dueDate} · ${DateFormat.yMMMd(l10n.localeName).format(widget.notificationDate!)}',
+          ),
+          leading: widget.notificationDate == null
+              ? null
+              : IconButton(
+                  icon: const Icon(FluentIcons.back),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
           commandBar: CommandBar(
             primaryItems: [
               if (ref
@@ -350,115 +379,112 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
         ),
         content: Column(
           children: [
-            Padding(
-              padding: const EdgeInsetsDirectional.fromSTEB(24, 0, 24, 12),
-              child: TextBox(
-                controller: _searchController,
-                focusNode: _searchFocusNode,
-                placeholder: l10n.windowsSearch,
-                prefix: Padding(
-                  padding: const EdgeInsetsDirectional.only(start: 10),
-                  child: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.search)),
+            if (widget.notificationDate == null)
+              Padding(
+                padding: const EdgeInsetsDirectional.fromSTEB(24, 0, 24, 12),
+                child: TextBox(
+                  controller: _searchController,
+                  focusNode: _searchFocusNode,
+                  placeholder: l10n.windowsSearch,
+                  prefix: Padding(
+                    padding: const EdgeInsetsDirectional.only(start: 10),
+                    child: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.search)),
+                  ),
+                  onChanged: (value) {
+                    _searchDebounce?.cancel();
+                    _searchDebounce = Timer(
+                      const Duration(milliseconds: 250),
+                      () {
+                        if (!mounted) return;
+                        _mutationIntent = null;
+                        _query = value;
+                        _reload();
+                      },
+                    );
+                  },
                 ),
-                onChanged: (value) {
-                  _searchDebounce?.cancel();
-                  _searchDebounce = Timer(
-                    const Duration(milliseconds: 250),
-                    () {
-                      if (!mounted) return;
-                      _mutationIntent = null;
-                      _query = value;
-                      _reload();
-                    },
-                  );
-                },
               ),
-            ),
-            Padding(
-              padding: const EdgeInsetsDirectional.fromSTEB(24, 0, 24, 12),
-              child: Wrap(
-                spacing: 12,
-                runSpacing: 8,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  InfoLabel(
-                    label: l10n.accounts,
-                    child: ComboBox<String>(
-                      placeholder: Text(l10n.allTasks),
-                      value: accounts.any((a) => a.id == _accountId)
-                          ? _accountId
-                          : null,
-                      items: [
-                        ComboBoxItem(value: '', child: Text(l10n.allTasks)),
-                        for (final account in accounts.where(
-                          (a) => a.isTaskCapable,
-                        ))
-                          ComboBoxItem(
-                            value: account.id,
-                            child: Text(account.selectorLabel),
-                          ),
-                      ],
-                      onChanged: (value) {
-                        _mutationIntent = null;
-                        _accountId = value == '' ? null : value;
-                        _listKey = null;
-                        _reload();
-                      },
+            if (widget.notificationDate == null)
+              Padding(
+                padding: const EdgeInsetsDirectional.fromSTEB(24, 0, 24, 12),
+                child: Wrap(
+                  spacing: 12,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    InfoLabel(
+                      label: l10n.accounts,
+                      child: ComboBox<String>(
+                        placeholder: Text(l10n.allTasks),
+                        value: accounts.any((a) => a.id == _accountId)
+                            ? _accountId
+                            : null,
+                        items: [
+                          ComboBoxItem(value: '', child: Text(l10n.allTasks)),
+                          for (final account in accounts.where(
+                            (a) => a.isTaskCapable,
+                          ))
+                            ComboBoxItem(
+                              value: account.id,
+                              child: Text(account.selectorLabel),
+                            ),
+                        ],
+                        onChanged: (value) {
+                          _mutationIntent = null;
+                          _accountId = value == '' ? null : value;
+                          _listKey = null;
+                          _reload();
+                        },
+                      ),
                     ),
-                  ),
-                  InfoLabel(
-                    label: l10n.taskLists,
-                    child: ComboBox<ScheduleTaskListKey>(
-                      placeholder: Text(l10n.allTasks),
-                      value:
-                          lists.any(
+                    InfoLabel(
+                      label: l10n.taskLists,
+                      child: ComboBox<ScheduleTaskListKey>(
+                        placeholder: Text(l10n.allTasks),
+                        value:
+                            lists.any(
+                              (l) => listKey(l.accountId, l.id) == _listKey,
+                            )
+                            ? _listKey
+                            : null,
+                        items: [
+                          ComboBoxItem(
+                            value: const ScheduleTaskListKey(
+                              accountId: '',
+                              taskListId: '',
+                            ),
+                            child: Text(l10n.allTasks),
+                          ),
+                          for (final list in lists.where(
                             (l) =>
-                                l.accountId == _listKey?.accountId &&
-                                l.id == _listKey?.taskListId,
-                          )
-                          ? _listKey
-                          : null,
-                      items: [
-                        ComboBoxItem(
-                          value: const ScheduleTaskListKey(
-                            accountId: '',
-                            taskListId: '',
-                          ),
-                          child: Text(l10n.allTasks),
-                        ),
-                        for (final list in lists.where(
-                          (l) =>
-                              _accountId == null || l.accountId == _accountId,
-                        ))
-                          ComboBoxItem(
-                            value: ScheduleTaskListKey(
-                              accountId: list.accountId,
-                              taskListId: list.id,
+                                _accountId == null || l.accountId == _accountId,
+                          ))
+                            ComboBoxItem(
+                              value: listKey(list.accountId, list.id),
+                              child: Text(
+                                '${accounts.where((a) => a.id == list.accountId).firstOrNull?.selectorLabel ?? list.accountId} · ${list.title}',
+                              ),
                             ),
-                            child: Text(
-                              '${accounts.where((a) => a.id == list.accountId).firstOrNull?.selectorLabel ?? list.accountId} · ${list.title}',
-                            ),
-                          ),
-                      ],
+                        ],
+                        onChanged: (value) {
+                          _mutationIntent = null;
+                          _listKey = value?.accountId == '' ? null : value;
+                          _reload();
+                        },
+                      ),
+                    ),
+                    Checkbox(
+                      checked: _showCompleted,
+                      content: Text(l10n.completed),
                       onChanged: (value) {
                         _mutationIntent = null;
-                        _listKey = value?.accountId == '' ? null : value;
+                        _showCompleted = value ?? false;
                         _reload();
                       },
                     ),
-                  ),
-                  Checkbox(
-                    checked: _showCompleted,
-                    content: Text(l10n.completed),
-                    onChanged: (value) {
-                      _mutationIntent = null;
-                      _showCompleted = value ?? false;
-                      _reload();
-                    },
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
             Expanded(
               child: FutureBuilder<List<TaskScheduleItem>>(
                 future: _tasks ??= _load(),
@@ -489,8 +515,10 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
                     identityOf: (task) =>
                         '${task.accountId}\u0000${task.sourceId}\u0000${task.id}',
                     mutationApplied: (task, mutation) =>
-                        mutation.completed == null ||
-                        task.completed == mutation.completed,
+                        mutation.completionSettled(
+                          currentCompleted: task.completed,
+                          currentOccurrenceKey: task.occurrenceKey,
+                        ),
                     onMutationConsumed: (mutation) {
                       if (!mounted) return;
                       if (_mutationIntent?.generation == mutation.generation) {
@@ -562,6 +590,7 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
                             ),
                             subtitle: Text(
                               [
+                                if (task.cancelled) l10n.taskStatusCancelled,
                                 due,
                                 ?task.accountEmail ?? task.accountDisplayName,
                                 ?task.sourceName,

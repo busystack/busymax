@@ -1,14 +1,14 @@
-import 'package:busymax/src/dav/ical/ical_task_recurrence.dart';
+import 'package:busymax/src/features/recurrence/domain/recurrence_rule.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('parses and serializes the Nextcloud recurrence editor fields', () {
-    final recurrence = IcalTaskRecurrence.fromJson(
+    final recurrence = RecurrenceRule.fromJson(
       '''{"rules":["FREQ=YEARLY;INTERVAL=2;BYDAY=MO,TU,WE,TH,FR;BYMONTH=1,6;BYSETPOS=-1;COUNT=8"],"dates":["20260809"],"excludedDates":["20270809"]}''',
     );
 
     expect(recurrence.isSupported, isTrue);
-    expect(recurrence.frequency, IcalTaskRecurrenceFrequency.yearly);
+    expect(recurrence.frequency, RecurrenceFrequency.yearly);
     expect(recurrence.interval, 2);
     expect(recurrence.byDay, ['MO', 'TU', 'WE', 'TH', 'FR']);
     expect(recurrence.byMonth, [1, 6]);
@@ -23,8 +23,8 @@ void main() {
   });
 
   test('all-day and timed UNTIL values are inclusive wire values', () {
-    const monthly = IcalTaskRecurrence(
-      frequency: IcalTaskRecurrenceFrequency.monthly,
+    const monthly = RecurrenceRule(
+      frequency: RecurrenceFrequency.monthly,
       interval: 1,
       byDay: [],
       byMonth: [],
@@ -59,10 +59,10 @@ void main() {
   });
 
   test('multiple or unknown rules remain opaque and are never rewritten', () {
-    final multiple = IcalTaskRecurrence.fromJson(
+    final multiple = RecurrenceRule.fromJson(
       '''{"rules":["FREQ=DAILY","FREQ=WEEKLY"],"dates":[],"excludedDates":[]}''',
     );
-    final unsupported = IcalTaskRecurrence.fromJson(
+    final unsupported = RecurrenceRule.fromJson(
       '''{"rules":["FREQ=HOURLY;INTERVAL=3"],"dates":[],"excludedDates":[]}''',
     );
 
@@ -74,7 +74,7 @@ void main() {
   });
 
   test('invalid BYDAY ordinals are preserved as unsupported', () {
-    final recurrence = IcalTaskRecurrence.fromJson(
+    final recurrence = RecurrenceRule.fromJson(
       '''{"rules":["FREQ=MONTHLY;BYDAY=+MO"],"dates":[],"excludedDates":[]}''',
     );
 
@@ -83,7 +83,7 @@ void main() {
   });
 
   test('normalizes the ordinal BYDAY form accepted by Nextcloud', () {
-    final recurrence = IcalTaskRecurrence.fromJson(
+    final recurrence = RecurrenceRule.fromJson(
       '''{"rules":["FREQ=MONTHLY;BYDAY=-1FR"],"dates":[],"excludedDates":[]}''',
     );
 
@@ -97,11 +97,11 @@ void main() {
   });
 
   test('fills omitted weekly and yearly values from the task base date', () {
-    final weekly = IcalTaskRecurrence.fromJson(
+    final weekly = RecurrenceRule.fromJson(
       '''{"rules":["FREQ=WEEKLY"],"dates":[],"excludedDates":[]}''',
       baseDate: DateTime(2026, 8, 9),
     );
-    final yearly = IcalTaskRecurrence.fromJson(
+    final yearly = RecurrenceRule.fromJson(
       '''{"rules":["FREQ=YEARLY"],"dates":[],"excludedDates":[]}''',
       baseDate: DateTime(2026, 8, 9),
     );
@@ -122,7 +122,7 @@ void main() {
     ];
 
     for (final rule in rules) {
-      final recurrence = IcalTaskRecurrence.fromJson(
+      final recurrence = RecurrenceRule.fromJson(
         '{"rules":["$rule"],"dates":[],"excludedDates":[]}',
         baseDate: DateTime(2026, 8, 9),
       );

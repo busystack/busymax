@@ -2,8 +2,12 @@ class ScheduleRange {
   const ScheduleRange({required this.start, required this.end});
 
   factory ScheduleRange.day(DateTime day) {
+    return ScheduleRange.days(day, count: 1);
+  }
+
+  factory ScheduleRange.days(DateTime day, {required int count}) {
     final start = _addCalendarDays(day, 0);
-    return ScheduleRange(start: start, end: _addCalendarDays(start, 1));
+    return ScheduleRange(start: start, end: _addCalendarDays(start, count));
   }
 
   factory ScheduleRange.week(DateTime day, {required int firstWeekday}) {

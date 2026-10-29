@@ -12,6 +12,7 @@ import '../../platform/common/desktop_services.dart';
 import '../sync/sync_failure_notification_policy.dart';
 import 'desktop_notification_backend.dart';
 import 'notification_cancellation_queue.dart';
+import 'daily_summary_policy.dart';
 
 export 'desktop_notification_backend.dart';
 
@@ -49,6 +50,9 @@ class DesktopNotificationService {
     NotificationCancellationQueue? cancellationQueue,
     Locale? locale,
     this.onReconnectActivated,
+    this.onRoutedNotification,
+    this.onDeliveryStateChanged,
+    this.deliveryAllowed,
     Duration syncFailureDebounce = const Duration(minutes: 5),
     Duration reminderFailureRetryDelay = const Duration(minutes: 1),
     DateTime Function()? now,
@@ -78,12 +82,23 @@ class DesktopNotificationService {
 
   final Future<void> Function(String accountId)? onReconnectActivated;
   final Set<String> _reconnectFailures = {};
+  final Future<void> Function(Map<String, String> payload)?
+  onRoutedNotification;
+  final void Function(bool succeeded)? onDeliveryStateChanged;
+  final bool Function()? deliveryAllowed;
 
   DateTime? _lastSyncFailureAt;
   String? _lastSyncFailureBody;
 
-  Future<void> notifySyncFailure(Object error) async {
-    final accountId = switch (error) {
+  bool get isPrivate => !_showsNotificationDetails;
+  AppSettings get presentationSettings => _settings;
+
+  bool allowsReminder(String sourceType) => sourceType == 'event'
+      ? _settings.notifyEventReminders
+      : _settings.notifyTaskReminders;
+
+  Future<void> notifySyncFailure(Object error, {String? accountId}) async {
+    accountId ??= switch (error) {
       AuthorizationScopedFailure(:final accountId) => accountId,
       AuthorizationScopedOAuthException(:final accountId) => accountId,
       _ => null,
@@ -107,7 +122,7 @@ class DesktopNotificationService {
       return;
     }
     if (disposition == SyncFailureNotificationDisposition.reconnectRequired &&
-        !_reconnectFailures.add(accountId ?? 'unknown')) {
+        _reconnectFailures.contains(accountId ?? 'unknown')) {
       return;
     }
     final body = _showsNotificationDetails
@@ -120,25 +135,74 @@ class DesktopNotificationService {
         now.difference(_lastSyncFailureAt!) < _syncFailureDebounce) {
       return;
     }
-    _lastSyncFailureBody = body;
-    _lastSyncFailureAt = now;
-    await _safeNotify(
+    final submitted = await _safeNotify(
       _strings.syncFailureTitle,
       body,
       BusyMaxNotificationCategory.networkError,
-      stableId: 'sync-failure',
+      stableId: accountId == null ? 'sync-failure' : 'sync-failure|$accountId',
       payload: {
         'notificationRoute': 'sync-failure',
         if (accountId != null) 'accountId': accountId,
       },
       onActivated: accountId == null || onReconnectActivated == null
           ? null
-          : () => onReconnectActivated!(accountId),
+          : () => onReconnectActivated!(accountId!),
     );
+    if (submitted) {
+      _lastSyncFailureBody = body;
+      _lastSyncFailureAt = now;
+      if (disposition == SyncFailureNotificationDisposition.reconnectRequired) {
+        _reconnectFailures.add(accountId ?? 'unknown');
+      }
+    }
   }
 
   void clearAccountSyncFailure(String accountId) =>
       _reconnectFailures.remove(accountId);
+
+  /// Production operational delivery is reconciled and deduplicated by the
+  /// durable coordinator. Only controlled messages cross this boundary.
+  Future<ReminderDeliveryResult> deliverOperationalIssue(
+    String kind,
+    String? accountId,
+    String revision,
+    int count,
+  ) async {
+    if (kind == 'conflict'
+        ? !_settings.notifyConflicts
+        : !_settings.notifySyncFailures) {
+      return const ReminderDeliveryResult.disabled();
+    }
+    final quietEnd = _quietHoursEndUtc();
+    if (quietEnd != null) return ReminderDeliveryResult.deferred(quietEnd);
+    final message = kind == 'conflict'
+        ? _strings.blockedChanges
+        : switch (revision.split(':').first) {
+            'reconnectRequired' => _strings.reconnectRequired,
+            'permissionChanged' => _strings.permissionChanged,
+            'unsupportedProvider' => _strings.unsupportedProvider,
+            _ => _strings.temporarilyUnavailable,
+          };
+    final delivered = await _safeNotify(
+      kind == 'conflict' ? _strings.conflictTitle : _strings.syncFailureTitle,
+      isPrivate ? _strings.detailsHidden : message,
+      kind == 'conflict'
+          ? BusyMaxNotificationCategory.conflict
+          : BusyMaxNotificationCategory.networkError,
+      stableId: accountId == null ? kind : '$kind|$accountId',
+      payload: {
+        'notificationRoute': kind,
+        if (accountId != null) 'accountId': accountId,
+      },
+      private: isPrivate,
+      transient: false,
+    );
+    return delivered
+        ? const ReminderDeliveryResult.delivered()
+        : ReminderDeliveryResult.failed(
+            _now().add(_reminderFailureRetryDelay).toUtc(),
+          );
+  }
 
   Future<void> notifyConflict(String summary) async {
     if (!_settings.notifyConflicts || _isQuietHours()) {
@@ -156,7 +220,10 @@ class DesktopNotificationService {
     );
   }
 
-  Future<ReminderDeliveryResult> notifyDueToday(int count) async {
+  Future<ReminderDeliveryResult> notifyDueToday(
+    int count, {
+    String? date,
+  }) async {
     if (!_settings.notifyDueToday || count <= 0) {
       return const ReminderDeliveryResult.disabled();
     }
@@ -166,10 +233,15 @@ class DesktopNotificationService {
     }
     final delivered = await _safeNotify(
       _strings.dueTodayTitle,
-      _strings.dueTodayBody(count),
+      isPrivate ? _strings.detailsHidden : _strings.dueTodayBody(count),
       BusyMaxNotificationCategory.reminder,
       stableId: 'due-today',
-      payload: const {'notificationRoute': 'due-today'},
+      payload: {
+        'notificationRoute': 'due-today',
+        'date': date ?? notificationLocalDate(_now()),
+      },
+      private: isPrivate,
+      transient: false,
     );
     return delivered
         ? const ReminderDeliveryResult.delivered()
@@ -182,6 +254,16 @@ class DesktopNotificationService {
       _cancellations.cancel(deliveryId, () => _backend.cancel(deliveryId));
 
   Future<void> retryReminderCancellations() => _cancellations.retry();
+
+  Future<void> reconcileReminderIdentities(Set<String> validIds) async {
+    final backend = _backend;
+    if (backend is! DesktopNotificationIdentitySource) return;
+    for (final id
+        in await (backend as DesktopNotificationIdentitySource)
+            .knownReminderDeliveryIds()) {
+      if (!validIds.contains(id)) await cancelReminder(id);
+    }
+  }
 
   Future<ReminderDeliveryResult> notifyEventReminder(
     String title,
@@ -200,10 +282,10 @@ class DesktopNotificationService {
     }
     final private = _usesPrivateReminderText;
     final delivered = await _safeNotify(
-      private ? _strings.eventReminderTitle : redactForLog(title),
+      private ? _strings.eventReminderTitle : _displayText(title),
       private
           ? _strings.detailsHidden
-          : _nonEmpty(redactForLog(body ?? ''), _strings.eventReminderBody),
+          : _nonEmpty(_displayText(body ?? ''), _strings.eventReminderBody),
       BusyMaxNotificationCategory.reminder,
       stableId: stableId,
       payload: payload,
@@ -236,10 +318,10 @@ class DesktopNotificationService {
     }
     final private = _usesPrivateReminderText;
     final delivered = await _safeNotify(
-      private ? _strings.taskReminderTitle : redactForLog(title),
+      private ? _strings.taskReminderTitle : _displayText(title),
       private
           ? _strings.detailsHidden
-          : _nonEmpty(redactForLog(body ?? ''), _strings.taskReminderBody),
+          : _nonEmpty(_displayText(body ?? ''), _strings.taskReminderBody),
       BusyMaxNotificationCategory.reminder,
       stableId: stableId,
       payload: payload,
@@ -272,6 +354,7 @@ class DesktopNotificationService {
     bool transient = true,
   }) async {
     try {
+      if (deliveryAllowed?.call() == false) return false;
       final activation = DesktopActivation(
         kind: DesktopActivationKind.notification,
         action: 'default',
@@ -279,7 +362,9 @@ class DesktopNotificationService {
       );
       final destination = activation.notificationDestination;
       if (activation.isValid && destination != null) {
-        onActivated ??= () async => _onDestinationActivated?.call(destination);
+        onActivated ??= onRoutedNotification != null
+            ? () => onRoutedNotification!(payload!)
+            : () async => _onDestinationActivated?.call(destination);
       }
       final hasActions = onActivated != null || onReminderAction != null;
       await _backend.notify(
@@ -326,10 +411,12 @@ class DesktopNotificationService {
                 }
               },
       );
+      onDeliveryStateChanged?.call(true);
       return true;
     } on Object {
       // A desktop notification backend may be unavailable in tests or a
       // headless session.
+      onDeliveryStateChanged?.call(false);
       return false;
     }
   }
@@ -384,6 +471,10 @@ class DesktopNotificationService {
     final trimmed = value.trim();
     return trimmed.isEmpty ? fallback : trimmed;
   }
+
+  // Display text is user content. Credential/error redaction belongs to logs
+  // and provider diagnostics; the native backend owns platform escaping.
+  String _displayText(String value) => value.replaceAll('\u0000', '').trim();
 }
 
 class NotificationStrings {
@@ -404,6 +495,7 @@ class NotificationStrings {
     required this.openAction,
     required this.snoozeAction,
     required this.dismissAction,
+    required this.blockedChanges,
     required this.syncFailureBody,
     required this.conflictBody,
     required this.dueTodayBody,
@@ -427,7 +519,8 @@ class NotificationStrings {
     return NotificationStrings(
       syncFailureTitle: l10n.syncFailureNotificationTitle,
       conflictTitle: l10n.conflictNotificationTitle,
-      dueTodayTitle: l10n.dueTodayNotificationTitle,
+      dueTodayTitle:
+          '${l10n.dueTodayNotificationTitle} · ${l10n.dailySummaryScope}',
       eventReminderTitle: l10n.eventReminderNotificationTitle,
       taskReminderTitle: l10n.taskReminderNotificationTitle,
       detailsHidden: l10n.notificationDetailsHidden,
@@ -441,6 +534,7 @@ class NotificationStrings {
       openAction: l10n.notificationOpenAction,
       snoozeAction: l10n.notificationSnoozeAction,
       dismissAction: l10n.notificationDismissAction,
+      blockedChanges: l10n.blockedPendingOperations,
       syncFailureBody: l10n.syncFailureNotificationBody,
       conflictBody: l10n.conflictNotificationBody,
       dueTodayBody: l10n.dueTodayNotificationBody,
@@ -463,6 +557,7 @@ class NotificationStrings {
   final String openAction;
   final String snoozeAction;
   final String dismissAction;
+  final String blockedChanges;
   final String Function(String message) syncFailureBody;
   final String Function(String summary) conflictBody;
   final String Function(int count) dueTodayBody;

@@ -602,7 +602,7 @@ END:VEVENT
 
     final repository = ScheduleRepository(
       database,
-      ensureProjectionCoverage: (range) => service.ensureProjectionCoverage(
+      ensureProjectionCoverage: (range, _) => service.ensureProjectionCoverage(
         rangeStartUtc: range.start.toUtc(),
         rangeEndUtc: range.end.toUtc(),
       ),

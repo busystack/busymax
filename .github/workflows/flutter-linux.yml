@@ -81,7 +81,10 @@ jobs:
         run: '"$BUSYMAX_FLUTTER_EXECUTABLE" config --enable-linux-desktop'
 
       - name: Resolve dependencies
-        run: '"$BUSYMAX_FLUTTER_EXECUTABLE" pub get --enforce-lockfile'
+        run: |
+          "$BUSYMAX_FLUTTER_EXECUTABLE" pub get --enforce-lockfile
+          python3 tool/verify_upstream_packages.py
+          python3 -m unittest discover -s tool -p test_upstream_packages.py
 
       - name: Generate localizations
         run: '"$BUSYMAX_FLUTTER_EXECUTABLE" gen-l10n'

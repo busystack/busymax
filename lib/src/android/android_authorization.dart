@@ -7,6 +7,7 @@ import '../db/app_database.dart' hide AuthorizationCommit;
 import 'android_account_gate.dart';
 
 import 'dart:async';
+import 'dart:convert';
 
 import '../core/http/bounded_http.dart';
 
@@ -115,6 +116,9 @@ final class AndroidAuthorizationBroker
   final http.Client _httpClient;
   final SecretStore _secretStore;
   final Map<String, String> _lastAccessTokens = <String, String>{};
+  final _microsoftRefreshRequests = <String, int>{};
+  final _microsoftRefreshedRequests = <String, Set<String>>{};
+  var _microsoftRefreshSequence = 0;
 
   @override
   Future<String?> get activeAccountId => _secretStore.readActiveAccountId();
@@ -752,18 +756,21 @@ final class AndroidAuthorizationBroker
     String id, {
     AuthorizationCancellation? cancellation,
     Future<void> Function()? persistContacts,
+    bool forceAuthorization = false,
   }) async {
     final attempt = _attempts.begin(_nowUtc, cancellation);
     NativeOAuthCredential? current;
     const scope = googleContactsReadScope;
     try {
       current = await attempt.wait(nativeCredential(id, BusyProvider.google));
-      if (await _persistExistingContacts(
-        id,
-        current!,
-        attempt,
-        persistContacts,
-      )) {
+      if (!forceAuthorization &&
+          await _parentConnected(id) &&
+          await _persistExistingContacts(
+            id,
+            current!,
+            attempt,
+            persistContacts,
+          )) {
         attempt.committed();
         return;
       }
@@ -790,11 +797,13 @@ final class AndroidAuthorizationBroker
     String id, {
     AuthorizationCancellation? cancellation,
     Future<void> Function()? persistContacts,
+    bool forceAuthorization = false,
   }) => _optionalNativeConsent(
     id,
     _microsoftContactsReadNativeScope,
     cancellation,
     persistContacts: persistContacts,
+    forceAuthorization: forceAuthorization,
   );
 
   @override
@@ -803,16 +812,19 @@ final class AndroidAuthorizationBroker
     String accountId, {
     AuthorizationCancellation? cancellation,
     Future<void> Function()? persistContacts,
+    bool forceAuthorization = false,
   }) => switch (provider) {
     BusyProvider.google => authorizeGoogleContacts(
       accountId,
       cancellation: cancellation,
       persistContacts: persistContacts,
+      forceAuthorization: forceAuthorization,
     ),
     BusyProvider.microsoft => authorizeMicrosoftContacts(
       accountId,
       cancellation: cancellation,
       persistContacts: persistContacts,
+      forceAuthorization: forceAuthorization,
     ),
     _ => throw StateError('$provider does not use OAuth contacts access.'),
   };
@@ -822,6 +834,7 @@ final class AndroidAuthorizationBroker
     String scope,
     AuthorizationCancellation? cancellation, {
     Future<void> Function()? persistContacts,
+    bool forceAuthorization = false,
   }) async {
     final attempt = _attempts.begin(_nowUtc, cancellation);
     NativeOAuthCredential? current;
@@ -829,7 +842,9 @@ final class AndroidAuthorizationBroker
       current = await attempt.wait(
         nativeCredential(id, BusyProvider.microsoft),
       );
-      if (scope == _microsoftContactsReadNativeScope &&
+      if (!forceAuthorization &&
+          await _parentConnected(id) &&
+          scope == _microsoftContactsReadNativeScope &&
           await _persistExistingContacts(
             id,
             current!,
@@ -856,6 +871,12 @@ final class AndroidAuthorizationBroker
       _attempts.finish(attempt);
     }
   }
+
+  Future<bool> _parentConnected(String id) async =>
+      (await (persistence!.database.select(
+        persistence!.database.accounts,
+      )..where((r) => r.id.equals(id))).getSingleOrNull())?.authState ==
+      'signed_in';
 
   Future<void> _writeNativeGrants(String id, OAuthTokenSet tokens) async =>
       await (persistence!.database.update(
@@ -992,7 +1013,7 @@ final class AndroidAuthorizationBroker
           ),
         ),
         BusyProvider.microsoft => await _boundedSilent(
-          _platform.authorizeMicrosoftSilently(
+          _microsoftSilentToken(
             accountId: accountId,
             scopes: _microsoftNativeScopes,
             clientId: microsoft?.registration.clientId,
@@ -1054,7 +1075,7 @@ final class AndroidAuthorizationBroker
           : await nativeCredential(accountId, BusyProvider.microsoft)
                 as MicrosoftAndroidCredential;
       final native = await _boundedSilent(
-        _platform.authorizeMicrosoftSilently(
+        _microsoftSilentToken(
           accountId: accountId,
           scopes: [
             ..._microsoftNativeScopes,
@@ -1154,7 +1175,7 @@ final class AndroidAuthorizationBroker
                 as MicrosoftAndroidCredential;
       const requiredNativeScope = _microsoftContactsReadNativeScope;
       final native = await _boundedSilent(
-        _platform.authorizeMicrosoftSilently(
+        _microsoftSilentToken(
           accountId: accountId,
           scopes: [..._microsoftNativeScopes, requiredNativeScope],
           clientId: current?.registration.clientId,
@@ -1191,7 +1212,7 @@ final class AndroidAuthorizationBroker
           : await nativeCredential(accountId, BusyProvider.microsoft)
                 as MicrosoftAndroidCredential;
       final native = await _boundedSilent(
-        _platform.authorizeMicrosoftSilently(
+        _microsoftSilentToken(
           accountId: accountId,
           scopes: [..._microsoftNativeScopes, _microsoftSharedNativeScope],
           clientId: current?.registration.clientId,
@@ -1223,7 +1244,7 @@ final class AndroidAuthorizationBroker
           : await nativeCredential(accountId, BusyProvider.microsoft)
                 as MicrosoftAndroidCredential;
       final native = await _boundedSilent(
-        _platform.authorizeMicrosoftSilently(
+        _microsoftSilentToken(
           accountId: accountId,
           scopes: [..._microsoftNativeScopes, _microsoftCategoryNativeScope],
           clientId: current?.registration.clientId,
@@ -1247,12 +1268,61 @@ final class AndroidAuthorizationBroker
     }
   }
 
+  Future<AndroidAuthorizationToken> _microsoftSilentToken({
+    required String accountId,
+    required List<String> scopes,
+    String? clientId,
+    String? authorityTenant,
+    String? nativeAccountId,
+    String? authority,
+    String? claims,
+  }) async {
+    final refreshRequest = _microsoftRefreshRequests[accountId];
+    final requestKey = jsonEncode([
+      clientId,
+      authorityTenant,
+      nativeAccountId,
+      authority,
+      claims,
+      [...scopes]..sort(),
+    ]);
+    final forceRefresh =
+        refreshRequest != null &&
+        !(_microsoftRefreshedRequests[accountId]?.contains(requestKey) ??
+            false);
+    final token = await _platform.authorizeMicrosoftSilently(
+      accountId: accountId,
+      scopes: scopes,
+      clientId: clientId,
+      authorityTenant: authorityTenant,
+      nativeAccountId: nativeAccountId,
+      authority: authority,
+      claims: claims,
+      forceRefresh: forceRefresh,
+    );
+    if (forceRefresh &&
+        _microsoftRefreshRequests[accountId] == refreshRequest) {
+      (_microsoftRefreshedRequests[accountId] ??= {}).add(requestKey);
+    }
+    return token;
+  }
+
   @override
   Future<void> recoverUnauthorized(
     BusyProvider provider,
     String accountId,
   ) async {
     final rejected = _lastAccessTokens.remove(accountId);
+    if (provider == BusyProvider.microsoft) {
+      // Refresh the retry's exact native request, including its optional scopes
+      // and claims. Acquiring an ordinary token here could leave that request
+      // using a different rejected cache entry.
+      _microsoftRefreshRequests[accountId] = ++_microsoftRefreshSequence;
+      // Scope and claims variants can occupy different MSAL cache entries.
+      // An intervening acquisition must not acknowledge another variant.
+      _microsoftRefreshedRequests.remove(accountId);
+      return;
+    }
     if (provider == BusyProvider.google && rejected != null) {
       await _platform.clearRejectedToken(rejected);
     }
@@ -1356,6 +1426,8 @@ final class AndroidAuthorizationBroker
     final target = accountId ?? await activeAccountId;
     if (target != null) {
       _lastAccessTokens.remove(target);
+      _microsoftRefreshRequests.remove(target);
+      _microsoftRefreshedRequests.remove(target);
       await _secretStore.deleteCredential(target);
       if (target.startsWith('google:')) {
         await _platform.removeAuthorization(

@@ -183,13 +183,13 @@ class SyncEngine {
       final now = _now();
       for (final item in page.items) {
         seen.add(item.id);
-        if (await _hasLocalPendingTaskListMutation(item.id)) {
-          continue;
-        }
-        _remoteImportWroteData = true;
-        await _database.taskListsDao.upsertTaskList(
-          taskListFromDto(_accountId, item, now),
-        );
+        await _database.transaction(() async {
+          if (await _hasLocalPendingTaskListMutation(item.id)) return;
+          await _database.taskListsDao.upsertTaskList(
+            taskListFromDto(_accountId, item, now),
+          );
+          _remoteImportWroteData = true;
+        });
       }
       pageToken = page.nextPageToken;
     } while (pageToken != null && pageToken.isNotEmpty);
@@ -275,13 +275,13 @@ class SyncEngine {
       final now = _now();
       for (final item in page.items) {
         seen.add(item.id);
-        if (await _hasLocalPendingTaskMutation(taskListId, item.id)) {
-          continue;
-        }
-        _remoteImportWroteData = true;
-        await _database.tasksDao.upsertTask(
-          taskFromDto(_accountId, taskListId, item, now),
-        );
+        await _database.transaction(() async {
+          if (await _hasLocalPendingTaskMutation(taskListId, item.id)) return;
+          await _database.tasksDao.upsertTask(
+            taskFromDto(_accountId, taskListId, item, now),
+          );
+          _remoteImportWroteData = true;
+        });
       }
       if (page.items.isNotEmpty) {
         // This page is already committed. Reconcile before any later task,
@@ -325,16 +325,34 @@ class SyncEngine {
                   row.id.equals(taskId),
             ))
             .getSingleOrNull();
-    return row != null &&
+    if (row != null &&
         (row.localDirty ||
             row.pendingDelete ||
             row.pendingMove ||
-            row.localCreated);
+            row.localCreated)) {
+      return true;
+    }
+    // A cross-list move relocates the projection immediately. Its queued
+    // source identity must remain protected while replay is blocked, including
+    // each source in a dependent move chain. Never infer identity from a task
+    // ID shared by otherwise unrelated lists or accounts.
+    final move =
+        await (_database.select(_database.pendingOps)
+              ..where(
+                (op) =>
+                    op.accountId.equals(_accountId) &
+                    op.operation.equals('move_task') &
+                    op.taskListId.equals(taskListId) &
+                    op.taskId.equals(taskId),
+              )
+              ..limit(1))
+            .getSingleOrNull();
+    return move != null;
   }
 
   Future<void> _reconcileTaskListMembership(Set<String> seenTaskListIds) async {
-    final lists = await _database.taskListsDao.listTaskLists(_accountId);
     await _database.transaction(() async {
+      final lists = await _database.taskListsDao.listTaskLists(_accountId);
       for (final list in lists) {
         if (seenTaskListIds.contains(list.id)) {
           if (list.serverMissing) {

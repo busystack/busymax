@@ -42,6 +42,18 @@ function Assert-BusyMaxWindows11ValidationHost {
   }
 }
 
+function Get-BusyMaxWindowsRuntimeDlls {
+  return @(
+    'flutter_windows.dll', 'sqlite3.dll',
+    'busymax_registration_reader.dll',
+    'connectivity_plus_plugin.dll', 'file_selector_windows_plugin.dll',
+    'flutter_local_notifications_windows.dll',
+    'flutter_secure_storage_windows_plugin.dll',
+    'screen_retriever_windows_plugin.dll', 'system_theme_plugin.dll',
+    'url_launcher_windows_plugin.dll', 'window_manager_plugin.dll'
+  )
+}
+
 function Get-BusyMaxPackageFiles {
   param([Parameter(Mandatory)][string]$PackageRoot)
   if (-not (Test-Path -LiteralPath $PackageRoot -PathType Container)) {

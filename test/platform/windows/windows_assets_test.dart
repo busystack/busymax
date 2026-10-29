@@ -25,38 +25,20 @@ void main() {
     }
   });
 
-  test(
-    'MSIX visual assets have every declared scale and transparent padding',
-    () {
-      const logicalSizes = {
-        'StoreLogo': 50,
-        'Square44x44Logo': 44,
-        'Square150x150Logo': 150,
-        'FileAssociation': 44,
-      };
-      const scales = [100, 125, 150, 200, 400];
-      for (final MapEntry(key: name, value: logicalSize)
-          in logicalSizes.entries) {
-        for (final scale in scales) {
-          final path = 'windows/runner/resources/msix/$name.scale-$scale.png';
-          final asset = image.decodePng(File(path).readAsBytesSync());
-          expect(asset, isNotNull, reason: path);
-          final expectedSize = (logicalSize * scale / 100).round();
-          expect(asset!.width, expectedSize, reason: path);
-          expect(asset.height, expectedSize, reason: path);
-          expect(asset.getPixel(0, 0).a, 0, reason: '$path needs safe padding');
-        }
-      }
-    },
-  );
-
-  test('MSIX manifest assets also have real unqualified files', () {
+  test('MSIX assets match the packaged files and have transparent padding', () {
     const logicalSizes = {
       'StoreLogo.png': 50,
       'Square44x44Logo.png': 44,
       'Square150x150Logo.png': 150,
       'FileAssociationLogo.png': 44,
     };
+    expect(
+      Directory('windows/runner/resources/msix')
+          .listSync()
+          .map((entry) => entry.uri.pathSegments.last)
+          .toSet(),
+      logicalSizes.keys.toSet(),
+    );
     for (final MapEntry(key: name, value: size) in logicalSizes.entries) {
       final path = 'windows/runner/resources/msix/$name';
       final asset = image.decodePng(File(path).readAsBytesSync());

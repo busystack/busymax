@@ -58,6 +58,7 @@ abstract interface class GoogleContactsAuthorization {
     String accountId, {
     AuthorizationCancellation? cancellation,
     Future<void> Function()? persistContacts,
+    bool forceAuthorization = false,
   });
 
   Future<String> googleContactsAuthorizationHeader(String accountId);
@@ -395,6 +396,7 @@ class OAuthService
     String accountId, {
     AuthorizationCancellation? cancellation,
     Future<void> Function()? persistContacts,
+    bool forceAuthorization = false,
   }) async {
     final attempt = _attempts.begin(_nowUtc, cancellation);
     GoogleDesktopCredential? current;
@@ -407,10 +409,23 @@ class OAuthService
           'The selected Google account is no longer available.',
         );
       }
-      if (current.tokenSet.scopes.contains(googleContactsWriteScope) ||
-          current.tokenSet.scopes.contains(scope)) {
+      final parent = await (_persistence!.database.select(
+        _persistence.database.accounts,
+      )..where((r) => r.id.equals(accountId))).getSingleOrNull();
+      if (!forceAuthorization &&
+          parent?.authState == 'signed_in' &&
+          (current.tokenSet.scopes.contains(googleContactsWriteScope) ||
+              current.tokenSet.scopes.contains(scope))) {
+        final usable = await attempt.wait(validTokenForAccount(accountId));
+        if (!usable.scopes.contains(scope) &&
+            !usable.scopes.contains(googleContactsWriteScope)) {
+          throw const OAuthException(
+            'OAuthContactsConsentRequired',
+            'Reconnect to restore contacts permission.',
+          );
+        }
         if (persistContacts != null) {
-          final persistence = _persistence!;
+          final persistence = _persistence;
           final generation = current.generation;
           await persistence.run(accountId, () async {
             attempt.check();
@@ -422,6 +437,13 @@ class OAuthService
             }
             await persistence.database.transaction(() async {
               attempt.check();
+              await (_persistence.database.update(
+                _persistence.database.accounts,
+              )..where((r) => r.id.equals(accountId))).write(
+                AccountsCompanion(
+                  grantedScopes: Value(usable.scopes.join(' ')),
+                ),
+              );
               await persistContacts();
               attempt.check();
             });
@@ -439,11 +461,12 @@ class OAuthService
         // Grant metadata and the linked account share the credential commit.
         // The controller validates against the accepted grant inside this
         // transaction, rather than the parent's previous scope set.
-        await (_persistence!.database.update(
+        await (_persistence.database.update(
           _persistence.database.accounts,
         )..where((row) => row.id.equals(accountId))).write(
           AccountsCompanion(
             grantedScopes: Value(result.tokenSet.scopes.join(' ')),
+            authState: const Value('signed_in'),
           ),
         );
         await persistContacts?.call();

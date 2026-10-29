@@ -2,7 +2,8 @@ import 'dart:io';
 
 import 'package:dbus/dbus.dart';
 import 'package:logging/logging.dart';
-import 'package:xdg_status_notifier_item/xdg_status_notifier_item.dart';
+
+import 'application_tray.dart';
 
 import '../core/logging/redacting_logger.dart';
 import '../features/tray/domain/tray_presentation.dart';
@@ -90,7 +91,7 @@ final class BusyMaxTrayServiceConfiguration {
 }
 
 typedef BusyMaxTrayMenuUpdater = Future<void> Function(
-  DBusMenuItem menu,
+  ApplicationTrayItem menu,
   BusyMaxTrayMenuPresentation presentation,
 );
 
@@ -114,7 +115,7 @@ final class BusyMaxTrayMenuController {
 
   BusyMaxTrayMenuPresentation get presentation => _presentation;
 
-  DBusMenuItem get menu => buildBusyMaxTrayMenu(
+  ApplicationTrayItem get menu => buildBusyMaxTrayMenu(
     presentation: _presentation,
     actions: _actions,
     onAboutToShow: refresh,
@@ -168,7 +169,7 @@ class BusyMaxTrayService {
   late final BusyMaxTrayMenuController _menuControllerWithLogging;
   final RedactingLogger _logger = RedactingLogger(Logger('BusyMaxTrayService'));
 
-  StatusNotifierItemClient? _client;
+  ApplicationTrayClient? _client;
   bool _available = false;
 
   BusyMaxTrayMenuController get _controller => _menuControllerWithLogging;
@@ -190,7 +191,7 @@ class BusyMaxTrayService {
       'items=${menu.children.length} '
       'ids=${menu.children.map((item) => item.id).join(',')}',
     );
-    final client = StatusNotifierItemClient(
+    final client = ApplicationTrayClient(
       id: busyMaxApplicationId,
       title: _trayTitle(exportedPresentation),
       iconName: iconName,
@@ -254,7 +255,7 @@ class BusyMaxTrayService {
   );
 
   Future<void> _publishPresentation(
-    DBusMenuItem menu,
+    ApplicationTrayItem menu,
     BusyMaxTrayMenuPresentation presentation,
   ) async {
     final client = _client;
@@ -328,13 +329,13 @@ List<DBusValue> _asMenuLayoutStruct(DBusValue value) {
   return value.asStruct();
 }
 
-DBusMenuItem buildBusyMaxTrayMenu({
+ApplicationTrayItem buildBusyMaxTrayMenu({
   required BusyMaxTrayMenuPresentation presentation,
   required BusyMaxTrayActions actions,
   Future<bool> Function()? onAboutToShow,
 }) {
   final eventRows = presentation.eventRows;
-  return DBusMenuItem(
+  return ApplicationTrayItem(
     id: BusyMaxTrayMenuIds.root,
     enabled: true,
     visible: true,
@@ -345,7 +346,7 @@ DBusMenuItem buildBusyMaxTrayMenu({
         label: presentation.showBusyMaxLabel,
         callback: actions.showBusyMax,
       ),
-      DBusMenuItem.separator(id: BusyMaxTrayMenuIds.firstSeparator),
+      ApplicationTrayItem.separator(id: BusyMaxTrayMenuIds.firstSeparator),
       _actionItem(
         id: BusyMaxTrayMenuIds.newEvent,
         label: presentation.newEventLabel,
@@ -358,8 +359,8 @@ DBusMenuItem buildBusyMaxTrayMenu({
         enabled: presentation.canCreateTask,
         callback: actions.newTask,
       ),
-      DBusMenuItem.separator(id: BusyMaxTrayMenuIds.secondSeparator),
-      DBusMenuItem(
+      ApplicationTrayItem.separator(id: BusyMaxTrayMenuIds.secondSeparator),
+      ApplicationTrayItem(
         id: BusyMaxTrayMenuIds.today,
         enabled: false,
         visible: true,
@@ -378,7 +379,7 @@ DBusMenuItem buildBusyMaxTrayMenu({
         enabled: presentation.taskSummaryLabel != null,
         callback: actions.openTasksDueToday,
       ),
-      DBusMenuItem(
+      ApplicationTrayItem(
         id: BusyMaxTrayMenuIds.emptyToday,
         enabled: false,
         visible: presentation.showEmptyState,
@@ -389,20 +390,20 @@ DBusMenuItem buildBusyMaxTrayMenu({
         label: presentation.openTodayAgendaLabel,
         callback: actions.openTodayAgenda,
       ),
-      DBusMenuItem.separator(id: BusyMaxTrayMenuIds.thirdSeparator),
+      ApplicationTrayItem.separator(id: BusyMaxTrayMenuIds.thirdSeparator),
       _actionItem(
         id: BusyMaxTrayMenuIds.syncNow,
         label: presentation.syncNowLabel,
         enabled: presentation.canSynchronize,
         callback: actions.synchronize,
       ),
-      DBusMenuItem(
+      ApplicationTrayItem(
         id: BusyMaxTrayMenuIds.synchronizationStatus,
         enabled: false,
         visible: true,
         label: presentation.synchronizationStatusLabel,
       ),
-      DBusMenuItem.separator(id: BusyMaxTrayMenuIds.fourthSeparator),
+      ApplicationTrayItem.separator(id: BusyMaxTrayMenuIds.fourthSeparator),
       _actionItem(
         id: BusyMaxTrayMenuIds.settings,
         label: presentation.settingsLabel,
@@ -417,12 +418,12 @@ DBusMenuItem buildBusyMaxTrayMenu({
   );
 }
 
-DBusMenuItem _eventSlot({
+ApplicationTrayItem _eventSlot({
   required int id,
   required BusyMaxTrayEventRowPresentation? row,
   required BusyMaxTrayActions actions,
 }) {
-  return DBusMenuItem(
+  return ApplicationTrayItem(
     id: id,
     enabled: row != null,
     visible: row != null,
@@ -437,14 +438,14 @@ DBusMenuItem _eventSlot({
   );
 }
 
-DBusMenuItem _actionItem({
+ApplicationTrayItem _actionItem({
   required int id,
   required String label,
   required Future<void> Function() callback,
   bool enabled = true,
   bool visible = true,
 }) {
-  return DBusMenuItem(
+  return ApplicationTrayItem(
     id: id,
     enabled: enabled,
     visible: visible,

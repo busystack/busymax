@@ -8,6 +8,276 @@ import 'package:busymax/src/ical/ical_event_projection.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('narrow ranges include candidates before the period anchor', () {
+    for (final example in [
+      (
+        '20260126T090000Z',
+        'FREQ=MONTHLY;BYDAY=-1MO',
+        DateTime.utc(2026, 2),
+        DateTime.utc(2026, 2, 24),
+        '20260223T090000Z',
+      ),
+      (
+        '20260101T090000Z',
+        'FREQ=DAILY;BYHOUR=6,9',
+        DateTime.utc(2026, 1, 2),
+        DateTime.utc(2026, 1, 2, 7),
+        '20260102T060000Z',
+      ),
+      (
+        '20260130T090000Z',
+        'FREQ=WEEKLY;BYDAY=MO,FR;WKST=MO',
+        DateTime.utc(2026, 2, 2),
+        DateTime.utc(2026, 2, 3),
+        '20260202T090000Z',
+      ),
+      (
+        '20260101T094500Z',
+        'FREQ=HOURLY;BYMINUTE=5,45',
+        DateTime.utc(2026, 1, 1, 10),
+        DateTime.utc(2026, 1, 1, 10, 10),
+        '20260101T100500Z',
+      ),
+      (
+        '20260101T090045Z',
+        'FREQ=MINUTELY;BYSECOND=5,45',
+        DateTime.utc(2026, 1, 1, 9, 1),
+        DateTime.utc(2026, 1, 1, 9, 1, 10),
+        '20260101T090105Z',
+      ),
+      (
+        '20260126T090000Z',
+        'FREQ=MONTHLY;BYMONTHDAY=1,26',
+        DateTime.utc(2026, 2),
+        DateTime.utc(2026, 2, 2),
+        '20260201T090000Z',
+      ),
+      (
+        '20260223T090000Z',
+        'FREQ=YEARLY;BYMONTH=2;BYDAY=-1MO',
+        DateTime.utc(2027, 2),
+        DateTime.utc(2027, 2, 23),
+        '20270222T090000Z',
+      ),
+    ]) {
+      final document = IcalSemanticDocument.parse(
+        _eventWithRule(
+          start: 'DTSTART:${example.$1}',
+          end: 'DURATION:PT1H',
+          rule: 'RRULE:${example.$2}',
+        ),
+      );
+      final expander = IcalRecurrenceExpander();
+      final narrow = expander.expand(
+        document,
+        rangeStartUtc: example.$3,
+        rangeEndUtc: example.$4,
+      );
+      final wide = expander.expand(
+        document,
+        rangeStartUtc: example.$3,
+        rangeEndUtc: example.$4.add(
+          example.$2.startsWith('FREQ=HOURLY') ||
+                  example.$2.startsWith('FREQ=MINUTELY')
+              ? const Duration(hours: 2)
+              : const Duration(days: 40),
+        ),
+      );
+      expect(
+        narrow.map((item) => item.start.rawValue),
+        contains(example.$5),
+        reason: example.$2,
+      );
+      expect(
+        narrow.map((item) => item.occurrenceKey),
+        wide
+            .where((item) => icalTemporalToUtc(item.start).isBefore(example.$4))
+            .map((item) => item.occurrenceKey),
+        reason: example.$2,
+      );
+    }
+  });
+
+  test('yearly month-day selectors expand months without changing anniversary defaults', () {
+    for (final example in [
+      (
+        'FREQ=YEARLY;BYMONTHDAY=1',
+        [for (var month = 1; month <= 12; month++) DateTime.utc(2026, month)],
+        '20260101T000000Z',
+      ),
+      (
+        'FREQ=YEARLY;BYMONTHDAY=-1',
+        [
+          for (var month = 1; month <= 12; month++)
+            DateTime.utc(2026, month + 1, 0),
+        ],
+        '20260131T000000Z',
+      ),
+      (
+        'FREQ=YEARLY;BYMONTH=2,4;BYMONTHDAY=1,-1',
+        [
+          DateTime.utc(2026, 2),
+          DateTime.utc(2026, 2, 28),
+          DateTime.utc(2026, 4),
+          DateTime.utc(2026, 4, 30),
+        ],
+        '20260201T000000Z',
+      ),
+      ('FREQ=YEARLY', [DateTime.utc(2026)], '20260101T000000Z'),
+      (
+        'FREQ=YEARLY;BYMONTHDAY=1;BYSETPOS=-1',
+        [DateTime.utc(2026, 12)],
+        '20261201T000000Z',
+      ),
+    ]) {
+      final document = IcalSemanticDocument.parse(
+        _eventWithRule(
+          start: 'DTSTART:${example.$3}',
+          end: 'DURATION:PT1H',
+          rule: 'RRULE:${example.$1}',
+        ),
+      );
+      expect(
+        IcalRecurrenceExpander()
+            .expand(
+              document,
+              rangeStartUtc: DateTime.utc(2026),
+              rangeEndUtc: DateTime.utc(2027),
+            )
+            .map((item) => icalTemporalToUtc(item.start)),
+        example.$2,
+        reason: example.$1,
+      );
+    }
+  });
+
+  for (final period in ['20260102T120000Z', 'PT3H']) {
+    test('period RDATE preserves its end and overlap: $period', () {
+      final document = IcalSemanticDocument.parse(
+        _eventWithRule(
+          start: 'DTSTART:20260101T090000Z',
+          end: 'DURATION:PT1H',
+          rule: 'RDATE;VALUE=PERIOD:20260102T090000Z/$period',
+        ),
+      );
+      final occurrences = IcalRecurrenceExpander().expand(
+        document,
+        rangeStartUtc: DateTime.utc(2026, 1, 2, 11),
+        rangeEndUtc: DateTime.utc(2026, 1, 2, 13),
+      );
+      expect(occurrences, hasLength(1));
+      expect(occurrences.single.end?.rawValue, '20260102T120000Z');
+      final projected = IcalEventProjector().projectSemantic(
+        document,
+        rangeStartUtc: DateTime.utc(2026, 1, 2, 11),
+        rangeEndUtc: DateTime.utc(2026, 1, 2, 13),
+        transport: 'caldav',
+      );
+      expect(
+        jsonDecode(projected.single.rawJson)['endUtc'],
+        '2026-01-02T12:00:00.000Z',
+      );
+    });
+  }
+
+  test(
+    'yearly month-day expansion still intersects other yearly selectors',
+    () {
+      for (final example in [
+        (
+          '20260501T000000Z',
+          'FREQ=YEARLY;BYMONTHDAY=1,-1;BYDAY=MO,FR',
+          [
+            DateTime.utc(2026, 5),
+            DateTime.utc(2026, 6),
+            DateTime.utc(2026, 7, 31),
+            DateTime.utc(2026, 8, 31),
+            DateTime.utc(2026, 11, 30),
+          ],
+        ),
+        (
+          '20260101T000000Z',
+          'FREQ=YEARLY;BYMONTHDAY=1;BYYEARDAY=1,32,60',
+          [DateTime.utc(2026), DateTime.utc(2026, 2), DateTime.utc(2026, 3)],
+        ),
+        (
+          '20260101T000000Z',
+          'FREQ=YEARLY;BYMONTHDAY=1;BYWEEKNO=1',
+          [DateTime.utc(2026)],
+        ),
+      ]) {
+        final occurrences = IcalRecurrenceExpander().expand(
+          IcalSemanticDocument.parse(
+            _eventWithRule(
+              start: 'DTSTART:${example.$1}',
+              end: 'DURATION:PT1H',
+              rule: 'RRULE:${example.$2}',
+            ),
+          ),
+          rangeStartUtc: DateTime.utc(2026),
+          rangeEndUtc: DateTime.utc(2027),
+        );
+        expect(
+          occurrences.map((occurrence) => icalTemporalToUtc(occurrence.start)),
+          example.$3,
+          reason: example.$2,
+        );
+      }
+    },
+  );
+
+  for (final excluded in [false, true]) {
+    for (final detached in [false, true]) {
+      test(
+        'period RDATE duration wins a duplicate start, respects exclusions and detached ends ($excluded, $detached)',
+        () {
+          final document = IcalSemanticDocument.parse(
+            [
+              'BEGIN:VCALENDAR',
+              'VERSION:2.0',
+              'PRODID:-//BusyMax Test//EN',
+              'BEGIN:VEVENT',
+              'UID:period-identity',
+              'DTSTART:20260101T090000Z',
+              'DURATION:PT1H',
+              'RRULE:FREQ=DAILY;COUNT=2',
+              'RDATE;VALUE=PERIOD:20260102T090000Z/PT3H',
+              'RDATE:20260102T090000Z',
+              if (excluded) 'EXDATE:20260102T090000Z',
+              'END:VEVENT',
+              if (detached) ...[
+                'BEGIN:VEVENT',
+                'UID:period-identity',
+                'RECURRENCE-ID:20260102T090000Z',
+                'DTSTART:20260102T100000Z',
+                'DTEND:20260102T140000Z',
+                'END:VEVENT',
+              ],
+              'END:VCALENDAR',
+              '',
+            ].join('\r\n'),
+          );
+          final occurrences = IcalRecurrenceExpander().expand(
+            document,
+            rangeStartUtc: DateTime.utc(2026, 1, 2),
+            rangeEndUtc: DateTime.utc(2026, 1, 3),
+          );
+          expect(occurrences, hasLength(excluded ? 0 : 1));
+          if (!excluded) {
+            expect(
+              occurrences.single.recurrenceId.rawValue,
+              '20260102T090000Z',
+            );
+            expect(
+              occurrences.single.end!.rawValue,
+              detached ? '20260102T140000Z' : '20260102T120000Z',
+            );
+          }
+        },
+      );
+    }
+  }
+
   test('expands weekly recurrence with RDATE, EXDATE, and moved exception', () {
     final document = IcalSemanticDocument.parse('''BEGIN:VCALENDAR\r
 VERSION:2.0\r

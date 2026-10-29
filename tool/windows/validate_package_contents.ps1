@@ -14,14 +14,8 @@ $packageFiles = @(Get-BusyMaxPackageFiles -PackageRoot $PackageRoot)
 if (-not (Test-Path -LiteralPath "$PackageRoot/busymax.exe")) {
   throw 'Staging directory does not contain busymax.exe.'
 }
-foreach ($required in @(
-    'flutter_windows.dll', 'sqlite3.dll',
-    'busymax_registration_reader.dll',
-    'connectivity_plus_plugin.dll', 'file_selector_windows_plugin.dll',
-    'flutter_local_notifications_windows.dll',
-    'flutter_secure_storage_windows_plugin.dll',
-    'flutter_timezone_plugin.dll', 'system_theme_plugin.dll',
-    'tray_manager_plugin.dll', 'url_launcher_windows_plugin.dll',
+$runtimeDlls = @(Get-BusyMaxWindowsRuntimeDlls)
+foreach ($required in @($runtimeDlls) + @(
     'msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll',
     'data/app.so', 'data/icudtl.dat',
     'data/flutter_assets/AssetManifest.bin',
@@ -69,14 +63,7 @@ $executables = @($packageFiles | Where-Object { $_.Extension -ieq '.exe' })
 if ($executables.Count -ne 1 -or $executables[0].Name -cne 'busymax.exe') {
   throw "The package must contain only busymax.exe: $($executables.FullName -join ', ')"
 }
-$allowedDlls = @(
-  'flutter_windows.dll', 'sqlite3.dll',
-  'busymax_registration_reader.dll',
-  'connectivity_plus_plugin.dll', 'file_selector_windows_plugin.dll',
-  'flutter_local_notifications_windows.dll',
-  'flutter_secure_storage_windows_plugin.dll',
-  'flutter_timezone_plugin.dll', 'system_theme_plugin.dll',
-  'tray_manager_plugin.dll', 'url_launcher_windows_plugin.dll',
+$allowedDlls = @($runtimeDlls) + @(
   'concrt140.dll', 'msvcp140.dll', 'msvcp140_1.dll', 'msvcp140_2.dll',
   'msvcp140_atomic_wait.dll', 'msvcp140_codecvt_ids.dll', 'vccorlib140.dll',
   'vcruntime140.dll', 'vcruntime140_1.dll', 'vcruntime140_threads.dll'

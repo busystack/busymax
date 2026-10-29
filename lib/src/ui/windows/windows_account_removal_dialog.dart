@@ -12,6 +12,7 @@ Future<WindowsAccountRemovalOptions?> showWindowsAccountRemovalDialog(
   BuildContext context, {
   required String accountLabel,
   required bool canRevokeGoogleAuthorization,
+  bool revokeNextcloudAppPassword = false,
 }) {
   var revoke = false;
   return showDialog<WindowsAccountRemovalOptions>(
@@ -27,6 +28,8 @@ Future<WindowsAccountRemovalOptions?> showWindowsAccountRemovalDialog(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(l10n.removeAccountConfirmation),
+              if (revokeNextcloudAppPassword)
+                Text(l10n.nextcloudRemovalAuthorizationDescription),
               if (canRevokeGoogleAuthorization) ...[
                 const SizedBox(height: 16),
                 Checkbox(

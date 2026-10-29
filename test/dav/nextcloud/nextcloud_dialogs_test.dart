@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:http/http.dart' as http;
 import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/app/busymax_design.dart';
@@ -41,6 +44,60 @@ void main() {
           null,
         );
   });
+
+  for (final (property, invalid, valid, message) in [
+    ('displayname', ' ', 'Repaired QA collection', 'This field is required.'),
+    (
+      'calendar-color',
+      'red?',
+      '#12345678',
+      'Enter a six- or eight-digit hexadecimal color, starting with #.',
+    ),
+    ('calendar-order', 'first', '4', 'Enter a whole number.'),
+    (
+      'calendar-timezone',
+      'not a timezone',
+      'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VTIMEZONE\r\nTZID:Etc/UTC\r\nEND:VTIMEZONE\r\nEND:VCALENDAR\r\n',
+      'Enter a valid calendar timezone document containing VTIMEZONE and TZID.',
+    ),
+  ]) {
+    testWidgets(
+      'Linux validates $property locally, retains its draft and allows correction',
+      (tester) async {
+        final fixture = NextcloudAdminFixture();
+        await tester.runAsync(fixture.seed);
+        addTearDown(fixture.close);
+        await _pump(tester, fixture, false);
+        if (property == 'calendar-timezone') {
+          await tester.ensureVisible(find.text('Advanced'));
+          await tester.tap(find.text('Advanced'));
+          await tester.pumpAndSettle();
+        }
+        final field = find.byKey(ValueKey('nextcloud-$property'));
+        await tester.ensureVisible(field);
+        await tester.enterText(field, invalid);
+        await tester.pump();
+        final requests = fixture.requests.length;
+        await tester.tap(find.text('Save'));
+        await tester.pumpAndSettle();
+        expect(find.text(message), findsOneWidget);
+        expect(fixture.requests.length, requests);
+        expect(tester.widget<TextField>(field).controller!.text, invalid);
+        expect(find.text('Nextcloud could not be reached.'), findsNothing);
+        await tester.enterText(field, valid);
+        await tester.pump();
+        await tester.tap(find.text('Save'));
+        await _settle(tester);
+        expect(
+          fixture.requests.where((r) => r.method == 'PROPPATCH'),
+          hasLength(1),
+        );
+        expect(find.text(message), findsNothing);
+        expect(tester.widget<TextField>(field).controller!.text, valid);
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+  }
 
   for (final windows in [false, true]) {
     final platform = windows ? 'Windows' : 'Linux';
@@ -147,6 +204,94 @@ void main() {
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
     });
+  }
+
+  for (final oldFails in [false, true]) {
+    testWidgets(
+      'Android recipient results ignore superseded responses (old fails: $oldFails)',
+      (tester) async {
+        final fixture = NextcloudAdminFixture();
+        await tester.runAsync(fixture.seed);
+        final oldStarted = Completer<void>();
+        final releaseOld = Completer<void>();
+        addTearDown(() async {
+          if (!releaseOld.isCompleted) releaseOld.complete();
+          await fixture.close();
+        });
+        fixture.principalSearchResponse = (request) async {
+          final old = request.body.contains('Old query');
+          if (old) {
+            if (!oldStarted.isCompleted) oldStarted.complete();
+            await releaseOld.future;
+            if (oldFails) return http.Response('', 503);
+          }
+          final name = old ? 'Old recipient' : 'New recipient';
+          final path =
+              '/remote.php/dav/principals/users/${old ? 'old' : 'new'}/';
+          return fixture.multi(
+            path,
+            '<d:displayname>$name</d:displayname><d:principal-URL><d:href>$path</d:href></d:principal-URL>',
+          );
+        };
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              localSettingsStoreProvider.overrideWithValue(
+                MemorySettingsStore(),
+              ),
+              nextcloudSharingServiceProvider('account')
+                  .overrideWithValue(fixture.sharing),
+            ],
+            child: localizedTestApp(
+              child: const AndroidNextcloudSharingScreen(
+                accountId: 'account',
+                collectionId: 'collection',
+                title: 'Work',
+              ),
+            ),
+          ),
+        );
+        await _settle(tester);
+        final field = find.byWidgetPredicate(
+          (widget) =>
+              widget is TextField &&
+              widget.decoration?.labelText == 'Find people or groups',
+        );
+        await tester.enterText(field, 'Old query');
+        await tester.testTextInput.receiveAction(TextInputAction.done);
+        for (var i = 0; i < 30 && !oldStarted.isCompleted; i++) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 10)),
+          );
+          await tester.pump(const Duration(milliseconds: 20));
+        }
+        expect(oldStarted.isCompleted, isTrue);
+        await tester.enterText(field, 'New query');
+        await tester.testTextInput.receiveAction(TextInputAction.done);
+        await _settle(tester);
+        expect(find.text('New recipient'), findsOneWidget);
+        releaseOld.complete();
+        await _settle(tester);
+        expect(find.text('Old recipient'), findsNothing);
+        expect(find.text('New recipient'), findsOneWidget);
+        expect(find.text('Operation failed'), findsNothing);
+        expect(tester.widget<TextField>(field).controller!.text, 'New query');
+
+        final staleSelection = tester
+            .widget<PopupMenuButton<bool>>(
+              find.byType(PopupMenuButton<bool>).last,
+            )
+            .onSelected!;
+        await tester.enterText(field, 'Edited query');
+        await tester.pump();
+        expect(find.text('New recipient'), findsNothing);
+        staleSelection(false);
+        await _settle(tester);
+        expect(fixture.shares, isEmpty);
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
   }
 
   testWidgets('Android initiates a federated calendar share', (tester) async {

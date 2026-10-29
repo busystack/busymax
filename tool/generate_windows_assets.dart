@@ -26,51 +26,11 @@ void main() {
   File('${flutterAssets.path}/busymax_tray_offline.ico')
       .writeAsBytesSync(_encodeIco(_offlineVariant(iconSource)));
 
-  _writeScaleSet(packageAssets, packageSource, 'Square44x44Logo', const {
-    100: 44,
-    125: 55,
-    150: 66,
-    200: 88,
-    400: 176,
-  });
   _writePng(packageAssets, packageSource, 'Square44x44Logo.png', 44);
-  _writeScaleSet(packageAssets, packageSource, 'Square150x150Logo', const {
-    100: 150,
-    125: 188,
-    150: 225,
-    200: 300,
-    400: 600,
-  });
   _writePng(packageAssets, packageSource, 'Square150x150Logo.png', 150);
-  _writeScaleSet(packageAssets, packageSource, 'StoreLogo', const {
-    100: 50,
-    125: 63,
-    150: 75,
-    200: 100,
-    400: 200,
-  });
   _writePng(packageAssets, packageSource, 'StoreLogo.png', 50);
-  _writePng(packageAssets, packageSource, 'FileAssociation.png', 44);
   _writePng(packageAssets, packageSource, 'FileAssociationLogo.png', 44);
-  _writeScaleSet(packageAssets, packageSource, 'FileAssociation', const {
-    100: 44,
-    125: 55,
-    150: 66,
-    200: 88,
-    400: 176,
-  });
   stdout.writeln('Generated BusyMax Windows assets from ${sourceFile.path}.');
-}
-
-void _writeScaleSet(
-  Directory directory,
-  image.Image source,
-  String name,
-  Map<int, int> sizes,
-) {
-  for (final MapEntry(key: scale, value: size) in sizes.entries) {
-    _writePng(directory, source, '$name.scale-$scale.png', size);
-  }
 }
 
 void _writePng(Directory directory, image.Image source, String name, int size) {

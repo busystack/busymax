@@ -1400,6 +1400,45 @@ void main() {
     expect(await database.select(database.pendingOps).get(), isEmpty);
   });
 
+  for (final invalid in [
+    (
+      start: 'DTSTART:20260809T090000Z',
+      due: 'DUE:20260809T100000Z',
+      code: 'DavTaskDueAndDuration',
+    ),
+    (start: '', due: '', code: 'DavTaskDurationRequiresStart'),
+  ]) {
+    test('queue rejects invalid duration relationship ${invalid.code}', () async {
+      final raw = _task(
+        uid: 'duration@example.test',
+        start: invalid.start,
+        due: invalid.due,
+      ).replaceFirst('SUMMARY:Task', 'DURATION:PT1H\r\nSUMMARY:Task');
+      await expectLater(
+        queue.enqueueCreate(
+          accountId: 'account',
+          collectionId: 'collection',
+          object: DavNewObject(
+            uid: 'duration@example.test',
+            initialMemberName: 'duration.ics',
+            rawIcs:
+                '${raw.split('\r\n').where((line) => line.isNotEmpty).join('\r\n')}\r\n',
+            componentType: 'VTODO',
+          ),
+        ),
+        throwsA(
+          isA<DavException>().having(
+            (error) => error.code,
+            'code',
+            invalid.code,
+          ),
+        ),
+      );
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+      expect(await database.select(database.tasks).get(), isEmpty);
+    });
+  }
+
   test('queue rejects mixed all-day and timed VTODO ranges', () async {
     await expectLater(
       queue.enqueueCreate(

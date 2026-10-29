@@ -36,6 +36,7 @@ import '../../features/maps/application/external_location_launcher.dart';
 import '../../features/schedule/application/saved_schedule_location.dart';
 import '../../schedule/schedule_event_rescheduling.dart';
 import '../../features/calendar/domain/event_timing_policy.dart';
+import '../../features/recurrence/presentation/recurrence_summary.dart';
 import '../../features/tasks/data/tasks_repository.dart';
 import '../../features/tasks/domain/task_mutation_result.dart';
 import '../common/schedule/schedule_interactions.dart';
@@ -73,6 +74,7 @@ class WindowsSchedulePage extends ConsumerStatefulWidget {
 class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
   final _searchController = TextEditingController();
   final _searchFocusNode = FocusNode();
+  final _workspaceFocusNode = FocusNode();
   var _selectedDate = DateTime.now();
   var _query = '';
   bool _searchActive = false;
@@ -87,6 +89,8 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
   var _refreshRevision = 0;
   String? _taskListsKey;
   Future<List<TaskListEntity>>? _taskListsFuture;
+  String? _lastTaskListsKey;
+  List<TaskListEntity>? _lastTaskLists;
   Object? _normalItemsKey;
   Future<List<ScheduleItem>>? _normalItemsFuture;
   Object? _searchItemsKey;
@@ -104,6 +108,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
   ScheduleNavigationIntent? _navigationIntent;
   var _taskMutationGeneration = 0;
   TaskListMutationIntent? _taskMutationIntent;
+  final _pendingTaskCompletions = <String>{};
 
   @override
   void initState() {
@@ -158,6 +163,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     _searchController.dispose();
     _searchFocusNode.removeListener(_searchFocusChanged);
     _searchFocusNode.dispose();
+    _workspaceFocusNode.dispose();
     super.dispose();
   }
 
@@ -242,6 +248,11 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
 
   @override
   Widget build(BuildContext context) {
+    final replacements = ref.watch(taskListIdReplacementsProvider);
+    _searchCriteria = _searchCriteria?.remapTaskLists(replacements);
+    _initialSearchCriteria = _initialSearchCriteria?.remapTaskLists(
+      replacements,
+    );
     final accountsState = ref.watch(accountsStreamProvider);
     _accountInventoryResolved =
         !accountsState.isLoading && !accountsState.hasError;
@@ -283,11 +294,22 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
         return FutureBuilder<List<TaskListEntity>>(
           future: _taskListsFor(accounts),
           builder: (context, listsSnapshot) {
-            if (listsSnapshot.connectionState != ConnectionState.done &&
-                !listsSnapshot.hasData) {
+            final inventoryComplete =
+                listsSnapshot.connectionState == ConnectionState.done;
+            if (inventoryComplete && listsSnapshot.hasData) {
+              _lastTaskListsKey = _taskListsKey;
+              _lastTaskLists = listsSnapshot.data;
+            }
+            final taskLists = _lastTaskListsKey == _taskListsKey
+                ? _lastTaskLists
+                : null;
+            if (taskLists == null && !inventoryComplete) {
               return const ScaffoldPage(content: Center(child: ProgressRing()));
             }
-            final taskLists = listsSnapshot.data ?? const <TaskListEntity>[];
+            if (taskLists == null) {
+              _latestVisibility = null;
+              return ScaffoldPage(content: _scheduleLoadError(context));
+            }
             final settings = ref.watch(appSettingsControllerProvider);
             final visibility = ScheduleSourceVisibility.fromSources(
               calendarSources: sources,
@@ -300,6 +322,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
               sources: sources,
               taskLists: taskLists,
               visibility: visibility,
+              taskListsUnavailable: inventoryComplete && listsSnapshot.hasError,
             );
           },
         );
@@ -313,6 +336,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     required List<CalendarSourceEntity> sources,
     required List<TaskListEntity> taskLists,
     required ScheduleSourceVisibility visibility,
+    bool taskListsUnavailable = false,
   }) {
     _latestVisibility = visibility;
     if (_searchActive && _searchCriteria == null) _initializeSearch();
@@ -521,6 +545,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
                 ),
           },
           child: Focus(
+            focusNode: _workspaceFocusNode,
             autofocus: true,
             child: ScaffoldPage(
               header: PageHeader(
@@ -692,6 +717,15 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
                             ],
                           ),
                         ),
+                        if (taskListsUnavailable)
+                          InfoBar(
+                            title: Text(l10n.scheduleUnavailable),
+                            severity: InfoBarSeverity.error,
+                            action: Button(
+                              onPressed: _reload,
+                              child: Text(l10n.retry),
+                            ),
+                          ),
                         Expanded(
                           child: BusyMaxBinaryPresentation(
                             alternateActive: _searchActive,
@@ -727,30 +761,25 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
       if (snapshot.hasError) {
         return _scheduleLoadError(context);
       }
+      final filters = criteria.filters(query);
+      final searchRange = criteria.range;
+      final coverageComplete =
+          filters.requiresCalendarCoverage && searchRange != null
+          ? ref
+                .read(scheduleRepositoryProvider)
+                .cloudCoverageCompleteFor(searchRange, filters: filters)
+          : true;
       return Column(
         children: [
-          if (criteria.range case final searchRange?)
-            if (ref
-                    .read(scheduleRepositoryProvider)
-                    .cloudCoverageCompleteFor(
-                      searchRange,
-                      filters: criteria.filters(query),
-                    ) !=
-                true)
-              InfoBar(
-                title: Text(
-                  ref
-                              .read(scheduleRepositoryProvider)
-                              .cloudCoverageCompleteFor(
-                                searchRange,
-                                filters: criteria.filters(query),
-                              ) ==
-                          null
-                      ? AppLocalizations.of(context).scheduleLoading
-                      : AppLocalizations.of(context).scheduleRangeIncomplete,
-                ),
-                severity: InfoBarSeverity.info,
+          if (coverageComplete != true)
+            InfoBar(
+              title: Text(
+                coverageComplete == null
+                    ? AppLocalizations.of(context).scheduleLoading
+                    : AppLocalizations.of(context).scheduleRangeIncomplete,
               ),
+              severity: InfoBarSeverity.info,
+            ),
           Expanded(
             child: _AgendaList(
               key: const ValueKey('windows-search-results'),
@@ -886,6 +915,45 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     try {
       final result = await ScheduleReschedulingCoordinator(
         repository: ref.read(calendarRepositoryProvider),
+        confirmSeriesTimingChange: (change, scope) async {
+          if (!mounted) return false;
+          final following = scope == RecurringEventMutationScope.thisAndFuture;
+          return await showDialog<bool>(
+                context: context,
+                builder: (confirmationContext) => ContentDialog(
+                  title: Text(l10n.repeat),
+                  content: Text(
+                    l10n.seriesPatternChangeConfirmation(
+                      recurrenceRuleSummary(
+                        confirmationContext,
+                        change.previewRule(
+                          following: following,
+                          original: true,
+                        ),
+                        timeZone: change.timeZone,
+                      ),
+                      recurrenceRuleSummary(
+                        confirmationContext,
+                        change.previewRule(following: following),
+                        timeZone: change.timeZone,
+                      ),
+                    ),
+                  ),
+                  actions: [
+                    Button(
+                      onPressed: () =>
+                          Navigator.pop(confirmationContext, false),
+                      child: Text(l10n.cancel),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(confirmationContext, true),
+                      child: Text(l10n.save),
+                    ),
+                  ],
+                ),
+              ) ==
+              true;
+        },
         chooseScope: (detail, following) =>
             showWindowsRecurringEventMutationScope(
               context,
@@ -936,12 +1004,17 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
   }
 
   Future<void> _setTaskCompleted(TaskScheduleItem item, bool completed) async {
+    final taskKey = '${item.accountId}\u0000${item.sourceId}\u0000${item.id}';
+    if (!item.capabilities.canEdit || !_pendingTaskCompletions.add(taskKey)) {
+      return;
+    }
     final intent = TaskListMutationIntent(
       presentation: TaskListMutationPresentation.completion,
       accountId: item.accountId,
       taskListId: item.sourceId,
       taskId: item.id,
       completed: completed,
+      occurrenceKey: item.occurrenceKey,
       generation: ++_taskMutationGeneration,
     );
     setState(() => _taskMutationIntent = intent);
@@ -951,19 +1024,26 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
           .patchTask(
             item.sourceId,
             item.id,
-            TaskPatchInput({
-              'status': completed ? 'completed' : 'needsAction',
-              'completed': completed
-                  ? DateTime.now().toUtc().toIso8601String()
-                  : null,
-            }),
+            TaskPatchInput.completion(
+              completed,
+              observedOccurrenceKey: item.occurrenceKey,
+            ),
           );
       if (mounted) _reload();
     } on Object {
-      if (mounted && _taskMutationIntent?.generation == intent.generation) {
+      if (!mounted) return;
+      if (_taskMutationIntent?.generation == intent.generation) {
         setState(() => _taskMutationIntent = null);
       }
-      rethrow;
+      await displayInfoBar(
+        context,
+        builder: (context, close) => InfoBar(
+          title: Text(AppLocalizations.of(context).operationFailed),
+          severity: InfoBarSeverity.error,
+        ),
+      );
+    } finally {
+      _pendingTaskCompletions.remove(taskKey);
     }
   }
 
@@ -1011,6 +1091,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
         current?.accountId == result.accountId &&
         current?.taskListId == result.taskListId &&
         current?.taskId == taskId &&
+        current?.occurrenceKey == result.occurrenceKey &&
         current?.checklistItemId == result.checklistItemId &&
         current?.completed == result.completed) {
       return;
@@ -1023,6 +1104,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
         taskId: taskId,
         checklistItemId: result.checklistItemId,
         completed: result.completed,
+        occurrenceKey: result.occurrenceKey,
         generation: ++_taskMutationGeneration,
       );
     });
@@ -1046,7 +1128,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
       firstWeekday: _firstWeekday,
       sourceIds: visibility.visibleCalendarSourceIds,
       taskListKeys: visibility.visibleTaskListKeys,
-    );
+    ).remapTaskLists(ref.read(taskListIdReplacementsProvider));
     _searchCriteria = _initialSearchCriteria;
   }
 
@@ -1111,6 +1193,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     _searchController.clear();
     _query = '';
     _searchFocusNode.unfocus();
+    _workspaceFocusNode.requestFocus();
     _reload();
   }
 
@@ -2262,8 +2345,10 @@ class _AgendaList extends StatelessWidget {
           : 'event\u0000${item.accountId}\u0000${item.sourceId}\u0000${item.id}',
       mutationApplied: (item, mutation) =>
           item is! TaskScheduleItem ||
-          mutation.completed == null ||
-          item.completed == mutation.completed,
+          mutation.completionSettled(
+            currentCompleted: item.completed,
+            currentOccurrenceKey: item.occurrenceKey,
+          ),
       onMutationConsumed: onTaskMutationConsumed,
       emptyBuilder:
           emptyBuilder ??
@@ -2328,7 +2413,8 @@ class _AgendaList extends StatelessWidget {
         intent?.presentation == TaskListMutationPresentation.completion &&
         intent?.taskKey ==
             '${item.accountId}\u0000${item.sourceId}\u0000${item.id}' &&
-        intent?.completed != null;
+        intent?.completed != null &&
+        intent!.completionAppliesTo(item.occurrenceKey);
   }
 
   bool _displayedCompletion(TaskScheduleItem task) {
@@ -2336,8 +2422,9 @@ class _AgendaList extends StatelessWidget {
     if (intent?.presentation == TaskListMutationPresentation.completion &&
         intent?.taskKey ==
             '${task.accountId}\u0000${task.sourceId}\u0000${task.id}' &&
-        intent?.completed != null) {
-      return intent!.completed!;
+        intent?.completed != null &&
+        intent!.completionAppliesTo(task.occurrenceKey)) {
+      return intent.completed!;
     }
     return task.completed;
   }

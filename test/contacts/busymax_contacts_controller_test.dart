@@ -10,6 +10,53 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/testing.dart';
 
 void main() {
+  test(
+    'F11 attendee lookup pages past contacts without email and exclusions',
+    () async {
+      final database = AppDatabase.memoryForTests();
+      final store = BusyMaxContactsStore(database);
+      final controller = BusyMaxContactsController(
+        store: store,
+        accounts: AccountsRepository(database: database),
+        authorization: _UnusedAuthorization(),
+        httpClient: MockClient((_) async => throw StateError('no network')),
+        readDavSecret: (_) async => null,
+        writeDavSecret: (_, _) async {},
+        deleteDavSecret: (_) async {},
+        readLinkedDavCredential: (_) async => null,
+        launchBrowser: (_) async => false,
+        syncInterval: const Duration(days: 1),
+      );
+      addTearDown(() async {
+        await controller.close();
+        await database.close();
+      });
+      await controller.start();
+      await store.write((tx) async {
+        await tx.putAccount(_account);
+        await tx.putSource(_source('enabled'));
+        for (var i = 0; i < 100; i++) {
+          await tx.putContact(
+            _record('enabled', i.toString().padLeft(3, '0'), null),
+          );
+        }
+        for (var i = 100; i < 200; i++) {
+          await tx.putContact(
+            _record('enabled', '$i', 'excluded@example.test'),
+          );
+        }
+        await tx.putContact(_record('enabled', 'zzz', 'alex@example.test'));
+      });
+      final matches = await controller.suggestAttendees(
+        'Alex',
+        excludedAddresses: {'EXCLUDED@example.test'},
+        limit: 1,
+      );
+      expect(matches.map((match) => match.email), ['alex@example.test']);
+      expect(matches.single.identities.single.sourceId, 'enabled');
+    },
+  );
+
   test('actual attendee lookup filters disabled sources and exclusions before limit', () async {
     final database = AppDatabase.memoryForTests();
     final store = BusyMaxContactsStore(database);
@@ -89,7 +136,7 @@ ContactSource _source(String id) => ContactSource(
   ),
 );
 
-CardDavContactRecord _record(String sourceId, String remoteId, String email) {
+CardDavContactRecord _record(String sourceId, String remoteId, String? email) {
   final identity = ContactIdentity(
     accountId: _account.id,
     provider: ContactProviderKind.carddav,
@@ -100,7 +147,7 @@ CardDavContactRecord _record(String sourceId, String remoteId, String email) {
   final vcard = newVcard(
     ContactPatch(
       name: FieldEdit.set(ContactName(display: name)),
-      emails: FieldEdit.set([ContactValue(email)]),
+      emails: FieldEdit.set([if (email != null) ContactValue(email)]),
     ),
     uid: remoteId,
   );
@@ -120,6 +167,7 @@ final class _UnusedAuthorization implements ContactsAuthorizationBroker {
 
     AuthorizationCancellation? cancellation,
     Future<void> Function()? persistContacts,
+    bool forceAuthorization = false,
   }) => throw StateError('authorization is not used by cached lookup');
 
   @override

@@ -95,6 +95,7 @@ final class BusyMaxAndroidPlatform {
     String? nativeAccountId,
     String? authority,
     String? claims,
+    bool forceRefresh = false,
   }) async => AndroidAuthorizationToken.fromMap(
     _stringMap(
       await _methodChannel.invokeMethod<Object?>('authorizeMicrosoftSilent', {
@@ -105,6 +106,7 @@ final class BusyMaxAndroidPlatform {
         'nativeAccountId': ?nativeAccountId,
         'authority': ?authority,
         'claims': ?claims,
+        'forceRefresh': forceRefresh,
       }),
     ),
   );
@@ -239,6 +241,20 @@ final class BusyMaxAndroidPlatform {
 
   Future<void> openNotificationSettings() =>
       _methodChannel.invokeMethod<void>('openNotificationSettings');
+
+  Future<Map<String, Object?>> notificationCapabilities() async => _stringMap(
+    await _methodChannel.invokeMethod<Object?>('notificationCapabilities'),
+  );
+
+  Future<void> prepareNotificationChannels({
+    required String reminders,
+    required String summaries,
+    required String status,
+  }) => _methodChannel.invokeMethod<void>('prepareNotificationChannels', {
+    'reminders': reminders,
+    'summaries': summaries,
+    'status': status,
+  });
 
   Future<String> acquireAccountGate(
     String accountId, {

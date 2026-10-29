@@ -7,6 +7,7 @@
 #include <functional>
 #include <optional>
 #include <utility>
+#include <winrt/Windows.UI.Notifications.h>
 
 #include "flutter/generated_plugin_registrant.h"
 #include "windows_startup_task.h"
@@ -65,6 +66,16 @@ bool FlutterWindow::OnCreate() {
   }
   RegisterPlugins(flutter_controller_->engine());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
+
+  timezone_channel_ =
+      std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+          flutter_controller_->engine()->messenger(), "busymax/windows/timezone",
+          &flutter::StandardMethodCodec::GetInstance());
+  timezone_channel_->SetMethodCallHandler([this](const auto& call, auto result) {
+    timezone_service_.HandleMethodCall(call, std::move(result));
+  });
+  tray_channel_ = std::make_unique<busymax::WindowsTrayChannel>(
+      flutter_controller_->engine()->messenger(), GetHandle());
 
   clock_channel_ =
       std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
@@ -129,6 +140,7 @@ bool FlutterWindow::OnCreate() {
           return;
         }
         if (method == "reportNotificationActivationFailure") {
+          // Forwarding failure is independent of display permission.
           MessageBoxW(
               GetHandle(),
               L"BusyMax could not deliver the selected notification action "
@@ -136,6 +148,21 @@ bool FlutterWindow::OnCreate() {
               L"changed by this process.",
               L"BusyMax notification error", MB_OK | MB_ICONERROR);
           result->Success();
+          return;
+        }
+        if (method == "notificationPermission") {
+          const auto* aumid = std::get_if<std::string>(call.arguments());
+          if (!HasPackageIdentity() || aumid == nullptr || aumid->empty() || aumid->size() > 2048) {
+            result->Success();
+            return;
+          }
+          try {
+            using namespace winrt::Windows::UI::Notifications;
+            const auto notifier = ToastNotificationManager::CreateToastNotifier(winrt::to_hstring(*aumid));
+            result->Success(flutter::EncodableValue(notifier.Setting() == NotificationSetting::Enabled));
+          } catch (...) {
+            result->Success();
+          }
           return;
         }
         if (method == "setHideOnClose") {
@@ -268,6 +295,8 @@ void FlutterWindow::QueueActivation(std::string activation) {
 }
 
 void FlutterWindow::OnDestroy() {
+  tray_channel_.reset();
+  timezone_channel_.reset();
   clock_channel_.reset();
   weekday_channel_.reset();
   if (flutter_controller_) {
@@ -281,6 +310,10 @@ LRESULT
 FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam,
                               LPARAM const lparam) noexcept {
+  if (tray_channel_) {
+    const auto handled = tray_channel_->HandleMessage(message, wparam, lparam);
+    if (handled) return *handled;
+  }
   // Observe before plugin processing, but retain all existing message handling.
   if (BusyMaxClockRefreshMessage(message, wparam, lparam)) {
     RefreshClockPreference();

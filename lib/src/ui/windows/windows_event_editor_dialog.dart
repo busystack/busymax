@@ -1,3 +1,6 @@
+import '../../features/recurrence/domain/series_timing_change.dart';
+import '../../features/recurrence/presentation/recurrence_summary.dart';
+
 import 'package:busymax/src/core/auth/authorization_attempt.dart';
 
 import 'dart:async';
@@ -1869,6 +1872,67 @@ Future<bool> showWindowsEventEditorDialog(
                             }
                             guestUpdatePolicy = choice;
                           }
+                          final seriesTiming = await repository
+                              .prepareSeriesTimingChange(draft);
+                          if (!dialogContext.mounted) return;
+                          if (seriesTiming?.requiresConfirmation == true) {
+                            final confirmed = await showDialog<bool>(
+                              context: dialogContext,
+                              builder: (confirmationContext) => ContentDialog(
+                                title: Text(l10n.repeat),
+                                content: Text(
+                                  l10n.seriesPatternChangeConfirmation(
+                                    recurrenceRuleSummary(
+                                      confirmationContext,
+                                      seriesTiming!.previewRule(
+                                        following:
+                                            draft.recurringMutationScope ==
+                                            RecurringEventMutationScope
+                                                .thisAndFuture,
+                                        original: true,
+                                      ),
+                                      timeZone: seriesTiming.timeZone,
+                                    ),
+                                    recurrenceRuleSummary(
+                                      confirmationContext,
+                                      seriesTiming.previewRule(
+                                        following:
+                                            draft.recurringMutationScope ==
+                                            RecurringEventMutationScope
+                                                .thisAndFuture,
+                                      ),
+                                      timeZone: seriesTiming.timeZone,
+                                    ),
+                                  ),
+                                ),
+                                actions: [
+                                  Button(
+                                    onPressed: () => Navigator.pop(
+                                      confirmationContext,
+                                      false,
+                                    ),
+                                    child: Text(l10n.cancel),
+                                  ),
+                                  FilledButton(
+                                    onPressed: () => Navigator.pop(
+                                      confirmationContext,
+                                      true,
+                                    ),
+                                    child: Text(l10n.save),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (confirmed != true) {
+                              if (dialogContext.mounted) {
+                                setState(() => saving = false);
+                              }
+                              return;
+                            }
+                            draft = draft.copyWith(
+                              seriesTimingApproval: seriesTiming!.signature,
+                            );
+                          }
                           if (detail == null) {
                             await repository.createLocalEvent(
                               draft,
@@ -1892,10 +1956,12 @@ Future<bool> showWindowsEventEditorDialog(
                           }
                           saved = true;
                           closeDialog();
-                        } on Object catch (_) {
+                        } on Object catch (failure) {
                           setState(() {
                             saving = false;
-                            error = l10n.operationFailed;
+                            error = failure is SeriesTimingDecisionRequired
+                                ? failure.message
+                                : l10n.operationFailed;
                           });
                         }
                       },

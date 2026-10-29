@@ -15,7 +15,7 @@ import 'package:busymax/src/app/app_settings.dart';
 import '../../support/recording_notification_backend.dart';
 
 import 'package:busymax/src/providers/busy_provider.dart';
-import 'package:drift/drift.dart' hide isNotNull;
+import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -295,10 +295,12 @@ void main() {
           .write(const TasksCompanion(status: Value('completed')));
       await service.rebuildUpcomingTaskNotifications('microsoft:m');
       await scheduler.checkNow();
-      expect(
-        await database.select(database.notificationSchedule).get(),
-        isEmpty,
-      );
+      final consumed = await database
+          .select(database.notificationSchedule)
+          .getSingle();
+      expect(consumed.sentAtUtc, isNotNull);
+      expect(consumed.title, isEmpty);
+      expect(consumed.body, isNull);
       expect(backend.cancelledIds, contains(backend.requests.single.stableId));
     },
   );
@@ -748,7 +750,11 @@ void main() {
 
     await service.rebuildUpcomingEventNotifications('microsoft:m');
 
-    expect(await database.select(database.notificationSchedule).get(), isEmpty);
+    final retained = await database
+        .select(database.notificationSchedule)
+        .getSingle();
+    expect(retained.title, isEmpty);
+    expect(await service.validateAndReconcileReminder(retained), isFalse);
   });
 
   test(
@@ -794,7 +800,7 @@ void main() {
     },
   );
 
-  test('missed event reminder after event start is not scheduled', () async {
+  test('a start reminder remains useful during its occurrence', () async {
     service = NotificationScheduleService(
       database: database,
       nowUtc: () => DateTime.utc(2026, 6, 8, 4, 26, 30),
@@ -809,7 +815,10 @@ void main() {
 
     await service.rebuildUpcomingEventNotifications('microsoft:m');
 
-    expect(await database.select(database.notificationSchedule).get(), isEmpty);
+    expect(
+      await database.select(database.notificationSchedule).get(),
+      hasLength(1),
+    );
   });
 
   test('local Microsoft event reminder wakes notification scheduler', () async {
@@ -890,11 +899,12 @@ void main() {
     );
   });
 
-  test('calendar reminder policy removes scheduled event reminder', () async {
+  test('calendar reminder policy retains inactive delivery identity', () async {
     await _expectSourceUpdateRemovesEventReminder(
       database: database,
       service: service,
       update: const CalendarSourcesCompanion(remindersEnabled: Value(false)),
+      retained: true,
     );
   });
 
@@ -934,7 +944,10 @@ void main() {
         .update(database.taskLists)
         .write(const TaskListsCompanion(remindersEnabled: Value(false)));
     await service.rebuildUpcomingTaskNotifications('microsoft:m');
-    expect(await database.select(database.notificationSchedule).get(), isEmpty);
+    final inactive = await database
+        .select(database.notificationSchedule)
+        .getSingle();
+    expect(await service.validateAndReconcileReminder(inactive), isFalse);
 
     await database
         .update(database.taskLists)
@@ -1078,6 +1091,7 @@ Future<void> _expectSourceUpdateRemovesEventReminder({
   required AppDatabase database,
   required NotificationScheduleService service,
   required CalendarSourcesCompanion update,
+  bool retained = false,
 }) async {
   await _upsertEvent(
     database,
@@ -1098,7 +1112,15 @@ Future<void> _expectSourceUpdateRemovesEventReminder({
   await database.update(database.calendarSources).write(update);
   await service.rebuildUpcomingEventNotifications('google:g');
 
-  expect(await database.select(database.notificationSchedule).get(), isEmpty);
+  if (retained) {
+    final row = await database
+        .select(database.notificationSchedule)
+        .getSingle();
+    expect(row.title, isEmpty);
+    expect(await service.isReminderSourceEligible(row), isFalse);
+  } else {
+    expect(await database.select(database.notificationSchedule).get(), isEmpty);
+  }
 }
 
 Future<void> _expectSourceVisibilityUpdateKeepsEventReminder({

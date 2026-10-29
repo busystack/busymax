@@ -5,7 +5,7 @@ import 'package:busymax/src/features/tray/domain/tray_presentation.dart';
 import 'package:busymax/src/platform/busymax_tray_service.dart';
 import 'package:dbus/dbus.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:xdg_status_notifier_item/xdg_status_notifier_item.dart';
+import 'package:busymax/src/platform/application_tray.dart';
 
 void main() {
   test('every presentation retains the fixed hierarchy and ID sequence', () {
@@ -44,7 +44,11 @@ void main() {
       expect(
         menu.children.where((item) => item.type == 'separator'),
         everyElement(
-          isA<DBusMenuItem>().having((item) => item.visible, 'visible', isTrue),
+          isA<ApplicationTrayItem>().having(
+            (item) => item.visible,
+            'visible',
+            isTrue,
+          ),
         ),
       );
       expect(_item(menu, BusyMaxTrayMenuIds.today).enabled, isFalse);
@@ -116,7 +120,7 @@ void main() {
       loadPresentation: () async => next,
       actions: actions.value,
     );
-    final object = DBusMenuObject(
+    final object = ApplicationTrayMenu(
       DBusObjectPath(busyMaxTrayMenuPath),
       controller.menu,
     );
@@ -143,7 +147,7 @@ void main() {
         },
         actions: _Actions().value,
       );
-      final object = DBusMenuObject(
+      final object = ApplicationTrayMenu(
         DBusObjectPath(busyMaxTrayMenuPath),
         controller.menu,
       );
@@ -217,7 +221,7 @@ void main() {
       loadPresentation: () async => _presentation(),
       actions: actions.value,
     );
-    final object = DBusMenuObject(
+    final object = ApplicationTrayMenu(
       DBusObjectPath(busyMaxTrayMenuPath),
       controller.menu,
     );
@@ -279,7 +283,7 @@ void main() {
   });
 
   test('DBus layout exports all fixed IDs and properties', () async {
-    final object = DBusMenuObject(
+    final object = ApplicationTrayMenu(
       DBusObjectPath(busyMaxTrayMenuPath),
       buildBusyMaxTrayMenu(
         presentation: _presentation(events: [_row('event')]),
@@ -331,10 +335,10 @@ void main() {
   });
 
   test('status notifier presentation can update before registration', () async {
-    final bus = DBusClient(
-      DBusAddress.unix(path: '/tmp/busymax-status-notifier-test-bus'),
+    final busAddress = DBusAddress.unix(
+      path: '/tmp/busymax-status-notifier-test-bus',
     );
-    final client = StatusNotifierItemClient(
+    final client = ApplicationTrayClient(
       id: busyMaxApplicationId,
       title: 'BusyMax',
       iconName: 'busymax-color',
@@ -344,9 +348,9 @@ void main() {
         presentation: _presentation(),
         actions: _Actions().value,
       ),
-      bus: bus,
+      busAddress: busAddress,
     );
-    addTearDown(bus.close);
+    addTearDown(client.close);
 
     await client.updatePresentation(
       title: 'BusyMax — Offline',
@@ -381,30 +385,70 @@ void main() {
     expect(runner, contains('static void restore_main_window'));
   });
 
-  test('vendored DBus implementation retains Ubuntu menu support', () {
-    final source = File(
-      'third_party/xdg_status_notifier_item/lib/src/dbus_menu_object.dart',
-    ).readAsStringSync();
-    final notifier = File(
-      'third_party/xdg_status_notifier_item/lib/src/status_notifier_item_client.dart',
-    ).readAsStringSync();
-
-    expect(source, contains('var values = event.asStruct();'));
-    expect(source, contains(r'DBusMenu.${methodCall.name} received'));
-    expect(source, contains('GetGroupProperties'));
-    expect(source, contains('DBusMenu.AboutToShow details'));
-    expect(source, contains('_itemsById[id]'));
-    expect(notifier, contains("'/StatusNotifierItem/menu'"));
-    expect(notifier, contains('org.kde.StatusNotifierItem'));
-    expect(notifier, contains('Future<void> updatePresentation'));
+  test('Ubuntu group requests use stable application identities', () async {
+    var clicks = 0;
+    final menu = ApplicationTrayMenu(
+      DBusObjectPath(busyMaxTrayMenuPath),
+      ApplicationTrayItem(
+        id: 0,
+        children: [
+          ApplicationTrayItem(
+            id: 72,
+            label: 'Action',
+            onClicked: () async {
+              clicks++;
+            },
+          ),
+        ],
+      ),
+    );
+    final properties = await menu.handleMethodCall(
+      DBusMethodCall(
+        sender: 'test',
+        interface: 'com.canonical.dbusmenu',
+        name: 'GetGroupProperties',
+        values: [
+          DBusArray.int32([72]),
+          DBusArray.string(['label']),
+        ],
+      ),
+    );
+    final row = properties.returnValues.single.asArray().single.asStruct();
+    expect(row[0].asInt32(), 72);
+    expect(row[1].asStringVariantDict()['label']!.asString(), 'Action');
+    final events = await menu.handleMethodCall(
+      DBusMethodCall(
+        sender: 'test',
+        interface: 'com.canonical.dbusmenu',
+        name: 'EventGroup',
+        values: [
+          DBusArray(DBusSignature('(isvu)'), [
+            DBusStruct([
+              const DBusInt32(72),
+              const DBusString('clicked'),
+              const DBusVariant(DBusInt32(0)),
+              const DBusUint32(0),
+            ]),
+            DBusStruct([
+              const DBusInt32(999),
+              const DBusString('clicked'),
+              const DBusVariant(DBusInt32(0)),
+              const DBusUint32(0),
+            ]),
+          ]),
+        ],
+      ),
+    );
+    expect(events.returnValues.single.asInt32Array(), [999]);
+    expect(clicks, 1);
   });
 }
 
-DBusMenuItem _item(DBusMenuItem menu, int id) {
+ApplicationTrayItem _item(ApplicationTrayItem menu, int id) {
   return menu.children.singleWhere((item) => item.id == id);
 }
 
-Future<void> _click(DBusMenuObject object, int id) async {
+Future<void> _click(ApplicationTrayMenu object, int id) async {
   await object.handleMethodCall(
     DBusMethodCall(
       sender: 'test',
@@ -420,7 +464,7 @@ Future<void> _click(DBusMenuObject object, int id) async {
   );
 }
 
-Future<bool> _aboutToShow(DBusMenuObject object) async {
+Future<bool> _aboutToShow(ApplicationTrayMenu object) async {
   final response = await object.handleMethodCall(
     DBusMethodCall(
       sender: 'test',
@@ -432,7 +476,11 @@ Future<bool> _aboutToShow(DBusMenuObject object) async {
   return response.returnValues.single.asBoolean();
 }
 
-Future<DBusValue> _property(DBusMenuObject object, int id, String name) async {
+Future<DBusValue> _property(
+  ApplicationTrayMenu object,
+  int id,
+  String name,
+) async {
   final response = await object.handleMethodCall(
     DBusMethodCall(
       sender: 'test',

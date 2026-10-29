@@ -1,8 +1,9 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:logging/logging.dart';
-import 'package:tray_manager/tray_manager.dart';
+import 'package:path/path.dart' as paths;
 
 import '../../features/tray/domain/tray_presentation.dart';
 import '../common/desktop_services.dart';
@@ -17,7 +18,7 @@ enum WindowsTrayCommand {
   quit,
 }
 
-final class WindowsTrayService with TrayListener implements DesktopTrayService {
+final class WindowsTrayService implements DesktopTrayService {
   WindowsTrayService({
     required Future<BusyMaxTrayMenuPresentation> Function() loadPresentation,
     required Future<void> Function(WindowsTrayCommand command) onCommand,
@@ -33,11 +34,23 @@ final class WindowsTrayService with TrayListener implements DesktopTrayService {
   final String iconPath;
   final String offlineIconPath;
   bool _available = false;
-  bool _listenerAttached = false;
   bool _healthHandlerAttached = false;
   String? _lastFailure;
   final _logger = Logger('busymax.windows.tray');
-  static const _healthChannel = MethodChannel('busymax/windows/tray_health');
+  static const _healthChannel = MethodChannel('busymax/windows/tray');
+  final Map<int, WindowsTrayCommand> _commands = {};
+
+  String _assetPath(String asset) {
+    if (paths.isAbsolute(asset) || paths.split(asset).contains('..')) {
+      throw ArgumentError.value(asset, 'asset', 'Expected a bundled asset');
+    }
+    return paths.join(
+      paths.dirname(Platform.resolvedExecutable),
+      'data',
+      'flutter_assets',
+      asset,
+    );
+  }
 
   @override
   bool get isAvailable => _available;
@@ -48,16 +61,12 @@ final class WindowsTrayService with TrayListener implements DesktopTrayService {
   Future<bool> start() async {
     if (_available) return true;
     try {
-      if (!_listenerAttached) {
-        trayManager.addListener(this);
-        _listenerAttached = true;
-      }
       if (!_healthHandlerAttached) {
         _healthChannel.setMethodCallHandler(_handleHealthEvent);
         _healthHandlerAttached = true;
       }
-      await trayManager.setIcon(iconPath);
-      await trayManager.setToolTip('BusyMax');
+      await _healthChannel.invokeMethod<void>('setIcon', _assetPath(iconPath));
+      await _healthChannel.invokeMethod<void>('setToolTip', 'BusyMax');
       _available = true;
       _lastFailure = null;
       await refresh();
@@ -65,8 +74,12 @@ final class WindowsTrayService with TrayListener implements DesktopTrayService {
     } on Object {
       _lastFailure = 'tray-initialization-failed';
       _logger.warning('The Windows tray could not be initialized.');
-      _removeListener();
       _available = false;
+      try {
+        await _healthChannel.invokeMethod<void>('destroy');
+      } on Object {
+        // A failed installation may have no notification-area host to remove.
+      }
       await onUnavailable?.call(_lastFailure);
       return false;
     }
@@ -77,24 +90,25 @@ final class WindowsTrayService with TrayListener implements DesktopTrayService {
     if (!_available) return;
     try {
       final presentation = await _loadPresentation();
-      await trayManager.setContextMenu(_menu(presentation));
-      await trayManager.setToolTip(
+      await _healthChannel.invokeMethod<void>('setMenu', _menu(presentation));
+      await _healthChannel.invokeMethod<void>(
+        'setToolTip',
         presentation.offline
             ? 'BusyMax — ${presentation.offlineTitle}'
             : 'BusyMax',
       );
       // Reapplying the icon also recovers the tray after Explorer recreates
       // its notification area.
-      await trayManager.setIcon(
-        presentation.offline ? offlineIconPath : iconPath,
+      await _healthChannel.invokeMethod<void>(
+        'setIcon',
+        _assetPath(presentation.offline ? offlineIconPath : iconPath),
       );
     } on Object {
       _lastFailure = 'tray-refresh-failed';
       _logger.warning('The Windows tray could not be refreshed.');
-      _removeListener();
       _available = false;
       try {
-        await trayManager.destroy();
+        await _healthChannel.invokeMethod<void>('destroy');
       } on Object {
         // Explorer may already have discarded the old tray host.
       }
@@ -103,6 +117,20 @@ final class WindowsTrayService with TrayListener implements DesktopTrayService {
   }
 
   Future<Object?> _handleHealthEvent(MethodCall call) async {
+    if (call.method == 'open') {
+      await _onCommand(WindowsTrayCommand.open);
+      return null;
+    }
+    if (call.method == 'command') {
+      final command = _commands[call.arguments];
+      if (command != null) await _onCommand(command);
+      return null;
+    }
+    if (call.method == 'onMenuFailure') {
+      _lastFailure = 'tray-menu-display-failed';
+      await onUnavailable?.call(_lastFailure);
+      return null;
+    }
     if (call.method != 'onTrayAvailabilityChanged') return null;
     final arguments = call.arguments;
     if (arguments is! Map) return null;
@@ -124,119 +152,100 @@ final class WindowsTrayService with TrayListener implements DesktopTrayService {
     return null;
   }
 
-  Menu _menu(BusyMaxTrayMenuPresentation value) {
-    MenuItem item(
+  List<Map<String, Object>> _menu(BusyMaxTrayMenuPresentation value) {
+    _commands.clear();
+    var nextId = 0x5100;
+    Map<String, Object> separator() => {
+      'id': nextId++,
+      'label': '',
+      'disabled': true,
+      'separator': true,
+    };
+    Map<String, Object> item(
       String key,
       String label, {
       bool enabled = true,
       WindowsTrayCommand? command,
-    }) => MenuItem(
-      key: key,
-      label: label,
-      disabled: !enabled,
-      onClick: command == null ? null : (_) => unawaited(_onCommand(command)),
-    );
+    }) {
+      // An event-list refresh must never turn a queued Settings activation
+      // into another command because the number of agenda rows changed.
+      final id = command == null ? nextId++ : 0x5000 + command.index;
+      if (command != null && enabled) _commands[id] = command;
+      return {
+        'id': id,
+        'key': key,
+        'label': label,
+        'disabled': !enabled || command == null,
+        'separator': false,
+      };
+    }
 
-    return Menu(
-      items: [
-        item('open', value.showBusyMaxLabel, command: WindowsTrayCommand.open),
-        MenuItem.separator(),
-        item(
-          'new-event',
-          value.newEventLabel,
-          enabled: value.canCreateEvent,
-          command: WindowsTrayCommand.newEvent,
-        ),
-        item(
-          'new-task',
-          value.newTaskLabel,
-          enabled: value.canCreateTask,
-          command: WindowsTrayCommand.newTask,
-        ),
-        MenuItem.separator(),
-        item('today-label', value.todayLabel),
-        ...value.eventRows.map(
-          (row) => item(
-            'event:${row.event.eventId}',
-            row.label,
-            command: WindowsTrayCommand.today,
-          ),
-        ),
-        if (value.taskSummaryLabel != null)
-          item(
-            'tasks-today',
-            value.taskSummaryLabel!,
-            command: WindowsTrayCommand.today,
-          ),
-        if (value.showEmptyState) item('empty', value.emptyStateLabel),
-        item(
-          'today',
-          value.openTodayAgendaLabel,
+    return [
+      item('open', value.showBusyMaxLabel, command: WindowsTrayCommand.open),
+      separator(),
+      item(
+        'new-event',
+        value.newEventLabel,
+        enabled: value.canCreateEvent,
+        command: WindowsTrayCommand.newEvent,
+      ),
+      item(
+        'new-task',
+        value.newTaskLabel,
+        enabled: value.canCreateTask,
+        command: WindowsTrayCommand.newTask,
+      ),
+      separator(),
+      item('today-label', value.todayLabel),
+      ...value.eventRows.map(
+        (row) => item(
+          'event:${row.event.eventId}',
+          row.label,
           command: WindowsTrayCommand.today,
         ),
-        MenuItem.separator(),
+      ),
+      if (value.taskSummaryLabel != null)
         item(
-          'sync',
-          value.syncNowLabel,
-          enabled: value.canSynchronize,
-          command: WindowsTrayCommand.synchronize,
+          'tasks-today',
+          value.taskSummaryLabel!,
+          command: WindowsTrayCommand.today,
         ),
-        item('sync-status', value.synchronizationStatusLabel),
-        MenuItem.separator(),
-        item(
-          'settings',
-          value.settingsLabel,
-          command: WindowsTrayCommand.settings,
-        ),
-        item('quit', value.quitBusyMaxLabel, command: WindowsTrayCommand.quit),
-      ],
-    );
-  }
-
-  @override
-  void onTrayIconMouseDown() {
-    unawaited(_onCommand(WindowsTrayCommand.open));
-  }
-
-  @override
-  void onTrayIconRightMouseDown() {
-    unawaited(_showContextMenu());
-  }
-
-  Future<void> _showContextMenu() async {
-    try {
-      await trayManager.popUpContextMenu();
-    } on Object {
-      _lastFailure = 'tray-menu-display-failed';
-      _logger.warning('The Windows tray menu could not be displayed.');
-      await onUnavailable?.call(_lastFailure);
-    }
-  }
-
-  @override
-  void onTrayMenuItemClick(MenuItem menuItem) {
-    // MenuItem callbacks are used so the adapter also works on plugin builds
-    // that do not emit this listener callback on Windows.
+      if (value.showEmptyState) item('empty', value.emptyStateLabel),
+      item(
+        'today',
+        value.openTodayAgendaLabel,
+        command: WindowsTrayCommand.today,
+      ),
+      separator(),
+      item(
+        'sync',
+        value.syncNowLabel,
+        enabled: value.canSynchronize,
+        command: WindowsTrayCommand.synchronize,
+      ),
+      item('sync-status', value.synchronizationStatusLabel),
+      separator(),
+      item(
+        'settings',
+        value.settingsLabel,
+        command: WindowsTrayCommand.settings,
+      ),
+      item('quit', value.quitBusyMaxLabel, command: WindowsTrayCommand.quit),
+    ];
   }
 
   @override
   Future<void> stop() async {
-    _removeListener();
     try {
-      await trayManager.destroy();
+      await _healthChannel.invokeMethod<void>('destroy');
     } on Object {
       // Quit must not be blocked by an unavailable Explorer tray host.
     }
     _available = false;
+    _commands.clear();
     if (_healthHandlerAttached) {
       _healthChannel.setMethodCallHandler(null);
       _healthHandlerAttached = false;
     }
-  }
-
-  void _removeListener() {
-    if (!_listenerAttached) return;
-    trayManager.removeListener(this);
-    _listenerAttached = false;
   }
 }

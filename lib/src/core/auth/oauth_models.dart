@@ -154,6 +154,8 @@ class OAuthException implements Exception {
     'OAuthSignInCancelled' => OAuthFailureKind.cancelled,
     'OAuthStaleAuthorization' => OAuthFailureKind.stale,
     'OAuthAccountAlreadyConnected' => OAuthFailureKind.alreadyConnected,
+    'OAuthContactsConsentRequired' ||
+    'MicrosoftOAuthContactsConsentRequired' ||
     'OAuthMissingRequiredScope' ||
     'MicrosoftOAuthMissingRequiredScope' ||
     'OAuthMissingRefreshToken' ||

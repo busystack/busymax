@@ -14,6 +14,9 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
+  String get contactsAccountsUnavailable => 'Could not load contact accounts';
+
+  @override
   String get launchAtLoginManagedExternally =>
       'BusyMax was launched by your desktop\'s startup settings. Remove its entry there, then quit and reopen BusyMax to use this switch.';
 
@@ -3038,7 +3041,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get searchClearText => 'Clear text';
 
   @override
-  String get openSharedCalendar => 'Open shared calendar';
+  String get openSharedCalendar => 'Open shared primary calendar';
 
   @override
   String get manageCalendarSharing => 'Manage calendar sharing';
@@ -3618,4 +3621,228 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get addSeparateGoogleAccount => 'Add a separate Google connection';
+
+  @override
+  String seriesPatternChangeConfirmation(String before, String after) {
+    return 'This changes the recurrence pattern and may add or remove dates.\n\nCurrent: $before\nProposed: $after\n\nSave this pattern?';
+  }
+
+  @override
+  String get connectedAccounts => 'Connected accounts';
+
+  @override
+  String get contactsIndependentAccounts => 'Independent contact accounts';
+
+  @override
+  String get contactsNextcloudReuse =>
+      'Contact suggestions reuse this account’s existing credential through the read-only contacts integration.';
+
+  @override
+  String get contactsRetrySync => 'Retry contacts sync';
+
+  @override
+  String get contactsPreferenceFailed =>
+      'Could not save contact source preference';
+
+  @override
+  String get contactsSuggestionsDisabled => 'Contact suggestions disabled';
+
+  @override
+  String get contactsSyncFailed =>
+      'Contacts could not sync. Retry, or reconnect if authorization has expired.';
+
+  @override
+  String get registrationRecoveryDescription =>
+      'The saved registration or its credential binding is unavailable or rejected. Explicitly replace the registration for this account to recover; existing data is preserved.';
+
+  @override
+  String get revalidateAccount => 'Revalidate connection';
+
+  @override
+  String get openSharedPrimaryDescription =>
+      'Opens the specified owner’s primary calendar. Other shared calendars are discovered through ordinary account synchronization.';
+
+  @override
+  String get showInBusyMax => 'Show in BusyMax';
+
+  @override
+  String get showInGoogleCalendarList => 'Show in Google’s calendar list';
+
+  @override
+  String get googleVisibilityHelp =>
+      'BusyMax selection is local. Google visibility changes your calendar list on Google; hidden calendars cannot be displayed in BusyMax.';
+
+  @override
+  String get primaryCalendarVisibilityExplanation =>
+      'Google’s primary calendar stays in its calendar list.';
+
+  @override
+  String get accountsLoading => 'Loading accounts…';
+
+  @override
+  String get accountsLoadFailed =>
+      'Accounts could not be loaded. Retry opening Accounts.';
+
+  @override
+  String get collectionsLoading => 'Loading collections…';
+
+  @override
+  String get collectionsLoadFailed =>
+      'Collections could not be loaded. Cached data is retained; retry synchronization.';
+
+  @override
+  String get collectionsNotDiscovered =>
+      'Discovery has not completed. Refresh or reconnect this account.';
+
+  @override
+  String get collectionsEmpty => 'No collections found.';
+
+  @override
+  String get accountReadyToSync => 'Ready to sync';
+
+  @override
+  String get accountSyncProblem => 'Synchronization needs attention';
+
+  @override
+  String get accountServiceUnreachable => 'Could not reach the service';
+
+  @override
+  String get accountSyncDetails => 'Synchronization details';
+
+  @override
+  String get accountReconnectStatus => 'Reconnect required';
+
+  @override
+  String get accountRegistrationStatus => 'Registration needs attention';
+
+  @override
+  String get collectionsUnavailable => 'Collections unavailable';
+
+  @override
+  String get accountContactSuggestions =>
+      'Suggest guests from this account’s contacts';
+
+  @override
+  String get accountLoadingSignInSettings => 'Loading sign-in settings…';
+
+  @override
+  String get contactsNoAddressBooks => 'No address books available';
+
+  @override
+  String get contactsSourcesUnavailable => 'Could not load address books';
+
+  @override
+  String get syncNoRecord => 'No successful sync time recorded';
+
+  @override
+  String get cachedSyncError => 'Sync failed; cached data may be out of date.';
+
+  @override
+  String get calendarRemotePending => 'Google visibility change pending';
+
+  @override
+  String get calendarRemoteFailed =>
+      'Google visibility change failed. Google’s last confirmed state is shown. BusyMax still follows the pending change. Retry or discard it.';
+
+  @override
+  String discardCalendarSettingsConfirmation(String calendar, String settings) {
+    return 'Discard the pending changes to “$calendar”?\n\nThese settings will return to their previous values:\n$settings\n\nYour BusyMax calendar selection is kept. No changes will be sent to Google.';
+  }
+
+  @override
+  String get sharedCalendarUnavailable =>
+      'Access unavailable; showing cached data. Retry synchronization or remove from your calendar list.';
+
+  @override
+  String get invalidCollectionColor =>
+      'Enter a six- or eight-digit hexadecimal color, starting with #.';
+
+  @override
+  String get invalidCollectionOrder => 'Enter a whole number.';
+
+  @override
+  String get invalidCollectionTimezone =>
+      'Enter a valid calendar timezone document containing VTIMEZONE and TZID.';
+
+  @override
+  String get invalidCollectionValue => 'Correct this value before saving.';
+
+  @override
+  String get accountAlreadyConnected =>
+      'This account is already connected. Use its Reconnect action.';
+
+  @override
+  String get nextcloudRemovalAuthorizationDescription =>
+      'BusyMax will also try to revoke this account’s Nextcloud app password. Local removal can succeed even if that revocation fails.';
+
+  @override
+  String get dailySummaryTime => 'Daily summary time';
+
+  @override
+  String get reminderTimeInPast =>
+      'Choose the current minute or a future reminder time.';
+
+  @override
+  String get notificationsBlocked =>
+      'Android is blocking notifications or a notification category. Your reminders are saved. Review system notification settings.';
+
+  @override
+  String get notificationsAllowed =>
+      'System settings allow BusyMax notifications.';
+
+  @override
+  String get notificationsUnknown =>
+      'Notification delivery status is unavailable. Review system settings.';
+
+  @override
+  String get notificationExactAlarms => 'Exact alarm access is enabled.';
+
+  @override
+  String get notificationInexactAlarms =>
+      'Exact alarm access is unavailable. Android may deliver reminders later.';
+
+  @override
+  String get dailySummaryScope => 'All accounts';
+
+  @override
+  String get notificationsSystemBlocked =>
+      'System notification settings are blocking BusyMax. Your reminders are saved.';
+
+  @override
+  String get notificationItemUnavailable =>
+      'This reminder is no longer available. The item may have changed or been removed.';
+
+  @override
+  String clearCompletedGoogleConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return 'Clear completed tasks in “$list” ($account)?\n\nGoogle Tasks will clear or hide completed items. Currently completed: $count.';
+  }
+
+  @override
+  String clearCompletedNextcloudConfirmation(
+    String list,
+    String account,
+    int count,
+  ) {
+    return 'Delete $count closed root task trees from “$list” ($account)?\n\nTheir descendants will also be deleted.';
+  }
+
+  @override
+  String get taskMoveAfterSaveFailed =>
+      'Your edits were saved, but the task could not be moved. Retry the move.';
+
+  @override
+  String get taskDraftConflict =>
+      'This task changed since you opened it. Your edits are retained. Review the latest task before retrying.';
+
+  @override
+  String get taskUnavailableDraftRetained =>
+      'This task is unavailable. Your unsaved changes are retained.';
+
+  @override
+  String get taskDurationRequiresStart =>
+      'Set a deadline before removing the start of a task with a duration.';
 }

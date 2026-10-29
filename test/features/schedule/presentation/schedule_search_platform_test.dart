@@ -26,6 +26,10 @@ import 'package:busymax/src/schedule/schedule_view_mode.dart';
 import 'package:busymax/src/ui/windows/windows_schedule_page.dart';
 import 'package:busymax/src/ui/windows/windows_schedule_search_pane.dart';
 import 'package:busymax/src/ui/windows/windows_schedule_source_pane.dart';
+import 'package:busymax/src/ui/windows/windows_tasks_page.dart';
+import 'package:busymax/src/features/tasks/domain/task_remote_client.dart';
+import 'package:busymax/src/features/tasks/domain/task_remote_models.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:drift/drift.dart' hide Column, isNull, isNotNull;
 import 'package:fluent_ui/fluent_ui.dart' as fluent;
 import 'package:flutter/foundation.dart' show ValueListenable;
@@ -42,6 +46,334 @@ import '../../../support/memory_settings_store.dart';
 import '../../../test_localized_app.dart';
 
 void main() {
+  for (final platform in ['linux', 'windows', 'android']) {
+    testWidgets(
+      '$platform bounded Tasks search has no calendar coverage notice',
+      (tester) async {
+        await _mount(
+          tester,
+          platform,
+          width: platform == 'android' ? 480 : 1280,
+        );
+        await tester.pumpAndSettle();
+        if (platform == 'android') {
+          await tester.tap(find.byTooltip('Search'));
+          await tester.pumpAndSettle();
+          await tester.tap(find.byTooltip('Filters'));
+          await tester.pumpAndSettle();
+          final panel = tester.widget<AndroidScheduleSearchFilters>(
+            find.byType(AndroidScheduleSearchFilters),
+          );
+          panel.onChanged(
+            panel.value.copyWith(
+              type: ScheduleSearchType.tasks,
+              date: ScheduleSearchDate.custom,
+              customStart: DateTime(2019),
+              customEnd: DateTime(2020, 12, 31),
+            ),
+          );
+          await tester.pumpAndSettle();
+          Navigator.of(
+            tester.element(find.byType(AndroidScheduleSearchFilters)),
+          ).pop();
+        } else {
+          await _searchShortcut(tester);
+          if (platform == 'linux') {
+            final panel = tester.widget<ScheduleSearchFilters>(
+              find.byType(ScheduleSearchFilters),
+            );
+            panel.onChanged(
+              panel.value.copyWith(
+                type: ScheduleSearchType.tasks,
+                date: ScheduleSearchDate.custom,
+                customStart: DateTime(2019),
+                customEnd: DateTime(2020, 12, 31),
+              ),
+            );
+          } else {
+            final panel = tester.widget<WindowsScheduleSearchPane>(
+              find.byType(WindowsScheduleSearchPane),
+            );
+            panel.onChanged(
+              panel.value.copyWith(
+                type: ScheduleSearchType.tasks,
+                date: ScheduleSearchDate.custom,
+                customStart: DateTime(2019),
+                customEnd: DateTime(2020, 12, 31),
+              ),
+            );
+          }
+        }
+        await tester.pumpAndSettle();
+        expect(find.text('Overdue task'), findsOneWidget);
+        expect(find.text('Loading schedule...'), findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  for (final platform in ['linux', 'windows', 'tasks']) {
+    testWidgets(
+      '$platform retains account-qualified filters after real list synchronization',
+      (tester) async {
+        final remote = _ListCreationClient();
+        when(() => remote.createTaskList(title: any(named: 'title')))
+            .thenAnswer(
+              (_) async => const TaskListDto(
+                id: 'server-list',
+                title: 'Draft list',
+                rawJson: {'id': 'server-list', 'title': 'Draft list'},
+              ),
+            );
+        final fixture = await _mount(
+          tester,
+          platform,
+          taskRemoteClient: remote,
+        );
+        await tester.pumpAndSettle();
+        await fixture.container
+            .read(taskListsRepositoryForAccountProvider('account'))
+            .createTaskList('Draft list');
+        final temporary = (await fixture.db.taskListsDao.listTaskLists(
+          'account',
+        )).singleWhere((list) => list.title == 'Draft list');
+        await fixture.db.tasksDao.upsertTask(
+          TasksCompanion.insert(
+            accountId: 'account',
+            taskListId: temporary.id,
+            id: 'draft-task',
+            title: 'Draft task',
+            rawJson: '{}',
+            createdLocalAtUtc: '2026-01-01T00:00:00Z',
+            updatedLocalAtUtc: '2026-01-01T00:00:00Z',
+          ),
+        );
+        await tester.pumpAndSettle();
+        final oldKey = ScheduleTaskListKey(
+          accountId: 'account',
+          taskListId: temporary.id,
+        );
+        if (platform == 'tasks') {
+          tester
+              .widget<fluent.ComboBox<ScheduleTaskListKey>>(
+                find.byType(fluent.ComboBox<ScheduleTaskListKey>),
+              )
+              .onChanged!(oldKey);
+        } else {
+          await _searchShortcut(tester);
+          if (platform == 'linux') {
+            final panel = tester.widget<ScheduleSearchFilters>(
+              find.byType(ScheduleSearchFilters),
+            );
+            panel.onChanged(
+              panel.value.copyWith(
+                type: ScheduleSearchType.tasks,
+                taskListKeys: {oldKey},
+              ),
+            );
+          } else {
+            final panel = tester.widget<WindowsScheduleSearchPane>(
+              find.byType(WindowsScheduleSearchPane),
+            );
+            panel.onChanged(
+              panel.value.copyWith(
+                type: ScheduleSearchType.tasks,
+                taskListKeys: {oldKey},
+              ),
+            );
+          }
+        }
+        await tester.pumpAndSettle();
+        expect(find.text('Draft task'), findsOneWidget);
+        expect(find.text('Overdue task'), findsNothing);
+        await fixture.container
+            .read(syncEngineForAccountFactoryProvider)(
+              'account',
+              BusyProvider.google,
+            )
+            .dispatchPendingWrites();
+        await tester.pumpAndSettle();
+        const serverKey = ScheduleTaskListKey(
+          accountId: 'account',
+          taskListId: 'server-list',
+        );
+        expect(find.text('Draft task'), findsOneWidget);
+        expect(find.text('Overdue task'), findsNothing);
+        if (platform == 'tasks') {
+          expect(
+            tester
+                .widget<fluent.ComboBox<ScheduleTaskListKey>>(
+                  find.byType(fluent.ComboBox<ScheduleTaskListKey>),
+                )
+                .value,
+            serverKey,
+          );
+        } else if (platform == 'linux') {
+          final panel = tester.widget<ScheduleSearchFilters>(
+            find.byType(ScheduleSearchFilters),
+          );
+          expect(panel.value.taskListKeys, {serverKey});
+          panel.onClear();
+          await tester.pumpAndSettle();
+          final reset = tester
+              .widget<ScheduleSearchFilters>(find.byType(ScheduleSearchFilters))
+              .value;
+          expect(reset.taskListKeys, contains(serverKey));
+          expect(reset.taskListKeys, isNot(contains(oldKey)));
+        } else {
+          final panel = tester.widget<WindowsScheduleSearchPane>(
+            find.byType(WindowsScheduleSearchPane),
+          );
+          expect(panel.value.taskListKeys, {serverKey});
+          panel.onClear();
+          await tester.pumpAndSettle();
+          final reset = tester
+              .widget<WindowsScheduleSearchPane>(
+                find.byType(WindowsScheduleSearchPane),
+              )
+              .value;
+          expect(reset.taskListKeys, contains(serverKey));
+          expect(reset.taskListKeys, isNot(contains(oldKey)));
+        }
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets(
+    'Linux waits for calendar inventory before initializing search sources',
+    (tester) async {
+      final inventory = Completer<void>();
+      addTearDown(() {
+        if (!inventory.isCompleted) inventory.complete();
+      });
+      final fixture = await _mount(
+        tester,
+        'linux',
+        sourcesReady: inventory.future,
+      );
+      await tester.pump(const Duration(milliseconds: 30));
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pump();
+      inventory.complete();
+      await tester.pumpAndSettle();
+      final panel = tester.widget<ScheduleSearchFilters>(
+        find.byType(ScheduleSearchFilters),
+      );
+      final source = await fixture.db
+          .select(fixture.db.calendarSources)
+          .getSingle();
+      expect(panel.value.sourceIds, {source.id});
+      expect(find.text('Far future review'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  for (final cached in [false, true]) {
+    testWidgets(
+      'Windows task inventory failure retains scope and retries (cached: $cached)',
+      (tester) async {
+        late _ControlledTaskListsRepository inventory;
+        final fixture = await _mount(
+          tester,
+          'windows',
+          taskListsFactory: (db, id) =>
+              inventory = _ControlledTaskListsRepository(db, id)
+                ..fail = !cached,
+        );
+        await tester.pumpAndSettle();
+        if (cached) {
+          await _searchShortcut(tester);
+          inventory.fail = true;
+          await (fixture.db.update(fixture.db.taskLists)
+                ..where((row) => row.id.equals('list')))
+              .write(const TaskListsCompanion(title: Value('Updated tasks')));
+          await tester.pumpAndSettle();
+          expect(find.text('No due task'), findsOneWidget);
+          expect(
+            tester
+                .widget<WindowsScheduleSearchPane>(
+                  find.byType(WindowsScheduleSearchPane),
+                )
+                .value
+                .taskListKeys,
+            {
+              const ScheduleTaskListKey(
+                accountId: 'account',
+                taskListId: 'list',
+              ),
+            },
+          );
+        } else {
+          expect(find.byType(WindowsScheduleSearchPane), findsNothing);
+        }
+        expect(find.text('Schedule unavailable'), findsOneWidget);
+        inventory.fail = false;
+        final previousReads = inventory.reads;
+        await tester.tap(find.text('Retry').last);
+        await tester.pumpAndSettle();
+        expect(inventory.reads, greaterThan(previousReads));
+        expect(find.text('Schedule unavailable'), findsNothing);
+        if (!cached) await _searchShortcut(tester);
+        expect(find.text('No due task'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets('Windows Ctrl+F reopens search immediately after Escape', (
+    tester,
+  ) async {
+    await _mount(tester, 'windows');
+    await tester.pumpAndSettle();
+    // Begin through mouse interaction, as in the production workspace shell.
+    await tester.tap(find.byType(fluent.TextBox).first);
+    await tester.pumpAndSettle();
+    expect(find.byType(WindowsScheduleSearchPane), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.byType(WindowsScheduleSearchPane), findsNothing);
+    await _searchShortcut(tester);
+    expect(find.byType(WindowsScheduleSearchPane), findsOneWidget);
+  });
+
+  testWidgets(
+    'Android ordinary schedule and coverage exclude provider-hidden sources',
+    (tester) async {
+      final scopes = <Set<String>>[];
+      final fixture = await _mount(
+        tester,
+        'android',
+        width: 480,
+        additionalEventDate: DateTime.now(),
+        ensureProjectionCoverage: (_, filters) async {
+          scopes.add(filters.sourceIds);
+        },
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Following horizon meeting'), findsOneWidget);
+      await (fixture.db.update(fixture.db.calendarSources)).write(
+        const CalendarSourcesCompanion(
+          selected: Value(true),
+          hidden: Value(true),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Following horizon meeting'), findsNothing);
+      final previousCalls = scopes.length;
+      await tester.tap(find.byTooltip('Next period'));
+      await tester.pumpAndSettle();
+      expect(
+        scopes.length,
+        previousCalls,
+        reason: 'No event sources require calendar coverage.',
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets(
     'Windows delayed normal query cannot rebuild the retained side as search',
     (tester) async {
@@ -54,7 +386,7 @@ void main() {
       final fixture = await _mount(
         tester,
         'windows',
-        ensureProjectionCoverage: (_) async {
+        ensureProjectionCoverage: (_, _) async {
           coverageCalls += 1;
           if (coverageCalls == 2) {
             refreshStarted.complete();
@@ -146,6 +478,34 @@ void main() {
       );
     },
   );
+
+  testWidgets('Linux Agenda starts today and extends its civil-day horizon', (
+    tester,
+  ) async {
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, now.day);
+    await _mount(
+      tester,
+      'linux',
+      scheduleMode: ScheduleViewMode.agenda,
+      seedSearchItems: false,
+      additionalEventDate: DateTime(start.year, start.month, start.day + 40),
+    );
+    await tester.pumpAndSettle();
+    var agenda = tester.widget<ScheduleAgendaView>(
+      find.byType(ScheduleAgendaView),
+    );
+    expect(agenda.range.start, start);
+    expect(agenda.range.end, DateTime(start.year, start.month, start.day + 30));
+    expect(find.text('Following horizon meeting'), findsNothing);
+    agenda.onLoadMore!();
+    await tester.pumpAndSettle();
+    agenda = tester.widget<ScheduleAgendaView>(find.byType(ScheduleAgendaView));
+    expect(agenda.range.start, start);
+    expect(agenda.range.end, DateTime(start.year, start.month, start.day + 60));
+    expect(find.text('Following horizon meeting'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets(
     'Windows empty Agenda keeps Load more and reveals the following horizon',
@@ -694,10 +1054,15 @@ Future<({AppDatabase db, ProviderContainer container})> _mount(
   String platform, {
   double width = 1280,
   ValueListenable<int?>? systemWeekday,
-  Future<void> Function(ScheduleRange range)? ensureProjectionCoverage,
+  Future<void> Function(ScheduleRange range, ScheduleFilters filters)?
+  ensureProjectionCoverage,
   ScheduleViewMode scheduleMode = ScheduleViewMode.month,
   bool seedSearchItems = true,
   DateTime? additionalEventDate,
+  Future<void>? sourcesReady,
+  TaskListsRepository Function(AppDatabase database, String accountId)?
+  taskListsFactory,
+  TaskRemoteClient? taskRemoteClient,
 }) async {
   tester.view
     ..physicalSize = Size(width, 900)
@@ -811,7 +1176,14 @@ Future<({AppDatabase db, ProviderContainer container})> _mount(
       accountsRepositoryProvider.overrideWithValue(
         AccountsRepository(database: db),
       ),
-      calendarRepositoryProvider.overrideWithValue(calendar),
+      calendarRepositoryProvider.overrideWithValue(
+        sourcesReady == null
+            ? calendar
+            : _DelayedCalendarRepository(db, sourcesReady),
+      ),
+      if (taskRemoteClient != null)
+        googleTasksApiClientForAccountProvider('account')
+            .overrideWithValue(taskRemoteClient),
       scheduleRepositoryProvider.overrideWithValue(
         ScheduleRepository(
           db,
@@ -819,7 +1191,9 @@ Future<({AppDatabase db, ProviderContainer container})> _mount(
         ),
       ),
       taskListsRepositoryForAccountProvider.overrideWith(
-        (ref, id) => TaskListsRepository(database: db, accountId: id),
+        (ref, id) =>
+            taskListsFactory?.call(db, id) ??
+            TaskListsRepository(database: db, accountId: id),
       ),
       tasksRepositoryForAccountProvider.overrideWith(
         (ref, id) => TasksRepository(database: db, accountId: id),
@@ -831,11 +1205,13 @@ Future<({AppDatabase db, ProviderContainer container})> _mount(
     container.dispose();
     await db.close();
   });
-  final platformApp = platform == 'windows'
+  final platformApp = platform == 'windows' || platform == 'tasks'
       ? fluent.FluentApp(
           localizationsDelegates: const [AppLocalizations.delegate],
           supportedLocales: AppLocalizations.supportedLocales,
-          home: const WindowsSchedulePage(),
+          home: platform == 'tasks'
+              ? const WindowsTasksPage()
+              : const WindowsSchedulePage(),
         )
       : localizedTestApp(
           child: platform == 'linux'
@@ -858,4 +1234,36 @@ Future<({AppDatabase db, ProviderContainer container})> _mount(
     UncontrolledProviderScope(container: container, child: app),
   );
   return (db: db, container: container);
+}
+
+class _ListCreationClient extends Mock implements TaskRemoteClient {}
+
+class _ControlledTaskListsRepository extends TaskListsRepository {
+  _ControlledTaskListsRepository(AppDatabase database, String accountId)
+    : super(database: database, accountId: accountId);
+  var fail = false;
+  var reads = 0;
+  @override
+  Future<List<TaskListEntity>> listTaskLists() async {
+    reads++;
+    if (fail) throw StateError('Task inventory unavailable');
+    return super.listTaskLists();
+  }
+}
+
+class _DelayedCalendarRepository extends CalendarRepository {
+  _DelayedCalendarRepository(AppDatabase database, this.ready)
+    : super(database: database);
+  final Future<void> ready;
+  final _streams = <String, Stream<List<CalendarSourceEntity>>>{};
+  @override
+  Stream<List<CalendarSourceEntity>> watchSourcesForAccounts(
+    List<String> accountIds,
+  ) => _streams.putIfAbsent(
+    accountIds.join('\u0000'),
+    () =>
+        Stream.fromFuture(ready)
+            .asyncExpand((_) => super.watchSourcesForAccounts(accountIds))
+            .asBroadcastStream(),
+  );
 }

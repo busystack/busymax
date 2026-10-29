@@ -209,7 +209,10 @@ void main() {
 
     await service.notifyDueToday(2);
 
-    expect(backend.notifications.single.summary, 'Tänään erääntyvät tehtävät');
+    expect(
+      backend.notifications.single.summary,
+      'Tänään erääntyvät tehtävät · Kaikki tilit',
+    );
     expect(backend.notifications.single.body, '2 tehtävää erääntyy tänään.');
   });
 
@@ -223,7 +226,10 @@ void main() {
 
     await service.notifyDueToday(2);
 
-    expect(backend.notifications.single.summary, 'Täna tähtuvad ülesanded');
+    expect(
+      backend.notifications.single.summary,
+      'Täna tähtuvad ülesanded · Kõik kontod',
+    );
     expect(backend.notifications.single.body, '2 ülesannet tähtub täna.');
   });
 
@@ -237,7 +243,10 @@ void main() {
 
     await service.notifyDueToday(22);
 
-    expect(backend.notifications.single.summary, 'Задачи на сегодня');
+    expect(
+      backend.notifications.single.summary,
+      'Задачи на сегодня · Все учётные записи',
+    );
     expect(
       backend.notifications.single.body,
       'Сегодня нужно выполнить 22 задачи.',
@@ -254,7 +263,10 @@ void main() {
 
     await service.notifyDueToday(2);
 
-    expect(backend.notifications.single.summary, 'Tarefas com prazo para hoje');
+    expect(
+      backend.notifications.single.summary,
+      'Tarefas com prazo para hoje · Todas as contas',
+    );
     expect(
       backend.notifications.single.body,
       'Há 2 tarefas com prazo para hoje.',
@@ -271,7 +283,10 @@ void main() {
 
     await service.notifyDueToday(2);
 
-    expect(backend.notifications.single.summary, 'Attività in scadenza oggi');
+    expect(
+      backend.notifications.single.summary,
+      'Attività in scadenza oggi · Tutti gli account',
+    );
     expect(backend.notifications.single.body, '2 attività scadono oggi.');
   });
 
@@ -285,7 +300,10 @@ void main() {
 
     await service.notifyDueToday(2);
 
-    expect(backend.notifications.single.summary, 'Công việc đến hạn hôm nay');
+    expect(
+      backend.notifications.single.summary,
+      'Công việc đến hạn hôm nay · Tất cả tài khoản',
+    );
     expect(
       backend.notifications.single.body,
       'Có 2 công việc đến hạn hôm nay.',
@@ -296,17 +314,17 @@ void main() {
     final cases = <({Locale locale, String summary, String body})>[
       (
         locale: const Locale('hi'),
-        summary: 'आज देय कार्य',
+        summary: 'आज देय कार्य · सभी खाते',
         body: 'आज 2 कार्य देय हैं।',
       ),
       (
         locale: const Locale('ja'),
-        summary: '今日が期限のタスク',
+        summary: '今日が期限のタスク · すべてのアカウント',
         body: '今日が期限のタスクが2件あります。',
       ),
       (
         locale: const Locale('ko'),
-        summary: '오늘 마감인 할 일',
+        summary: '오늘 마감인 할 일 · 모든 계정',
         body: '오늘 마감인 할 일이 2개 있습니다.',
       ),
       (
@@ -314,12 +332,12 @@ void main() {
           languageCode: 'zh',
           scriptCode: 'Hans',
         ),
-        summary: '今天到期的任务',
+        summary: '今天到期的任务 · 所有账户',
         body: '今天有 2 项任务到期。',
       ),
       (
         locale: const Locale('zh', 'TW'),
-        summary: '今天到期的待辦事項',
+        summary: '今天到期的待辦事項 · 所有帳戶',
         body: '今天有 2 項待辦事項到期。',
       ),
     ];
@@ -373,7 +391,7 @@ void main() {
 
     expect(
       backend.notifications.map((notification) => notification.summary),
-      everyElement('کارهای دارای سررسید امروز'),
+      everyElement('کارهای دارای سررسید امروز · همهٔ حساب‌ها'),
     );
     expect(backend.notifications.map((notification) => notification.body), [
       'امروز یک کار سررسید دارد.',

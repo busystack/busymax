@@ -1,4 +1,5 @@
 import '../../l10n/l10n.dart';
+import '../../l10n/contacts_error_description.dart';
 
 import 'dart:async';
 
@@ -32,11 +33,7 @@ class _WindowsContactsSettingsState
       await action();
     } on Object catch (error) {
       if (mounted) {
-        setState(
-          () => _error = error is ContactsException
-              ? error.code
-              : context.l10n.operationFailed,
-        );
+        setState(() => _error = localizedContactsError(context.l10n, error));
       }
     } finally {
       if (mounted) setState(() => _pending = false);
@@ -119,7 +116,11 @@ class _WindowsContactsSettingsState
               ].contains(p.provider),
             )) ...[
               Text('${context.l10n.contactsTitle}: ${parent.displayLabel}'),
-              Text(context.l10n.contactsReadPermissionDescription),
+              Text(
+                parent.provider == BusyProvider.nextcloud
+                    ? context.l10n.contactsNextcloudReuse
+                    : context.l10n.contactsReadPermissionDescription,
+              ),
               _action(
                 context.l10n.contactsEnableSuggestions,
                 () => parent.provider == BusyProvider.nextcloud
@@ -138,12 +139,18 @@ class _WindowsContactsSettingsState
               Text(
                 '${account.displayName} · ${context.l10n.contactsReadOnlyUse} · ${account.enabled ? context.l10n.contactsSuggestionsEnabled : context.l10n.off}',
               ),
-              if (account.errorCode != null) Text(account.errorCode!),
+              if (account.errorCode != null)
+                Text(localizedContactsStatus(context.l10n, account.errorCode!)),
               Wrap(
                 spacing: 8,
                 children: [
+                  if (account.enabled)
+                    _action(
+                      context.l10n.contactsRetrySync,
+                      () => controller.synchronizeAccount(account.id),
+                    ),
                   _action(
-                    context.l10n.connectAccountAction,
+                    context.l10n.reconnectAccount,
                     () => _reconnect(account),
                   ),
                   _action(

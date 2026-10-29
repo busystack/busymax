@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 
 import '../../calendar_providers/cloud_calendar_client.dart';
+import '../../calendar_providers/calendar_mutation.dart';
 import '../../dav/mutation/dav_pending_operation_selection.dart';
 import '../../dav/mutation/dav_pending_operations.dart';
 import '../../db/app_database.dart';
@@ -51,6 +52,13 @@ class PendingOpResolutionService {
     if (op == null) return;
     _requireOwnedOperation(op);
     await _requireAccountSyncEligible();
+    if (op.state == 'recovery_required' &&
+        (op.operation == 'patch_task' || op.operation == 'update_task')) {
+      throw StateError(
+        'This recurring completion may already have advanced its occurrence. '
+        'Check the provider and resolve the specific occurrence before retrying.',
+      );
+    }
     if (op.state == 'recovery_required' && _isCreationOperation(op)) {
       throw StateError(
         'This creation cannot be retried safely because the provider may '
@@ -111,11 +119,21 @@ class PendingOpResolutionService {
         op.entityType == 'task' ||
         op.entityType == 'task_list' ||
         op.entityType == 'task_checklist_item';
-    final syncAfterDiscard = isTaskOperation
+    final isSeriesTimingOperation =
+        op.entityType == 'event' &&
+        (jsonDecode(op.requestJson) as Map)[calendarEventSeriesTimingKey]
+            is Map;
+    final syncAfterDiscard = isTaskOperation || isSeriesTimingOperation
         ? await serializePendingOpsReplay(
             database: _database,
             accountId: _accountId,
-            replay: () => _discardTaskOperation(op.id),
+            replay: () async {
+              if (isTaskOperation) return _discardTaskOperation(op.id);
+              final current = await _database.pendingOpsDao.getOp(op.id);
+              if (current == null) return false;
+              _requireOwnedOperation(current);
+              return _discardUncoordinatedOperation(current);
+            },
           )
         : await _discardUncoordinatedOperation(op);
     if (syncAfterDiscard) {
@@ -154,11 +172,273 @@ class PendingOpResolutionService {
     if (current.operation == 'move_task') {
       return _discardMoveAndDependents(current, discardedIds);
     }
+    if (current.entityType == 'task' &&
+        current.taskListId != null &&
+        current.taskId != null) {
+      return _discardTaskMutation(current);
+    }
+    if (current.entityType == 'task_list' && current.taskListId != null) {
+      return _discardTaskListMutation(current);
+    }
     final syncAfterDiscard = await _refreshOrRemoveLocalState(current);
     await (_database.delete(
       _database.pendingOps,
     )..where((row) => row.id.isIn(discardedIds))).go();
     return syncAfterDiscard;
+  }
+
+  Future<bool> _discardTaskMutation(PendingOp snapshot) async {
+    TaskDto? server;
+    try {
+      server = await _requiredTaskClient.getTask(
+        taskListId: snapshot.taskListId!,
+        taskId: snapshot.taskId!,
+      );
+    } on TaskRemoteError catch (error) {
+      if (error.statusCode != 404) rethrow;
+    }
+    var discarded = false;
+    await _database.transaction(() async {
+      final current = await _database.pendingOpsDao.getOp(snapshot.id);
+      if (current == null) return;
+      _requireSameRecoveryOperation(current, snapshot);
+      final pending =
+          await (_database.select(_database.pendingOps)
+                ..where(
+                  (row) =>
+                      row.accountId.equals(_accountId) &
+                      row.taskId.equals(snapshot.taskId!),
+                )
+                ..orderBy([
+                  (row) => OrderingTerm.asc(row.createdAtUtc),
+                  (row) => OrderingTerm.asc(row.updatedAtUtc),
+                  (row) => OrderingTerm.asc(row.id),
+                ]))
+              .get();
+      final remaining = _taskMutationChain(
+        pending,
+        current,
+      ).where((operation) => operation.id != current.id).toList();
+      final lists = <String>{
+        snapshot.taskListId!,
+        for (final operation in remaining)
+          if (operation.taskListId != null) operation.taskListId!,
+        for (final operation in remaining)
+          if (operation.operation == 'move_task' &&
+              _destinationTaskListId(operation) != null)
+            _destinationTaskListId(operation)!,
+      };
+      final localRows =
+          await (_database.select(_database.tasks)..where(
+                (row) =>
+                    row.accountId.equals(_accountId) &
+                    row.id.equals(snapshot.taskId!) &
+                    row.taskListId.isIn(lists),
+              ))
+              .get();
+      final local =
+          localRows.where((task) => task.pendingMove).firstOrNull ??
+          localRows.firstOrNull;
+      if (server == null && remaining.isEmpty) {
+        await (_database.delete(_database.tasks)..where(
+              (row) =>
+                  row.accountId.equals(_accountId) &
+                  row.id.equals(snapshot.taskId!) &
+                  row.taskListId.isIn(lists),
+            ))
+            .go();
+      } else {
+        if (server != null) {
+          await _database.tasksDao.upsertTask(
+            taskFromDto(_accountId, snapshot.taskListId!, server, _now()),
+          );
+          for (final row in localRows) {
+            if (row.taskListId != snapshot.taskListId) {
+              await _database.tasksDao.deleteTask(
+                _accountId,
+                row.taskListId,
+                row.id,
+              );
+            }
+          }
+        }
+        var listId = server != null ? snapshot.taskListId! : local?.taskListId;
+        final repository = TasksRepository(
+          database: _database,
+          accountId: _accountId,
+        );
+        for (final operation in remaining) {
+          if (listId == null) break;
+          final request = (jsonDecode(operation.requestJson) as Map)
+              .cast<String, Object?>();
+          if (operation.operation == 'patch_task' ||
+              operation.operation == 'update_task') {
+            await repository.restorePendingTaskProjection(
+              listId,
+              snapshot.taskId!,
+              request,
+              _now(),
+            );
+          } else if (operation.operation == 'move_task') {
+            final destination = _destinationTaskListId(operation) ?? listId;
+            await (_database.update(_database.tasks)..where(
+                  (row) =>
+                      row.accountId.equals(_accountId) &
+                      row.taskListId.equals(listId!) &
+                      row.id.equals(snapshot.taskId!),
+                ))
+                .write(
+                  TasksCompanion(
+                    taskListId: Value(destination),
+                    parent: Value(request['parent']?.toString()),
+                    position: local == null
+                        ? const Value.absent()
+                        : Value(local.position),
+                    pendingMove: const Value(true),
+                    localDirty: const Value(true),
+                    updatedLocalAtUtc: Value(_now()),
+                  ),
+                );
+            listId = destination;
+          } else if (operation.operation == 'delete_task') {
+            await (_database.update(_database.tasks)..where(
+                  (row) =>
+                      row.accountId.equals(_accountId) &
+                      row.taskListId.equals(listId!) &
+                      row.id.equals(snapshot.taskId!),
+                ))
+                .write(
+                  TasksCompanion(
+                    pendingDelete: const Value(true),
+                    localDirty: const Value(true),
+                    updatedLocalAtUtc: Value(_now()),
+                  ),
+                );
+          }
+        }
+        if (server == null && local != null) {
+          await (_database.update(_database.tasks)..where(
+                (row) =>
+                    row.accountId.equals(_accountId) &
+                    row.id.equals(local.id) &
+                    row.taskListId.equals(listId ?? local.taskListId),
+              ))
+              .write(
+                const TasksCompanion(
+                  serverMissing: Value(true),
+                  localDirty: Value(true),
+                ),
+              );
+        }
+      }
+      // Surviving operations keep their original comparison snapshots. Refresh
+      // restores the provider baseline; only their visible intent is overlaid.
+      await _database.pendingOpsDao.deleteOp(current.id);
+      discarded = true;
+    });
+    return discarded;
+  }
+
+  List<PendingOp> _taskMutationChain(
+    List<PendingOp> operations,
+    PendingOp selected,
+  ) {
+    final ids = <String>{selected.id};
+    var expanded = true;
+    while (expanded) {
+      expanded = false;
+      for (final operation in operations) {
+        if (ids.contains(operation.id)) {
+          if (operation.dependsOnOpId != null &&
+              ids.add(operation.dependsOnOpId!)) {
+            expanded = true;
+          }
+        } else if (ids.contains(operation.dependsOnOpId)) {
+          ids.add(operation.id);
+          expanded = true;
+        }
+      }
+    }
+    return [
+      for (final operation in operations)
+        if (ids.contains(operation.id)) operation,
+    ];
+  }
+
+  Future<bool> _discardTaskListMutation(PendingOp snapshot) async {
+    TaskListDto? server;
+    try {
+      server = await _requiredTaskClient.getTaskList(snapshot.taskListId!);
+    } on TaskRemoteError catch (error) {
+      if (error.statusCode != 404) rethrow;
+    }
+    var discarded = false;
+    await _database.transaction(() async {
+      final current = await _database.pendingOpsDao.getOp(snapshot.id);
+      if (current == null) return;
+      _requireSameRecoveryOperation(current, snapshot);
+      final remaining =
+          await (_database.select(_database.pendingOps)
+                ..where(
+                  (row) =>
+                      row.accountId.equals(_accountId) &
+                      row.entityType.equals('task_list') &
+                      row.taskListId.equals(snapshot.taskListId!) &
+                      row.id.equals(current.id).not(),
+                )
+                ..orderBy([
+                  (row) => OrderingTerm.asc(row.createdAtUtc),
+                  (row) => OrderingTerm.asc(row.updatedAtUtc),
+                  (row) => OrderingTerm.asc(row.id),
+                ]))
+              .get();
+      if (server != null) {
+        await _database.taskListsDao.upsertTaskList(
+          taskListFromDto(_accountId, server, _now()),
+        );
+      } else if (remaining.isEmpty) {
+        await _database.taskListsDao.deleteTaskList(
+          _accountId,
+          snapshot.taskListId!,
+        );
+      }
+      for (final operation in remaining) {
+        final request = (jsonDecode(operation.requestJson) as Map)
+            .cast<String, Object?>();
+        await (_database.update(_database.taskLists)..where(
+              (row) =>
+                  row.accountId.equals(_accountId) &
+                  row.id.equals(snapshot.taskListId!),
+            ))
+            .write(
+              TaskListsCompanion(
+                title: request.containsKey('title')
+                    ? Value(request['title']?.toString() ?? '')
+                    : const Value.absent(),
+                pendingDelete: operation.operation == 'delete_task_list'
+                    ? const Value(true)
+                    : const Value.absent(),
+                serverMissing: Value(server == null),
+                localDirty: const Value(true),
+                updatedLocalAtUtc: Value(_now()),
+              ),
+            );
+      }
+      await _database.pendingOpsDao.deleteOp(current.id);
+      discarded = true;
+    });
+    return discarded;
+  }
+
+  void _requireSameRecoveryOperation(PendingOp current, PendingOp snapshot) {
+    _requireOwnedOperation(current);
+    if (current.entityType != snapshot.entityType ||
+        current.operation != snapshot.operation ||
+        current.taskListId != snapshot.taskListId ||
+        current.taskId != snapshot.taskId ||
+        current.requestJson != snapshot.requestJson) {
+      throw StateError('The pending recovery operation changed.');
+    }
   }
 
   Future<bool> _discardTaskCreation(PendingOp snapshot) async {
