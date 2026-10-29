@@ -57,20 +57,21 @@ def verify_sdk(root, expected, host=None):
         mode, kind, object_id = metadata.split()
         path = root / os.fsdecode(relative)
         if kind != b'blob' or mode not in (b'100644', b'100755', b'120000'):
-            raise ValueError('Unsupported official SDK source entry')
+            raise ValueError('Unsupported official SDK source entry: ' + os.fsdecode(relative))
         if mode == b'120000':
-            if not path.is_symlink(): raise ValueError('Flutter SDK source link was replaced')
+            if not path.is_symlink(): raise ValueError('Flutter SDK source link was replaced: ' + os.fsdecode(relative))
             content = os.fsencode(os.readlink(path))
         else:
-            if path.is_symlink() or not path.is_file(): raise ValueError('Flutter SDK source is missing or substituted')
+            if path.is_symlink() or not path.is_file(): raise ValueError('Flutter SDK source is missing or substituted: ' + os.fsdecode(relative))
             if os.name != 'nt' and bool(path.stat().st_mode & 0o111) != (mode == b'100755'):
-                raise ValueError('Flutter SDK source mode was modified')
+                raise ValueError('Flutter SDK source mode was modified: ' + os.fsdecode(relative))
             content = path.read_bytes()
             if any(fnmatch.fnmatchcase(os.fsdecode(relative), pattern) for pattern in crlf) and content.count(b'\n') == content.count(b'\r\n'):
                 content = content.replace(b'\r\n', b'\n')
         digest = hashlib.sha1(b'blob ' + str(len(content)).encode() + b'\0' + content).hexdigest()
         if digest.encode() != object_id:
-            raise ValueError('Flutter SDK contains source modifications')
+            raise ValueError('Flutter SDK contains source modifications: ' + os.fsdecode(relative) +
+                             ' (Git blob identity mismatch; expected ' + object_id.decode() + ', got ' + digest + ')')
     verified = 0
     for artifact in expected['artifacts'][host]:
         directory = PurePosixPath(artifact['directory'])

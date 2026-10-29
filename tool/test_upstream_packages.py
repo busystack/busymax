@@ -81,6 +81,7 @@ class OfficialSdkTest(unittest.TestCase):
         self.environment.update(GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM='1')
         def git(*args):
             return subprocess.check_output(['git', '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', '-C', str(self.root), *args], env=self.environment, stderr=subprocess.DEVNULL, timeout=10)
+        self.git = git
         git('init', '--template=', '--initial-branch=fixture')
         (self.root / 'framework.dart').write_text('const official = true;\n')
         git('add', 'framework.dart'); git('commit', '-m', 'Official source fixture')
@@ -102,7 +103,42 @@ class OfficialSdkTest(unittest.TestCase):
 
     def test_modified_framework_is_rejected_with_unchanged_version_file(self):
         (self.root / 'framework.dart').write_text('const downstream = true;\n')
-        with self.assertRaisesRegex(ValueError, 'source modifications'): self.check()
+        with self.assertRaisesRegex(ValueError, r'source modifications: framework\.dart \(Git blob identity mismatch; expected [0-9a-f]{40}, got [0-9a-f]{40}\)') as failure:
+            self.check()
+        self.assertNotIn('downstream', str(failure.exception))
+
+    def test_missing_tracked_source_identifies_the_failed_path(self):
+        (self.root / 'framework.dart').unlink()
+        with self.assertRaisesRegex(ValueError, r'missing or substituted: framework\.dart'):
+            self.check()
+
+    def test_framework_revision_cannot_be_relabelled_by_version_metadata(self):
+        self.spec['identity'] = {**self.identity, 'frameworkRevision': '0' * 40}
+        (self.root / 'bin/cache/flutter.version.json').write_text(json.dumps(self.spec['identity']))
+        with self.assertRaisesRegex(ValueError, 'approved upstream revision'):
+            self.check()
+
+    def test_existing_windows_script_normalization_keeps_source_edits_detectable(self):
+        source = self.root / 'bootstrap.bat'
+        source.write_bytes(b'@echo off\necho Official fixture\n')
+        self.git('add', 'bootstrap.bat'); self.git('commit', '-m', 'Script fixture')
+        revision = self.git('rev-parse', 'HEAD').decode().strip()
+        self.identity['frameworkRevision'] = revision
+        (self.root / 'bin/cache/flutter.version.json').write_text(json.dumps(self.identity))
+        source.write_bytes(b'@echo off\r\necho Official fixture\r\n')
+        self.assertEqual(1, self.check())
+        source.write_bytes(b'@echo off\r\necho Changed fixture\r\n')
+        with self.assertRaisesRegex(ValueError, r'bootstrap\.bat \(Git blob identity mismatch'):
+            self.check()
+
+    def test_runtime_with_crlf_like_bytes_is_byte_exact(self):
+        original = b'Official\x00\r\ncompiler\r\nfixture'
+        self.binary.write_bytes(original)
+        self.spec['artifacts']['fixture-host'][0]['files']['dart-sdk/bin/dart'] = hashlib.sha256(original).hexdigest()
+        self.assertEqual(1, self.check())
+        self.binary.write_bytes(original.replace(b'\r\n', b'\n'))
+        with self.assertRaisesRegex(ValueError, 'compiler/runtime'):
+            self.check()
 
     def test_changed_version_cannot_relabel_the_runtime(self):
         (self.root / 'bin/cache/flutter.version.json').write_text('{}')
