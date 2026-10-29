@@ -286,6 +286,7 @@ void main() {
         isTrue,
       );
     },
+    skip: !Platform.isLinux,
   );
 }
 

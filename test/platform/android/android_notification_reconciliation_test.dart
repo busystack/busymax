@@ -33,6 +33,7 @@ void main() {
   late AppSettings settings;
   late Map<String, bool> capabilities;
   late _NativeGates gates;
+  final directories = <Directory>[];
 
   setUp(() async {
     capabilities = {
@@ -79,6 +80,10 @@ void main() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(platformChannel, null);
     await database.close();
+    for (final directory in directories) {
+      await directory.delete(recursive: true);
+    }
+    directories.clear();
   });
 
   AndroidNotificationService service({
@@ -124,7 +129,7 @@ void main() {
           final directory = await Directory.systemTemp.createTemp(
             'busymax-policy-',
           );
-          addTearDown(() => directory.delete(recursive: true));
+          directories.add(directory);
           final peer = await shareDatabase(directory);
           final disk = _DiskSettingsStore(
             File('${directory.path}/settings.json'),
@@ -255,7 +260,7 @@ void main() {
     final directory = await Directory.systemTemp.createTemp(
       'busymax-operational-',
     );
-    addTearDown(() => directory.delete(recursive: true));
+    directories.add(directory);
     final peer = await shareDatabase(directory);
     await database
         .into(database.notificationIssues)
@@ -317,7 +322,7 @@ void main() {
       final directory = await Directory.systemTemp.createTemp(
         'busymax-allocation-',
       );
-      addTearDown(() => directory.delete(recursive: true));
+      directories.add(directory);
       final lookup = _PauseIssueLookup();
       final peer = await shareDatabase(directory, interceptor: lookup);
       await database
@@ -495,7 +500,7 @@ void main() {
       final directory = await Directory.systemTemp.createTemp(
         'busymax-reports-',
       );
-      addTearDown(() => directory.delete(recursive: true));
+      directories.add(directory);
       final peer = await shareDatabase(directory);
       final a = service();
       final b = AndroidNotificationService(
@@ -1148,7 +1153,7 @@ void main() {
           final directory = await createPersistenceTestDirectory(
             'busymax-summary-',
           );
-          addTearDown(() => directory.delete(recursive: true));
+          directories.add(directory);
           final account = await database.select(database.accounts).getSingle();
           await database.close();
           database = AppDatabase(
@@ -1520,7 +1525,7 @@ void main() {
             final directory = await Directory.systemTemp.createTemp(
               'busymax-private-replacement-',
             );
-            addTearDown(() => directory.delete(recursive: true));
+            directories.add(directory);
             peer = await shareDatabase(directory);
           }
           await _insertReminder(
@@ -1661,7 +1666,7 @@ void main() {
         final directory = await Directory.systemTemp.createTemp(
           'busymax-withdrawal-',
         );
-        addTearDown(() => directory.delete(recursive: true));
+        directories.add(directory);
         final peer = await shareDatabase(directory);
         final clock = DateTime.utc(2026, 6, 8, 8, 56);
         await _insertReminder(

@@ -1,7 +1,10 @@
+import 'dart:io';
+
 import 'package:busymax/src/features/tray/domain/tray_presentation.dart';
 import 'package:busymax/src/platform/windows/windows_tray_service.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as paths;
 
 const presentation = BusyMaxTrayMenuPresentation(
   showBusyMaxLabel: 'Open BusyMax',
@@ -74,8 +77,13 @@ void main() {
       expect(commands, [WindowsTrayCommand.settings, WindowsTrayCommand.open]);
       final path = calls.first.arguments as String;
       expect(
-        path,
-        endsWith('/data/flutter_assets/assets/windows/busymax_tray.ico'),
+        paths.normalize(path),
+        paths.normalize(
+          paths.join(
+            paths.dirname(Platform.resolvedExecutable),
+            'data/flutter_assets/assets/windows/busymax_tray.ico',
+          ),
+        ),
       );
       await service.refresh();
       final refreshed =

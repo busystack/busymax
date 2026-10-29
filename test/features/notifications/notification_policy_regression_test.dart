@@ -40,6 +40,7 @@ void main() {
   late AppSettings settings;
   late DateTime now;
   late NotificationCancellationQueue cancellations;
+  final directories = <Directory>[];
 
   setUp(() async {
     database = AppDatabase(NativeDatabase.memory());
@@ -49,7 +50,13 @@ void main() {
     cancellations = NotificationCancellationQueue();
     await _account(database, 'a');
   });
-  tearDown(() => database.close());
+  tearDown(() async {
+    await database.close();
+    for (final directory in directories) {
+      await directory.delete(recursive: true);
+    }
+    directories.clear();
+  });
 
   DesktopNotificationService service() => DesktopNotificationService(
     backend: backend,
@@ -260,7 +267,7 @@ void main() {
             final directory = await Directory.systemTemp.createTemp(
               'busymax-toggle-',
             );
-            addTearDown(() => directory.delete(recursive: true));
+            directories.add(directory);
             persisted = File('${directory.path}/busymax.sqlite');
             final account = await database
                 .select(database.accounts)
@@ -970,7 +977,7 @@ void main() {
       final directory = await Directory.systemTemp.createTemp(
         'busymax-auth-scan-',
       );
-      addTearDown(() => directory.delete(recursive: true));
+      directories.add(directory);
       await database.close();
       final file = File('${directory.path}/busymax.sqlite');
       final barrier = _PauseIssueSelection();
