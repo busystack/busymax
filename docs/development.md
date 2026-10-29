@@ -15,6 +15,7 @@ The workflows verify the selected SDK with `tool/verify_flutter_sdk.dart`.
 After installing Flutter 3.47.5, prepare the checkout in this order:
 
 ```bash
+python3 tool/checkout_shared_dependencies.py
 flutter pub get --enforce-lockfile
 flutter gen-l10n
 dart run build_runner build --delete-conflicting-outputs --force-jit
@@ -23,6 +24,13 @@ dart run build_runner build --delete-conflicting-outputs --force-jit
 Dependency resolution must precede localization generation, which must precede
 Drift generation. Generated localization and database files are committed; a
 generation run should leave them unchanged.
+
+The shared packages are ordinary siblings of `busymax/`. Their canonical URLs
+and exact commits are recorded in `tool/shared_dependencies.json`.
+`busystack_contacts` develops on `main`; its tested commit is pinned there for
+reproducible builds while `pubspec.yaml` and `pubspec.lock` resolve the sibling
+path. The checkout tool rejects a different origin, revision, or dirty sibling;
+use the pinned checkouts before running Pub, CI, or release packaging.
 
 New desktop **Connect with BusyMax** connections require explicitly active
 registrations in [`BuildConfig`](../lib/src/config/build_config.dart):

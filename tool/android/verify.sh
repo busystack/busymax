@@ -14,6 +14,7 @@ flutter_bin="$(readlink -f "$flutter_bin")"
 dart_bin="$(dirname "$flutter_bin")/cache/dart-sdk/bin/dart"
 cd "$repo_root"
 "$flutter_bin" pub get --enforce-lockfile
+python3 tool/verify_upstream_packages.py
 generated_snapshot="$(mktemp)"
 trap 'rm -f "$generated_snapshot"' EXIT
 "$dart_bin" run tool/check_generated_sources.dart snapshot "$generated_snapshot"

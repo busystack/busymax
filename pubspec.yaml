@@ -9,6 +9,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  # Exact contacts main revision: tool/shared_dependencies.json.
   busystack_contacts:
     path: ../busystack_contacts
   busystack_dav:
