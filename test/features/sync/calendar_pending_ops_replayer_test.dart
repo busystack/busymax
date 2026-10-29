@@ -30,6 +30,7 @@ import 'package:busymax/src/google_calendar/google_calendar_api_client.dart';
 import 'package:busymax/src/google_calendar/google_calendar_mapper.dart';
 import 'package:busymax/src/ical/ical_import_service.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_errors.dart';
+import 'package:busymax/src/microsoft_calendar/microsoft_calendar_mapper.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:drift/native.dart';
@@ -3597,6 +3598,214 @@ END:VEVENT
       );
     },
   );
+
+  for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
+    for (final projectionStage in ['cached', 'first', 'second']) {
+      final projectMissing = projectionStage != 'cached';
+      test(
+        'consecutive monthly series edits retain one recurrence position ($provider, projection $projectionStage)',
+        () async {
+          final directory = await createPersistenceTestDirectory(
+            'busymax-monthly-queue-',
+          );
+          final file = File('${directory.path}/calendar.sqlite');
+          await database.close();
+          database = AppDatabase(NativeDatabase(file));
+          await _insertAccount(database);
+          await database
+              .update(database.accounts)
+              .write(AccountsCompanion(provider: Value(provider.storageValue)));
+          var repository = CalendarRepository(database: database);
+          final monthly = _MonthlyCalendarClient(provider);
+          await repository.upsertSource(
+            accountId: 'account',
+            source: CalendarSourceDto(
+              provider: provider,
+              providerCalendarId: 'cal-1',
+              summary: 'Work',
+              timeZone: 'America/Vancouver',
+            ),
+          );
+          await repository.upsertEvent(
+            accountId: 'account',
+            event: monthly.remoteEvent!,
+          );
+          final cachedMonths = projectMissing ? [6, 8] : [6, 7, 8];
+          for (final month in cachedMonths) {
+            await repository.upsertEvent(
+              accountId: 'account',
+              event: monthly.occurrence(month, 15),
+            );
+          }
+          if (projectionStage != 'second') {
+            await repository.saveSyncState(
+              accountId: 'account',
+              provider: provider,
+              syncKind: 'events',
+              calendarSourceId: 'account|${provider.storageValue}|cal-1',
+              rangeStart: '2026-06-01T00:00:00Z',
+              rangeEnd: '2026-09-01T00:00:00Z',
+              cursorKind: 'snapshot_generation',
+              cursorValue: '0',
+              full: true,
+            );
+          }
+          Future<void> expectSchedule(
+            int day, {
+            String? status,
+            List<int> months = const [6, 7, 8],
+          }) async {
+            final rows = (await database.select(database.calendarEvents).get())
+                .where(
+                  (row) =>
+                      row.providerRecurringEventId == 'series-master' &&
+                      !row.isDeleted &&
+                      !row.isCancelled,
+                )
+                .toList();
+            expect(rows, hasLength(months.length));
+            final starts =
+                rows
+                    .map(
+                      (row) => providerDateTimeAsCivilTime(
+                        row.startDateTime,
+                        row.startTimeZone,
+                      )!,
+                    )
+                    .toList()
+                  ..sort();
+            expect(
+              starts.map(
+                (date) =>
+                    (date.year, date.month, date.day, date.hour, date.minute),
+              ),
+              [for (final month in months) (2026, month, day, 9, 0)],
+            );
+            expect(
+              rows.map((row) => row.providerOriginalStartKey).toSet(),
+              hasLength(months.length),
+            );
+            if (status != null) {
+              expect(rows.map((row) => row.syncStatus), everyElement(status));
+            }
+          }
+
+          await expectSchedule(15, status: 'synced', months: cachedMonths);
+          for (final day in [16, 17]) {
+            final selected =
+                (await database.select(database.calendarEvents).get())
+                    .singleWhere(
+                      (row) => row.providerEventId == 'monthly-6-15',
+                    );
+            final detail = (await repository.loadEventDetail(selected.id))!;
+            await repository.updateLocalEvent(
+              EventEditorDraft.fromEventDetail(detail).copyWith(
+                start: DateTime.utc(2026, 6, day, 9),
+                end: DateTime.utc(2026, 6, day, 10),
+                recurringMutationScope:
+                    RecurringEventMutationScope.entireSeries,
+              ),
+            );
+            await expectSchedule(
+              day,
+              status: 'pending',
+              months: projectionStage == 'second' && day == 16
+                  ? cachedMonths
+                  : const [6, 7, 8],
+            );
+            if (projectionStage == 'second' && day == 16) {
+              // The next edit owns positions introduced in a newly covered month.
+              await repository.saveSyncState(
+                accountId: 'account',
+                provider: provider,
+                syncKind: 'events',
+                calendarSourceId: 'account|${provider.storageValue}|cal-1',
+                rangeStart: '2026-06-01T00:00:00Z',
+                rangeEnd: '2026-09-01T00:00:00Z',
+                cursorKind: 'snapshot_generation',
+                cursorValue: '0',
+                full: true,
+              );
+            }
+            final synthetic =
+                (await database.select(database.calendarEvents).get()).where(
+                  (row) => row.providerEventId.startsWith('local:series:'),
+                );
+            expect(
+              synthetic,
+              hasLength(
+                projectMissing && !(projectionStage == 'second' && day == 16)
+                    ? 1
+                    : 0,
+              ),
+            );
+          }
+          final operations = await database.select(database.pendingOps).get();
+          expect(operations, hasLength(2));
+          final first = operations.singleWhere(
+            (op) => op.dependsOnOpId == null,
+          );
+          final second = operations.singleWhere(
+            (op) => op.dependsOnOpId == first.id,
+          );
+          await (database.update(
+            database.pendingOps,
+          )..where((row) => row.id.equals(second.id))).write(
+            const PendingOpsCompanion(
+              nextAttemptAtUtc: Value('2026-06-09T00:00:00.000Z'),
+            ),
+          );
+          // Recreate both objects from the durable queue before sending either edit.
+          await database.close();
+          database = AppDatabase(NativeDatabase(file));
+          repository = CalendarRepository(database: database);
+          Future<int> replay(int day) => CalendarPendingOpsReplayer(
+            database: database,
+            client: monthly,
+            accountId: 'account',
+            nowUtc: () => DateTime.utc(2026, 6, day),
+          ).replayDueOps();
+          expect(await replay(8), 1);
+          expect(await database.pendingOpsDao.getOp(first.id), isNull);
+          expect(await database.pendingOpsDao.getOp(second.id), isNotNull);
+          expect(monthly.patternDay, 16);
+          await expectSchedule(17, status: 'pending');
+          await database.close();
+          database = AppDatabase(NativeDatabase(file));
+          repository = CalendarRepository(database: database);
+          expect(await replay(9), 1);
+          expect(monthly.patternDay, 17);
+          expect(await database.select(database.pendingOps).get(), isEmpty);
+          await expectSchedule(17, status: 'synced');
+          expect(monthly.updatedMutations, hasLength(2));
+          monthly.syncEventsOverride = [
+            monthly.remoteEvent!,
+            for (final month in [6, 7, 8]) monthly.occurrence(month, 17),
+          ];
+          final engine = CalendarSyncEngine(
+            database: database,
+            client: monthly,
+            accountId: 'account',
+            nowUtc: () => DateTime.utc(2026, 6, 10),
+          );
+          await engine.fullSync();
+          await engine.fullSync();
+          expect(await replay(10), 0);
+          await expectSchedule(17, status: 'synced');
+          expect(monthly.updatedMutations, hasLength(2));
+          final all = await database.select(database.calendarEvents).get();
+          expect(
+            all.where((row) => row.providerEventId.startsWith('local:series:')),
+            isEmpty,
+          );
+          // Expanded pulls retain one hidden master as the next edit's baseline.
+          expect(all.where((row) => row.recurrenceJson != null), hasLength(1));
+          await database.close();
+          await directory.delete(recursive: true);
+        },
+      );
+    }
+  }
 
   for (final differentOccurrence in [false, true]) {
     test(
@@ -7410,4 +7619,171 @@ Future<void> _waitFor(bool Function() condition) async {
     await Future<void>.delayed(const Duration(milliseconds: 10));
   }
   fail('Timed out waiting for condition.');
+}
+
+class _MonthlyCalendarClient extends _FakeCalendarClient {
+  _MonthlyCalendarClient(this.representedProvider) {
+    remoteEvent = _map({
+      'id': 'series-master',
+      if (provider == BusyProvider.google)
+        'summary': 'Base'
+      else
+        'subject': 'Base',
+      'start': {
+        'dateTime': '2026-06-15T09:00:00',
+        'timeZone': 'America/Vancouver',
+      },
+      'end': {
+        'dateTime': '2026-06-15T10:00:00',
+        'timeZone': 'America/Vancouver',
+      },
+      if (provider == BusyProvider.google)
+        'organizer': {'self': true}
+      else ...{
+        'isOrganizer': true,
+        'type': 'seriesMaster',
+      },
+      'recurrence': provider == BusyProvider.google
+          ? ['RRULE:FREQ=MONTHLY;INTERVAL=1;BYMONTHDAY=15;COUNT=3']
+          : {
+              'pattern': {
+                'type': 'absoluteMonthly',
+                'interval': 1,
+                'dayOfMonth': 15,
+              },
+              'range': {
+                'type': 'numbered',
+                'startDate': '2026-06-15',
+                'numberOfOccurrences': 3,
+                'recurrenceTimeZone': 'America/Vancouver',
+              },
+            },
+      if (provider == BusyProvider.google)
+        'updated': '2026-05-30T00:00:00.000Z'
+      else
+        'lastModifiedDateTime': '2026-05-30T00:00:00.000Z',
+    });
+  }
+  final BusyProvider representedProvider;
+  @override
+  BusyProvider get provider => representedProvider;
+  @override
+  CalendarProviderCapabilities get capabilities =>
+      provider == BusyProvider.google
+      ? googleCalendarProviderCapabilities
+      : microsoftCalendarProviderCapabilities;
+  CalendarEventDto _map(Map<String, Object?> raw) =>
+      provider == BusyProvider.google
+      ? googleCalendarEventFromJson('cal-1', raw)
+      : microsoftCalendarEventFromJson('cal-1', raw);
+  int get patternDay => provider == BusyProvider.google
+      ? int.parse(
+          RegExp(r'BYMONTHDAY=(\d+)')
+              .firstMatch(
+                (remoteEvent!.recurrenceJson as List).single as String,
+              )!
+              .group(1)!,
+        )
+      : (((remoteEvent!.recurrenceJson as Map)['pattern'] as Map)['dayOfMonth']
+                as num)
+            .toInt();
+  CalendarEventDto occurrence(int month, int day) {
+    final start = DateTime.utc(2026, month, day, 9);
+    final key = providerWallTimeToInstant(
+      start,
+      'America/Vancouver',
+    ).toIso8601String();
+    return _map({
+      'id': 'monthly-$month-$day',
+      if (provider == BusyProvider.google) ...{
+        'summary': 'Base',
+        'recurringEventId': 'series-master',
+        'originalStartTime': {'dateTime': key},
+        'organizer': {'self': true},
+      } else ...{
+        'subject': 'Base',
+        'seriesMasterId': 'series-master',
+        'originalStart': key,
+        'type': 'occurrence',
+        'isOrganizer': true,
+      },
+      'start': {
+        'dateTime': start.toIso8601String().replaceFirst('Z', ''),
+        'timeZone': 'America/Vancouver',
+      },
+      'end': {
+        'dateTime': start
+            .add(const Duration(hours: 1))
+            .toIso8601String()
+            .replaceFirst('Z', ''),
+        'timeZone': 'America/Vancouver',
+      },
+      if (provider == BusyProvider.google)
+        'updated': '2026-05-30T00:00:00.000Z'
+      else
+        'lastModifiedDateTime': '2026-05-30T00:00:00.000Z',
+    });
+  }
+
+  @override
+  Future<List<CalendarSourceDto>> listCalendars() async => [
+    CalendarSourceDto(
+      provider: provider,
+      providerCalendarId: 'cal-1',
+      summary: 'Work',
+      timeZone: 'America/Vancouver',
+    ),
+  ];
+  @override
+  Future<CalendarEventDto> updateEvent({
+    required String calendarId,
+    required String eventId,
+    required CalendarEventMutation mutation,
+    CalendarGuestUpdatePolicy guestUpdatePolicy =
+        CalendarGuestUpdatePolicy.send,
+    String? ifMatch,
+  }) async {
+    updatedMutations.add(mutation);
+    remoteEvent = _map({
+      ...remoteEvent!.rawJson,
+      'start': {
+        'dateTime': mutation.startDateTime!,
+        'timeZone': mutation.startTimeZone,
+      },
+      'end': {
+        'dateTime': mutation.endDateTime!,
+        'timeZone': mutation.endTimeZone,
+      },
+      'recurrence': mutation.recurrence!,
+      if (provider == BusyProvider.google)
+        'updated': DateTime.utc(
+          2026,
+          6,
+          8,
+          updatedMutations.length,
+        ).toIso8601String()
+      else
+        'lastModifiedDateTime': DateTime.utc(
+          2026,
+          6,
+          8,
+          updatedMutations.length,
+        ).toIso8601String(),
+    });
+    return remoteEvent!;
+  }
+
+  @override
+  Future<CalendarEventDto> findSeriesInstance({
+    required String calendarId,
+    required String recurringEventId,
+    required DateTime originalStart,
+    required bool allDay,
+    required String? timeZone,
+  }) async {
+    expect(recurringEventId, 'series-master');
+    expect(timeZone, 'America/Vancouver');
+    expect(originalStart.day, patternDay);
+    return occurrence(originalStart.month, patternDay);
+  }
 }

@@ -3530,6 +3530,29 @@ class CalendarRepository {
         row.startTimeZone,
       );
       final rowRaw = _jsonMap(row.rawJson);
+      final previousProjection = _jsonObjectMap(
+        rowRaw['_seriesTimingProjection'],
+      );
+      final previousPosition = DateTime.tryParse(
+        previousProjection['mapped']?.toString() ?? '',
+      );
+      final projectionStart = previousPosition ?? originalStart ?? rowStart;
+      final projectedPosition = projectionStart == null
+          ? null
+          : seriesTiming?.mapOccurrence(projectionStart);
+      final projection = projectedPosition == null
+          ? null
+          : {
+              'signature': seriesTiming!.signature,
+              'mapped': projectedPosition.toIso8601String(),
+              // Earlier queued changes still own their intermediate identities.
+              'positions': {
+                ..._jsonObjectMap(previousProjection['positions']),
+                if (previousProjection['signature'] case final String signature)
+                  signature: previousProjection['mapped'],
+                seriesTiming.signature: projectedPosition.toIso8601String(),
+              },
+            };
       final serverStart = _rawSeriesWall(
         rowRaw,
         'start',
@@ -3656,16 +3679,19 @@ class CalendarRepository {
         conferenceJson: conference != null
             ? Value(_json(conference))
             : const Value.absent(),
-        rawJson: rawChanged
+        rawJson: rawChanged || projection != null
             ? Value(
-                jsonEncode(
-                  _optimisticEventRaw(
-                    draft,
-                    provider,
-                    existingJson: row.rawJson,
-                    descriptionChanged: descriptionChanged,
-                  ),
-                ),
+                jsonEncode({
+                  ...(rawChanged
+                      ? _optimisticEventRaw(
+                          draft,
+                          provider,
+                          existingJson: row.rawJson,
+                          descriptionChanged: descriptionChanged,
+                        )
+                      : rowRaw),
+                  if (projection != null) '_seriesTimingProjection': projection,
+                }),
               )
             : const Value.absent(),
         updatedAtLocal: Value(now),
@@ -3683,6 +3709,7 @@ class CalendarRepository {
                 endDate: companion.endDate,
                 endDateTime: companion.endDateTime,
                 endTimeZone: companion.endTimeZone,
+                rawJson: companion.rawJson,
                 updatedAtLocal: companion.updatedAtLocal,
                 syncStatus: companion.syncStatus,
               )
@@ -3776,7 +3803,12 @@ class CalendarRepository {
         existing.startTimeZone,
       );
       if (original == null) continue;
-      final mapped = change.mapOccurrence(original);
+      final projection = _jsonObjectMap(
+        _jsonMap(row.rawJson)['_seriesTimingProjection'],
+      );
+      final mapped = projection['signature'] == change.signature
+          ? DateTime.tryParse(projection['mapped']?.toString() ?? '')
+          : change.mapOccurrence(original);
       if (mapped == null) continue;
       represented.add(providerWallTimeIso8601String(mapped));
       if (!change.containsNewOccurrence(mapped) &&

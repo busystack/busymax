@@ -1114,6 +1114,7 @@ class CalendarPendingOpsReplayer {
             ))
             .get();
     final positions = <Map<String, Object?>>[];
+    final descendants = await _eventMutationDescendants(op);
     for (final row in cached) {
       final original = providerDateTimeAsCivilTime(
         row.providerOriginalStartKey,
@@ -1124,11 +1125,30 @@ class CalendarPendingOpsReplayer {
       final projected = _jsonObject(
         row.rawJson ?? '{}',
       )['_seriesTimingProjection'];
-      final mapped =
+      final ownedPosition = projected is Map
+          ? projected['signature'] == plan.signature
+                ? projected['mapped']
+                : (projected['positions'] is Map
+                      ? (projected['positions'] as Map)[plan.signature]
+                      : null)
+          : null;
+      if (ownedPosition == null &&
           projected is Map &&
-              projected['signature'] == plan.signature &&
-              row.providerEventId.startsWith('local:series:')
-          ? DateTime.parse(projected['mapped'] as String)
+          row.providerEventId.startsWith('local:series:') &&
+          descendants.any((pending) {
+            final later = _request(pending);
+            final timing = later[calendarEventSeriesTimingKey];
+            return later[calendarEventTargetProviderIdKey] ==
+                    master.providerEventId &&
+                timing is Map &&
+                timing['signature'] == projected['signature'];
+          })) {
+        // This position was introduced by a later dependent pattern. It has
+        // no provider occurrence to reconcile for the current change yet.
+        continue;
+      }
+      final mapped = ownedPosition is String
+          ? DateTime.parse(ownedPosition)
           : plan.mapOccurrence(original);
       final removed = mapped == null
           ? plan.removesOrdinaryOccurrence(
