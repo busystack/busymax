@@ -5,13 +5,8 @@ and WorkManager refill. Saving a provider reminder, creating a schedule row,
 native submission, a visible post, and user acknowledgement are distinct states.
 BusyMax does not claim a notification was seen merely because submission succeeded.
 
-The [audit and acceptance record](notification-validation.md) lists confirmed
-repairs, automated results and the native checks still requiring another OS or
-package environment.
-The [independent follow-up repair record](notification-repair-validation.md)
-separates the F1–F7 reproductions and new validation from that earlier evidence.
-The [subsequent convergence/authorization/privacy record](notification-followup-validation.md)
-records the three independently reproduced follow-up cases.
+The [validation instructions](#validation) cover automated regressions and the
+native acceptance required for each platform.
 
 ## Reminders
 
@@ -111,8 +106,7 @@ The known-pending replacement fact survives the outer withdrawal marker during
 failed cleanup. Re-enabling before retry completes cannot infer delivery or
 dismissal from the absence BusyMax caused; cleanup retries before replacement
 using the retained native ID and generation. Temporary native blocking preserves
-that fact while readiness reports the restriction. See the
-[withdrawal retry validation](android-notification-withdrawal-validation.md).
+that fact while readiness reports the restriction.
 
 Android engines read authoritative persisted settings inside the notification
 gate and revalidate notification policy around native submission. Foreground
@@ -255,6 +249,38 @@ Contract references: [Android permission](https://developer.android.com/develop/
 and [freedesktop protocol](https://specifications.freedesktop.org/notification/latest/protocol.html).
 Implementation is checked against the locked `flutter_local_notifications` 22.3.0
 (Windows adapter 3.1.1), `desktop_notifications` 0.6.3 and `dbus` 0.7.15 sources.
+
+## Validation
+
+After the [shared setup](development.md#shared-setup), run the delivery-policy,
+cross-runtime and native-backend regressions:
+
+```sh
+flutter test \
+  test/features/notifications \
+  test/app/notification_runtime_provider_test.dart \
+  test/features/sync/sync_failure_notification_policy_test.dart \
+  test/platform/android/android_notification_reconciliation_test.dart \
+  test/platform/android/android_settings_sync_test.dart \
+  test/platform/linux/linux_notification_backend_test.dart \
+  test/platform/windows/windows_notification_backend_test.dart \
+  test/platform/windows/windows_notification_runtime_test.dart
+```
+
+Run the full offline suite before release. For native acceptance, check visible
+posts/history separately from database submission state. Exercise Open, Snooze
+and Dismiss with the process running and terminated, privacy/category changes,
+permission/channel recovery, source toggles, daily-summary destinations and
+account-specific recovery. Use [installed MSIX identity](windows_packaging.md)
+for Windows activation/forwarding and an installed Snap for Linux packaging
+integration. Include actual OS timezone/DST/clock changes, overnight Android
+power restrictions, keyboard/screen-reader use and long/RTL text on the
+designated QA platforms. A controlled application clock or software-rendered
+emulator does not establish those OS and hardware behaviors.
+
+Keep results and any incomplete acceptance checks in the pull request, with
+per-run receipts and captures outside Git as described in
+[Repository contents](development.md#repository-contents).
 
 ## Native acceptance driver
 

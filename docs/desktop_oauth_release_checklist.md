@@ -1,18 +1,15 @@
 # Desktop OAuth release prerequisites
 
-v0.3.2 uses the owner's new Google Desktop client as the BusyMax-managed
-registration for locally built Linux releases. The download has a valid
-`installed` object and project ID `busymax`. Its actual fields are read by the
-[local release command](beta_snap_release.md); no credential JSON is committed.
-Original Google credentials are not required, restored, or fetched from GitHub.
+Locally built Linux releases read the BusyMax-managed Google Desktop registration
+from an external OAuth JSON through the
+[local release command](beta_snap_release.md). Supply a valid `installed` object
+with the client ID, secret and actual project ID. Keep credential JSON outside
+Git. Original Google credentials are not required.
 
-## Google Console evidence
+## Google Console prerequisites
 
-On 2026-10-11 the owner reported **External / In production; verification
-complete** for the new project. This is owner-reported Console evidence, not an
-inference from the download or a successful login. This task has not changed
-the cloud project. Before distribution record/check in that exact project's
-Google Auth Platform and API Library:
+Before distribution, verify the supplied client's project in Google Auth
+Platform and API Library:
 
 - Calendar API (`calendar-json.googleapis.com`) and Tasks API
   (`tasks.googleapis.com`) enabled.
@@ -30,11 +27,10 @@ Google Auth Platform and API Library:
   `https://busystack.org/privacy-busymax`, plus required consent-screen
   disclosures. Confirm that the supplied Desktop client belongs to this project.
 
-A read-only `gcloud services list --enabled --project=busymax` check on
-2026-10-11 verified Calendar and Tasks APIs enabled. People API was absent at
-that check; enabling it requires owner authorization. Individual approved scopes
-and branding/support details cannot be read from a Desktop JSON and still
-require Console evidence and real provider round trips. Google's [audience guidance](https://support.google.com/cloud/answer/15549945?hl=en)
+Use `gcloud services list --enabled --project=<project-id>` to inspect enabled
+APIs. Confirm approved scopes, verification status and branding/support details
+in the Console, then exercise real provider round trips. A Desktop JSON or
+successful login does not establish these prerequisites. Google's [audience guidance](https://support.google.com/cloud/answer/15549945?hl=en)
 describes Testing's test-user restrictions and seven-day authorizations.
 [Consent configuration](https://developers.google.com/workspace/guides/configure-oauth-consent)
 and [sensitive-scope verification](https://developers.google.com/identity/protocols/oauth2/production-readiness/sensitive-scope-verification)

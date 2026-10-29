@@ -156,6 +156,30 @@ dispatch, OAuth credentials or artifact uploads. Windows and Android CI remain
 independent. The official Linux build is `tool/release/build_snap_local.sh`;
 `tool/build_install_snap_local.sh` only repacks a development scaffold.
 
+### Linux task lifecycle integration
+
+Run [the native task lifecycle test](../integration_test/task_lifecycle_linux_test.dart)
+explicitly after shared setup, with Linux desktop dependencies and a graphical
+session available. The test requires `BUSYMAX_ACCEPTANCE_ROOT` and
+`XDG_DATA_HOME` set to its `data` child:
+
+```bash
+busymax_acceptance_root="$(mktemp -d "${TMPDIR:-/tmp}/busymax-task-lifecycle.XXXXXX")"
+mkdir -p "$busymax_acceptance_root/data"
+BUSYMAX_ACCEPTANCE_ROOT="$busymax_acceptance_root" \
+  XDG_DATA_HOME="$busymax_acceptance_root/data" \
+  flutter test integration_test/task_lifecycle_linux_test.dart \
+    -d linux --no-pub --reporter=expanded
+```
+
+The test uses a synthetic in-memory database/provider and in-memory secrets and
+settings. The isolated data directory keeps native plugin state away from the
+regular profile. It exercises the Yaru window, task creation and acknowledgment,
+dirty-close guards, retry, hierarchy, ordering and deletion through real native
+plugins. It does not contact a live provider. Use `GDK_BACKEND=x11` when selecting
+an X11 session. The separate `tool/release/check_linux_native.sh` gate runs
+native C++/GTK checks and requires `xvfb-run` from the `xvfb` package.
+
 ## Repository contents
 
 Keep application and platform source, tests and synthetic fixtures, locked

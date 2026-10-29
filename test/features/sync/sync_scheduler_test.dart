@@ -3,17 +3,16 @@ import 'dart:async';
 import 'package:busymax/src/core/auth/oauth_models.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/sync/all_accounts_sync_scheduler.dart';
-import 'package:busymax/src/features/sync/sync_engine.dart';
-import 'package:busymax/src/features/sync/sync_scheduler.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('scheduler preserves the background sync failure', () async {
+  test('periodic all-account sync preserves the background failure', () async {
     final failure = StateError('background failed');
     final failures = <Object>[];
-    final scheduler = SyncScheduler(
-      syncEngine: _FailingSyncEngine(failure),
+    final scheduler = AllAccountsSyncScheduler(
+      listSyncEligibleAccounts: () async => [_account('a')],
+      syncAccount: (_) async => throw failure,
       interval: const Duration(milliseconds: 1),
       onSyncFailure: (error) async {
         failures.add(error);
@@ -21,7 +20,7 @@ void main() {
     );
 
     scheduler.start();
-    addTearDown(scheduler.stop);
+    addTearDown(scheduler.dispose);
 
     await _waitFor(() => failures.isNotEmpty);
     expect(failures.first, same(failure));
@@ -46,18 +45,31 @@ void main() {
   });
 
   test('periodic sync does not call providers while offline', () async {
-    final engine = _RecordingSyncEngine();
-    final scheduler = SyncScheduler(
-      syncEngine: engine,
-      canSync: () async => false,
+    var listCalls = 0;
+    var syncCalls = 0;
+    var connectivityChecks = 0;
+    final scheduler = AllAccountsSyncScheduler(
+      listSyncEligibleAccounts: () async {
+        listCalls += 1;
+        return [_account('a')];
+      },
+      syncAccount: (_) async {
+        syncCalls += 1;
+      },
+      onSyncFailure: (_) async {},
+      canSync: () async {
+        connectivityChecks += 1;
+        return false;
+      },
       interval: const Duration(milliseconds: 1),
     );
     scheduler.start();
-    addTearDown(scheduler.stop);
+    addTearDown(scheduler.dispose);
 
-    await Future<void>.delayed(const Duration(milliseconds: 20));
+    await _waitFor(() => connectivityChecks >= 2);
 
-    expect(engine.incrementalSyncCalls, 0);
+    expect(listCalls, 0);
+    expect(syncCalls, 0);
   });
 
   test('all-account sync does not enumerate accounts while offline', () async {
@@ -208,38 +220,6 @@ void main() {
     expect(scheduler.isRunning, isFalse);
     expect(states, [false, true, false]);
   });
-}
-
-class _FailingSyncEngine implements SyncEngine {
-  _FailingSyncEngine(this.failure);
-
-  final Object failure;
-
-  @override
-  Future<void> incrementalSync() async {
-    throw failure;
-  }
-
-  @override
-  Future<void> fullSync() async {}
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _RecordingSyncEngine implements SyncEngine {
-  var incrementalSyncCalls = 0;
-
-  @override
-  Future<void> incrementalSync() async {
-    incrementalSyncCalls += 1;
-  }
-
-  @override
-  Future<void> fullSync() async {}
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 Future<void> _waitFor(bool Function() condition) async {

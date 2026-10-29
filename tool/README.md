@@ -85,7 +85,7 @@ The [button fixture](linux_button_comparison.dart) is also imported by the
 ## Generated assets and API references
 
 - `generate_windows_assets.dart` rewrites the committed Windows runner icon,
-  tray icons, and MSIX PNG variants from
+  tray icons, and four unqualified MSIX PNGs from
   `assets/branding/busymax-logo.png`. Review every generated image before
   committing it; see [Windows packaging](../docs/windows_packaging.md).
 - `google_tasks_discovery/fetch_tasks_discovery.dart` makes a network request

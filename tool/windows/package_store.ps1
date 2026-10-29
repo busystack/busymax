@@ -41,15 +41,7 @@ Set-Content -LiteralPath $ownerMarker -Value 'busymax-windows-store-output-v1' `
   -Encoding ascii
 New-Item -ItemType Directory -Force -Path $staging | Out-Null
 Copy-Item -LiteralPath "$ReleasePath/busymax.exe" -Destination $staging
-$runtimeFiles = @(
-  'flutter_windows.dll', 'sqlite3.dll',
-  'busymax_registration_reader.dll',
-  'connectivity_plus_plugin.dll', 'file_selector_windows_plugin.dll',
-  'flutter_local_notifications_windows.dll',
-  'flutter_secure_storage_windows_plugin.dll',
-  'flutter_timezone_plugin.dll', 'system_theme_plugin.dll',
-  'tray_manager_plugin.dll', 'url_launcher_windows_plugin.dll'
-)
+$runtimeFiles = @(Get-BusyMaxWindowsRuntimeDlls)
 foreach ($runtimeFile in $runtimeFiles) {
   $source = Join-Path $ReleasePath $runtimeFile
   if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
