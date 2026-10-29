@@ -118,7 +118,7 @@ class OfficialSdkTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, r'missing or substituted: framework\.dart'):
             self.check()
 
-    def test_link_replacement_diagnostic_reports_identity_without_target_contents(self):
+    def link_file_fixture(self):
         source = self.root / 'link-fixture'
         source.write_bytes(b'fixture-target')
         self.git('add', 'link-fixture')
@@ -128,11 +128,53 @@ class OfficialSdkTest(unittest.TestCase):
         self.identity['frameworkRevision'] = self.git('rev-parse', 'HEAD').decode().strip()
         (self.root / 'bin/cache/flutter.version.json').write_text(json.dumps(self.identity))
         self.git('config', 'core.symlinks', 'false')
+        self.spec['artifacts']['win32'] = self.spec['artifacts']['fixture-host']
+        return source, blob
+
+    def test_link_replacement_diagnostic_reports_identity_without_target_contents(self):
+        _, blob = self.link_file_fixture()
         with self.assertRaisesRegex(ValueError, 'source link was replaced: link-fixture') as failure:
             self.check()
         message = str(failure.exception)
         self.assertIn(f'entry type file; expected blob {blob}, got {blob}; core.symlinks=false', message)
         self.assertNotIn('fixture-target', message)
+
+    def test_windows_git_link_file_retains_exact_target_identity(self):
+        source, _ = self.link_file_fixture()
+        self.assertEqual(1, verify_sdk(self.root, self.spec, 'win32'))
+        self.assertEqual(b'fixture-target', source.read_bytes())
+        for changed in [b'other-target', b'fixture-target\r\n']:
+            source.write_bytes(changed)
+            with self.assertRaisesRegex(ValueError, 'link-fixture .*identity mismatch'):
+                verify_sdk(self.root, self.spec, 'win32')
+
+    def test_windows_link_file_requires_the_explicit_git_checkout_setting(self):
+        self.link_file_fixture()
+        self.git('config', 'core.symlinks', 'true')
+        with self.assertRaisesRegex(ValueError, 'source link was replaced: link-fixture'):
+            verify_sdk(self.root, self.spec, 'win32')
+        self.git('config', '--unset', 'core.symlinks')
+        with self.assertRaisesRegex(ValueError, 'source link was replaced: link-fixture'):
+            verify_sdk(self.root, self.spec, 'win32')
+
+    def test_windows_git_link_file_cannot_be_missing_or_a_directory(self):
+        source, _ = self.link_file_fixture()
+        source.unlink()
+        with self.assertRaisesRegex(ValueError, 'source link was replaced: link-fixture'):
+            verify_sdk(self.root, self.spec, 'win32')
+        source.mkdir()
+        with self.assertRaisesRegex(ValueError, 'source link was replaced: link-fixture'):
+            verify_sdk(self.root, self.spec, 'win32')
+
+    def test_native_sdk_link_target_remains_exact(self):
+        source, _ = self.link_file_fixture()
+        source.unlink()
+        source.symlink_to('fixture-target')
+        self.assertEqual(1, self.check())
+        source.unlink()
+        source.symlink_to('other-target')
+        with self.assertRaisesRegex(ValueError, 'link-fixture .*identity mismatch'):
+            self.check()
 
     def test_framework_revision_cannot_be_relabelled_by_version_metadata(self):
         self.spec['identity'] = {**self.identity, 'frameworkRevision': '0' * 40}

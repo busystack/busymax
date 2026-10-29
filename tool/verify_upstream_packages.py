@@ -91,6 +91,7 @@ def verify_sdk(root, expected, host=None):
         raise ValueError('Flutter framework is not the approved upstream revision')
     entries = subprocess.check_output([*command, 'ls-tree', '-rz', '--full-tree', 'HEAD'], env=environment, timeout=30)
     mismatched = []
+    link_setting = None
     for entry in entries.split(b'\0'):
         if not entry: continue
         metadata, relative = entry.split(b'\t', 1)
@@ -104,15 +105,23 @@ def verify_sdk(root, expected, host=None):
                 actual = path.read_bytes() if kind == 'file' else None
                 digest = (hashlib.sha1(b'blob ' + str(len(actual)).encode() + b'\0' + actual).hexdigest()
                           if actual is not None else 'unavailable')
-                symlinks = subprocess.run(
-                    [*command, 'config', '--local', '--type=bool', '--get', 'core.symlinks'],
-                    env=environment, capture_output=True, text=True, timeout=30,
-                )
-                setting = symlinks.stdout.strip() if symlinks.returncode == 0 else 'unset'
-                raise ValueError('Flutter SDK source link was replaced: ' + os.fsdecode(relative) +
-                                 ' (entry type ' + kind + '; expected blob ' + object_id.decode() +
-                                 ', got ' + digest + '; core.symlinks=' + setting + ')')
-            content = os.fsencode(os.readlink(path))
+                if link_setting is None:
+                    symlinks = subprocess.run(
+                        [*command, 'config', '--local', '--type=bool', '--get', 'core.symlinks'],
+                        env=environment, capture_output=True, text=True, timeout=30,
+                    )
+                    link_setting = symlinks.stdout.strip() if symlinks.returncode == 0 else 'unset'
+                if host == 'win32' and link_setting == 'false' and kind == 'file':
+                    # Git's declared Windows checkout stores the link target as
+                    # file bytes. They must match the upstream link blob exactly;
+                    # links never enter text normalization below.
+                    content = actual
+                else:
+                    raise ValueError('Flutter SDK source link was replaced: ' + os.fsdecode(relative) +
+                                     ' (entry type ' + kind + '; expected blob ' + object_id.decode() +
+                                     ', got ' + digest + '; core.symlinks=' + link_setting + ')')
+            else:
+                content = os.fsencode(os.readlink(path))
         else:
             if path.is_symlink() or not path.is_file(): raise ValueError('Flutter SDK source is missing or substituted: ' + os.fsdecode(relative))
             if os.name != 'nt' and bool(path.stat().st_mode & 0o111) != (mode == b'100755'):
