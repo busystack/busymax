@@ -23,6 +23,8 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:timezone/timezone.dart' as tz;
 
+import '../../support/persistence_test_directory.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   const platformChannel = MethodChannel('io.busystack.busymax/android');
@@ -1137,6 +1139,177 @@ void main() {
     expect(updatedMapping.generation, 'generation-1');
     expect(updatedMapping.state, await _reminderState(database, settings));
   });
+
+  for (final restart in [false, true]) {
+    for (final disableAccounts in [false, true]) {
+      test(
+        'future summary can be restored after ${disableAccounts ? 'eligibility loss' : 'disable'} (restart $restart)',
+        () async {
+          final directory = await createPersistenceTestDirectory(
+            'busymax-summary-',
+          );
+          addTearDown(() => directory.delete(recursive: true));
+          final account = await database.select(database.accounts).getSingle();
+          await database.close();
+          database = AppDatabase(
+            NativeDatabase(File('${directory.path}/busymax.sqlite')),
+          );
+          await database
+              .into(database.accounts)
+              .insert(account.toCompanion(true));
+          var clock = DateTime.utc(2026, 6, 8, 15); // 08:00 Vancouver.
+          settings = settings.copyWith(
+            notifyDueToday: true,
+            dueTodayNotificationTime: '09:00',
+          );
+          var notifications = service(clock: () => clock);
+          await notifications.initialize(timeZoneId: 'America/Vancouver');
+          await _insertDueTodayTask(
+            database,
+            localDay: tz.TZDateTime.from(clock, tz.local),
+          );
+          await notifications.reconcile();
+          const id = 0x425903;
+          expect(plugin.scheduled, hasLength(1));
+          expect(plugin.pendingIds, {id});
+          expect(plugin.scheduled.single.date.hour, 9);
+          if (disableAccounts) {
+            await database
+                .update(database.accounts)
+                .write(const AccountsCompanion(authState: Value('signed_out')));
+          } else {
+            settings = settings.copyWith(notifyDueToday: false);
+          }
+          await notifications.reconcile();
+          expect(plugin.cancelledIds, contains(id));
+          expect(plugin.pendingIds, isEmpty);
+          if (restart) {
+            await database.close();
+            database = AppDatabase(
+              NativeDatabase(File('${directory.path}/busymax.sqlite')),
+            );
+            notifications = service(clock: () => clock);
+            await notifications.initialize(timeZoneId: 'America/Vancouver');
+          }
+          clock = clock.add(const Duration(minutes: 5));
+          // Restoration reads current tasks, time and privacy rather than the withdrawn payload.
+          await database
+              .update(database.tasks)
+              .write(const TasksCompanion(title: Value('Current task')));
+          final task = await database.select(database.tasks).getSingle();
+          await database
+              .into(database.tasks)
+              .insert(task.copyWith(id: 'new-task'));
+          settings = settings.copyWith(
+            notifyDueToday: true,
+            dueTodayNotificationTime: '09:15',
+            notificationDetailLevel: NotificationDetailLevel.private,
+          );
+          if (disableAccounts) {
+            await database
+                .update(database.accounts)
+                .write(const AccountsCompanion(authState: Value('signed_in')));
+          }
+          await notifications.reconcile();
+          await notifications.reconcile();
+          expect(plugin.scheduled, hasLength(2));
+          expect(plugin.pendingIds, {id});
+          final restored = plugin.scheduled.last;
+          expect(restored.id, id);
+          expect(restored.date.hour, 9);
+          expect(restored.date.minute, 15);
+          expect(restored.date.location.name, 'America/Vancouver');
+          expect(restored.body, isNull);
+          expect(plugin.shown, isEmpty);
+          final row = await database
+              .select(database.androidDailySummarySchedules)
+              .getSingle();
+          expect(row.taskCount, 2);
+          expect(row.state, startsWith('scheduled:v3:private:'));
+        },
+      );
+    }
+  }
+
+  for (final afterRemoval in [false, true]) {
+    test(
+      'future summary cancellation recovers after native failure (removed $afterRemoval)',
+      () async {
+        final clock = DateTime.utc(2026, 6, 8, 15);
+        settings = settings.copyWith(
+          notifyDueToday: true,
+          dueTodayNotificationTime: '09:00',
+        );
+        final notifications = service(clock: () => clock);
+        await notifications.initialize(timeZoneId: 'America/Vancouver');
+        await _insertDueTodayTask(
+          database,
+          localDay: tz.TZDateTime.from(clock, tz.local),
+        );
+        await notifications.reconcile();
+        settings = settings.copyWith(notifyDueToday: false);
+        if (afterRemoval) {
+          plugin.cancellationFailuresAfterRemoval = 1;
+        } else {
+          plugin.cancellationFailuresRemaining = 1;
+        }
+        await expectLater(notifications.reconcile(), throwsStateError);
+        expect(
+          (await database
+                  .select(database.androidDailySummarySchedules)
+                  .getSingle())
+              .state,
+          'withdrawing:pending',
+        );
+        settings = settings.copyWith(notifyDueToday: true);
+        final restarted = service(
+          clock: () => clock.add(const Duration(minutes: 5)),
+        );
+        await restarted.initialize(timeZoneId: 'America/Vancouver');
+        await restarted.reconcile();
+        await restarted.reconcile();
+        expect(plugin.scheduled, hasLength(2));
+        expect(plugin.pendingIds, {0x425903});
+        expect(plugin.shown, isEmpty);
+      },
+    );
+  }
+
+  test(
+    'consumed summary remains suppressed through disable and re-enable',
+    () async {
+      var clock = DateTime.utc(2026, 6, 8, 15);
+      settings = settings.copyWith(
+        notifyDueToday: true,
+        dueTodayNotificationTime: '09:00',
+      );
+      final notifications = service(clock: () => clock);
+      await notifications.initialize(timeZoneId: 'America/Vancouver');
+      await _insertDueTodayTask(
+        database,
+        localDay: tz.TZDateTime.from(clock, tz.local),
+      );
+      await notifications.reconcile();
+      clock = clock.add(const Duration(hours: 2));
+      plugin.pendingIds
+          .clear(); // Delivered and dismissed before reconciliation.
+      await notifications.reconcile();
+      expect(
+        (await database
+                .select(database.androidDailySummarySchedules)
+                .getSingle())
+            .state,
+        'consumed',
+      );
+      settings = settings.copyWith(notifyDueToday: false);
+      await notifications.reconcile();
+      settings = settings.copyWith(notifyDueToday: true);
+      await notifications.reconcile();
+      expect(plugin.scheduled, hasLength(1));
+      expect(plugin.pendingIds, isEmpty);
+      expect(plugin.shown, isEmpty);
+    },
+  );
 
   test(
     'overdue pending summary is replaced after privacy and precision change',

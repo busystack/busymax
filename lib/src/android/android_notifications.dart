@@ -1336,8 +1336,46 @@ final class AndroidNotificationService
       }
     }
 
+    // Remember why we withdrew this known future alarm before native work.
+    // Cancellation can fail after removing it, including across a restart.
+    final futurePending =
+        current != null &&
+        current.state != 'consumed' &&
+        current.state != 'withdrawing' &&
+        current.scheduledAtUtc > now.millisecondsSinceEpoch &&
+        !displayed &&
+        (pending || current.state == 'withdrawing:pending');
+    Future<void> withdrawPending() async {
+      await (_database.update(
+        _database.androidDailySummarySchedules,
+      )..where((row) => row.localDate.equals(localDate))).write(
+        const AndroidDailySummarySchedulesCompanion(
+          state: Value('withdrawing:pending'),
+        ),
+      );
+      await _notifications.cancel(id: id);
+      await (_database.delete(
+        _database.androidDailySummarySchedules,
+      )..where((row) => row.localDate.equals(localDate))).go();
+    }
+
     if (!settings.notifyDueToday || eligibleAccounts.isEmpty) {
-      if (current != null) await consume();
+      if (current != null) {
+        if (futurePending) {
+          await withdrawPending();
+        } else {
+          await consume();
+        }
+      }
+      return;
+    }
+    if (current?.state == 'withdrawing:pending') {
+      if (futurePending) {
+        await withdrawPending();
+        _reconcileAgain = true;
+      } else {
+        await consume();
+      }
       return;
     }
     if (current?.state == 'withdrawing') {
