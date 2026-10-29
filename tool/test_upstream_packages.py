@@ -83,8 +83,9 @@ class OfficialSdkTest(unittest.TestCase):
             return subprocess.check_output(['git', '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', '-C', str(self.root), *args], env=self.environment, stderr=subprocess.DEVNULL, timeout=10)
         self.git = git
         git('init', '--template=', '--initial-branch=fixture')
+        (self.root / '.gitattributes').write_bytes(b'* text=auto\n*.dart text\n*.md text\n*.bat text eol=crlf\n*.bin binary\n')
         (self.root / 'framework.dart').write_text('const official = true;\n')
-        git('add', 'framework.dart'); git('commit', '-m', 'Official source fixture')
+        git('add', '.gitattributes', 'framework.dart'); git('commit', '-m', 'Official source fixture')
         revision = git('rev-parse', 'HEAD').decode().strip()
         self.identity = {'frameworkRevision': revision, 'frameworkVersion': '3.47.5', 'dartSdkVersion': '3.13.4'}
         cache = self.root / 'bin/cache'; cache.mkdir(parents=True)
@@ -96,6 +97,11 @@ class OfficialSdkTest(unittest.TestCase):
     def check(self):
         return verify_sdk(self.root, self.spec, 'fixture-host')
 
+    def commit_source(self, *paths):
+        self.git('add', *paths); self.git('commit', '-m', 'Application-owned source fixture')
+        self.identity['frameworkRevision'] = self.git('rev-parse', 'HEAD').decode().strip()
+        (self.root / 'bin/cache/flutter.version.json').write_text(json.dumps(self.identity))
+
     def test_official_source_and_binary_are_required_together(self):
         self.assertEqual(1, self.check())
         self.binary.write_bytes(b'Modified compiler with unchanged version')
@@ -103,7 +109,7 @@ class OfficialSdkTest(unittest.TestCase):
 
     def test_modified_framework_is_rejected_with_unchanged_version_file(self):
         (self.root / 'framework.dart').write_text('const downstream = true;\n')
-        with self.assertRaisesRegex(ValueError, r'source modifications: framework\.dart \(Git blob identity mismatch; expected [0-9a-f]{40}, got [0-9a-f]{40}\)') as failure:
+        with self.assertRaisesRegex(ValueError, r'source modifications: framework\.dart \(Git blob identity mismatch after upstream text normalization; expected [0-9a-f]{40}, got [0-9a-f]{40}\)') as failure:
             self.check()
         self.assertNotIn('downstream', str(failure.exception))
 
@@ -129,6 +135,71 @@ class OfficialSdkTest(unittest.TestCase):
         self.assertEqual(1, self.check())
         source.write_bytes(b'@echo off\r\necho Changed fixture\r\n')
         with self.assertRaisesRegex(ValueError, r'bootstrap\.bat \(Git blob identity mismatch'):
+            self.check()
+
+    def test_windows_markdown_checkout_uses_the_pinned_text_attributes(self):
+        source = self.root / '.agents/agents/README.md'
+        source.parent.mkdir(parents=True)
+        original = b'# BusyMax integrity fixture\n\nSynthetic upstream text.\n'
+        source.write_bytes(original)
+        self.commit_source('.agents/agents/README.md')
+        windows = original.replace(b'\n', b'\r\n')
+        source.write_bytes(windows)
+        self.assertEqual(1, self.check())
+        self.assertEqual(windows, source.read_bytes(), 'Verification must not repair an installation')
+        source.write_bytes(windows.replace(b'Synthetic', b'Modified'))
+        with self.assertRaisesRegex(ValueError, r'\.agents/agents/README\.md .*identity mismatch'):
+            self.check()
+
+    def test_auto_text_without_a_suffix_and_quoted_paths(self):
+        relative = 'fixtures/Unicode 漢 name with spaces'
+        source = self.root / relative
+        source.parent.mkdir()
+        source.write_bytes(b'BusyMax automatic text fixture\nsecond line\n')
+        self.commit_source(relative)
+        source.write_bytes(source.read_bytes().replace(b'\n', b'\r\n'))
+        self.assertEqual(1, self.check())
+
+    def test_binary_crlf_bytes_and_local_attribute_overrides_cannot_bypass_identity(self):
+        source = self.root / 'data.bin'
+        original = b'BusyMax synthetic binary\nwith ASCII and CRLF-like bytes\n'
+        source.write_bytes(original)
+        self.commit_source('data.bin')
+        source.write_bytes(original.replace(b'\n', b'\r\n'))
+        # Neither SDK-local attributes nor a clean filter may relabel bytes.
+        (self.root / '.git/info').mkdir(exist_ok=True)
+        (self.root / '.git/info/attributes').write_bytes(b'*.bin text filter=fixture\n')
+        self.git('config', 'filter.fixture.clean', 'fixture-clean-filter-must-not-run')
+        self.git('config', 'filter.fixture.required', 'true')
+        self.git('config', 'core.autocrlf', 'true')
+        with self.assertRaisesRegex(ValueError, r'data\.bin .*identity mismatch'):
+            self.check()
+
+    def test_nested_binary_rule_overrides_the_root_text_rule(self):
+        directory = self.root / 'assets'
+        directory.mkdir()
+        (directory / '.gitattributes').write_bytes(b'*.md binary\n')
+        source = directory / 'binary.md'
+        source.write_bytes(b'BusyMax binary fixture\n')
+        self.commit_source('assets')
+        source.write_bytes(b'BusyMax binary fixture\r\n')
+        with self.assertRaisesRegex(ValueError, r'assets/binary\.md .*identity mismatch'):
+            self.check()
+
+    def test_auto_binary_with_nul_and_crlf_is_byte_exact(self):
+        source = self.root / 'compiler-fixture'
+        source.write_bytes(b'BusyMax\x00\r\nbinary fixture\r\n')
+        self.commit_source('compiler-fixture')
+        source.write_bytes(source.read_bytes().replace(b'\r\n', b'\n'))
+        with self.assertRaisesRegex(ValueError, r'compiler-fixture .*identity mismatch'):
+            self.check()
+
+    def test_nul_bytes_are_exact_even_under_an_explicit_text_rule(self):
+        source = self.root / 'binary-fixture.dart'
+        source.write_bytes(b'BusyMax\x00binary fixture\n')
+        self.commit_source('binary-fixture.dart')
+        source.write_bytes(b'BusyMax\x00binary fixture\r\n')
+        with self.assertRaisesRegex(ValueError, r'binary-fixture\.dart .*identity mismatch'):
             self.check()
 
     def test_runtime_with_crlf_like_bytes_is_byte_exact(self):

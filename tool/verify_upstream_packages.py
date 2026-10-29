@@ -10,10 +10,10 @@ import hashlib
 import json
 import os
 from pathlib import Path, PurePosixPath
-import fnmatch
 import re
 import subprocess
 import sys
+import tempfile
 from urllib.parse import unquote, urlparse
 from urllib.request import url2pathname
 
@@ -34,6 +34,47 @@ def package_root(configuration, value):
     return (configuration.parent / unquote(uri.path)).resolve()
 
 
+def canonical_source_blobs(root, revision, paths, command, environment):
+    """Apply only the pinned tree's Git attributes, without trusting local policy.
+
+    A private Git directory excludes installed SDK config, info/attributes,
+    global attributes and configured clean filters. The installed object store
+    is read-only input; hash-object has no -w and never repairs source files.
+    """
+    objects = subprocess.check_output(
+        [*command, 'rev-parse', '--path-format=absolute', '--git-path', 'objects'],
+        env=environment, text=True, timeout=30,
+    ).strip()
+    clean = {**environment, 'GIT_CONFIG_GLOBAL': os.devnull,
+             'GIT_CONFIG_NOSYSTEM': '1', 'GIT_ATTR_NOSYSTEM': '1'}
+    with tempfile.TemporaryDirectory(prefix='busymax-sdk-attributes-') as directory:
+        subprocess.run(
+            ['git', 'init', '--bare', '--template=', '--object-format=sha1', '--quiet', directory],
+            env=clean, check=True, timeout=30,
+        )
+        # C-quoted UTF-8 paths also handle spaces, control bytes and Windows
+        # separators without treating SDK names as command-line options.
+        quoted = b''.join(
+            b'"' + b''.join(
+                bytes([byte]) if 32 <= byte < 127 and byte not in (34, 92)
+                else ('\\%03o' % byte).encode('ascii')
+                for byte in path
+            ) + b'"\n'
+            for path in paths
+        )
+        result = subprocess.check_output(
+            ['git', '--no-optional-locks', '-c', 'core.fsmonitor=false',
+             '-c', 'core.hooksPath=' + os.devnull, '-c', 'core.attributesFile=' + os.devnull,
+             '-c', 'core.autocrlf=false', '--git-dir=' + directory,
+             '--work-tree=' + str(root), 'hash-object', '--stdin-paths'],
+            input=quoted, cwd=root, timeout=60,
+            env={**clean, 'GIT_OBJECT_DIRECTORY': objects, 'GIT_ATTR_SOURCE': revision},
+        ).splitlines()
+    if len(result) != len(paths) or any(not re.fullmatch(b'[0-9a-f]{40}', item) for item in result):
+        raise ValueError('Invalid canonical SDK source identity response')
+    return result
+
+
 def verify_sdk(root, expected, host=None):
     root = Path(root).resolve()
     host = host or sys.platform
@@ -49,8 +90,7 @@ def verify_sdk(root, expected, host=None):
     if head != expected['identity']['frameworkRevision']:
         raise ValueError('Flutter framework is not the approved upstream revision')
     entries = subprocess.check_output([*command, 'ls-tree', '-rz', '--full-tree', 'HEAD'], env=environment, timeout=30)
-    crlf = ('*.bat', '*.ps1', '*.rc', '*.sln', '*.props', '*.vcxproj',
-            '*.vcxproj.filters', '*.sln.tmpl', '*.props.tmpl', '*.vcxproj.tmpl')
+    mismatched = []
     for entry in entries.split(b'\0'):
         if not entry: continue
         metadata, relative = entry.split(b'\t', 1)
@@ -66,12 +106,22 @@ def verify_sdk(root, expected, host=None):
             if os.name != 'nt' and bool(path.stat().st_mode & 0o111) != (mode == b'100755'):
                 raise ValueError('Flutter SDK source mode was modified: ' + os.fsdecode(relative))
             content = path.read_bytes()
-            if any(fnmatch.fnmatchcase(os.fsdecode(relative), pattern) for pattern in crlf) and content.count(b'\n') == content.count(b'\r\n'):
-                content = content.replace(b'\r\n', b'\n')
         digest = hashlib.sha1(b'blob ' + str(len(content)).encode() + b'\0' + content).hexdigest()
         if digest.encode() != object_id:
+            if mode != b'120000' and b'\0' not in content:
+                mismatched.append((relative, object_id))
+                continue
             raise ValueError('Flutter SDK contains source modifications: ' + os.fsdecode(relative) +
                              ' (Git blob identity mismatch; expected ' + object_id.decode() + ', got ' + digest + ')')
+    if mismatched:
+        # The official Windows archive also checks out Markdown with CRLF.
+        # Compare its canonical blob using upstream policy, not SDK-local rules.
+        canonical = canonical_source_blobs(root, head, [path for path, _ in mismatched], command, environment)
+        for (relative, object_id), digest in zip(mismatched, canonical, strict=True):
+            if digest != object_id:
+                raise ValueError('Flutter SDK contains source modifications: ' + os.fsdecode(relative) +
+                                 ' (Git blob identity mismatch after upstream text normalization; expected ' +
+                                 object_id.decode() + ', got ' + digest.decode() + ')')
     verified = 0
     for artifact in expected['artifacts'][host]:
         directory = PurePosixPath(artifact['directory'])
