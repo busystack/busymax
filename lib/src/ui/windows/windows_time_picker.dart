@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../../l10n/l10n.dart';
@@ -250,6 +251,16 @@ class _ClockWheelState extends State<_ClockWheel> {
   late final _controller = FixedExtentScrollController(
     initialItem: widget.initial,
   );
+  bool _focusVisible = false;
+
+  void _step(int delta) {
+    final next = widget.looping
+        ? _controller.selectedItem + delta
+        : (_controller.selectedItem + delta).clamp(0, widget.count - 1);
+    _controller.jumpToItem(next);
+    widget.changed(next % widget.count);
+  }
+
   @override
   void dispose() {
     _controller.dispose();
@@ -273,14 +284,37 @@ class _ClockWheelState extends State<_ClockWheel> {
                 child: Center(child: Text(widget.label(i))),
               ),
     ];
-    return ListWheelScrollView.useDelegate(
-      controller: _controller,
-      itemExtent: widget.row,
-      physics: const FixedExtentScrollPhysics(),
-      onSelectedItemChanged: widget.changed,
-      childDelegate: widget.looping
-          ? ListWheelChildLoopingListDelegate(children: labels)
-          : ListWheelChildListDelegate(children: labels),
+    return FocusableActionDetector(
+      shortcuts: const {
+        SingleActivator(LogicalKeyboardKey.arrowUp): _ClockStepIntent(-1),
+        SingleActivator(LogicalKeyboardKey.arrowDown): _ClockStepIntent(1),
+      },
+      actions: {
+        _ClockStepIntent: CallbackAction<_ClockStepIntent>(
+          onInvoke: (intent) {
+            _step(intent.delta);
+            return null;
+          },
+        ),
+      },
+      onShowFocusHighlight: (value) => setState(() => _focusVisible = value),
+      child: FocusBorder(
+        focused: _focusVisible,
+        child: ListWheelScrollView.useDelegate(
+          controller: _controller,
+          itemExtent: widget.row,
+          physics: const FixedExtentScrollPhysics(),
+          onSelectedItemChanged: widget.changed,
+          childDelegate: widget.looping
+              ? ListWheelChildLoopingListDelegate(children: labels)
+              : ListWheelChildListDelegate(children: labels),
+        ),
+      ),
     );
   }
+}
+
+class _ClockStepIntent extends Intent {
+  const _ClockStepIntent(this.delta);
+  final int delta;
 }

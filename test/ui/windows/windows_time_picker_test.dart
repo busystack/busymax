@@ -2,9 +2,89 @@ import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:busymax/src/l10n/time_format_scope.dart';
 import 'package:busymax/src/ui/windows/windows_time_picker.dart';
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  for (final use24 in [true, false]) {
+    testWidgets('keyboard selects and saves time ($use24)', (tester) async {
+      final format = ValueNotifier(use24);
+      addTearDown(format.dispose);
+      final selected = DateTime.utc(2026, 9, 13, 9, 5, 17);
+      final changes = <DateTime>[];
+      await _pump(tester, selected, format, changes.add);
+      await _openByKeyboard(tester);
+      await _tabToWheel(tester, 0);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      await _tabToWheel(tester, 1);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await tester.pumpAndSettle();
+      if (!use24) {
+        await _tabToWheel(tester, 2);
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pumpAndSettle();
+      }
+      _expectWheel(tester, 0, 10, use24 ? 24 : 12);
+      _expectWheel(tester, 1, 4, 60);
+      if (!use24) _expectWheel(tester, 2, 1, 2);
+      await _tabToButton(tester, 'time-confirm');
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(changes, [selected.copyWith(hour: use24 ? 10 : 22, minute: 4)]);
+      expect(find.byType(ListWheelScrollView), findsNothing);
+    });
+  }
+
+  testWidgets('keyboard wraps both wheels and commits the visible selection', (
+    tester,
+  ) async {
+    final format = ValueNotifier(true);
+    addTearDown(format.dispose);
+    final selected = DateTime.utc(2026, 9, 13, 23, 0);
+    final changes = <DateTime>[];
+    await _pump(tester, selected, format, changes.add);
+    await _openByKeyboard(tester);
+    await _tabToWheel(tester, 0);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pumpAndSettle();
+    await _tabToWheel(tester, 1);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+    await tester.pumpAndSettle();
+    _expectWheel(tester, 0, 0, 24);
+    _expectWheel(tester, 1, 59, 60);
+    await _tabToButton(tester, 'time-confirm');
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+    expect(changes, [selected.copyWith(hour: 0, minute: 59)]);
+  });
+
+  testWidgets('keyboard cancellation discards pending time', (tester) async {
+    final format = ValueNotifier(true);
+    addTearDown(format.dispose);
+    final selected = DateTime.utc(2026, 9, 13, 9, 5);
+    final changes = <DateTime>[];
+    var cancelled = 0;
+    await _pump(
+      tester,
+      selected,
+      format,
+      changes.add,
+      onCancel: () => cancelled++,
+    );
+    await _openByKeyboard(tester);
+    await _tabToWheel(tester, 0);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pumpAndSettle();
+    _expectWheel(tester, 0, 10, 24);
+    await _tabToButton(tester, 'time-cancel');
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+    expect(changes, isEmpty);
+    expect(cancelled, 1);
+    expect(find.text('09'), findsOneWidget);
+  });
+
   testWidgets(
     'an initially empty picker retains its pending selection across format changes',
     (tester) async {
@@ -163,6 +243,77 @@ void main() {
     expect(changes, isEmpty);
     expect(find.text('12'), findsOneWidget);
   });
+}
+
+Future<void> _openByKeyboard(WidgetTester tester) async {
+  await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+  await tester.pumpAndSettle();
+  await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+  await tester.pumpAndSettle();
+  expect(find.byType(ListWheelScrollView), findsWidgets);
+}
+
+Future<void> _tabToWheel(WidgetTester tester, int index) async {
+  final wheel = find.byType(ListWheelScrollView).at(index);
+  for (var attempt = 0; attempt < 12; attempt++) {
+    if (Focus.maybeOf(tester.element(wheel))?.hasPrimaryFocus ?? false) {
+      return;
+    }
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pumpAndSettle();
+  }
+  expect(
+    (Focus.maybeOf(tester.element(wheel))?.hasPrimaryFocus ?? false),
+    isTrue,
+    reason: 'Wheel $index must be reachable by Tab',
+  );
+}
+
+Future<void> _tabToButton(WidgetTester tester, String key) async {
+  final button = find.byKey(ValueKey(key));
+  for (var attempt = 0; attempt < 12; attempt++) {
+    if (Focus.of(
+      tester.element(
+        find.descendant(of: button, matching: find.byType(Text)).first,
+      ),
+    ).hasPrimaryFocus) {
+      return;
+    }
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pumpAndSettle();
+  }
+  fail('$key must be reachable by Tab');
+}
+
+void _expectWheel(WidgetTester tester, int index, int value, int count) {
+  final wheel = tester.widget<ListWheelScrollView>(
+    find.byType(ListWheelScrollView).at(index),
+  );
+  final controller = wheel.controller! as FixedExtentScrollController;
+  expect(controller.selectedItem % count, value);
+  final delegate = wheel.childDelegate;
+  final children = delegate is ListWheelChildLoopingListDelegate
+      ? delegate.children
+      : (delegate as ListWheelChildListDelegate).children;
+  expect(
+    find.descendant(
+      of: find.byWidget(children[value]),
+      matching: find.byType(Text),
+    ),
+    findsWidgets,
+  );
+  final selectedLabel = find.descendant(
+    of: find.byWidget(children[value]),
+    matching: find.byType(Text),
+  );
+  expect(
+    tester.getCenter(selectedLabel).dy,
+    closeTo(tester.getCenter(find.byType(ListWheelScrollView).at(index)).dy, 1),
+  );
+  expect(
+    controller.offset / wheel.itemExtent,
+    closeTo(controller.selectedItem.toDouble(), 0.001),
+  );
 }
 
 Future<void> _pump(
