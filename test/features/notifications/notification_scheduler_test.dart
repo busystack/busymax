@@ -119,6 +119,49 @@ void main() {
   });
 
   test(
+    'startup identity failure retains reminders and retries reconciliation',
+    () async {
+      scheduler.stop();
+      final native = _IdentityNotificationBackend();
+      native.activeIds.add('event|deleted|generation');
+      final service = DesktopNotificationService(
+        backend: native,
+        settings: AppSettings.defaults(),
+        now: () => now,
+      );
+      scheduler = NotificationScheduler(
+        database: database,
+        notifications: service,
+        nowUtc: () => now,
+      );
+      await _insertDueTaskNotification(database, now);
+      await scheduler.checkNow();
+      expect(native.enumerations, 1);
+      expect(native.notifications, isEmpty);
+      expect(native.cancelledIds, isEmpty);
+      expect(
+        (await database.select(database.notificationSchedule).getSingle())
+            .sentAtUtc,
+        isNull,
+      );
+
+      native.available = true;
+      now = now.add(const Duration(minutes: 2));
+      await scheduler.checkNow();
+      expect(native.enumerations, 2);
+      expect(native.cancelledIds, ['event|deleted|generation']);
+      expect(native.notifications, hasLength(1));
+      expect(
+        (await database.select(database.notificationSchedule).getSingle())
+            .sentAtUtc,
+        isNotNull,
+      );
+      await scheduler.checkNow();
+      expect(native.notifications, hasLength(1));
+    },
+  );
+
+  test(
     'cancellation failure retries without blocking an unrelated reminder',
     () async {
       await _insertDueTaskNotification(database, now);
@@ -864,6 +907,37 @@ class _FakeNotificationBackend implements DesktopNotificationBackend {
 
   @override
   Future<void> close() async {}
+}
+
+class _IdentityNotificationBackend extends _FakeNotificationBackend
+    implements DesktopNotificationIdentitySource {
+  bool available = false;
+  int enumerations = 0;
+  final activeIds = <String>{};
+
+  @override
+  Future<Set<String>> knownReminderDeliveryIds() async {
+    enumerations++;
+    if (!available) throw StateError('Notification server unavailable.');
+    return {...activeIds};
+  }
+
+  @override
+  Future<void> notify(
+    BusyMaxNotificationRequest request, {
+    DesktopNotificationActionHandler? onAction,
+  }) async {
+    if (!available) throw StateError('Notification server unavailable.');
+    await super.notify(request, onAction: onAction);
+    activeIds.add(request.stableId);
+  }
+
+  @override
+  Future<void> cancel(String stableId) async {
+    if (!available) throw StateError('Notification server unavailable.');
+    await super.cancel(stableId);
+    activeIds.remove(stableId);
+  }
 }
 
 class _NotificationRecord {

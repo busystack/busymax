@@ -63,6 +63,8 @@ final class FreedesktopNotificationBackend
       }
     }
     if (_session == session) return;
+    // Capabilities belong to the verified server owner, just like numeric IDs.
+    if (_session != null) _capabilities = null;
     _nativeIds.clear();
     _notifications.clear();
     _identityFile ??= File(

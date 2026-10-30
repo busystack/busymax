@@ -258,9 +258,18 @@ class DesktopNotificationService {
   Future<void> reconcileReminderIdentities(Set<String> validIds) async {
     final backend = _backend;
     if (backend is! DesktopNotificationIdentitySource) return;
-    for (final id
-        in await (backend as DesktopNotificationIdentitySource)
-            .knownReminderDeliveryIds()) {
+    final Set<String> knownIds;
+    try {
+      knownIds = await (backend as DesktopNotificationIdentitySource)
+          .knownReminderDeliveryIds();
+    } on Object {
+      // An unavailable server cannot establish which identities are obsolete.
+      // Retain them and retry reconciliation on the next scheduler check;
+      // unrelated work and pending reminder delivery must still be attempted.
+      onDeliveryStateChanged?.call(false);
+      return;
+    }
+    for (final id in knownIds) {
       if (!validIds.contains(id)) await cancelReminder(id);
     }
   }

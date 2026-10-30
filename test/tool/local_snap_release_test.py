@@ -126,6 +126,15 @@ class LocalReleaseTest(unittest.TestCase):
         with patch.object(release, 'run', side_effect=self.source_runner):
             with self.assertRaises(release.ReleaseError): release.source_gate(self.source, 'b'*40, '0.3.2')
 
+    def test_uncommitted_source_is_rejected_before_release(self):
+        for status in (' M lib/main_linux.dart', '?? unreviewed.dart'):
+            def runner(args, cwd, **kwargs):
+                if args[1] == 'status': return status
+                return self.source_runner(args, cwd, **kwargs)
+            with self.subTest(status=status), patch.object(release, 'run', side_effect=runner):
+                with self.assertRaisesRegex(release.ReleaseError, 'clean, committed'):
+                    release.source_gate(self.source, 'a'*40, '0.3.2')
+
     def test_existing_workspace_and_shared_repository_untouched(self):
         workspace = self.root / 'existing'; workspace.mkdir()
         shared = workspace / 'busystack_graph'; shared.mkdir()

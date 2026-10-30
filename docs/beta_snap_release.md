@@ -49,7 +49,7 @@ server-side credential. See [Google's OAuth overview](https://developers.google.
 ## One supported build command
 
 Prerequisites: Linux amd64, Flutter **3.47.5** and its bundled Dart **3.13.4**,
-Snapcraft **9.1.4**, snapd, configured LXD, `squashfs-tools`, and the Linux native
+Snapcraft **9.2.1**, snapd, configured LXD, `squashfs-tools`, and the Linux native
 build/test dependencies listed in [Development](development.md). The runtime
 verifier creates a new tagged Ubuntu 24.04 VM; the host needs VM-capable LXD.
 The source checkout must be clean on `release/vVERSION` or `main`, match the

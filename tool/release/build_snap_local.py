@@ -18,7 +18,7 @@ import tempfile
 import xml.etree.ElementTree as ET
 
 PRIVACY = 'https://busystack.org/privacy-busymax'
-SNAPCRAFT_VERSION = '9.1.4'
+SNAPCRAFT_VERSION = '9.2.1'
 PUBLIC_KEYS = {'MICROSOFT_OAUTH_CLIENT_ID', 'MICROSOFT_OAUTH_AUTHORITY_TENANT',
                'BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID'}
 SYNTHETIC = {'managed.apps.googleusercontent.com','later.apps.googleusercontent.com','fixture.apps.googleusercontent.com','original.apps.googleusercontent.com','owned.apps.googleusercontent.com','synthetic-public-secret','synthetic-managed-project','11111111-1111-1111-1111-111111111111','33333333-3333-3333-3333-333333333333','55555555-5555-5555-5555-555555555555',
@@ -245,7 +245,8 @@ def build(options):
     step([options.flutter.resolve(), 'test', '--no-pub'], 'Running Flutter regression tests')
     step(['python3', '-m', 'unittest', 'discover', '-s', 'test/tool', '-p', '*_test.py'], 'Running tool regression tests')
     step(['bash', 'tool/release/check_linux_native.sh'], 'Running native Linux checks')
-    step(['env', f'XDG_CONFIG_HOME={root / "build/linux/native-tests/gtk-config"}', 'xvfb-run', '-a',
+    step(['env', f'XDG_CONFIG_HOME={root / "build/linux/native-tests/gtk-config"}',
+          'dbus-run-session', '--', 'xvfb-run', '-a',
           options.flutter.resolve(), 'test', '--no-pub', 'integration_test/gtk_header_icons_integration_test.dart', '-d', 'linux'],
          'Verifying Flutter native GTK header integration')
     step(['cmake', '-S', 'native/registration_reader', '-B', 'build/linux/registration-reader-tests'], 'Configuring native registration checks')

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:busymax/src/app/app_bootstrap.dart';
@@ -13,6 +14,127 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../support/memory_settings_store.dart';
 
 void main() {
+  test('server absence preserves pending operations until recovery', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'busymax-no-server-',
+    );
+    final server = DBusServer();
+    final address = await server.listenAddress(
+      DBusAddress.unix(path: '${directory.path}/bus'),
+    );
+    final daemon = DBusClient(address);
+    final object = _NotificationDaemon();
+    await daemon.registerObject(object);
+    final file = File('${directory.path}/ids.json');
+    final backend = FreedesktopNotificationBackend(
+      bus: DBusClient(address),
+      identityFile: file,
+    );
+    addTearDown(() async {
+      await backend.close();
+      await daemon.close();
+      await server.close();
+      await directory.delete(recursive: true);
+    });
+    final states = <bool>[];
+    final service = DesktopNotificationService(
+      backend: backend,
+      settings: AppSettings.defaults(),
+      onDeliveryStateChanged: states.add,
+    );
+    const id = 'event|source|generation';
+    await service.reconcileReminderIdentities({id});
+    expect(states, [false]);
+    expect(
+      (await service.notifyEventReminder('Pending', '', stableId: id)).status,
+      ReminderDeliveryStatus.failed,
+    );
+    expect(await file.exists(), isFalse);
+
+    await daemon.requestName('org.freedesktop.Notifications');
+    expect(
+      (await service.notifyEventReminder('Pending', '', stableId: id)).status,
+      ReminderDeliveryStatus.delivered,
+    );
+    final persisted = await file.readAsString();
+    await daemon.releaseName('org.freedesktop.Notifications');
+    await service.reconcileReminderIdentities({});
+    expect(await service.cancelReminder(id), isFalse);
+    expect(object.closeCalls, 0);
+    expect(await file.readAsString(), persisted);
+
+    // The same owner recovering must retain, then withdraw, its native ID.
+    await daemon.requestName('org.freedesktop.Notifications');
+    expect(await backend.knownReminderDeliveryIds(), {id});
+    await service.retryReminderCancellations();
+    expect(object.closeCalls, 1);
+    expect(await backend.knownReminderDeliveryIds(), isEmpty);
+    expect((jsonDecode(await file.readAsString()) as Map)['ids'], isEmpty);
+    await service.retryReminderCancellations();
+    expect(object.closeCalls, 1);
+  }, skip: !Platform.isLinux);
+
+  test('persisted IDs restore only for the same notification server', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'busymax-server-id-',
+    );
+    final server = DBusServer();
+    final address = await server.listenAddress(
+      DBusAddress.unix(path: '${directory.path}/bus'),
+    );
+    final daemon = DBusClient(address);
+    final replacementDaemon = DBusClient(address);
+    final original = _NotificationDaemon()..capabilities = ['body-markup'];
+    final replacement = _NotificationDaemon();
+    await daemon.registerObject(original);
+    await replacementDaemon.registerObject(replacement);
+    await daemon.requestName('org.freedesktop.Notifications');
+    final file = File('${directory.path}/ids.json');
+    final backend = FreedesktopNotificationBackend(
+      bus: DBusClient(address),
+      identityFile: file,
+    );
+    final restored = FreedesktopNotificationBackend(
+      bus: DBusClient(address),
+      identityFile: file,
+    );
+    addTearDown(() async {
+      await backend.close();
+      await restored.close();
+      await daemon.close();
+      await replacementDaemon.close();
+      await server.close();
+      await directory.delete(recursive: true);
+    });
+    const request = BusyMaxNotificationRequest(
+      stableId: 'task|source|generation',
+      title: 'Persistent identity',
+      body: 'One & two',
+    );
+    await backend.notify(request);
+    expect(original.body, 'One &amp; two');
+    expect(await restored.knownReminderDeliveryIds(), {request.stableId});
+    final persisted = await file.readAsString();
+    await daemon.releaseName('org.freedesktop.Notifications');
+    await expectLater(restored.knownReminderDeliveryIds(), throwsStateError);
+    expect(await file.readAsString(), persisted);
+
+    await replacementDaemon.requestName('org.freedesktop.Notifications');
+    // A replacement server may reuse ID 1 for another application's post.
+    await backend.cancel(request.stableId);
+    await restored.cancel(request.stableId);
+    expect(original.closeCalls, 0);
+    expect(replacement.closeCalls, 0);
+    expect(await backend.knownReminderDeliveryIds(), isEmpty);
+    await backend.notify(request);
+    expect(replacement.replacesId, 0);
+    expect(replacement.body, 'One & two');
+    expect(await backend.knownReminderDeliveryIds(), {request.stableId});
+    await backend.cancel(request.stableId);
+    expect(replacement.closeCalls, 1);
+    expect(await backend.knownReminderDeliveryIds(), isEmpty);
+  }, skip: !Platform.isLinux);
+
   test('native withdrawal uses the same D-Bus sender as delivery and retries failure', () async {
     final directory = await Directory.systemTemp.createTemp(
       'busymax-notification-bus-',
@@ -173,16 +295,19 @@ class _NotificationDaemon extends DBusObject {
   String? closedBy;
   bool failClose = false;
   int closeCalls = 0;
+  List<String> capabilities = ['actions', 'body'];
+  String? body;
+  int? replacesId;
 
   @override
   Future<DBusMethodResponse> handleMethodCall(DBusMethodCall call) async {
     switch (call.name) {
       case 'GetCapabilities':
-        return DBusMethodSuccessResponse([
-          DBusArray.string(['actions', 'body']),
-        ]);
+        return DBusMethodSuccessResponse([DBusArray.string(capabilities)]);
       case 'Notify':
         submittedBy = call.sender;
+        replacesId = (call.values[1] as DBusUint32).value;
+        body = (call.values[4] as DBusString).value;
         return DBusMethodSuccessResponse([DBusUint32(1)]);
       case 'CloseNotification':
         closeCalls++;
