@@ -1,7 +1,7 @@
 // Run only in an explicitly isolated Android test installation. The host must
 // force-stop after the prepared receipt, then relaunch the SAME retained APK.
 // There is deliberately no cancelAll() or work re-registration on restart.
-// This identical harness also compiles against the unchanged daee1df sources.
+// The foreground runtime stays alive through both original worker outcomes.
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
@@ -93,6 +93,12 @@ void main() {
       final database = runtime.database;
       if (!restarting) {
         expect(await database.select(database.accounts).get(), isEmpty);
+        await database.customStatement(
+          'CREATE TABLE qa_foreground_writes(owner INTEGER PRIMARY KEY, value INTEGER NOT NULL)',
+        );
+        await database.customStatement(
+          'INSERT INTO qa_foreground_writes VALUES(0,0),(1,0)',
+        );
         final now = DateTime.now().toUtc();
         final alarm = now.add(const Duration(days: 7));
         final stamp = alarm
@@ -237,6 +243,28 @@ void main() {
         }
         fail('Host did not force-stop at the retained-work receipt barrier.');
       } else {
+        var writes = 0;
+        final writing = (() async {
+          final outcomes = File('${directory.path}/workers-finished.json');
+          final deadline = DateTime.now().add(const Duration(seconds: 35));
+          while (!await outcomes.exists()) {
+            if (DateTime.now().isAfter(deadline)) {
+              fail('Original retained worker outcomes were not recorded.');
+            }
+            await database.transaction(() async {
+              await database.customStatement(
+                'UPDATE qa_foreground_writes SET value=value+1 WHERE owner=?',
+                [writes % 2],
+              );
+              // QA-only short transaction creates real overlap with independent
+              // worker writers. No production worker is cancelled or serialized.
+              await Future<void>.delayed(const Duration(milliseconds: 50));
+            });
+            writes++;
+            if (writes == 1) await receipt('foreground-writing', {});
+            await Future<void>.delayed(const Duration(milliseconds: 20));
+          }
+        })();
         await tester.pumpWidget(
           UncontrolledProviderScope(
             container: runtime.container,
@@ -261,7 +289,23 @@ void main() {
           ),
           isTrue,
         );
-        await receipt('verified', {'nativeWork': await inventory()});
+        await writing;
+        final recorded = jsonDecode(
+          await File('${directory.path}/workers-finished.json').readAsString(),
+        ) as Map;
+        expect(recorded['allRetainedWorkersFinished'], isTrue);
+        expect(recorded['notificationRefillSucceeded'], isTrue);
+        expect(recorded['workerInitializationFailed'], isFalse);
+        expect(await database.select(database.tasks).get(), hasLength(500));
+        expect(
+          await database.select(database.notificationSchedule).get(),
+          hasLength(6),
+        );
+        await receipt('verified', {
+          'nativeWork': await inventory(),
+          'foregroundTransactions': writes,
+          'recordedWorkerOutcomes': recorded,
+        });
         completed = true;
       }
     } catch (error, stack) {

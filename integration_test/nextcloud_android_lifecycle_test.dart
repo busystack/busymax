@@ -1,8 +1,10 @@
 // Run twice on a disposable Android app profile with the same QA define file.
 // Force-stop the package between runs. Only the test-created accounts are used;
 // transport, persistence, Android gates and WorkManager remain production code.
-// This functional probe cleans jobs between phases. Retained-work startup
-// acceptance is separate: android_retained_startup_test.dart.
+// BUSYMAX_RETAINED_STARTUP_QA additionally retains the original periodic jobs
+// through restart and changed-pin/pending-write process termination barriers.
+import 'support/retained_android_work.dart';
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -33,6 +35,7 @@ import 'package:busymax_android_platform/busymax_android_platform.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  const retained = bool.fromEnvironment('BUSYMAX_RETAINED_STARTUP_QA');
   const encoded = String.fromEnvironment('BUSYMAX_NEXTCLOUD_ANDROID_QA');
   testWidgets('native Nextcloud background synchronization and process recovery', (
     tester,
@@ -44,7 +47,25 @@ void main() {
       '${(await getApplicationSupportDirectory()).path}/nextcloud-qa-${config['runId']}.json',
     );
     final prepared = await phase.exists();
-    final runtime = await AndroidHeadlessRuntime.create();
+    final retainedWork = retained ? await RetainedAndroidWork.create() : null;
+    final paused = File('${phase.path}.paused');
+    final resumingPaused = await paused.exists();
+    await retainedWork?.record('entry', {
+      'restarting': prepared,
+      'resumingPaused': resumingPaused,
+    });
+    await retainedWork?.record('runtime-start', {});
+    late AndroidHeadlessRuntime runtime;
+    try {
+      runtime = await AndroidHeadlessRuntime.create();
+    } catch (error, stack) {
+      await retainedWork?.record('failure', {
+        'error': error.toString(),
+        'stack': stack.toString(),
+      });
+      rethrow;
+    }
+    await retainedWork?.record('runtime-opened', {});
     final container = runtime.container;
     final database = runtime.database;
     final persistence = container.read(authorizationPersistenceProvider);
@@ -95,6 +116,7 @@ void main() {
       }
     }
 
+    var backgroundSequence = 0;
     Future<void> background(List<Map> expected) async {
       final before = {for (final a in expected) a['id']: await success(a)};
       var completed = false;
@@ -104,10 +126,34 @@ void main() {
         if (event.type == 'dataChanged') completed = true;
       });
       try {
-        await enqueueImmediateBusyMaxSync();
-        // Observe the production cross-engine completion event. Reading the
-        // SQLite file while a worker opens/commits it bypasses that protocol.
-        await until(() async => completed);
+        if (retained) {
+          // A unique QA request cannot replace a still-cleaning-up previous
+          // request. The real production dispatcher, constraints and backoff
+          // remain intact. The host records this exact native worker outcome.
+          final name = 'busymax.qa.native.$pid.${++backgroundSequence}';
+          await Workmanager().registerOneOffTask(
+            name,
+            busyMaxPeriodicSyncTaskName,
+            constraints: Constraints(networkType: NetworkType.connected),
+            backoffPolicy: BackoffPolicy.exponential,
+            backoffPolicyDelay: const Duration(minutes: 10),
+            tag: name,
+          );
+          final outcomes = File(
+            '${retainedWork!.directory.path}/worker-outcomes.json',
+          );
+          Map? recorded;
+          await until(() async {
+            if (!await outcomes.exists()) return false;
+            recorded = jsonDecode(await outcomes.readAsString()) as Map;
+            return recorded!.containsKey(name);
+          });
+          expect(recorded![name]['state'], anyOf('SUCCESS', 'RETRY'));
+          expect(completed, isTrue);
+        } else {
+          await enqueueImmediateBusyMaxSync();
+          await until(() async => completed);
+        }
       } finally {
         await subscription.cancel();
       }
@@ -159,7 +205,7 @@ void main() {
 
     Object? primaryFailure;
     try {
-      await configureBusyMaxWorkmanager();
+      if (!retained) await configureBusyMaxWorkmanager();
       if (!prepared) {
         final existing = await database.select(database.accounts).get();
         if (existing.isNotEmpty) {
@@ -242,9 +288,38 @@ void main() {
           }
         }
         await container.read(allAccountsSyncRunnerProvider)();
-        await background(accounts);
+        if (!retained) await background(accounts);
       } else {
-        expect(jsonDecode(await phase.readAsString())['pid'], isNot(pid));
+        final preparation = jsonDecode(await phase.readAsString()) as Map;
+        expect(preparation['pid'], isNot(pid));
+        if (retained && !resumingPaused) {
+          final observing = retainedWork!.observe(tester, database);
+          await tester.pumpWidget(
+            UncontrolledProviderScope(
+              container: container,
+              child: const AndroidBusyMaxApp(),
+            ),
+          );
+          appMounted = true;
+          await tester.pumpAndSettle();
+          await observing;
+          for (final a in accounts) {
+            expect(await success(a), isNot(preparation['success'][a['id']]));
+            expect(await success(a), isNotNull);
+          }
+        }
+        if (resumingPaused) {
+          final saved = jsonDecode(await paused.readAsString()) as Map;
+          expect(saved['pid'], isNot(pid));
+          expect(
+            (await database.select(database.pendingOps).get()).map((r) => r.id),
+            saved['pending'],
+          );
+          expect(
+            (await database.select(database.davObjects).get()).map((r) => r.id),
+            saved['cached'],
+          );
+        }
         final ca = accounts.singleWhere((a) => a['mode'] == 'private_ca');
         final pin = accounts.singleWhere((a) => a['mode'] == 'pinned_leaf');
         final current = await secrets.readCredential(
@@ -269,11 +344,13 @@ void main() {
         // Restore the fixture's server to the exact already accepted identity,
         // then deliberately present the other leaf. Never change client trust
         // just to restart a probe interrupted during its replacement phase.
-        await control(
-          pin,
-          'change',
-          originalAccepted ? 'self' : 'self-renewed',
-        );
+        if (!resumingPaused) {
+          await control(
+            pin,
+            'change',
+            originalAccepted ? 'self' : 'self-renewed',
+          );
+        }
         await control(ca, 'change', 'leaf');
         for (final a in accounts) {
           final saved = await secrets.readCredential(
@@ -283,14 +360,21 @@ void main() {
             saved.trustPolicy!.mode.name,
             a['mode'] == 'private_ca' ? 'privateCa' : 'pinnedLeaf',
           );
-          await container
-              .read(davAccountOnboardingServiceProvider)
-              .revalidateAccount(a['id'] as String);
+          if (!resumingPaused || a['mode'] == 'private_ca') {
+            await container
+                .read(davAccountOnboardingServiceProvider)
+                .revalidateAccount(a['id'] as String);
+          }
         }
-        await background(accounts);
+        await background(resumingPaused ? [ca] : accounts);
         await control(ca, 'change', 'renewed');
-        await background(accounts);
-        final before = (await control(pin, 'counts'))['appRequests'];
+        await background(resumingPaused ? [ca] : accounts);
+        final before = resumingPaused
+            ? (jsonDecode(await paused.readAsString()) as Map)['appRequests']
+            : (await control(pin, 'counts'))['appRequests'];
+        if (resumingPaused) {
+          expect((await control(pin, 'counts'))['appRequests'], before);
+        }
         await control(pin, 'change', targetCertificate);
         final target =
             (await (database.select(
@@ -304,16 +388,18 @@ void main() {
                       r.eventProjectionEnabled &&
                       r.supportedComponentMask & 1 != 0,
                 );
-        final imported = await NextcloudNativeImportService(database).import(
-          accountId: pin['id'] as String,
-          collectionId: target.id,
-          preview: NextcloudNativeImportPreview.parse(
-            IcalDocument.parse(
-              'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//BusyMax QA//EN\r\nBEGIN:VEVENT\r\nUID:native-${config['runId']}-${DateTime.now().microsecondsSinceEpoch}@example.invalid\r\nDTSTAMP:20261031T000000Z\r\nDTSTART:20261101T120000Z\r\nDTEND:20261101T130000Z\r\nSUMMARY:Disposable native certificate QA\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n',
+        if (!resumingPaused) {
+          final imported = await NextcloudNativeImportService(database).import(
+            accountId: pin['id'] as String,
+            collectionId: target.id,
+            preview: NextcloudNativeImportPreview.parse(
+              IcalDocument.parse(
+                'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//BusyMax QA//EN\r\nBEGIN:VEVENT\r\nUID:native-${config['runId']}-${DateTime.now().microsecondsSinceEpoch}@example.invalid\r\nDTSTAMP:20261031T000000Z\r\nDTSTART:20261101T120000Z\r\nDTEND:20261101T130000Z\r\nSUMMARY:Disposable native certificate QA\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n',
+              ),
             ),
-          ),
-        );
-        expect(imported.single.status, NativeImportItemStatus.queued);
+          );
+          expect(imported.single.status, NativeImportItemStatus.queued);
+        }
         final cached = await database.select(database.davObjects).get();
         final pending = await database.select(database.pendingOps).get();
         expect(pending, isNotEmpty);
@@ -336,6 +422,17 @@ void main() {
         );
         await background([ca]);
         expect((await control(pin, 'counts'))['appRequests'], before);
+        if (retained && !resumingPaused) {
+          final values = <String, Object?>{
+            'pid': pid,
+            'pending': pending.map((r) => r.id).toList(),
+            'cached': cached.map((r) => r.id).toList(),
+            'appRequests': before,
+          };
+          await paused.writeAsString(jsonEncode(values), flush: true);
+          await retainedWork!.record('certificate-paused', values);
+          await retainedWork.forceStopBarrier(tester);
+        }
         final pinId = pin['id'] as String;
         final oldGeneration = await persistence.generation(pinId);
         final old =
@@ -448,14 +545,28 @@ void main() {
         );
       }
       if (!prepared) {
-        await phase.writeAsString(jsonEncode({'pid': pid}), flush: true);
+        await phase.writeAsString(
+          jsonEncode({
+            'pid': pid,
+            'success': {for (final a in accounts) a['id']: await success(a)},
+          }),
+          flush: true,
+        );
+        if (retained) await retainedWork!.prepare(tester, database);
       }
       await tester.pumpWidget(const SizedBox.shrink());
-    } catch (error) {
+      await retainedWork?.record('verified', {
+        'certificateLifecycleCompleted': prepared,
+      });
+    } catch (error, stack) {
+      await retainedWork?.record('failure', {
+        'error': error.toString(),
+        'stack': stack.toString(),
+      });
       primaryFailure = error;
       rethrow;
     } finally {
-      await Workmanager().cancelAll();
+      if (!retained) await Workmanager().cancelAll();
       if (appMounted) {
         await tester.pumpWidget(const SizedBox.shrink());
         // The app starts an asynchronous foreground refresh. Drain that same

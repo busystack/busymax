@@ -161,13 +161,16 @@ Verification on October 30–31, 2026 (Vancouver):
 | Independent-cache official SDK recheck | **4,391 passed / 17 opt-in skips / zero failures** again in 9m45s; full pipeline exited 0, including shared suites, native Android checks, analysis, generation and default integrity verification |
 | Retained-startup follow-up, affected regressions | **64 passed** across contacts lifecycle, real TLS and certificate-dialog tests |
 | Retained-startup follow-up, complete repeat | **4,391 passed / 17 opt-in skips / zero failures**, exit 0 in 9m59s; the first full-run release-fixture timeout is recorded below |
-| Native Linux Flutter engine | All **32** actual TLS tests passed on a separate X display and D-Bus session |
-| Native Android lifecycle | Conditional earlier lifecycle phases passed after QA-job cleanup. Separate retained-work startup failed in both actual pre-feature and candidate APKs, twice each; details and timing below |
+| Startup correction, focused regressions | **117 passed**: four real SQLite connection/concurrency/trace cases, 13 lifecycle/resource/gate cases and 100 existing notification/schedule regressions |
+| Startup correction, first complete Flutter run | **4,401 passed / 17 opt-in skips / one failure**, the unchanged Linux weekday/startup-activation widget case; all 16 cases pass in isolation, but the loaded-run cause remains unresolved |
+| Startup correction, final complete Flutter run | **4,408 passed / 17 opt-in skips / zero failures**, exit 0 in 7m15s, on the final production source in `7ba620c`. Earlier successful correction runs were 4,402, 4,404 (twice) and 4,405 as regressions were added; repeats do not explain the first widget failure |
+| Native Linux Flutter engine | All **32** actual TLS tests passed again after the startup correction on a separate X display, D-Bus session and XDG directories; no desktop profile was used |
+| Native Android retained-work lifecycle | **Passed on the physical phone** after correction: both original periodic workers `SUCCESS`, actual overlapping foreground/background database operations, CA renewal, changed-pin rejection, process termination with pending work, explicit UI replacement, recovery and captured remote revocation. All unsuccessful preparation/trial outcomes are retained below |
 | Native Android phone | **Seven passed** on OnePlus 6 / Android 10 (API 29, ARM64): rejection before HTTP, CA renewal/identity validation, exact pin/change/replacement, ownership/disposal isolation, actual encrypted storage, native review UI and actual CA file selection/rejection/approval |
 | Android application | Acceptance APKs built, installed and launched on the designated test runtimes; the phone had no pre-existing BusyMax package |
 | Android native checks | **15** platform unit tests passed with zero failures/skips; app lint passed |
 | First-party shared DAV / contacts | **82/82** and **119/119** passed again, respectively; zero failures or skips; both static analyses passed |
-| Static analysis, formatting and platform boundaries | Passed; formatting checked 800 maintained Dart files, excluding ignored generated execution artifacts |
+| Static analysis, formatting and platform boundaries | Passed on the final correction; maintained Dart sources include the new lifecycle/concurrency probes, excluding ignored execution artifacts |
 | Localization/generated sources | Localization and Drift regeneration matched the reviewed source snapshot |
 | Official SDK/upstream integrity | Default verifier passed eight protected dependencies and 1,171 SDK/runtime files; all 29 verifier regressions passed |
 | Windows | **Environment-blocked** by the existing VM's SYSTEM registry-hive boot failure; no new recovery attempt in this follow-up |
@@ -211,6 +214,19 @@ the precise cause of the first stall.
 The Android test-only Mockito dependency was upgraded to upstream 5.24.0 because
 5.0.0's bundled instrumentation cannot run on this host's supported Java 25.
 No SDK or dependency was downgraded or patched.
+
+The startup correction's first complete run reproduced the already documented
+startup-widget flake: Linux `weekday_startup_activation_test.dart` did not find
+“Import calendar events” within its existing 30 × 20 ms polling loop. The test,
+root activation/readiness and import-flow source match `daee1df`. This fixture
+uses `AppDatabase.memoryForTests()`, so the new native connection busy handler
+is not exercised. All **16** cases passed in the isolated rerun. No assertion,
+polling bound or application behavior was changed to obtain that result.
+The loaded-run cause remains **unresolved**; source identity and a successful
+repeat do not establish its precise cause or exclude every timing interaction.
+It is recorded separately from the original notification fixtures and the
+Android SQLite defect. The historical Git-fixture timeout above also remains
+unexplained and did not recur in this complete run.
 
 Live protocol tests used an isolated official Nextcloud 35.0.1 container with
 Calendar 6.6.4 and Tasks 0.18.1, fresh QA users/app passwords, and a temporary
@@ -426,7 +442,8 @@ BEGIN/COMMIT duration. The original exact COMMIT failure site was not reproduced
 in these four foreground captures. The evidence confirms pre-existing startup
 SQLite contention, without asserting an identical statement-level cause for
 every earlier failure. Two trials per build do not quantify whether timing
-changes alter the incidence; the candidate remains affected and unaccepted.
+changes alter the incidence; both builds remained affected before the correction
+described below.
 
 Probe preparation failures were classified separately: Android does not support
 scheduled-task printing or this phone's UID logcat filter; supported work-info
@@ -441,19 +458,147 @@ The stricter host verifier requires both original worker results, successful
 notification refill, absence of SQLite errors and three concurrent groups;
 worker initialization failure cannot become a passing foreground result.
 
-Classification: **pre-existing Android product defect**, demonstrated by actual
-unchanged binaries; the preparation issues above were fixture orchestration.
-The narrowly scoped separate correction must coordinate startup notification
-reconciliation/rebuild transactions across engines using the existing native
-notification gate, and reliably dispose partially created runtime/database
-resources on failure. It must be validated against this retained-work probe and
-ordinary synchronization writers; merely extending a SQLite timeout is not a
-verified repair. No production startup change was made within this certificate
-acceptance task. Integrated retained-work changed-pin/recovery, pending-write
-preservation and isolation remain **unqualified until that defect is fixed**.
-The separate earlier certificate-path results below do not close this gap.
+Classification of the original failure: **pre-existing Android product defect**,
+demonstrated by the actual unchanged binaries. That baseline comparison is
+retained above and was not repeated for the corrective task.
 
-After clearing only the QA app's retained WorkManager jobs through the supported
+### Startup coordination correction and retained-worker follow-up
+
+Commit `7ba620c` coordinates native notification observation and the
+subsequent lifecycle-preserving rebuild as one operation under the existing
+engine-owned notification gate. Observation still precedes rebuilding. Schedule
+mutations invoked by ordinary sync, repositories and system-settings changes
+use that same gate through the Android runtime's database dependency. The lock
+order is account/authorization lease, notification lease, then SQLite
+transaction; data transactions finish before requesting a notification rebuild.
+No new account lock hierarchy or journal-mode change is introduced.
+
+Other accounts and ordinary synchronization still write independently. Every
+Android native connection now installs a bounded, monotonic five-second busy
+handler using the public `sqlite3.Database.busyHandler` API. Drift already uses
+`BEGIN IMMEDIATE`. SQLite controls which lock acquisitions may wait and may
+still reject a deadlock-prone upgrade without invoking the handler. BusyMax
+never replays a Dart transaction callback, HTTP request or external side effect.
+The handler also covers autocommit reads/writes and commit lock acquisition.
+The existing rollback journal is unchanged. In the actual Flutter/Linux
+reproduction, all 59 native sleeps in SQLite's default busy handler were
+interrupted by runtime signals, consuming its requested-sleep budget in about
+70 ms. The monotonic bound addresses that observed failure; it is not a blind
+increase to a test or database timeout. See SQLite's [busy-handler contract](https://www.sqlite.org/c3ref/busy_handler.html).
+
+Runtime initialization now owns its allocated database, HTTP client, staging,
+notification service and provider container. Failure closes all acquired
+resources in reverse order. Cleanup failures cannot mask an escaping original
+failure; successful shutdown reports a cleanup failure after attempting the
+remaining closes. Disposal is idempotent and drains notification work without
+withdrawing scheduled reminders or clearing their history. Gate release uses
+only the captured lease; worker/engine termination retains the existing native
+owner-specific release mechanism. Notification action background entry points
+use the same exception-preserving resource cleanup. Each runtime drains only
+its own submitted notification operations; disposal never acquires another
+global lease or waits for another runtime's queued work. Completion tracking
+does not attach a handler that hides unobserved operation errors. Foreground
+snooze/dismiss and headless actions use the reentrant notification operation
+before starting SQL, avoiding self-acquisition of the existing native lease.
+
+The notification lease acquisition budget is 90 seconds; account/settings
+leases remain 30 seconds. This follows an observed finite queue, rather than a
+timeout-only workaround: live trial 6 measured foreground observation at about
+six seconds followed by a refill operation holding the notification lease for
+about 25 seconds under concurrent writers. The third runtime exhausted the old
+30-second acquisition budget immediately before that operation released its
+lease. Stage traces identified the owners and successful release, with no SQL
+failure. The longer notification-only budget accommodates three startup owners;
+it does not serialize unrelated account SQL or change worker constraints.
+
+The retained probe now keeps the foreground runtime, UI and database activity
+alive until the host records both **original** WorkSpec outcomes. It does not
+cancel or re-register retained jobs on restart. Opt-in metadata-only connection
+tracing records transaction begin/read/write/commit timing without SQL,
+arguments, credentials or account contents. Passing requires actual overlapping
+foreground/background database operations, not merely three engine groups.
+The full VM stack sampler is now optional because it is intrusive; ordinary
+capture retains isolate metadata alongside the SQL timing. Bounded trace files
+are buffered in app-private storage and flushed during connection disposal;
+per-SQL console output had overloaded logcat. The host requires the foreground
+test's completion after its verification receipt, not just that receipt.
+Typed `CancellationException` from an obsolete nontransaction read subscription
+is recorded separately. Every SQLite code, unknown failure, failed transaction
+or write remains fatal; no database error is suppressed. Twelve host regressions
+cover these distinctions and log/completion evidence.
+
+Closed-port corrective trials (all outcomes retained):
+
+| Phone trial | Actual outcome |
+|---|---|
+| 1, initial instrumentation | Foreground assertions and both workers succeeded with no SQLite errors, but Android had no writable stderr; no SQL timing was captured. **Not accepted** |
+| 2, instrumented | **Passed**; 37 foreground/background overlaps, original sync `RETRY` for the intentionally unreachable fixture, refill `SUCCESS`, zero failed SQL operations |
+| 3, instrumented repeat | **Passed**; 142 foreground/background overlaps, original sync `RETRY`, refill `SUCCESS`, zero failed SQL operations |
+| 4, intrusive sampler | Neither worker outcome nor foreground completion arrived within the unchanged observation bound. Zero SQLite errors, but an encrypted-preferences initialization/decryption diagnostic occurred. **Incomplete/unqualified**; its cause is not established by the successful repeats |
+| 5, preflight | Phone locked before installation; no runtime trial occurred |
+| 6 | Foreground and both worker assertions passed; 185 overlaps, zero SQLite errors. **Host rejected** an untyped canceled read; it was not retrospectively counted as a pass |
+| 7 | Foreground and both worker assertions passed; 118 overlaps. Typed tracing proved a nontransaction read `CancellationException`, not a SQLite failure; the previous host classifier still rejected it |
+| 8 | **Passed**, 258 overlaps with corrected typed classification; original sync `RETRY`, refill `SUCCESS` |
+| 9 | **Passed**, 184 overlaps using buffered trace files and confirmed foreground finalization |
+| 10, final production source | **Passed**, 189 overlaps, original sync `RETRY`, refill `SUCCESS`, foreground finalization confirmed, zero SQLite/unexpected operation errors |
+| 11, same final APK | **Passed**, 103 overlaps with the same outcomes and no SQLite/unexpected operation errors |
+| 12, same final APK | **Passed**, 155 overlaps with the same outcomes and no SQLite/unexpected operation errors; three consecutive final-source closed-port restarts passed |
+
+The four focused database cases use separate real native executor isolates to
+exercise competing writers, an independent reader blocking commit, bounded lock
+exhaustion, successful subsequent work and private metadata-only trace cleanup.
+Thirteen resource/gate regressions cover allocation/initialization failure,
+cleanup failure, foreign-lease isolation, own-operation draining, visible
+unobserved errors, foreground/direct reminder actions and subsequent startup.
+Restoring the previous foreground manual-lease callback in a temporary negative
+control made both reminder-action regressions fail on same-operation gate
+reentry; restoring the correction made them pass. No timeout or ownership
+assertion was relaxed. Together with existing notification/schedule regressions,
+**117 passed**.
+
+The successful closed-port fixture intentionally returns sync `RETRY`; it alone
+cannot establish successful live synchronization. The retained live probe uses
+two real accounts on official Nextcloud 35.0.1 with PostgreSQL, 30 events and 30
+tasks per account, future alarms, real native encrypted storage, the production
+runtime/dispatcher and the same two original periodic jobs across force-stop.
+Every trial used a new initially absent QA installation. Its outcomes were:
+
+| Live retained-work trial | Actual outcome |
+|---|---|
+| 1 | Preparation failed: proxy forwarded a backend HTTP well-known redirect. Corrected only the disposable reverse proxy's exact-origin Location mapping and compressed-response handling; no client redirect/TLS policy changed |
+| 2–3 | Incomplete: console tracing overloaded capture; logcat EOF/restart observation did not establish worker/foreground completion. No pass claimed |
+| 4 | Incomplete: host's total observation bound included runtime initialization and ended before the Dart phase's own bound. Buffered trace capture retained; clocks subsequently aligned at the current runtime-opened receipt |
+| 5 | Foreground failed because the original workers did not finish within its 35-second observation window; no SQLite error. Stage instrumentation was added to locate the wait |
+| 6 | Actual worker initialization failed at the old 30-second notification gate budget while other owners made finite progress, as measured above. No SQLite error; led to the notification-only production correction |
+| 7 | Both originals `SUCCESS`, 8,253 foreground/database overlaps, zero SQLite/unexpected failures; CA renewal, pin rejection, interrupted process recovery, explicit replacement and pending replay passed. **Overall incomplete**: the 180-second aggregate host watchdog stopped publishing a later worker's already successful native result, which completed in about 21 seconds, within its unchanged 45-second Dart bound |
+| 8, final production source | **Passed end to end**: both originals `SUCCESS`, 7,887 foreground/background overlaps (7,888 total), three concurrent engine groups, no SQLite/unexpected operation errors, no logcat reconnect, foreground test and cleanup completed |
+
+The live observation window is 120 seconds, based on measured repeated
+notification reconciliations (about 25 seconds each under the foreground writer)
+and successful real sync. The host lifecycle watchdog is now the sum of eight
+existing 45-second step bounds plus 60 seconds for UI/revocation (420 seconds).
+Trial 7 identified a prematurely stopped receipt publisher; individual worker
+assertions remain at 45 seconds. These are explicit fixture budgets, not passes
+obtained by cancelling, replacing or disabling retained workers.
+
+Trial 8 verified both accounts' successful sync timestamps advance while
+foreground writes continue. After private-CA leaf renewal, a changed pin
+received **zero additional application requests**; pending-write IDs and cached
+object IDs survived a second force-stop and different PID. CA sync continued.
+Native settings displayed previous/new fingerprints; rejection left generation
+and application-request count unchanged, explicit approval saved the exact new
+leaf, and background sync replayed the pending write. Network interruption
+remained an ordinary network error and recovered without replacing trust.
+Local-first removal of both accounts reported successful captured-policy
+revocation; subsequent authentication with each captured app password returned
+**401**, and accounts, credentials and authorization journals were empty.
+All original jobs were retained throughout the evaluated phases; cleanup
+followed complete foreground/worker outcomes. This qualifies the retained-work
+scenarios on this OnePlus 6/API 29 debug test installation, not a universal
+Android/API-level or signed-release matrix.
+
+For historical comparison, before this retained-work path, after clearing only
+the QA app's retained WorkManager jobs through the supported
 plugin API, the **unchanged second lifecycle phase passed in 64 seconds** after
 an actual force-stop (a different PID is asserted). Both credential/policy records
 survived process death. Production background workers accepted CA leaf renewal;
@@ -466,8 +611,8 @@ Listener interruption stayed an ordinary network error after `474add6` and
 recovered without dropping trust. Removal used the captured policies, committed
 locally and revoked both app passwords; authenticated readback returned 401 and
 accounts, credentials and authorization journals were empty. These results
-qualify those operations on the tested phone; they do not erase the concurrent
-startup failure or establish a release-package/API-level matrix.
+qualified only those operations on the tested phone at that time; they did not
+qualify concurrent startup. Trial 8 above supplies the new retained-work result.
 
 Certificate replacement/removal races, concurrent clients, credential isolation
 and stale approvals also pass the real-TLS/authorization regression suites.
@@ -524,11 +669,17 @@ for here; skipping is not platform or protocol acceptance:
 | Scheduling free/busy and inbox (extended case) | Failed at `DavFreeBusyDenied` with standard baseline, private CA and pinned leaf; inbox/delivery unqualified |
 | Federation to an independent HTTPS Nextcloud peer (new case) | Matching `DavCollectionOutcomeUnknown` with both private modes and unchanged ordinary baseline, including fresh PostgreSQL fixtures. No complete end-to-end pass; server/fixture issues and the partial cached-read result are detailed above |
 
-Release recommendation: **NO-GO**. Windows native acceptance is unavailable,
-and the now-reproduced pre-feature Android startup contention defect remains
-open. The separate required correction is described above.
-The successful phone operations and browser lifecycle tests do not erase those
-gaps. Scheduling and trash have matching unchanged standard-HTTPS baseline
+Android acceptance: the corrected startup and retained-worker certificate
+lifecycle **passed on the tested phone**, including successful live sync and
+process-death recovery. Earlier incomplete trials and the unrelated unresolved
+Linux widget/Git-fixture stalls remain recorded; successful repeats do not
+explain them. Other Android versions, signed release packaging and native
+assistive-technology coverage remain unverified.
+
+Overall release recommendation: **NO-GO**. Required Windows native TLS,
+persistence/restart and certificate-management acceptance is still
+**environment-blocked**. Linux/Android results cannot substitute for it.
+Scheduling and trash have matching unchanged standard-HTTPS baseline
 failures, with guarded end-to-end operations still unqualified. Federation's
 fixture failures are separately classified above; no TLS or uncertain-write
 safeguards were relaxed to produce a pass. Passing Linux/unit/widget tests or
@@ -571,8 +722,18 @@ between runs. Its fixture has a unique `runId` and two `accounts`: separate
 `control`/`nonce`. The disposable server control implements `/change`, `/counts`,
 `/offline` and `/online`; it changes actual TLS listeners and records application
 request counts. Store this credential-bearing define outside source. Do not
-clear or replace account trust to make a resumed probe pass. The observed
-concurrent-startup failure above remains a required separate check.
+clear or replace account trust to make a resumed probe pass. For retained-worker
+acceptance, also set `BUSYMAX_RETAINED_STARTUP_QA=true`
+and `BUSYMAX_SQLITE_TRACE=true`, then run the host verifier below with
+`--lifecycle`. This path registers the original periodic jobs after provisioning,
+retains them across the first real process stop, waits for both recorded
+outcomes while foreground database activity remains active, and then exercises
+the live lifecycle. It adds another real process stop with a changed pin and a
+pending write before explicit UI replacement. Follow-up one-off workers use
+unique QA names, the production dispatcher/constraints/backoff and exact native
+outcome receipts; none is replaced or cancelled to obtain a pass. This path
+passed on the physical phone as recorded above. Earlier cleanup-based lifecycle
+passes are not substituted for retained-work acceptance.
 
 For the independent startup comparison, build
 `integration_test/android_retained_startup_test.dart` with
