@@ -42,6 +42,18 @@ final class NextcloudCertificateException extends dav.DavException
   final Uri endpoint;
 }
 
+/// TLS ended before a validated socket was available, with no observed
+/// certificate rejection. HTTP never received the socket or dispatched bytes.
+final class _NextcloudConnectionNotDispatched extends dav.DavException
+    implements dav.DavRequestNotDispatchedException {
+  const _NextcloudConnectionNotDispatched()
+    : super(
+        kind: dav.DavErrorKind.network,
+        code: 'DavNetworkFailure',
+        safeMessage: 'The DAV server could not be reached.',
+      );
+}
+
 /// Owns account/session clients; it never changes SecurityContext.defaultContext
 /// or the application's global client. Every native attempt has the same
 /// immutable policy, including connection-establishment cancellation attempts.
@@ -215,6 +227,9 @@ final class NextcloudHttpClientFactory {
                 endpoint: authority,
                 previous: policy,
               );
+            }
+            if (observed == null) {
+              throw const _NextcloudConnectionNotDispatched();
             }
             throw _failure(error, authority, policy, observed);
           }

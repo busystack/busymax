@@ -22,6 +22,8 @@ import 'package:busymax/src/dav/trust/nextcloud_trust_policy.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:busystack_dav/busystack_dav.dart'
+    show DavRequestNotDispatchedException;
 
 import '../../helpers/nextcloud_tls_fixture.dart';
 
@@ -112,6 +114,70 @@ void main() {
     terminate.complete();
     expect(received, 2);
   });
+  for (final mode in <NextcloudTrustMode?>[
+    null,
+    NextcloudTrustMode.privateCa,
+    NextcloudTrustMode.pinnedLeaf,
+  ]) {
+    for (final terminating in [false, true]) {
+      test('TLS closes before certificate is a network failure '
+          '(${mode?.name ?? 'standard'}, terminating: $terminating)', () async {
+        final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+        final sockets = <Socket>[];
+        var clientHello = false;
+        final subscription = server.listen((socket) {
+          sockets.add(socket);
+          socket.listen((bytes) {
+            clientHello = bytes.isNotEmpty && bytes.first == 22;
+            socket.destroy(); // Real TLS interruption; no certificate is sent.
+          }, onError: (_) => socket.destroy());
+        });
+        addTearDown(() async {
+          await subscription.cancel();
+          for (final socket in sockets) {
+            socket.destroy();
+          }
+          await server.close();
+        });
+        endpoint = Uri.parse('https://127.0.0.1:${server.port}/nextcloud');
+        final accepted = client(
+          mode == null
+              ? null
+              : policy(
+                  mode,
+                  mode == NextcloudTrustMode.privateCa ? 'ca' : 'self',
+                ),
+        );
+        final terminate = Completer<void>();
+        addTearDown(() => terminate.complete());
+        final request = http.Request('PUT', endpoint)
+          ..headers['authorization'] = 'Basic c3ludGhldGljOnN5bnRoZXRpYw=='
+          ..body = 'synthetic';
+        await expectLater(
+          terminating
+              ? (accepted as TerminatingHttpClient).sendTerminating(
+                  request,
+                  terminate: terminate.future,
+                  connectionTimeout: const Duration(seconds: 2),
+                )
+              : accepted.send(request),
+          throwsA(
+            allOf(
+              isA<DavException>()
+                  .having((error) => error.kind, 'kind', DavErrorKind.network)
+                  .having(
+                    (error) => error.code,
+                    'localized stored code',
+                    'DavNetworkFailure',
+                  ),
+              isA<DavRequestNotDispatchedException>(),
+            ),
+          ),
+        );
+        expect(clientHello, isTrue);
+      });
+    }
+  }
   test(
     'same-key renewed leaf and CA-signed replacement never bypass active pin',
     () async {
