@@ -101,11 +101,19 @@ Background failures do not open dialogs or enroll certificates. Cached data and
 pending changes remain available. **Review server certificate** identifies the
 needed action; known trust failures wait for deliberate review/revalidation.
 Use that account's certificate settings instead of repeatedly reconnecting.
+Contacts keep this paused review state across startup and restart, including
+expired certificates. An inconsistent saved trust record also stops requests;
+it never reverts to ordinary HTTPS. A damaged policy with valid ownership can
+be explicitly replaced. If the ownership/provider metadata itself is damaged,
+local account removal remains available before a fresh, explicitly authorized
+setup.
 
 Dart-owned TLS has platform-specific trust sources; an OS-installed private CA
 is not a portable way to configure BusyMax. Import approved private material in
 BusyMax. Packaged-runtime verification and remaining acceptance gaps are tracked
-in the [engineering note](nextcloud_private_certificates.md).
+in the [engineering note](nextcloud_private_certificates.md). Windows native
+and Android device acceptance are still pending; Linux tests and APK builds do
+not establish those results.
 
 ## Permissions and collection settings
 

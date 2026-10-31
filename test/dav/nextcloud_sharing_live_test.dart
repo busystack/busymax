@@ -104,6 +104,10 @@ void main() {
         correlationId: 'sharing-writer-create',
       );
       expect(created.outcome, DavMutationOutcome.succeeded);
+      final readerObject = readerCollection.requestUri.resolve(
+        'busymax-shared-$suffix.ics',
+      );
+      expect(await reader.objectStatus(readerObject), 200);
 
       await expectLater(
         reader
@@ -144,6 +148,7 @@ void main() {
         ),
         isFalse,
       );
+      expect(await reader.objectStatus(readerObject), anyOf(403, 404, 410));
 
       await owner.deleteCollection(collectionUri);
       collectionDeleted = true;
@@ -244,6 +249,16 @@ final class _SharingUser {
           credential: credential,
         ),
       );
+
+  Future<int> objectStatus(Uri uri) async => (await transport.send(
+    DavRequest(
+      method: 'GET',
+      uri: uri,
+      accountId: 'sharing-$username',
+      correlationId: 'sharing-check-object-access',
+    ),
+    credential: credential,
+  )).statusCode;
 
   Future<void> createEventCollection(
     Uri collectionUri, {
@@ -363,7 +378,11 @@ DavCollectionDiscovery _sharedCollection(
 
 bool _hasSharedCollection(DavDiscoveryResult discovery, String displayName) =>
     discovery.collections.any(
-      (collection) => collection.displayName.startsWith(displayName),
+      // Nextcloud retains deleted share mounts in trash inventories. They do
+      // not represent an active share; object access is checked separately.
+      (collection) =>
+          collection.kind != DavCollectionKind.deletedCalendar &&
+          collection.displayName.startsWith(displayName),
     );
 
 Uri _collectionChild(Uri home, String slug) {
