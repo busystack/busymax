@@ -193,15 +193,18 @@ class _AndroidHomeShellState extends ConsumerState<AndroidHomeShell>
       await ref
           .read(androidNotificationServiceProvider)
           .initialize(timeZoneId: zone);
-      await ref.read(androidNotificationServiceProvider).reconcile();
-      final database = ref.read(databaseProvider);
-      final schedules = NotificationScheduleService(
-        database: database,
-        preserveLifecycle: true,
-      );
-      for (final account in await database.select(database.accounts).get()) {
-        await schedules.rebuildUpcomingNotifications(account.id);
-      }
+      final notifications = ref.read(androidNotificationServiceProvider);
+      await notifications.synchronize(() async {
+        await notifications.reconcile();
+        final database = ref.read(databaseProvider);
+        final schedules = NotificationScheduleService(
+          database: database,
+          preserveLifecycle: true,
+        );
+        for (final account in await database.select(database.accounts).get()) {
+          await schedules.rebuildUpcomingNotifications(account.id);
+        }
+      });
       await ref.read(notificationReconcilerProvider).reconcile();
       return;
     }

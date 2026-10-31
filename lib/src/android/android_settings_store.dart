@@ -1,6 +1,7 @@
 import 'package:busymax_android_platform/busymax_android_platform.dart';
 
 import '../app/app_settings.dart';
+import 'android_account_gate.dart';
 
 /// Uses a different, short-lived gate from notification reconciliation. Never
 /// hold this gate while requesting notification work: reconciliation reads the
@@ -14,16 +15,9 @@ final class AndroidSettingsStore implements AtomicLocalSettingsStore {
   final LocalSettingsStore _store;
   final BusyMaxAndroidPlatform _platform;
 
-  Future<T> _locked<T>(Future<T> Function() operation) async {
-    final lease = await _platform.acquireAccountGate(
-      '__notification_settings__',
-    );
-    try {
-      return await operation();
-    } finally {
-      await _platform.releaseAccountGate(lease);
-    }
-  }
+  Future<T> _locked<T>(Future<T> Function() operation) =>
+      AndroidCrossEngineAccountGate(_platform)
+          .run('__notification_settings__', operation);
 
   @override
   Future<Map<String, Object?>> load() => _locked(_store.load);
