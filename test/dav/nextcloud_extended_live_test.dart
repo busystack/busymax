@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -20,16 +21,112 @@ import 'package:busymax/src/dav/nextcloud/nextcloud_collection_service.dart';
 import 'package:busymax/src/dav/nextcloud/nextcloud_native_import.dart';
 import 'package:busymax/src/dav/nextcloud/nextcloud_trash_service.dart';
 import 'package:busymax/src/dav/nextcloud/nextcloud_scheduling_service.dart';
+import 'package:busymax/src/dav/nextcloud/nextcloud_sharing_service.dart';
 import 'package:busymax/src/dav/ical/ical_document.dart';
 import 'package:busymax/src/dav/mutation/dav_pending_operations.dart';
 import 'package:busymax/src/dav/mutation/dav_conditional_mutation_service.dart';
 import 'package:busymax/src/dav/mutation/dav_collection_mutation_helpers.dart';
 import 'package:busymax/src/dav/storage/dav_object_repository.dart';
 
+import 'support/nextcloud_live_trust.dart';
+
 const _enabledVariable = 'BUSYMAX_NEXTCLOUD_EXTENDED_LIVE';
 
 void main() {
   final enabled = Platform.environment[_enabledVariable] == '1';
+  test(
+    'real federation delivers and revokes access on an independent HTTPS peer',
+    () async {
+      final f = await _Fixture.open();
+      addTearDown(f.close);
+      final imported = await f.importEvent();
+      String peerEnv(String key) =>
+          Platform.environment['BUSYMAX_NEXTCLOUD_FEDERATION_LIVE_$key']!;
+      final authority = Uri.parse(peerEnv('URL'));
+      final peer = nextcloudLiveClient(
+        authority: authority,
+        prefix: 'BUSYMAX_NEXTCLOUD_FEDERATION_LIVE',
+        identity: 'independent-federation-peer',
+      );
+      addTearDown(peer.close);
+      final credential = DavBasicCredential(
+        username: peerEnv('USERNAME'),
+        password: peerEnv('PASSWORD'),
+      );
+      final headers = {
+        'authorization':
+            'Basic ${base64Encode(utf8.encode('${credential.username}:${credential.password}'))}',
+        'OCS-APIRequest': 'true',
+        'accept': 'application/json',
+      };
+      final pending = authority.resolve(
+        'ocs/v2.php/apps/dav/api/v1/federated_calendars/pending?format=json',
+      );
+      final sharing = NextcloudSharingService(f.collections);
+      final recipient = (await sharing.search(
+        '${credential.username}@${authority.authority}',
+      )).single;
+      expect(recipient.federated, isTrue);
+      await sharing.changeShare(f.collection.id, recipient, writable: false);
+      final response = await peer.get(pending, headers: headers);
+      expect(response.statusCode, 200);
+      final invitations = (jsonDecode(response.body)['ocs']['data'] as List)
+          .cast<Map>();
+      final invitation = invitations.singleWhere(
+        (item) => item['displayName'] == f.title,
+      );
+      expect(
+        (await peer.post(
+          pending.replace(path: '${pending.path}/${invitation['id']}'),
+          headers: headers,
+        )).statusCode,
+        200,
+      );
+      final profile = davProviderProfile(
+        BusyProvider.nextcloud,
+        nextcloudServer: authority,
+      );
+      final discovery = await DavDiscoveryService(
+        transport: DavHttpTransport(
+          client: peer,
+          profile: profile,
+          accountAuthority: authority,
+        ),
+        profile: profile,
+        accountAuthority: authority,
+        accountId: 'independent-federation-peer',
+        credential: credential,
+      ).discover(correlationId: 'federation-peer-readback');
+      final shared = discovery.collections.singleWhere(
+        (item) => item.displayName == f.title,
+      );
+      final object = shared.requestUri.resolve(
+        Uri.parse(imported.requestUri).pathSegments.last,
+      );
+      // Nextcloud materializes accepted federated calendars asynchronously
+      // through FederatedCalendarSyncJob. The disposable peer must run cron;
+      // observe its read-only cache without retrying a sharing mutation.
+      final deadline = DateTime.now().add(const Duration(seconds: 30));
+      var contents = await peer.get(object, headers: headers);
+      while (contents.statusCode == 404 && DateTime.now().isBefore(deadline)) {
+        await Future<void>.delayed(const Duration(milliseconds: 250));
+        contents = await peer.get(object, headers: headers);
+      }
+      expect(contents.statusCode, 200);
+      expect(contents.body, contains(f.uid));
+      await sharing.changeShare(f.collection.id, recipient, writable: null);
+      expect(
+        (await peer.get(object, headers: headers)).statusCode,
+        anyOf(403, 404, 410),
+      );
+    },
+    skip:
+        enabled &&
+            Platform.environment['BUSYMAX_NEXTCLOUD_FEDERATION_LIVE'] == '1'
+        ? false
+        : 'Needs two disposable, mutually reachable HTTPS Nextcloud instances.',
+    timeout: const Timeout(Duration(minutes: 3)),
+  );
   test(
     'real native import queues and commits through account-scoped HTTPS',
     () async {
