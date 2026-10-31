@@ -159,16 +159,18 @@ Verification on October 30–31, 2026 (Vancouver):
 | Contacts/TLS/authorization regressions | Included in the complete suite; the 18 contacts corrections cover startup, disk restart, malformed records, expiry, recovery and cache retention |
 | Complete Flutter run after transport correction | **4,391 passed / 17 opt-in skips / zero failures** in 8m03s; the six additional cases reproduce pre-certificate connection loss |
 | Independent-cache official SDK recheck | **4,391 passed / 17 opt-in skips / zero failures** again in 9m45s; full pipeline exited 0, including shared suites, native Android checks, analysis, generation and default integrity verification |
+| Retained-startup follow-up, affected regressions | **64 passed** across contacts lifecycle, real TLS and certificate-dialog tests |
+| Retained-startup follow-up, complete repeat | **4,391 passed / 17 opt-in skips / zero failures**, exit 0 in 9m59s; the first full-run release-fixture timeout is recorded below |
 | Native Linux Flutter engine | All **32** actual TLS tests passed on a separate X display and D-Bus session |
-| Native Android lifecycle | Initial/background phase passed; force-stop/recovery/replacement/removal phase passed after QA-job cleanup. Two preceding concurrent-startup failures remain open; details below |
+| Native Android lifecycle | Conditional earlier lifecycle phases passed after QA-job cleanup. Separate retained-work startup failed in both actual pre-feature and candidate APKs, twice each; details and timing below |
 | Native Android phone | **Seven passed** on OnePlus 6 / Android 10 (API 29, ARM64): rejection before HTTP, CA renewal/identity validation, exact pin/change/replacement, ownership/disposal isolation, actual encrypted storage, native review UI and actual CA file selection/rejection/approval |
 | Android application | Acceptance APKs built, installed and launched on the designated test runtimes; the phone had no pre-existing BusyMax package |
 | Android native checks | **15** platform unit tests passed with zero failures/skips; app lint passed |
 | First-party shared DAV / contacts | **82/82** and **119/119** passed again, respectively; zero failures or skips; both static analyses passed |
-| Static analysis, formatting and platform boundaries | Passed; formatting checked 799 maintained Dart files, excluding ignored generated execution artifacts |
+| Static analysis, formatting and platform boundaries | Passed; formatting checked 800 maintained Dart files, excluding ignored generated execution artifacts |
 | Localization/generated sources | Localization and Drift regeneration matched the reviewed source snapshot |
 | Official SDK/upstream integrity | Default verifier passed eight protected dependencies and 1,171 SDK/runtime files; all 29 verifier regressions passed |
-| Windows | Native acceptance blocked by the existing VM's SYSTEM registry-hive boot failure; details below |
+| Windows | **Environment-blocked** by the existing VM's SYSTEM registry-hive boot failure; no new recovery attempt in this follow-up |
 
 The two previous notification failures were in an unchanged baseline fixture:
 `android_notification_reconciliation_test.dart` has the same original Git blob
@@ -191,6 +193,20 @@ disk journal dependency from those coordination tests. Both previously failing
 cases passed in all four complete follow-up suites. A separate old startup-widget
 flake also passed in that full run; its implementation and assertions remain
 unchanged.
+
+The retained-startup follow-up's first complete Flutter run finished with
+**4,390 passed / 17 opt-in skips / one failure**: the unchanged
+`test/tool/release_pull_request_test.dart` exceeded its existing two-minute
+limit while awaiting the local Python/Git fixture. Its Dart wrapper, all 19
+Python regressions and release validator have the same Git blobs as `daee1df`;
+none imports certificate or startup code. The 19 regressions then passed in
+7.6 seconds under isolated syscall tracing. No two-minute stall was reproduced
+and no precise host/process root cause is claimed. No timeout/assertion or
+release implementation was changed; the failed full run is not a pass.
+The exact complete command then passed with **4,391 passed / 17 opt-in skips /
+zero failures** in 9m59s and exit code 0, using the same concurrency, assertions
+and timeout limits. The isolated pass and successful repeat do not establish
+the precise cause of the first stall.
 
 The Android test-only Mockito dependency was upgraded to upstream 5.24.0 because
 5.0.0's bundled instrumentation cannot run on this host's supported Java 25.
@@ -286,8 +302,10 @@ These are recorded failures, not mocked passes or evidence that the guarded
 operations work. They also persisted after provisioning actual sender/recipient
 mailboxes and switching the fixture to PostgreSQL. Both failures reproduce
 against the unchanged pre-feature standard-HTTPS product/DAV baseline, with
-native import passing there. These matching baseline failures are not evidence
-of private-TLS regressions; the affected product services were not changed.
+native import passing there. Matching codes alone do not establish identical
+upstream causes. These comparisons demonstrate failures on the baseline and candidate; they qualify
+neither the guarded workflows nor private-TLS interoperability, and do not
+automatically prove a TLS regression. The affected services were not changed.
 One import rerun under load also timed out with
 `DavUnknownMutationOutcome`; that attempt has an uncertain result, not a
 certificate-failure classification. Later serial reruns are recorded below.
@@ -323,8 +341,13 @@ published SHA-256. The DVD booted; selecting **Repair my PC** returned to the
 same hive error before Startup Repair became available. The bounded attempt
 stopped there: no reinstall, reset, registry replacement or new VM. The
 original optical drive, boot order and bridged NIC configuration were restored.
-Windows native TLS, storage/restart and management UI remain **unaccepted**;
-a bootable existing VM or known-good recovery data is needed.
+Windows native TLS, storage/restart and management UI remain
+**environment-blocked and unaccepted**. To resume, the existing Windows 11 VM
+must boot to a usable Windows user session with native Flutter/Visual Studio
+build-and-run access and local shared-folder/Guest Additions transfer. Bootable
+access or known-good recovery data must be restored outside this bounded task.
+The preserved backup remains intact; this follow-up made no further recovery
+attempt, reinstall or new VM.
 
 Android initially suffered a VirtualBox/KVM conflict and unstable software
 emulation. The software-emulated storage test exceeded its normal timeout and
@@ -352,15 +375,83 @@ two separately owned CA/pinned accounts, native encrypted credentials/journal,
 foreground synchronization, real WorkManager synchronization, selectable
 certificate details and the actual Android settings presenter.
 
-After force-stop/restart, two attempts failed at `COMMIT TRANSACTION` during
-`NotificationScheduleService.rebuildUpcomingNotifications`, before certificate
-handling. Native logs show the previously retained periodic sync and notification
-refill workers starting concurrently. `android_background.dart`,
-`app_database.dart` and `notification_schedule_service.dart` are byte-for-byte
-unchanged from pre-feature `daee1df`. This is an observed native startup
-coordination failure in unchanged code, not the earlier Linux test-fixture flush
-stall; a complete baseline Android binary comparison was not performed.
-It remains an open acceptance issue and is not hidden by the full-suite pass.
+The earlier lifecycle attempts failed at `COMMIT TRANSACTION` during startup
+notification rebuild. File identity alone did not establish baseline behavior.
+A subsequent **actual Android APK comparison** now establishes a pre-feature
+startup contention defect; it does not qualify startup or erase the earlier
+failures.
+
+`android_retained_startup_test.dart` is a separate two-phase path. The same APK
+seeds two standard-HTTPS Nextcloud accounts (closed localhost ports, synthetic
+credentials), 500 cached tasks and six future reminders, then leaves both
+periodic jobs persisted across a real force-stop. Restart performs the production
+`AndroidHeadlessRuntime.create()` alongside the production sync/refill dispatcher.
+There is **no `cancelAll()` and no job registration/replacement during restart**.
+The host removes only the initially absent QA package after each complete
+comparison, including failed comparisons.
+
+The candidate's product source was `61b5906`; the actual pre-feature product was
+`daee1dfc3c0a3bf24e6124d88c88ad399ab7fcdc`, with its selected DAV `75bdc14` and
+unchanged contacts/Graph revisions. All four detached baseline repositories had
+zero tracked changes. Both APKs used the identical untracked acceptance entry
+point, SHA-256 `ad466976379012278127e2c72066c18915808fc0b7d0f007c5d410b01ac092a6`,
+and the pristine official Flutter/Dart SDK. The resolved WorkManager Dart/Android
+sources were additionally compared file-for-file with their checksum-matching
+published archives: zero differences. Drift, SQLite, SQLite Flutter assets and
+native secure storage were also checked against their exact locked publisher
+archives, with zero differences. No SDK/dependency was patched.
+
+Both builds ran serially on the same OnePlus 6/API 29 installation target,
+including a second comparison in reverse order. Native WorkManager snapshots
+proved two retained `ENQUEUED` rows, zero attempts/periods and unchanged UUIDs;
+logcat identified both worker UUIDs/tags and simultaneous startup. Read-only VM
+sampling observed **three engine isolate groups** in every evaluated restart.
+Both snapshots used `journal_mode=delete`, `busy_timeout=0` and normal locking.
+
+| Actual retained-worker restart | Foreground SQLite primary/extended code | Time from runtime-create entry to observed SQL failure | Native engine groups |
+|---|---|---|---|
+| Pre-feature APK, first comparison | **5 / 5 (`SQLITE_BUSY`)** | 3,884 ms | 3 |
+| Candidate APK, first comparison | **5 / 5** | 4,409 ms | 3 |
+| Candidate APK, reverse-order comparison | **5 / 5** | 5,480 ms | 3 |
+| Pre-feature APK, reverse-order comparison | **5 / 5** | 9,423 ms | 3 |
+
+The foreground stacks enter `AndroidHeadlessRuntime.create` notification
+reconciliation, including `NotificationScheduleService._taskNotifications` /
+`isReminderSourceEligible`. The failing reads vary (`accounts`, `task_lists`,
+`notification_schedule`) with interleaving. These are real serialized SQLite
+extended codes, preserved with the causing statement and stack, not generic
+synchronization errors. The table records startup-to-SQL-failure bounds and
+native job timing; it is **not** a measurement of each individual SQL transaction's
+BEGIN/COMMIT duration. The original exact COMMIT failure site was not reproduced
+in these four foreground captures. The evidence confirms pre-existing startup
+SQLite contention, without asserting an identical statement-level cause for
+every earlier failure. Two trials per build do not quantify whether timing
+changes alter the incidence; the candidate remains affected and unaccepted.
+
+Probe preparation failures were classified separately: Android does not support
+scheduled-task printing or this phone's UID logcat filter; supported work-info
+and PID capture replaced them. Fresh production periodic work is initially due
+ten minutes later; interrupted running work also retains its backoff. Neither
+preparation exercised concurrent restart and neither counted as a pass. The
+common fixture therefore uses a full first flex window and a three-second
+initial delay, verifies unattempted retained rows, then lets that delay expire
+while stopped. Frequency, real dispatcher, network/battery/storage constraints
+and ten-minute backoff remain intact. No WorkManager database row is edited.
+The stricter host verifier requires both original worker results, successful
+notification refill, absence of SQLite errors and three concurrent groups;
+worker initialization failure cannot become a passing foreground result.
+
+Classification: **pre-existing Android product defect**, demonstrated by actual
+unchanged binaries; the preparation issues above were fixture orchestration.
+The narrowly scoped separate correction must coordinate startup notification
+reconciliation/rebuild transactions across engines using the existing native
+notification gate, and reliably dispose partially created runtime/database
+resources on failure. It must be validated against this retained-work probe and
+ordinary synchronization writers; merely extending a SQLite timeout is not a
+verified repair. No production startup change was made within this certificate
+acceptance task. Integrated retained-work changed-pin/recovery, pending-write
+preservation and isolation remain **unqualified until that defect is fixed**.
+The separate earlier certificate-path results below do not close this gap.
 
 After clearing only the QA app's retained WorkManager jobs through the supported
 plugin API, the **unchanged second lifecycle phase passed in 64 seconds** after
@@ -434,7 +525,8 @@ for here; skipping is not platform or protocol acceptance:
 | Federation to an independent HTTPS Nextcloud peer (new case) | Matching `DavCollectionOutcomeUnknown` with both private modes and unchanged ordinary baseline, including fresh PostgreSQL fixtures. No complete end-to-end pass; server/fixture issues and the partial cached-read result are detailed above |
 
 Release recommendation: **NO-GO**. Windows native acceptance is unavailable,
-and the observed concurrent Android notification startup failure remains open.
+and the now-reproduced pre-feature Android startup contention defect remains
+open. The separate required correction is described above.
 The successful phone operations and browser lifecycle tests do not erase those
 gaps. Scheduling and trash have matching unchanged standard-HTTPS baseline
 failures, with guarded end-to-end operations still unqualified. Federation's
@@ -481,6 +573,17 @@ between runs. Its fixture has a unique `runId` and two `accounts`: separate
 request counts. Store this credential-bearing define outside source. Do not
 clear or replace account trust to make a resumed probe pass. The observed
 concurrent-startup failure above remains a required separate check.
+
+For the independent startup comparison, build
+`integration_test/android_retained_startup_test.dart` with
+`BUSYMAX_RETAINED_STARTUP_QA=true` and a `BUSYMAX_RETAINED_STARTUP_BUILD` label.
+Run `python3 tool/android/check_retained_startup.py --device SERIAL --apk APK`
+on an unlocked designated device with no BusyMax package installed. It verifies
+the APK identity, uses a fresh evidence directory outside source, captures
+retained WorkManager rows and errors, performs both phases with the same APK,
+and restores the prior USB-awake setting/removes only its QA installation.
+An actual baseline comparison needs `daee1df` and its own sibling revisions;
+copy only the identical test entry point, never candidate product source.
 
 The browser driver uses `BUSYMAX_NEXTCLOUD_BROWSER_LIFECYCLE=1`, the existing
 `BUSYMAX_NEXTCLOUD_LOGIN_LIVE_*` HTTPS/credential/certificate variables and

@@ -1,6 +1,8 @@
 // Run twice on a disposable Android app profile with the same QA define file.
 // Force-stop the package between runs. Only the test-created accounts are used;
 // transport, persistence, Android gates and WorkManager remain production code.
+// This functional probe cleans jobs between phases. Retained-work startup
+// acceptance is separate: android_retained_startup_test.dart.
 import 'dart:convert';
 import 'dart:io';
 
