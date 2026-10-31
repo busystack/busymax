@@ -11,6 +11,7 @@ import 'package:busymax/src/core/auth/authorization_attempt.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
+import 'package:busymax/src/dav/trust/nextcloud_http_client_factory.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
@@ -26,6 +27,7 @@ final class ContactsFixture implements ContactsAuthorizationBroker {
     Future<void> Function(String, AuthorizationCancellation)?
     reconnectLinkedDavAccount,
     Future<String?> Function(String)? readDavSecret,
+    NextcloudHttpClientFactory? nextcloudClients,
   }) : accounts = AccountsRepository(database: database),
        store = BusyMaxContactsStore(database) {
     controller = BusyMaxContactsController(
@@ -47,6 +49,7 @@ final class ContactsFixture implements ContactsAuthorizationBroker {
       launchBrowser: (_) async => true,
       syncInterval: syncInterval,
       providerFactory: realDav ? null : provider,
+      nextcloudClients: nextcloudClients,
     );
   }
   final AppDatabase database;

@@ -166,21 +166,17 @@ final class BusyMaxContactsController {
     final contactAccounts = await store.read((tx) => tx.accounts());
     for (final account in contactAccounts) {
       if (!account.enabled) continue;
+      if (_certificateReviewCode(account.errorCode) != null) continue;
       try {
         await _bind(account);
       } on Object catch (error) {
-        await store.write((tx) async {
-          final current = await tx.account(account.id);
-          if (current != null) {
-            await tx.putAccount(
-              current.copy(
-                errorCode: error is NextcloudCertificateException
-                    ? error.code
-                    : 'reconnect-required',
-              ),
-            );
-          }
-        });
+        await _setAccountError(
+          account.id,
+          account.generation,
+          error is NextcloudCertificateException
+              ? error.code
+              : 'reconnect-required',
+        );
       }
     }
     if (_closed) return;
@@ -722,29 +718,26 @@ final class BusyMaxContactsController {
   Future<void> _synchronize(String id) async {
     final captured = await store.read((tx) => tx.account(id));
     try {
-      if (captured?.provider == ContactProviderKind.carddav &&
-          captured?.enabled == true &&
-          _boundGenerations[id] != captured!.generation) {
-        await _detachBinding(id);
-        await _bind(captured);
-      }
       if (_linkedRemovals[id] case final removal? when !removal.recovered) {
         throw const ContactsException(
           ContactsFailure.cancelled,
           'account-removal-in-progress',
         );
       }
-      if (captured?.errorCode?.contains('NextcloudCertificate') == true) {
-        throw ContactsException(
-          ContactsFailure.protocol,
-          captured!.errorCode!.split(':').last,
-        );
+      if (_certificateReviewCode(captured?.errorCode) case final code?) {
+        throw ContactsException(ContactsFailure.protocol, code);
       }
       if (captured?.errorCode == 'contacts-removal-recovery-required') {
         throw const ContactsException(
           ContactsFailure.unknownOutcome,
           'contacts-removal-recovery-required',
         );
+      }
+      if (captured?.provider == ContactProviderKind.carddav &&
+          captured?.enabled == true &&
+          _boundGenerations[id] != captured!.generation) {
+        await _detachBinding(id);
+        await _bind(captured);
       }
       final sources = await directory.discover(id);
       for (final source in sources) {
@@ -769,7 +762,9 @@ final class BusyMaxContactsController {
           await _setAccountError(
             id,
             captured?.generation,
-            error is ContactsException
+            error is NextcloudCertificateException
+                ? error.code
+                : error is ContactsException
                 ? error.code == 'contacts-removal-recovery-required' ||
                           error.code.startsWith('oauth:')
                       ? error.code
@@ -786,6 +781,11 @@ final class BusyMaxContactsController {
       }
       Error.throwWithStackTrace(error, stack);
     }
+  }
+
+  String? _certificateReviewCode(String? stored) {
+    final code = stored?.split(':').last;
+    return code?.startsWith('NextcloudCertificate') == true ? code : null;
   }
 
   Future<void> _setAccountError(String id, int? generation, String? error) =>
@@ -939,8 +939,16 @@ final class BusyMaxContactsController {
     bool validationOnly = false,
     int? expectedDurableGeneration,
   }) {
+    _requireDavTrustMetadata(config);
     final server = Uri.parse(config['server'] as String);
     _requireDavServer(server);
+    if (config.containsKey('trustPolicy') &&
+        (nextcloudClients == null || scopedClient != null)) {
+      throw NextcloudCertificateException(
+        NextcloudCertificateFailure.invalidPolicy,
+        endpoint: server,
+      );
+    }
     final profile = config['nextcloud'] == true
         ? const DavProviderProfile.nextcloud()
         : const DavProviderProfile();
@@ -1272,22 +1280,41 @@ final class BusyMaxContactsController {
     ContactAccount account,
   ) {
     var config = (jsonDecode(encoded) as Map).cast<String, dynamic>();
+    _requireDavTrustMetadata(config);
     if (config.containsKey('authorizationGeneration') &&
         config['authorizationGeneration'] != account.generation) {
       final previous = config['_previous'];
       if (previous is! Map ||
           (previous['authorizationGeneration'] ?? 0) != account.generation) {
-        throw const FormatException(
-          'Contacts authorization recovery required.',
+        throw NextcloudCertificateException(
+          NextcloudCertificateFailure.invalidPolicy,
+          endpoint: config['server'] is String
+              ? Uri.tryParse(config['server'] as String) ?? Uri()
+              : Uri(),
         );
       }
       config = previous.cast<String, dynamic>();
     }
-    if (config.containsKey('trustPolicy') &&
-        config['authorizationGeneration'] is! int) {
-      config['trustPolicy'] = <String, Object?>{'version': 0, 'invalid': true};
-    }
+    _requireDavTrustMetadata(config);
     return Map.of(config)..remove('_previous');
+  }
+
+  void _requireDavTrustMetadata(Map<String, dynamic> config) {
+    final generation = config['authorizationGeneration'];
+    if ((config.containsKey('trustPolicy') ||
+            config.containsKey('authorizationGeneration') ||
+            config.containsKey('_previous')) &&
+        (config['nextcloud'] != true ||
+            config['version'] != 1 ||
+            generation is! int ||
+            generation < 0)) {
+      throw NextcloudCertificateException(
+        NextcloudCertificateFailure.invalidPolicy,
+        endpoint: config['server'] is String
+            ? Uri.tryParse(config['server'] as String) ?? Uri()
+            : Uri(),
+      );
+    }
   }
 
   Future<void> _commitDavContactSecret(
