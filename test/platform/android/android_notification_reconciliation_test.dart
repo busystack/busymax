@@ -126,7 +126,7 @@ void main() {
       test(
         'independent old runtime cannot restore $change (native call in flight: $duringRegistration)',
         () async {
-          final directory = await Directory.systemTemp.createTemp(
+          final directory = await createPersistenceTestDirectory(
             'busymax-policy-',
           );
           directories.add(directory);
@@ -257,7 +257,7 @@ void main() {
   }
 
   test('two operational coordinators submit one revision and recovery removes every native ID', () async {
-    final directory = await Directory.systemTemp.createTemp(
+    final directory = await createPersistenceTestDirectory(
       'busymax-operational-',
     );
     directories.add(directory);
@@ -319,7 +319,7 @@ void main() {
   test(
     'same-issue ID allocation is shared even when a second lookup was paused',
     () async {
-      final directory = await Directory.systemTemp.createTemp(
+      final directory = await createPersistenceTestDirectory(
         'busymax-allocation-',
       );
       directories.add(directory);
@@ -497,7 +497,7 @@ void main() {
   test(
     'concurrent issue reports share one durable revision and native identity',
     () async {
-      final directory = await Directory.systemTemp.createTemp(
+      final directory = await createPersistenceTestDirectory(
         'busymax-reports-',
       );
       directories.add(directory);
@@ -1522,7 +1522,7 @@ void main() {
           final clock = DateTime.now();
           AppDatabase? peer;
           if (cancellationFailure != 'none') {
-            final directory = await Directory.systemTemp.createTemp(
+            final directory = await createPersistenceTestDirectory(
               'busymax-private-replacement-',
             );
             directories.add(directory);
@@ -1663,7 +1663,7 @@ void main() {
     test(
       'disabled-category withdrawal retry preserves replacement meaning $scenario',
       () async {
-        final directory = await Directory.systemTemp.createTemp(
+        final directory = await createPersistenceTestDirectory(
           'busymax-withdrawal-',
         );
         directories.add(directory);
