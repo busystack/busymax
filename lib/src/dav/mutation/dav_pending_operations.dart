@@ -1237,6 +1237,29 @@ final class DavPendingOperationsReplayer {
         applied += 1;
       } on DavException catch (error) {
         switch (error.category) {
+          case DavErrorCategory.davTlsFailure:
+            if (error.code.startsWith('NextcloudCertificate')) {
+              await _setAccountState(
+                AccountConnectionState.temporarilyUnavailable,
+              );
+              await _block(
+                op,
+                state: DavPendingState.authBlocked,
+                classification: 'certificate',
+                error: error,
+              );
+              await (_database.update(
+                _database.davAccountServices,
+              )..where((r) => r.accountId.equals(_accountId))).write(
+                DavAccountServicesCompanion(
+                  lastDiscoveryErrorCode: Value(error.code),
+                ),
+              );
+              paused = true;
+            } else {
+              await _markFailed(op, error);
+              await _reportPermanentFailure(op, error);
+            }
           case DavErrorCategory.davAuthRejected ||
               DavErrorCategory.davCredentialsRevoked:
             await _pauseForAuthentication(op, error);

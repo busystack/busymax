@@ -1357,5 +1357,22 @@
   "taskMoveAfterSaveFailed": "حُفظت تعديلاتك، لكن تعذّر نقل المهمة. أعد محاولة النقل.",
   "taskDraftConflict": "تغيّرت هذه المهمة منذ فتحها. تم الاحتفاظ بتعديلاتك. راجع المهمة الحالية قبل المحاولة مجددًا.",
   "taskUnavailableDraftRetained": "هذه المهمة غير متاحة. تم الاحتفاظ بالتغييرات غير المحفوظة.",
-  "taskDurationRequiresStart": "حدّد موعدًا نهائيًا قبل إزالة بداية مهمة لها مدة."
+  "taskDurationRequiresStart": "حدّد موعدًا نهائيًا قبل إزالة بداية مهمة لها مدة.",
+  "privateServerCertificates": "شهادات الخوادم الخاصة",
+  "reviewServerCertificate": "مراجعة شهادة الخادم",
+  "certificateStandard": "HTTPS قياسي",
+  "certificatePrivateCa": "جهة إصدار شهادات خاصة",
+  "certificatePinnedLeaf": "شهادة موقعة ذاتيًا ومثبّتة",
+  "certificateImportCa": "استيراد جهة إصدار خاصة",
+  "certificateReplacePin": "مراجعة شهادة بديلة",
+  "certificateUseStandard": "العودة إلى HTTPS القياسي",
+  "certificateApprove": "الموافقة على سياسة الشهادة هذه",
+  "certificateReject": "رفض",
+  "certificatePrevious": "الشهادات المعتمدة سابقًا",
+  "certificateInvalid": "شهادة أو إعداد جهة إصدار خاصة غير صالح",
+  "certificateFirstUseWarning": "التشفير وحده لا يثبت هوية الخادم عند الاستخدام الأول. قارن بصمة SHA-256 عبر قناة مستقلة وموثوقة مع مسؤول الخادم قبل الموافقة.",
+  "certificateRenewalHelp": "يُفضّل استخدام جهة إصدار خاصة: يمكن تجديد شهادات الخادم تحتها. كل تغيير في الشهادة المثبّتة يتطلب مراجعة صريحة، حتى بالمفتاح نفسه. تتجدد الشهادات العامة كالمعتاد.",
+  "certificateBrowserBoundary": "يتم التفويض في المتصفح الخارجي. موافقة BusyMax لا تضبط ثقة المتصفح؛ يجب أن يثق المتصفح بالخادم بشكل منفصل.",
+  "certificateDetails": "صاحب الشهادة: ⁨{subject}⁩\nجهة الإصدار: ⁨{issuer}⁩\nصالح من: ⁨{notBefore}⁩\nصالح حتى: ⁨{notAfter}⁩\nبصمة SHA-256: ⁨{fingerprint}⁩",
+  "certificateFailure": "{reason, select, approvalRequired{الموافقة مطلوبة} pinMismatch{تغيّرت الشهادة المثبّتة} expired{انتهت صلاحية الشهادة} notYetValid{الشهادة غير صالحة بعد} hostnameMismatch{اسم المضيف لا يطابق الشهادة} invalidPolicy{إعداد جهة الإصدار الخاصة غير صالح} ineligible{الشهادة غير مؤهلة} verificationFailed{فشل التحقق من TLS} other{فشل التحقق من TLS}}"
 }

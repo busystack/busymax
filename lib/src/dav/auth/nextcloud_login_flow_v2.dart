@@ -71,6 +71,18 @@ final class NextcloudLoginFlowV2 {
   final int maximumResponseBytes;
   final int maximumRedirects;
 
+  NextcloudLoginFlowV2 withClient(http.Client client) => NextcloudLoginFlowV2(
+    client: client,
+    browserLauncher: _browserLauncher,
+    delay: _delay,
+    nowUtc: _nowUtc,
+    pollInterval: pollInterval,
+    operationTimeout: operationTimeout,
+    responseTimeout: responseTimeout,
+    maximumResponseBytes: maximumResponseBytes,
+    maximumRedirects: maximumRedirects,
+  );
+
   Future<NextcloudLoginFlowResult>? _activeOperation;
   DavCancellationToken? _activeCancellation;
 
@@ -191,6 +203,10 @@ final class NextcloudLoginFlowV2 {
       final normalizedAuthority = normalizeNextcloudServerAuthority(
         _requiredJsonString(completed, 'server'),
       );
+      if (normalizedAuthority !=
+          normalizeNextcloudServerAuthority(baseServer.toString())) {
+        throw _redirectError('NextcloudLoginCanonicalServerRejected');
+      }
       return NextcloudLoginFlowResult(
         canonicalServer: Uri.parse(normalizedAuthority),
         loginName: _requiredJsonString(completed, 'loginName'),

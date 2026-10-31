@@ -3840,4 +3840,80 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get taskDurationRequiresStart =>
       'Establece una fecha límite antes de quitar el inicio de una tarea con duración.';
+
+  @override
+  String get privateServerCertificates => 'Certificados de servidores privados';
+
+  @override
+  String get reviewServerCertificate => 'Revisar certificado del servidor';
+
+  @override
+  String get certificateStandard => 'HTTPS estándar';
+
+  @override
+  String get certificatePrivateCa => 'Autoridad de certificación privada';
+
+  @override
+  String get certificatePinnedLeaf => 'Certificado autofirmado fijado';
+
+  @override
+  String get certificateImportCa => 'Importar CA privada';
+
+  @override
+  String get certificateReplacePin => 'Revisar certificado de sustitución';
+
+  @override
+  String get certificateUseStandard => 'Volver a HTTPS estándar';
+
+  @override
+  String get certificateApprove => 'Aprobar esta política de certificados';
+
+  @override
+  String get certificateReject => 'Rechazar';
+
+  @override
+  String get certificatePrevious => 'Certificados aprobados anteriormente';
+
+  @override
+  String get certificateInvalid =>
+      'Certificado o configuración de CA privada no válidos';
+
+  @override
+  String get certificateFirstUseWarning =>
+      'El cifrado por sí solo no confirma la identidad del servidor en el primer uso. Compare la huella SHA-256 con el administrador por un canal independiente de confianza antes de aprobar.';
+
+  @override
+  String get certificateRenewalHelp =>
+      'Se recomienda una CA privada: los certificados del servidor pueden renovarse bajo ella. Cada cambio de un certificado fijado requiere revisión, incluso con la misma clave. Los certificados públicos se renuevan normalmente.';
+
+  @override
+  String get certificateBrowserBoundary =>
+      'La autorización usa el navegador externo. La aprobación de BusyMax no configura su confianza; el navegador debe confiar en el servidor por separado.';
+
+  @override
+  String certificateDetails(
+    String subject,
+    String issuer,
+    String notBefore,
+    String notAfter,
+    String fingerprint,
+  ) {
+    return 'Sujeto: $subject\nEmisor: $issuer\nVálido desde: $notBefore\nVálido hasta: $notAfter\nHuella SHA-256: $fingerprint';
+  }
+
+  @override
+  String certificateFailure(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'approvalRequired': 'Se requiere aprobación',
+      'pinMismatch': 'El certificado fijado ha cambiado',
+      'expired': 'Certificado caducado',
+      'notYetValid': 'Certificado aún no válido',
+      'hostnameMismatch': 'El nombre del servidor no coincide',
+      'invalidPolicy': 'Configuración de CA privada no válida',
+      'ineligible': 'Certificado no apto',
+      'verificationFailed': 'Falló la verificación TLS',
+      'other': 'Falló la verificación TLS',
+    });
+    return '$_temp0';
+  }
 }

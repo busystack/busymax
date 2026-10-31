@@ -687,6 +687,7 @@ final class AndroidNotificationService
     final message = kind == 'conflict'
         ? l10n.blockedPendingOperations
         : switch (revision.split(':').first) {
+            'certificateReviewRequired' => l10n.reviewServerCertificate,
             'reconnectRequired' => strings.reconnectRequired,
             'permissionChanged' => strings.permissionChanged,
             'unsupportedProvider' => strings.unsupportedProvider,

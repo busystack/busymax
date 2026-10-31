@@ -3813,4 +3813,80 @@ class AppLocalizationsVi extends AppLocalizations {
   @override
   String get taskDurationRequiresStart =>
       'Đặt thời hạn trước khi xóa thời điểm bắt đầu của công việc có thời lượng.';
+
+  @override
+  String get privateServerCertificates => 'Chứng chỉ máy chủ riêng';
+
+  @override
+  String get reviewServerCertificate => 'Xem xét chứng chỉ máy chủ';
+
+  @override
+  String get certificateStandard => 'HTTPS tiêu chuẩn';
+
+  @override
+  String get certificatePrivateCa => 'Cơ quan chứng thực riêng';
+
+  @override
+  String get certificatePinnedLeaf => 'Chứng chỉ tự ký được ghim';
+
+  @override
+  String get certificateImportCa => 'Nhập CA riêng';
+
+  @override
+  String get certificateReplacePin => 'Xem xét chứng chỉ thay thế';
+
+  @override
+  String get certificateUseStandard => 'Trở về HTTPS tiêu chuẩn';
+
+  @override
+  String get certificateApprove => 'Phê duyệt chính sách chứng chỉ này';
+
+  @override
+  String get certificateReject => 'Từ chối';
+
+  @override
+  String get certificatePrevious => 'Chứng chỉ đã phê duyệt trước đây';
+
+  @override
+  String get certificateInvalid =>
+      'Chứng chỉ hoặc cấu hình CA riêng không hợp lệ';
+
+  @override
+  String get certificateFirstUseWarning =>
+      'Chỉ mã hóa không xác minh được danh tính máy chủ trong lần dùng đầu. Trước khi phê duyệt, hãy so sánh dấu vân tay SHA-256 qua kênh quản trị viên độc lập đáng tin cậy.';
+
+  @override
+  String get certificateRenewalHelp =>
+      'Ưu tiên CA riêng: chứng chỉ máy chủ có thể được gia hạn dưới CA đó. Mỗi thay đổi chứng chỉ được ghim đều cần xem xét rõ ràng, kể cả khi dùng cùng khóa. Chứng chỉ công khai được gia hạn bình thường.';
+
+  @override
+  String get certificateBrowserBoundary =>
+      'Việc ủy quyền dùng trình duyệt bên ngoài. Phê duyệt trong BusyMax không cấu hình độ tin cậy của trình duyệt; trình duyệt phải tin máy chủ riêng biệt.';
+
+  @override
+  String certificateDetails(
+    String subject,
+    String issuer,
+    String notBefore,
+    String notAfter,
+    String fingerprint,
+  ) {
+    return 'Chủ thể: $subject\nNhà phát hành: $issuer\nCó hiệu lực từ: $notBefore\nHết hạn: $notAfter\nDấu vân tay SHA-256: $fingerprint';
+  }
+
+  @override
+  String certificateFailure(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'approvalRequired': 'Cần phê duyệt',
+      'pinMismatch': 'Chứng chỉ được ghim đã thay đổi',
+      'expired': 'Chứng chỉ đã hết hạn',
+      'notYetValid': 'Chứng chỉ chưa có hiệu lực',
+      'hostnameMismatch': 'Tên máy chủ không khớp',
+      'invalidPolicy': 'Cấu hình CA riêng không hợp lệ',
+      'ineligible': 'Chứng chỉ không đủ điều kiện',
+      'verificationFailed': 'Xác minh TLS thất bại',
+      'other': 'Xác minh TLS thất bại',
+    });
+    return '$_temp0';
+  }
 }

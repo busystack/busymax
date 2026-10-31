@@ -1,3 +1,7 @@
+import '../dav/dav_errors.dart';
+import '../dav/trust/nextcloud_leased_http_client.dart';
+import '../dav/trust/nextcloud_http_client_factory.dart';
+import '../dav/trust/nextcloud_account_http_client.dart';
 import '../features/notifications/operational_notification_coordinator.dart';
 import '../core/http/request_dispatch_exception.dart';
 import '../features/sync/domain_sync_schedule.dart';
@@ -153,6 +157,33 @@ final baseHttpClientProvider = Provider<http.Client>((ref) {
   return client;
 });
 
+final nextcloudHttpClientFactoryProvider = Provider<NextcloudHttpClientFactory>(
+  (ref) {
+    final factory = NextcloudHttpClientFactory(
+      requireNetwork: ref
+          .watch(networkConnectivityMonitorProvider)
+          .requireNetwork,
+    );
+    final stopObserving = ref
+        .watch(authorizationPersistenceProvider)
+        .observeNextcloudInvalidation(factory.invalidate);
+    ref.onDispose(() {
+      stopObserving();
+      factory.close();
+    });
+    return factory;
+  },
+);
+
+final nextcloudAccountHttpClientProvider = Provider.family<http.Client, String>(
+  (ref, id) => NextcloudAccountHttpClient(
+    accountId: id,
+    persistence: ref.watch(authorizationPersistenceProvider),
+    factory: ref.watch(nextcloudHttpClientFactoryProvider),
+    standardClient: ref.watch(baseHttpClientProvider),
+  ),
+);
+
 final nextcloudLoginFlowV2Provider = Provider<NextcloudLoginFlowV2>((ref) {
   final flow = NextcloudLoginFlowV2(client: ref.watch(baseHttpClientProvider));
   ref.onDispose(flow.cancel);
@@ -190,6 +221,65 @@ davAccountOnboardingServiceProvider = Provider<DavAccountOnboardingService>((
         .finishLinkedAccountRemoval(id),
     accountsRepository: ref.watch(accountsRepositoryProvider),
     nextcloudLoginFlow: ref.watch(nextcloudLoginFlowV2Provider),
+    nextcloudClients: ref.watch(nextcloudHttpClientFactoryProvider),
+    nextcloudDiscovery: (secret, generation, requireExisting) =>
+        ({
+          required accountId,
+          required provider,
+          required accountAuthority,
+          required credential,
+          cancellationToken,
+        }) async {
+          final raw = ref
+              .read(nextcloudHttpClientFactoryProvider)
+              .create(
+                owner: accountId,
+                authority: accountAuthority,
+                policy: secret.trustPolicy,
+              );
+          final scoped = NextcloudLeasedHttpClient(
+            delegate: raw,
+            runLease: (work) =>
+                ref.read(authorizationPersistenceProvider).run(accountId, work),
+            validate: () async {
+              final persistence = ref.read(authorizationPersistenceProvider);
+              final account = await ref
+                  .read(accountsRepositoryProvider)
+                  .accountById(accountId);
+              if (await persistence.generation(accountId) != generation ||
+                  (account != null) != requireExisting) {
+                throw const DavException(
+                  kind: DavErrorKind.cancelled,
+                  code: 'NextcloudStaleDiscovery',
+                  safeMessage:
+                      'The account changed during certificate validation.',
+                );
+              }
+            },
+          );
+          try {
+            final profile = davProviderProfile(
+              provider,
+              nextcloudServer: accountAuthority,
+            );
+            return await DavDiscoveryService(
+              transport: DavHttpTransport(
+                client: scoped,
+                profile: profile,
+                accountAuthority: accountAuthority,
+              ),
+              profile: profile,
+              accountAuthority: accountAuthority,
+              accountId: accountId,
+              credential: credential,
+            ).discover(
+              correlationId: const Uuid().v4(),
+              cancellationToken: cancellationToken,
+            );
+          } finally {
+            scoped.close();
+          }
+        },
     discover:
         ({
           required accountId,
@@ -220,22 +310,35 @@ davAccountOnboardingServiceProvider = Provider<DavAccountOnboardingService>((
             cancellationToken: cancellationToken,
           );
         },
-    nextcloudCredentialRevoker: ({required accountId, required credential}) {
+    nextcloudCredentialRevoker: ({required accountId, required credential}) async {
+      // Removal owns an immutable snapshot, never a lookup of deleted secrets.
+      final owner = 'revocation:${const Uuid().v4()}';
+      final scoped = ref
+          .read(nextcloudHttpClientFactoryProvider)
+          .create(
+            owner: owner,
+            authority: credential.canonicalServer,
+            policy: credential.trustPolicy?.bind(owner),
+          );
       final profile = davProviderProfile(
         BusyProvider.nextcloud,
         nextcloudServer: credential.canonicalServer,
       );
-      return NextcloudAppPasswordRevoker(
-        transport: DavHttpTransport(
-          client: client,
-          profile: profile,
-          accountAuthority: credential.canonicalServer,
-        ),
-      ).revoke(
-        accountId: accountId,
-        credential: credential,
-        correlationId: const Uuid().v4(),
-      );
+      try {
+        await NextcloudAppPasswordRevoker(
+          transport: DavHttpTransport(
+            client: scoped,
+            profile: profile,
+            accountAuthority: credential.canonicalServer,
+          ),
+        ).revoke(
+          accountId: accountId,
+          credential: credential,
+          correlationId: const Uuid().v4(),
+        );
+      } finally {
+        scoped.close();
+      }
     },
   );
 });
@@ -391,6 +494,10 @@ final busyMaxContactsControllerProvider = Provider<BusyMaxContactsController>((
       authorizationGenerationReaderProvider,
     ),
     httpClient: ref.watch(baseHttpClientProvider),
+    nextcloudClients: ref.watch(nextcloudHttpClientFactoryProvider),
+    accountGate: ref.watch(crossEngineAccountGateProvider),
+    linkedNextcloudClient: (id) =>
+        ref.read(nextcloudAccountHttpClientProvider(id)),
     readDavSecret: (accountId) => storage.read(key: key(accountId)),
     writeDavSecret: (accountId, value) =>
         storage.write(key: key(accountId), value: value),
@@ -1213,7 +1320,7 @@ final davAccountSyncEngineFactoryProvider =
       return (accountId) => DavAccountSyncEngine(
         database: ref.read(databaseProvider),
         secretStore: ref.read(secretStoreProvider),
-        httpClient: ref.read(baseHttpClientProvider),
+        httpClient: ref.read(nextcloudAccountHttpClientProvider(accountId)),
         accountId: accountId,
         rebuildNotifications: (accountId, _) async {
           await NotificationScheduleService(
@@ -1654,7 +1761,7 @@ final davTaskListMutationClientForAccountProvider =
       return DavTaskListMutationService(
         database: ref.watch(databaseProvider),
         secretStore: ref.watch(secretStoreProvider),
-        httpClient: ref.watch(baseHttpClientProvider),
+        httpClient: ref.watch(nextcloudAccountHttpClientProvider(accountId)),
         accountId: accountId,
         refreshAfterMutation: () =>
             ref.read(signedInSyncRunnerProvider)(accountId, true),
@@ -1669,7 +1776,7 @@ final nextcloudCollectionServiceProvider =
       (ref, accountId) => NextcloudCollectionService(
         database: ref.watch(databaseProvider),
         secrets: ref.watch(secretStoreProvider),
-        client: ref.watch(baseHttpClientProvider),
+        client: ref.watch(nextcloudAccountHttpClientProvider(accountId)),
         accountId: accountId,
         requireNetwork: ref
             .watch(networkConnectivityMonitorProvider)
@@ -1709,7 +1816,7 @@ final davCalendarCollectionMutationClientForAccountProvider =
       return DavCalendarCollectionMutationService(
         database: ref.watch(databaseProvider),
         secretStore: ref.watch(secretStoreProvider),
-        httpClient: ref.watch(baseHttpClientProvider),
+        httpClient: ref.watch(nextcloudAccountHttpClientProvider(accountId)),
         accountId: accountId,
         refreshAfterMutation: () =>
             ref.read(signedInSyncRunnerProvider)(accountId, true),

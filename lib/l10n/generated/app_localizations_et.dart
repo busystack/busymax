@@ -3803,4 +3803,81 @@ class AppLocalizationsEt extends AppLocalizations {
   @override
   String get taskDurationRequiresStart =>
       'Määra tähtaeg enne kestusega ülesande alguse eemaldamist.';
+
+  @override
+  String get privateServerCertificates => 'Privaatserverite sertifikaadid';
+
+  @override
+  String get reviewServerCertificate => 'Vaata serveri sertifikaat üle';
+
+  @override
+  String get certificateStandard => 'Tavaline HTTPS';
+
+  @override
+  String get certificatePrivateCa => 'Privaatne sertimiskeskus';
+
+  @override
+  String get certificatePinnedLeaf =>
+      'Kinnitatud iseallkirjastatud sertifikaat';
+
+  @override
+  String get certificateImportCa => 'Impordi privaatne CA';
+
+  @override
+  String get certificateReplacePin => 'Vaata asendussertifikaat üle';
+
+  @override
+  String get certificateUseStandard => 'Taasta tavaline HTTPS';
+
+  @override
+  String get certificateApprove => 'Kinnita see sertifikaadipoliitika';
+
+  @override
+  String get certificateReject => 'Keeldu';
+
+  @override
+  String get certificatePrevious => 'Varem kinnitatud sertifikaadid';
+
+  @override
+  String get certificateInvalid =>
+      'Vigane sertifikaat või privaatse CA seadistus';
+
+  @override
+  String get certificateFirstUseWarning =>
+      'Krüptimine üksi ei kinnita esmakasutusel serveri identiteeti. Võrdle SHA-256 sõrmejälge administraatoriga sõltumatu usaldusväärse kanali kaudu enne kinnitamist.';
+
+  @override
+  String get certificateRenewalHelp =>
+      'Eelista privaatset CA-d: selle all saab serveri sertifikaate uuendada. Kinnitatud sertifikaadi iga muudatus vajab ülevaatust, ka sama võtmega. Avalikud sertifikaadid uuenevad tavaliselt.';
+
+  @override
+  String get certificateBrowserBoundary =>
+      'Autoriseerimine toimub välises brauseris. BusyMaxi kinnitus ei seadista brauseri usaldust; brauser peab serverit eraldi usaldama.';
+
+  @override
+  String certificateDetails(
+    String subject,
+    String issuer,
+    String notBefore,
+    String notAfter,
+    String fingerprint,
+  ) {
+    return 'Omanik: $subject\nVäljastaja: $issuer\nKehtiv alates: $notBefore\nKehtiv kuni: $notAfter\nSHA-256 sõrmejälg: $fingerprint';
+  }
+
+  @override
+  String certificateFailure(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'approvalRequired': 'Vajalik on kinnitus',
+      'pinMismatch': 'Kinnitatud sertifikaat muutus',
+      'expired': 'Sertifikaat on aegunud',
+      'notYetValid': 'Sertifikaat ei kehti veel',
+      'hostnameMismatch': 'Serveri nimi ei vasta sertifikaadile',
+      'invalidPolicy': 'Vigane privaatse CA seadistus',
+      'ineligible': 'Sobimatu sertifikaat',
+      'verificationFailed': 'TLS-i kontroll nurjus',
+      'other': 'TLS-i kontroll nurjus',
+    });
+    return '$_temp0';
+  }
 }

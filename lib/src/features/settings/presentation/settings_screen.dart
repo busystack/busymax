@@ -1,3 +1,5 @@
+import '../../../ui/linux/nextcloud_certificate_dialog.dart';
+import '../../../ui/common/nextcloud_certificate_review.dart';
 import '../../../l10n/oauth_error_description.dart';
 import '../../../l10n/contacts_error_description.dart';
 
@@ -822,6 +824,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       await ref
           .read(busyMaxContactsControllerProvider)
           .addNextcloudContactsOnly(
+            reviewCertificate: (challenge, owner) => reviewNextcloudCertificate(
+              challenge,
+              owner,
+              (data) => mounted
+                  ? showLinuxNextcloudCertificate(context, data)
+                  : Future.value(null),
+            ),
             id: id,
             label: context.l10n.nextcloudProvider,
             server: Uri.parse(server),
@@ -1275,10 +1284,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             final onboarding = ref.read(davAccountOnboardingServiceProvider);
             accountId = reconnecting == null
                 ? (await onboarding.connectNextcloud(
+                    reviewCertificate: (challenge, owner) =>
+                        reviewNextcloudCertificate(
+                          challenge,
+                          owner,
+                          (data) => mounted
+                              ? showLinuxNextcloudCertificate(context, data)
+                              : Future.value(null),
+                        ),
                     enteredServer: nextcloudServer!,
                     cancellationToken: cancellation,
                   )).accountId
                 : (await onboarding.reconnectNextcloud(
+                    reviewCertificate: (challenge, owner) =>
+                        reviewNextcloudCertificate(
+                          challenge,
+                          owner,
+                          (data) => mounted
+                              ? showLinuxNextcloudCertificate(context, data)
+                              : Future.value(null),
+                        ),
                     accountId: reconnecting.id,
                     enteredServer: nextcloudServer!,
                     cancellationToken: cancellation,
@@ -2217,6 +2242,17 @@ class _AccountManagementSection extends ConsumerWidget {
                   filled: true,
                   children: [
                     BusyMaxActionRow(
+                      title: context.l10n.privateServerCertificates,
+                      leading: const Icon(Icons.verified_user_outlined),
+                      onTap: () => manageNextcloudCertificates(
+                        ref,
+                        account.id,
+                        (data) => context.mounted
+                            ? showLinuxNextcloudCertificate(context, data)
+                            : Future.value(null),
+                      ),
+                    ),
+                    BusyMaxActionRow(
                       title: context.l10n.nextcloudTrash,
                       leading: const Icon(YaruIcons.trash),
                       onTap: () => showLinuxNextcloudTrashDialog(
@@ -3084,6 +3120,30 @@ class _ContactsOnlySettingsCard extends ConsumerWidget {
             description: l10n.contactsOnlyDescription,
             filled: true,
             children: [
+              FutureBuilder<bool>(
+                future: ref
+                    .read(busyMaxContactsControllerProvider)
+                    .isIndependentNextcloud(account.id),
+                builder: (context, snapshot) => snapshot.data == true
+                    ? BusyMaxActionRow(
+                        title: l10n.privateServerCertificates,
+                        leading: const Icon(Icons.verified_user_outlined),
+                        onTap: busy
+                            ? null
+                            : () => manageNextcloudCertificates(
+                                ref,
+                                account.id,
+                                (data) => context.mounted
+                                    ? showLinuxNextcloudCertificate(
+                                        context,
+                                        data,
+                                      )
+                                    : Future.value(null),
+                                contactsOnly: true,
+                              ),
+                      )
+                    : const SizedBox.shrink(),
+              ),
               if (busy)
                 BusyMaxActionRow(
                   title: l10n.traySyncing,
@@ -4186,6 +4246,15 @@ class _AccountManagementCard extends ConsumerWidget {
     final activity = ref.watch(accountSyncActivityProvider);
     VoidCallback? recovery(AccountSettingsRecovery action, {String? domain}) =>
         switch (action) {
+          AccountSettingsRecovery.reviewCertificate => () => unawaited(
+            manageNextcloudCertificates(
+              ref,
+              account.id,
+              (data) => context.mounted
+                  ? showLinuxNextcloudCertificate(context, data)
+                  : Future.value(null),
+            ),
+          ),
           AccountSettingsRecovery.reconnect => onReconnect,
           AccountSettingsRecovery.replaceRegistration => onReplaceRegistration,
           AccountSettingsRecovery.revalidate =>
@@ -4222,6 +4291,7 @@ class _AccountManagementCard extends ConsumerWidget {
                   },
         };
     String recoveryLabel(AccountSettingsRecovery action) => switch (action) {
+      AccountSettingsRecovery.reviewCertificate => l10n.reviewServerCertificate,
       AccountSettingsRecovery.reconnect => l10n.reconnectAccount,
       AccountSettingsRecovery.replaceRegistration => l10n.registrationReplace,
       AccountSettingsRecovery.revalidate =>

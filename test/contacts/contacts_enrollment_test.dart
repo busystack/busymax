@@ -1,3 +1,5 @@
+import '../support/persistence_test_directory.dart';
+
 import 'dart:async';
 import 'dart:io';
 
@@ -184,7 +186,7 @@ void main() {
     test(
       '$provider disk restart retains enabled reconnected read-only account and source preference',
       () async {
-        final profile = await Directory.systemTemp.createTemp(
+        final profile = await createPersistenceTestDirectory(
           'busymax-enrollment-restart-',
         );
         addTearDown(() => profile.delete(recursive: true));

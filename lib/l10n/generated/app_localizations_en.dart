@@ -3845,4 +3845,80 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get taskDurationRequiresStart =>
       'Set a deadline before removing the start of a task with a duration.';
+
+  @override
+  String get privateServerCertificates => 'Private server certificates';
+
+  @override
+  String get reviewServerCertificate => 'Review server certificate';
+
+  @override
+  String get certificateStandard => 'Standard HTTPS';
+
+  @override
+  String get certificatePrivateCa => 'Private certificate authority';
+
+  @override
+  String get certificatePinnedLeaf => 'Pinned self-signed certificate';
+
+  @override
+  String get certificateImportCa => 'Import private CA';
+
+  @override
+  String get certificateReplacePin => 'Review a replacement pin';
+
+  @override
+  String get certificateUseStandard => 'Return to standard HTTPS';
+
+  @override
+  String get certificateApprove => 'Approve this certificate policy';
+
+  @override
+  String get certificateReject => 'Reject';
+
+  @override
+  String get certificatePrevious => 'Previously approved certificates';
+
+  @override
+  String get certificateInvalid =>
+      'Invalid certificate or private CA configuration';
+
+  @override
+  String get certificateFirstUseWarning =>
+      'Encryption alone does not establish server identity on first use. Compare the SHA-256 fingerprint through an independently trusted administrator channel before approval.';
+
+  @override
+  String get certificateRenewalHelp =>
+      'Prefer a private CA: server certificates may renew under it. A pinned leaf requires explicit review for every certificate change, even with the same key. Public certificates renew normally.';
+
+  @override
+  String get certificateBrowserBoundary =>
+      'Browser authorization remains external. BusyMax approval does not configure browser trust; your browser must trust the server separately.';
+
+  @override
+  String certificateDetails(
+    String subject,
+    String issuer,
+    String notBefore,
+    String notAfter,
+    String fingerprint,
+  ) {
+    return 'Subject: $subject\nIssuer: $issuer\nValid from: $notBefore\nValid until: $notAfter\nSHA-256 fingerprint: $fingerprint';
+  }
+
+  @override
+  String certificateFailure(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'approvalRequired': 'Approval required',
+      'pinMismatch': 'Pinned certificate changed',
+      'expired': 'Certificate expired',
+      'notYetValid': 'Certificate not yet valid',
+      'hostnameMismatch': 'Certificate hostname mismatch',
+      'invalidPolicy': 'Invalid private CA configuration',
+      'ineligible': 'Certificate is ineligible',
+      'verificationFailed': 'TLS verification failed',
+      'other': 'TLS verification failed',
+    });
+    return '$_temp0';
+  }
 }

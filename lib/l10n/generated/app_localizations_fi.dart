@@ -3854,4 +3854,81 @@ class AppLocalizationsFi extends AppLocalizations {
   @override
   String get taskDurationRequiresStart =>
       'Aseta määräaika ennen keston sisältävän tehtävän alun poistamista.';
+
+  @override
+  String get privateServerCertificates => 'Yksityisten palvelinten varmenteet';
+
+  @override
+  String get reviewServerCertificate => 'Tarkista palvelimen varmenne';
+
+  @override
+  String get certificateStandard => 'Tavallinen HTTPS';
+
+  @override
+  String get certificatePrivateCa => 'Yksityinen varmentaja';
+
+  @override
+  String get certificatePinnedLeaf =>
+      'Kiinnitetty itseallekirjoitettu varmenne';
+
+  @override
+  String get certificateImportCa => 'Tuo yksityinen CA';
+
+  @override
+  String get certificateReplacePin => 'Tarkista korvaava varmenne';
+
+  @override
+  String get certificateUseStandard => 'Palaa tavalliseen HTTPS-yhteyteen';
+
+  @override
+  String get certificateApprove => 'Hyväksy tämä varmennekäytäntö';
+
+  @override
+  String get certificateReject => 'Hylkää';
+
+  @override
+  String get certificatePrevious => 'Aiemmin hyväksytyt varmenteet';
+
+  @override
+  String get certificateInvalid =>
+      'Virheellinen varmenne tai yksityisen CA:n määritys';
+
+  @override
+  String get certificateFirstUseWarning =>
+      'Pelkkä salaus ei varmista palvelimen henkilöllisyyttä ensimmäisellä käyttökerralla. Vertaa SHA-256-sormenjälkeä ylläpitäjään riippumatonta luotettua kanavaa käyttäen ennen hyväksymistä.';
+
+  @override
+  String get certificateRenewalHelp =>
+      'Suosi yksityistä varmentajaa: palvelinvarmenteet voidaan uusia sen alaisuudessa. Kiinnitetyn varmenteen jokainen muutos vaatii tarkistuksen, myös samalla avaimella. Julkiset varmenteet uusiutuvat tavallisesti.';
+
+  @override
+  String get certificateBrowserBoundary =>
+      'Valtuutus tapahtuu ulkoisessa selaimessa. BusyMaxin hyväksyntä ei määritä selaimen luottamusta; selaimen on luotettava palvelimeen erikseen.';
+
+  @override
+  String certificateDetails(
+    String subject,
+    String issuer,
+    String notBefore,
+    String notAfter,
+    String fingerprint,
+  ) {
+    return 'Kohde: $subject\nMyöntäjä: $issuer\nVoimassa alkaen: $notBefore\nVoimassa asti: $notAfter\nSHA-256-sormenjälki: $fingerprint';
+  }
+
+  @override
+  String certificateFailure(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'approvalRequired': 'Hyväksyntä tarvitaan',
+      'pinMismatch': 'Kiinnitetty varmenne muuttui',
+      'expired': 'Varmenne vanhentui',
+      'notYetValid': 'Varmenne ei ole vielä voimassa',
+      'hostnameMismatch': 'Palvelimen nimi ei täsmää',
+      'invalidPolicy': 'Virheellinen yksityisen CA:n määritys',
+      'ineligible': 'Varmenne ei sovellu',
+      'verificationFailed': 'TLS-tarkistus epäonnistui',
+      'other': 'TLS-tarkistus epäonnistui',
+    });
+    return '$_temp0';
+  }
 }

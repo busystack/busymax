@@ -1,3 +1,5 @@
+import 'support/nextcloud_live_trust.dart';
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -14,12 +16,75 @@ import 'package:busymax/src/dav/http/dav_http_transport.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/io_client.dart';
 
 const _enabledVariable = 'BUSYMAX_NEXTCLOUD_LOGIN_LIVE';
 
 void main() {
   final enabled = Platform.environment[_enabledVariable] == '1';
+
+  test(
+    'real captured Nextcloud credential revokes through scoped trust',
+    () async {
+      final server = Uri.parse(
+        _requiredEnvironment('BUSYMAX_NEXTCLOUD_LOGIN_LIVE_URL'),
+      );
+      final snapshot = NextcloudSecretRecord(
+        canonicalServer: server,
+        loginName: _requiredEnvironment(
+          'BUSYMAX_NEXTCLOUD_LOGIN_LIVE_USERNAME',
+        ),
+        appPassword: _requiredEnvironment(
+          'BUSYMAX_NEXTCLOUD_LOGIN_LIVE_REVOCATION_APP_PASSWORD',
+        ),
+      );
+      final client = nextcloudLiveClient(
+        authority: server,
+        prefix: 'BUSYMAX_NEXTCLOUD_LOGIN_LIVE',
+        identity: 'captured-removal-live',
+      );
+      addTearDown(client.close);
+      final profile = davProviderProfile(
+        BusyProvider.nextcloud,
+        nextcloudServer: server,
+      );
+      final transport = DavHttpTransport(
+        client: client,
+        profile: profile,
+        accountAuthority: server,
+      );
+      await NextcloudAppPasswordRevoker(transport: transport).revoke(
+        accountId: 'captured-removal-live',
+        credential: snapshot,
+        correlationId: 'captured-removal-live',
+      );
+      await expectLater(
+        DavDiscoveryService(
+          transport: transport,
+          profile: profile,
+          accountAuthority: server,
+          accountId: 'captured-removal-live',
+          credential: DavBasicCredential(
+            username: snapshot.loginName,
+            password: snapshot.appPassword,
+          ),
+        ).discover(correlationId: 'captured-removal-live-rejected'),
+        throwsA(
+          isA<DavException>().having(
+            (error) => error.kind,
+            'kind',
+            DavErrorKind.authentication,
+          ),
+        ),
+      );
+    },
+    skip:
+        enabled &&
+            Platform.environment['BUSYMAX_NEXTCLOUD_LOGIN_LIVE_REVOCATION_APP_PASSWORD'] !=
+                null
+        ? false
+        : 'Needs a separate disposable revocation app password.',
+    timeout: const Timeout(Duration(minutes: 1)),
+  );
 
   test(
     'real browser Login Flow returns and revokes a canonical app password',
@@ -33,19 +98,13 @@ void main() {
       final bootstrapAppPassword = _requiredEnvironment(
         'BUSYMAX_NEXTCLOUD_LOGIN_LIVE_APP_PASSWORD',
       );
-      final certificatePath = _requiredEnvironment(
-        'BUSYMAX_NEXTCLOUD_LOGIN_LIVE_TLS_CERT',
-      );
       expect(server.scheme, 'https');
-
-      final securityContext = SecurityContext(withTrustedRoots: false)
-        ..setTrustedCertificates(certificatePath);
-      final flowHttpClient = HttpClient(context: securityContext);
-      final flowClient = IOClient(flowHttpClient);
-      addTearDown(() {
-        flowClient.close();
-        flowHttpClient.close(force: true);
-      });
+      final flowClient = nextcloudLiveClient(
+        authority: server,
+        prefix: 'BUSYMAX_NEXTCLOUD_LOGIN_LIVE',
+        identity: 'login-live',
+      );
+      addTearDown(flowClient.close);
       await recordNextcloudLiveVersions(flowClient, server);
       final browser = await _HeadlessLoginFlowBrowser.start(
         username: username,
@@ -70,12 +129,12 @@ void main() {
         BusyProvider.nextcloud,
         nextcloudServer: result.canonicalServer,
       );
-      final davHttpClient = HttpClient(context: securityContext);
-      final davClient = IOClient(davHttpClient);
-      addTearDown(() {
-        davClient.close();
-        davHttpClient.close(force: true);
-      });
+      final davClient = nextcloudLiveClient(
+        authority: server,
+        prefix: 'BUSYMAX_NEXTCLOUD_LOGIN_LIVE',
+        identity: 'login-live-dav',
+      );
+      addTearDown(davClient.close);
       final transport = DavHttpTransport(
         client: davClient,
         profile: profile,
@@ -130,17 +189,12 @@ void main() {
     'real Login Flow start can be cancelled while browser authorization opens',
     () async {
       final server = _requiredEnvironment('BUSYMAX_NEXTCLOUD_LOGIN_LIVE_URL');
-      final certificatePath = _requiredEnvironment(
-        'BUSYMAX_NEXTCLOUD_LOGIN_LIVE_TLS_CERT',
+      final client = nextcloudLiveClient(
+        authority: Uri.parse(server),
+        prefix: 'BUSYMAX_NEXTCLOUD_LOGIN_LIVE',
+        identity: 'login-live-cancellation',
       );
-      final securityContext = SecurityContext(withTrustedRoots: false)
-        ..setTrustedCertificates(certificatePath);
-      final ioClient = HttpClient(context: securityContext);
-      final client = IOClient(ioClient);
-      addTearDown(() {
-        client.close();
-        ioClient.close(force: true);
-      });
+      addTearDown(client.close);
       late final NextcloudLoginFlowV2 flow;
       flow = NextcloudLoginFlowV2(
         client: client,
@@ -169,17 +223,12 @@ void main() {
     'real pending polling remains 404 until the operation expires',
     () async {
       final server = _requiredEnvironment('BUSYMAX_NEXTCLOUD_LOGIN_LIVE_URL');
-      final certificatePath = _requiredEnvironment(
-        'BUSYMAX_NEXTCLOUD_LOGIN_LIVE_TLS_CERT',
+      final client = nextcloudLiveClient(
+        authority: Uri.parse(server),
+        prefix: 'BUSYMAX_NEXTCLOUD_LOGIN_LIVE',
+        identity: 'login-live-cancellation',
       );
-      final securityContext = SecurityContext(withTrustedRoots: false)
-        ..setTrustedCertificates(certificatePath);
-      final ioClient = HttpClient(context: securityContext);
-      final client = IOClient(ioClient);
-      addTearDown(() {
-        client.close();
-        ioClient.close(force: true);
-      });
+      addTearDown(client.close);
       var clock = DateTime.utc(2026, 8, 8, 12);
       var pendingDelays = 0;
       final flow = NextcloudLoginFlowV2(
@@ -247,7 +296,8 @@ final class _HeadlessLoginFlowBrowser {
       '--disable-crash-reporter',
       '--disable-default-apps',
       '--disable-sync',
-      '--ignore-certificate-errors',
+      // Browser trust is independent of BusyMax. Provision trust in the
+      // isolated browser environment before running private-server acceptance.
       '--no-first-run',
       '--no-default-browser-check',
       '--remote-debugging-address=127.0.0.1',

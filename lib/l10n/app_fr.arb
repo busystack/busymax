@@ -1420,5 +1420,22 @@
   "taskMoveAfterSaveFailed": "Vos modifications ont été enregistrées, mais la tâche n’a pas pu être déplacée. Réessayez le déplacement.",
   "taskDraftConflict": "Cette tâche a changé depuis son ouverture. Vos modifications sont conservées. Vérifiez la tâche actuelle avant de réessayer.",
   "taskUnavailableDraftRetained": "Cette tâche est indisponible. Vos modifications non enregistrées sont conservées.",
-  "taskDurationRequiresStart": "Définissez une échéance avant de supprimer le début d’une tâche ayant une durée."
+  "taskDurationRequiresStart": "Définissez une échéance avant de supprimer le début d’une tâche ayant une durée.",
+  "privateServerCertificates": "Certificats de serveurs privés",
+  "reviewServerCertificate": "Examiner le certificat du serveur",
+  "certificateStandard": "HTTPS standard",
+  "certificatePrivateCa": "Autorité de certification privée",
+  "certificatePinnedLeaf": "Certificat autosigné épinglé",
+  "certificateImportCa": "Importer une AC privée",
+  "certificateReplacePin": "Examiner un certificat de remplacement",
+  "certificateUseStandard": "Revenir au HTTPS standard",
+  "certificateApprove": "Approuver cette politique de certificats",
+  "certificateReject": "Refuser",
+  "certificatePrevious": "Certificats précédemment approuvés",
+  "certificateInvalid": "Certificat ou configuration de l’AC privée invalide",
+  "certificateFirstUseWarning": "Le chiffrement seul ne prouve pas l’identité du serveur au premier accès. Comparez l’empreinte SHA-256 via un canal administrateur indépendant et fiable avant toute approbation.",
+  "certificateRenewalHelp": "Préférez une AC privée : les certificats du serveur peuvent être renouvelés sous cette autorité. Chaque changement de certificat épinglé exige une vérification, même avec la même clé. Les certificats publics se renouvellent normalement.",
+  "certificateBrowserBoundary": "L’autorisation utilise le navigateur externe. L’approbation dans BusyMax ne configure pas sa confiance ; le navigateur doit faire confiance au serveur séparément.",
+  "certificateDetails": "Sujet: {subject}\nÉmetteur: {issuer}\nValide à partir du: {notBefore}\nValide jusqu’au: {notAfter}\nEmpreinte SHA-256: {fingerprint}",
+  "certificateFailure": "{reason, select, approvalRequired{Approbation requise} pinMismatch{Le certificat épinglé a changé} expired{Certificat expiré} notYetValid{Certificat pas encore valide} hostnameMismatch{Le nom du serveur ne correspond pas} invalidPolicy{Configuration de l’AC privée invalide} ineligible{Certificat non admissible} verificationFailed{Échec de la vérification TLS} other{Échec de la vérification TLS}}"
 }

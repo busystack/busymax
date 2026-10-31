@@ -1357,5 +1357,22 @@
   "taskMoveAfterSaveFailed": "编辑内容已保存，但无法移动任务。请重试移动。",
   "taskDraftConflict": "此任务在打开后已发生更改。你的编辑内容已保留。请查看最新任务后重试。",
   "taskUnavailableDraftRetained": "此任务不可用。未保存的更改已保留。",
-  "taskDurationRequiresStart": "移除设有持续时间的任务的开始日期前，请先设置截止日期。"
+  "taskDurationRequiresStart": "移除设有持续时间的任务的开始日期前，请先设置截止日期。",
+  "privateServerCertificates": "私有服务器证书",
+  "reviewServerCertificate": "检查服务器证书",
+  "certificateStandard": "标准 HTTPS",
+  "certificatePrivateCa": "私有证书颁发机构",
+  "certificatePinnedLeaf": "固定的自签名证书",
+  "certificateImportCa": "导入私有 CA",
+  "certificateReplacePin": "检查替换证书",
+  "certificateUseStandard": "恢复标准 HTTPS",
+  "certificateApprove": "批准此证书策略",
+  "certificateReject": "拒绝",
+  "certificatePrevious": "先前批准的证书",
+  "certificateInvalid": "证书或私有 CA 配置无效",
+  "certificateFirstUseWarning": "首次连接时，仅加密并不能确认服务器身份。批准前，请通过独立可信的管理员渠道核对 SHA-256 指纹。",
+  "certificateRenewalHelp": "建议使用私有 CA，服务器证书可在其下正常续期。固定的叶证书每次变更都须明确检查，即使用同一密钥。公开证书可正常续期。",
+  "certificateBrowserBoundary": "授权仍通过外部浏览器进行。BusyMax 的批准不会配置浏览器信任；浏览器必须单独信任该服务器。",
+  "certificateDetails": "主体: {subject}\n颁发者: {issuer}\n生效时间: {notBefore}\n到期时间: {notAfter}\nSHA-256 指纹: {fingerprint}",
+  "certificateFailure": "{reason, select, approvalRequired{需要批准} pinMismatch{固定的证书已更改} expired{证书已过期} notYetValid{证书尚未生效} hostnameMismatch{证书主机名不匹配} invalidPolicy{私有 CA 配置无效} ineligible{证书不符合要求} verificationFailed{TLS 验证失败} other{TLS 验证失败}}"
 }

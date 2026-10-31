@@ -1,3 +1,5 @@
+import 'support/nextcloud_live_trust.dart';
+
 import 'dart:io';
 
 import 'support/nextcloud_live_versions.dart';
@@ -197,7 +199,12 @@ final class _SharingUser {
           authority.scheme == 'http' &&
           const {'127.0.0.1', 'localhost', '::1'}.contains(authority.host),
     );
-    final client = http.Client();
+    final client = nextcloudLiveClient(
+      authority: authority,
+      prefix: 'BUSYMAX_NEXTCLOUD_SHARING_LIVE',
+      identity: role,
+      allowInsecureLoopbackForTesting: true,
+    );
     return _SharingUser(
       authority: authority,
       username: username,

@@ -10,10 +10,19 @@ import 'terminating_http_client.dart';
 /// for requests that need connection-establishment termination.
 final class NativeTerminatingHttpClient extends http.BaseClient
     implements TerminatingHttpClient {
-  NativeTerminatingHttpClient({http.Client? sharedClient})
-    : _sharedClient = sharedClient ?? http.Client();
+  NativeTerminatingHttpClient({
+    http.Client? sharedClient,
+    HttpClient Function()? nativeClientFactory,
+  }) : _nativeClientFactory = nativeClientFactory ?? HttpClient.new,
+       _sharedClient =
+           sharedClient ??
+           (nativeClientFactory == null
+               ? http.Client()
+               : IOClient(nativeClientFactory()));
 
   final http.Client _sharedClient;
+  final HttpClient Function() _nativeClientFactory;
+  final Set<HttpClient> _attempts = {};
   var _closed = false;
 
   @override
@@ -33,7 +42,9 @@ final class NativeTerminatingHttpClient extends http.BaseClient
     if (_closed) {
       throw http.ClientException('HTTP client is closed.', request.url);
     }
-    final nativeClient = HttpClient()..connectionTimeout = connectionTimeout;
+    final nativeClient = _nativeClientFactory()
+      ..connectionTimeout = connectionTimeout;
+    _attempts.add(nativeClient);
     final attemptClient = IOClient(nativeClient);
     var terminated = false;
     unawaited(
@@ -42,6 +53,7 @@ final class NativeTerminatingHttpClient extends http.BaseClient
         // This client belongs only to this request. Force-closing it can
         // interrupt openUrl without cancelling sibling operations.
         nativeClient.close(force: true);
+        _attempts.remove(nativeClient);
       }),
     );
     try {
@@ -52,6 +64,7 @@ final class NativeTerminatingHttpClient extends http.BaseClient
       return response;
     } on Object {
       nativeClient.close(force: true);
+      _attempts.remove(nativeClient);
       rethrow;
     }
   }
@@ -61,5 +74,9 @@ final class NativeTerminatingHttpClient extends http.BaseClient
     if (_closed) return;
     _closed = true;
     _sharedClient.close();
+    for (final attempt in _attempts) {
+      attempt.close(force: true);
+    }
+    _attempts.clear();
   }
 }

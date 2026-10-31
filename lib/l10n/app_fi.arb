@@ -1357,5 +1357,22 @@
   "taskMoveAfterSaveFailed": "Muutokset tallennettiin, mutta tehtävää ei voitu siirtää. Yritä siirtoa uudelleen.",
   "taskDraftConflict": "Tehtävä on muuttunut avaamisen jälkeen. Muutoksesi säilytetään. Tarkista nykyinen tehtävä ennen uutta yritystä.",
   "taskUnavailableDraftRetained": "Tehtävä ei ole käytettävissä. Tallentamattomat muutoksesi säilytetään.",
-  "taskDurationRequiresStart": "Aseta määräaika ennen keston sisältävän tehtävän alun poistamista."
+  "taskDurationRequiresStart": "Aseta määräaika ennen keston sisältävän tehtävän alun poistamista.",
+  "privateServerCertificates": "Yksityisten palvelinten varmenteet",
+  "reviewServerCertificate": "Tarkista palvelimen varmenne",
+  "certificateStandard": "Tavallinen HTTPS",
+  "certificatePrivateCa": "Yksityinen varmentaja",
+  "certificatePinnedLeaf": "Kiinnitetty itseallekirjoitettu varmenne",
+  "certificateImportCa": "Tuo yksityinen CA",
+  "certificateReplacePin": "Tarkista korvaava varmenne",
+  "certificateUseStandard": "Palaa tavalliseen HTTPS-yhteyteen",
+  "certificateApprove": "Hyväksy tämä varmennekäytäntö",
+  "certificateReject": "Hylkää",
+  "certificatePrevious": "Aiemmin hyväksytyt varmenteet",
+  "certificateInvalid": "Virheellinen varmenne tai yksityisen CA:n määritys",
+  "certificateFirstUseWarning": "Pelkkä salaus ei varmista palvelimen henkilöllisyyttä ensimmäisellä käyttökerralla. Vertaa SHA-256-sormenjälkeä ylläpitäjään riippumatonta luotettua kanavaa käyttäen ennen hyväksymistä.",
+  "certificateRenewalHelp": "Suosi yksityistä varmentajaa: palvelinvarmenteet voidaan uusia sen alaisuudessa. Kiinnitetyn varmenteen jokainen muutos vaatii tarkistuksen, myös samalla avaimella. Julkiset varmenteet uusiutuvat tavallisesti.",
+  "certificateBrowserBoundary": "Valtuutus tapahtuu ulkoisessa selaimessa. BusyMaxin hyväksyntä ei määritä selaimen luottamusta; selaimen on luotettava palvelimeen erikseen.",
+  "certificateDetails": "Kohde: {subject}\nMyöntäjä: {issuer}\nVoimassa alkaen: {notBefore}\nVoimassa asti: {notAfter}\nSHA-256-sormenjälki: {fingerprint}",
+  "certificateFailure": "{reason, select, approvalRequired{Hyväksyntä tarvitaan} pinMismatch{Kiinnitetty varmenne muuttui} expired{Varmenne vanhentui} notYetValid{Varmenne ei ole vielä voimassa} hostnameMismatch{Palvelimen nimi ei täsmää} invalidPolicy{Virheellinen yksityisen CA:n määritys} ineligible{Varmenne ei sovellu} verificationFailed{TLS-tarkistus epäonnistui} other{TLS-tarkistus epäonnistui}}"
 }

@@ -3725,4 +3725,79 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get taskDurationRequiresStart =>
       '期間が設定されたタスクの開始日時を削除する前に、期限を設定してください。';
+
+  @override
+  String get privateServerCertificates => 'プライベートサーバーの証明書';
+
+  @override
+  String get reviewServerCertificate => 'サーバー証明書を確認';
+
+  @override
+  String get certificateStandard => '標準のHTTPS';
+
+  @override
+  String get certificatePrivateCa => 'プライベート認証局';
+
+  @override
+  String get certificatePinnedLeaf => '固定した自己署名証明書';
+
+  @override
+  String get certificateImportCa => 'プライベートCAをインポート';
+
+  @override
+  String get certificateReplacePin => '置き換える証明書を確認';
+
+  @override
+  String get certificateUseStandard => '標準のHTTPSに戻す';
+
+  @override
+  String get certificateApprove => 'この証明書ポリシーを承認';
+
+  @override
+  String get certificateReject => '拒否';
+
+  @override
+  String get certificatePrevious => '以前に承認した証明書';
+
+  @override
+  String get certificateInvalid => '証明書またはプライベートCAの設定が無効です';
+
+  @override
+  String get certificateFirstUseWarning =>
+      '初回接続時、暗号化だけではサーバーの身元を確認できません。承認する前に、独立した信頼できる管理者の連絡経路でSHA-256フィンガープリントを比較してください。';
+
+  @override
+  String get certificateRenewalHelp =>
+      'プライベートCAを推奨します。その配下でサーバー証明書を更新できます。固定した証明書は、同じ鍵でも証明書が変わるたびに明示的な確認が必要です。公開証明書は通常どおり更新されます。';
+
+  @override
+  String get certificateBrowserBoundary =>
+      '認証には外部ブラウザーを使います。BusyMaxの承認はブラウザーの信頼設定を変更しません。ブラウザーでも別途サーバーを信頼する必要があります。';
+
+  @override
+  String certificateDetails(
+    String subject,
+    String issuer,
+    String notBefore,
+    String notAfter,
+    String fingerprint,
+  ) {
+    return '主体: $subject\n発行者: $issuer\n有効期間の開始: $notBefore\n有効期限: $notAfter\nSHA-256フィンガープリント: $fingerprint';
+  }
+
+  @override
+  String certificateFailure(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'approvalRequired': '承認が必要です',
+      'pinMismatch': '固定した証明書が変更されました',
+      'expired': '証明書の期限切れ',
+      'notYetValid': '証明書はまだ有効ではありません',
+      'hostnameMismatch': '証明書のホスト名が一致しません',
+      'invalidPolicy': 'プライベートCAの設定が無効です',
+      'ineligible': '証明書は使用できません',
+      'verificationFailed': 'TLS検証に失敗しました',
+      'other': 'TLS検証に失敗しました',
+    });
+    return '$_temp0';
+  }
 }

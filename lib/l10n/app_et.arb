@@ -1535,5 +1535,22 @@
   "taskMoveAfterSaveFailed": "Muudatused salvestati, kuid ülesannet ei saanud teisaldada. Proovi teisaldamist uuesti.",
   "taskDraftConflict": "Ülesanne on pärast avamist muutunud. Sinu muudatused säilitatakse. Vaata praegune ülesanne enne uuesti proovimist üle.",
   "taskUnavailableDraftRetained": "Ülesanne pole saadaval. Sinu salvestamata muudatused säilitatakse.",
-  "taskDurationRequiresStart": "Määra tähtaeg enne kestusega ülesande alguse eemaldamist."
+  "taskDurationRequiresStart": "Määra tähtaeg enne kestusega ülesande alguse eemaldamist.",
+  "privateServerCertificates": "Privaatserverite sertifikaadid",
+  "reviewServerCertificate": "Vaata serveri sertifikaat üle",
+  "certificateStandard": "Tavaline HTTPS",
+  "certificatePrivateCa": "Privaatne sertimiskeskus",
+  "certificatePinnedLeaf": "Kinnitatud iseallkirjastatud sertifikaat",
+  "certificateImportCa": "Impordi privaatne CA",
+  "certificateReplacePin": "Vaata asendussertifikaat üle",
+  "certificateUseStandard": "Taasta tavaline HTTPS",
+  "certificateApprove": "Kinnita see sertifikaadipoliitika",
+  "certificateReject": "Keeldu",
+  "certificatePrevious": "Varem kinnitatud sertifikaadid",
+  "certificateInvalid": "Vigane sertifikaat või privaatse CA seadistus",
+  "certificateFirstUseWarning": "Krüptimine üksi ei kinnita esmakasutusel serveri identiteeti. Võrdle SHA-256 sõrmejälge administraatoriga sõltumatu usaldusväärse kanali kaudu enne kinnitamist.",
+  "certificateRenewalHelp": "Eelista privaatset CA-d: selle all saab serveri sertifikaate uuendada. Kinnitatud sertifikaadi iga muudatus vajab ülevaatust, ka sama võtmega. Avalikud sertifikaadid uuenevad tavaliselt.",
+  "certificateBrowserBoundary": "Autoriseerimine toimub välises brauseris. BusyMaxi kinnitus ei seadista brauseri usaldust; brauser peab serverit eraldi usaldama.",
+  "certificateDetails": "Omanik: {subject}\nVäljastaja: {issuer}\nKehtiv alates: {notBefore}\nKehtiv kuni: {notAfter}\nSHA-256 sõrmejälg: {fingerprint}",
+  "certificateFailure": "{reason, select, approvalRequired{Vajalik on kinnitus} pinMismatch{Kinnitatud sertifikaat muutus} expired{Sertifikaat on aegunud} notYetValid{Sertifikaat ei kehti veel} hostnameMismatch{Serveri nimi ei vasta sertifikaadile} invalidPolicy{Vigane privaatse CA seadistus} ineligible{Sobimatu sertifikaat} verificationFailed{TLS-i kontroll nurjus} other{TLS-i kontroll nurjus}}"
 }

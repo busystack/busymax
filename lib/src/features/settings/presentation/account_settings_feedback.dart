@@ -23,6 +23,7 @@ enum AccountSettingsRecovery {
   reconnect,
   replaceRegistration,
   revalidate,
+  reviewCertificate,
 }
 
 enum AccountSettingsFailure {
@@ -114,8 +115,20 @@ class AccountSettingsFeedback {
     if (error is DavException) {
       switch (error.category) {
         case DavErrorCategory.davTransientNetwork:
-        case DavErrorCategory.davTlsFailure:
           return _network(l10n);
+        case DavErrorCategory.davTlsFailure:
+          if (!error.code.startsWith('NextcloudCertificate')) {
+            return _network(l10n);
+          }
+          return AccountSettingsFeedback(
+            AccountSettingsFailure.configuration,
+            error.code.startsWith('NextcloudCertificate')
+                ? l10n.certificateFailure(
+                    error.code.substring('NextcloudCertificate'.length),
+                  )
+                : l10n.reviewServerCertificate,
+            AccountSettingsRecovery.reviewCertificate,
+          );
         case DavErrorCategory.davAuthRejected:
         case DavErrorCategory.davCredentialsRevoked:
           return AccountSettingsFeedback(
@@ -193,6 +206,13 @@ class AccountSettingsFeedback {
     AppLocalizations l10n,
     String code,
   ) {
+    if (code.startsWith('NextcloudCertificate')) {
+      return AccountSettingsFeedback(
+        AccountSettingsFailure.configuration,
+        l10n.certificateFailure(code.substring('NextcloudCertificate'.length)),
+        AccountSettingsRecovery.reviewCertificate,
+      );
+    }
     // These are persisted app-owned codes, not free-form server descriptions.
     const kinds = {
       'DavNetworkFailure': DavErrorKind.network,

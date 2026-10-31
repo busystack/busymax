@@ -3859,4 +3859,79 @@ class AppLocalizationsFa extends AppLocalizations {
   @override
   String get taskDurationRequiresStart =>
       'پیش از حذف زمان آغاز کار دارای مدت، یک مهلت تعیین کنید.';
+
+  @override
+  String get privateServerCertificates => 'گواهی‌های سرور خصوصی';
+
+  @override
+  String get reviewServerCertificate => 'بررسی گواهی سرور';
+
+  @override
+  String get certificateStandard => 'HTTPS استاندارد';
+
+  @override
+  String get certificatePrivateCa => 'مرجع صدور گواهی خصوصی';
+
+  @override
+  String get certificatePinnedLeaf => 'گواهی خودامضای سنجاق‌شده';
+
+  @override
+  String get certificateImportCa => 'وارد کردن مرجع خصوصی';
+
+  @override
+  String get certificateReplacePin => 'بررسی گواهی جایگزین';
+
+  @override
+  String get certificateUseStandard => 'بازگشت به HTTPS استاندارد';
+
+  @override
+  String get certificateApprove => 'تأیید این سیاست گواهی';
+
+  @override
+  String get certificateReject => 'رد کردن';
+
+  @override
+  String get certificatePrevious => 'گواهی‌های تأییدشده پیشین';
+
+  @override
+  String get certificateInvalid => 'گواهی یا پیکربندی مرجع خصوصی نامعتبر است';
+
+  @override
+  String get certificateFirstUseWarning =>
+      'رمزگذاری به‌تنهایی هویت سرور را در اولین استفاده ثابت نمی‌کند. پیش از تأیید، اثر انگشت SHA-256 را از راه ارتباطی مستقل و مورد اعتماد با مدیر مقایسه کنید.';
+
+  @override
+  String get certificateRenewalHelp =>
+      'مرجع خصوصی ترجیح دارد: گواهی سرور می‌تواند زیر نظر آن تمدید شود. هر تغییر گواهی سنجاق‌شده، حتی با همان کلید، نیاز به بررسی صریح دارد. گواهی‌های عمومی به‌طور عادی تمدید می‌شوند.';
+
+  @override
+  String get certificateBrowserBoundary =>
+      'مجوز در مرورگر خارجی انجام می‌شود. تأیید BusyMax اعتماد مرورگر را تنظیم نمی‌کند؛ مرورگر باید جداگانه به سرور اعتماد کند.';
+
+  @override
+  String certificateDetails(
+    String subject,
+    String issuer,
+    String notBefore,
+    String notAfter,
+    String fingerprint,
+  ) {
+    return 'موضوع: ⁨$subject⁩\nصادرکننده: ⁨$issuer⁩\nمعتبر از: ⁨$notBefore⁩\nمعتبر تا: ⁨$notAfter⁩\nاثر انگشت SHA-256: ⁨$fingerprint⁩';
+  }
+
+  @override
+  String certificateFailure(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'approvalRequired': 'تأیید لازم است',
+      'pinMismatch': 'گواهی سنجاق‌شده تغییر کرده است',
+      'expired': 'گواهی منقضی شده است',
+      'notYetValid': 'گواهی هنوز معتبر نیست',
+      'hostnameMismatch': 'نام میزبان با گواهی یکسان نیست',
+      'invalidPolicy': 'پیکربندی مرجع خصوصی نامعتبر است',
+      'ineligible': 'گواهی واجد شرایط نیست',
+      'verificationFailed': 'بررسی TLS ناموفق بود',
+      'other': 'بررسی TLS ناموفق بود',
+    });
+    return '$_temp0';
+  }
 }

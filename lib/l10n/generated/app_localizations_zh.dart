@@ -3657,6 +3657,81 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get taskDurationRequiresStart => '移除设有持续时间的任务的开始日期前，请先设置截止日期。';
+
+  @override
+  String get privateServerCertificates => '私有服务器证书';
+
+  @override
+  String get reviewServerCertificate => '检查服务器证书';
+
+  @override
+  String get certificateStandard => '标准 HTTPS';
+
+  @override
+  String get certificatePrivateCa => '私有证书颁发机构';
+
+  @override
+  String get certificatePinnedLeaf => '固定的自签名证书';
+
+  @override
+  String get certificateImportCa => '导入私有 CA';
+
+  @override
+  String get certificateReplacePin => '检查替换证书';
+
+  @override
+  String get certificateUseStandard => '恢复标准 HTTPS';
+
+  @override
+  String get certificateApprove => '批准此证书策略';
+
+  @override
+  String get certificateReject => '拒绝';
+
+  @override
+  String get certificatePrevious => '先前批准的证书';
+
+  @override
+  String get certificateInvalid => '证书或私有 CA 配置无效';
+
+  @override
+  String get certificateFirstUseWarning =>
+      '首次连接时，仅加密并不能确认服务器身份。批准前，请通过独立可信的管理员渠道核对 SHA-256 指纹。';
+
+  @override
+  String get certificateRenewalHelp =>
+      '建议使用私有 CA，服务器证书可在其下正常续期。固定的叶证书每次变更都须明确检查，即使用同一密钥。公开证书可正常续期。';
+
+  @override
+  String get certificateBrowserBoundary =>
+      '授权仍通过外部浏览器进行。BusyMax 的批准不会配置浏览器信任；浏览器必须单独信任该服务器。';
+
+  @override
+  String certificateDetails(
+    String subject,
+    String issuer,
+    String notBefore,
+    String notAfter,
+    String fingerprint,
+  ) {
+    return '主体: $subject\n颁发者: $issuer\n生效时间: $notBefore\n到期时间: $notAfter\nSHA-256 指纹: $fingerprint';
+  }
+
+  @override
+  String certificateFailure(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'approvalRequired': '需要批准',
+      'pinMismatch': '固定的证书已更改',
+      'expired': '证书已过期',
+      'notYetValid': '证书尚未生效',
+      'hostnameMismatch': '证书主机名不匹配',
+      'invalidPolicy': '私有 CA 配置无效',
+      'ineligible': '证书不符合要求',
+      'verificationFailed': 'TLS 验证失败',
+      'other': 'TLS 验证失败',
+    });
+    return '$_temp0';
+  }
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -7307,6 +7382,81 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get taskDurationRequiresStart => '移除设有持续时间的任务的开始日期前，请先设置截止日期。';
+
+  @override
+  String get privateServerCertificates => '私有服务器证书';
+
+  @override
+  String get reviewServerCertificate => '检查服务器证书';
+
+  @override
+  String get certificateStandard => '标准 HTTPS';
+
+  @override
+  String get certificatePrivateCa => '私有证书颁发机构';
+
+  @override
+  String get certificatePinnedLeaf => '固定的自签名证书';
+
+  @override
+  String get certificateImportCa => '导入私有 CA';
+
+  @override
+  String get certificateReplacePin => '检查替换证书';
+
+  @override
+  String get certificateUseStandard => '恢复标准 HTTPS';
+
+  @override
+  String get certificateApprove => '批准此证书策略';
+
+  @override
+  String get certificateReject => '拒绝';
+
+  @override
+  String get certificatePrevious => '先前批准的证书';
+
+  @override
+  String get certificateInvalid => '证书或私有 CA 配置无效';
+
+  @override
+  String get certificateFirstUseWarning =>
+      '首次连接时，仅加密并不能确认服务器身份。批准前，请通过独立可信的管理员渠道核对 SHA-256 指纹。';
+
+  @override
+  String get certificateRenewalHelp =>
+      '建议使用私有 CA，服务器证书可在其下正常续期。固定的叶证书每次变更都须明确检查，即使用同一密钥。公开证书可正常续期。';
+
+  @override
+  String get certificateBrowserBoundary =>
+      '授权仍通过外部浏览器进行。BusyMax 的批准不会配置浏览器信任；浏览器必须单独信任该服务器。';
+
+  @override
+  String certificateDetails(
+    String subject,
+    String issuer,
+    String notBefore,
+    String notAfter,
+    String fingerprint,
+  ) {
+    return '主体: $subject\n颁发者: $issuer\n生效时间: $notBefore\n到期时间: $notAfter\nSHA-256 指纹: $fingerprint';
+  }
+
+  @override
+  String certificateFailure(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'approvalRequired': '需要批准',
+      'pinMismatch': '固定的证书已更改',
+      'expired': '证书已过期',
+      'notYetValid': '证书尚未生效',
+      'hostnameMismatch': '证书主机名不匹配',
+      'invalidPolicy': '私有 CA 配置无效',
+      'ineligible': '证书不符合要求',
+      'verificationFailed': 'TLS 验证失败',
+      'other': 'TLS 验证失败',
+    });
+    return '$_temp0';
+  }
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -10958,4 +11108,79 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get taskDurationRequiresStart => '移除設有持續時間的工作的開始日期前，請先設定截止日期。';
+
+  @override
+  String get privateServerCertificates => '私有伺服器憑證';
+
+  @override
+  String get reviewServerCertificate => '檢查伺服器憑證';
+
+  @override
+  String get certificateStandard => '標準 HTTPS';
+
+  @override
+  String get certificatePrivateCa => '私有憑證授權單位';
+
+  @override
+  String get certificatePinnedLeaf => '固定的自我簽署憑證';
+
+  @override
+  String get certificateImportCa => '匯入私有 CA';
+
+  @override
+  String get certificateReplacePin => '檢查替換憑證';
+
+  @override
+  String get certificateUseStandard => '恢復標準 HTTPS';
+
+  @override
+  String get certificateApprove => '核准此憑證原則';
+
+  @override
+  String get certificateReject => '拒絕';
+
+  @override
+  String get certificatePrevious => '先前核准的憑證';
+
+  @override
+  String get certificateInvalid => '憑證或私有 CA 設定無效';
+
+  @override
+  String get certificateFirstUseWarning =>
+      '首次連線時，僅加密並不能確認伺服器身分。核准前，請透過獨立可信的管理員管道核對 SHA-256 指紋。';
+
+  @override
+  String get certificateRenewalHelp =>
+      '建議使用私有 CA，伺服器憑證可在其下正常續期。固定的葉憑證每次變更都須明確檢查，即使用同一金鑰。公開憑證可正常續期。';
+
+  @override
+  String get certificateBrowserBoundary =>
+      '授權仍透過外部瀏覽器進行。BusyMax 的核准不會設定瀏覽器信任；瀏覽器必須單獨信任該伺服器。';
+
+  @override
+  String certificateDetails(
+    String subject,
+    String issuer,
+    String notBefore,
+    String notAfter,
+    String fingerprint,
+  ) {
+    return '主體: $subject\n簽發者: $issuer\n生效時間: $notBefore\n到期時間: $notAfter\nSHA-256 指紋: $fingerprint';
+  }
+
+  @override
+  String certificateFailure(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'approvalRequired': '需要核准',
+      'pinMismatch': '固定的憑證已變更',
+      'expired': '憑證已過期',
+      'notYetValid': '憑證尚未生效',
+      'hostnameMismatch': '憑證主機名稱不符',
+      'invalidPolicy': '私有 CA 設定無效',
+      'ineligible': '憑證不符合要求',
+      'verificationFailed': 'TLS 驗證失敗',
+      'other': 'TLS 驗證失敗',
+    });
+    return '$_temp0';
+  }
 }

@@ -34,6 +34,29 @@ final class AuthorizationPersistence {
   final AccountSyncCoordinator _coordinator = AccountSyncCoordinator();
   final AccountSyncCoordinator _removals = AccountSyncCoordinator();
 
+  final Set<void Function(String)> _nextcloudInvalidators = {};
+  void Function() observeNextcloudInvalidation(
+    void Function(String) invalidate,
+  ) {
+    _nextcloudInvalidators.add(invalidate);
+    return () => _nextcloudInvalidators.remove(invalidate);
+  }
+
+  void _invalidateNextcloud(String id) {
+    for (final invalidate in _nextcloudInvalidators.toList()) {
+      invalidate(id);
+    }
+  }
+
+  Future<(SecretRecord?, int)> readCurrentSnapshot(String id) => run(
+    id,
+    () async => (await _readCurrentCredential(id), await generation(id)),
+  );
+  Future<T> withCurrentCredential<T>(
+    String id,
+    Future<T> Function(SecretRecord? credential) operation,
+  ) => run(id, () async => operation(await _readCurrentCredential(id)));
+
   Future<T> run<T>(String id, Future<T> Function() operation) =>
       _coordinator.run(id, () => gate.run('authorization:$id', operation));
 
@@ -288,6 +311,7 @@ final class AuthorizationPersistence {
             ),
           ),
         );
+    if (credential is NextcloudSecretRecord) _invalidateNextcloud(accountId);
     try {
       await secrets.saveCredential(accountId, credential);
       final verified = await secrets.readCredential(accountId);
@@ -513,6 +537,7 @@ final class AuthorizationPersistence {
             ),
           ),
         );
+    if (previous is NextcloudSecretRecord) _invalidateNextcloud(id);
     try {
       await secrets.deleteCredential(id);
       if (active == id) await secrets.clearActiveAccount();

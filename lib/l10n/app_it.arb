@@ -1357,5 +1357,22 @@
   "taskMoveAfterSaveFailed": "Le modifiche sono state salvate, ma non è stato possibile spostare l’attività. Riprova lo spostamento.",
   "taskDraftConflict": "Questa attività è cambiata da quando l’hai aperta. Le modifiche sono conservate. Controlla l’attività attuale prima di riprovare.",
   "taskUnavailableDraftRetained": "Questa attività non è disponibile. Le modifiche non salvate sono conservate.",
-  "taskDurationRequiresStart": "Imposta una scadenza prima di rimuovere l’inizio di un’attività con una durata."
+  "taskDurationRequiresStart": "Imposta una scadenza prima di rimuovere l’inizio di un’attività con una durata.",
+  "privateServerCertificates": "Certificati dei server privati",
+  "reviewServerCertificate": "Esamina il certificato del server",
+  "certificateStandard": "HTTPS standard",
+  "certificatePrivateCa": "Autorità di certificazione privata",
+  "certificatePinnedLeaf": "Certificato autofirmato fissato",
+  "certificateImportCa": "Importa CA privata",
+  "certificateReplacePin": "Esamina il certificato sostitutivo",
+  "certificateUseStandard": "Torna a HTTPS standard",
+  "certificateApprove": "Approva questa politica dei certificati",
+  "certificateReject": "Rifiuta",
+  "certificatePrevious": "Certificati approvati in precedenza",
+  "certificateInvalid": "Certificato o configurazione CA privata non validi",
+  "certificateFirstUseWarning": "La sola cifratura non conferma l’identità del server al primo utilizzo. Confronta l’impronta SHA-256 con un amministratore tramite un canale indipendente e affidabile prima di approvare.",
+  "certificateRenewalHelp": "Preferisci una CA privata: consente il rinnovo dei certificati del server. Ogni modifica del certificato fissato richiede una verifica, anche con la stessa chiave. I certificati pubblici si rinnovano normalmente.",
+  "certificateBrowserBoundary": "L’autorizzazione usa il browser esterno. L’approvazione di BusyMax non ne configura la fiducia; il browser deve considerare attendibile il server separatamente.",
+  "certificateDetails": "Soggetto: {subject}\nEmittente: {issuer}\nValido dal: {notBefore}\nValido fino al: {notAfter}\nImpronta SHA-256: {fingerprint}",
+  "certificateFailure": "{reason, select, approvalRequired{Approvazione necessaria} pinMismatch{Il certificato fissato è cambiato} expired{Certificato scaduto} notYetValid{Certificato non ancora valido} hostnameMismatch{Nome del server non corrispondente} invalidPolicy{Configurazione CA privata non valida} ineligible{Certificato non idoneo} verificationFailed{Verifica TLS non riuscita} other{Verifica TLS non riuscita}}"
 }

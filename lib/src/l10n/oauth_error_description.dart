@@ -1,3 +1,4 @@
+import '../dav/dav_errors.dart';
 import '../features/sync/sync_failure_notification_policy.dart';
 import '../core/http/request_dispatch_exception.dart';
 import '../features/sync/sync_auth_error.dart';
@@ -8,6 +9,15 @@ import '../features/auth/data/auth_repository.dart';
 
 /// Recovery comes from safe typed classifications, never provider descriptions.
 String localizedAuthorizationError(AppLocalizations l10n, Object error) {
+  if (error is DavException &&
+      error.kind == DavErrorKind.tls &&
+      error.code.startsWith('NextcloudCertificate')) {
+    return error.code.startsWith('NextcloudCertificate')
+        ? l10n.certificateFailure(
+            error.code.substring('NextcloudCertificate'.length),
+          )
+        : l10n.reviewServerCertificate;
+  }
   if (error is AccountRemovalPersistenceException) {
     return l10n.oauthRevokedRemovalIncomplete;
   }
@@ -57,6 +67,10 @@ String localizedSyncFailureMessage(
   String? networkUnavailableMessage,
 }) {
   final effective = resolveEffectiveSyncFailure(error);
+  if (syncFailureNotificationDisposition(effective) ==
+      SyncFailureNotificationDisposition.certificateReviewRequired) {
+    return l10n.reviewServerCertificate;
+  }
   if (isOAuthReconnectRequiredError(effective) ||
       effective is AccountNotSyncEligibleException &&
           effective.needsReconnect) {

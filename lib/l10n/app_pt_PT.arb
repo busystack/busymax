@@ -1357,5 +1357,22 @@
   "taskMoveAfterSaveFailed": "As alterações foram guardadas, mas não foi possível mover a tarefa. Tente movê-la novamente.",
   "taskDraftConflict": "Esta tarefa mudou desde que foi aberta. As alterações foram preservadas. Reveja a tarefa atual antes de tentar novamente.",
   "taskUnavailableDraftRetained": "Esta tarefa está indisponível. As alterações não guardadas foram preservadas.",
-  "taskDurationRequiresStart": "Defina um prazo antes de remover o início de uma tarefa com duração."
+  "taskDurationRequiresStart": "Defina um prazo antes de remover o início de uma tarefa com duração.",
+  "privateServerCertificates": "Certificados de servidores privados",
+  "reviewServerCertificate": "Rever certificado do servidor",
+  "certificateStandard": "HTTPS padrão",
+  "certificatePrivateCa": "Autoridade de certificação privada",
+  "certificatePinnedLeaf": "Certificado autoassinado fixado",
+  "certificateImportCa": "Importar AC privada",
+  "certificateReplacePin": "Rever certificado de substituição",
+  "certificateUseStandard": "Voltar ao HTTPS padrão",
+  "certificateApprove": "Aprovar esta política de certificados",
+  "certificateReject": "Rejeitar",
+  "certificatePrevious": "Certificados aprovados anteriormente",
+  "certificateInvalid": "Certificado ou configuração da AC privada inválidos",
+  "certificateFirstUseWarning": "A encriptação, por si só, não confirma a identidade do servidor na primeira utilização. Compare a impressão digital SHA-256 com um administrador através de um canal independente e fiável antes de aprovar.",
+  "certificateRenewalHelp": "Prefira uma AC privada: os certificados do servidor podem ser renovados sob essa autoridade. Cada alteração de um certificado fixado exige revisão, mesmo com a mesma chave. Os certificados públicos renovam-se normalmente.",
+  "certificateBrowserBoundary": "A autorização utiliza o navegador externo. A aprovação no BusyMax não configura a sua confiança; o navegador tem de confiar no servidor separadamente.",
+  "certificateDetails": "Titular: {subject}\nEmissor: {issuer}\nVálido desde: {notBefore}\nVálido até: {notAfter}\nImpressão digital SHA-256: {fingerprint}",
+  "certificateFailure": "{reason, select, approvalRequired{É necessária aprovação} pinMismatch{O certificado fixado mudou} expired{Certificado expirado} notYetValid{Certificado ainda não válido} hostnameMismatch{O nome do servidor não corresponde} invalidPolicy{Configuração da AC privada inválida} ineligible{Certificado inadequado} verificationFailed{A verificação TLS falhou} other{A verificação TLS falhou}}"
 }

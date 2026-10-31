@@ -1357,5 +1357,22 @@
   "taskMoveAfterSaveFailed": "編集内容は保存されましたが、タスクを移動できませんでした。移動を再試行してください。",
   "taskDraftConflict": "このタスクは開いた後に変更されました。編集内容は保持されています。最新のタスクを確認してから再試行してください。",
   "taskUnavailableDraftRetained": "このタスクは利用できません。未保存の変更は保持されています。",
-  "taskDurationRequiresStart": "期間が設定されたタスクの開始日時を削除する前に、期限を設定してください。"
+  "taskDurationRequiresStart": "期間が設定されたタスクの開始日時を削除する前に、期限を設定してください。",
+  "privateServerCertificates": "プライベートサーバーの証明書",
+  "reviewServerCertificate": "サーバー証明書を確認",
+  "certificateStandard": "標準のHTTPS",
+  "certificatePrivateCa": "プライベート認証局",
+  "certificatePinnedLeaf": "固定した自己署名証明書",
+  "certificateImportCa": "プライベートCAをインポート",
+  "certificateReplacePin": "置き換える証明書を確認",
+  "certificateUseStandard": "標準のHTTPSに戻す",
+  "certificateApprove": "この証明書ポリシーを承認",
+  "certificateReject": "拒否",
+  "certificatePrevious": "以前に承認した証明書",
+  "certificateInvalid": "証明書またはプライベートCAの設定が無効です",
+  "certificateFirstUseWarning": "初回接続時、暗号化だけではサーバーの身元を確認できません。承認する前に、独立した信頼できる管理者の連絡経路でSHA-256フィンガープリントを比較してください。",
+  "certificateRenewalHelp": "プライベートCAを推奨します。その配下でサーバー証明書を更新できます。固定した証明書は、同じ鍵でも証明書が変わるたびに明示的な確認が必要です。公開証明書は通常どおり更新されます。",
+  "certificateBrowserBoundary": "認証には外部ブラウザーを使います。BusyMaxの承認はブラウザーの信頼設定を変更しません。ブラウザーでも別途サーバーを信頼する必要があります。",
+  "certificateDetails": "主体: {subject}\n発行者: {issuer}\n有効期間の開始: {notBefore}\n有効期限: {notAfter}\nSHA-256フィンガープリント: {fingerprint}",
+  "certificateFailure": "{reason, select, approvalRequired{承認が必要です} pinMismatch{固定した証明書が変更されました} expired{証明書の期限切れ} notYetValid{証明書はまだ有効ではありません} hostnameMismatch{証明書のホスト名が一致しません} invalidPolicy{プライベートCAの設定が無効です} ineligible{証明書は使用できません} verificationFailed{TLS検証に失敗しました} other{TLS検証に失敗しました}}"
 }

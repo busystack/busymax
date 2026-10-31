@@ -2038,5 +2038,22 @@
   "taskMoveAfterSaveFailed": "Zmiany zostały zapisane, ale nie udało się przenieść zadania. Ponów przenoszenie.",
   "taskDraftConflict": "To zadanie zmieniło się od jego otwarcia. Twoje zmiany zostały zachowane. Sprawdź aktualne zadanie przed ponowieniem.",
   "taskUnavailableDraftRetained": "To zadanie jest niedostępne. Niezapisane zmiany zostały zachowane.",
-  "taskDurationRequiresStart": "Ustaw termin przed usunięciem początku zadania z określonym czasem trwania."
+  "taskDurationRequiresStart": "Ustaw termin przed usunięciem początku zadania z określonym czasem trwania.",
+  "privateServerCertificates": "Certyfikaty prywatnych serwerów",
+  "reviewServerCertificate": "Sprawdź certyfikat serwera",
+  "certificateStandard": "Standardowy HTTPS",
+  "certificatePrivateCa": "Prywatny urząd certyfikacji",
+  "certificatePinnedLeaf": "Przypięty certyfikat samopodpisany",
+  "certificateImportCa": "Importuj prywatny CA",
+  "certificateReplacePin": "Sprawdź certyfikat zastępczy",
+  "certificateUseStandard": "Wróć do standardowego HTTPS",
+  "certificateApprove": "Zatwierdź tę politykę certyfikatów",
+  "certificateReject": "Odrzuć",
+  "certificatePrevious": "Poprzednio zatwierdzone certyfikaty",
+  "certificateInvalid": "Nieprawidłowy certyfikat lub konfiguracja prywatnego CA",
+  "certificateFirstUseWarning": "Samo szyfrowanie nie potwierdza tożsamości serwera przy pierwszym użyciu. Przed zatwierdzeniem porównaj odcisk SHA-256 z administratorem przez niezależny zaufany kanał.",
+  "certificateRenewalHelp": "Zalecany jest prywatny CA: certyfikaty serwera mogą być przez niego odnawiane. Każda zmiana przypiętego certyfikatu wymaga sprawdzenia, nawet z tym samym kluczem. Publiczne certyfikaty odnawiają się normalnie.",
+  "certificateBrowserBoundary": "Autoryzacja odbywa się w zewnętrznej przeglądarce. Zgoda w BusyMax nie zmienia jej zaufania; przeglądarka musi osobno ufać serwerowi.",
+  "certificateDetails": "Podmiot: {subject}\nWystawca: {issuer}\nWażny od: {notBefore}\nWażny do: {notAfter}\nOdcisk SHA-256: {fingerprint}",
+  "certificateFailure": "{reason, select, approvalRequired{Wymagana zgoda} pinMismatch{Przypięty certyfikat został zmieniony} expired{Certyfikat wygasł} notYetValid{Certyfikat jeszcze nieważny} hostnameMismatch{Niezgodna nazwa serwera} invalidPolicy{Nieprawidłowa konfiguracja prywatnego CA} ineligible{Nieodpowiedni certyfikat} verificationFailed{Weryfikacja TLS nie powiodła się} other{Weryfikacja TLS nie powiodła się}}"
 }

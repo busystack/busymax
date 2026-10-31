@@ -150,6 +150,18 @@ final class DavAccountSyncEngine {
         safeMessage: 'This account does not use the DAV transport.',
       );
     }
+    final certificateState = await (_database.select(
+      _database.davAccountServices,
+    )..where((r) => r.accountId.equals(_accountId))).getSingleOrNull();
+    final certificateCode = certificateState?.lastDiscoveryErrorCode;
+    if (provider == BusyProvider.nextcloud &&
+        certificateCode?.startsWith('NextcloudCertificate') == true) {
+      throw DavException(
+        kind: DavErrorKind.tls,
+        code: certificateCode!,
+        safeMessage: 'Review the Nextcloud server certificate.',
+      );
+    }
     late final _DavCredentialContext loaded;
     try {
       loaded = await _loadCredential(account, provider);
@@ -255,13 +267,15 @@ final class DavAccountSyncEngine {
       failures.addAll(initialResults.failures);
 
       final hasBlockingFailure = failures.any(
-        (failure) => switch (failure.category) {
-          DavErrorCategory.davAuthRejected ||
-          DavErrorCategory.davCredentialsRevoked ||
-          DavErrorCategory.davPermissionDenied ||
-          DavErrorCategory.davReadOnly => true,
-          _ => false,
-        },
+        (failure) =>
+            failure.code.startsWith('NextcloudCertificate') ||
+            switch (failure.category) {
+              DavErrorCategory.davAuthRejected ||
+              DavErrorCategory.davCredentialsRevoked ||
+              DavErrorCategory.davPermissionDenied ||
+              DavErrorCategory.davReadOnly => true,
+              _ => false,
+            },
       );
       DavReplaySummary replay = const DavReplaySummary(
         appliedCount: 0,
@@ -329,6 +343,21 @@ final class DavAccountSyncEngine {
         failures.addAll(followUpResults.failures);
       }
 
+      if (replay.paused && provider == BusyProvider.nextcloud) {
+        final certificateState = await (_database.select(
+          _database.davAccountServices,
+        )..where((r) => r.accountId.equals(_accountId))).getSingleOrNull();
+        final code = certificateState?.lastDiscoveryErrorCode;
+        if (code?.startsWith('NextcloudCertificate') == true) {
+          failures.add(
+            DavException(
+              kind: DavErrorKind.tls,
+              code: code!,
+              safeMessage: 'Review the Nextcloud server certificate.',
+            ),
+          );
+        }
+      }
       if (failures.isNotEmpty) {
         if (affected.isNotEmpty || notificationProjectionsChanged) {
           await _rebuildNotifications?.call(_accountId, affected);

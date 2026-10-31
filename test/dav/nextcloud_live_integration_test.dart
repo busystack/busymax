@@ -1,3 +1,5 @@
+import 'support/nextcloud_live_trust.dart';
+
 import 'dart:io';
 
 import 'support/nextcloud_live_versions.dart';
@@ -205,7 +207,12 @@ final class _LiveNextcloudFixture {
       allowMove: false,
       allowInsecureLoopbackForTesting: insecureLoopback,
     );
-    final client = http.Client();
+    final client = nextcloudLiveClient(
+      authority: authority,
+      prefix: 'BUSYMAX_NEXTCLOUD_LIVE',
+      identity: 'nextcloud-live',
+      allowInsecureLoopbackForTesting: true,
+    );
     return _LiveNextcloudFixture(
       authority: authority,
       profile: profile,
@@ -605,7 +612,10 @@ final class _LiveNextcloudFixture {
       final semantic = IcalSemanticDocument.parse(child.rawIcsBody!)
           .components
           .single;
-      expect(semantic.percentComplete, percent);
+      // BusyMax's existing reopen patch removes PERCENT-COMPLETE at zero.
+      // Verify the same contract as the mutation-patch unit suite.
+      expect(semantic.percentComplete, percent == 0 ? isNull : percent);
+      if (percent == 0) expect(semantic.status, 'NEEDS-ACTION');
       if (percent == 100) {
         expect(semantic.status, 'COMPLETED');
         expect(semantic.completed, isNotNull);

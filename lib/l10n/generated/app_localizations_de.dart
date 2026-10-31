@@ -3832,4 +3832,81 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get taskDurationRequiresStart =>
       'Lege ein Fälligkeitsdatum fest, bevor du den Beginn einer Aufgabe mit Dauer entfernst.';
+
+  @override
+  String get privateServerCertificates => 'Private Serverzertifikate';
+
+  @override
+  String get reviewServerCertificate => 'Serverzertifikat prüfen';
+
+  @override
+  String get certificateStandard => 'Standard-HTTPS';
+
+  @override
+  String get certificatePrivateCa => 'Private Zertifizierungsstelle';
+
+  @override
+  String get certificatePinnedLeaf =>
+      'Festgelegtes selbstsigniertes Zertifikat';
+
+  @override
+  String get certificateImportCa => 'Private CA importieren';
+
+  @override
+  String get certificateReplacePin => 'Neues Zertifikat prüfen';
+
+  @override
+  String get certificateUseStandard => 'Zu Standard-HTTPS wechseln';
+
+  @override
+  String get certificateApprove => 'Diese Zertifikatsrichtlinie genehmigen';
+
+  @override
+  String get certificateReject => 'Ablehnen';
+
+  @override
+  String get certificatePrevious => 'Zuvor genehmigte Zertifikate';
+
+  @override
+  String get certificateInvalid =>
+      'Ungültiges Zertifikat oder private CA-Konfiguration';
+
+  @override
+  String get certificateFirstUseWarning =>
+      'Verschlüsselung allein bestätigt beim ersten Kontakt nicht die Serveridentität. Vergleichen Sie vor der Genehmigung den SHA-256-Fingerabdruck über einen unabhängig vertrauenswürdigen Administratorkanal.';
+
+  @override
+  String get certificateRenewalHelp =>
+      'Eine private CA wird bevorzugt: Serverzertifikate können darunter erneuert werden. Ein festgelegtes Blattzertifikat erfordert bei jeder Änderung eine Prüfung, auch mit demselben Schlüssel. Öffentliche Zertifikate werden normal erneuert.';
+
+  @override
+  String get certificateBrowserBoundary =>
+      'Die Anmeldung erfolgt im externen Browser. Die Genehmigung in BusyMax ändert dessen Vertrauen nicht; der Browser muss dem Server gesondert vertrauen.';
+
+  @override
+  String certificateDetails(
+    String subject,
+    String issuer,
+    String notBefore,
+    String notAfter,
+    String fingerprint,
+  ) {
+    return 'Inhaber: $subject\nAussteller: $issuer\nGültig ab: $notBefore\nGültig bis: $notAfter\nSHA-256-Fingerabdruck: $fingerprint';
+  }
+
+  @override
+  String certificateFailure(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'approvalRequired': 'Genehmigung erforderlich',
+      'pinMismatch': 'Festgelegtes Zertifikat geändert',
+      'expired': 'Zertifikat abgelaufen',
+      'notYetValid': 'Zertifikat noch nicht gültig',
+      'hostnameMismatch': 'Zertifikat passt nicht zum Hostnamen',
+      'invalidPolicy': 'Ungültige private CA-Konfiguration',
+      'ineligible': 'Zertifikat ist ungeeignet',
+      'verificationFailed': 'TLS-Prüfung fehlgeschlagen',
+      'other': 'TLS-Prüfung fehlgeschlagen',
+    });
+    return '$_temp0';
+  }
 }

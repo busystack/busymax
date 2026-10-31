@@ -21,6 +21,9 @@ dependencies:
   collection: ^1.19.0
   connectivity_plus: ^7.1.0
   crypto: ^3.0.0
+  asn1lib: ^1.6.5
+  pointycastle: ^4.0.0
+  x509: ^0.2.4+3
   cryptography: ^2.9.0
   dbus: ^0.7.14
   desktop_notifications: ^0.6.3

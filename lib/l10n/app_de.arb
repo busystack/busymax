@@ -1420,5 +1420,22 @@
   "taskMoveAfterSaveFailed": "Deine Änderungen wurden gespeichert, aber die Aufgabe konnte nicht verschoben werden. Versuche das Verschieben erneut.",
   "taskDraftConflict": "Diese Aufgabe wurde seit dem Öffnen geändert. Deine Änderungen bleiben erhalten. Prüfe die aktuelle Aufgabe vor einem erneuten Versuch.",
   "taskUnavailableDraftRetained": "Diese Aufgabe ist nicht verfügbar. Deine ungespeicherten Änderungen bleiben erhalten.",
-  "taskDurationRequiresStart": "Lege ein Fälligkeitsdatum fest, bevor du den Beginn einer Aufgabe mit Dauer entfernst."
+  "taskDurationRequiresStart": "Lege ein Fälligkeitsdatum fest, bevor du den Beginn einer Aufgabe mit Dauer entfernst.",
+  "privateServerCertificates": "Private Serverzertifikate",
+  "reviewServerCertificate": "Serverzertifikat prüfen",
+  "certificateStandard": "Standard-HTTPS",
+  "certificatePrivateCa": "Private Zertifizierungsstelle",
+  "certificatePinnedLeaf": "Festgelegtes selbstsigniertes Zertifikat",
+  "certificateImportCa": "Private CA importieren",
+  "certificateReplacePin": "Neues Zertifikat prüfen",
+  "certificateUseStandard": "Zu Standard-HTTPS wechseln",
+  "certificateApprove": "Diese Zertifikatsrichtlinie genehmigen",
+  "certificateReject": "Ablehnen",
+  "certificatePrevious": "Zuvor genehmigte Zertifikate",
+  "certificateInvalid": "Ungültiges Zertifikat oder private CA-Konfiguration",
+  "certificateFirstUseWarning": "Verschlüsselung allein bestätigt beim ersten Kontakt nicht die Serveridentität. Vergleichen Sie vor der Genehmigung den SHA-256-Fingerabdruck über einen unabhängig vertrauenswürdigen Administratorkanal.",
+  "certificateRenewalHelp": "Eine private CA wird bevorzugt: Serverzertifikate können darunter erneuert werden. Ein festgelegtes Blattzertifikat erfordert bei jeder Änderung eine Prüfung, auch mit demselben Schlüssel. Öffentliche Zertifikate werden normal erneuert.",
+  "certificateBrowserBoundary": "Die Anmeldung erfolgt im externen Browser. Die Genehmigung in BusyMax ändert dessen Vertrauen nicht; der Browser muss dem Server gesondert vertrauen.",
+  "certificateDetails": "Inhaber: {subject}\nAussteller: {issuer}\nGültig ab: {notBefore}\nGültig bis: {notAfter}\nSHA-256-Fingerabdruck: {fingerprint}",
+  "certificateFailure": "{reason, select, approvalRequired{Genehmigung erforderlich} pinMismatch{Festgelegtes Zertifikat geändert} expired{Zertifikat abgelaufen} notYetValid{Zertifikat noch nicht gültig} hostnameMismatch{Zertifikat passt nicht zum Hostnamen} invalidPolicy{Ungültige private CA-Konfiguration} ineligible{Zertifikat ist ungeeignet} verificationFailed{TLS-Prüfung fehlgeschlagen} other{TLS-Prüfung fehlgeschlagen}}"
 }

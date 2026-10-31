@@ -1,3 +1,5 @@
+import 'windows_nextcloud_certificate_dialog.dart';
+import '../common/nextcloud_certificate_review.dart';
 import 'windows_contacts_settings.dart';
 import '../../l10n/oauth_error_description.dart';
 import '../../core/auth/oauth_models.dart';
@@ -216,6 +218,13 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
         );
       } else {
         await onboarding.connectNextcloud(
+          reviewCertificate: (challenge, owner) => reviewNextcloudCertificate(
+            challenge,
+            owner,
+            (data) => mounted
+                ? showWindowsNextcloudCertificate(context, data)
+                : Future.value(null),
+          ),
           enteredServer: server!,
           cancellationToken: cancellation,
         );
@@ -225,7 +234,13 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
     } on Object catch (error) {
       if (error is DavException && error.kind == DavErrorKind.cancelled) return;
       if (mounted) {
-        setState(() => _davError = authErrorMessage(error));
+        setState(
+          () => _davError =
+              error is DavException &&
+                  error.code.startsWith('NextcloudCertificate')
+              ? localizedAuthorizationError(AppLocalizations.of(context), error)
+              : authErrorMessage(error),
+        );
       }
     } finally {
       _davCancellation = null;
@@ -720,6 +735,22 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                     trailing: DropDownButton(
                       title: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.more)),
                       items: [
+                        if (values[index].provider == BusyProvider.nextcloud)
+                          MenuFlyoutItem(
+                            text: Text(l10n.privateServerCertificates),
+                            onPressed: () => unawaited(
+                              manageNextcloudCertificates(
+                                ref,
+                                values[index].id,
+                                (data) => mounted
+                                    ? showWindowsNextcloudCertificate(
+                                        context,
+                                        data,
+                                      )
+                                    : Future.value(null),
+                              ),
+                            ),
+                          ),
                         if (values[index].provider == BusyProvider.nextcloud)
                           MenuFlyoutItem(
                             text: Text(l10n.nextcloudTrash),

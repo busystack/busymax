@@ -6409,6 +6409,114 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Set a deadline before removing the start of a task with a duration.'**
   String get taskDurationRequiresStart;
+
+  /// No description provided for @privateServerCertificates.
+  ///
+  /// In en, this message translates to:
+  /// **'Private server certificates'**
+  String get privateServerCertificates;
+
+  /// No description provided for @reviewServerCertificate.
+  ///
+  /// In en, this message translates to:
+  /// **'Review server certificate'**
+  String get reviewServerCertificate;
+
+  /// No description provided for @certificateStandard.
+  ///
+  /// In en, this message translates to:
+  /// **'Standard HTTPS'**
+  String get certificateStandard;
+
+  /// No description provided for @certificatePrivateCa.
+  ///
+  /// In en, this message translates to:
+  /// **'Private certificate authority'**
+  String get certificatePrivateCa;
+
+  /// No description provided for @certificatePinnedLeaf.
+  ///
+  /// In en, this message translates to:
+  /// **'Pinned self-signed certificate'**
+  String get certificatePinnedLeaf;
+
+  /// No description provided for @certificateImportCa.
+  ///
+  /// In en, this message translates to:
+  /// **'Import private CA'**
+  String get certificateImportCa;
+
+  /// No description provided for @certificateReplacePin.
+  ///
+  /// In en, this message translates to:
+  /// **'Review a replacement pin'**
+  String get certificateReplacePin;
+
+  /// No description provided for @certificateUseStandard.
+  ///
+  /// In en, this message translates to:
+  /// **'Return to standard HTTPS'**
+  String get certificateUseStandard;
+
+  /// No description provided for @certificateApprove.
+  ///
+  /// In en, this message translates to:
+  /// **'Approve this certificate policy'**
+  String get certificateApprove;
+
+  /// No description provided for @certificateReject.
+  ///
+  /// In en, this message translates to:
+  /// **'Reject'**
+  String get certificateReject;
+
+  /// No description provided for @certificatePrevious.
+  ///
+  /// In en, this message translates to:
+  /// **'Previously approved certificates'**
+  String get certificatePrevious;
+
+  /// No description provided for @certificateInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid certificate or private CA configuration'**
+  String get certificateInvalid;
+
+  /// No description provided for @certificateFirstUseWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Encryption alone does not establish server identity on first use. Compare the SHA-256 fingerprint through an independently trusted administrator channel before approval.'**
+  String get certificateFirstUseWarning;
+
+  /// No description provided for @certificateRenewalHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Prefer a private CA: server certificates may renew under it. A pinned leaf requires explicit review for every certificate change, even with the same key. Public certificates renew normally.'**
+  String get certificateRenewalHelp;
+
+  /// No description provided for @certificateBrowserBoundary.
+  ///
+  /// In en, this message translates to:
+  /// **'Browser authorization remains external. BusyMax approval does not configure browser trust; your browser must trust the server separately.'**
+  String get certificateBrowserBoundary;
+
+  /// Plain text certificate details derived from X.509; dates are UTC.
+  ///
+  /// In en, this message translates to:
+  /// **'Subject: {subject}\nIssuer: {issuer}\nValid from: {notBefore}\nValid until: {notAfter}\nSHA-256 fingerprint: {fingerprint}'**
+  String certificateDetails(
+    String subject,
+    String issuer,
+    String notBefore,
+    String notAfter,
+    String fingerprint,
+  );
+
+  /// No description provided for @certificateFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'{reason, select, approvalRequired{Approval required} pinMismatch{Pinned certificate changed} expired{Certificate expired} notYetValid{Certificate not yet valid} hostnameMismatch{Certificate hostname mismatch} invalidPolicy{Invalid private CA configuration} ineligible{Certificate is ineligible} verificationFailed{TLS verification failed} other{TLS verification failed}}'**
+  String certificateFailure(String reason);
 }
 
 class _AppLocalizationsDelegate

@@ -12,6 +12,41 @@ import '../support/dav_contacts_fixture.dart';
 import 'read_only_contacts_provider_test.dart' show effective;
 
 void main() {
+  test('Nextcloud contact snapshots preserve existing generations and bound recovery history', () async {
+    final f = ContactsFixture(AppDatabase.memoryForTests(), realDav: true);
+    addTearDown(f.close);
+    final dav = DavFixture();
+    f.respondDav = dav.respond;
+    final account = await f.controller.addCardDavContactsOnly(
+      id: 'nextcloud-existing',
+      label: 'Nextcloud',
+      server: server,
+      username: 'actual-user',
+      password: 'fixture-app-password',
+    );
+    final original = (jsonDecode(f.davSecrets[account.id]!) as Map)
+        .cast<String, dynamic>();
+    original['nextcloud'] = true;
+    original.remove('authorizationGeneration');
+    f.davSecrets[account.id] = jsonEncode(original);
+    await f.store.write((tx) => tx.putAccount(account.copy(generation: 7)));
+
+    await f.controller.replacePrivateTrust(account.id, 7, null);
+    var staged = (jsonDecode(f.davSecrets[account.id]!) as Map);
+    expect((staged['_previous'] as Map)['authorizationGeneration'], 7);
+    await f.controller.replacePrivateTrust(account.id, 8, null);
+    staged = jsonDecode(f.davSecrets[account.id]!) as Map;
+    expect((staged['_previous'] as Map)['authorizationGeneration'], 8);
+    expect((staged['_previous'] as Map).containsKey('_previous'), isFalse);
+
+    // Reconstruct the interrupted state: staged secure write exists but the
+    // durable account generation still selects its previous accepted snapshot.
+    await f.store.write((tx) => tx.putAccount(account.copy(generation: 8)));
+    final recovered = await f.controller.privateTrustSnapshot(account.id);
+    expect(recovered.$1, server);
+    expect(recovered.$2, isNull); // Existing account keeps standard HTTPS.
+    expect(recovered.$3, 8);
+  });
   test('reenabling linked Nextcloud suggestions preserves legacy markers and the parent app password', () async {
     final db = AppDatabase.memoryForTests();
     final credential = BusyMaxLinkedDavCredential(

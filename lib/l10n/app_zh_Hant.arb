@@ -1357,5 +1357,22 @@
   "taskMoveAfterSaveFailed": "編輯內容已儲存，但無法移動工作。請重試移動。",
   "taskDraftConflict": "此工作在開啟後已發生變更。你的編輯內容已保留。請檢視最新工作後重試。",
   "taskUnavailableDraftRetained": "此工作無法使用。未儲存的變更已保留。",
-  "taskDurationRequiresStart": "移除設有持續時間的工作的開始日期前，請先設定截止日期。"
+  "taskDurationRequiresStart": "移除設有持續時間的工作的開始日期前，請先設定截止日期。",
+  "privateServerCertificates": "私有伺服器憑證",
+  "reviewServerCertificate": "檢查伺服器憑證",
+  "certificateStandard": "標準 HTTPS",
+  "certificatePrivateCa": "私有憑證授權單位",
+  "certificatePinnedLeaf": "固定的自我簽署憑證",
+  "certificateImportCa": "匯入私有 CA",
+  "certificateReplacePin": "檢查替換憑證",
+  "certificateUseStandard": "恢復標準 HTTPS",
+  "certificateApprove": "核准此憑證原則",
+  "certificateReject": "拒絕",
+  "certificatePrevious": "先前核准的憑證",
+  "certificateInvalid": "憑證或私有 CA 設定無效",
+  "certificateFirstUseWarning": "首次連線時，僅加密並不能確認伺服器身分。核准前，請透過獨立可信的管理員管道核對 SHA-256 指紋。",
+  "certificateRenewalHelp": "建議使用私有 CA，伺服器憑證可在其下正常續期。固定的葉憑證每次變更都須明確檢查，即使用同一金鑰。公開憑證可正常續期。",
+  "certificateBrowserBoundary": "授權仍透過外部瀏覽器進行。BusyMax 的核准不會設定瀏覽器信任；瀏覽器必須單獨信任該伺服器。",
+  "certificateDetails": "主體: {subject}\n簽發者: {issuer}\n生效時間: {notBefore}\n到期時間: {notAfter}\nSHA-256 指紋: {fingerprint}",
+  "certificateFailure": "{reason, select, approvalRequired{需要核准} pinMismatch{固定的憑證已變更} expired{憑證已過期} notYetValid{憑證尚未生效} hostnameMismatch{憑證主機名稱不符} invalidPolicy{私有 CA 設定無效} ineligible{憑證不符合要求} verificationFailed{TLS 驗證失敗} other{TLS 驗證失敗}}"
 }

@@ -21,15 +21,16 @@ String localizedNextcloudCollectionError(
 ) => switch (error) {
   NextcloudCollectionValidationException() => l10n.invalidCollectionValue,
   SecretStoreException() => l10n.oauthSecureStorageUnavailable,
+  DavException(kind: DavErrorKind.tls, :final code) =>
+    code.startsWith('NextcloudCertificate')
+        ? l10n.certificateFailure(code.substring('NextcloudCertificate'.length))
+        : l10n.reviewServerCertificate,
   DavException(kind: DavErrorKind.authentication) =>
     l10n.accountReconnectRequired,
   DavException(kind: DavErrorKind.authorization) =>
     l10n.nextcloudOperationDenied,
   DavException(
-    kind: DavErrorKind.network ||
-        DavErrorKind.timeout ||
-        DavErrorKind.server ||
-        DavErrorKind.tls,
+    kind: DavErrorKind.network || DavErrorKind.timeout || DavErrorKind.server,
   ) =>
     l10n.nextcloudServerUnavailable,
   DavException(kind: DavErrorKind.unknownOutcome) =>

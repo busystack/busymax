@@ -1,3 +1,7 @@
+import '../trust/nextcloud_leased_http_client.dart';
+
+import 'package:http/http.dart' as http;
+
 import 'dart:async';
 
 import 'package:drift/drift.dart';
@@ -17,6 +21,13 @@ import '../discovery/dav_discovery_models.dart';
 import '../discovery/dav_discovery_repository.dart';
 import '../http/dav_http_transport.dart';
 import 'nextcloud_login_flow_v2.dart';
+import '../trust/nextcloud_http_client_factory.dart';
+import '../trust/nextcloud_trust_policy.dart';
+
+typedef NextcloudTrustReviewer = Future<NextcloudTrustPolicy?> Function(
+  NextcloudCertificateException challenge,
+  String sessionOwner,
+);
 
 typedef DavOnboardingDiscovery = Future<DavDiscoveryResult> Function({
   required String accountId,
@@ -63,6 +74,8 @@ final class DavAccountOnboardingService {
     AuthorizationPersistence? authorizationPersistence,
     this.accountGate = const InProcessAccountGate(),
     this.syncCoordinator,
+    this.nextcloudClients,
+    this.nextcloudDiscovery,
     this.onAccountRemovalStarting,
     this.onAccountRemoving,
     this.persistLinkedAccountRemoval,
@@ -142,21 +155,108 @@ final class DavAccountOnboardingService {
     );
   }
 
+  final NextcloudHttpClientFactory? nextcloudClients;
+  final DavOnboardingDiscovery Function(NextcloudSecretRecord, int, bool)?
+  nextcloudDiscovery;
+  NextcloudLoginFlowV2? _sessionFlow;
+
+  Future<(NextcloudLoginFlowResult, NextcloudTrustPolicy?)> _login(
+    String enteredServer,
+    DavCancellationToken? cancellation,
+    NextcloudTrustPolicy? previous,
+    NextcloudTrustReviewer? review, {
+    String? accountId,
+    int? expectedGeneration,
+  }) async {
+    final factory = nextcloudClients;
+    if (factory == null) {
+      return (
+        await _nextcloudLoginFlow.start(
+          enteredServer,
+          cancellationToken: cancellation,
+        ),
+        previous,
+      );
+    }
+    final owner = 'onboarding:${_idFactory()}';
+    final authority = normalizeNextcloudLoginServer(enteredServer);
+    var policy = previous?.bind(owner);
+    Future<NextcloudLoginFlowResult> attempt() async {
+      http.Client client = factory.create(
+        owner: owner,
+        authority: authority,
+        policy: policy,
+      );
+      if (accountId != null) {
+        final id = accountId;
+        client = NextcloudLeasedHttpClient(
+          delegate: client,
+          runLease: (work) => _persistence.run(id, work),
+          validate: () async {
+            if (await _persistence.generation(id) != expectedGeneration ||
+                await _accountsRepository.accountById(id) == null) {
+              throw const DavException(
+                kind: DavErrorKind.cancelled,
+                code: 'NextcloudStaleLoginSession',
+                safeMessage: 'The account changed during authorization.',
+              );
+            }
+          },
+        );
+      }
+      final flow = _nextcloudLoginFlow.withClient(client);
+      _sessionFlow = flow;
+      try {
+        return await flow.start(enteredServer, cancellationToken: cancellation);
+      } finally {
+        flow.cancel();
+        client.close();
+        _sessionFlow = null;
+      }
+    }
+
+    try {
+      try {
+        return (await attempt(), policy);
+      } on NextcloudCertificateException catch (challenge) {
+        if (previous != null || review == null) rethrow;
+        policy = await review(challenge, owner);
+        cancellation?.throwIfCancelled();
+        if (policy == null) rethrow;
+        policy.requireScope(owner, authority);
+        return (
+          await attempt(),
+          policy,
+        ); // one explicit approval, one new attempt
+      }
+    } finally {
+      factory.invalidate(owner);
+    }
+  }
+
   Future<DavAccountConnectionResult> connectNextcloud({
     required String enteredServer,
+    NextcloudTrustReviewer? reviewCertificate,
     DavCancellationToken? cancellationToken,
   }) async {
-    final login = await _nextcloudLoginFlow.start(
+    final (login, policy) = await _login(
       enteredServer,
-      cancellationToken: cancellationToken,
+      cancellationToken,
+      null,
+      reviewCertificate,
     );
     cancellationToken?.throwIfCancelled();
-    return _connectNextcloudLogin(login, cancellationToken: cancellationToken);
+    return _connectNextcloudLogin(
+      login,
+      trustPolicy: policy,
+      cancellationToken: cancellationToken,
+    );
   }
 
   Future<DavAccountConnectionResult> reconnectNextcloud({
     required String accountId,
     required String enteredServer,
+    NextcloudTrustReviewer? reviewCertificate,
     DavCancellationToken? cancellationToken,
   }) async {
     final account = await _accountsRepository.accountById(accountId);
@@ -168,9 +268,19 @@ final class DavAccountOnboardingService {
       );
     }
     final generation = await _persistence.generation(accountId);
-    final login = await _nextcloudLoginFlow.start(
+    final previous = await _persistence.readCurrentCredential(accountId);
+    if (previous is! NextcloudSecretRecord) {
+      throw const SecretStoreCorruptException(
+        'Nextcloud credential unavailable.',
+      );
+    }
+    final (login, policy) = await _login(
       enteredServer,
-      cancellationToken: cancellationToken,
+      cancellationToken,
+      previous.trustPolicy,
+      reviewCertificate,
+      accountId: accountId,
+      expectedGeneration: generation,
     );
     cancellationToken?.throwIfCancelled();
     final authority = normalizeAccountAuthority(
@@ -191,6 +301,7 @@ final class DavAccountOnboardingService {
     }
     final result = await _connectNextcloudLogin(
       login,
+      trustPolicy: policy,
       cancellationToken: cancellationToken,
       expectedAccountId: accountId,
       expectedGeneration: generation,
@@ -207,6 +318,7 @@ final class DavAccountOnboardingService {
 
   Future<DavAccountConnectionResult> _connectNextcloudLogin(
     NextcloudLoginFlowResult login, {
+    NextcloudTrustPolicy? trustPolicy,
     DavCancellationToken? cancellationToken,
     String? expectedAccountId,
     int? expectedGeneration,
@@ -215,6 +327,7 @@ final class DavAccountOnboardingService {
       canonicalServer: login.canonicalServer,
       loginName: login.loginName,
       appPassword: login.appPassword,
+      trustPolicy: trustPolicy,
     );
     return _connect(
       provider: BusyProvider.nextcloud,
@@ -234,7 +347,52 @@ final class DavAccountOnboardingService {
     );
   }
 
-  void cancelNextcloudLogin() => _nextcloudLoginFlow.cancel();
+  void cancelNextcloudLogin() {
+    _nextcloudLoginFlow.cancel();
+    _sessionFlow?.cancel();
+  }
+
+  Future<void> replaceNextcloudTrust({
+    required String accountId,
+    required int expectedGeneration,
+    required NextcloudTrustPolicy? policy,
+  }) async {
+    final account = await _accountsRepository.accountById(accountId);
+    final previous = await _persistence.readCurrentCredential(accountId);
+    if (account == null ||
+        previous is! NextcloudSecretRecord ||
+        await _persistence.generation(accountId) != expectedGeneration) {
+      throw const DavException(
+        kind: DavErrorKind.cancelled,
+        code: 'NextcloudStaleCertificateApproval',
+        safeMessage: 'The account changed during certificate review.',
+      );
+    }
+    policy?.requireScope(accountId, previous.canonicalServer);
+    final credential = NextcloudSecretRecord(
+      canonicalServer: previous.canonicalServer,
+      loginName: previous.loginName,
+      appPassword: previous.appPassword,
+      trustPolicy: policy,
+    );
+    await _connect(
+      provider: BusyProvider.nextcloud,
+      authority: credential.canonicalServer,
+      providerAccountId: credential.loginName,
+      credential: credential,
+      basicCredential: DavBasicCredential(
+        username: credential.loginName,
+        password: credential.appPassword,
+      ),
+      calendarsEnabled: account.calendarsEnabled,
+      tasksEnabled: account.tasksEnabled,
+      displayName: account.displayName ?? credential.loginName,
+      email: account.email,
+      expectedAccountId: accountId,
+      expectedGeneration: expectedGeneration,
+      activateAccount: false,
+    );
+  }
 
   Future<DavAccountConnectionResult> replaceAppleAppSpecificPassword({
     required String accountId,
@@ -454,8 +612,25 @@ final class DavAccountOnboardingService {
     (_accountWork[accountId] ??= {}).add(token);
     try {
       token.throwIfCancelled();
+      if (credential is NextcloudSecretRecord &&
+          credential.trustPolicy != null) {
+        credential = NextcloudSecretRecord(
+          canonicalServer: credential.canonicalServer,
+          loginName: credential.loginName,
+          appPassword: credential.appPassword,
+          trustPolicy: credential.trustPolicy!.bind(accountId),
+        );
+      }
+      final discover = credential is NextcloudSecretRecord
+          ? nextcloudDiscovery?.call(
+                  credential,
+                  generation,
+                  existing != null,
+                ) ??
+                _discover
+          : _discover;
       final discovery = await _waitForDiscovery(
-        _discover(
+        discover(
           accountId: accountId,
           provider: provider,
           accountAuthority: Uri.parse(normalizedAuthority),

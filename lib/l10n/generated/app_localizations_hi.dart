@@ -3817,4 +3817,79 @@ class AppLocalizationsHi extends AppLocalizations {
   @override
   String get taskDurationRequiresStart =>
       'अवधि वाले कार्य की शुरुआत हटाने से पहले समय-सीमा निर्धारित करें।';
+
+  @override
+  String get privateServerCertificates => 'निजी सर्वर प्रमाणपत्र';
+
+  @override
+  String get reviewServerCertificate => 'सर्वर प्रमाणपत्र की समीक्षा करें';
+
+  @override
+  String get certificateStandard => 'मानक HTTPS';
+
+  @override
+  String get certificatePrivateCa => 'निजी प्रमाणपत्र प्राधिकरण';
+
+  @override
+  String get certificatePinnedLeaf => 'पिन किया गया स्व-हस्ताक्षरित प्रमाणपत्र';
+
+  @override
+  String get certificateImportCa => 'निजी CA आयात करें';
+
+  @override
+  String get certificateReplacePin => 'बदले हुए प्रमाणपत्र की समीक्षा करें';
+
+  @override
+  String get certificateUseStandard => 'मानक HTTPS पर लौटें';
+
+  @override
+  String get certificateApprove => 'यह प्रमाणपत्र नीति स्वीकृत करें';
+
+  @override
+  String get certificateReject => 'अस्वीकार करें';
+
+  @override
+  String get certificatePrevious => 'पहले स्वीकृत प्रमाणपत्र';
+
+  @override
+  String get certificateInvalid => 'अमान्य प्रमाणपत्र या निजी CA कॉन्फ़िगरेशन';
+
+  @override
+  String get certificateFirstUseWarning =>
+      'पहली बार उपयोग करते समय केवल एन्क्रिप्शन से सर्वर की पहचान प्रमाणित नहीं होती। स्वीकृति से पहले किसी स्वतंत्र विश्वसनीय व्यवस्थापक माध्यम से SHA-256 फ़िंगरप्रिंट की तुलना करें।';
+
+  @override
+  String get certificateRenewalHelp =>
+      'निजी CA को प्राथमिकता दें: उसके अंतर्गत सर्वर प्रमाणपत्र नवीनीकृत हो सकते हैं। पिन किए गए प्रमाणपत्र में हर बदलाव पर स्पष्ट समीक्षा आवश्यक है, भले ही कुंजी वही हो। सार्वजनिक प्रमाणपत्र सामान्य रूप से नवीनीकृत होते हैं।';
+
+  @override
+  String get certificateBrowserBoundary =>
+      'प्राधिकरण बाहरी ब्राउज़र में होता है। BusyMax की स्वीकृति ब्राउज़र का भरोसा सेट नहीं करती; ब्राउज़र को सर्वर पर अलग से भरोसा करना होगा।';
+
+  @override
+  String certificateDetails(
+    String subject,
+    String issuer,
+    String notBefore,
+    String notAfter,
+    String fingerprint,
+  ) {
+    return 'विषय: $subject\nजारीकर्ता: $issuer\nमान्य आरंभ: $notBefore\nमान्य अंत: $notAfter\nSHA-256 फ़िंगरप्रिंट: $fingerprint';
+  }
+
+  @override
+  String certificateFailure(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'approvalRequired': 'स्वीकृति आवश्यक है',
+      'pinMismatch': 'पिन किया गया प्रमाणपत्र बदल गया',
+      'expired': 'प्रमाणपत्र की अवधि समाप्त',
+      'notYetValid': 'प्रमाणपत्र अभी मान्य नहीं',
+      'hostnameMismatch': 'प्रमाणपत्र का होस्टनाम मेल नहीं खाता',
+      'invalidPolicy': 'निजी CA कॉन्फ़िगरेशन अमान्य',
+      'ineligible': 'प्रमाणपत्र योग्य नहीं है',
+      'verificationFailed': 'TLS सत्यापन विफल',
+      'other': 'TLS सत्यापन विफल',
+    });
+    return '$_temp0';
+  }
 }

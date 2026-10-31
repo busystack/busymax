@@ -4002,4 +4002,80 @@ class AppLocalizationsPl extends AppLocalizations {
   @override
   String get taskDurationRequiresStart =>
       'Ustaw termin przed usunięciem początku zadania z określonym czasem trwania.';
+
+  @override
+  String get privateServerCertificates => 'Certyfikaty prywatnych serwerów';
+
+  @override
+  String get reviewServerCertificate => 'Sprawdź certyfikat serwera';
+
+  @override
+  String get certificateStandard => 'Standardowy HTTPS';
+
+  @override
+  String get certificatePrivateCa => 'Prywatny urząd certyfikacji';
+
+  @override
+  String get certificatePinnedLeaf => 'Przypięty certyfikat samopodpisany';
+
+  @override
+  String get certificateImportCa => 'Importuj prywatny CA';
+
+  @override
+  String get certificateReplacePin => 'Sprawdź certyfikat zastępczy';
+
+  @override
+  String get certificateUseStandard => 'Wróć do standardowego HTTPS';
+
+  @override
+  String get certificateApprove => 'Zatwierdź tę politykę certyfikatów';
+
+  @override
+  String get certificateReject => 'Odrzuć';
+
+  @override
+  String get certificatePrevious => 'Poprzednio zatwierdzone certyfikaty';
+
+  @override
+  String get certificateInvalid =>
+      'Nieprawidłowy certyfikat lub konfiguracja prywatnego CA';
+
+  @override
+  String get certificateFirstUseWarning =>
+      'Samo szyfrowanie nie potwierdza tożsamości serwera przy pierwszym użyciu. Przed zatwierdzeniem porównaj odcisk SHA-256 z administratorem przez niezależny zaufany kanał.';
+
+  @override
+  String get certificateRenewalHelp =>
+      'Zalecany jest prywatny CA: certyfikaty serwera mogą być przez niego odnawiane. Każda zmiana przypiętego certyfikatu wymaga sprawdzenia, nawet z tym samym kluczem. Publiczne certyfikaty odnawiają się normalnie.';
+
+  @override
+  String get certificateBrowserBoundary =>
+      'Autoryzacja odbywa się w zewnętrznej przeglądarce. Zgoda w BusyMax nie zmienia jej zaufania; przeglądarka musi osobno ufać serwerowi.';
+
+  @override
+  String certificateDetails(
+    String subject,
+    String issuer,
+    String notBefore,
+    String notAfter,
+    String fingerprint,
+  ) {
+    return 'Podmiot: $subject\nWystawca: $issuer\nWażny od: $notBefore\nWażny do: $notAfter\nOdcisk SHA-256: $fingerprint';
+  }
+
+  @override
+  String certificateFailure(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'approvalRequired': 'Wymagana zgoda',
+      'pinMismatch': 'Przypięty certyfikat został zmieniony',
+      'expired': 'Certyfikat wygasł',
+      'notYetValid': 'Certyfikat jeszcze nieważny',
+      'hostnameMismatch': 'Niezgodna nazwa serwera',
+      'invalidPolicy': 'Nieprawidłowa konfiguracja prywatnego CA',
+      'ineligible': 'Nieodpowiedni certyfikat',
+      'verificationFailed': 'Weryfikacja TLS nie powiodła się',
+      'other': 'Weryfikacja TLS nie powiodła się',
+    });
+    return '$_temp0';
+  }
 }

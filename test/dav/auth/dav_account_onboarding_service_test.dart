@@ -1,3 +1,10 @@
+import 'dart:io';
+
+import 'package:busymax/src/dav/trust/nextcloud_certificate.dart';
+import 'package:busymax/src/dav/trust/nextcloud_trust_policy.dart';
+
+import '../../helpers/nextcloud_tls_fixture.dart';
+
 import 'dart:async';
 import 'dart:convert';
 
@@ -509,7 +516,7 @@ void main() {
               },
         );
         final parent = (await service.connectNextcloud(
-          enteredServer: 'cloud.example.test',
+          enteredServer: carddav.server.toString(),
         )).accountId;
         await fixture.accounts.upsertSignedInAccount(
           id: 'unrelated',
@@ -935,7 +942,7 @@ void main() {
           }
           return http.Response(
             jsonEncode({
-              'server': 'https://canonical.example.test/cloud/',
+              'server': 'https://entered.example.test/cloud/',
               'loginName': 'canonical-user',
               'appPassword': 'generated-app-password',
             }),
@@ -961,7 +968,7 @@ void main() {
               expect(provider, BusyProvider.nextcloud);
               expect(
                 accountAuthority,
-                Uri.parse('https://canonical.example.test/cloud'),
+                Uri.parse('https://entered.example.test/cloud'),
               );
               expect(credential.username, 'canonical-user');
               expect(credential.password, 'generated-app-password');
@@ -975,7 +982,7 @@ void main() {
       );
 
       final account = await database.select(database.accounts).getSingle();
-      expect(account.authority, 'https://canonical.example.test/cloud');
+      expect(account.authority, 'https://entered.example.test/cloud');
       expect(account.providerAccountId, 'canonical-user');
       expect(account.tasksEnabled, isTrue);
       final credential = await secrets.readCredential(
@@ -983,7 +990,7 @@ void main() {
       ) as NextcloudSecretRecord;
       expect(
         credential.canonicalServer,
-        Uri.parse('https://canonical.example.test/cloud'),
+        Uri.parse('https://entered.example.test/cloud'),
       );
       expect(credential.loginName, 'canonical-user');
       expect(credential.appPassword, 'generated-app-password');
@@ -1355,6 +1362,205 @@ void main() {
       expect(await database.select(database.pendingOps).get(), isEmpty);
     },
   );
+  group('private certificate authorization lifecycle', () {
+    late NextcloudTlsFixture tls;
+    final server = Uri.parse('https://localhost/nextcloud');
+    setUpAll(() async {
+      tls = await NextcloudTlsFixture.create();
+    });
+    tearDownAll(() => tls.dispose());
+    NextcloudTrustPolicy pin(String id, String name) =>
+        NextcloudTrustPolicy.approve(
+          owner: id,
+          installation: server,
+          mode: NextcloudTrustMode.pinnedLeaf,
+          certificates: NextcloudCertificate.import(
+            File(tls.path('$name.pem')).readAsBytesSync(),
+          ),
+          generation: name,
+        );
+
+    for (final failure in ['discovery', 'database', 'secure-storage']) {
+      test(
+        '$failure preserves the previous policy, generation and cached data',
+        () async {
+          final store = _TrustFaultSecrets();
+          final persistence = AuthorizationPersistence(
+            database: database,
+            secrets: store,
+          );
+          var rejectDiscovery = false;
+          final service = DavAccountOnboardingService(
+            database: database,
+            secretStore: store,
+            authorizationPersistence: persistence,
+            nextcloudLoginFlow: _successfulLoginFlow(server: server.toString()),
+            discover:
+                ({
+                  required accountId,
+                  required provider,
+                  required accountAuthority,
+                  required credential,
+                  cancellationToken,
+                }) async {
+                  if (rejectDiscovery) {
+                    throw const DavException(
+                      kind: DavErrorKind.protocol,
+                      code: 'SyntheticDiscoveryFailure',
+                      safeMessage: 'Synthetic discovery failure',
+                    );
+                  }
+                  return _discovery(accountId, provider, accountAuthority);
+                },
+          );
+          final id = (await service.connectNextcloud(
+            enteredServer: server.toString(),
+          )).accountId;
+          await service.replaceNextcloudTrust(
+            accountId: id,
+            expectedGeneration: await persistence.generation(id),
+            policy: pin(id, 'self'),
+          );
+          await _insertNextcloudLocalState(database, id);
+          final previous = await store.readCredential(id);
+          final generation = await persistence.generation(id);
+          if (failure == 'discovery') {
+            rejectDiscovery = true;
+          }
+          if (failure == 'secure-storage') {
+            store.failId = id;
+          }
+          if (failure == 'database') {
+            await database.customStatement(
+              "CREATE TEMP TRIGGER reject_trust BEFORE UPDATE ON accounts BEGIN SELECT RAISE(ABORT, 'synthetic commit failure'); END",
+            );
+          }
+          await expectLater(
+            service.replaceNextcloudTrust(
+              accountId: id,
+              expectedGeneration: generation,
+              policy: pin(id, 'self-renewed'),
+            ),
+            throwsA(anything),
+          );
+          expect(
+            (await store.readCredential(id))!.toJson(),
+            previous!.toJson(),
+          );
+          expect(await persistence.generation(id), generation);
+          expect(await database.select(database.taskLists).get(), hasLength(1));
+          expect(
+            await database.select(database.pendingOps).get(),
+            hasLength(1),
+          );
+          await persistence.recover();
+          expect((await store.readCredential(id))!.toJson(), previous.toJson());
+        },
+      );
+    }
+    test('accepted replacement increments generation; stale approvals after reconnect/removal have no effect', () async {
+      final persistence = AuthorizationPersistence(
+        database: database,
+        secrets: secrets,
+      );
+      final service = DavAccountOnboardingService(
+        database: database,
+        secretStore: secrets,
+        authorizationPersistence: persistence,
+        nextcloudLoginFlow: _successfulLoginFlow(
+          server: server.toString(),
+          rotatePasswords: true,
+        ),
+        discover: ({
+          required accountId,
+          required provider,
+          required accountAuthority,
+          required credential,
+          cancellationToken,
+        }) async => _discovery(accountId, provider, accountAuthority),
+      );
+      final id = (await service.connectNextcloud(
+        enteredServer: server.toString(),
+      )).accountId;
+      final generation = await persistence.generation(id);
+      await service.replaceNextcloudTrust(
+        accountId: id,
+        expectedGeneration: generation,
+        policy: pin(id, 'self'),
+      );
+      expect(await persistence.generation(id), generation + 1);
+      await service.reconnectNextcloud(
+        accountId: id,
+        enteredServer: server.toString(),
+      );
+      await expectLater(
+        service.replaceNextcloudTrust(
+          accountId: id,
+          expectedGeneration: generation + 1,
+          policy: pin(id, 'self-renewed'),
+        ),
+        throwsA(isA<DavException>()),
+      );
+      final accepted =
+          await secrets.readCredential(id) as NextcloudSecretRecord;
+      expect(accepted.trustPolicy!.generation, 'self');
+      await service.removeAccount(id);
+      await expectLater(
+        service.replaceNextcloudTrust(
+          accountId: id,
+          expectedGeneration: await persistence.generation(id),
+          policy: pin(id, 'self-renewed'),
+        ),
+        throwsA(isA<DavException>()),
+      );
+      expect(await secrets.readCredential(id), isNull);
+    });
+    test('removal captures private trust before deletion and preserves local-first semantics', () async {
+      final persistence = AuthorizationPersistence(
+        database: database,
+        secrets: secrets,
+      );
+      var checked = false;
+      final service = DavAccountOnboardingService(
+        database: database,
+        secretStore: secrets,
+        authorizationPersistence: persistence,
+        nextcloudLoginFlow: _successfulLoginFlow(server: server.toString()),
+        discover: ({
+          required accountId,
+          required provider,
+          required accountAuthority,
+          required credential,
+          cancellationToken,
+        }) async => _discovery(accountId, provider, accountAuthority),
+        nextcloudCredentialRevoker:
+            ({required accountId, required credential}) async {
+              expect(await secrets.readCredential(accountId), isNull);
+              expect(credential.trustPolicy!.generation, 'self');
+              credential.trustPolicy!.requireScope(accountId, server);
+              checked = true;
+              throw const DavException(
+                kind: DavErrorKind.tls,
+                code: 'SyntheticPinMismatch',
+                safeMessage: 'Synthetic TLS failure',
+              );
+            },
+      );
+      final id = (await service.connectNextcloud(
+        enteredServer: server.toString(),
+      )).accountId;
+      await service.replaceNextcloudTrust(
+        accountId: id,
+        expectedGeneration: await persistence.generation(id),
+        policy: pin(id, 'self'),
+      );
+      final result = await service.removeAccount(id);
+      expect(checked, isTrue);
+      expect(result.remoteRevocationSucceeded, isFalse);
+      expect(await database.select(database.accounts).get(), isEmpty);
+      expect(await secrets.readCredential(id), isNull);
+    });
+  });
 }
 
 NextcloudLoginFlowV2 _unusedLoginFlow() => NextcloudLoginFlowV2(
@@ -1623,5 +1829,20 @@ class _CommitGate extends QueryInterceptor {
       enabled = false;
       afterCommit!();
     }
+  }
+}
+
+class _TrustFaultSecrets extends InMemorySecretStore {
+  String? failId;
+  @override
+  Future<void> saveCredential(String accountId, SecretRecord credential) async {
+    if (accountId == failId) {
+      failId = null;
+      throw const SecretStoreException(
+        'SyntheticWriteFailure',
+        'Synthetic secure storage failure.',
+      );
+    }
+    await super.saveCredential(accountId, credential);
   }
 }

@@ -1427,11 +1427,42 @@
   "notificationsSystemBlocked": "تنظیمات اعلان سیستم BusyMax را مسدود کرده است. یادآوری‌های شما ذخیره شده‌اند.",
   "notificationItemUnavailable": "این یادآوری دیگر در دسترس نیست. ممکن است مورد تغییر کرده یا حذف شده باشد.",
   "clearCompletedGoogleConfirmation": "کارهای تکمیل‌شده در «⁨{list}⁩» (⁨{account}⁩) پاک شوند؟\n\nGoogle Tasks موارد تکمیل‌شده را پاک یا پنهان می‌کند. تعداد تکمیل‌شدهٔ فعلی: ⁨{count}⁩.",
-  "@clearCompletedGoogleConfirmation": {"placeholders": {"count": {"type": "int", "format": "decimalPattern"}}},
+  "@clearCompletedGoogleConfirmation": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
   "clearCompletedNextcloudConfirmation": "⁨{count}⁩ درخت کار ریشه‌ای بسته‌شده از «⁨{list}⁩» (⁨{account}⁩) حذف شوند؟\n\nزیرکارهای آن‌ها نیز حذف خواهند شد.",
-  "@clearCompletedNextcloudConfirmation": {"placeholders": {"count": {"type": "int", "format": "decimalPattern"}}},
+  "@clearCompletedNextcloudConfirmation": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
   "taskMoveAfterSaveFailed": "ویرایش‌ها ذخیره شدند، اما جابه‌جایی کار انجام نشد. جابه‌جایی را دوباره امتحان کنید.",
   "taskDraftConflict": "این کار از زمان بازشدن تغییر کرده است. ویرایش‌های شما حفظ شده‌اند. پیش از تلاش دوباره، کار فعلی را بررسی کنید.",
   "taskUnavailableDraftRetained": "این کار در دسترس نیست. تغییرات ذخیره‌نشدهٔ شما حفظ شده‌اند.",
-  "taskDurationRequiresStart": "پیش از حذف زمان آغاز کار دارای مدت، یک مهلت تعیین کنید."
+  "taskDurationRequiresStart": "پیش از حذف زمان آغاز کار دارای مدت، یک مهلت تعیین کنید.",
+  "privateServerCertificates": "گواهی‌های سرور خصوصی",
+  "reviewServerCertificate": "بررسی گواهی سرور",
+  "certificateStandard": "HTTPS استاندارد",
+  "certificatePrivateCa": "مرجع صدور گواهی خصوصی",
+  "certificatePinnedLeaf": "گواهی خودامضای سنجاق‌شده",
+  "certificateImportCa": "وارد کردن مرجع خصوصی",
+  "certificateReplacePin": "بررسی گواهی جایگزین",
+  "certificateUseStandard": "بازگشت به HTTPS استاندارد",
+  "certificateApprove": "تأیید این سیاست گواهی",
+  "certificateReject": "رد کردن",
+  "certificatePrevious": "گواهی‌های تأییدشده پیشین",
+  "certificateInvalid": "گواهی یا پیکربندی مرجع خصوصی نامعتبر است",
+  "certificateFirstUseWarning": "رمزگذاری به‌تنهایی هویت سرور را در اولین استفاده ثابت نمی‌کند. پیش از تأیید، اثر انگشت SHA-256 را از راه ارتباطی مستقل و مورد اعتماد با مدیر مقایسه کنید.",
+  "certificateRenewalHelp": "مرجع خصوصی ترجیح دارد: گواهی سرور می‌تواند زیر نظر آن تمدید شود. هر تغییر گواهی سنجاق‌شده، حتی با همان کلید، نیاز به بررسی صریح دارد. گواهی‌های عمومی به‌طور عادی تمدید می‌شوند.",
+  "certificateBrowserBoundary": "مجوز در مرورگر خارجی انجام می‌شود. تأیید BusyMax اعتماد مرورگر را تنظیم نمی‌کند؛ مرورگر باید جداگانه به سرور اعتماد کند.",
+  "certificateDetails": "موضوع: ⁨{subject}⁩\nصادرکننده: ⁨{issuer}⁩\nمعتبر از: ⁨{notBefore}⁩\nمعتبر تا: ⁨{notAfter}⁩\nاثر انگشت SHA-256: ⁨{fingerprint}⁩",
+  "certificateFailure": "{reason, select, approvalRequired{تأیید لازم است} pinMismatch{گواهی سنجاق‌شده تغییر کرده است} expired{گواهی منقضی شده است} notYetValid{گواهی هنوز معتبر نیست} hostnameMismatch{نام میزبان با گواهی یکسان نیست} invalidPolicy{پیکربندی مرجع خصوصی نامعتبر است} ineligible{گواهی واجد شرایط نیست} verificationFailed{بررسی TLS ناموفق بود} other{بررسی TLS ناموفق بود}}"
 }

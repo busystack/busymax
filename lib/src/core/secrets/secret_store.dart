@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import '../../dav/trust/nextcloud_trust_policy.dart';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:logging/logging.dart';
@@ -107,6 +109,9 @@ sealed class SecretRecord {
         appSpecificPassword: _requiredSecretString(json, 'appSpecificPassword'),
       ),
       CredentialKind.nextcloudAppPassword => NextcloudSecretRecord(
+        trustPolicy: json.containsKey('trustPolicy')
+            ? NextcloudTrustPolicy.fromJson(json['trustPolicy'])
+            : null,
         canonicalServer: Uri.parse(
           _requiredSecretString(json, 'canonicalServer'),
         ),
@@ -526,6 +531,7 @@ final class NextcloudSecretRecord extends SecretRecord {
     required Uri canonicalServer,
     required String loginName,
     required String appPassword,
+    this.trustPolicy,
   }) : canonicalServer = Uri.parse(
          normalizeNextcloudServerAuthority(canonicalServer.toString()),
        ),
@@ -549,6 +555,7 @@ final class NextcloudSecretRecord extends SecretRecord {
   final Uri canonicalServer;
   final String loginName;
   final String appPassword;
+  final NextcloudTrustPolicy? trustPolicy;
 
   @override
   Map<String, Object?> toJson() => {
@@ -558,6 +565,7 @@ final class NextcloudSecretRecord extends SecretRecord {
     'canonicalServer': canonicalServer.toString(),
     'loginName': loginName,
     'appPassword': appPassword,
+    if (trustPolicy != null) 'trustPolicy': trustPolicy!.toJson(),
   };
 }
 

@@ -2070,11 +2070,77 @@
   "notificationsSystemBlocked": "System notification settings are blocking BusyMax. Your reminders are saved.",
   "notificationItemUnavailable": "This reminder is no longer available. The item may have changed or been removed.",
   "clearCompletedGoogleConfirmation": "Clear completed tasks in “{list}” ({account})?\n\nGoogle Tasks will clear or hide completed items. Currently completed: {count}.",
-  "@clearCompletedGoogleConfirmation": {"placeholders": {"list": {"type": "String"}, "account": {"type": "String"}, "count": {"type": "int"}}},
+  "@clearCompletedGoogleConfirmation": {
+    "placeholders": {
+      "list": {
+        "type": "String"
+      },
+      "account": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "clearCompletedNextcloudConfirmation": "Delete {count} closed root task trees from “{list}” ({account})?\n\nTheir descendants will also be deleted.",
-  "@clearCompletedNextcloudConfirmation": {"placeholders": {"list": {"type": "String"}, "account": {"type": "String"}, "count": {"type": "int"}}},
+  "@clearCompletedNextcloudConfirmation": {
+    "placeholders": {
+      "list": {
+        "type": "String"
+      },
+      "account": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "taskMoveAfterSaveFailed": "Your edits were saved, but the task could not be moved. Retry the move.",
   "taskDraftConflict": "This task changed since you opened it. Your edits are retained. Review the latest task before retrying.",
   "taskUnavailableDraftRetained": "This task is unavailable. Your unsaved changes are retained.",
-  "taskDurationRequiresStart": "Set a deadline before removing the start of a task with a duration."
+  "taskDurationRequiresStart": "Set a deadline before removing the start of a task with a duration.",
+  "privateServerCertificates": "Private server certificates",
+  "reviewServerCertificate": "Review server certificate",
+  "certificateStandard": "Standard HTTPS",
+  "certificatePrivateCa": "Private certificate authority",
+  "certificatePinnedLeaf": "Pinned self-signed certificate",
+  "certificateImportCa": "Import private CA",
+  "certificateReplacePin": "Review a replacement pin",
+  "certificateUseStandard": "Return to standard HTTPS",
+  "certificateApprove": "Approve this certificate policy",
+  "certificateReject": "Reject",
+  "certificatePrevious": "Previously approved certificates",
+  "certificateInvalid": "Invalid certificate or private CA configuration",
+  "certificateFirstUseWarning": "Encryption alone does not establish server identity on first use. Compare the SHA-256 fingerprint through an independently trusted administrator channel before approval.",
+  "certificateRenewalHelp": "Prefer a private CA: server certificates may renew under it. A pinned leaf requires explicit review for every certificate change, even with the same key. Public certificates renew normally.",
+  "certificateBrowserBoundary": "Browser authorization remains external. BusyMax approval does not configure browser trust; your browser must trust the server separately.",
+  "certificateDetails": "Subject: {subject}\nIssuer: {issuer}\nValid from: {notBefore}\nValid until: {notAfter}\nSHA-256 fingerprint: {fingerprint}",
+  "certificateFailure": "{reason, select, approvalRequired{Approval required} pinMismatch{Pinned certificate changed} expired{Certificate expired} notYetValid{Certificate not yet valid} hostnameMismatch{Certificate hostname mismatch} invalidPolicy{Invalid private CA configuration} ineligible{Certificate is ineligible} verificationFailed{TLS verification failed} other{TLS verification failed}}",
+  "@certificateDetails": {
+    "description": "Plain text certificate details derived from X.509; dates are UTC.",
+    "placeholders": {
+      "subject": {
+        "type": "String"
+      },
+      "issuer": {
+        "type": "String"
+      },
+      "notBefore": {
+        "type": "String"
+      },
+      "notAfter": {
+        "type": "String"
+      },
+      "fingerprint": {
+        "type": "String"
+      }
+    }
+  },
+  "@certificateFailure": {
+    "placeholders": {
+      "reason": {}
+    }
+  }
 }

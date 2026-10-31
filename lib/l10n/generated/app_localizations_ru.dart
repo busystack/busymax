@@ -3863,4 +3863,80 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get taskDurationRequiresStart =>
       'Укажите срок выполнения перед удалением начала задачи с длительностью.';
+
+  @override
+  String get privateServerCertificates => 'Сертификаты частных серверов';
+
+  @override
+  String get reviewServerCertificate => 'Проверить сертификат сервера';
+
+  @override
+  String get certificateStandard => 'Стандартный HTTPS';
+
+  @override
+  String get certificatePrivateCa => 'Частный центр сертификации';
+
+  @override
+  String get certificatePinnedLeaf => 'Закреплённый самоподписанный сертификат';
+
+  @override
+  String get certificateImportCa => 'Импортировать частный УЦ';
+
+  @override
+  String get certificateReplacePin => 'Проверить замену сертификата';
+
+  @override
+  String get certificateUseStandard => 'Вернуться к стандартному HTTPS';
+
+  @override
+  String get certificateApprove => 'Одобрить эту политику сертификатов';
+
+  @override
+  String get certificateReject => 'Отклонить';
+
+  @override
+  String get certificatePrevious => 'Ранее одобренные сертификаты';
+
+  @override
+  String get certificateInvalid =>
+      'Недопустимый сертификат или настройка частного УЦ';
+
+  @override
+  String get certificateFirstUseWarning =>
+      'Шифрование само по себе не подтверждает личность сервера при первом подключении. До одобрения сравните отпечаток SHA-256 с администратором по независимому доверенному каналу.';
+
+  @override
+  String get certificateRenewalHelp =>
+      'Предпочтителен частный УЦ: сертификаты сервера могут обновляться под его управлением. Любая замена закреплённого сертификата требует проверки, даже с тем же ключом. Публичные сертификаты обновляются обычно.';
+
+  @override
+  String get certificateBrowserBoundary =>
+      'Авторизация проходит во внешнем браузере. Одобрение в BusyMax не меняет его доверие; браузер должен доверять серверу отдельно.';
+
+  @override
+  String certificateDetails(
+    String subject,
+    String issuer,
+    String notBefore,
+    String notAfter,
+    String fingerprint,
+  ) {
+    return 'Субъект: $subject\nИздатель: $issuer\nДействует с: $notBefore\nДействует до: $notAfter\nОтпечаток SHA-256: $fingerprint';
+  }
+
+  @override
+  String certificateFailure(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'approvalRequired': 'Требуется одобрение',
+      'pinMismatch': 'Закреплённый сертификат изменился',
+      'expired': 'Сертификат истёк',
+      'notYetValid': 'Сертификат ещё не действует',
+      'hostnameMismatch': 'Имя сервера не совпадает',
+      'invalidPolicy': 'Недопустимая настройка частного УЦ',
+      'ineligible': 'Сертификат не подходит',
+      'verificationFailed': 'Проверка TLS не выполнена',
+      'other': 'Проверка TLS не выполнена',
+    });
+    return '$_temp0';
+  }
 }

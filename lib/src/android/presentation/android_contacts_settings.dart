@@ -1,3 +1,5 @@
+import 'android_nextcloud_certificate_dialog.dart';
+import '../../ui/common/nextcloud_certificate_review.dart';
 import '../../l10n/l10n.dart';
 import '../../l10n/contacts_error_description.dart';
 
@@ -56,6 +58,13 @@ class _AndroidContactsSettingsState
       final id = const Uuid().v7();
       if (nextcloud) {
         await controller.addNextcloudContactsOnly(
+          reviewCertificate: (challenge, owner) => reviewNextcloudCertificate(
+            challenge,
+            owner,
+            (data) => mounted
+                ? showAndroidNextcloudCertificate(context, data)
+                : Future.value(null),
+          ),
           id: id,
           label: input.label,
           server: Uri.parse(input.server),
@@ -144,6 +153,26 @@ class _AndroidContactsSettingsState
               Wrap(
                 spacing: 8,
                 children: [
+                  if (account.provider == ContactProviderKind.carddav)
+                    FutureBuilder<bool>(
+                      future: controller.isIndependentNextcloud(account.id),
+                      builder: (context, snapshot) => snapshot.data == true
+                          ? _action(
+                              context.l10n.privateServerCertificates,
+                              () => manageNextcloudCertificates(
+                                ref,
+                                account.id,
+                                (data) => mounted
+                                    ? showAndroidNextcloudCertificate(
+                                        context,
+                                        data,
+                                      )
+                                    : Future.value(null),
+                                contactsOnly: true,
+                              ),
+                            )
+                          : const SizedBox.shrink(),
+                    ),
                   if (account.enabled)
                     _action(
                       context.l10n.contactsRetrySync,

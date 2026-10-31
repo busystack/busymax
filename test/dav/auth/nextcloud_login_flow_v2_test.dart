@@ -126,7 +126,7 @@ void main() {
   });
 
   test(
-    'success treats 404 as pending and uses canonical returned identity',
+    'success treats 404 as pending and uses normalized canonical identity',
     () async {
       final requests = <http.Request>[];
       var polls = 0;
@@ -150,7 +150,7 @@ void main() {
         if (polls < 3) return http.Response('', 404);
         return http.Response(
           jsonEncode({
-            'server': 'https://CANONICAL.example.test/nextcloud/',
+            'server': 'https://CLOUD.example.test/nextcloud/',
             'loginName': ' server-login ',
             'appPassword': ' app-secret ',
           }),
@@ -178,7 +178,7 @@ void main() {
       expect(requests.last.url.query, isEmpty);
       expect(
         result.canonicalServer,
-        Uri.parse('https://canonical.example.test/nextcloud'),
+        Uri.parse('https://cloud.example.test/nextcloud'),
       );
       expect(result.loginName, 'server-login');
       expect(result.appPassword, 'app-secret');

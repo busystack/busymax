@@ -235,19 +235,34 @@ Run `flutter test <path>` for the selected entry point:
 | Test path | Required environment variables |
 |---|---|
 | [test/dav/nextcloud_live_integration_test.dart](../test/dav/nextcloud_live_integration_test.dart) | `BUSYMAX_NEXTCLOUD_LIVE=1`, `BUSYMAX_NEXTCLOUD_LIVE_URL`, `BUSYMAX_NEXTCLOUD_LIVE_USERNAME`, `BUSYMAX_NEXTCLOUD_LIVE_PASSWORD` (QA app password) |
-| [test/dav/nextcloud_login_flow_live_test.dart](../test/dav/nextcloud_login_flow_live_test.dart) | `BUSYMAX_NEXTCLOUD_LOGIN_LIVE=1`, `BUSYMAX_NEXTCLOUD_LOGIN_LIVE_URL`, `BUSYMAX_NEXTCLOUD_LOGIN_LIVE_USERNAME`, `BUSYMAX_NEXTCLOUD_LOGIN_LIVE_APP_PASSWORD` (disposable bootstrap password), `BUSYMAX_NEXTCLOUD_LOGIN_LIVE_TLS_CERT` (test CA PEM) |
+| [test/dav/nextcloud_contacts_live_test.dart](../test/dav/nextcloud_contacts_live_test.dart) | Same `BUSYMAX_NEXTCLOUD_LIVE_*` HTTPS fixture; reads through linked/independent resource and streaming transports and removes its disposable contact |
+| [test/dav/nextcloud_login_flow_live_test.dart](../test/dav/nextcloud_login_flow_live_test.dart) | `BUSYMAX_NEXTCLOUD_LOGIN_LIVE=1`, `BUSYMAX_NEXTCLOUD_LOGIN_LIVE_URL`, `BUSYMAX_NEXTCLOUD_LOGIN_LIVE_USERNAME`, `BUSYMAX_NEXTCLOUD_LOGIN_LIVE_APP_PASSWORD` (disposable bootstrap password), `BUSYMAX_NEXTCLOUD_LOGIN_LIVE_TRUST_MODE` and, for private modes, `BUSYMAX_NEXTCLOUD_LOGIN_LIVE_TLS_CERT` |
 | [test/dav/nextcloud_sharing_live_test.dart](../test/dav/nextcloud_sharing_live_test.dart) | `BUSYMAX_NEXTCLOUD_SHARING_LIVE=1`, `BUSYMAX_NEXTCLOUD_SHARING_LIVE_URL`, `BUSYMAX_NEXTCLOUD_SHARING_LIVE_GROUP`, and `BUSYMAX_NEXTCLOUD_SHARING_LIVE_<ROLE>_USERNAME` / `BUSYMAX_NEXTCLOUD_SHARING_LIVE_<ROLE>_PASSWORD` for each of `OWNER`, `WRITER`, `READER`, `GROUP_MEMBER` |
 | [test/dav/apple_icloud_live_integration_test.dart](../test/dav/apple_icloud_live_integration_test.dart) | `BUSYMAX_ICLOUD_LIVE=1`, `BUSYMAX_ICLOUD_LIVE_USERNAME` (QA Apple Account email), `BUSYMAX_ICLOUD_LIVE_PASSWORD` (BusyMax-only app-specific password) |
 
-Every Nextcloud suite also requires `BUSYMAX_NEXTCLOUD_QA_CALENDAR_VERSION`
+The calendar/task, Login Flow and sharing suites also require `BUSYMAX_NEXTCLOUD_QA_CALENDAR_VERSION`
 and `BUSYMAX_NEXTCLOUD_QA_TASKS_VERSION` with the versions actually installed;
 Server version is read from `status.php`. Supply the installation root,
 including any path prefix. DAV and sharing fixtures allow HTTP only on isolated
-loopback hosts. Login Flow requires HTTPS with its test CA; optionally set
+loopback hosts. Login Flow requires HTTPS. Each Nextcloud suite uses its prefix
+with `_TRUST_MODE=standard`, `private_ca`, or `pinned_leaf`; private modes require
+`_TLS_CERT` with the explicitly approved disposable CA or self-signed leaf.
+The suites use the production account-scoped factory. Run both private modes;
+see [private-certificate verification](nextcloud_private_certificates.md).
+Optionally set
 `BUSYMAX_NEXTCLOUD_LOGIN_LIVE_BROWSER` to a Chrome-compatible executable. Run
 Login Flow at both the server root and a path-prefixed installation; it revokes
 the returned app password. Production connections always require HTTPS and
-normal platform certificate validation.
+the accepted account TLS policy. Browser trust must be provisioned separately
+in the isolated browser environment; the fixture does not bypass browser
+certificate validation.
+
+The separate captured-revocation case additionally needs
+`BUSYMAX_NEXTCLOUD_LOGIN_LIVE_REVOCATION_APP_PASSWORD`. Use a different disposable
+app password from the DAV/contacts fixture: this case revokes it. Run live files
+with `--concurrency=1` against an SQLite QA server. Repeated collection creation
+can exhaust Nextcloud's default hourly quota; configure only the disposable
+server's documented `dav/rateLimitCalendarCreation` setting for repeated runs.
 
 For the DAV suite's large-collection case, also set
 `BUSYMAX_NEXTCLOUD_LIVE_LARGE=1`. To test restart persistence, set a unique

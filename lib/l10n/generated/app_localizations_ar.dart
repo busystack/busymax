@@ -3871,4 +3871,79 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get taskDurationRequiresStart =>
       'حدّد موعدًا نهائيًا قبل إزالة بداية مهمة لها مدة.';
+
+  @override
+  String get privateServerCertificates => 'شهادات الخوادم الخاصة';
+
+  @override
+  String get reviewServerCertificate => 'مراجعة شهادة الخادم';
+
+  @override
+  String get certificateStandard => 'HTTPS قياسي';
+
+  @override
+  String get certificatePrivateCa => 'جهة إصدار شهادات خاصة';
+
+  @override
+  String get certificatePinnedLeaf => 'شهادة موقعة ذاتيًا ومثبّتة';
+
+  @override
+  String get certificateImportCa => 'استيراد جهة إصدار خاصة';
+
+  @override
+  String get certificateReplacePin => 'مراجعة شهادة بديلة';
+
+  @override
+  String get certificateUseStandard => 'العودة إلى HTTPS القياسي';
+
+  @override
+  String get certificateApprove => 'الموافقة على سياسة الشهادة هذه';
+
+  @override
+  String get certificateReject => 'رفض';
+
+  @override
+  String get certificatePrevious => 'الشهادات المعتمدة سابقًا';
+
+  @override
+  String get certificateInvalid => 'شهادة أو إعداد جهة إصدار خاصة غير صالح';
+
+  @override
+  String get certificateFirstUseWarning =>
+      'التشفير وحده لا يثبت هوية الخادم عند الاستخدام الأول. قارن بصمة SHA-256 عبر قناة مستقلة وموثوقة مع مسؤول الخادم قبل الموافقة.';
+
+  @override
+  String get certificateRenewalHelp =>
+      'يُفضّل استخدام جهة إصدار خاصة: يمكن تجديد شهادات الخادم تحتها. كل تغيير في الشهادة المثبّتة يتطلب مراجعة صريحة، حتى بالمفتاح نفسه. تتجدد الشهادات العامة كالمعتاد.';
+
+  @override
+  String get certificateBrowserBoundary =>
+      'يتم التفويض في المتصفح الخارجي. موافقة BusyMax لا تضبط ثقة المتصفح؛ يجب أن يثق المتصفح بالخادم بشكل منفصل.';
+
+  @override
+  String certificateDetails(
+    String subject,
+    String issuer,
+    String notBefore,
+    String notAfter,
+    String fingerprint,
+  ) {
+    return 'صاحب الشهادة: ⁨$subject⁩\nجهة الإصدار: ⁨$issuer⁩\nصالح من: ⁨$notBefore⁩\nصالح حتى: ⁨$notAfter⁩\nبصمة SHA-256: ⁨$fingerprint⁩';
+  }
+
+  @override
+  String certificateFailure(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'approvalRequired': 'الموافقة مطلوبة',
+      'pinMismatch': 'تغيّرت الشهادة المثبّتة',
+      'expired': 'انتهت صلاحية الشهادة',
+      'notYetValid': 'الشهادة غير صالحة بعد',
+      'hostnameMismatch': 'اسم المضيف لا يطابق الشهادة',
+      'invalidPolicy': 'إعداد جهة الإصدار الخاصة غير صالح',
+      'ineligible': 'الشهادة غير مؤهلة',
+      'verificationFailed': 'فشل التحقق من TLS',
+      'other': 'فشل التحقق من TLS',
+    });
+    return '$_temp0';
+  }
 }

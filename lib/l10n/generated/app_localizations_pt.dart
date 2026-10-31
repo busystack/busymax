@@ -3845,6 +3845,82 @@ class AppLocalizationsPt extends AppLocalizations {
   @override
   String get taskDurationRequiresStart =>
       'Set a deadline before removing the start of a task with a duration.';
+
+  @override
+  String get privateServerCertificates => 'Private server certificates';
+
+  @override
+  String get reviewServerCertificate => 'Review server certificate';
+
+  @override
+  String get certificateStandard => 'Standard HTTPS';
+
+  @override
+  String get certificatePrivateCa => 'Private certificate authority';
+
+  @override
+  String get certificatePinnedLeaf => 'Pinned self-signed certificate';
+
+  @override
+  String get certificateImportCa => 'Import private CA';
+
+  @override
+  String get certificateReplacePin => 'Review a replacement pin';
+
+  @override
+  String get certificateUseStandard => 'Return to standard HTTPS';
+
+  @override
+  String get certificateApprove => 'Approve this certificate policy';
+
+  @override
+  String get certificateReject => 'Reject';
+
+  @override
+  String get certificatePrevious => 'Previously approved certificates';
+
+  @override
+  String get certificateInvalid =>
+      'Invalid certificate or private CA configuration';
+
+  @override
+  String get certificateFirstUseWarning =>
+      'Encryption alone does not establish server identity on first use. Compare the SHA-256 fingerprint through an independently trusted administrator channel before approval.';
+
+  @override
+  String get certificateRenewalHelp =>
+      'Prefer a private CA: server certificates may renew under it. A pinned leaf requires explicit review for every certificate change, even with the same key. Public certificates renew normally.';
+
+  @override
+  String get certificateBrowserBoundary =>
+      'Browser authorization remains external. BusyMax approval does not configure browser trust; your browser must trust the server separately.';
+
+  @override
+  String certificateDetails(
+    String subject,
+    String issuer,
+    String notBefore,
+    String notAfter,
+    String fingerprint,
+  ) {
+    return 'Subject: $subject\nIssuer: $issuer\nValid from: $notBefore\nValid until: $notAfter\nSHA-256 fingerprint: $fingerprint';
+  }
+
+  @override
+  String certificateFailure(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'approvalRequired': 'Approval required',
+      'pinMismatch': 'Pinned certificate changed',
+      'expired': 'Certificate expired',
+      'notYetValid': 'Certificate not yet valid',
+      'hostnameMismatch': 'Certificate hostname mismatch',
+      'invalidPolicy': 'Invalid private CA configuration',
+      'ineligible': 'Certificate is ineligible',
+      'verificationFailed': 'TLS verification failed',
+      'other': 'TLS verification failed',
+    });
+    return '$_temp0';
+  }
 }
 
 /// The translations for Portuguese, as used in Portugal (`pt_PT`).
@@ -7692,4 +7768,80 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
   @override
   String get taskDurationRequiresStart =>
       'Defina um prazo antes de remover o início de uma tarefa com duração.';
+
+  @override
+  String get privateServerCertificates => 'Certificados de servidores privados';
+
+  @override
+  String get reviewServerCertificate => 'Rever certificado do servidor';
+
+  @override
+  String get certificateStandard => 'HTTPS padrão';
+
+  @override
+  String get certificatePrivateCa => 'Autoridade de certificação privada';
+
+  @override
+  String get certificatePinnedLeaf => 'Certificado autoassinado fixado';
+
+  @override
+  String get certificateImportCa => 'Importar AC privada';
+
+  @override
+  String get certificateReplacePin => 'Rever certificado de substituição';
+
+  @override
+  String get certificateUseStandard => 'Voltar ao HTTPS padrão';
+
+  @override
+  String get certificateApprove => 'Aprovar esta política de certificados';
+
+  @override
+  String get certificateReject => 'Rejeitar';
+
+  @override
+  String get certificatePrevious => 'Certificados aprovados anteriormente';
+
+  @override
+  String get certificateInvalid =>
+      'Certificado ou configuração da AC privada inválidos';
+
+  @override
+  String get certificateFirstUseWarning =>
+      'A encriptação, por si só, não confirma a identidade do servidor na primeira utilização. Compare a impressão digital SHA-256 com um administrador através de um canal independente e fiável antes de aprovar.';
+
+  @override
+  String get certificateRenewalHelp =>
+      'Prefira uma AC privada: os certificados do servidor podem ser renovados sob essa autoridade. Cada alteração de um certificado fixado exige revisão, mesmo com a mesma chave. Os certificados públicos renovam-se normalmente.';
+
+  @override
+  String get certificateBrowserBoundary =>
+      'A autorização utiliza o navegador externo. A aprovação no BusyMax não configura a sua confiança; o navegador tem de confiar no servidor separadamente.';
+
+  @override
+  String certificateDetails(
+    String subject,
+    String issuer,
+    String notBefore,
+    String notAfter,
+    String fingerprint,
+  ) {
+    return 'Titular: $subject\nEmissor: $issuer\nVálido desde: $notBefore\nVálido até: $notAfter\nImpressão digital SHA-256: $fingerprint';
+  }
+
+  @override
+  String certificateFailure(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'approvalRequired': 'É necessária aprovação',
+      'pinMismatch': 'O certificado fixado mudou',
+      'expired': 'Certificado expirado',
+      'notYetValid': 'Certificado ainda não válido',
+      'hostnameMismatch': 'O nome do servidor não corresponde',
+      'invalidPolicy': 'Configuração da AC privada inválida',
+      'ineligible': 'Certificado inadequado',
+      'verificationFailed': 'A verificação TLS falhou',
+      'other': 'A verificação TLS falhou',
+    });
+    return '$_temp0';
+  }
 }

@@ -106,6 +106,8 @@ class DesktopNotificationService {
     final disposition = syncFailureNotificationDisposition(error);
     final message = switch (disposition) {
       SyncFailureNotificationDisposition.suppressed => null,
+      SyncFailureNotificationDisposition.certificateReviewRequired =>
+        _strings.reviewServerCertificate,
       SyncFailureNotificationDisposition.reconnectRequired =>
         resolveEffectiveSyncFailure(error)
                 is OAuthRegistrationUnavailableException
@@ -178,6 +180,7 @@ class DesktopNotificationService {
     final message = kind == 'conflict'
         ? _strings.blockedChanges
         : switch (revision.split(':').first) {
+            'certificateReviewRequired' => _strings.reviewServerCertificate,
             'reconnectRequired' => _strings.reconnectRequired,
             'permissionChanged' => _strings.permissionChanged,
             'unsupportedProvider' => _strings.unsupportedProvider,
@@ -499,6 +502,7 @@ class NotificationStrings {
     required this.permissionChanged,
     required this.unsupportedProvider,
     required this.temporarilyUnavailable,
+    this.reviewServerCertificate = 'Review server certificate',
     required this.eventReminderBody,
     required this.taskReminderBody,
     required this.openAction,
@@ -538,6 +542,7 @@ class NotificationStrings {
       permissionChanged: l10n.davPermissionChanged,
       unsupportedProvider: l10n.davUnsupportedServer,
       temporarilyUnavailable: l10n.davTemporarilyUnavailable,
+      reviewServerCertificate: l10n.reviewServerCertificate,
       eventReminderBody: l10n.eventReminderNotificationBody,
       taskReminderBody: l10n.taskReminderNotificationBody,
       openAction: l10n.notificationOpenAction,
@@ -561,6 +566,7 @@ class NotificationStrings {
   final String permissionChanged;
   final String unsupportedProvider;
   final String temporarilyUnavailable;
+  final String reviewServerCertificate;
   final String eventReminderBody;
   final String taskReminderBody;
   final String openAction;

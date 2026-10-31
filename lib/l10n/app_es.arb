@@ -1420,5 +1420,22 @@
   "taskMoveAfterSaveFailed": "Tus cambios se guardaron, pero no se pudo mover la tarea. Vuelve a intentar moverla.",
   "taskDraftConflict": "Esta tarea ha cambiado desde que la abriste. Tus cambios se conservan. Revisa la tarea actual antes de reintentar.",
   "taskUnavailableDraftRetained": "Esta tarea no está disponible. Tus cambios sin guardar se conservan.",
-  "taskDurationRequiresStart": "Establece una fecha límite antes de quitar el inicio de una tarea con duración."
+  "taskDurationRequiresStart": "Establece una fecha límite antes de quitar el inicio de una tarea con duración.",
+  "privateServerCertificates": "Certificados de servidores privados",
+  "reviewServerCertificate": "Revisar certificado del servidor",
+  "certificateStandard": "HTTPS estándar",
+  "certificatePrivateCa": "Autoridad de certificación privada",
+  "certificatePinnedLeaf": "Certificado autofirmado fijado",
+  "certificateImportCa": "Importar CA privada",
+  "certificateReplacePin": "Revisar certificado de sustitución",
+  "certificateUseStandard": "Volver a HTTPS estándar",
+  "certificateApprove": "Aprobar esta política de certificados",
+  "certificateReject": "Rechazar",
+  "certificatePrevious": "Certificados aprobados anteriormente",
+  "certificateInvalid": "Certificado o configuración de CA privada no válidos",
+  "certificateFirstUseWarning": "El cifrado por sí solo no confirma la identidad del servidor en el primer uso. Compare la huella SHA-256 con el administrador por un canal independiente de confianza antes de aprobar.",
+  "certificateRenewalHelp": "Se recomienda una CA privada: los certificados del servidor pueden renovarse bajo ella. Cada cambio de un certificado fijado requiere revisión, incluso con la misma clave. Los certificados públicos se renuevan normalmente.",
+  "certificateBrowserBoundary": "La autorización usa el navegador externo. La aprobación de BusyMax no configura su confianza; el navegador debe confiar en el servidor por separado.",
+  "certificateDetails": "Sujeto: {subject}\nEmisor: {issuer}\nVálido desde: {notBefore}\nVálido hasta: {notAfter}\nHuella SHA-256: {fingerprint}",
+  "certificateFailure": "{reason, select, approvalRequired{Se requiere aprobación} pinMismatch{El certificado fijado ha cambiado} expired{Certificado caducado} notYetValid{Certificado aún no válido} hostnameMismatch{El nombre del servidor no coincide} invalidPolicy{Configuración de CA privada no válida} ineligible{Certificado no apto} verificationFailed{Falló la verificación TLS} other{Falló la verificación TLS}}"
 }

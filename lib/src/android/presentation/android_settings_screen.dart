@@ -1,3 +1,5 @@
+import 'android_nextcloud_certificate_dialog.dart';
+import '../../ui/common/nextcloud_certificate_review.dart';
 import 'android_contacts_settings.dart';
 import '../../l10n/oauth_error_description.dart';
 
@@ -315,6 +317,21 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                     ),
                   ),
                   onTap: () => unawaited(_editTaskList(list, accounts)),
+                ),
+              for (final account in accounts.where(
+                (a) => a.provider == BusyProvider.nextcloud,
+              ))
+                ListTile(
+                  leading: const Icon(Icons.verified_user_outlined),
+                  title: Text(context.l10n.privateServerCertificates),
+                  subtitle: Text(account.displayLabel),
+                  onTap: () => manageNextcloudCertificates(
+                    ref,
+                    account.id,
+                    (data) => mounted
+                        ? showAndroidNextcloudCertificate(context, data)
+                        : Future.value(null),
+                  ),
                 ),
               for (final account in accounts.where(
                 (account) => account.provider == BusyProvider.nextcloud,
@@ -908,10 +925,26 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
             final service = ref.read(davAccountOnboardingServiceProvider);
             accountId = reconnecting == null
                 ? (await service.connectNextcloud(
+                    reviewCertificate: (challenge, owner) =>
+                        reviewNextcloudCertificate(
+                          challenge,
+                          owner,
+                          (data) => mounted
+                              ? showAndroidNextcloudCertificate(context, data)
+                              : Future.value(null),
+                        ),
                     enteredServer: server!,
                     cancellationToken: davCancellation,
                   )).accountId
                 : (await service.reconnectNextcloud(
+                    reviewCertificate: (challenge, owner) =>
+                        reviewNextcloudCertificate(
+                          challenge,
+                          owner,
+                          (data) => mounted
+                              ? showAndroidNextcloudCertificate(context, data)
+                              : Future.value(null),
+                        ),
                     accountId: reconnecting.id,
                     enteredServer: server!,
                     cancellationToken: davCancellation,
