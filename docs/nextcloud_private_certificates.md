@@ -114,6 +114,18 @@ The shared transport preserves that exact failure and never retries it or
 converts it into `DavUnknownMutationOutcome`. Genuine post-dispatch loss keeps
 unknown-outcome/reconciliation behavior.
 
+Native interruption acceptance exposed one transport regression: TLS closure
+before a validated socket was returned, without an observed certificate
+rejection, was being converted into a certificate-review failure. This could
+pause ordinary outage recovery. The factory now reports that boundary as a
+network failure with explicit pre-dispatch evidence. It still returns no socket
+to HTTP, so no headers/body can have been sent. Observed certificate rejection
+and malformed certificate material retain their specific certificate failures;
+accepted policies are never dropped or replaced during retry. Six real-socket
+regressions reproduce the old error and cover all three trust modes through
+ordinary and terminating clients. Genuine post-dispatch losses retain their
+existing unknown-outcome/reconciliation behavior.
+
 Known trust failures pause account/contacts retries and pending writes, preserve
 caches and credentials, and use the existing durable notification deduplication
 with a **Review server certificate** state. No background enrollment/dialogs.
@@ -139,45 +151,46 @@ details, narrow layouts and larger text for all three presenters. Authorization
 tests cover failed discovery/storage/database replacement, generation checks,
 cached-data preservation and captured revocation snapshots.
 
-Verification on October 30, 2026 (Vancouver):
+Verification on October 30–31, 2026 (Vancouver):
 
 | Check | Actual result |
 |---|---|
-| Final standalone full Flutter suite, explicitly selected official SDK | **4,383 passed, 15 opt-in tests skipped, 2 failed** (Android notification coordination; details below) |
-| Focused contacts/TLS/authorization selection | 202 passed |
-| New contacts findings regressions | 18 passed, including real TLS recovery, startup, disk restart, malformed marker/envelope/policy records, expiry and cached contacts |
-| Native Linux Flutter engine | All 26 actual TLS tests passed under a temporary X display and separate D-Bus session |
-| Linux application | Debug bundle compiled |
-| Android application | Debug APK compiled; no installation performed |
-| Android native checks | 15 unit tests and app lint passed |
-| First-party shared DAV / contacts | 82 / 119 passed respectively; **zero failures or skips in either package**; both static analyses passed |
-| Static analysis, source formatting, platform boundaries | Passed |
-| Localization and generated sources | Localization/database regeneration and source-snapshot reproducibility passed; existing localization regressions included in full suite |
-| Upstream integrity | Default check passed eight protected dependencies and 1,171 SDK/runtime files; 29 verifier regression tests passed |
+| Two complete Flutter runs after notification fixture correction | **4,385 passed / 16 opt-in skips**, then **4,385 passed / 17 opt-in skips**; **zero failures in both**. The added skip is the new opt-in federation case |
+| Contacts/TLS/authorization regressions | Included in the complete suite; the 18 contacts corrections cover startup, disk restart, malformed records, expiry, recovery and cache retention |
+| Complete Flutter run after transport correction | **4,391 passed / 17 opt-in skips / zero failures** in 8m03s; the six additional cases reproduce pre-certificate connection loss |
+| Independent-cache official SDK recheck | **4,391 passed / 17 opt-in skips / zero failures** again in 9m45s; full pipeline exited 0, including shared suites, native Android checks, analysis, generation and default integrity verification |
+| Native Linux Flutter engine | All **32** actual TLS tests passed on a separate X display and D-Bus session |
+| Native Android lifecycle | Initial/background phase passed; force-stop/recovery/replacement/removal phase passed after QA-job cleanup. Two preceding concurrent-startup failures remain open; details below |
+| Native Android phone | **Seven passed** on OnePlus 6 / Android 10 (API 29, ARM64): rejection before HTTP, CA renewal/identity validation, exact pin/change/replacement, ownership/disposal isolation, actual encrypted storage, native review UI and actual CA file selection/rejection/approval |
+| Android application | Acceptance APKs built, installed and launched on the designated test runtimes; the phone had no pre-existing BusyMax package |
+| Android native checks | **15** platform unit tests passed with zero failures/skips; app lint passed |
+| First-party shared DAV / contacts | **82/82** and **119/119** passed again, respectively; zero failures or skips; both static analyses passed |
+| Static analysis, formatting and platform boundaries | Passed; formatting checked 799 maintained Dart files, excluding ignored generated execution artifacts |
+| Localization/generated sources | Localization and Drift regeneration matched the reviewed source snapshot |
+| Official SDK/upstream integrity | Default verifier passed eight protected dependencies and 1,171 SDK/runtime files; all 29 verifier regressions passed |
+| Windows | Native acceptance blocked by the existing VM's SYSTEM registry-hive boot failure; details below |
 
-An intermediate full run reported 4,384 passes, 15 live skips and one unchanged
-Windows startup-activation widget failure: its real-time wait did not observe
-the import dialog. The unchanged 16-test file passed on immediate rerun. The
-final standalone full-suite result is recorded here separately; no startup
-implementation, assertion or timing limit was changed. An unrestricted
-`dart format .` also found six old generated listeners under ignored
-`build/pr37-runtime-tmp`; formatting all 795 maintained Dart files passed without
-changes. Generated listeners were not edited or treated as source failures.
+The two previous notification failures were in an unchanged baseline fixture:
+`android_notification_reconciliation_test.dart` has the same original Git blob
+in pre-feature `daee1df` and `406665c`. The first failed while awaiting its initial
+native settings-file save, before creating either notification runtime or
+executing certificate handling. Teardown removed the directory while that save
+was outstanding; the following case also encountered a late platform-channel
+null result. The fixture writes with `flush: true` and renames real files on the
+shared host filesystem. The unchanged file and an exact baseline copy each
+passed all 64 cases under syscall tracing. Tracing observed host flush latency
+but did not reproduce the original 30-second stall; no precise kernel-level
+cause is claimed.
 
-The final full run's two failures are
-`android_notification_reconciliation_test.dart`: **independent old runtime
-cannot restore private**, for native-call-in-flight `false` and `true`.
-The first timed out after 30 seconds; teardown then removed its settings file
-while an asynchronous save remained outstanding, producing a rename failure.
-The following case encountered a platform-channel null-value error. These
-notification tests do not exercise Nextcloud TLS. No notification implementation,
-test assertions or timeout was changed. The earlier full run before adding the
-extended live cases passed 4,385 tests with 12 skips; that earlier pass does not
-override the final failures. The unchanged notification file passed all **64**
-tests on isolated rerun, including both failing cases. This establishes an
-intermittent full-suite failure, not a repaired or accepted notification path.
-The default integrity check passed again after the full run with the selected
-official SDK retained.
+`ba993ee` moves six persistence directories to the existing
+`createPersistenceTestDirectory` helper, which uses Linux tmpfs when available.
+The tests still perform actual file writes, flushes, atomic renames, native
+SQLite transactions and close/reopen recovery. No assertion, test timeout,
+notification implementation or TLS policy was changed. This removes the shared
+disk journal dependency from those coordination tests. Both previously failing
+cases passed in all four complete follow-up suites. A separate old startup-widget
+flake also passed in that full run; its implementation and assertions remain
+unchanged.
 
 The Android test-only Mockito dependency was upgraded to upstream 5.24.0 because
 5.0.0's bundled instrumentation cannot run on this host's supported Java 25.
@@ -189,8 +202,10 @@ loopback TLS reverse proxy. Server installation, app installation and fixture
 settings used supported administration commands. Authentication-delay protection
 was disabled and the calendar-creation quota raised only in this disposable
 instance so deliberate failed-credential/repeated-creation tests could run.
-Client account URLs always used HTTPS. No CA was installed in an OS/browser
-store; all keys and execution logs stayed outside tracked source.
+Client account URLs always used HTTPS. No CA was installed in an OS or normal
+browser store. Browser acceptance used
+only a disposable Firefox profile; all keys and execution logs stayed outside
+tracked source.
 
 | Live protocol matrix | Root installation | `/nextcloud` installation |
 |---|---|---|
@@ -227,6 +242,39 @@ A separate retry against an already exited child proxy was an orchestration
 error; persistent proxy sessions were used for subsequent runs. Neither failure
 was a TLS-policy failure or evidence of a successful import.
 
+The follow-up federation fixture added a second independent official Nextcloud
+35.0.1 instance. Initial `DavCollectionOutcomeUnknown` failures occurred with
+both private modes and unchanged pre-feature BusyMax `daee1df` / DAV `75bdc14`
+using ordinary HTTPS with a dedicated CA context. Server diagnostics identified
+fixture failures: server-to-server cURL error 60 (unapproved peer trust), then
+SQLite `database is locked`. Strict cURL subsequently returned HTTP 200 in both
+directions after explicit server-local certificate-bundle configuration; this
+is separate from BusyMax account trust. No OS store or TLS bypass was used.
+
+Upstream `occ db:convert-type` failed in migration/sequence handling. Instead,
+the **same two disposable containers** were initialized on fresh independent
+PostgreSQL databases using supported `maintenance:install`; original fixture
+data/configuration were preserved during testing. Calendar/Tasks versions and
+TLS endpoints remained unchanged. The official federation synchronization jobs
+were executed with supported Nextcloud commands: accepted remote calendars are
+materialized asynchronously. The test observes read-only 404 responses for up
+to 30 seconds inside its unchanged three-minute limit; it never retries a
+sharing mutation. Creation-rate exhaustion (429) was identified separately and
+only the QA `dav.rateLimitCalendarCreation` was raised to 1000.
+
+The final PostgreSQL comparisons still fail at `DavCollectionOutcomeUnknown`
+with ordinary unchanged standard HTTPS, private CA and pinned leaf. An earlier
+CA attempt confirmed invitation acceptance and peer event readback, then
+observed a retained cached event (HTTP 200) after owner-side grant removal;
+that is not a pass of the asserted revocation workflow. Other preparation
+attempts encountered server-to-server cURL timeout 28. These distinguish
+server/fixture behavior from a certificate-policy rejection, but establish no
+complete federation pass or definitive root cause for every inventory failure.
+Peer delivery, refreshed readback and revocation remain unqualified. No product
+sharing code, third-party source or uncertain-write safeguards were changed to
+force a pass. The final baseline comparison again used exact unchanged product
+and shared-package worktrees and was removed after verification.
+
 The new opt-in `nextcloud_extended_live_test.dart` exercises the actual persisted
 account client, authorization journal, import queue/replay, trash service and
 scheduling service against HTTPS. Native import was observed to queue, commit
@@ -235,37 +283,110 @@ not advertise `nc-calendar-trashbin`; free/busy stops with `DavFreeBusyDenied`
 at the existing scheduling-policy check. Restoration, permanent deletion,
 invitation/reply delivery and inbox completion therefore remain unqualified.
 These are recorded failures, not mocked passes or evidence that the guarded
-operations work. Both failures reproduce against the unchanged pre-feature
-standard-HTTPS product/DAV baseline, with native import passing there. They are
-existing service/discovery interoperability gaps, not private-TLS regressions;
-the affected product services were not changed in this correction.
+operations work. They also persisted after provisioning actual sender/recipient
+mailboxes and switching the fixture to PostgreSQL. Both failures reproduce
+against the unchanged pre-feature standard-HTTPS product/DAV baseline, with
+native import passing there. These matching baseline failures are not evidence
+of private-TLS regressions; the affected product services were not changed.
 One import rerun under load also timed out with
 `DavUnknownMutationOutcome`; that attempt has an uncertain result, not a
 certificate-failure classification. Later serial reruns are recorded below.
-Server-restart preparation initially rejected an underscore in the disposable
-member name; using the existing permitted name grammar fixed the fixture input.
-Docker then reassigned its dynamic backend port on restart. Restoring that
-fixture-only loopback route preserved the front HTTPS origin and certificate;
-durable rediscovery, update and deletion passed after the actual restart.
 
-Remaining acceptance gaps: no Windows VM/native runtime was available. ADB
-reported no attached Android device/emulator; an API 35 emulator image/AVD is
-present, but no current BusyMax build was installed, as requested. Android
-device TLS, certificate-management UI, background/foreground coordination and
-recovery therefore remain unqualified. The isolated installed Chrome 156
-profile still reported `NET::ERR_CERT_AUTHORITY_INVALID` after attempts at
-normal certificate-manager provisioning; no bypass or user/system trust-store
-change was used. Complete browser authorization and subsequent account-controller
-reconnect/revalidation/removal were not live accepted. Federation requires a
-second reachable Nextcloud peer and has not been exercised. Certificate
-replacement/removal races, concurrent clients, credential isolation and stale
-approvals pass the real-TLS/authorization regression suites; that is not a claim
-of complete device/UI account-lifecycle acceptance. Native Linux tests establish
-the bundled Linux engine boundary; release-package/OS trust-store matrices and
-platform assistive technology/manual keyboard checks remain open. Widget keyboard/narrow-layout
-checks do not replace those checks. No universal OS private-root visibility,
-revocation checking, or unverified-first-use identity guarantee is claimed.
-No user BusyMax installation/profile was changed.
+Real external-browser acceptance now uses Firefox 158 in an isolated profile,
+with ordinary certificate validation enabled. The private CA was provisioned
+only in that profile. For the self-signed peer, the certificate-viewer DER
+SHA-256 was compared with the independently held disposable fixture before
+using Firefox's normal per-server exception. No global browser bypass or
+`acceptInsecureCerts` capability was enabled.
+
+`nextcloud_browser_lifecycle_live_test.dart` passed with **both private CA and
+pinned leaf** against the actual Nextcloud server. It covers explicit rejection,
+cancellation before authorization, normal browser login/Grant, discovery and
+account commit, reconnect, credential revalidation, stale approval rejection,
+failed return to standard HTTPS preserving the previous policy, explicit trust
+replacement, CA renewal, changed-pin rejection with unchanged application-request
+count, network interruption/recovery, local-first removal and captured remote
+revocation followed by authentication rejection. SQLite is closed/reopened and
+journal recovery is run. This browser fixture uses an in-memory secret store;
+it does **not** establish native secure-storage process-crash recovery.
+
+The existing VirtualBox VM was discovered as **Windows 11**, UUID
+`474b7e1c-3ee7-4260-9d28-f6ce97c6f8e3`. Its saved desktop initially resumed and
+exposed the pristine official Flutter 3.47.5 SDK. The VM then stopped unexpectedly;
+cold boot reports **0xc000014c**, `\Windows\system32\config\system`.
+No snapshots were present, and no known-good recovery point could be verified.
+Before recovery,
+the full disk, configuration, NVRAM and saved state were preserved under
+`/mnt/Media/busystack/windows-vm-preserved-20261030-224330`.
+Official Microsoft recovery media was downloaded and matched Microsoft's
+published SHA-256. The DVD booted; selecting **Repair my PC** returned to the
+same hive error before Startup Repair became available. The bounded attempt
+stopped there: no reinstall, reset, registry replacement or new VM. The
+original optical drive, boot order and bridged NIC configuration were restored.
+Windows native TLS, storage/restart and management UI remain **unaccepted**;
+a bootable existing VM or known-good recovery data is needed.
+
+Android initially suffered a VirtualBox/KVM conflict and unstable software
+emulation. The software-emulated storage test exceeded its normal timeout and
+later completed during another test; it is not a platform pass. A stale process
+belonging to this same Windows VM was stopped after preservation/recovery,
+allowing the isolated KVM emulator to boot again. One retry encountered a
+stopped TLS-fixture peer and was classified as an orchestration failure.
+The connected physical phone passed all six native core checks in seven
+seconds, including the previously delayed secure-storage case. After the
+transport correction it passed all **seven** maintained checks, including real
+Android DocumentsUI selection of the disposable public CA, explicit rejection,
+then explicit import approval and a successful CA-authenticated request. These
+checks use actual sockets, native secure storage and Android dialogs. File-picker
+automation initially selected the search field and an obscured file; those
+automation attempts did not authorize a connection. Exact native title selection
+completed the maintained test without weakening assertions or changing timeouts.
+
+The new Android lifecycle probe uses the production runtime, real Nextcloud
+accounts, secure storage, authorization journal, native account gates and
+WorkManager; it does not override transports or synchronization. Its first
+background attempts were blocked by Android's explicitly unmet validated-network
+constraint. The phone connection
+was subsequently validated. The first lifecycle phase passed in 21 seconds:
+two separately owned CA/pinned accounts, native encrypted credentials/journal,
+foreground synchronization, real WorkManager synchronization, selectable
+certificate details and the actual Android settings presenter.
+
+After force-stop/restart, two attempts failed at `COMMIT TRANSACTION` during
+`NotificationScheduleService.rebuildUpcomingNotifications`, before certificate
+handling. Native logs show the previously retained periodic sync and notification
+refill workers starting concurrently. `android_background.dart`,
+`app_database.dart` and `notification_schedule_service.dart` are byte-for-byte
+unchanged from pre-feature `daee1df`. This is an observed native startup
+coordination failure in unchanged code, not the earlier Linux test-fixture flush
+stall; a complete baseline Android binary comparison was not performed.
+It remains an open acceptance issue and is not hidden by the full-suite pass.
+
+After clearing only the QA app's retained WorkManager jobs through the supported
+plugin API, the **unchanged second lifecycle phase passed in 64 seconds** after
+an actual force-stop (a different PID is asserted). Both credential/policy records
+survived process death. Production background workers accepted CA leaf renewal;
+a changed pin produced the exact persisted review state, no additional
+application requests, and retained caches/pending changes while the other
+account continued. The actual settings UI displayed old/new fingerprints,
+rejected one replacement without changing generation, then explicitly approved
+the exact replacement. Background work resumed and replayed the retained write.
+Listener interruption stayed an ordinary network error after `474add6` and
+recovered without dropping trust. Removal used the captured policies, committed
+locally and revoked both app passwords; authenticated readback returned 401 and
+accounts, credentials and authorization journals were empty. These results
+qualify those operations on the tested phone; they do not erase the concurrent
+startup failure or establish a release-package/API-level matrix.
+
+Certificate replacement/removal races, concurrent clients, credential isolation
+and stale approvals also pass the real-TLS/authorization regression suites.
+These do not establish unavailable Windows behavior. Release-package/OS
+trust-store matrices and platform assistive-technology checks remain open;
+widget checks do not replace them. No universal OS private-root visibility,
+revocation checking or unverified-first-use identity guarantee is claimed.
+The initially absent Android QA package and its public certificate file were
+removed, only QA ADB forwards were removed, and the original USB-awake setting
+was restored. No normal desktop BusyMax installation/profile was changed.
 
 The previous SDK discrepancy came from a pre-existing modified `pubspec.lock`
 in `/home/albert/flutter`. That tree remains untouched. This follow-up actually
@@ -273,11 +394,14 @@ selects `/tmp/busymax-official-flutter-6a19cca`, pristine official Flutter
 `6a19cca56475dbfba1478ee68d7bd0c2ef891da1`, for `pub get --enforce-lockfile`,
 tests, analysis, code generation and native checks. Direct Dart commands also
 set `FLUTTER_ROOT` to that checkout: otherwise the shared cache's physical path
-can cause Dart's automatic package resolution to reselect the older SDK.
+can cause Dart's automatic package resolution to reselect the pre-existing SDK.
 This reselection was caught by a failing integrity recheck and corrected before
 the final standalone run. Package resolution and
-Android `flutter.sdk` point at that checkout. The ordinary integrity command
-passes **without `--sdk` override**, checking the selected source and verified
+Android `flutter.sdk` point at that checkout. The checkout has no tracked SDK
+changes. The final recheck uses an independent, unchanged copy of the
+publisher-verified runtime cache, so Flutter also reports the selected checkout
+as its runtime root. Earlier checks used a shared cache link. The ordinary
+integrity command passes **without `--sdk` override**, checking the selected source and verified
 cached official runtime together. No checker was weakened and no SDK or
 third-party source was patched, downgraded or distributed.
 
@@ -302,17 +426,21 @@ for here; skipping is not platform or protocol acceptance:
 | User/group sharing | Corrected fixture passed with private CA and unchanged standard HTTPS; actual reader access revocation verified |
 | Large 128-member collection | Passed alone in 19 seconds; the earlier loaded attempt timed out at five minutes |
 | Server restart prepare/verify (two cases) | Passed with private CA across an actual container restart and unchanged front TLS identity |
-| Complete browser Login Flow | Blocked by isolated browser trust provisioning; no bypass used |
+| Complete browser Login Flow and new lifecycle driver (two opt-in cases) | New driver passed separately with private CA and pinned leaf using a normally validating isolated Firefox profile |
 | iCloud semantics and iCloud atomic lifecycle (two cases) | Outside this Nextcloud change; no disposable iCloud credentials supplied, not rerun |
 | Native import (new extended case) | Passed alone in all four private-mode/root/subpath cells; one loaded rerun timed out with unknown outcome |
-| Trash restore/permanent deletion (new extended case) | Failed at `DavTrashUnsupported`; guarded operations unqualified |
-| Scheduling free/busy and inbox (new extended case) | Failed at `DavFreeBusyDenied`; inbox/delivery unqualified |
+| Trash restore/permanent deletion (extended case) | Failed at `DavTrashUnsupported` with standard baseline, private CA and pinned leaf; guarded operations unqualified |
+| Scheduling free/busy and inbox (extended case) | Failed at `DavFreeBusyDenied` with standard baseline, private CA and pinned leaf; inbox/delivery unqualified |
+| Federation to an independent HTTPS Nextcloud peer (new case) | Matching `DavCollectionOutcomeUnknown` with both private modes and unchanged ordinary baseline, including fresh PostgreSQL fixtures. No complete end-to-end pass; server/fixture issues and the partial cached-read result are detailed above |
 
-Release recommendation: **NO-GO** until Windows and Android device acceptance,
-complete browser/account lifecycle, scheduling/trash interoperability and
-federation are qualified, and the intermittent full-suite notification failures
-are resolved. Passing Linux/unit/widget tests or APK compilation
-does not close those gaps.
+Release recommendation: **NO-GO**. Windows native acceptance is unavailable,
+and the observed concurrent Android notification startup failure remains open.
+The successful phone operations and browser lifecycle tests do not erase those
+gaps. Scheduling and trash have matching unchanged standard-HTTPS baseline
+failures, with guarded end-to-end operations still unqualified. Federation's
+fixture failures are separately classified above; no TLS or uncertain-write
+safeguards were relaxed to produce a pass. Passing Linux/unit/widget tests or
+compilation cannot close unverified native behavior.
 
 Run the focused suite, then the full applicable Flutter suite, static analysis,
 platform boundaries, generated-source reproducibility, shared DAV/contacts
@@ -326,12 +454,41 @@ credentials and trust, plus `BUSYMAX_NEXTCLOUD_EXTENDED_LIVE=1` and
 `BUSYMAX_NEXTCLOUD_EXTENDED_LIVE_RECIPIENT` for a disposable attendee's email.
 It creates and deletes its own collections and objects. Run live suites
 serially against a SQLite fixture; overlapping mutating runs produced database
-locks and 500 responses, which disappeared on serial rerun. Do not run other
-build/test/generation jobs against the same checkout during final acceptance.
+locks and 500 responses. Use a supported PostgreSQL fixture and normal server
+federation jobs for concurrent server-to-server federation acceptance. Do not
+run other build/test/generation jobs against the same checkout during final acceptance.
 Run both private modes at the root and at a subpath, and record browser,
 discovery, sync, mutations, completion, reconnect and revocation results before
 making release interoperability claims. Never use personal accounts for these
 mutating/revoking fixtures.
+
+The maintained native probe uses `tool/nextcloud_native_tls_host.dart` with a
+temporary output path. Pass that JSON file to
+`integration_test/nextcloud_native_certificate_test.dart` with
+`--dart-define-from-file`; on Android reverse only the printed loopback ports.
+`BUSYMAX_NATIVE_CA_PICKER=true` enables the real file-selector case; provision
+only its public CA as `BusyMax-certificate-QA.crt` in the test device's Downloads.
+Run on an explicitly isolated test app/profile and remove the test installation
+and public file afterward.
+
+The separate Android lifecycle probe runs twice with `--no-uninstall`, the same
+`BUSYMAX_NEXTCLOUD_ANDROID_QA` base64 JSON define, and an actual force-stop
+between runs. Its fixture has a unique `runId` and two `accounts`: separate
+`id`, HTTPS `authority`, `mode` (`private_ca` / `pinned_leaf`), approved public
+`certificate`, `replacement`, disposable `username`/`password`, and loopback-only
+`control`/`nonce`. The disposable server control implements `/change`, `/counts`,
+`/offline` and `/online`; it changes actual TLS listeners and records application
+request counts. Store this credential-bearing define outside source. Do not
+clear or replace account trust to make a resumed probe pass. The observed
+concurrent-startup failure above remains a required separate check.
+
+The browser driver uses `BUSYMAX_NEXTCLOUD_BROWSER_LIFECYCLE=1`, the existing
+`BUSYMAX_NEXTCLOUD_LOGIN_LIVE_*` HTTPS/credential/certificate variables and
+`BUSYMAX_NEXTCLOUD_BROWSER_DRIVER`. That executable receives the actual browser
+URL and must complete Login Flow v2 in an isolated normally validating browser.
+`BUSYMAX_NEXTCLOUD_FIXTURE_CONTROL` names a Python driver for the disposable
+server's change/count/offline/online controls. Never point these mutating/revoking
+probes at a personal server/account.
 
 References: [Dart connection factory](https://api.dart.dev/dart-io/HttpClient/connectionFactory.html),
 [Dart callback semantics](https://api.dart.dev/dart-io/HttpClient/badCertificateCallback.html),
