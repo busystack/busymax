@@ -28,6 +28,8 @@ import '../../dav/http/dav_http_transport.dart';
 import '../../dav/mutation/dav_conflict_repository.dart';
 import '../../dav/nextcloud/nextcloud_sharing_service.dart';
 import '../../dav/nextcloud/nextcloud_trash_service.dart';
+import '../../dav/nextcloud/nextcloud_federation_controller.dart';
+import '../../l10n/nextcloud_collection_error_description.dart';
 import '../../features/accounts/data/accounts_repository.dart';
 import '../../features/accounts/domain/account_collection_creation_capabilities.dart';
 import '../../features/calendar/data/calendar_repository.dart';
@@ -344,6 +346,21 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                     MaterialPageRoute(
                       builder: (_) =>
                           AndroidNextcloudTrashScreen(accountId: account.id),
+                    ),
+                  ),
+                ),
+              for (final account in accounts.where(
+                (account) => account.provider == BusyProvider.nextcloud,
+              ))
+                ListTile(
+                  leading: const Icon(Icons.mark_email_unread_outlined),
+                  title: Text(context.l10n.nextcloudFederationInvitations),
+                  subtitle: Text(account.displayLabel),
+                  onTap: () => Navigator.of(context).push<void>(
+                    MaterialPageRoute(
+                      builder: (_) => AndroidNextcloudFederationScreen(
+                        accountId: account.id,
+                      ),
                     ),
                   ),
                 ),
@@ -2322,7 +2339,9 @@ class _AndroidNextcloudSharingScreenState
                       ),
                       title: Text(share.recipient.label),
                       subtitle: Text(
-                        share.writable
+                        share.recipient.federated
+                            ? context.l10n.nextcloudFederationGrant
+                            : share.writable
                             ? context.l10n.nextcloudWriteAccess
                             : context.l10n.nextcloudReadAccess,
                       ),
@@ -2456,7 +2475,19 @@ class _AndroidNextcloudTrashScreenState
               ListTile(
                 leading: const Icon(Icons.error_outline),
                 title: Text(context.l10n.operationFailed),
-                subtitle: Text('$_error'),
+                subtitle: Text(
+                  localizedNextcloudCollectionError(context.l10n, _error),
+                ),
+              ),
+            if (_listing?.retentionSeconds case final seconds?)
+              ListTile(
+                title: Text(
+                  seconds == 0
+                      ? context.l10n.nextcloudTrashDisabled
+                      : context.l10n.nextcloudTrashRetention(
+                          (seconds / 86400).ceil(),
+                        ),
+                ),
               ),
             if (!_busy && items.isEmpty && _error == null)
               ListTile(title: Text(context.l10n.nextcloudTrashEmpty)),
@@ -2473,6 +2504,7 @@ class _AndroidNextcloudTrashScreenState
                 title: Text(item.title),
                 subtitle: item.deletedAt == null ? null : Text(item.deletedAt!),
                 trailing: PopupMenuButton<String>(
+                  key: ValueKey(('nextcloud-trash-menu', item.href.toString())),
                   onSelected: (value) =>
                       unawaited(_act(item, permanent: value == 'delete')),
                   itemBuilder: (context) => [
@@ -2770,6 +2802,111 @@ class _AndroidRegistrationCard extends ConsumerWidget {
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class AndroidNextcloudFederationScreen extends ConsumerStatefulWidget {
+  const AndroidNextcloudFederationScreen({super.key, required this.accountId});
+  final String accountId;
+  @override
+  ConsumerState<AndroidNextcloudFederationScreen> createState() =>
+      _AndroidNextcloudFederationScreenState();
+}
+
+class _AndroidNextcloudFederationScreenState
+    extends ConsumerState<AndroidNextcloudFederationScreen> {
+  late final NextcloudFederationController model;
+  @override
+  void initState() {
+    super.initState();
+    model = NextcloudFederationController(
+      ref.read(nextcloudFederationServiceProvider(widget.accountId)),
+    )..addListener(_changed);
+    unawaited(model.load());
+  }
+
+  void _changed() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    model.removeListener(_changed);
+    model.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final enabled = !model.busy && model.error == null && !model.refreshPending;
+    return PopScope(
+      canPop: !model.busy,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(l10n.nextcloudFederationInvitations),
+          actions: [
+            IconButton(
+              tooltip: l10n.refresh,
+              onPressed: model.busy ? null : model.load,
+              icon: const Icon(Icons.refresh),
+            ),
+          ],
+        ),
+        body: RefreshIndicator(
+          onRefresh: model.load,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              if (model.busy) const LinearProgressIndicator(),
+              if (model.error != null)
+                ListTile(
+                  title: Text(
+                    localizedNextcloudCollectionError(l10n, model.error),
+                  ),
+                ),
+              if (model.refreshPending)
+                ListTile(title: Text(l10n.nextcloudRefreshPending)),
+              if (model.invitations?.isEmpty == true)
+                ListTile(title: Text(l10n.nextcloudFederationEmpty)),
+              for (final invitation in model.invitations ?? [])
+                Card(
+                  child: Column(
+                    children: [
+                      ListTile(
+                        title: Text(invitation.displayName),
+                        subtitle: Text(invitation.sharedBy),
+                      ),
+                      OverflowBar(
+                        children: [
+                          FilledButton(
+                            key: ValueKey(
+                              'nextcloud-federation-accept-${invitation.id}',
+                            ),
+                            onPressed: enabled
+                                ? () => model.respond(invitation, accept: true)
+                                : null,
+                            child: Text(l10n.acceptInvitation),
+                          ),
+                          TextButton(
+                            key: ValueKey(
+                              'nextcloud-federation-decline-${invitation.id}',
+                            ),
+                            onPressed: enabled
+                                ? () => model.respond(invitation, accept: false)
+                                : null,
+                            child: Text(l10n.declineInvitation),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );

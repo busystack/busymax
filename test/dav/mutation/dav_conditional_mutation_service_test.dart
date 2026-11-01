@@ -14,6 +14,75 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  test('scheduling retries preserve a concurrent attendee reply and refresh both validators', () async {
+    final baseline = _event('Before').replaceFirst(
+      'END:VEVENT',
+      'ORGANIZER:mailto:owner@example.test\r\nATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:guest@example.test\r\nEND:VEVENT',
+    );
+    var raw = baseline, version = 1, puts = 0;
+    final client = MockClient((request) async {
+      if (request.method == 'GET') {
+        return http.Response(
+          raw,
+          200,
+          headers: {
+            'etag': '"etag-$version"',
+            'schedule-tag': '"schedule-$version"',
+          },
+        );
+      }
+      expect(request.method, 'PUT');
+      puts++;
+      expect(request.headers['if-match'], '"etag-$version"');
+      expect(request.headers['if-schedule-tag-match'], '"schedule-$version"');
+      if (puts == 1) {
+        raw = raw.replaceFirst('PARTSTAT=NEEDS-ACTION', 'PARTSTAT=ACCEPTED');
+        version++;
+        return http.Response('', 412);
+      }
+      expect(request.body, contains('PARTSTAT=ACCEPTED'));
+      raw = request.body;
+      version++;
+      return http.Response('', 204);
+    });
+    addTearDown(client.close);
+    final profile = davProviderProfile(
+      BusyProvider.nextcloud,
+      nextcloudServer: Uri.parse('https://cloud.example.test'),
+    );
+    final service = DavConditionalMutationService(
+      implicitScheduling: true,
+      remoteClient: DavMutationHttpClient(
+        useScheduleTags: true,
+        transport: DavHttpTransport(
+          client: client,
+          profile: profile,
+          accountAuthority: profile.bootstrapUri,
+        ),
+        accountId: 'account',
+        collectionId: 'collection',
+        credential: DavBasicCredential(username: 'owner', password: 'qa'),
+      ),
+    );
+    final result = await service.update(
+      hrefKey: _href,
+      uri: _uri,
+      baselineEtag: '"etag-1"',
+      baselineRawIcs: baseline,
+      patch: DavMutationPatch(
+        target: _target,
+        scope: DavMutationScope.object,
+        operations: [DavPatchOperation.setText('SUMMARY', 'After')],
+      ),
+      capabilities: _writable,
+      correlationId: 'schedule-concurrency',
+    );
+    expect(result.outcome, DavMutationOutcome.succeeded);
+    expect(result.canonicalObject!.rawIcsBody, contains('SUMMARY:After'));
+    expect(result.canonicalObject!.rawIcsBody, contains('PARTSTAT=ACCEPTED'));
+    expect(puts, 2);
+  });
+
   test('implicit scheduling adopts a confirmed server-modified meeting exactly once', () async {
     var puts = 0;
     final intended = _event('Meeting').replaceFirst(

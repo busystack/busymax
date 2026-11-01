@@ -13,6 +13,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../../app/app_bootstrap.dart';
+import '../../l10n/nextcloud_collection_error_description.dart';
 import '../../contacts/busymax_contacts_controller.dart';
 import '../../calendar_providers/calendar_mutation.dart';
 import '../../calendar_providers/calendar_provider_capabilities.dart';
@@ -1954,6 +1955,16 @@ Future<bool> showWindowsEventEditorDialog(
                               guestUpdatePolicy: guestUpdatePolicy,
                             );
                           }
+                          if (selectedSource.provider ==
+                              BusyProvider.nextcloud) {
+                            ref
+                                .read(
+                                  pendingCalendarMutationSyncRequesterForAccountProvider(
+                                    draft.accountId,
+                                  ),
+                                )
+                                .request();
+                          }
                           saved = true;
                           closeDialog();
                         } on Object catch (failure) {
@@ -1961,6 +1972,12 @@ Future<bool> showWindowsEventEditorDialog(
                             saving = false;
                             error = failure is SeriesTimingDecisionRequired
                                 ? failure.message
+                                : selectedSource.provider ==
+                                      BusyProvider.nextcloud
+                                ? localizedNextcloudCollectionError(
+                                    l10n,
+                                    failure,
+                                  )
                                 : l10n.operationFailed;
                           });
                         }

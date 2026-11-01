@@ -21,6 +21,8 @@ final class NextcloudSchedulingPolicy {
     required this.canReply,
     required this.canQueryFreeBusy,
     required this.federated,
+    this.canReadInbox = false,
+    this.canAcknowledgeInbox = false,
   });
   final Set<String> addresses;
   final Uri? outbox;
@@ -30,6 +32,7 @@ final class NextcloudSchedulingPolicy {
   final bool canReply;
   final bool canQueryFreeBusy;
   final bool federated;
+  final bool canReadInbox, canAcknowledgeInbox;
   String? get organizerAddress =>
       addresses.where((a) => a.startsWith('mailto:')).firstOrNull;
   Map<String, Object?> get projection => {
@@ -83,14 +86,13 @@ final class NextcloudSchedulingPolicy {
     final federated =
         metadata['federated'] == true ||
         owner.split('/').contains('remote-users');
-    final features = (capabilities['serverFeatures'] as List? ?? const [])
-        .whereType<String>()
-        .toSet();
+    final features = context?.serverFeatures ?? const <String>{};
     final types = (jsonDecode(collection.resourceTypesJson) as List)
         .whereType<String>()
         .toSet();
     final supported =
         features.contains('calendar-auto-schedule') &&
+        service?.lastDiscoveryErrorCode == null &&
         context != null &&
         !collection.deleted &&
         !collection.serverMissing &&
@@ -98,6 +100,15 @@ final class NextcloudSchedulingPolicy {
         !types.contains('{http://calendarserver.org/ns/}subscribed') &&
         collection.eventProjectionEnabled;
     final privileges = context?.outboxPrivileges ?? const <String>{};
+    final inboxPrivileges = context?.inboxPrivileges ?? const <String>{};
+    final inboxAvailable =
+        context?.scheduleInboxHref != null &&
+        service?.lastDiscoveryErrorCode == null;
+    bool inboxPrivilege(String name) =>
+        inboxAvailable &&
+        (inboxPrivileges.contains('{DAV:}all') ||
+            inboxPrivileges.contains('{DAV:}$name') ||
+            (name == 'unbind' && inboxPrivileges.contains('{DAV:}write')));
     bool send(String name) =>
         supported &&
         context.scheduleOutboxHref != null &&
@@ -117,6 +128,8 @@ final class NextcloudSchedulingPolicy {
       canReply: send('schedule-send-reply'),
       canQueryFreeBusy: send('schedule-send-freebusy'),
       federated: federated,
+      canReadInbox: inboxPrivilege('read'),
+      canAcknowledgeInbox: inboxPrivilege('read') && inboxPrivilege('unbind'),
     );
   }
 

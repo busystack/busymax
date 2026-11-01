@@ -247,6 +247,34 @@ class AppLocalizationsEs extends AppLocalizations {
       '¿Eliminar este elemento permanentemente? No podrá restaurarse desde la papelera de calendarios de Nextcloud.';
 
   @override
+  String get nextcloudDiscoveryRequired =>
+      'Actualiza esta cuenta para renovar las funciones y los permisos de Nextcloud.';
+
+  @override
+  String get nextcloudConflict =>
+      'El elemento o sus permisos han cambiado. Actualiza y revísalo antes de volver a intentarlo.';
+
+  @override
+  String get nextcloudItemUnavailable =>
+      'Este elemento ya no está disponible. Actualiza para comprobar su estado.';
+
+  @override
+  String get nextcloudFederationInvitations =>
+      'Invitaciones a calendarios compartidos';
+
+  @override
+  String get nextcloudFederationEmpty =>
+      'No hay invitaciones pendientes a calendarios compartidos.';
+
+  @override
+  String get nextcloudFederationGrant =>
+      'Se ha creado el recurso compartido en este servidor. La aceptación y sincronización remotas no están confirmadas.';
+
+  @override
+  String get nextcloudTrashDisabled =>
+      'Este servidor no conserva los elementos eliminados del calendario.';
+
+  @override
   String get nextcloudOperationDenied =>
       'Nextcloud no permitió esta operación.';
 

@@ -32,6 +32,7 @@ import '../../features/tasks/data/tasks_repository.dart';
 import '../../features/recurrence/domain/event_recurrence_codec.dart';
 import '../../features/recurrence/domain/recurrence_rule.dart';
 import '../../l10n/l10n.dart';
+import '../../l10n/nextcloud_collection_error_description.dart';
 import '../../l10n/time_format_scope.dart';
 import '../../l10n/week_preferences_scope.dart';
 import '../../microsoft_calendar/microsoft_calendar_models.dart';
@@ -754,6 +755,11 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
                       title: Text(
                         scheduleEventAttendeeLabel(context, attendee),
                       ),
+                      subtitle: attendee['scheduleStatus'] == null
+                          ? null
+                          : Text(
+                              '${context.l10n.nextcloudSchedulingStatus}: ${attendee['scheduleStatus']}',
+                            ),
                     ),
                   if (item.joinMeetingUrl case final meetingLink?)
                     FilledButton.icon(
@@ -1149,7 +1155,11 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            context.l10n.invitationResponseFailed(redactForLog(error)),
+            context.l10n.invitationResponseFailed(
+              item.provider == BusyProvider.nextcloud
+                  ? localizedNextcloudCollectionError(context.l10n, error)
+                  : redactForLog(error),
+            ),
           ),
         ),
       );
@@ -3665,8 +3675,15 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
       }
     } on Object catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('$error')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _provider == BusyProvider.nextcloud
+                  ? localizedNextcloudCollectionError(context.l10n, error)
+                  : '$error',
+            ),
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -3770,8 +3787,15 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
       }
     } on Object catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('$error')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _provider == BusyProvider.nextcloud
+                  ? localizedNextcloudCollectionError(context.l10n, error)
+                  : '$error',
+            ),
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _saving = false);

@@ -234,6 +234,29 @@ class AppLocalizationsJa extends AppLocalizations {
       'この項目を完全に削除しますか？Nextcloud のカレンダーのごみ箱からは復元できなくなります。';
 
   @override
+  String get nextcloudDiscoveryRequired =>
+      'このアカウントを更新して、Nextcloud の機能と権限を更新してください。';
+
+  @override
+  String get nextcloudConflict => '項目または権限が変更されました。更新して確認してから再試行してください。';
+
+  @override
+  String get nextcloudItemUnavailable => 'この項目は利用できなくなりました。更新して現在の状態を確認してください。';
+
+  @override
+  String get nextcloudFederationInvitations => '共有カレンダーへの招待';
+
+  @override
+  String get nextcloudFederationEmpty => '保留中の共有カレンダーへの招待はありません。';
+
+  @override
+  String get nextcloudFederationGrant =>
+      'このサーバーで共有を作成しました。相手側の承認と同期は確認されていません。';
+
+  @override
+  String get nextcloudTrashDisabled => 'このサーバーではカレンダーのごみ箱への保存が無効です。';
+
+  @override
   String get nextcloudOperationDenied => 'Nextcloud はこの操作を許可しませんでした。';
 
   @override

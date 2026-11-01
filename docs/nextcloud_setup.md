@@ -110,10 +110,8 @@ setup.
 
 Dart-owned TLS has platform-specific trust sources; an OS-installed private CA
 is not a portable way to configure BusyMax. Import approved private material in
-BusyMax. Packaged-runtime verification and remaining acceptance gaps are tracked
-in the [engineering note](nextcloud_private_certificates.md). Windows native
-and Android device acceptance are still pending; Linux tests and APK builds do
-not establish those results.
+BusyMax. Certificate design and recovery are documented in the
+[engineering note](nextcloud_private_certificates.md).
 
 ## Permissions and collection settings
 
@@ -141,25 +139,52 @@ Collection settings expose sharing, publishing, and removal controls when
 Nextcloud advertises them and the account has permission. Write access to event
 or task content does not automatically grant sharing administration.
 
-For a server that supports calendar federation, enter a remote calendar
-recipient as `<username>@<instance>` in the existing sharing search. If no
-local user or group matches, BusyMax offers the federated recipient and sends
-the share request to your own Nextcloud server. Nextcloud 32 supports
-read-only federated calendar shares; remote write access requires Nextcloud 33
-or later, and the server administrator can disable federation. A failed or
-unsupported share is not saved locally as a successful grant. Verify the
-recipient and role in Nextcloud Calendar after sharing.
+For a server that supports calendar federation, use the recipient's canonical
+**Cloud ID**, including any port and installation subpath. BusyMax sends the
+request to your own Nextcloud server. A grant on the owner's server does not
+prove peer delivery or remote acceptance. Open **Shared calendar invitations**
+in the recipient account settings to refresh, accept, or decline invitations.
+Acceptance is followed by calendar discovery and the server's federation
+synchronization. Writable shares support the components and permissions the
+server advertises; federated calendars do not support automatic meeting
+scheduling. Revocation stops origin authorization immediately, while an already
+cached recipient calendar disappears after the server's federation background
+job processes it.
+
+Both servers need reachable canonical HTTPS URLs, correct DNS, mutually valid
+certificate chains, enabled federation and functioning background jobs. BusyMax's
+account-local certificate approval does not configure server-to-server trust.
+A successful HTTP sharing response alone cannot establish successful peer
+delivery. Permission, peer delivery, refresh and uncertain-outcome failures
+remain distinct in BusyMax.
 
 For supported calendars, organizers can manage guests and attendees can
 respond from event details. Recurring responses require the offered
 occurrence-or-series choice. BusyMax also exposes guest availability and the
-scheduling inbox when the server provides them.
+scheduling inbox when the discovered endpoint privileges permit them. An inbox
+message can be acknowledged independently of its corresponding calendar event.
+Unknown or failed free/busy responses are shown as unknown availability.
 
-Meeting changes synchronize through the selected Nextcloud calendar. **A
-response saved locally is pending work, not proof that the server delivered
-it.** Confirm important invitations, replies, and cancellations with the
-recipient or Nextcloud Calendar. Federation and permission differences can
-disable meeting actions.
+Meeting changes use CalDAV automatic scheduling through the selected calendar;
+BusyMax does not separately send duplicate invitations or replies. A response
+saved locally remains queued until synchronization. A stored server event is
+not proof of delivery to every attendee. Inspect available attendee delivery
+statuses and confirm important invitations with recipients. Nextcloud requires
+valid calendar-user email addresses and a default scheduling calendar. External
+invitation mail also requires configured SMTP and the Groupware invitation
+setting. Administrators may disable external invitations or free/busy separately.
+
+Existing accounts obtain endpoint-specific capabilities during normal
+rediscovery, preserving cached collections and queued changes. A failed
+rediscovery retains cached content and requires a successful refresh before
+administrative actions can proceed.
+
+Qualification uses Nextcloud 35.0.2 with Calendar 6.6.4 and Tasks 0.18.1.
+One server delivery limitation remains: with working SMTP and external invitations,
+removing an external attendee did not send cancellation mail, both through
+BusyMax and a minimal conditional CalDAV update. The opt-in external-cancellation
+acceptance test retains this failure. BusyMax relies on the server's automatic
+scheduling and does not send a duplicate cancellation as a workaround.
 
 ## Import and export
 
@@ -179,13 +204,23 @@ scheduling, and import/export semantics.
 ## Deleted items
 
 Open **Deleted calendars and tasks** from account or source management to view
-items exposed by Nextcloud's CalDAV trash support. Restoration follows the
-current permissions and destination reported by the server; expired entries or
-collisions can prevent restoration.
+deleted events, tasks, calendars, task lists and mixed collections exposed by
+Nextcloud's CalDAV trash support. This is separate from Nextcloud Files trash.
+Restoration follows the current permissions and destination reported by the
+server; expired entries or collisions can prevent restoration.
 
 Ordinary deletion uses Nextcloud's normal trash behavior. **Permanently
-delete** is a separate, confirmed action. A successful restore is not treated
-as complete until the list refreshes.
+delete** is a separate, confirmed action. Restore uses the original server
+resource, preserving its UID and properties.
+Pending changes in the affected collection must be resolved before restoration,
+so an old queued deletion cannot immediately delete a restored resource again.
+A committed operation whose refresh fails is shown as awaiting refresh; an
+uncertain MOVE or DELETE is never automatically repeated.
+
+Nextcloud's retention duration is displayed when available. A zero duration
+means retention is disabled, so newly deleted content cannot be recovered from
+trash. Expired or already-restored entries and changed permissions require a
+fresh listing before further actions.
 
 ## Reconnect, revoke, or remove
 

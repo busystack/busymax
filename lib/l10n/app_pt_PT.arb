@@ -1374,5 +1374,12 @@
   "certificateRenewalHelp": "Prefira uma AC privada: os certificados do servidor podem ser renovados sob essa autoridade. Cada alteração de um certificado fixado exige revisão, mesmo com a mesma chave. Os certificados públicos renovam-se normalmente.",
   "certificateBrowserBoundary": "A autorização utiliza o navegador externo. A aprovação no BusyMax não configura a sua confiança; o navegador tem de confiar no servidor separadamente.",
   "certificateDetails": "Titular: {subject}\nEmissor: {issuer}\nVálido desde: {notBefore}\nVálido até: {notAfter}\nImpressão digital SHA-256: {fingerprint}",
-  "certificateFailure": "{reason, select, approvalRequired{É necessária aprovação} pinMismatch{O certificado fixado mudou} expired{Certificado expirado} notYetValid{Certificado ainda não válido} hostnameMismatch{O nome do servidor não corresponde} invalidPolicy{Configuração da AC privada inválida} ineligible{Certificado inadequado} verificationFailed{A verificação TLS falhou} other{A verificação TLS falhou}}"
+  "certificateFailure": "{reason, select, approvalRequired{É necessária aprovação} pinMismatch{O certificado fixado mudou} expired{Certificado expirado} notYetValid{Certificado ainda não válido} hostnameMismatch{O nome do servidor não corresponde} invalidPolicy{Configuração da AC privada inválida} ineligible{Certificado inadequado} verificationFailed{A verificação TLS falhou} other{A verificação TLS falhou}}",
+  "nextcloudDiscoveryRequired": "Atualize esta conta para atualizar as funcionalidades e permissões do Nextcloud.",
+  "nextcloudConflict": "O item ou as suas permissões foram alterados. Atualize e reveja antes de tentar novamente.",
+  "nextcloudItemUnavailable": "Este item já não está disponível. Atualize para verificar o estado atual.",
+  "nextcloudFederationInvitations": "Convites para calendários partilhados",
+  "nextcloudFederationEmpty": "Não há convites pendentes para calendários partilhados.",
+  "nextcloudFederationGrant": "Partilha criada neste servidor. A aceitação e a sincronização remotas não estão confirmadas.",
+  "nextcloudTrashDisabled": "A retenção no lixo dos calendários está desativada neste servidor."
 }

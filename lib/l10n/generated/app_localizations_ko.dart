@@ -234,6 +234,30 @@ class AppLocalizationsKo extends AppLocalizations {
       '이 항목을 영구 삭제할까요? Nextcloud 캘린더 휴지통에서 복원할 수 없게 됩니다.';
 
   @override
+  String get nextcloudDiscoveryRequired =>
+      '이 계정을 새로고침하여 Nextcloud 기능과 권한을 업데이트하세요.';
+
+  @override
+  String get nextcloudConflict => '항목 또는 권한이 변경되었습니다. 새로고침하고 확인한 후 다시 시도하세요.';
+
+  @override
+  String get nextcloudItemUnavailable =>
+      '이 항목은 더 이상 사용할 수 없습니다. 새로고침하여 현재 상태를 확인하세요.';
+
+  @override
+  String get nextcloudFederationInvitations => '공유 캘린더 초대';
+
+  @override
+  String get nextcloudFederationEmpty => '대기 중인 공유 캘린더 초대가 없습니다.';
+
+  @override
+  String get nextcloudFederationGrant =>
+      '이 서버에 공유가 생성되었습니다. 원격 수락 및 동기화는 확인되지 않았습니다.';
+
+  @override
+  String get nextcloudTrashDisabled => '이 서버에서는 캘린더 휴지통 보관이 비활성화되어 있습니다.';
+
+  @override
   String get nextcloudOperationDenied => 'Nextcloud가 이 작업을 허용하지 않았습니다.';
 
   @override

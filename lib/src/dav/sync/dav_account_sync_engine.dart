@@ -12,6 +12,7 @@ import '../../providers/busy_provider.dart';
 import '../dav_errors.dart';
 import '../dav_provider_profile.dart';
 import '../discovery/dav_discovery_repository.dart';
+import '../discovery/dav_discovery_models.dart';
 import '../discovery/dav_discovery_service.dart';
 import '../http/dav_http_transport.dart';
 import '../mutation/dav_conditional_mutation_service.dart';
@@ -303,6 +304,7 @@ final class DavAccountSyncEngine {
               implicitScheduling: provider == BusyProvider.nextcloud,
               schedulingValidator: policy?.validateChange,
               remoteClient: DavMutationHttpClient(
+                useScheduleTags: provider == BusyProvider.nextcloud,
                 transport: transport,
                 accountId: _accountId,
                 collectionId: collection.id,
@@ -465,6 +467,7 @@ final class DavAccountSyncEngine {
       _database.davAccountServices,
     )..where((row) => row.accountId.equals(_accountId))).getSingleOrNull();
     if (service == null ||
+        service.capabilitiesSchemaVersion < davCapabilitiesSchemaVersion ||
         service.providerProfileVersion != davProviderProfileVersion ||
         service.lastDiscoveryErrorCode != null) {
       return true;

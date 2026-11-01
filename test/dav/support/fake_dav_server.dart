@@ -232,7 +232,8 @@ final class FakeDavServer {
       }
       return;
     }
-    if (request.method == 'OPTIONS' && path == davRootPath) {
+    if (request.method == 'OPTIONS' &&
+        {davRootPath, principalPath, calendarHomePath}.contains(path)) {
       await _options(request);
       return;
     }

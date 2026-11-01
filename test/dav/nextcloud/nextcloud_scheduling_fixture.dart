@@ -13,6 +13,10 @@ class SchedulingFixture extends NextcloudAdminFixture {
   String requestStatus = '2.0;Success', messageEtag = '"message-1"';
   bool duplicate = false, acknowledged = false;
   bool failInbox = false;
+  bool duplicateFreeBusyStatus = false;
+  bool ambiguousFreeBusyRecipient = false;
+  String additionalFreeBusyResponses = '';
+  int freeBusyHttpStatus = 200;
   Completer<void>? inboxGate;
   String busyData = '''BEGIN:VCALENDAR
 VERSION:2.0
@@ -34,6 +38,7 @@ END:VCALENDAR
     List<String> privileges = const [
       '{urn:ietf:params:xml:ns:caldav}schedule-send',
     ],
+    Set<String> inboxPrivileges = const {'{DAV:}read', '{DAV:}unbind'},
   }) async {
     final home = Uri.parse(
       '${NextcloudAdminFixture.origin}${NextcloudAdminFixture.home}',
@@ -54,7 +59,14 @@ END:VCALENDAR
                 calendarUserAddresses: [Uri.parse('mailto:alex@example.test')],
                 scheduleOutboxHref: home.resolve('outbox/'),
                 scheduleInboxHref: home.resolve('inbox/'),
+                inboxPrivileges: inboxPrivileges,
                 outboxPrivileges: privileges.toSet(),
+                endpointCapabilities: [
+                  DavEndpointCapabilities(
+                    href: home,
+                    serverFeatures: const {'calendar-auto-schedule'},
+                  ),
+                ],
               ).toJson(),
             ],
           }),
@@ -68,15 +80,16 @@ END:VCALENDAR
     if (request.method == 'POST' && request.url.path.endsWith('/outbox/')) {
       requests.add(request);
       final entry =
-          '<c:response><c:recipient><d:href>mailto:guest@example.test</d:href></c:recipient>'
-          '<c:request-status>$requestStatus</c:request-status><c:calendar-data>${XmlText(busyData).toXmlString()}</c:calendar-data></c:response>';
+          '<c:response><c:recipient><d:href>mailto:guest@example.test</d:href>${ambiguousFreeBusyRecipient ? '<d:href>mailto:unknown@example.test</d:href>' : ''}</c:recipient>'
+          '<c:request-status>$requestStatus</c:request-status>${duplicateFreeBusyStatus ? '<c:request-status>3.8;Denied</c:request-status>' : ''}<c:calendar-data>${XmlText(busyData).toXmlString()}</c:calendar-data></c:response>';
       return http.Response(
-        '<c:schedule-response xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:d="DAV:">$entry${duplicate ? entry : ''}</c:schedule-response>',
-        200,
+        '<c:schedule-response xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:d="DAV:">$entry${duplicate ? entry : ''}$additionalFreeBusyResponses</c:schedule-response>',
+        freeBusyHttpStatus,
       );
     }
     if (request.method == 'PROPFIND' && request.url.path.endsWith('/inbox/')) {
       requests.add(request);
+      await beforeResponse?.call(request);
       await inboxGate?.future;
       if (failInbox) return http.Response('', 503);
       final raw =

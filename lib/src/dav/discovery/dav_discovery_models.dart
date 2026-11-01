@@ -1,7 +1,7 @@
 import '../../providers/busy_provider.dart';
 import '../../providers/provider_capabilities.dart';
 
-const davCapabilitiesSchemaVersion = 2;
+const davCapabilitiesSchemaVersion = 3;
 const davComponentEvent = 1 << 0;
 const davComponentTodo = 1 << 1;
 const davComponentTimezone = 1 << 2;
@@ -23,6 +23,42 @@ enum DavCollectionKind {
   unsupported,
 }
 
+/// OPTIONS feature tokens and methods describe this endpoint, not an ACL.
+/// Reports come from DAV:supported-report-set, never from Allow: REPORT.
+final class DavEndpointCapabilities {
+  const DavEndpointCapabilities({
+    required this.href,
+    this.serverFeatures = const {},
+    this.allowedMethods = const {},
+    this.supportedReports = const {},
+  });
+  final Uri href;
+  final Set<String> serverFeatures;
+  final Set<String> allowedMethods;
+  final Set<String> supportedReports;
+
+  Map<String, Object?> toJson() => {
+    'href': href.toString(),
+    'serverFeatures': serverFeatures.toList()..sort(),
+    'allowedMethods': allowedMethods.toList()..sort(),
+    'supportedReports': supportedReports.toList()..sort(),
+  };
+
+  factory DavEndpointCapabilities.fromJson(Map<String, Object?> value) =>
+      DavEndpointCapabilities(
+        href: Uri.parse(value['href']! as String),
+        serverFeatures: (value['serverFeatures'] as List? ?? [])
+            .cast<String>()
+            .toSet(),
+        allowedMethods: (value['allowedMethods'] as List? ?? [])
+            .cast<String>()
+            .toSet(),
+        supportedReports: (value['supportedReports'] as List? ?? [])
+            .cast<String>()
+            .toSet(),
+      );
+}
+
 /// Each discovered identity retains its own home and scheduling context.
 /// Delegation never replaces the authenticated principal or invents a path.
 final class DavPrincipalContext {
@@ -35,6 +71,8 @@ final class DavPrincipalContext {
     this.scheduleDefaultCalendarHref,
     this.homePrivileges = const {},
     this.outboxPrivileges = const {},
+    this.inboxPrivileges = const {},
+    this.endpointCapabilities = const [],
     this.delegated = false,
   });
   final Uri principalHref;
@@ -45,6 +83,11 @@ final class DavPrincipalContext {
   final Uri? scheduleDefaultCalendarHref;
   final Set<String> homePrivileges;
   final Set<String> outboxPrivileges;
+  final Set<String> inboxPrivileges;
+  final List<DavEndpointCapabilities> endpointCapabilities;
+  Set<String> get serverFeatures => {
+    for (final endpoint in endpointCapabilities) ...endpoint.serverFeatures,
+  };
   final bool delegated;
   Map<String, Object?> toJson() => {
     'principalHref': principalHref.toString(),
@@ -57,6 +100,10 @@ final class DavPrincipalContext {
     'scheduleDefaultCalendarHref': scheduleDefaultCalendarHref?.toString(),
     'homePrivileges': homePrivileges.toList()..sort(),
     'outboxPrivileges': outboxPrivileges.toList()..sort(),
+    'inboxPrivileges': inboxPrivileges.toList()..sort(),
+    'endpointCapabilities': endpointCapabilities
+        .map((e) => e.toJson())
+        .toList(),
     'delegated': delegated,
   };
   factory DavPrincipalContext.fromJson(Map<String, Object?> value) =>
@@ -83,6 +130,15 @@ final class DavPrincipalContext {
         outboxPrivileges: (value['outboxPrivileges'] as List? ?? [])
             .cast<String>()
             .toSet(),
+        inboxPrivileges: (value['inboxPrivileges'] as List? ?? [])
+            .cast<String>()
+            .toSet(),
+        endpointCapabilities: [
+          for (final endpoint in value['endpointCapabilities'] as List? ?? [])
+            DavEndpointCapabilities.fromJson(
+              Map<String, Object?>.from(endpoint as Map),
+            ),
+        ],
         delegated: value['delegated'] == true,
       );
 }
@@ -101,6 +157,7 @@ final class DavServiceDiscovery {
     required this.lastValidatedAtUtc,
     required this.providerProfileVersion,
     this.principalContexts = const [],
+    this.allowedMethods = const {},
   });
 
   final Uri canonicalServiceUri;
@@ -115,6 +172,7 @@ final class DavServiceDiscovery {
   final DateTime lastValidatedAtUtc;
   final int providerProfileVersion;
   final List<DavPrincipalContext> principalContexts;
+  final Set<String> allowedMethods;
 }
 
 final class DavCollectionDiscovery {

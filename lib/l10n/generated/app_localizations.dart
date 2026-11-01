@@ -531,6 +531,48 @@ abstract class AppLocalizations {
   /// **'Permanently delete this item? It cannot be restored from Nextcloud\'s calendar trash.'**
   String get nextcloudPermanentDeleteWarning;
 
+  /// No description provided for @nextcloudDiscoveryRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh this account to update its Nextcloud capabilities and permissions.'**
+  String get nextcloudDiscoveryRequired;
+
+  /// No description provided for @nextcloudConflict.
+  ///
+  /// In en, this message translates to:
+  /// **'The item or its permissions changed. Refresh and review it before trying again.'**
+  String get nextcloudConflict;
+
+  /// No description provided for @nextcloudItemUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This item is no longer available. Refresh to check its current state.'**
+  String get nextcloudItemUnavailable;
+
+  /// No description provided for @nextcloudFederationInvitations.
+  ///
+  /// In en, this message translates to:
+  /// **'Shared calendar invitations'**
+  String get nextcloudFederationInvitations;
+
+  /// No description provided for @nextcloudFederationEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No pending shared calendar invitations.'**
+  String get nextcloudFederationEmpty;
+
+  /// No description provided for @nextcloudFederationGrant.
+  ///
+  /// In en, this message translates to:
+  /// **'Share created on this server. Remote acceptance and synchronization are not confirmed.'**
+  String get nextcloudFederationGrant;
+
+  /// No description provided for @nextcloudTrashDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar trash retention is disabled on this server.'**
+  String get nextcloudTrashDisabled;
+
   /// No description provided for @nextcloudOperationDenied.
   ///
   /// In en, this message translates to:

@@ -242,6 +242,33 @@ class AppLocalizationsPt extends AppLocalizations {
       'Permanently delete this item? It cannot be restored from Nextcloud\'s calendar trash.';
 
   @override
+  String get nextcloudDiscoveryRequired =>
+      'Refresh this account to update its Nextcloud capabilities and permissions.';
+
+  @override
+  String get nextcloudConflict =>
+      'The item or its permissions changed. Refresh and review it before trying again.';
+
+  @override
+  String get nextcloudItemUnavailable =>
+      'This item is no longer available. Refresh to check its current state.';
+
+  @override
+  String get nextcloudFederationInvitations => 'Shared calendar invitations';
+
+  @override
+  String get nextcloudFederationEmpty =>
+      'No pending shared calendar invitations.';
+
+  @override
+  String get nextcloudFederationGrant =>
+      'Share created on this server. Remote acceptance and synchronization are not confirmed.';
+
+  @override
+  String get nextcloudTrashDisabled =>
+      'Calendar trash retention is disabled on this server.';
+
+  @override
   String get nextcloudOperationDenied =>
       'Nextcloud did not allow this operation.';
 
@@ -4156,6 +4183,34 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
   @override
   String get nextcloudPermanentDeleteWarning =>
       'Eliminar este item permanentemente? Ele não poderá ser restaurado da reciclagem de calendários do Nextcloud.';
+
+  @override
+  String get nextcloudDiscoveryRequired =>
+      'Atualize esta conta para atualizar as funcionalidades e permissões do Nextcloud.';
+
+  @override
+  String get nextcloudConflict =>
+      'O item ou as suas permissões foram alterados. Atualize e reveja antes de tentar novamente.';
+
+  @override
+  String get nextcloudItemUnavailable =>
+      'Este item já não está disponível. Atualize para verificar o estado atual.';
+
+  @override
+  String get nextcloudFederationInvitations =>
+      'Convites para calendários partilhados';
+
+  @override
+  String get nextcloudFederationEmpty =>
+      'Não há convites pendentes para calendários partilhados.';
+
+  @override
+  String get nextcloudFederationGrant =>
+      'Partilha criada neste servidor. A aceitação e a sincronização remotas não estão confirmadas.';
+
+  @override
+  String get nextcloudTrashDisabled =>
+      'A retenção no lixo dos calendários está desativada neste servidor.';
 
   @override
   String get nextcloudOperationDenied =>

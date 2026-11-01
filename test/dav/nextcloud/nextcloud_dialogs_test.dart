@@ -19,6 +19,8 @@ import '../../support/memory_settings_store.dart';
 import '../../test_localized_app.dart';
 import 'nextcloud_admin_fixture.dart';
 
+import 'package:busymax/src/dav/nextcloud/nextcloud_federation_service.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -44,6 +46,59 @@ void main() {
           null,
         );
   });
+
+  for (final platform in ['Linux', 'Windows', 'Android']) {
+    testWidgets(
+      '$platform accepts and declines account-owned federation invitations',
+      (tester) async {
+        final fixture = NextcloudAdminFixture();
+        await tester.runAsync(fixture.seed);
+        addTearDown(fixture.close);
+        Map<String, Object?> invitation(int id) => {
+          'id': id,
+          'displayName': 'Remote calendar $id',
+          'sharedBy': 'owner@cloud.test/subpath',
+          'sharedByDisplayName': 'Owner',
+          'remoteUrl': 'https://untrusted.test/never-send-credentials',
+          'permissions': 31,
+          'components': 'VEVENT,VTODO',
+        };
+        fixture.federationInvitations.add(invitation(1));
+        await _pumpFederation(tester, fixture, platform);
+        expect(find.text('Remote calendar 1'), findsOneWidget);
+        await tester.tap(
+          find.byKey(const ValueKey('nextcloud-federation-accept-1')),
+        );
+        await _settle(tester);
+        expect(fixture.requests.where((r) => r.method == 'POST'), hasLength(1));
+        expect(
+          find.text('No pending shared calendar invitations.'),
+          findsOneWidget,
+        );
+        fixture.federationInvitations.add(invitation(2));
+        final refresh = platform == 'Android'
+            ? find.byTooltip('Refresh')
+            : find.text('Refresh');
+        await tester.tap(refresh);
+        await _settle(tester);
+        expect(find.text('Remote calendar 2'), findsOneWidget);
+        await tester.tap(
+          find.byKey(const ValueKey('nextcloud-federation-decline-2')),
+        );
+        await _settle(tester);
+        expect(
+          fixture.requests.where((r) => r.method == 'DELETE'),
+          hasLength(1),
+        );
+        expect(
+          fixture.requests.every((r) => r.url.host == 'cloud.example.test'),
+          isTrue,
+        );
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+  }
 
   for (final (property, invalid, valid, message) in [
     ('displayname', ' ', 'Repaired QA collection', 'This field is required.'),
@@ -630,5 +685,68 @@ Future<void> _pumpTrash(
     ),
   );
   await tester.tap(find.text('Open trash'));
+  await _settle(tester);
+}
+
+Future<void> _pumpFederation(
+  WidgetTester tester,
+  NextcloudAdminFixture fixture,
+  String platform,
+) async {
+  await tester.binding.setSurfaceSize(const Size(760, 700));
+  addTearDown(() => tester.binding.setSurfaceSize(null));
+  final home = Builder(
+    builder: (context) => Center(
+      child: platform == 'Windows'
+          ? fluent.Button(
+              onPressed: () => showWindowsNextcloudFederationDialog(
+                context,
+                accountId: 'account',
+              ),
+              child: const Text('Open invitations'),
+            )
+          : TextButton(
+              onPressed: () {
+                if (platform == 'Windows') {
+                  showWindowsNextcloudFederationDialog(
+                    context,
+                    accountId: 'account',
+                  );
+                } else {
+                  showLinuxNextcloudFederationDialog(
+                    context,
+                    accountId: 'account',
+                  );
+                }
+              },
+              child: const Text('Open invitations'),
+            ),
+    ),
+  );
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        localSettingsStoreProvider.overrideWithValue(MemorySettingsStore()),
+        nextcloudFederationServiceProvider('account')
+            .overrideWithValue(NextcloudFederationService(fixture.collections)),
+      ],
+      child: platform == 'Windows'
+          ? fluent.FluentApp(
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: home,
+            )
+          : localizedTestApp(
+              theme: BusyMaxYaruTheme.build(
+                brightness: Brightness.dark,
+                accentColor: YaruColors.orange,
+              ),
+              child: platform == 'Android'
+                  ? const AndroidNextcloudFederationScreen(accountId: 'account')
+                  : Scaffold(body: home),
+            ),
+    ),
+  );
+  if (platform != 'Android') await tester.tap(find.text('Open invitations'));
   await _settle(tester);
 }

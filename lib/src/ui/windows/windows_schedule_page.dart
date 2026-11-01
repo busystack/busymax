@@ -3,6 +3,8 @@ import 'package:busymax/src/l10n/week_preferences_scope.dart';
 
 import 'dart:async';
 
+import '../../l10n/nextcloud_collection_error_description.dart';
+
 import '../../providers/busy_provider.dart';
 
 import 'dart:math' as math;
@@ -1907,13 +1909,17 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
           )
           .request();
       if (mounted) _reload();
-    } on Object {
+    } on Object catch (error) {
       if (!mounted) return;
       await showDialog<void>(
         context: context,
         builder: (dialogContext) => ContentDialog(
           content: InfoBar(
-            title: Text(l10n.operationFailed),
+            title: Text(
+              item.provider == BusyProvider.nextcloud
+                  ? localizedNextcloudCollectionError(l10n, error)
+                  : l10n.operationFailed,
+            ),
             severity: InfoBarSeverity.error,
           ),
           actions: [

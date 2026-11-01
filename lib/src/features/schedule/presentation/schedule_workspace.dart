@@ -5,6 +5,8 @@ import '../../../l10n/oauth_error_description.dart';
 
 import 'dart:async';
 
+import '../../../l10n/nextcloud_collection_error_description.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
@@ -2551,7 +2553,11 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            context.l10n.invitationResponseFailed(redactForLog(error)),
+            context.l10n.invitationResponseFailed(
+              item.provider == BusyProvider.nextcloud
+                  ? localizedNextcloudCollectionError(context.l10n, error)
+                  : redactForLog(error),
+            ),
           ),
         ),
       );

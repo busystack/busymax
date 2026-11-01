@@ -7,11 +7,11 @@ import 'package:yaru/yaru.dart';
 import '../../app/app_bootstrap.dart';
 import '../../app/busymax_design.dart';
 import '../../app/busymax_dialogs.dart';
-import '../../dav/dav_errors.dart';
 import '../../dav/nextcloud/nextcloud_collection_controller.dart';
 import '../../dav/nextcloud/nextcloud_collection_service.dart';
 import '../../dav/nextcloud/nextcloud_dav_context.dart';
 import '../../dav/nextcloud/nextcloud_trash_service.dart';
+import '../nextcloud/nextcloud_federation_controller.dart';
 import '../../dav/xml/dav_xml.dart';
 import '../../l10n/l10n.dart';
 import '../../l10n/nextcloud_collection_error_description.dart';
@@ -293,7 +293,9 @@ class _LinuxNextcloudCollectionDialogState
                   YaruListTile.square(
                     leading: const Icon(Icons.person_outline),
                     title: Text(share.recipient.label),
-                    subtitle: share.status.isEmpty ? null : Text(share.status),
+                    subtitle: share.recipient.federated
+                        ? Text(l10n.nextcloudFederationGrant)
+                        : (share.status.isEmpty ? null : Text(share.status)),
                   ),
                   BusyMaxActionRow(
                     title: share.writable
@@ -540,19 +542,15 @@ class _LinuxNextcloudTrashState
         ),
         children: [
           if (busy) const Center(child: YaruCircularProgressIndicator()),
-          if (failed)
-            Text(
-              error is DavException &&
-                      (error! as DavException).code == 'DavTrashUnsupported'
-                  ? l10n.nextcloudUnsupported
-                  : l10n.nextcloudServerUnavailable,
-            ),
+          if (failed) Text(localizedNextcloudCollectionError(l10n, error)),
           if (refreshPending) Text(l10n.nextcloudRefreshPending),
           if (listing?.retentionSeconds != null)
             Text(
-              l10n.nextcloudTrashRetention(
-                (listing!.retentionSeconds! / 86400).ceil(),
-              ),
+              listing!.retentionSeconds == 0
+                  ? l10n.nextcloudTrashDisabled
+                  : l10n.nextcloudTrashRetention(
+                      (listing!.retentionSeconds! / 86400).ceil(),
+                    ),
             ),
           if (listing?.items.isEmpty == true) Text(l10n.nextcloudTrashEmpty),
           if (listing?.items.isNotEmpty == true)
@@ -586,12 +584,20 @@ class _LinuxNextcloudTrashState
                     ),
                   ),
                   BusyMaxActionRow(
+                    key: ValueKey((
+                      'nextcloud-trash-restore',
+                      item.href.toString(),
+                    )),
                     title: l10n.nextcloudRestore,
                     leading: const Icon(Icons.restore),
                     enabled: !busy && !refreshPending && item.canRestore,
                     onTap: () => _mutate(item, false),
                   ),
                   BusyMaxActionRow(
+                    key: ValueKey((
+                      'nextcloud-trash-delete',
+                      item.href.toString(),
+                    )),
                     title: l10n.nextcloudPermanentDelete,
                     leading: const Icon(YaruIcons.trash),
                     enabled:
@@ -599,6 +605,105 @@ class _LinuxNextcloudTrashState
                     onTap: () => _mutate(item, true),
                   ),
                 ],
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+Future<void> showLinuxNextcloudFederationDialog(
+  BuildContext context, {
+  required String accountId,
+}) => showBusyMaxModalDialog<void>(
+  context,
+  barrierDismissible: false,
+  builder: (_) => LinuxNextcloudFederationDialog(accountId: accountId),
+);
+
+class LinuxNextcloudFederationDialog extends ConsumerStatefulWidget {
+  const LinuxNextcloudFederationDialog({super.key, required this.accountId});
+  final String accountId;
+  @override
+  ConsumerState<LinuxNextcloudFederationDialog> createState() =>
+      _LinuxNextcloudFederationDialogState();
+}
+
+class _LinuxNextcloudFederationDialogState
+    extends ConsumerState<LinuxNextcloudFederationDialog> {
+  late final NextcloudFederationController model;
+  @override
+  void initState() {
+    super.initState();
+    model = NextcloudFederationController(
+      ref.read(nextcloudFederationServiceProvider(widget.accountId)),
+    )..addListener(_changed);
+    unawaited(model.load());
+  }
+
+  void _changed() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    model.removeListener(_changed);
+    model.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final enabled = !model.busy && model.error == null && !model.refreshPending;
+    return PopScope(
+      canPop: !model.busy,
+      child: BusyMaxDialogShell(
+        key: const ValueKey('nextcloud-federation-dialog'),
+        title: l10n.nextcloudFederationInvitations,
+        maxWidth: 680,
+        header: BusyMaxEditorHeader(
+          title: l10n.nextcloudFederationInvitations,
+          cancelLabel: l10n.close,
+          saveLabel: l10n.refresh,
+          onCancel: () => Navigator.pop(context),
+          cancelEnabled: !model.busy,
+          onSave: model.busy ? null : model.load,
+        ),
+        children: [
+          if (model.busy) const Center(child: YaruCircularProgressIndicator()),
+          if (model.error != null)
+            Text(localizedNextcloudCollectionError(l10n, model.error)),
+          if (model.refreshPending) Text(l10n.nextcloudRefreshPending),
+          if (model.invitations?.isEmpty == true)
+            Text(l10n.nextcloudFederationEmpty),
+          for (final invitation in model.invitations ?? [])
+            BusyMaxGroupedList(
+              filled: true,
+              children: [
+                YaruListTile.square(
+                  title: Text(invitation.displayName),
+                  subtitle: Text(invitation.sharedBy),
+                ),
+                BusyMaxActionRow(
+                  key: ValueKey('nextcloud-federation-accept-${invitation.id}'),
+                  title: l10n.acceptInvitation,
+                  leading: const Icon(Icons.check),
+                  onTap: enabled
+                      ? () => model.respond(invitation, accept: true)
+                      : null,
+                ),
+                BusyMaxActionRow(
+                  key: ValueKey(
+                    'nextcloud-federation-decline-${invitation.id}',
+                  ),
+                  title: l10n.declineInvitation,
+                  leading: const Icon(Icons.close),
+                  onTap: enabled
+                      ? () => model.respond(invitation, accept: false)
+                      : null,
+                ),
               ],
             ),
         ],

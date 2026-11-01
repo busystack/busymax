@@ -1,3 +1,5 @@
+import 'package:busymax/src/dav/discovery/dav_discovery_models.dart';
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -747,6 +749,9 @@ void main() {
       );
       var requestIndex = 0;
       final client = MockClient((request) async {
+        if (request.method == 'OPTIONS' && requestIndex > 0) {
+          return http.Response('', 200, headers: {'dav': 'calendar-access'});
+        }
         final response = switch (requestIndex) {
           0 => http.Response(
             '',
@@ -1384,6 +1389,7 @@ Future<void> _seed(AppDatabase database, InMemorySecretStore secrets) async {
       .into(database.davAccountServices)
       .insert(
         DavAccountServicesCompanion.insert(
+          capabilitiesSchemaVersion: const Value(davCapabilitiesSchemaVersion),
           accountId: 'account',
           providerProfileVersion: const Value(davProviderProfileVersion),
           canonicalServiceUri:

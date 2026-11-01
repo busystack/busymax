@@ -753,6 +753,15 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                           ),
                         if (values[index].provider == BusyProvider.nextcloud)
                           MenuFlyoutItem(
+                            text: Text(l10n.nextcloudFederationInvitations),
+                            onPressed: () =>
+                                showWindowsNextcloudFederationDialog(
+                                  context,
+                                  accountId: values[index].id,
+                                ),
+                          ),
+                        if (values[index].provider == BusyProvider.nextcloud)
+                          MenuFlyoutItem(
                             text: Text(l10n.nextcloudTrash),
                             onPressed: () => showWindowsNextcloudTrashDialog(
                               context,

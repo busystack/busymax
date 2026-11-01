@@ -1374,5 +1374,12 @@
   "certificateRenewalHelp": "建议使用私有 CA，服务器证书可在其下正常续期。固定的叶证书每次变更都须明确检查，即使用同一密钥。公开证书可正常续期。",
   "certificateBrowserBoundary": "授权仍通过外部浏览器进行。BusyMax 的批准不会配置浏览器信任；浏览器必须单独信任该服务器。",
   "certificateDetails": "主体: {subject}\n颁发者: {issuer}\n生效时间: {notBefore}\n到期时间: {notAfter}\nSHA-256 指纹: {fingerprint}",
-  "certificateFailure": "{reason, select, approvalRequired{需要批准} pinMismatch{固定的证书已更改} expired{证书已过期} notYetValid{证书尚未生效} hostnameMismatch{证书主机名不匹配} invalidPolicy{私有 CA 配置无效} ineligible{证书不符合要求} verificationFailed{TLS 验证失败} other{TLS 验证失败}}"
+  "certificateFailure": "{reason, select, approvalRequired{需要批准} pinMismatch{固定的证书已更改} expired{证书已过期} notYetValid{证书尚未生效} hostnameMismatch{证书主机名不匹配} invalidPolicy{私有 CA 配置无效} ineligible{证书不符合要求} verificationFailed{TLS 验证失败} other{TLS 验证失败}}",
+  "nextcloudDiscoveryRequired": "请刷新此账户以更新 Nextcloud 功能和权限。",
+  "nextcloudConflict": "项目或其权限已更改。请刷新并检查后重试。",
+  "nextcloudItemUnavailable": "此项目已不可用。请刷新以检查其当前状态。",
+  "nextcloudFederationInvitations": "共享日历邀请",
+  "nextcloudFederationEmpty": "没有待处理的共享日历邀请。",
+  "nextcloudFederationGrant": "已在此服务器上创建共享。尚未确认远程接受和同步。",
+  "nextcloudTrashDisabled": "此服务器已禁用日历回收站保留功能。"
 }

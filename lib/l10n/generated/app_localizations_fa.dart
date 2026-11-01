@@ -240,6 +240,33 @@ class AppLocalizationsFa extends AppLocalizations {
       'این مورد برای همیشه حذف شود؟ دیگر از زباله‌دان تقویم Nextcloud بازیابی نمی‌شود.';
 
   @override
+  String get nextcloudDiscoveryRequired =>
+      'این حساب را تازه‌سازی کنید تا قابلیت‌ها و مجوزهای Nextcloud به‌روز شوند.';
+
+  @override
+  String get nextcloudConflict =>
+      'مورد یا مجوزهای آن تغییر کرده است. پیش از تلاش دوباره تازه‌سازی و بررسی کنید.';
+
+  @override
+  String get nextcloudItemUnavailable =>
+      'این مورد دیگر در دسترس نیست. برای بررسی وضعیت کنونی تازه‌سازی کنید.';
+
+  @override
+  String get nextcloudFederationInvitations => 'دعوت‌های تقویم‌های اشتراکی';
+
+  @override
+  String get nextcloudFederationEmpty =>
+      'دعوتی برای تقویم اشتراکی در انتظار نیست.';
+
+  @override
+  String get nextcloudFederationGrant =>
+      'اشتراک‌گذاری در این سرور ایجاد شد. پذیرش و همگام‌سازی از راه دور تأیید نشده است.';
+
+  @override
+  String get nextcloudTrashDisabled =>
+      'نگهداری موارد حذف‌شدهٔ تقویم در این سرور غیرفعال است.';
+
+  @override
   String get nextcloudOperationDenied => 'Nextcloud این عملیات را مجاز ندانست.';
 
   @override

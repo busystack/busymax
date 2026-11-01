@@ -2253,6 +2253,14 @@ class _AccountManagementSection extends ConsumerWidget {
                       ),
                     ),
                     BusyMaxActionRow(
+                      title: context.l10n.nextcloudFederationInvitations,
+                      leading: const Icon(Icons.mark_email_unread_outlined),
+                      onTap: () => showLinuxNextcloudFederationDialog(
+                        context,
+                        accountId: account.id,
+                      ),
+                    ),
+                    BusyMaxActionRow(
                       title: context.l10n.nextcloudTrash,
                       leading: const Icon(YaruIcons.trash),
                       onTap: () => showLinuxNextcloudTrashDialog(

@@ -244,6 +244,34 @@ class AppLocalizationsDe extends AppLocalizations {
       'Dieses Element endgültig löschen? Es kann nicht aus dem Nextcloud-Kalenderpapierkorb wiederhergestellt werden.';
 
   @override
+  String get nextcloudDiscoveryRequired =>
+      'Aktualisiere dieses Konto, um die Nextcloud-Funktionen und Berechtigungen zu erneuern.';
+
+  @override
+  String get nextcloudConflict =>
+      'Das Element oder seine Berechtigungen wurden geändert. Aktualisiere und prüfe es vor einem erneuten Versuch.';
+
+  @override
+  String get nextcloudItemUnavailable =>
+      'Dieses Element ist nicht mehr verfügbar. Aktualisiere, um den aktuellen Zustand zu prüfen.';
+
+  @override
+  String get nextcloudFederationInvitations =>
+      'Einladungen zu geteilten Kalendern';
+
+  @override
+  String get nextcloudFederationEmpty =>
+      'Keine ausstehenden Einladungen zu geteilten Kalendern.';
+
+  @override
+  String get nextcloudFederationGrant =>
+      'Freigabe auf diesem Server erstellt. Annahme und Synchronisierung auf dem anderen Server sind nicht bestätigt.';
+
+  @override
+  String get nextcloudTrashDisabled =>
+      'Die Aufbewahrung im Kalenderpapierkorb ist auf diesem Server deaktiviert.';
+
+  @override
   String get nextcloudOperationDenied =>
       'Nextcloud hat diesen Vorgang nicht erlaubt.';
 

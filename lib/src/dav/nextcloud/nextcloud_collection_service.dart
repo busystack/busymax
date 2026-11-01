@@ -53,13 +53,24 @@ final class NextcloudCollectionService {
   final Future<void> Function() requireNetwork;
   final Future<void> Function() refresh;
 
-  Future<NextcloudDavContext> openContext() => NextcloudDavContext.open(
-    database: database,
-    secrets: secrets,
-    client: client,
-    accountId: accountId,
-    requireNetwork: requireNetwork,
-  );
+  Future<NextcloudDavContext> openContext() async {
+    Future<NextcloudDavContext> open() => NextcloudDavContext.open(
+      database: database,
+      secrets: secrets,
+      client: client,
+      accountId: accountId,
+      requireNetwork: requireNetwork,
+    );
+    try {
+      return await open();
+    } on DavException catch (error) {
+      if (error.code != 'DavDiscoveryRequired') rethrow;
+      // Upgrade existing accounts through their normal account sync callback.
+      // A failed/partial refresh cannot authorize the requested operation.
+      await refresh();
+      return open();
+    }
+  }
 
   Future<DavCollection> requiredCollection(String id) async {
     final row =

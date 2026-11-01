@@ -2627,7 +2627,47 @@
             "flutter_windows.dll": "f406dc7b0ddb5b8e3028b79980e560a481bcd02490cc513b495f2d91db29eb25",
             "flutter_windows.dll.exp": "d37525c7d675da2b8196d8caf8ff930a36b48565e03d131896105970dd62e05f",
             "flutter_windows.dll.lib": "c1509f97c316115e005cf92115375058501d3c40c9fb85d7724d41489f4ba04d",
-            "flutter_windows.dll.pdb": "050c226c4bd273a0b5d208787ff258781e361b809a665e5f1c6b9fa3d48cbe12"
+            "flutter_windows.dll.pdb": "050c226c4bd273a0b5d208787ff258781e361b809a665e5f1c6b9fa3d48cbe12",
+            "LICENSE.font_subset.md": "8765be302b0298bc215ec42347eea052b330d22cf51c290d97a4ce55b9cfe13c",
+            "font-subset.exe": "95360ca48a7486832ed7acca6afb0194bed2dc714c7f42a28c31e5b3e4b03160",
+            "const_finder.dart.snapshot": "d90a81346c60817dca8c2e1eb6e87dc554e0eccf18fafa5fd7be0ae872aa6fa4",
+            "LICENSE.client_wrapper_archive.md": "7dbc56e72843184194d4558889ac2c8eea96d1fe3b294e965ea4c0c2a0e75a8b",
+            "cpp_client_wrapper/core_implementations.cc": "c0de8b2c1df4d25abb336a62364fb8dd4810536e8eb28da0601b1e3ed969a777",
+            "cpp_client_wrapper/engine_method_result.cc": "53794963d2397e381492b04298c6b8b31e2243f9e6fb2c4153689640f50ef4c8",
+            "cpp_client_wrapper/plugin_registrar.cc": "1e1a5242ac2dbdebb2e3da99bb34d5fd9beb003c8621e1a155931b3342e7d7a0",
+            "cpp_client_wrapper/README": "3af2c979e3aafd0999bee2c37a0f79ccb906d489b06f9d20c054c4142f2dfc2f",
+            "cpp_client_wrapper/standard_codec.cc": "3d75b7f17d482e0047672ea5e3cb7adf309976e7877fd3c5cc04d293ba671641",
+            "cpp_client_wrapper/flutter_engine.cc": "24363c686431f65070bc71ab5138577cc86e239d11880e98b180c210a385573a",
+            "cpp_client_wrapper/flutter_view_controller.cc": "ea67ebea6a75638512d39d09160a8ec3fe1d66bee7212146457d45cfda74f7db",
+            "cpp_client_wrapper/include/flutter/basic_message_channel.h": "2b483d016862c88e403137c77e28cb290213901b806670b970b9fb5606d3d25d",
+            "cpp_client_wrapper/include/flutter/binary_messenger.h": "a9c148126433a73cf45bee50a830047f5c54cbe9f97e6d0ff1236691246f7964",
+            "cpp_client_wrapper/include/flutter/byte_streams.h": "5b4852d2dc1bfbe58187d9bc262a01042845510c7029d044b64d71309b128e83",
+            "cpp_client_wrapper/include/flutter/encodable_value.h": "2672440b287ebf0551a4475a54bc0e8f888a1c8be556bfcd9f4b3d9c15e1fd37",
+            "cpp_client_wrapper/include/flutter/engine_method_result.h": "3300d3fe6ac2282de919076e17dfad9c014832e8ce1fd0794897bdfad60bccfd",
+            "cpp_client_wrapper/include/flutter/event_channel.h": "eaf20bae4076a3645de7fa4f0d6803d3599c43983cdb4197923a8bd0bfa60daf",
+            "cpp_client_wrapper/include/flutter/event_sink.h": "206eefcdc44c679b3944eccecfab55817b681ee01eb2876744c92dcb4befd5cc",
+            "cpp_client_wrapper/include/flutter/event_stream_handler_functions.h": "14eb1da5c1b8dce313d363bddd560c4db1f3dbcb43bb91c8a11889e51f531de2",
+            "cpp_client_wrapper/include/flutter/event_stream_handler.h": "6500dc235b0756f316794d31409894b95e0a3932fd0590ed011522e1017814b9",
+            "cpp_client_wrapper/include/flutter/message_codec.h": "3186a27f7d5073bb52f3ed2e1ad1f0d5d23c5cffc0bdebdf833354470bf232f1",
+            "cpp_client_wrapper/include/flutter/method_call.h": "951b7bb05c0d7335d1d8929fce451fe4a5815cd83b9bb6f7fb70f0080c4215e9",
+            "cpp_client_wrapper/include/flutter/method_channel.h": "560bd71ef4c34b302f32747cdbc42f27db0f3310ba9af3837bae0b41b06ff87b",
+            "cpp_client_wrapper/include/flutter/method_codec.h": "361e3c353d2f32b5781375b5bc6a930da994aa4ac5c86f27bd95db302d6cd8f4",
+            "cpp_client_wrapper/include/flutter/method_result_functions.h": "ec341cf21ccd93b04725a564d2a9ed0d05aac088e1fe153de2b529bb2c061dd4",
+            "cpp_client_wrapper/include/flutter/method_result.h": "906538745431284e00f2857ddff03666fd61422f704518baabb860d75df4fa81",
+            "cpp_client_wrapper/include/flutter/plugin_registrar.h": "ef4be66c6da2efa835e6cfdfcde3b09e8ffa714f7579783cf470c0e95744cb69",
+            "cpp_client_wrapper/include/flutter/plugin_registry.h": "45ca53f15f1e7bd5a41e9358f586c5fa76aa2ef39b5383f38086dbacf43c50a3",
+            "cpp_client_wrapper/include/flutter/standard_codec_serializer.h": "eb20d05f9bf201125fea8332bd1216f773976ad4b2c2e0d0bf8931f2bded68c2",
+            "cpp_client_wrapper/include/flutter/standard_message_codec.h": "178070c1353c533f7ab082ddd4018923629e345963a72d9ffab71d555b17d732",
+            "cpp_client_wrapper/include/flutter/standard_method_codec.h": "de3ee98c8f1d13a5685f442914caa8820c024959419bc70049484c8e54dd10be",
+            "cpp_client_wrapper/include/flutter/texture_registrar.h": "5083efbb90d1c0999a4a64330880c08d0e3d9f354cc6ace04ab332a79cd5c2df",
+            "cpp_client_wrapper/binary_messenger_impl.h": "e88a83b20f44a2454594d0bd6d9ac158a9beb30b40bbce10ddbef482053d9c7f",
+            "cpp_client_wrapper/byte_buffer_streams.h": "b6cf6e45871ab2fac6ba6f50fefc68b4bd377c16345ac06f8d196aa2800f7b57",
+            "cpp_client_wrapper/texture_registrar_impl.h": "b61f467d683d8c43f9bfb59da797f23b33e397398e31b9960b4bd1751e6f5d41",
+            "cpp_client_wrapper/include/flutter/dart_project.h": "1a31f26f1be0f7cf2532b2c61e8e1b16963327bf76cc87b280576a59f648a578",
+            "cpp_client_wrapper/include/flutter/flutter_engine.h": "0e33d745961dcfd2062feeae5ce2e06736c5c5fa361645cd48052712e4ecab93",
+            "cpp_client_wrapper/include/flutter/flutter_view_controller.h": "f8e58f453c1af8892e452d259c6a9405b7847e2b49dc95c6dcdf883f6d7f7a9f",
+            "cpp_client_wrapper/include/flutter/flutter_view.h": "f109eb9472439369217de2235b810ae514e6c395f8dec458cf944c616208ff26",
+            "cpp_client_wrapper/include/flutter/plugin_registrar_windows.h": "badf7b0cd6263915fdaece2b584190f3ae6a6d76708eab7154743cb231688027"
           },
           "archives": [
             {
@@ -2637,6 +2677,14 @@
             {
               "archive_url": "https://storage.googleapis.com/flutter_infra_release/flutter/af7e796e161ae0bb1ff0758c71a7105418bd9ded/windows-x64-debug/windows-x64-flutter.zip",
               "archive_sha256": "014af1a13f8b9bf8fbba396d491b9b9a71ea05086afde70db9fcca2faaa300de"
+            },
+            {
+              "archive_url": "https://storage.googleapis.com/flutter_infra_release/flutter/af7e796e161ae0bb1ff0758c71a7105418bd9ded/windows-x64/font-subset.zip",
+              "archive_sha256": "18378a60c2b5d0d2b02cb668f7b25037ea9225ea4fc4008306750b24c01a110e"
+            },
+            {
+              "archive_url": "https://storage.googleapis.com/flutter_infra_release/flutter/af7e796e161ae0bb1ff0758c71a7105418bd9ded/windows-x64/flutter-cpp-client-wrapper.zip",
+              "archive_sha256": "340bcde89e11d0b8fe7e3433295f8c540436e8485f3864b7c24e39cd5bf52485"
             }
           ]
         },

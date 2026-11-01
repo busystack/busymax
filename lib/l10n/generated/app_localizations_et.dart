@@ -243,6 +243,33 @@ class AppLocalizationsEt extends AppLocalizations {
       'Kas kustutada jäädavalt? Seda ei saa Nextcloudi kalendriprügikastist taastada.';
 
   @override
+  String get nextcloudDiscoveryRequired =>
+      'Värskenda seda kontot Nextcloudi võimaluste ja õiguste uuendamiseks.';
+
+  @override
+  String get nextcloudConflict =>
+      'Üksus või selle õigused on muutunud. Värskenda ja kontrolli enne uuesti proovimist.';
+
+  @override
+  String get nextcloudItemUnavailable =>
+      'See üksus pole enam saadaval. Värskenda selle praeguse oleku kontrollimiseks.';
+
+  @override
+  String get nextcloudFederationInvitations => 'Jagatud kalendrite kutsed';
+
+  @override
+  String get nextcloudFederationEmpty =>
+      'Ootel jagatud kalendrite kutseid pole.';
+
+  @override
+  String get nextcloudFederationGrant =>
+      'Jagamine loodi selles serveris. Kaugserveri vastuvõtmine ja sünkroonimine pole kinnitatud.';
+
+  @override
+  String get nextcloudTrashDisabled =>
+      'Kalendri prügikasti säilitamine on selles serveris keelatud.';
+
+  @override
   String get nextcloudOperationDenied => 'Nextcloud ei lubanud seda toimingut.';
 
   @override

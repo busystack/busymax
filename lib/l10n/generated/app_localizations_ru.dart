@@ -244,6 +244,33 @@ class AppLocalizationsRu extends AppLocalizations {
       'Удалить элемент навсегда? Его нельзя будет восстановить из корзины календарей Nextcloud.';
 
   @override
+  String get nextcloudDiscoveryRequired =>
+      'Обновите эту учётную запись, чтобы обновить возможности и права Nextcloud.';
+
+  @override
+  String get nextcloudConflict =>
+      'Элемент или его права изменились. Обновите данные и проверьте их перед повторной попыткой.';
+
+  @override
+  String get nextcloudItemUnavailable =>
+      'Этот элемент больше недоступен. Обновите данные, чтобы проверить его состояние.';
+
+  @override
+  String get nextcloudFederationInvitations => 'Приглашения в общие календари';
+
+  @override
+  String get nextcloudFederationEmpty =>
+      'Нет ожидающих приглашений в общие календари.';
+
+  @override
+  String get nextcloudFederationGrant =>
+      'Общий доступ создан на этом сервере. Принятие приглашения и синхронизация на другом сервере не подтверждены.';
+
+  @override
+  String get nextcloudTrashDisabled =>
+      'Хранение удалённых элементов календаря на этом сервере отключено.';
+
+  @override
   String get nextcloudOperationDenied => 'Nextcloud не разрешил эту операцию.';
 
   @override

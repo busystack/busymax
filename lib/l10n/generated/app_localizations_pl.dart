@@ -253,6 +253,34 @@ class AppLocalizationsPl extends AppLocalizations {
       'Trwale usunąć ten element? Nie będzie można go przywrócić z kosza kalendarza Nextcloud.';
 
   @override
+  String get nextcloudDiscoveryRequired =>
+      'Odśwież to konto, aby zaktualizować funkcje i uprawnienia Nextcloud.';
+
+  @override
+  String get nextcloudConflict =>
+      'Element lub jego uprawnienia uległy zmianie. Odśwież i sprawdź przed ponowną próbą.';
+
+  @override
+  String get nextcloudItemUnavailable =>
+      'Ten element nie jest już dostępny. Odśwież, aby sprawdzić jego stan.';
+
+  @override
+  String get nextcloudFederationInvitations =>
+      'Zaproszenia do współdzielonych kalendarzy';
+
+  @override
+  String get nextcloudFederationEmpty =>
+      'Brak oczekujących zaproszeń do współdzielonych kalendarzy.';
+
+  @override
+  String get nextcloudFederationGrant =>
+      'Utworzono udostępnienie na tym serwerze. Zdalne przyjęcie i synchronizacja nie zostały potwierdzone.';
+
+  @override
+  String get nextcloudTrashDisabled =>
+      'Przechowywanie usuniętych elementów kalendarza jest wyłączone na tym serwerze.';
+
+  @override
   String get nextcloudOperationDenied =>
       'Nextcloud nie zezwolił na tę operację.';
 

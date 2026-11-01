@@ -23,6 +23,9 @@ final class NextcloudTrashItem {
     required this.etag,
     required this.canRestore,
     required this.canPermanentlyDelete,
+    required this.authorizationGeneration,
+    required this.calendarHomeHref,
+    this.uid,
     this.calendarUri,
     this.sourceCalendarUri,
   });
@@ -35,6 +38,9 @@ final class NextcloudTrashItem {
   final String? etag;
   final bool canRestore;
   final bool canPermanentlyDelete;
+  final int authorizationGeneration;
+  final Uri calendarHomeHref;
+  final String? uid;
   final String? calendarUri;
   final String? sourceCalendarUri;
 }
@@ -78,9 +84,17 @@ final class NextcloudTrashService {
     for (final bin in bins) {
       final binUri = context.resolve(bin.requestUri, context.authority);
       final metadata = jsonDecode(bin.safeDisplayMetadataJson ?? '{}') as Map;
+      final homeHref = metadata['calendarHomeHref'];
+      if (homeHref is! String) {
+        throw nextcloudOperationError(409, 'DavDiscoveryRequired');
+      }
+      final home = context.resolve(homeHref, context.authority);
       final binState = await context.propfind(
         binUri,
-        '<d:resourcetype/><d:current-user-privilege-set/><nc:trash-bin-retention-duration/>',
+        // Nextcloud's IProperties supplies the custom resource type while
+        // resolving display properties. Request the same shape as inventory;
+        // a minimal built-in-only PROPFIND can report just DAV:collection.
+        '<d:resourcetype/><d:displayname/><d:current-user-privilege-set/><nc:trash-bin-retention-duration/>',
       );
       final binEntry = binState.responses
           .where((r) => context.resolve(r.href, binUri) == binUri)
@@ -167,6 +181,9 @@ final class NextcloudTrashService {
           );
           items[href.toString()] = NextcloudTrashItem._(
             accountId: collections.accountId,
+            authorizationGeneration: context.authorizationGeneration,
+            calendarHomeHref: home,
+            uid: content.uid,
             href: href,
             trashBinHref: binUri,
             kind: component == 'VEVENT'
@@ -191,11 +208,6 @@ final class NextcloudTrashService {
       // Deleted calendars live in their actual calendar home, not the bin's
       // objects child. Read a fresh inventory, including after confirmation:
       // a cached deleted row must never authorize deleting a restored calendar.
-      final homeHref = metadata['calendarHomeHref'];
-      if (homeHref is! String) {
-        throw nextcloudOperationError(409, 'DavDiscoveryRequired');
-      }
-      final home = context.resolve(homeHref, context.authority);
       final inventory = await context.propfind(
         home,
         '<d:resourcetype/><d:displayname/><d:current-user-privilege-set/><d:getetag/><c:supported-calendar-component-set/><nc:deleted-at/>',
@@ -247,6 +259,8 @@ final class NextcloudTrashService {
             : NextcloudTrashKind.calendar;
         items[href.toString()] = NextcloudTrashItem._(
           accountId: collections.accountId,
+          authorizationGeneration: context.authorizationGeneration,
+          calendarHomeHref: home,
           href: href,
           trashBinHref: binUri,
           kind: kind,
@@ -289,6 +303,9 @@ final class NextcloudTrashService {
     if (current == null) {
       throw nextcloudOperationError(410, 'DavTrashItemExpired');
     }
+    if (current.authorizationGeneration != item.authorizationGeneration) {
+      throw nextcloudOperationError(412, 'DavTrashIdentityChanged');
+    }
     if (item.etag != null && current.etag != item.etag) {
       throw nextcloudOperationError(412, 'DavTrashItemChanged');
     }
@@ -298,7 +315,11 @@ final class NextcloudTrashService {
     if (permanent ? !current.canPermanentlyDelete : !current.canRestore) {
       throw nextcloudOperationError(403, 'DavTrashPermissionDenied');
     }
+    if (!permanent) await _requireNoPendingChanges(current);
     final context = await collections.openContext();
+    if (context.authorizationGeneration != current.authorizationGeneration) {
+      throw nextcloudOperationError(412, 'DavTrashIdentityChanged');
+    }
     final source = context.resolve(current.href.toString(), context.authority);
     final destination = context.resolve(
       davCollectionUri(current.trashBinHref).resolve('restore/file').toString(),
@@ -336,5 +357,41 @@ final class NextcloudTrashService {
       throw nextcloudOperationError(409, 'DavTrashOutcomeUnknown');
     }
     return collections.refreshResult();
+  }
+
+  Future<void> _requireNoPendingChanges(NextcloudTrashItem item) async {
+    final rows = await (collections.database.select(
+      collections.database.davCollections,
+    )..where((r) => r.accountId.equals(collections.accountId))).get();
+    final ids = <String>{};
+    for (final row in rows) {
+      final uri = Uri.parse(row.requestUri);
+      final isCollection =
+          item.kind != NextcloudTrashKind.event &&
+          item.kind != NextcloudTrashKind.task;
+      if (isCollection
+          ? uri == item.href
+          : uri.path.startsWith(davCollectionUri(item.calendarHomeHref).path) &&
+                uri.pathSegments.where((s) => s.isNotEmpty).lastOrNull ==
+                    item.calendarUri) {
+        ids.add(row.id);
+      }
+    }
+    if (ids.isEmpty) return;
+    final pending =
+        await (collections.database.select(collections.database.pendingOps)
+              ..where(
+                (r) =>
+                    r.accountId.equals(collections.accountId) &
+                    (r.davCollectionId.isIn(ids) |
+                        r.destinationCollectionId.isIn(ids)),
+              )
+              ..limit(1))
+            .get();
+    // Do not discard user edits or replay an old delete immediately after a
+    // restore. Resolve this collection's pending work before restoring it.
+    if (pending.isNotEmpty) {
+      throw nextcloudOperationError(409, 'DavTrashHasPendingChanges');
+    }
   }
 }

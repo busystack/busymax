@@ -1,0 +1,70 @@
+import 'package:busymax/l10n/generated/app_localizations_en.dart';
+import 'package:busymax/src/dav/dav_errors.dart';
+import 'package:busymax/src/dav/nextcloud/nextcloud_dav_context.dart';
+import 'package:busymax/src/l10n/nextcloud_collection_error_description.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  final l10n = AppLocalizationsEn();
+  String describe(Object error) =>
+      localizedNextcloudCollectionError(l10n, error);
+  test('discovery, permission, conflict and unsupported remain distinct', () {
+    expect(
+      describe(nextcloudOperationError(409, 'DavDiscoveryRequired')),
+      l10n.nextcloudDiscoveryRequired,
+    );
+    expect(
+      describe(nextcloudOperationError(403, 'DavSharingDenied')),
+      l10n.nextcloudOperationDenied,
+    );
+    expect(
+      describe(nextcloudOperationError(409, 'DavTrashRestoreFailed')),
+      l10n.nextcloudConflict,
+    );
+    expect(
+      describe(nextcloudOperationError(405, 'DavTrashUnsupported')),
+      l10n.nextcloudUnsupported,
+    );
+    expect(
+      describe(nextcloudOperationError(409, 'DavTrashRestoreFailed')),
+      isNot(l10n.nextcloudUnsupported),
+    );
+  });
+  test(
+    'an uncertain mutation is never described as committed awaiting refresh',
+    () {
+      final error = nextcloudOperationError(409, 'DavTrashOutcomeUnknown');
+      expect(error.kind, DavErrorKind.unknownOutcome);
+      expect(describe(error), l10n.nextcloudOutcomeUnknown);
+      expect(
+        describe(const NextcloudRefreshPending()),
+        l10n.nextcloudRefreshPending,
+      );
+    },
+  );
+  test(
+    'authentication and certificate failures retain their recovery actions',
+    () {
+      expect(
+        describe(nextcloudOperationError(401, 'DavAuthRejected')),
+        l10n.accountReconnectRequired,
+      );
+      expect(
+        describe(
+          const DavException(
+            kind: DavErrorKind.tls,
+            code: 'DavTlsFailure',
+            safeMessage: 'TLS failure',
+          ),
+        ),
+        l10n.reviewServerCertificate,
+      );
+      expect(
+        describe(
+          nextcloudOperationError(502, 'NextcloudFederationResponseInvalid'),
+        ),
+        isNot(l10n.nextcloudUnsupported),
+      );
+    },
+  );
+}

@@ -57,6 +57,7 @@ final class DavDiscoveryRepository {
                       service.capabilities.supportedReports.toList()..sort(),
                   'serverFeatures': service.capabilities.serverFeatures.toList()
                     ..sort(),
+                  'allowedMethods': service.allowedMethods.toList()..sort(),
                 }),
               ),
               capabilitiesSchemaVersion: const Value(

@@ -241,6 +241,33 @@ class AppLocalizationsHi extends AppLocalizations {
       'यह आइटम हमेशा के लिए हटाएँ? इसे Nextcloud के कैलेंडर कूड़ेदान से पुनर्स्थापित नहीं किया जा सकेगा।';
 
   @override
+  String get nextcloudDiscoveryRequired =>
+      'Nextcloud की सुविधाएँ और अनुमतियाँ अपडेट करने के लिए इस खाते को रीफ़्रेश करें।';
+
+  @override
+  String get nextcloudConflict =>
+      'आइटम या उसकी अनुमतियाँ बदल गई हैं। दोबारा कोशिश करने से पहले रीफ़्रेश करके जाँचें।';
+
+  @override
+  String get nextcloudItemUnavailable =>
+      'यह आइटम अब उपलब्ध नहीं है। इसकी मौजूदा स्थिति जाँचने के लिए रीफ़्रेश करें।';
+
+  @override
+  String get nextcloudFederationInvitations => 'साझा कैलेंडर के निमंत्रण';
+
+  @override
+  String get nextcloudFederationEmpty =>
+      'साझा कैलेंडर का कोई निमंत्रण लंबित नहीं है।';
+
+  @override
+  String get nextcloudFederationGrant =>
+      'इस सर्वर पर साझाकरण बनाया गया। दूरस्थ स्वीकृति और सिंक की पुष्टि नहीं हुई है।';
+
+  @override
+  String get nextcloudTrashDisabled =>
+      'इस सर्वर पर हटाए गए कैलेंडर आइटम रखना बंद है।';
+
+  @override
   String get nextcloudOperationDenied =>
       'Nextcloud ने इस कार्रवाई की अनुमति नहीं दी।';
 

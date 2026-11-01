@@ -245,6 +245,33 @@ class AppLocalizationsIt extends AppLocalizations {
       'Eliminare definitivamente questo elemento? Non potrà essere ripristinato dal cestino dei calendari Nextcloud.';
 
   @override
+  String get nextcloudDiscoveryRequired =>
+      'Aggiorna questo account per aggiornare funzionalità e autorizzazioni di Nextcloud.';
+
+  @override
+  String get nextcloudConflict =>
+      'L’elemento o le sue autorizzazioni sono cambiati. Aggiorna e controlla prima di riprovare.';
+
+  @override
+  String get nextcloudItemUnavailable =>
+      'Questo elemento non è più disponibile. Aggiorna per verificarne lo stato.';
+
+  @override
+  String get nextcloudFederationInvitations => 'Inviti a calendari condivisi';
+
+  @override
+  String get nextcloudFederationEmpty =>
+      'Nessun invito a calendari condivisi in attesa.';
+
+  @override
+  String get nextcloudFederationGrant =>
+      'Condivisione creata su questo server. Accettazione e sincronizzazione remote non sono confermate.';
+
+  @override
+  String get nextcloudTrashDisabled =>
+      'La conservazione nel cestino del calendario è disattivata su questo server.';
+
+  @override
   String get nextcloudOperationDenied =>
       'Nextcloud non ha consentito questa operazione.';
 

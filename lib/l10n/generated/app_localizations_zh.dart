@@ -224,6 +224,27 @@ class AppLocalizationsZh extends AppLocalizations {
       '永久删除此项目？之后无法从 Nextcloud 日历回收站恢复。';
 
   @override
+  String get nextcloudDiscoveryRequired => '请刷新此账户以更新 Nextcloud 功能和权限。';
+
+  @override
+  String get nextcloudConflict => '项目或其权限已更改。请刷新并检查后重试。';
+
+  @override
+  String get nextcloudItemUnavailable => '此项目已不可用。请刷新以检查其当前状态。';
+
+  @override
+  String get nextcloudFederationInvitations => '共享日历邀请';
+
+  @override
+  String get nextcloudFederationEmpty => '没有待处理的共享日历邀请。';
+
+  @override
+  String get nextcloudFederationGrant => '已在此服务器上创建共享。尚未确认远程接受和同步。';
+
+  @override
+  String get nextcloudTrashDisabled => '此服务器已禁用日历回收站保留功能。';
+
+  @override
   String get nextcloudOperationDenied => 'Nextcloud 不允许此操作。';
 
   @override
@@ -3949,6 +3970,27 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
       '永久删除此项目？之后无法从 Nextcloud 日历回收站恢复。';
 
   @override
+  String get nextcloudDiscoveryRequired => '请刷新此账户以更新 Nextcloud 功能和权限。';
+
+  @override
+  String get nextcloudConflict => '项目或其权限已更改。请刷新并检查后重试。';
+
+  @override
+  String get nextcloudItemUnavailable => '此项目已不可用。请刷新以检查其当前状态。';
+
+  @override
+  String get nextcloudFederationInvitations => '共享日历邀请';
+
+  @override
+  String get nextcloudFederationEmpty => '没有待处理的共享日历邀请。';
+
+  @override
+  String get nextcloudFederationGrant => '已在此服务器上创建共享。尚未确认远程接受和同步。';
+
+  @override
+  String get nextcloudTrashDisabled => '此服务器已禁用日历回收站保留功能。';
+
+  @override
   String get nextcloudOperationDenied => 'Nextcloud 不允许此操作。';
 
   @override
@@ -7672,6 +7714,27 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   @override
   String get nextcloudPermanentDeleteWarning =>
       '永久刪除此項目？之後無法從 Nextcloud 行事曆垃圾桶還原。';
+
+  @override
+  String get nextcloudDiscoveryRequired => '請重新整理此帳戶以更新 Nextcloud 功能和權限。';
+
+  @override
+  String get nextcloudConflict => '項目或其權限已變更。請重新整理並檢查後再試。';
+
+  @override
+  String get nextcloudItemUnavailable => '此項目已無法使用。請重新整理以檢查目前狀態。';
+
+  @override
+  String get nextcloudFederationInvitations => '共用行事曆邀請';
+
+  @override
+  String get nextcloudFederationEmpty => '沒有待處理的共用行事曆邀請。';
+
+  @override
+  String get nextcloudFederationGrant => '已在此伺服器上建立共用。尚未確認遠端接受和同步。';
+
+  @override
+  String get nextcloudTrashDisabled => '此伺服器已停用行事曆垃圾桶保留功能。';
 
   @override
   String get nextcloudOperationDenied => 'Nextcloud 不允許此操作。';

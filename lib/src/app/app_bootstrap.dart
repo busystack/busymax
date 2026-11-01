@@ -50,6 +50,7 @@ import '../dav/storage/dav_settings_repository.dart';
 import '../dav/nextcloud/nextcloud_collection_service.dart';
 import '../dav/nextcloud/nextcloud_sharing_service.dart';
 import '../dav/nextcloud/nextcloud_trash_service.dart';
+import '../dav/nextcloud/nextcloud_federation_service.dart';
 import '../dav/nextcloud/nextcloud_scheduling_service.dart';
 import '../features/calendar/data/calendar_repository.dart';
 import '../features/calendar/data/microsoft_shared_calendar_service.dart';
@@ -1797,6 +1798,13 @@ final nextcloudSharingServiceProvider =
 final nextcloudTrashServiceProvider =
     Provider.family<NextcloudTrashService, String>(
       (ref, accountId) => NextcloudTrashService(
+        ref.watch(nextcloudCollectionServiceProvider(accountId)),
+      ),
+    );
+
+final nextcloudFederationServiceProvider =
+    Provider.family<NextcloudFederationService, String>(
+      (ref, accountId) => NextcloudFederationService(
         ref.watch(nextcloudCollectionServiceProvider(accountId)),
       ),
     );

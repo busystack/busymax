@@ -353,6 +353,7 @@ Future<void> _seedAccount(
       .into(database.davAccountServices)
       .insert(
         DavAccountServicesCompanion.insert(
+          capabilitiesSchemaVersion: const Value(davCapabilitiesSchemaVersion),
           accountId: 'account',
           canonicalServiceUri: 'https://cloud.example.test/remote.php/dav/',
           canonicalOrigin: 'https://cloud.example.test',

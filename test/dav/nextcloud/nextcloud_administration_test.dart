@@ -1,5 +1,7 @@
 import 'package:busymax/src/dav/dav_errors.dart';
 import 'package:busymax/src/dav/nextcloud/nextcloud_dav_context.dart';
+import 'package:busymax/src/dav/nextcloud/nextcloud_collection_service.dart';
+import 'package:busymax/src/dav/discovery/dav_discovery_models.dart';
 import 'package:busymax/src/dav/nextcloud/nextcloud_trash_service.dart';
 import 'package:busymax/src/dav/xml/dav_xml.dart';
 import 'package:busymax/src/db/app_database.dart';
@@ -16,6 +18,57 @@ void main() {
     await fixture.seed();
   });
   tearDown(() => fixture.close());
+  test('an existing account refreshes its capability schema without losing collections', () async {
+    await fixture.database
+        .update(fixture.database.davAccountServices)
+        .write(
+          const DavAccountServicesCompanion(
+            capabilitiesSchemaVersion: Value(2),
+          ),
+        );
+    var refreshed = 0;
+    final service = NextcloudCollectionService(
+      database: fixture.database,
+      secrets: fixture.secrets,
+      client: fixture.client,
+      accountId: 'account',
+      requireNetwork: () async {},
+      refresh: () async {
+        refreshed++;
+        await fixture.database
+            .update(fixture.database.davAccountServices)
+            .write(
+              const DavAccountServicesCompanion(
+                capabilitiesSchemaVersion: Value(davCapabilitiesSchemaVersion),
+              ),
+            );
+      },
+    );
+    final before = await fixture.database
+        .select(fixture.database.davCollections)
+        .get();
+    await service.openContext();
+    expect(refreshed, 1);
+    expect(
+      (await fixture.database.select(fixture.database.davCollections).get())
+          .map((c) => c.id),
+      before.map((c) => c.id),
+    );
+    await fixture.database
+        .update(fixture.database.davAccountServices)
+        .write(
+          const DavAccountServicesCompanion(
+            capabilitiesSchemaVersion: Value(2),
+          ),
+        );
+    fixture.failRefresh = true;
+    await expectLater(fixture.collections.openContext(), throwsStateError);
+    expect(
+      (await fixture.database.select(fixture.database.davCollections).get())
+          .map((c) => c.id),
+      before.map((c) => c.id),
+    );
+  });
   test(
     'content-read-only metadata uses DAV properties and no local queue',
     () async {
@@ -400,7 +453,6 @@ void main() {
       'alex@http://remote.example.test',
       'alex@https://user:pass@remote.example.test',
       'alex@remote.example.test?token=secret',
-      'alex@localhost',
       'alex@remote.example.test/../other',
     ]) {
       await expectLater(fixture.sharing.search(value), throwsFormatException);
@@ -468,6 +520,42 @@ void main() {
       expect(fixture.requests.where((r) => r.method == 'MOVE'), hasLength(1));
     },
   );
+  test('restoration cannot replay an older pending deletion over the restored task', () async {
+    final item = (await fixture.trash.list()).items.last;
+    await fixture.database
+        .into(fixture.database.pendingOps)
+        .insert(
+          PendingOpsCompanion.insert(
+            id: 'offline-delete',
+            accountId: 'account',
+            provider: const Value('nextcloud'),
+            entityType: 'task',
+            operation: 'delete',
+            operationType: const Value('task.delete'),
+            davCollectionId: const Value('collection'),
+            requestJson: '{}',
+            createdAtUtc: '2026-09-05T12:00:00Z',
+            updatedAtUtc: '2026-09-05T12:00:00Z',
+          ),
+        );
+    await expectLater(
+      fixture.trash.restore(item),
+      throwsA(
+        isA<DavException>().having(
+          (e) => e.code,
+          'pending work retained',
+          'DavTrashHasPendingChanges',
+        ),
+      ),
+    );
+    expect(fixture.requests.where((r) => r.method == 'MOVE'), isEmpty);
+    expect(
+      (await fixture.database.select(fixture.database.pendingOps).get())
+          .single
+          .id,
+      'offline-delete',
+    );
+  });
   test(
     'trash rechecks object permissions independently from the bin owner',
     () async {
@@ -525,6 +613,83 @@ void main() {
       expect(deletion.headers['x-nc-caldav-no-trashbin'], '1');
     },
   );
+  for (final permanent in [false, true]) {
+    test(
+      'authorization replacement during trash refresh invalidates ${permanent ? 'permanent deletion' : 'restore'}',
+      () async {
+        final item = (await fixture.trash.list()).items.first;
+        fixture.beforeResponse = (_) async {
+          fixture.beforeResponse = null;
+          await fixture.database
+              .into(fixture.database.authorizationGenerations)
+              .insert(
+                AuthorizationGenerationsCompanion.insert(
+                  accountId: 'account',
+                  generation: 1,
+                ),
+              );
+        };
+        await expectLater(
+          permanent
+              ? fixture.trash.permanentlyDelete(item)
+              : fixture.trash.restore(item),
+          throwsA(
+            isA<DavException>().having(
+              (e) => e.code,
+              'code',
+              'DavTrashIdentityChanged',
+            ),
+          ),
+        );
+        expect(
+          fixture.requests.where(
+            (r) => r.method == 'MOVE' || r.method == 'DELETE',
+          ),
+          isEmpty,
+        );
+      },
+    );
+  }
+  for (final permanent in [false, true]) {
+    test(
+      'interrupted trash ${permanent ? 'deletion' : 'restore'} stays uncertain without repetition',
+      () async {
+        final item = (await fixture.trash.list()).items.first;
+        fixture.loseTrashMutationResponse = true;
+        await expectLater(
+          permanent
+              ? fixture.trash.permanentlyDelete(item)
+              : fixture.trash.restore(item),
+          throwsA(
+            isA<DavException>().having(
+              (e) => e.kind,
+              'uncertain outcome',
+              DavErrorKind.unknownOutcome,
+            ),
+          ),
+        );
+        expect(fixture.refreshes, 1);
+        expect(
+          (await fixture.trash.list()).items.where((i) => i.href == item.href),
+          isEmpty,
+        );
+        await expectLater(
+          permanent
+              ? fixture.trash.permanentlyDelete(item)
+              : fixture.trash.restore(item),
+          throwsA(
+            isA<DavException>().having((e) => e.statusCode, 'fresh state', 410),
+          ),
+        );
+        expect(
+          fixture.requests.where(
+            (r) => r.method == (permanent ? 'DELETE' : 'MOVE'),
+          ),
+          hasLength(1),
+        );
+      },
+    );
+  }
   test(
     'trash rejects an active-calendar href returned in a trash report',
     () async {

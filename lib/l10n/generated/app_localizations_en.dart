@@ -242,6 +242,33 @@ class AppLocalizationsEn extends AppLocalizations {
       'Permanently delete this item? It cannot be restored from Nextcloud\'s calendar trash.';
 
   @override
+  String get nextcloudDiscoveryRequired =>
+      'Refresh this account to update its Nextcloud capabilities and permissions.';
+
+  @override
+  String get nextcloudConflict =>
+      'The item or its permissions changed. Refresh and review it before trying again.';
+
+  @override
+  String get nextcloudItemUnavailable =>
+      'This item is no longer available. Refresh to check its current state.';
+
+  @override
+  String get nextcloudFederationInvitations => 'Shared calendar invitations';
+
+  @override
+  String get nextcloudFederationEmpty =>
+      'No pending shared calendar invitations.';
+
+  @override
+  String get nextcloudFederationGrant =>
+      'Share created on this server. Remote acceptance and synchronization are not confirmed.';
+
+  @override
+  String get nextcloudTrashDisabled =>
+      'Calendar trash retention is disabled on this server.';
+
+  @override
   String get nextcloudOperationDenied =>
       'Nextcloud did not allow this operation.';
 

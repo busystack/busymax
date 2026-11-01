@@ -52,7 +52,53 @@ final class DavDiscoveryService {
     );
     _requireSuccessfulOrDav(options);
     final serviceCapabilities = _serviceCapabilities(options);
-    _transport.setServerFeatures(serviceCapabilities.serverFeatures);
+    final serverFeatures = {...serviceCapabilities.serverFeatures};
+    _transport.setServerFeatures(serverFeatures);
+    final endpointOptions = <Uri, DavResponse>{};
+    Future<DavEndpointCapabilities> capabilitiesAt(
+      Uri target,
+      DavMultistatus properties,
+    ) async {
+      if (_profile.provider != BusyProvider.nextcloud) {
+        return DavEndpointCapabilities(href: target);
+      }
+      final response = endpointOptions[target] ??= await _transport.send(
+        DavRequest(
+          method: 'OPTIONS',
+          uri: target,
+          accountId: _accountId,
+          correlationId: correlationId,
+          retryClass: DavRetryClass.safeRead,
+        ),
+        credential: _credential,
+        cancellationToken: cancellationToken,
+      );
+      _requireSuccessfulOrDav(response);
+      final features = _serviceCapabilities(response).serverFeatures;
+      serverFeatures.addAll(features);
+      _transport.setServerFeatures(serverFeatures);
+      return DavEndpointCapabilities(
+        href: target,
+        serverFeatures: features,
+        allowedMethods: _allowedMethods(response),
+        supportedReports: {
+          for (final entry in properties.responses)
+            if (_sameRequestTarget(
+              resolveDavHref(
+                href: entry.href,
+                responseRequestUri: target,
+                profile: _profile,
+                accountAuthority: _accountAuthority,
+                correlationId: correlationId,
+              ),
+              target,
+            ))
+              ..._reportNames(
+                entry.successfulProperty(davNamespace, 'supported-report-set'),
+              ),
+        },
+      );
+    }
 
     final principalResponse = await _propfind(
       uri: options.requestUri,
@@ -113,6 +159,17 @@ final class DavDiscoveryService {
       correlationId: correlationId,
     );
 
+    final principalCapabilities = await capabilitiesAt(
+      principalHref,
+      principalProperties,
+    );
+    // Calendar plugins need not be registered at the generic DAV root.
+    // Negotiate before inventory so extensions also apply to this first read.
+    await capabilitiesAt(
+      calendarHome,
+      const DavMultistatus(responses: [], syncToken: null, errorConditions: {}),
+    );
+
     final inventoryResponse = await _propfind(
       uri: calendarHome,
       depth: '1',
@@ -134,7 +191,7 @@ final class DavDiscoveryService {
       principal: principalHref,
     );
     final contexts = <DavPrincipalContext>[
-      _principalContext(
+      await _principalContext(
         principalHref,
         calendarHome,
         addresses,
@@ -145,6 +202,8 @@ final class DavDiscoveryService {
         inventoryResponse.requestUri,
         correlationId,
         principalProperties,
+        [principalCapabilities, await capabilitiesAt(calendarHome, inventory)],
+        cancellationToken,
       ),
     ];
     // A principal may advertise more than one home. Keep the first as the
@@ -160,6 +219,14 @@ final class DavDiscoveryService {
     for (final home in ownHomes.where(
       (home) => !_sameRequestTarget(home, calendarHome),
     )) {
+      await capabilitiesAt(
+        home,
+        const DavMultistatus(
+          responses: [],
+          syncToken: null,
+          errorConditions: {},
+        ),
+      );
       final listed = await _propfind(
         uri: home,
         depth: '1',
@@ -181,7 +248,7 @@ final class DavDiscoveryService {
         principal: principalHref,
       );
       contexts.add(
-        _principalContext(
+        await _principalContext(
           principalHref,
           home,
           addresses,
@@ -192,6 +259,8 @@ final class DavDiscoveryService {
           listed.requestUri,
           correlationId,
           principalProperties,
+          [principalCapabilities, await capabilitiesAt(home, entries)],
+          cancellationToken,
         ),
       );
       for (final collection in discovered) {
@@ -203,7 +272,7 @@ final class DavDiscoveryService {
       }
     }
     if (_profile.provider == BusyProvider.nextcloud &&
-        serviceCapabilities.serverFeatures.contains('calendar-proxy')) {
+        serverFeatures.contains('calendar-proxy')) {
       final principals = <String, Uri>{};
       for (final name in [
         'calendar-proxy-read-for',
@@ -275,7 +344,19 @@ final class DavDiscoveryService {
           responseUri: response.requestUri,
           correlationId: correlationId,
         );
+        final delegatedCapabilities = await capabilitiesAt(
+          principal,
+          properties,
+        );
         for (final home in homes) {
+          await capabilitiesAt(
+            home,
+            const DavMultistatus(
+              responses: [],
+              syncToken: null,
+              errorConditions: {},
+            ),
+          );
           final listed = await _propfind(
             uri: home,
             depth: '1',
@@ -298,7 +379,7 @@ final class DavDiscoveryService {
             delegated: true,
           );
           contexts.add(
-            _principalContext(
+            await _principalContext(
               principal,
               home,
               delegatedAddresses,
@@ -309,6 +390,8 @@ final class DavDiscoveryService {
               listed.requestUri,
               correlationId,
               properties,
+              [delegatedCapabilities, await capabilitiesAt(home, entries)],
+              cancellationToken,
             ),
           );
           for (final collection in discovered) {
@@ -343,13 +426,18 @@ final class DavDiscoveryService {
           hasCalendarHome: true,
           hasSchedulingInbox: inbox != null,
           hasSchedulingOutbox: outbox != null,
-          supportedReports: serviceCapabilities.supportedReports,
-          serverFeatures: serviceCapabilities.serverFeatures,
+          supportedReports: {
+            for (final context in contexts)
+              for (final endpoint in context.endpointCapabilities)
+                ...endpoint.supportedReports,
+          },
+          serverFeatures: Set.unmodifiable(serverFeatures),
         ),
         discoveredAtUtc: now,
         lastValidatedAtUtc: now,
         providerProfileVersion: davProviderProfileVersion,
         principalContexts: List.unmodifiable(contexts),
+        allowedMethods: _allowedMethods(options),
       ),
       collections: List.unmodifiable(collections),
     );
@@ -399,7 +487,7 @@ final class DavDiscoveryService {
         ),
   ];
 
-  DavPrincipalContext _principalContext(
+  Future<DavPrincipalContext> _principalContext(
     Uri principal,
     Uri home,
     List<Uri> addresses,
@@ -410,27 +498,58 @@ final class DavDiscoveryService {
     Uri responseUri,
     String correlationId,
     DavMultistatus principalProperties,
-  ) {
-    Set<String> privileges(Uri? target) {
+    List<DavEndpointCapabilities> endpointCapabilities,
+    DavCancellationToken? cancellationToken,
+  ) async {
+    Set<String>? privileges(Uri? target, DavMultistatus data, Uri base) {
       if (target == null) return const {};
-      for (final entry in inventory.responses) {
+      for (final entry in data.responses) {
         final uri = resolveDavHref(
           href: entry.href,
-          responseRequestUri: responseUri,
+          responseRequestUri: base,
           profile: _profile,
           accountAuthority: _accountAuthority,
           correlationId: correlationId,
         );
         if (_sameRequestTarget(uri, target)) {
-          return _privilegeNames(
-            entry.successfulProperty(
-              davNamespace,
-              'current-user-privilege-set',
-            ),
+          final property = entry.successfulProperty(
+            davNamespace,
+            'current-user-privilege-set',
           );
+          if (property == null) return null;
+          return _privilegeNames(property);
         }
       }
-      return const {};
+      return null;
+    }
+
+    var outboxPrivileges = privileges(outbox, inventory, responseUri);
+    if (_profile.provider == BusyProvider.nextcloud &&
+        outbox != null &&
+        outboxPrivileges == null) {
+      // Outboxes are not necessarily children of this home inventory. Inspect
+      // only this principal's advertised target; another identity cannot lend
+      // its scheduling privileges to this context.
+      try {
+        final response = await _propfind(
+          uri: outbox,
+          depth: '0',
+          body: '<d:propfind xmlns:d="DAV:"><d:prop><d:current-user-privilege-set/></d:prop></d:propfind>',
+          correlationId: correlationId,
+          cancellationToken: cancellationToken,
+        );
+        outboxPrivileges = privileges(
+          outbox,
+          _xmlParser.parseMultistatus(
+            response.bodyBytes,
+            correlationId: correlationId,
+          ),
+          response.requestUri,
+        );
+      } on DavException catch (error) {
+        if (error.statusCode != 403 && error.statusCode != 404) rethrow;
+        outboxPrivileges = const {};
+      }
     }
 
     return DavPrincipalContext(
@@ -446,8 +565,10 @@ final class DavDiscoveryService {
         responseUri: principal,
         correlationId: correlationId,
       ),
-      homePrivileges: privileges(home),
-      outboxPrivileges: privileges(outbox),
+      homePrivileges: privileges(home, inventory, responseUri) ?? const {},
+      outboxPrivileges: outboxPrivileges ?? const {},
+      inboxPrivileges: privileges(inbox, inventory, responseUri) ?? const {},
+      endpointCapabilities: endpointCapabilities,
       delegated: delegated,
     );
   }
@@ -465,18 +586,19 @@ final class DavDiscoveryService {
         .map((value) => value.trim())
         .where((value) => value.isNotEmpty)
         .toSet();
-    final allow = (response.headers['allow'] ?? '')
-        .split(',')
-        .map((value) => value.trim().toUpperCase())
-        .where((value) => value.isNotEmpty)
-        .toSet();
     return AccountServiceCapabilities(
       hasPrincipal: true,
       hasCalendarHome: true,
-      supportedReports: {if (allow.contains('REPORT')) 'REPORT'},
-      serverFeatures: {...davTokens, ...allow.map((method) => 'allow:$method')},
+      serverFeatures: davTokens,
     );
   }
+
+  Set<String> _allowedMethods(DavResponse response) =>
+      (response.headers['allow'] ?? '')
+          .split(',')
+          .map((value) => value.trim().toUpperCase())
+          .where((value) => value.isNotEmpty)
+          .toSet();
 
   List<DavCollectionDiscovery> _parseCollections(
     DavMultistatus inventory, {
@@ -1053,7 +1175,7 @@ const _principalPropertiesPropfind = '''<?xml version="1.0" encoding="utf-8"?>
     <c:calendar-home-set/><c:calendar-user-address-set/>
     <c:schedule-inbox-URL/><c:schedule-outbox-URL/>
     <c:schedule-default-calendar-URL/>
-    <d:current-user-privilege-set/><cs:calendar-proxy-read-for/><cs:calendar-proxy-write-for/>
+    <d:current-user-privilege-set/><d:supported-report-set/><cs:calendar-proxy-read-for/><cs:calendar-proxy-write-for/>
   </d:prop>
 </d:propfind>''';
 

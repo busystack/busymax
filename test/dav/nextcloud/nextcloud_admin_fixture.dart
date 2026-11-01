@@ -5,6 +5,7 @@ import 'package:busymax/src/dav/nextcloud/nextcloud_collection_service.dart';
 import 'package:busymax/src/dav/nextcloud/nextcloud_dav_context.dart';
 import 'package:busymax/src/dav/nextcloud/nextcloud_sharing_service.dart';
 import 'package:busymax/src/dav/nextcloud/nextcloud_trash_service.dart';
+import 'package:busymax/src/dav/discovery/dav_discovery_models.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
@@ -17,6 +18,7 @@ class NextcloudAdminFixture {
   final secrets = InMemorySecretStore();
   final requests = <http.Request>[];
   Future<http.Response> Function(http.Request)? principalSearchResponse;
+  Future<void> Function(http.Request)? beforeResponse;
   late final client = MockClient(respond);
   late final collections = NextcloudCollectionService(
     database: database,
@@ -42,8 +44,12 @@ class NextcloudAdminFixture {
   bool denyTrashObject = false, denySharing = false, ignoreSharing = false;
   String? deletedCollectionType;
   bool unexpectedTrashHref = false;
+  bool loseTrashMutationResponse = false;
   String displayName = 'Work';
   final shares = <String, bool>{};
+  final federationInvitations = <Map<String, Object?>>[];
+  int ocsStatus = 200, ocsHttpStatus = 200;
+  bool malformedOcs = false;
   final restored = <String>{};
   static const origin = 'https://cloud.example.test';
   static const home = '/remote.php/dav/calendars/alex/';
@@ -94,6 +100,9 @@ class NextcloudAdminFixture {
               }),
             ),
             discoveredAtUtc: now,
+            capabilitiesSchemaVersion: const Value(
+              davCapabilitiesSchemaVersion,
+            ),
           ),
         );
     for (final (id, path, types, mask) in [
@@ -148,6 +157,31 @@ class NextcloudAdminFixture {
 
   Future<http.Response> respond(http.Request request) async {
     requests.add(request);
+    await beforeResponse?.call(request);
+    if (request.url.path.contains(
+      '/ocs/v2.php/apps/dav/api/v1/federated_calendars/pending',
+    )) {
+      if (ocsStatus == 200 && request.method != 'GET') {
+        final id = int.parse(request.url.pathSegments.last);
+        federationInvitations.removeWhere((i) => i['id'] == id);
+      }
+      return http.Response(
+        malformedOcs
+            ? 'invalid'
+            : jsonEncode({
+                'ocs': {
+                  'meta': {
+                    'status': ocsStatus == 200 ? 'ok' : 'failure',
+                    'statuscode': ocsStatus,
+                  },
+                  'data': request.method == 'GET'
+                      ? federationInvitations
+                      : null,
+                },
+              }),
+        ocsHttpStatus,
+      );
+    }
     if (request.method == 'PROPFIND') {
       if (request.body.contains('principal-collection-set')) {
         return multi(
@@ -258,6 +292,9 @@ class NextcloudAdminFixture {
     }
     if (request.method == 'MOVE' || request.method == 'DELETE') {
       restored.add(request.url.path);
+      if (loseTrashMutationResponse) {
+        throw http.ClientException('The response was interrupted', request.url);
+      }
       return http.Response('', 204);
     }
     return http.Response('', 404);

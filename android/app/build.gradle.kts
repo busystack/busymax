@@ -55,7 +55,13 @@ android {
     }
 
     defaultConfig {
-        applicationId = "io.busystack.busymax"
+        // Keep real device QA isolated from the installed user's app/data.
+        // This opt-in is accepted only with the existing explicit test signer.
+        val nextcloudQa = providers.gradleProperty("busymaxNextcloudQa").orNull == "true"
+        check(!nextcloudQa || providers.gradleProperty("busymaxTestSigning").orNull == "true") {
+            "Nextcloud QA requires busymaxTestSigning=true"
+        }
+        applicationId = if (nextcloudQa) "io.busystack.busymax.nextcloudqa" else "io.busystack.busymax"
         minSdk = 24
         targetSdk = 37
         // Keep Android's required monotonic package code separate from the

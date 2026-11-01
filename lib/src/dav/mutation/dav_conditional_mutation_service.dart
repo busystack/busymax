@@ -70,12 +70,14 @@ final class DavMutationHttpClient
     required DavBasicCredential credential,
     DavXmlParser xmlParser = const DavXmlParser(),
     bool suppressScheduling = false,
+    bool useScheduleTags = false,
   }) : _transport = transport,
        _accountId = accountId,
        _collectionId = collectionId,
        _credential = credential,
        _xmlParser = xmlParser,
-       _suppressScheduling = suppressScheduling;
+       _suppressScheduling = suppressScheduling,
+       _useScheduleTags = useScheduleTags;
 
   final DavHttpTransport _transport;
   final String _accountId;
@@ -83,6 +85,13 @@ final class DavMutationHttpClient
   final DavBasicCredential _credential;
   final DavXmlParser _xmlParser;
   final bool _suppressScheduling;
+  final bool _useScheduleTags;
+  final _schedulingVersions = <Uri, ({String etag, String tag})>{};
+
+  String? _scheduleTag(Uri uri, String? etag) {
+    final version = _schedulingVersions[uri];
+    return _useScheduleTags && version?.etag == etag ? version?.tag : null;
+  }
 
   @override
   DavMutationRemoteClient withoutScheduling() => DavMutationHttpClient(
@@ -118,6 +127,8 @@ final class DavMutationHttpClient
         headers: {
           if (ifNoneMatch) 'if-none-match': '*',
           if (ifMatch != null) 'if-match': ifMatch,
+          if (_scheduleTag(uri, ifMatch) case final tag?)
+            'if-schedule-tag-match': tag,
           if (_suppressScheduling) 'x-nc-scheduling': 'false',
         },
       ),
@@ -142,7 +153,11 @@ final class DavMutationHttpClient
         accountId: _accountId,
         collectionId: _collectionId,
         correlationId: correlationId,
-        headers: {'if-match': ifMatch},
+        headers: {
+          'if-match': ifMatch,
+          if (_scheduleTag(uri, ifMatch) case final tag?)
+            'if-schedule-tag-match': tag,
+        },
         retryClass: DavRetryClass.conditionalMutation,
       ),
       credential: _credential,
@@ -221,6 +236,12 @@ final class DavMutationHttpClient
         safeMessage: 'The DAV object response omitted its ETag.',
         correlationId: correlationId,
       );
+    }
+    final scheduleTag = response.headers['schedule-tag'];
+    if (scheduleTag != null && scheduleTag.trim().isNotEmpty) {
+      _schedulingVersions[uri] = (etag: etag, tag: scheduleTag);
+    } else {
+      _schedulingVersions.remove(uri);
     }
     return DavFetchedMember.live(
       hrefKey: hrefKey,
@@ -618,7 +639,11 @@ final class DavConditionalMutationService {
     var comparisonBaseline = baselineRawIcs;
     var candidate = patch.applyTo(baselineRawIcs, nowUtc: _nowUtc());
     DavFetchedMember? lastCurrent;
-    if (reconcileFirst) {
+    // Always reconcile scheduling objects against a fresh representation and
+    // Schedule-Tag before writing. ETag remains an exact precondition too;
+    // an old local attendee list must never overwrite a concurrent reply.
+    if (reconcileFirst ||
+        (implicitScheduling && _hasMeetingParticipants(baselineRawIcs))) {
       final current = await _remoteClient.fetch(
         hrefKey: hrefKey,
         uri: uri,
@@ -961,6 +986,27 @@ final class DavConditionalMutationService {
     var expectedEtag = baselineEtag;
     var comparisonBaseline = baselineRawIcs;
     DavFetchedMember? lastCurrent;
+    if (implicitScheduling && _hasMeetingParticipants(baselineRawIcs)) {
+      final current = await _remoteClient.fetch(
+        hrefKey: hrefKey,
+        uri: uri,
+        correlationId: correlationId,
+      );
+      if (current.missing) return const DavMutationResult.succeeded(null);
+      final analysis = _conflictAnalyzer.analyzeDelete(
+        baselineRawIcs: baselineRawIcs,
+        currentRemoteRawIcs: current.rawIcsBody!,
+      );
+      if (!analysis.canRetryWithRemoteEtag) {
+        return DavMutationResult.conflict(
+          analysis,
+          remoteObject: current,
+          localCandidateRawIcs: baselineRawIcs,
+        );
+      }
+      expectedEtag = current.etag!;
+      comparisonBaseline = current.rawIcsBody!;
+    }
     for (var attempt = 0; attempt < maximumConditionalAttempts; attempt += 1) {
       schedulingValidator?.call(baseline: comparisonBaseline);
       try {
@@ -1212,3 +1258,12 @@ String _utcIcal(DateTime value) {
   return '${utc.year.toString().padLeft(4, '0')}${two(utc.month)}'
       '${two(utc.day)}T${two(utc.hour)}${two(utc.minute)}${two(utc.second)}Z';
 }
+
+bool _hasMeetingParticipants(String raw) => IcalSemanticDocument.parse(raw)
+    .components
+    .any(
+      (c) =>
+          c.componentType == 'VEVENT' &&
+          c.organizers.isNotEmpty &&
+          c.attendees.isNotEmpty,
+    );

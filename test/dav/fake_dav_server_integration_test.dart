@@ -40,11 +40,13 @@ void main() {
     expect(result.collections.single.taskProjectionEnabled, isTrue);
     expect(result.collections.single.capabilities.canCreateEvent, isTrue);
     expect(result.collections.single.capabilities.canCreateTask, isTrue);
-    expect(server.requests.map((request) => request.method).take(6), [
+    expect(server.requests.map((request) => request.method), [
       'OPTIONS',
       'OPTIONS',
       'PROPFIND',
       'PROPFIND',
+      'OPTIONS',
+      'OPTIONS',
       'PROPFIND',
     ]);
     expect(

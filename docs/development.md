@@ -238,6 +238,7 @@ Run `flutter test <path>` for the selected entry point:
 | [test/dav/nextcloud_contacts_live_test.dart](../test/dav/nextcloud_contacts_live_test.dart) | Same `BUSYMAX_NEXTCLOUD_LIVE_*` HTTPS fixture; reads through linked/independent resource and streaming transports and removes its disposable contact |
 | [test/dav/nextcloud_login_flow_live_test.dart](../test/dav/nextcloud_login_flow_live_test.dart) | `BUSYMAX_NEXTCLOUD_LOGIN_LIVE=1`, `BUSYMAX_NEXTCLOUD_LOGIN_LIVE_URL`, `BUSYMAX_NEXTCLOUD_LOGIN_LIVE_USERNAME`, `BUSYMAX_NEXTCLOUD_LOGIN_LIVE_APP_PASSWORD` (disposable bootstrap password), `BUSYMAX_NEXTCLOUD_LOGIN_LIVE_TRUST_MODE` and, for private modes, `BUSYMAX_NEXTCLOUD_LOGIN_LIVE_TLS_CERT` |
 | [test/dav/nextcloud_sharing_live_test.dart](../test/dav/nextcloud_sharing_live_test.dart) | `BUSYMAX_NEXTCLOUD_SHARING_LIVE=1`, `BUSYMAX_NEXTCLOUD_SHARING_LIVE_URL`, `BUSYMAX_NEXTCLOUD_SHARING_LIVE_GROUP`, and `BUSYMAX_NEXTCLOUD_SHARING_LIVE_<ROLE>_USERNAME` / `BUSYMAX_NEXTCLOUD_SHARING_LIVE_<ROLE>_PASSWORD` for each of `OWNER`, `WRITER`, `READER`, `GROUP_MEMBER` |
+| [test/dav/nextcloud_extended_live_test.dart](../test/dav/nextcloud_extended_live_test.dart) | `BUSYMAX_NEXTCLOUD_EXTENDED_LIVE=1`, the HTTPS `BUSYMAX_NEXTCLOUD_LIVE_*` fixture, `BUSYMAX_NEXTCLOUD_EXTENDED_LIVE_ATTENDEE_USERNAME`, and `BUSYMAX_NEXTCLOUD_MAIL_CAPTURE_DIR` |
 | [test/dav/apple_icloud_live_integration_test.dart](../test/dav/apple_icloud_live_integration_test.dart) | `BUSYMAX_ICLOUD_LIVE=1`, `BUSYMAX_ICLOUD_LIVE_USERNAME` (QA Apple Account email), `BUSYMAX_ICLOUD_LIVE_PASSWORD` (BusyMax-only app-specific password) |
 
 The calendar/task, Login Flow and sharing suites also require `BUSYMAX_NEXTCLOUD_QA_CALENDAR_VERSION`
@@ -263,6 +264,47 @@ app password from the DAV/contacts fixture: this case revokes it. Run live files
 with `--concurrency=1` against an SQLite QA server. Repeated collection creation
 can exhaust Nextcloud's default hourly quota; configure only the disposable
 server's documented `dav/rateLimitCalendarCreation` setting for repeated runs.
+
+The extended suite uses production discovery, queued mutations and synchronization.
+Provision distinct organizer/attendee QA users with valid `.invalid` email addresses,
+default calendars, enabled invitations and a local SMTP capture service. Use
+Nextcloud 35.0.2 with a supported database, and record installed Calendar/Tasks
+versions. Run this suite serially when accounts are shared between cases.
+The external-cancellation test compares BusyMax delivery with raw conditional
+CalDAV writes; a stored event or HTTP 204 is insufficient for that test.
+
+For real federation, additionally set `BUSYMAX_NEXTCLOUD_FEDERATION_LIVE=1`, the
+peer's `BUSYMAX_NEXTCLOUD_FEDERATION_LIVE_URL`, `_USERNAME`, `_PASSWORD`,
+`_TRUST_MODE` and `_TLS_CERT`, plus `_CLOUD_ID` from the peer's canonical
+`occ user:info --output=json` result. Include ports and installation paths.
+`_CONTAINER` must name the explicitly disposable `busymax-qa-*` peer on which
+the test executes the official `occ federation:sync-calendars` command. The
+servers must validate each other's HTTPS, and trusted-peer auto-accept must be
+disabled to exercise pending invitation acceptance. Do not disable TLS checks.
+
+The disabled-feature cases require a separately configured disposable server
+and `BUSYMAX_NEXTCLOUD_DISABLED_FREEBUSY_LIVE=1` or
+`BUSYMAX_NEXTCLOUD_DISABLED_RETENTION_LIVE=1`. Restore its previous settings
+after testing. These cases distinguish unavailable privileges and zero retention
+from connection failures.
+
+[integration_test/nextcloud_workflows_test.dart](../integration_test/nextcloud_workflows_test.dart)
+runs real platform controls against these HTTPS fixtures. Supply
+`BUSYMAX_NEXTCLOUD_UI_FIXTURE` as base64 JSON containing the same environment
+values, using `--dart-define-from-file` with a temporary file outside source.
+Public certificate PEM can be supplied as `_TLS_CERT_PEM` for device builds.
+Build the test target in release mode for Linux, Windows and Android; observe
+`BUSYMAX_NEXTCLOUD_UI_RESULT PASS` from the native process. Keep the official
+server federation job running during the native tests, which observe bounded
+cache convergence. Use separate QA users per platform for concurrent runs.
+Desktop runs can set `BUSYMAX_NEXTCLOUD_UI_RESULT_FILE` to a temporary absolute
+path for progress and a structured final result when a GUI runner has no console.
+Require `passed: true`, a configured fixture and all four named workflows.
+The release driver registers its text-input client before editing; Flutter's
+debug-only text-input client ID is ignored in release mode.
+The Android QA build requires both `busymaxTestSigning=true` and
+`busymaxNextcloudQa=true` Gradle properties and installs as
+`io.busystack.busymax.nextcloudqa`, leaving the normal package untouched.
 
 For the DAV suite's large-collection case, also set
 `BUSYMAX_NEXTCLOUD_LIVE_LARGE=1`. To test restart persistence, set a unique

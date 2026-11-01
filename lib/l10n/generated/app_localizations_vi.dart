@@ -243,6 +243,33 @@ class AppLocalizationsVi extends AppLocalizations {
       'Xóa vĩnh viễn mục này? Không thể khôi phục từ thùng rác lịch của Nextcloud.';
 
   @override
+  String get nextcloudDiscoveryRequired =>
+      'Làm mới tài khoản này để cập nhật các tính năng và quyền Nextcloud.';
+
+  @override
+  String get nextcloudConflict =>
+      'Mục hoặc quyền của mục đã thay đổi. Hãy làm mới và kiểm tra trước khi thử lại.';
+
+  @override
+  String get nextcloudItemUnavailable =>
+      'Mục này không còn khả dụng. Làm mới để kiểm tra trạng thái hiện tại.';
+
+  @override
+  String get nextcloudFederationInvitations => 'Lời mời lịch được chia sẻ';
+
+  @override
+  String get nextcloudFederationEmpty =>
+      'Không có lời mời lịch được chia sẻ đang chờ.';
+
+  @override
+  String get nextcloudFederationGrant =>
+      'Đã tạo chia sẻ trên máy chủ này. Chưa xác nhận việc chấp nhận và đồng bộ ở máy chủ từ xa.';
+
+  @override
+  String get nextcloudTrashDisabled =>
+      'Máy chủ này không lưu các mục lịch đã xóa.';
+
+  @override
   String get nextcloudOperationDenied =>
       'Nextcloud không cho phép thao tác này.';
 

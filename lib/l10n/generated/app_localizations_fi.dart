@@ -243,6 +243,33 @@ class AppLocalizationsFi extends AppLocalizations {
       'Poistetaanko kohde pysyvästi? Sitä ei voi palauttaa Nextcloudin kalenteriroskakorista.';
 
   @override
+  String get nextcloudDiscoveryRequired =>
+      'Päivitä tämä tili Nextcloudin toimintojen ja käyttöoikeuksien päivittämiseksi.';
+
+  @override
+  String get nextcloudConflict =>
+      'Kohde tai sen käyttöoikeudet ovat muuttuneet. Päivitä ja tarkista ennen uutta yritystä.';
+
+  @override
+  String get nextcloudItemUnavailable =>
+      'Tämä kohde ei ole enää saatavilla. Tarkista nykyinen tila päivittämällä.';
+
+  @override
+  String get nextcloudFederationInvitations => 'Jaettujen kalenterien kutsut';
+
+  @override
+  String get nextcloudFederationEmpty =>
+      'Ei odottavia kutsuja jaettuihin kalentereihin.';
+
+  @override
+  String get nextcloudFederationGrant =>
+      'Jako luotiin tällä palvelimella. Etäpalvelimen hyväksyntää ja synkronointia ei ole vahvistettu.';
+
+  @override
+  String get nextcloudTrashDisabled =>
+      'Kalenterin roskakorin säilytys on poistettu käytöstä tällä palvelimella.';
+
+  @override
   String get nextcloudOperationDenied => 'Nextcloud ei sallinut toimintoa.';
 
   @override

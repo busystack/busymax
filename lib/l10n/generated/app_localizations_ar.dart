@@ -241,6 +241,33 @@ class AppLocalizationsAr extends AppLocalizations {
       'حذف هذا العنصر نهائيًا؟ لن يمكن استعادته من مهملات تقويم Nextcloud.';
 
   @override
+  String get nextcloudDiscoveryRequired =>
+      'حدّث هذا الحساب لتحديث ميزات Nextcloud والأذونات.';
+
+  @override
+  String get nextcloudConflict =>
+      'تغيّر العنصر أو أذوناته. حدّث البيانات وراجعها قبل المحاولة مجددًا.';
+
+  @override
+  String get nextcloudItemUnavailable =>
+      'لم يعد هذا العنصر متاحًا. حدّث البيانات للتحقق من حالته الحالية.';
+
+  @override
+  String get nextcloudFederationInvitations => 'دعوات التقويمات المشتركة';
+
+  @override
+  String get nextcloudFederationEmpty =>
+      'لا توجد دعوات معلّقة لتقويمات مشتركة.';
+
+  @override
+  String get nextcloudFederationGrant =>
+      'تم إنشاء المشاركة على هذا الخادم. لم يتم تأكيد القبول والمزامنة عن بُعد.';
+
+  @override
+  String get nextcloudTrashDisabled =>
+      'تم تعطيل الاحتفاظ بعناصر التقويم المحذوفة على هذا الخادم.';
+
+  @override
   String get nextcloudOperationDenied => 'لم يسمح Nextcloud بهذه العملية.';
 
   @override
