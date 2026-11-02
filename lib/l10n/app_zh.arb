@@ -1381,5 +1381,12 @@
   "certificateRenewalHelp": "建议使用私有 CA，服务器证书可在其下正常续期。固定的叶证书每次变更都须明确检查，即使用同一密钥。公开证书可正常续期。",
   "certificateBrowserBoundary": "授权仍通过外部浏览器进行。BusyMax 的批准不会配置浏览器信任；浏览器必须单独信任该服务器。",
   "certificateDetails": "主体: {subject}\n颁发者: {issuer}\n生效时间: {notBefore}\n到期时间: {notAfter}\nSHA-256 指纹: {fingerprint}",
-  "certificateFailure": "{reason, select, approvalRequired{需要批准} pinMismatch{固定的证书已更改} expired{证书已过期} notYetValid{证书尚未生效} hostnameMismatch{证书主机名不匹配} invalidPolicy{私有 CA 配置无效} ineligible{证书不符合要求} verificationFailed{TLS 验证失败} other{TLS 验证失败}}"
+  "certificateFailure": "{reason, select, approvalRequired{需要批准} pinMismatch{固定的证书已更改} expired{证书已过期} notYetValid{证书尚未生效} hostnameMismatch{证书主机名不匹配} invalidPolicy{私有 CA 配置无效} ineligible{证书不符合要求} verificationFailed{TLS 验证失败} other{TLS 验证失败}}",
+  "addCalDavAccount": "添加 CalDAV 账户",
+  "caldavServerUrl": "服务器 URL",
+  "caldavUsername": "用户名",
+  "caldavPassword": "密码或应用专用密码",
+  "caldavInvalidServerUrl": "请输入不含凭据、查询或片段的 HTTPS URL。",
+  "caldavHttpsHelp": "输入 HTTPS 服务器 URL 或直接 CalDAV 地址。密码将安全存储。",
+  "davPermissionsUnknown": "服务器尚未提供权限信息。服务器将验证请求的更改。"
 }

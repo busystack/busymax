@@ -38,28 +38,68 @@ final class DavDiscoveryService {
     required String correlationId,
     DavCancellationToken? cancellationToken,
   }) async {
-    final options = await _transport.send(
-      DavRequest(
-        method: 'OPTIONS',
-        uri: davWellKnownUri(_profile),
-        accountId: _accountId,
-        correlationId: correlationId,
-        retryClass: DavRetryClass.safeRead,
-        redirectPolicy: DavRedirectPolicy.discovery,
-      ),
-      credential: _credential,
-      cancellationToken: cancellationToken,
-    );
-    _requireSuccessfulOrDav(options);
+    final entry = await _discoveryEntry(correlationId, cancellationToken);
+    final options = entry.$1;
+    final principalResponse = entry.$2;
     final serviceCapabilities = _serviceCapabilities(options);
     final serverFeatures = {...serviceCapabilities.serverFeatures};
     _transport.setServerFeatures(serverFeatures);
     final endpointOptions = <Uri, DavResponse>{};
+    final moveCapableCollectionHrefs = <String>{};
+    Future<void> probeCollectionMethods(
+      DavMultistatus inventory,
+      Uri responseUri,
+    ) async {
+      if (_profile.provider != BusyProvider.caldav) return;
+      for (final entry in inventory.responses) {
+        final type = entry.successfulProperty(davNamespace, 'resourcetype');
+        if (type == null ||
+            !type.element.descendantElements.any(
+              (e) =>
+                  e.name.namespaceUri == caldavNamespace &&
+                  e.name.local == 'calendar',
+            )) {
+          continue;
+        }
+        if (entry.successfulProperty(davNamespace, 'supported-method-set') !=
+            null) {
+          continue;
+        }
+        final target = resolveDavHref(
+          href: entry.href,
+          responseRequestUri: responseUri,
+          profile: _profile,
+          accountAuthority: _accountAuthority,
+          correlationId: correlationId,
+        );
+        final response = await _transport.send(
+          DavRequest(
+            method: 'OPTIONS',
+            uri: target,
+            accountId: _accountId,
+            correlationId: correlationId,
+            retryClass: DavRetryClass.safeRead,
+          ),
+          credential: _credential,
+          cancellationToken: cancellationToken,
+        );
+        // Optional method discovery is separate from read authorization.
+        if (const {403, 405, 501}.contains(response.statusCode)) continue;
+        _requireSuccessfulOrDav(response);
+        if (_allowedMethods(response).contains('MOVE')) {
+          moveCapableCollectionHrefs.add(
+            normalizedDavHrefKey(_profile.provider, target),
+          );
+        }
+      }
+    }
+
     Future<DavEndpointCapabilities> capabilitiesAt(
       Uri target,
       DavMultistatus properties,
     ) async {
-      if (_profile.provider != BusyProvider.nextcloud) {
+      if (_profile.provider != BusyProvider.nextcloud &&
+          _profile.provider != BusyProvider.caldav) {
         return DavEndpointCapabilities(href: target);
       }
       final response = endpointOptions[target] ??= await _transport.send(
@@ -100,13 +140,6 @@ final class DavDiscoveryService {
       );
     }
 
-    final principalResponse = await _propfind(
-      uri: options.requestUri,
-      depth: '0',
-      body: _currentPrincipalPropfind,
-      correlationId: correlationId,
-      cancellationToken: cancellationToken,
-    );
     final principalSet = _xmlParser.parseMultistatus(
       principalResponse.bodyBytes,
       correlationId: correlationId,
@@ -181,10 +214,15 @@ final class DavDiscoveryService {
       inventoryResponse.bodyBytes,
       correlationId: correlationId,
     );
+    await probeCollectionMethods(inventory, inventoryResponse.requestUri);
     final collections = _parseCollections(
       inventory,
+      moveCapableCollectionHrefs: moveCapableCollectionHrefs,
       responseUri: inventoryResponse.requestUri,
       home: calendarHome,
+      supportsMove:
+          endpointOptions[calendarHome] != null &&
+          _allowedMethods(endpointOptions[calendarHome]!).contains('MOVE'),
       inbox: inbox,
       outbox: outbox,
       correlationId: correlationId,
@@ -238,10 +276,15 @@ final class DavDiscoveryService {
         listed.bodyBytes,
         correlationId: correlationId,
       );
+      await probeCollectionMethods(entries, listed.requestUri);
       final discovered = _parseCollections(
         entries,
+        moveCapableCollectionHrefs: moveCapableCollectionHrefs,
         responseUri: listed.requestUri,
         home: home,
+        supportsMove:
+            endpointOptions[home] != null &&
+            _allowedMethods(endpointOptions[home]!).contains('MOVE'),
         inbox: inbox,
         outbox: outbox,
         correlationId: correlationId,
@@ -368,8 +411,10 @@ final class DavDiscoveryService {
             listed.bodyBytes,
             correlationId: correlationId,
           );
+          await probeCollectionMethods(entries, listed.requestUri);
           final discovered = _parseCollections(
             entries,
+            moveCapableCollectionHrefs: moveCapableCollectionHrefs,
             responseUri: listed.requestUri,
             home: home,
             inbox: delegatedInbox,
@@ -441,6 +486,107 @@ final class DavDiscoveryService {
       ),
       collections: List.unmodifiable(collections),
     );
+  }
+
+  Future<(DavResponse, DavResponse)> _discoveryEntry(
+    String correlationId,
+    DavCancellationToken? cancellationToken,
+  ) async {
+    Future<DavResponse> optionsAt(Uri uri, {bool redirect = false}) =>
+        _transport.send(
+          DavRequest(
+            method: 'OPTIONS',
+            uri: uri,
+            accountId: _accountId,
+            correlationId: correlationId,
+            retryClass: DavRetryClass.safeRead,
+            redirectPolicy: redirect
+                ? DavRedirectPolicy.discovery
+                : DavRedirectPolicy.none,
+          ),
+          credential: _credential,
+          cancellationToken: cancellationToken,
+        );
+    if (_profile.provider != BusyProvider.caldav) {
+      final options = await optionsAt(
+        davWellKnownUri(_profile),
+        redirect: true,
+      );
+      _requireSuccessfulOrDav(options);
+      _transport.setServerFeatures(
+        _serviceCapabilities(options).serverFeatures,
+      );
+      return (
+        options,
+        await _propfind(
+          uri: options.requestUri,
+          depth: '0',
+          body: _currentPrincipalPropfind,
+          correlationId: correlationId,
+          cancellationToken: cancellationToken,
+        ),
+      );
+    }
+    // RFC 6764's well-known resource is at the HTTP origin. An explicit
+    // endpoint remains usable when that optional redirect is not configured.
+    final bootstrap = _profile.bootstrapUri;
+    // A supplied path can identify a separately configured service on this
+    // origin. Verify it first, so a root well-known redirect cannot substitute
+    // a different installation for an explicitly selected endpoint.
+    final candidates = bootstrap.path.isNotEmpty && bootstrap.path != '/'
+        ? {bootstrap, davWellKnownUri(_profile)}
+        : {davWellKnownUri(_profile), bootstrap};
+    for (final uri in candidates) {
+      final response = await _transport.send(
+        DavRequest.xml(
+          method: 'PROPFIND',
+          uri: uri,
+          accountId: _accountId,
+          correlationId: correlationId,
+          headers: const {'Depth': '0'},
+          body: _currentPrincipalPropfind,
+          redirectPolicy: DavRedirectPolicy.discovery,
+        ),
+        credential: _credential,
+        cancellationToken: cancellationToken,
+      );
+      final hasFallback = uri != candidates.last;
+      if (hasFallback &&
+          (const {403, 404, 405, 410, 501}.contains(response.statusCode) ||
+              (response.statusCode >= 200 &&
+                  response.statusCode < 300 &&
+                  response.statusCode != 207))) {
+        // An installation landing page or misconfigured well-known resource
+        // can return ordinary successful HTML. It is not a DAV entry point;
+        // the other same-origin candidate must still prove a complete inventory.
+        continue;
+      }
+      _requireMultistatus(response);
+      final properties = _xmlParser.parseMultistatus(
+        response.bodyBytes,
+        correlationId: correlationId,
+      );
+      // Validate the mandatory principal reference before accepting the entry.
+      final principal = _optionalHrefProperty(
+        properties,
+        davNamespace,
+        'current-user-principal',
+        responseUri: response.requestUri,
+        correlationId: correlationId,
+      );
+      if (principal == null && hasFallback) continue;
+      _requiredHrefProperty(
+        properties,
+        davNamespace,
+        'current-user-principal',
+        responseUri: response.requestUri,
+        correlationId: correlationId,
+      );
+      final options = await optionsAt(response.requestUri);
+      _requireSuccessfulOrDav(options);
+      return (options, response);
+    }
+    throw _incompleteInventory();
   }
 
   Future<DavResponse> _propfind({
@@ -566,6 +712,7 @@ final class DavDiscoveryService {
         correlationId: correlationId,
       ),
       homePrivileges: privileges(home, inventory, responseUri) ?? const {},
+      homePrivilegesKnown: privileges(home, inventory, responseUri) != null,
       outboxPrivileges: outboxPrivileges ?? const {},
       inboxPrivileges: privileges(inbox, inventory, responseUri) ?? const {},
       endpointCapabilities: endpointCapabilities,
@@ -609,6 +756,8 @@ final class DavDiscoveryService {
     required String correlationId,
     required Uri principal,
     bool delegated = false,
+    bool supportsMove = false,
+    Set<String> moveCapableCollectionHrefs = const {},
   }) {
     final result = <DavCollectionDiscovery>[];
     if (inventory.responses.isEmpty || inventory.errorConditions.isNotEmpty) {
@@ -616,6 +765,7 @@ final class DavDiscoveryService {
     }
     final homeKey = normalizedDavHrefKey(_profile.provider, home);
     final homePrivileges = <String>{};
+    var homePrivilegesKnown = false;
     for (final response in inventory.responses) {
       final target = resolveDavHref(
         href: response.href,
@@ -625,6 +775,12 @@ final class DavDiscoveryService {
         correlationId: correlationId,
       );
       if (normalizedDavHrefKey(_profile.provider, target) == homeKey) {
+        homePrivilegesKnown =
+            response.successfulProperty(
+              davNamespace,
+              'current-user-privilege-set',
+            ) !=
+            null;
         homePrivileges.addAll(
           _privilegeNames(
             response.successfulProperty(
@@ -689,15 +845,28 @@ final class DavDiscoveryService {
         caldavNamespace,
         'supported-calendar-component-set',
       );
+      _validateOptionalCollectionProperty(
+        response,
+        caldavNamespace,
+        'supported-calendar-component-set',
+      );
+      _validateOptionalCollectionProperty(
+        response,
+        caldavNamespace,
+        'supported-calendar-data',
+      );
       final componentMask = _componentMask(componentProperty);
       final supportsEvents = componentMask & davComponentEvent != 0;
       final supportsTasks = componentMask & davComponentTodo != 0;
       final reports = _reportNames(
         response.successfulProperty(davNamespace, 'supported-report-set'),
       );
-      final privileges = _privilegeNames(
-        response.successfulProperty(davNamespace, 'current-user-privilege-set'),
+      final privilegeProperty = response.successfulProperty(
+        davNamespace,
+        'current-user-privilege-set',
       );
+      final privilegesKnown = privilegeProperty != null;
+      final privileges = _privilegeNames(privilegeProperty);
       final hasAggregateAll = privileges.contains(_name(davNamespace, 'all'));
       final hasAggregateWrite =
           hasAggregateAll || privileges.contains(_name(davNamespace, 'write'));
@@ -707,9 +876,38 @@ final class DavDiscoveryService {
           !isDeletedCalendar &&
           !isInbox &&
           !isOutbox;
+      final calendarData = isCalendar || isSubscribed
+          ? _calendarDataFormats(
+              response.successfulProperty(
+                caldavNamespace,
+                'supported-calendar-data',
+              ),
+            )
+          : const <Map<String, String>>[];
+      final advertisedMethods = response.successfulProperty(
+        davNamespace,
+        'supported-method-set',
+      );
+      final collectionSupportsMove = advertisedMethods == null
+          ? (_profile.provider == BusyProvider.caldav
+                ? moveCapableCollectionHrefs.contains(
+                    normalizedDavHrefKey(_profile.provider, requestUri),
+                  )
+                : supportsMove)
+          : advertisedMethods.element.descendantElements.any(
+              (e) =>
+                  e.name.namespaceUri == davNamespace &&
+                  e.name.local == 'supported-method' &&
+                  e.getAttribute('name')?.toUpperCase() == 'MOVE',
+            );
       final capabilities = CollectionCapabilities(
+        permissionsKnown: privilegesKnown,
+        allowsItemMutations: contentResource,
+        supportsMove: contentResource && collectionSupportsMove,
         canRead:
-            hasAggregateAll || privileges.contains(_name(davNamespace, 'read')),
+            !privilegesKnown ||
+            hasAggregateAll ||
+            privileges.contains(_name(davNamespace, 'read')),
         canReadPrivileges:
             hasAggregateAll ||
             privileges.contains(
@@ -744,12 +942,9 @@ final class DavDiscoveryService {
         supportsCalendarQuery: reports.contains(
           _name(caldavNamespace, 'calendar-query'),
         ),
-        supportedCalendarData: _calendarDataFormats(
-          response.successfulProperty(
-            caldavNamespace,
-            'supported-calendar-data',
-          ),
-        ).map((entry) => entry['contentType'] ?? '').toSet(),
+        supportedCalendarData: calendarData
+            .map((entry) => entry['contentType']!)
+            .toSet(),
         maximumResourceSize: _integerProperty(
           response.successfulProperty(caldavNamespace, 'max-resource-size'),
         ),
@@ -772,9 +967,6 @@ final class DavDiscoveryService {
               supportsTasks: supportsTasks,
               capabilities: capabilities,
             );
-      final calendarData = _calendarDataFormats(
-        response.successfulProperty(caldavNamespace, 'supported-calendar-data'),
-      );
       result.add(
         DavCollectionDiscovery(
           hrefKey: hrefKey,
@@ -802,7 +994,13 @@ final class DavDiscoveryService {
           ownerHref: _rawHref(
             response.successfulProperty(davNamespace, 'owner'),
           ),
-          safeDisplayMetadata: _safeDisplayMetadata(response),
+          safeDisplayMetadata: {
+            ..._safeDisplayMetadata(response),
+            'privilegesKnown': '$privilegesKnown',
+            'readAccessConfirmed': '${capabilities.canRead}',
+            'supportsMove': '${capabilities.supportsMove}',
+            'parentPrivilegesKnown': '$homePrivilegesKnown',
+          },
           color: _textProperty(
             response.successfulProperty(appleIcalNamespace, 'calendar-color'),
           ),
@@ -1059,12 +1257,37 @@ Set<String> _privilegeNames(DavProperty? property) {
         element.name.namespaceUri == davNamespace &&
         element.name.local == 'privilege',
   )) {
-    final child = privilege.childElements.firstOrNull;
-    if (child != null) {
-      result.add(_name(child.name.namespaceUri, child.name.local));
+    final children = privilege.childElements.toList();
+    if (children.length != 1 || children.single.name.namespaceUri == null) {
+      throw const DavException(
+        kind: DavErrorKind.protocol,
+        code: 'DavPrivilegesMalformed',
+        safeMessage: 'The server returned malformed privilege information.',
+      );
     }
+    final child = children.single;
+    result.add(_name(child.name.namespaceUri, child.name.local));
   }
   return result;
+}
+
+void _validateOptionalCollectionProperty(
+  DavMultistatusResponse response,
+  String namespace,
+  String name,
+) {
+  for (final stat in response.propstats) {
+    if (stat.property(namespace, name) != null &&
+        !stat.isSuccessful &&
+        stat.statusCode != 404) {
+      throw const DavException(
+        kind: DavErrorKind.protocol,
+        code: 'DavCollectionPropertiesIncomplete',
+        safeMessage:
+            'The server did not return complete collection capabilities.',
+      );
+    }
+  }
 }
 
 int _componentMask(DavProperty? property) {
@@ -1075,11 +1298,22 @@ int _componentMask(DavProperty? property) {
         davComponentFreeBusy;
   }
   var result = 0;
-  for (final component in property.element.descendantElements.where(
-    (element) =>
-        element.name.namespaceUri == caldavNamespace &&
-        element.name.local == 'comp',
-  )) {
+  final components = property.element.childElements
+      .where(
+        (element) =>
+            element.name.namespaceUri == caldavNamespace &&
+            element.name.local == 'comp',
+      )
+      .toList();
+  if (components.isEmpty ||
+      components.any((c) => c.getAttribute('name')?.isNotEmpty != true)) {
+    throw const DavException(
+      kind: DavErrorKind.protocol,
+      code: 'DavComponentsMalformed',
+      safeMessage: 'The server returned malformed component restrictions.',
+    );
+  }
+  for (final component in components) {
     result |= switch (component.getAttribute('name')?.toUpperCase()) {
       'VEVENT' => davComponentEvent,
       'VTODO' => davComponentTodo,
@@ -1093,18 +1327,43 @@ int _componentMask(DavProperty? property) {
 }
 
 List<Map<String, String>> _calendarDataFormats(DavProperty? property) {
-  if (property == null) return const [];
-  return [
+  if (property == null) {
+    return const [
+      {'contentType': 'text/calendar', 'version': '2.0'},
+    ];
+  }
+  final formats = [
     for (final element in property.element.descendantElements)
       if (element.name.namespaceUri == caldavNamespace &&
           element.name.local == 'calendar-data')
         {
-          if (element.getAttribute('content-type') case final value?)
-            'contentType': value,
-          if (element.getAttribute('version') case final value?)
-            'version': value,
+          'contentType':
+              element.getAttribute('content-type') ?? 'text/calendar',
+          'version': element.getAttribute('version') ?? '2.0',
         },
   ];
+  if (formats.isEmpty ||
+      formats.any(
+        (f) => f['contentType']?.isNotEmpty != true || f['version'] == '',
+      )) {
+    throw const DavException(
+      kind: DavErrorKind.protocol,
+      code: 'DavCalendarDataMalformed',
+      safeMessage: 'The server returned malformed calendar data formats.',
+    );
+  }
+  if (!formats.any(
+    (f) =>
+        f['contentType']?.toLowerCase() == 'text/calendar' &&
+        (f['version'] == null || f['version'] == '2.0'),
+  )) {
+    throw const DavException(
+      kind: DavErrorKind.unsupportedComponent,
+      code: 'DavCalendarDataUnsupported',
+      safeMessage: 'The server does not support iCalendar version 2.0.',
+    );
+  }
+  return formats;
 }
 
 String? _textProperty(DavProperty? property) {
@@ -1185,7 +1444,7 @@ const _calendarHomeInventoryPropfind = '''<?xml version="1.0" encoding="utf-8"?>
  xmlns:nc="http://nextcloud.com/ns" xmlns:oc="http://owncloud.org/ns">
   <d:prop>
     <d:resourcetype/><d:displayname/><d:owner/>
-    <d:current-user-privilege-set/><d:supported-report-set/><d:sync-token/>
+    <d:current-user-privilege-set/><d:supported-report-set/><d:supported-method-set/><d:sync-token/>
     <c:supported-calendar-component-set/><c:supported-calendar-data/>
     <c:calendar-description/><c:calendar-timezone/><c:calendar-timezone-id/>
     <c:schedule-calendar-transp/><c:max-resource-size/><c:max-instances/>

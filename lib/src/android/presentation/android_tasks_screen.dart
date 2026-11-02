@@ -147,6 +147,19 @@ class _AndroidTasksScreenState extends ConsumerState<AndroidTasksScreen> {
       _accountId = null;
       _listId = null;
     }
+    final selectedCapabilities = selectedAccount == null || _listId == null
+        ? noTaskCollectionCapabilities
+        : selectedAccount.provider.isDav
+        ? ref
+                  .watch(
+                    davTaskCollectionCapabilitiesProvider((
+                      accountId: selectedAccount.id,
+                      taskListId: _listId!,
+                    )),
+                  )
+                  .valueOrNull ??
+              noTaskCollectionCapabilities
+        : adapterDefaultTaskCapabilities(selectedAccount.provider);
     final taskQuery = (
       query: _query,
       accountId: _accountId,
@@ -205,8 +218,7 @@ class _AndroidTasksScreenState extends ConsumerState<AndroidTasksScreen> {
                   child: Text(context.l10n.noDate),
                 ),
                 if (_listId != null &&
-                    (selectedAccount?.provider == BusyProvider.google ||
-                        selectedAccount?.provider == BusyProvider.nextcloud))
+                    selectedCapabilities.supportsClearCompleted)
                   PopupMenuItem(
                     value: 'clear-completed',
                     child: Text(context.l10n.clearCompleted),
@@ -1002,7 +1014,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   late RecurrenceFrequency _recurrenceFrequency = _taskRecurrence().frequency;
 
   TaskCollectionCapabilities get _capabilities => switch (widget.provider) {
-    BusyProvider.appleICloud || BusyProvider.nextcloud =>
+    BusyProvider.appleICloud || BusyProvider.nextcloud || BusyProvider.caldav =>
       ref
               .read(
                 davTaskCollectionCapabilitiesProvider((
@@ -1099,8 +1111,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.provider == BusyProvider.appleICloud ||
-        widget.provider == BusyProvider.nextcloud) {
+    if (widget.provider.isDav) {
       ref.watch(
         davTaskCollectionCapabilitiesProvider((
           accountId: widget.accountId,
@@ -3075,7 +3086,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       return EventRecurrenceCodec.decode(
         widget.provider,
         jsonDecode(raw),
-        baseDate: widget.provider == BusyProvider.nextcloud
+        baseDate: widget.provider.isDav
             ? _recurrenceReference?.dateTime
             : DateTime.tryParse(_draft.dueDate ?? ''),
       );

@@ -37,9 +37,7 @@ CalendarEventMoveStrategy calendarEventMoveStrategy({
     return CalendarEventMoveStrategy.googleNative;
   }
 
-  final davProvider =
-      sourceProvider == BusyProvider.nextcloud ||
-      sourceProvider == BusyProvider.appleICloud;
+  final davProvider = sourceProvider.isDav;
   if (davProvider &&
       destinationProvider == sourceProvider &&
       sourceDavCollectionId != null &&

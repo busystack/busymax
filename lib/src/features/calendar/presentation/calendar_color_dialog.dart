@@ -56,6 +56,7 @@ class _CalendarColorDialogState extends State<_CalendarColorDialog> {
       ),
       BusyProvider.appleICloud ||
       BusyProvider.nextcloud ||
+      BusyProvider.caldav ||
       BusyProvider.webCal => null,
     };
   }

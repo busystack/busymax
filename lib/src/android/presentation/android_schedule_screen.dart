@@ -2694,7 +2694,8 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
               const SizedBox(height: 12),
               if (_provider == BusyProvider.google)
                 ..._googleReminderRows()
-              else if (_provider == BusyProvider.nextcloud)
+              else if (_provider == BusyProvider.nextcloud ||
+                  _provider == BusyProvider.caldav)
                 ..._nextcloudReminderRows()
               else ...[
                 DropdownButtonFormField<int>(
@@ -2803,7 +2804,10 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
               const SizedBox(height: 12),
               TextFormField(
                 controller: _guests,
-                enabled: _canEdit && _draft.canManageAttendees,
+                enabled:
+                    _canEdit &&
+                    _provider != BusyProvider.caldav &&
+                    _draft.canManageAttendees,
                 decoration: InputDecoration(
                   labelText: context.l10n.guests,
                   hintText: context.l10n.addGuestEmail,

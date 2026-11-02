@@ -3916,4 +3916,28 @@ class AppLocalizationsVi extends AppLocalizations {
     });
     return '$_temp0';
   }
+
+  @override
+  String get addCalDavAccount => 'Thêm tài khoản CalDAV';
+
+  @override
+  String get caldavServerUrl => 'URL máy chủ';
+
+  @override
+  String get caldavUsername => 'Tên người dùng';
+
+  @override
+  String get caldavPassword => 'Mật khẩu hoặc mật khẩu ứng dụng';
+
+  @override
+  String get caldavInvalidServerUrl =>
+      'Nhập URL HTTPS không chứa thông tin đăng nhập, truy vấn hoặc đoạn định danh.';
+
+  @override
+  String get caldavHttpsHelp =>
+      'Nhập URL HTTPS của máy chủ hoặc địa chỉ CalDAV trực tiếp. Mật khẩu được lưu trữ an toàn.';
+
+  @override
+  String get davPermissionsUnknown =>
+      'Máy chủ chưa thông báo quyền. Máy chủ sẽ kiểm tra các thay đổi được yêu cầu.';
 }

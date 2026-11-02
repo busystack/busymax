@@ -41,6 +41,302 @@ void main() {
 
   tearDown(() => database.close());
 
+  test('CalDAV credentials connect, persist, replace by generation and remove without Nextcloud revocation', () async {
+    final persistence = AuthorizationPersistence(
+      database: database,
+      secrets: secrets,
+    );
+    var revocations = 0;
+    final service = DavAccountOnboardingService(
+      database: database,
+      secretStore: secrets,
+      authorizationPersistence: persistence,
+      nextcloudLoginFlow: _successfulLoginFlow(),
+      nextcloudCredentialRevoker:
+          ({required accountId, required credential}) async {
+            revocations++;
+          },
+      discover: ({
+        required accountId,
+        required provider,
+        required accountAuthority,
+        required credential,
+        cancellationToken,
+      }) async => _discovery(accountId, provider, accountAuthority),
+    );
+    final result = await service.connectCalDav(
+      serverUrl: 'https://example.test:8443/dav/',
+      username: 'user',
+      password: 'old password',
+    );
+    expect(
+      (await database.select(database.accounts).getSingle()).credentialKind,
+      'caldav_password',
+    );
+    expect(await persistence.generation(result.accountId), 1);
+    expect(
+      await persistence.readCurrentCredential(result.accountId),
+      isA<CalDavSecretRecord>(),
+    );
+    await service.replaceCalDavPassword(
+      accountId: result.accountId,
+      password: ' new password ',
+    );
+    expect(await persistence.generation(result.accountId), 2);
+    expect(
+      (await persistence.readCurrentCredential(
+        result.accountId,
+      ) as CalDavSecretRecord).password,
+      ' new password ',
+    );
+    expect(await database.select(database.accounts).get(), hasLength(1));
+    await service.removeAccount(result.accountId);
+    expect(revocations, 0);
+    expect(await secrets.readCredential(result.accountId), isNull);
+    expect(await database.select(database.accounts).get(), isEmpty);
+  });
+
+  test('failed CalDAV discovery commits no account or secret', () async {
+    final service = DavAccountOnboardingService(
+      database: database,
+      secretStore: secrets,
+      nextcloudLoginFlow: _successfulLoginFlow(),
+      idFactory: () => 'failed',
+      discover:
+          ({
+            required accountId,
+            required provider,
+            required accountAuthority,
+            required credential,
+            cancellationToken,
+          }) async => throw const DavException(
+            kind: DavErrorKind.authentication,
+            code: 'DavAuthRejected',
+            safeMessage: 'Authentication failed.',
+          ),
+    );
+    await expectLater(
+      service.connectCalDav(
+        serverUrl: 'https://example.test/dav/',
+        username: 'user',
+        password: 'wrong',
+      ),
+      throwsA(isA<DavException>()),
+    );
+    expect(await database.select(database.accounts).get(), isEmpty);
+    expect(await secrets.readCredential('caldav:failed'), isNull);
+    expect(await database.select(database.authorizationCommits).get(), isEmpty);
+  });
+
+  test(
+    'CalDAV URL aliases cannot create duplicate verified remote identities',
+    () async {
+      final service = DavAccountOnboardingService(
+        database: database,
+        secretStore: secrets,
+        nextcloudLoginFlow: _successfulLoginFlow(),
+        discover: ({
+          required accountId,
+          required provider,
+          required accountAuthority,
+          required credential,
+          cancellationToken,
+        }) async => _discovery(accountId, provider, accountAuthority),
+      );
+      await service.connectCalDav(
+        serverUrl: 'https://example.test/',
+        username: 'user',
+        password: 'secret',
+      );
+      await expectLater(
+        service.connectCalDav(
+          serverUrl: 'https://example.test/dav/',
+          username: 'alias',
+          password: 'secret',
+        ),
+        throwsA(
+          isA<DavException>().having(
+            (e) => e.code,
+            'code',
+            'DavAccountAlreadyConnected',
+          ),
+        ),
+      );
+      expect(await database.select(database.accounts).get(), hasLength(1));
+    },
+  );
+
+  test(
+    'CalDAV cancellation releases pending discovery without a partial account',
+    () async {
+      final started = Completer<void>(), release = Completer<void>();
+      final cancellation = DavCancellationToken();
+      final service = DavAccountOnboardingService(
+        database: database,
+        secretStore: secrets,
+        nextcloudLoginFlow: _successfulLoginFlow(),
+        discover:
+            ({
+              required accountId,
+              required provider,
+              required accountAuthority,
+              required credential,
+              cancellationToken,
+            }) async {
+              started.complete();
+              await release.future;
+              return _discovery(accountId, provider, accountAuthority);
+            },
+      );
+      final pending = service.connectCalDav(
+        serverUrl: 'https://example.test/',
+        username: 'user',
+        password: 'secret',
+        cancellationToken: cancellation,
+      );
+      final rejected = expectLater(
+        pending,
+        throwsA(
+          isA<DavException>().having(
+            (e) => e.kind,
+            'kind',
+            DavErrorKind.cancelled,
+          ),
+        ),
+      );
+      await started.future;
+      cancellation.cancel();
+      await rejected;
+      expect(release.isCompleted, isFalse);
+      release.complete();
+      await Future<void>.delayed(Duration.zero);
+      expect(await database.select(database.accounts).get(), isEmpty);
+      expect(
+        await database.select(database.authorizationCommits).get(),
+        isEmpty,
+      );
+    },
+  );
+
+  for (final fault in ['secure-storage', 'database']) {
+    test(
+      'CalDAV $fault replacement rollback retains identity, generation and secret',
+      () async {
+        final store = _TrustFaultSecrets();
+        final persistence = AuthorizationPersistence(
+          database: database,
+          secrets: store,
+          onCredentialWritten: (_, _) async =>
+              fail('CalDAV must not enter native OAuth binding'),
+        );
+        final service = DavAccountOnboardingService(
+          database: database,
+          secretStore: store,
+          authorizationPersistence: persistence,
+          nextcloudLoginFlow: _successfulLoginFlow(),
+          discover: ({
+            required accountId,
+            required provider,
+            required accountAuthority,
+            required credential,
+            cancellationToken,
+          }) async => _discovery(accountId, provider, accountAuthority),
+        );
+        final id = (await service.connectCalDav(
+          serverUrl: 'https://example.test/',
+          username: 'user',
+          password: 'working',
+        )).accountId;
+        final before = await database.select(database.accounts).getSingle();
+        final secret = (await store.readCredential(id))!.toJson();
+        final generation = await persistence.generation(id);
+        if (fault == 'secure-storage') {
+          store.failId = id;
+        } else {
+          await database.customStatement(
+            "CREATE TEMP TRIGGER caldav_reject BEFORE UPDATE ON accounts BEGIN SELECT RAISE(ABORT, 'QA commit failure'); END",
+          );
+        }
+        await expectLater(
+          service.replaceCalDavPassword(accountId: id, password: 'candidate'),
+          throwsA(anything),
+        );
+        expect(await database.select(database.accounts).getSingle(), before);
+        expect((await store.readCredential(id))!.toJson(), secret);
+        expect(await persistence.generation(id), generation);
+        await persistence.recover();
+        expect(
+          await database.select(database.authorizationCommits).get(),
+          isEmpty,
+        );
+      },
+    );
+  }
+
+  test('CalDAV interrupted secure write is unusable until durable rollback recovery', () async {
+    final persistence = AuthorizationPersistence(
+      database: database,
+      secrets: secrets,
+    );
+    final service = DavAccountOnboardingService(
+      database: database,
+      secretStore: secrets,
+      authorizationPersistence: persistence,
+      nextcloudLoginFlow: _successfulLoginFlow(),
+      discover: ({
+        required accountId,
+        required provider,
+        required accountAuthority,
+        required credential,
+        cancellationToken,
+      }) async => _discovery(accountId, provider, accountAuthority),
+    );
+    final id = (await service.connectCalDav(
+      serverUrl: 'https://example.test/',
+      username: 'user',
+      password: 'working',
+    )).accountId;
+    final old = (await secrets.readCredential(id))!;
+    await secrets.saveCredential('busymax.authorization.rollback:$id', old);
+    await database
+        .into(database.authorizationCommits)
+        .insert(
+          AuthorizationCommitsCompanion.insert(
+            accountId: id,
+            generation: 2,
+            hadCredential: true,
+            previousNativeBindingJson: Value(
+              const AuthorizationRecoveryState(
+                committed: false,
+                manageNativeBinding: false,
+              ).encode(),
+            ),
+          ),
+        );
+    await secrets.saveCredential(
+      id,
+      CalDavSecretRecord(
+        serviceAuthority: Uri.parse('https://example.test/'),
+        username: 'user',
+        password: 'uncommitted',
+      ),
+    );
+    await expectLater(persistence.readCurrentCredential(id), throwsA(anything));
+    final restarted = AuthorizationPersistence(
+      database: database,
+      secrets: secrets,
+      restoreNativeBinding: (_, _) async =>
+          fail('CalDAV recovery must not enter native OAuth'),
+    );
+    await restarted.recover();
+    await restarted.recover();
+    expect((await restarted.readCurrentCredential(id))!.toJson(), old.toJson());
+    expect(await restarted.generation(id), 1);
+    expect(await database.select(database.authorizationCommits).get(), isEmpty);
+    await service.revalidateAccount(id);
+    expect((await database.select(database.accounts).getSingle()).id, id);
+  });
+
   test('linked Nextcloud contact retry reuses valid authorization and Reconnect renews the parent before rebinding', () async {
     final persistence = AuthorizationPersistence(
       database: database,

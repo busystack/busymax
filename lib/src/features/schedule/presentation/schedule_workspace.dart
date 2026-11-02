@@ -1902,9 +1902,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
           rawICalendar = await repository.nativeEventExport(item.id);
         }
       }
-      if (item is TaskScheduleItem &&
-          (item.provider == BusyProvider.nextcloud ||
-              item.provider == BusyProvider.appleICloud)) {
+      if (item is TaskScheduleItem && (item.provider.isDav)) {
         rawICalendar = await ref
             .read(tasksRepositoryForAccountProvider(item.accountId))
             .nativeTaskExport(item.sourceId, item.id);

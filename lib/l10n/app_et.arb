@@ -1559,5 +1559,12 @@
   "certificateRenewalHelp": "Eelista privaatset CA-d: selle all saab serveri sertifikaate uuendada. Kinnitatud sertifikaadi iga muudatus vajab ülevaatust, ka sama võtmega. Avalikud sertifikaadid uuenevad tavaliselt.",
   "certificateBrowserBoundary": "Autoriseerimine toimub välises brauseris. BusyMaxi kinnitus ei seadista brauseri usaldust; brauser peab serverit eraldi usaldama.",
   "certificateDetails": "Omanik: {subject}\nVäljastaja: {issuer}\nKehtiv alates: {notBefore}\nKehtiv kuni: {notAfter}\nSHA-256 sõrmejälg: {fingerprint}",
-  "certificateFailure": "{reason, select, approvalRequired{Vajalik on kinnitus} pinMismatch{Kinnitatud sertifikaat muutus} expired{Sertifikaat on aegunud} notYetValid{Sertifikaat ei kehti veel} hostnameMismatch{Serveri nimi ei vasta sertifikaadile} invalidPolicy{Vigane privaatse CA seadistus} ineligible{Sobimatu sertifikaat} verificationFailed{TLS-i kontroll nurjus} other{TLS-i kontroll nurjus}}"
+  "certificateFailure": "{reason, select, approvalRequired{Vajalik on kinnitus} pinMismatch{Kinnitatud sertifikaat muutus} expired{Sertifikaat on aegunud} notYetValid{Sertifikaat ei kehti veel} hostnameMismatch{Serveri nimi ei vasta sertifikaadile} invalidPolicy{Vigane privaatse CA seadistus} ineligible{Sobimatu sertifikaat} verificationFailed{TLS-i kontroll nurjus} other{TLS-i kontroll nurjus}}",
+  "addCalDavAccount": "Lisa CalDAV-konto",
+  "caldavServerUrl": "Serveri URL",
+  "caldavUsername": "Kasutajanimi",
+  "caldavPassword": "Parool või rakenduse parool",
+  "caldavInvalidServerUrl": "Sisesta HTTPS-aadress ilma kasutajaandmete, päringu või fragmendita.",
+  "caldavHttpsHelp": "Sisesta serveri HTTPS-aadress või otsene CalDAV-aadress. Parool salvestatakse turvaliselt.",
+  "davPermissionsUnknown": "Server pole õigusi teatanud. Server kontrollib taotletud muudatusi."
 }

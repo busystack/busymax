@@ -1381,5 +1381,12 @@
   "nextcloudFederationInvitations": "共享日历邀请",
   "nextcloudFederationEmpty": "没有待处理的共享日历邀请。",
   "nextcloudFederationGrant": "已在此服务器上创建共享。尚未确认远程接受和同步。",
-  "nextcloudTrashDisabled": "此服务器已禁用日历回收站保留功能。"
+  "nextcloudTrashDisabled": "此服务器已禁用日历回收站保留功能。",
+  "addCalDavAccount": "添加 CalDAV 账户",
+  "caldavServerUrl": "服务器 URL",
+  "caldavUsername": "用户名",
+  "caldavPassword": "密码或应用专用密码",
+  "caldavInvalidServerUrl": "请输入不含凭据、查询或片段的 HTTPS URL。",
+  "caldavHttpsHelp": "输入 HTTPS 服务器 URL 或直接 CalDAV 地址。密码将安全存储。",
+  "davPermissionsUnknown": "服务器尚未提供权限信息。服务器将验证请求的更改。"
 }

@@ -175,6 +175,7 @@ final class CalendarEventDetail {
       ),
       BusyProvider.appleICloud ||
       BusyProvider.nextcloud ||
+      BusyProvider.caldav ||
       BusyProvider.webCal =>
         _hasProjectedIcalRecurrence(recurrence) ||
             (recurrenceIdKey?.trim().isNotEmpty ?? false),

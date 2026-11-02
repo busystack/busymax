@@ -6,9 +6,15 @@ enum CalendarCollectionCreationMode {
   unavailable,
   cloudPendingOperation,
   nextcloudDav,
+  genericDav,
 }
 
-enum TaskListCreationMode { unavailable, cloudPendingOperation, nextcloudDav }
+enum TaskListCreationMode {
+  unavailable,
+  cloudPendingOperation,
+  nextcloudDav,
+  genericDav,
+}
 
 /// Account-level collection creation policy.
 ///
@@ -30,10 +36,13 @@ final class AccountCollectionCreationCapabilities {
     bool taskListCreationRunning = false,
   }) {
     final providerModes = accountCollectionCreationModes(account.provider);
-    final calendarMode = account.calendarsEnabled
+    final genericAllowed =
+        account.provider != BusyProvider.caldav ||
+        account.caldavCollectionCreationAvailable;
+    final calendarMode = account.calendarsEnabled && genericAllowed
         ? providerModes.calendarMode
         : CalendarCollectionCreationMode.unavailable;
-    final taskListMode = account.tasksEnabled
+    final taskListMode = account.tasksEnabled && genericAllowed
         ? providerModes.taskListMode
         : TaskListCreationMode.unavailable;
     final connected = account.isSignedIn;
@@ -45,13 +54,19 @@ final class AccountCollectionCreationCapabilities {
           calendarMode != CalendarCollectionCreationMode.unavailable &&
           connected &&
           !calendarCreationRunning &&
-          (calendarMode != CalendarCollectionCreationMode.nextcloudDav ||
+          (!const {
+                CalendarCollectionCreationMode.nextcloudDav,
+                CalendarCollectionCreationMode.genericDav,
+              }.contains(calendarMode) ||
               nextcloudOnline),
       taskListActionEnabled:
           taskListMode != TaskListCreationMode.unavailable &&
           connected &&
           !taskListCreationRunning &&
-          (taskListMode != TaskListCreationMode.nextcloudDav ||
+          (!const {
+                TaskListCreationMode.nextcloudDav,
+                TaskListCreationMode.genericDav,
+              }.contains(taskListMode) ||
               nextcloudOnline),
     );
   }
@@ -89,6 +104,10 @@ AccountCollectionCreationModes accountCollectionCreationModes(
   BusyProvider.nextcloud => const AccountCollectionCreationModes(
     calendarMode: CalendarCollectionCreationMode.nextcloudDav,
     taskListMode: TaskListCreationMode.nextcloudDav,
+  ),
+  BusyProvider.caldav => const AccountCollectionCreationModes(
+    calendarMode: CalendarCollectionCreationMode.genericDav,
+    taskListMode: TaskListCreationMode.genericDav,
   ),
   BusyProvider.appleICloud ||
   BusyProvider.webCal => const AccountCollectionCreationModes(

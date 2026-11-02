@@ -51,6 +51,95 @@ void main() {
 
   tearDown(() => database.close());
 
+  for (final scenario in [
+    'restored',
+    'readonly',
+    'unknown',
+    'missing',
+    'auth_blocked',
+  ]) {
+    test(
+      'fresh permission recovery: $scenario preserves intent and requires explicit grants',
+      () async {
+        final object = await database.select(database.davObjects).getSingle();
+        await queue.enqueueUpdate(
+          accountId: 'account',
+          collectionId: 'collection',
+          objectId: object.id,
+          patch: _patch('SUMMARY', 'Retained permission edit'),
+        );
+        await database
+            .update(database.accounts)
+            .write(
+              AccountsCompanion(
+                authState: Value(
+                  scenario == 'auth_blocked'
+                      ? 'reauth_required'
+                      : 'permission_changed',
+                ),
+              ),
+            );
+        await database
+            .update(database.pendingOps)
+            .write(
+              const PendingOpsCompanion(
+                state: Value('permission_blocked'),
+                retryClassification: Value('permission'),
+              ),
+            );
+        await database
+            .update(database.davCollections)
+            .write(
+              DavCollectionsCompanion(
+                currentUserPrivilegesJson: Value(
+                  jsonEncode(
+                    scenario == 'unknown'
+                        ? []
+                        : [
+                            '{DAV:}read',
+                            if (scenario != 'readonly') '{DAV:}write',
+                          ],
+                  ),
+                ),
+                safeDisplayMetadataJson: Value(
+                  jsonEncode({
+                    'privilegesKnown': scenario == 'unknown' ? 'false' : 'true',
+                  }),
+                ),
+                serverMissing: Value(scenario == 'missing'),
+              ),
+            );
+        final before = await database.select(database.pendingOps).getSingle();
+        final replayer = DavPendingOperationsReplayer(
+          database: database,
+          accountId: 'account',
+          objectRepository: objectRepository,
+          nowUtc: () => _now,
+          serviceFactory: ({required account, required collection}) async =>
+              throw StateError('Recovery must not send a mutation'),
+        );
+        await replayer.revalidatePermissionsAfterDiscovery();
+        final after = await database.select(database.pendingOps).getSingle();
+        expect(after.requestJson, before.requestJson);
+        expect(after.mutationPatchJson, before.mutationPatchJson);
+        expect(after.baselineEtag, before.baselineEtag);
+        expect(after.baselineRawIcs, before.baselineRawIcs);
+        expect(
+          after.state,
+          scenario == 'restored' ? 'retry' : 'permission_blocked',
+        );
+        expect(
+          (await database.select(database.accounts).getSingle()).authState,
+          scenario == 'restored'
+              ? 'signed_in'
+              : scenario == 'auth_blocked'
+              ? 'reauth_required'
+              : 'permission_changed',
+        );
+      },
+    );
+  }
+
   test(
     'queue retains exact baseline and safely coalesces unsent patches',
     () async {

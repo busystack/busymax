@@ -51,6 +51,26 @@ and [provider prerequisites](desktop_oauth_release_checklist.md).
 
 ## Linux development
 
+Generic CalDAV development uses maintained, isolated Docker fixtures for
+unmodified Radicale, Baïkal and BusyStack CalDAV Server, including root/non-root HTTPS, authenticated
+readiness and independent readback. Follow the [fixture commands](../test/interop/caldav/README.md)
+for setup, start, provisioning, test execution, reset and teardown. Normal
+`flutter test` runs do not need Docker; real-server tests require the explicit
+`BUSYMAX_CALDAV_LIVE=1` opt-in. Linux and Android native editor tests are separate
+from protocol tests. The [qualification record](caldav_qualification.md) records
+exact server versions and distinguishes native acceptance from unit coverage.
+
+Schema 22 extends account CHECK constraints for `caldav`/`caldav_password` in a
+transactional forward migration. The actual v0.4.0 schema-21 SQL fixture is in
+`test/fixtures/schema_v21_v040.sql`; migration tests compare all seeded rows,
+foreign keys, generations, sync state and queued work, and inject failure before
+the version commit. Do not reset a user's database or downgrade a schema-22
+database into an older application. Schema 23 adds the account-owned collection
+creation journal. A random operation UUID and reserved remote URL are persisted
+before dispatch; recovery uses that ID rather than a matching title. The
+schema-22 additive migration and rollback are also tested. Never downgrade a
+schema-23 database into an older application.
+
 The Linux CI build runs on Ubuntu 24.04 and installs the following packages:
 
 ```bash

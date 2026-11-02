@@ -182,6 +182,7 @@ void main() {
     expect(indexes.map((row) => row.data['name']).toSet(), {
       'idx_accounts_provider',
       'idx_accounts_remote_identity',
+      'idx_dav_creation_pending_name',
       'idx_dav_collections_href',
       'idx_dav_collections_sync',
       'idx_dav_objects_href',
@@ -345,7 +346,7 @@ void main() {
         .select(database.locationResolutions)
         .getSingle();
 
-    expect(latestSchemaVersion, 21);
+    expect(latestSchemaVersion, 23);
     expect(version.read<int>('user_version'), latestSchemaVersion);
     expect(event.locationLatitude, 49.2827);
     expect(event.locationLongitude, -123.1207);

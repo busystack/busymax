@@ -35,7 +35,15 @@ CollectionCapabilities collectionCapabilitiesFromStored(
       !collection.deleted &&
       !collection.serverMissing;
   return CollectionCapabilities(
-    canRead: aggregateAll || privileges.contains('{DAV:}read'),
+    allowsItemMutations: contentResource,
+    supportsMove: contentResource && metadata['supportsMove'] == 'true',
+    permissionsKnown:
+        metadata['privilegesKnown'] == 'true' ||
+        (metadata['privilegesKnown'] == null && privileges.isNotEmpty),
+    canRead:
+        aggregateAll ||
+        privileges.contains('{DAV:}read') ||
+        metadata['readAccessConfirmed'] == 'true',
     canReadPrivileges:
         privileges.contains('{DAV:}read-current-user-privilege-set') ||
         aggregateAll,
@@ -80,6 +88,10 @@ Map<String, Object?> davSourcePermissionProjection(DavCollection collection) {
   return {
     if (metadata is Map) ...metadata.cast<String, Object?>(),
     'canRead': capabilities.canRead,
+    'permissionsKnown': capabilities.permissionsKnown,
+    'canAttemptCreateEvents': capabilities.canAttemptCreateEvent,
+    'canAttemptEditEvents': capabilities.canAttemptUpdateEvent,
+    'canAttemptDeleteEvents': capabilities.canAttemptDeleteEvent,
     'canCreateEvents': capabilities.canCreateEvent,
     'canEditEvents': capabilities.canUpdateEvent,
     'canDeleteEvents': capabilities.canDeleteEvent,

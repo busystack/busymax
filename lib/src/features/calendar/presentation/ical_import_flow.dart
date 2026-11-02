@@ -54,8 +54,10 @@ Future<void> showIcsImportFlow(
       preview: preview,
       destination: selection.destination,
       nativeDuplicates: selection.duplicatePolicy,
-      normalizeNativeSchedulingMethod:
-          selection.destination.provider == BusyProvider.nextcloud,
+      normalizeNativeSchedulingMethod: const {
+        BusyProvider.nextcloud,
+        BusyProvider.caldav,
+      }.contains(selection.destination.provider),
     );
     if (!context.mounted) return;
     await showBusyMaxModalDialog<void>(
@@ -120,7 +122,10 @@ class _IcalImportPreviewDialogState extends State<_IcalImportPreviewDialog> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final native = _destination?.provider == BusyProvider.nextcloud;
+    final native = const {
+      BusyProvider.nextcloud,
+      BusyProvider.caldav,
+    }.contains(_destination?.provider);
     final omitted = native
         ? <String>[]
         : (widget.preview.fieldsThatWillBeOmitted.toList()..sort());

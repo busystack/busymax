@@ -3753,6 +3753,27 @@ class AppLocalizationsZh extends AppLocalizations {
     });
     return '$_temp0';
   }
+
+  @override
+  String get addCalDavAccount => '添加 CalDAV 账户';
+
+  @override
+  String get caldavServerUrl => '服务器 URL';
+
+  @override
+  String get caldavUsername => '用户名';
+
+  @override
+  String get caldavPassword => '密码或应用专用密码';
+
+  @override
+  String get caldavInvalidServerUrl => '请输入不含凭据、查询或片段的 HTTPS URL。';
+
+  @override
+  String get caldavHttpsHelp => '输入 HTTPS 服务器 URL 或直接 CalDAV 地址。密码将安全存储。';
+
+  @override
+  String get davPermissionsUnknown => '服务器尚未提供权限信息。服务器将验证请求的更改。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -7499,6 +7520,27 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
     });
     return '$_temp0';
   }
+
+  @override
+  String get addCalDavAccount => '添加 CalDAV 账户';
+
+  @override
+  String get caldavServerUrl => '服务器 URL';
+
+  @override
+  String get caldavUsername => '用户名';
+
+  @override
+  String get caldavPassword => '密码或应用专用密码';
+
+  @override
+  String get caldavInvalidServerUrl => '请输入不含凭据、查询或片段的 HTTPS URL。';
+
+  @override
+  String get caldavHttpsHelp => '输入 HTTPS 服务器 URL 或直接 CalDAV 地址。密码将安全存储。';
+
+  @override
+  String get davPermissionsUnknown => '服务器尚未提供权限信息。服务器将验证请求的更改。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -11246,4 +11288,25 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
     });
     return '$_temp0';
   }
+
+  @override
+  String get addCalDavAccount => '新增 CalDAV 帳戶';
+
+  @override
+  String get caldavServerUrl => '伺服器 URL';
+
+  @override
+  String get caldavUsername => '使用者名稱';
+
+  @override
+  String get caldavPassword => '密碼或應用程式專用密碼';
+
+  @override
+  String get caldavInvalidServerUrl => '請輸入不含憑證、查詢或片段的 HTTPS URL。';
+
+  @override
+  String get caldavHttpsHelp => '輸入 HTTPS 伺服器 URL 或直接 CalDAV 位址。密碼會安全儲存。';
+
+  @override
+  String get davPermissionsUnknown => '伺服器尚未提供權限資訊。伺服器將驗證要求的變更。';
 }

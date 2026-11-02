@@ -1,0 +1,7 @@
+{
+  "name": "busystack-passkey-qualification",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Disposable browser qualification; no production runtime dependency",
+  "dependencies": {"playwright": "1.61.1"}
+}

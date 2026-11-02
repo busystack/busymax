@@ -2062,5 +2062,12 @@
   "certificateRenewalHelp": "Zalecany jest prywatny CA: certyfikaty serwera mogą być przez niego odnawiane. Każda zmiana przypiętego certyfikatu wymaga sprawdzenia, nawet z tym samym kluczem. Publiczne certyfikaty odnawiają się normalnie.",
   "certificateBrowserBoundary": "Autoryzacja odbywa się w zewnętrznej przeglądarce. Zgoda w BusyMax nie zmienia jej zaufania; przeglądarka musi osobno ufać serwerowi.",
   "certificateDetails": "Podmiot: {subject}\nWystawca: {issuer}\nWażny od: {notBefore}\nWażny do: {notAfter}\nOdcisk SHA-256: {fingerprint}",
-  "certificateFailure": "{reason, select, approvalRequired{Wymagana zgoda} pinMismatch{Przypięty certyfikat został zmieniony} expired{Certyfikat wygasł} notYetValid{Certyfikat jeszcze nieważny} hostnameMismatch{Niezgodna nazwa serwera} invalidPolicy{Nieprawidłowa konfiguracja prywatnego CA} ineligible{Nieodpowiedni certyfikat} verificationFailed{Weryfikacja TLS nie powiodła się} other{Weryfikacja TLS nie powiodła się}}"
+  "certificateFailure": "{reason, select, approvalRequired{Wymagana zgoda} pinMismatch{Przypięty certyfikat został zmieniony} expired{Certyfikat wygasł} notYetValid{Certyfikat jeszcze nieważny} hostnameMismatch{Niezgodna nazwa serwera} invalidPolicy{Nieprawidłowa konfiguracja prywatnego CA} ineligible{Nieodpowiedni certyfikat} verificationFailed{Weryfikacja TLS nie powiodła się} other{Weryfikacja TLS nie powiodła się}}",
+  "addCalDavAccount": "Dodaj konto CalDAV",
+  "caldavServerUrl": "Adres URL serwera",
+  "caldavUsername": "Nazwa użytkownika",
+  "caldavPassword": "Hasło lub hasło aplikacji",
+  "caldavInvalidServerUrl": "Podaj adres HTTPS bez danych logowania, zapytania i fragmentu.",
+  "caldavHttpsHelp": "Podaj adres HTTPS serwera lub bezpośredni punkt końcowy CalDAV. Hasło jest bezpiecznie przechowywane.",
+  "davPermissionsUnknown": "Serwer nie podał uprawnień. Sprawdzi żądane zmiany."
 }

@@ -3823,4 +3823,27 @@ class AppLocalizationsJa extends AppLocalizations {
     });
     return '$_temp0';
   }
+
+  @override
+  String get addCalDavAccount => 'CalDAVアカウントを追加';
+
+  @override
+  String get caldavServerUrl => 'サーバーURL';
+
+  @override
+  String get caldavUsername => 'ユーザー名';
+
+  @override
+  String get caldavPassword => 'パスワードまたはアプリ用パスワード';
+
+  @override
+  String get caldavInvalidServerUrl =>
+      '認証情報、クエリ、フラグメントを含まないHTTPS URLを入力してください。';
+
+  @override
+  String get caldavHttpsHelp =>
+      'HTTPSサーバーURLまたはCalDAVの直接URLを入力してください。パスワードは安全に保存されます。';
+
+  @override
+  String get davPermissionsUnknown => 'サーバーは権限を通知していません。要求された変更はサーバーで確認されます。';
 }

@@ -1,0 +1,8 @@
+services:
+  https:
+    image: python:3.13.7-slim-bookworm@sha256:adafcc17694d715c905b4c7bebd96907a1fd5cf183395f0ebc4d3428bd22d92d
+    command: [python, -c, "from https_proxy import serve; serve(18448, 'application:8080')"]
+    working_dir: /fixtures
+    ports: ["127.0.0.1:18448:18448"]
+    volumes:
+      - ${BUSYMAX_CALDAV_FIXTURES:?Set fixture directory}:/fixtures:ro

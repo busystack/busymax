@@ -3919,4 +3919,28 @@ class AppLocalizationsHi extends AppLocalizations {
     });
     return '$_temp0';
   }
+
+  @override
+  String get addCalDavAccount => 'CalDAV खाता जोड़ें';
+
+  @override
+  String get caldavServerUrl => 'सर्वर URL';
+
+  @override
+  String get caldavUsername => 'उपयोगकर्ता नाम';
+
+  @override
+  String get caldavPassword => 'पासवर्ड या ऐप पासवर्ड';
+
+  @override
+  String get caldavInvalidServerUrl =>
+      'बिना क्रेडेंशियल, क्वेरी या फ़्रैगमेंट वाला HTTPS URL दर्ज करें।';
+
+  @override
+  String get caldavHttpsHelp =>
+      'HTTPS सर्वर URL या सीधा CalDAV पता दर्ज करें। आपका पासवर्ड सुरक्षित रूप से संग्रहीत होता है।';
+
+  @override
+  String get davPermissionsUnknown =>
+      'सर्वर ने अनुमतियाँ नहीं बताई हैं। अनुरोधित बदलावों की जाँच सर्वर करेगा।';
 }

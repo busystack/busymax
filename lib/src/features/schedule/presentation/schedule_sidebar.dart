@@ -29,7 +29,6 @@ import '../../../schedule/schedule_sidebar_sources.dart';
 import '../../../webcal/webcal_subscription_service.dart';
 import '../../accounts/data/accounts_repository.dart';
 import '../../accounts/domain/account_collection_creation_capabilities.dart';
-import '../../calendar/data/calendar_collection_creation_service.dart';
 import '../../calendar/data/calendar_repository.dart';
 import '../../connectivity/network_connectivity_service.dart';
 import '../../calendar/presentation/calendar_color_dialog.dart';
@@ -995,6 +994,7 @@ String _accountProviderLetter(BusyProvider provider) => switch (provider) {
   BusyProvider.nextcloud => 'N',
   BusyProvider.appleICloud => 'A',
   BusyProvider.webCal => 'W',
+  BusyProvider.caldav => 'C',
 };
 
 String _accountProviderName(BuildContext context, BusyProvider provider) =>
@@ -1004,6 +1004,7 @@ String _accountProviderName(BuildContext context, BusyProvider provider) =>
       BusyProvider.nextcloud => context.l10n.nextcloudProvider,
       BusyProvider.appleICloud => context.l10n.appleICloudProvider,
       BusyProvider.webCal => 'WebCal',
+      BusyProvider.caldav => 'CalDAV',
     };
 
 class _AccountCalendarSources extends ConsumerWidget {
@@ -1265,6 +1266,7 @@ Uri? scheduleCalendarProviderWebUri(
     BusyProvider.appleICloud => null,
     BusyProvider.nextcloud => _safeAccountWebUri(account.authority),
     BusyProvider.webCal => null,
+    BusyProvider.caldav => null,
   };
 }
 
@@ -1276,6 +1278,7 @@ Uri? scheduleTaskProviderWebUri(AccountEntity account) {
     BusyProvider.appleICloud => null,
     BusyProvider.nextcloud => _safeAccountWebUri(account.authority),
     BusyProvider.webCal => null,
+    BusyProvider.caldav => null,
   };
 }
 
@@ -1558,9 +1561,7 @@ Future<void> _createAccountCalendar(
     final result = await ref
         .read(calendarCollectionCreationServiceProvider)
         .createCalendar(accountId: account.id, title: title);
-    if (context.mounted &&
-        result.outcome ==
-            CalendarCollectionCreationOutcome.createdRefreshPending) {
+    if (context.mounted && result.refreshPending) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(context.l10n.calendarCreatedRefreshPending)),
       );
@@ -1754,8 +1755,7 @@ Future<void> _deleteCalendar(
         : context.l10n.delete,
     message: removeFromList
         ? context.l10n.removeCalendarConfirmation(source.summary)
-        : source.provider == BusyProvider.nextcloud &&
-              source.davEffectivePermissions['supportedComponentMask'] == 3
+        : source.isMixedDavCollection
         ? context.l10n.nextcloudRemoveMixed
         : context.l10n.deleteCalendarConfirmation(source.summary),
     confirmLabel: removeFromList

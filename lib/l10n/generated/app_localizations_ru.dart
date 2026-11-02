@@ -3966,4 +3966,28 @@ class AppLocalizationsRu extends AppLocalizations {
     });
     return '$_temp0';
   }
+
+  @override
+  String get addCalDavAccount => 'Добавить учётную запись CalDAV';
+
+  @override
+  String get caldavServerUrl => 'URL сервера';
+
+  @override
+  String get caldavUsername => 'Имя пользователя';
+
+  @override
+  String get caldavPassword => 'Пароль или пароль приложения';
+
+  @override
+  String get caldavInvalidServerUrl =>
+      'Введите HTTPS-адрес без учётных данных, параметров запроса и фрагмента.';
+
+  @override
+  String get caldavHttpsHelp =>
+      'Введите HTTPS-адрес сервера или прямой адрес CalDAV. Пароль хранится безопасно.';
+
+  @override
+  String get davPermissionsUnknown =>
+      'Сервер не сообщил разрешения. Он проверит запрошенные изменения.';
 }

@@ -112,8 +112,10 @@ final class DavCollectionHttpClient implements DavCollectionRemoteClient {
     required String collectionId,
     required Uri collectionUri,
     required DavBasicCredential credential,
+    this.maximumSyncResults,
     DavXmlParser xmlParser = const DavXmlParser(),
-  }) : _transport = transport,
+  }) : assert(maximumSyncResults == null || maximumSyncResults > 0),
+       _transport = transport,
        _profile = profile,
        _accountAuthority = accountAuthority,
        _accountId = accountId,
@@ -129,6 +131,9 @@ final class DavCollectionHttpClient implements DavCollectionRemoteClient {
   final String _collectionId;
   final Uri _collectionUri;
   final DavBasicCredential _credential;
+
+  /// Optional RFC 6578 request bound; omitted by default for existing callers.
+  final int? maximumSyncResults;
   final DavXmlParser _xmlParser;
 
   @override
@@ -144,10 +149,10 @@ final class DavCollectionHttpClient implements DavCollectionRemoteClient {
         accountId: _accountId,
         collectionId: _collectionId,
         correlationId: correlationId,
-        // RFC 6578 section 3.6 requires Depth: 0 here.  The sync-level in
+        // RFC 6578 section 3.2 requires Depth: 0 here. The sync-level in
         // the REPORT body selects direct collection members; Depth must not.
         headers: const {'depth': '0'},
-        body: _syncCollectionBody(syncToken),
+        body: _syncCollectionBody(syncToken, maximumSyncResults),
       ),
       credential: _credential,
       cancellationToken: cancellationToken,
@@ -561,11 +566,12 @@ String _xmlText(String value) => value
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&apos;');
 
-String _syncCollectionBody(String token) =>
+String _syncCollectionBody(String token, int? maximumResults) =>
     '''<?xml version="1.0" encoding="utf-8"?>
 <d:sync-collection xmlns:d="DAV:">
   <d:sync-token>${_xmlText(token)}</d:sync-token>
   <d:sync-level>1</d:sync-level>
+  ${maximumResults == null ? '' : '<d:limit><d:nresults>$maximumResults</d:nresults></d:limit>'}
   <d:prop><d:getetag/></d:prop>
 </d:sync-collection>''';
 

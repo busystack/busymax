@@ -20,6 +20,7 @@ import 'windows_busymax_glyphs.dart';
 import 'windows_task_details_dialog.dart';
 import 'windows_task_editor_dialog.dart';
 import 'windows_nextcloud_dialogs.dart';
+import 'windows_dav_account_dialogs.dart';
 import '../../providers/busy_provider.dart';
 
 class WindowsTasksPage extends ConsumerStatefulWidget {
@@ -114,16 +115,22 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
           child: ListView(
             children: [
               for (final collection in collections)
-                if (collection.provider == BusyProvider.nextcloud &&
+                if ((collection.provider == BusyProvider.nextcloud ||
+                        collection.provider == BusyProvider.caldav) &&
                     collection.supportsTasks)
                   ListTile(
                     title: Text(collection.name),
                     subtitle: Text(collection.accountLabel),
-                    onPressed: () => showWindowsNextcloudCollectionDialog(
-                      dialogContext,
-                      accountId: collection.accountId,
-                      collectionId: collection.id,
-                    ),
+                    onPressed: () => collection.provider == BusyProvider.caldav
+                        ? showWindowsCalDavCollectionDialog(
+                            dialogContext,
+                            collection.id,
+                          )
+                        : showWindowsNextcloudCollectionDialog(
+                            dialogContext,
+                            accountId: collection.accountId,
+                            collectionId: collection.id,
+                          ),
                   ),
             ],
           ),
@@ -356,7 +363,9 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
                       .watch(accountManagementStreamProvider)
                       .valueOrNull
                       ?.any(
-                        (account) => account.provider == BusyProvider.nextcloud,
+                        (account) =>
+                            account.provider == BusyProvider.nextcloud ||
+                            account.provider == BusyProvider.caldav,
                       ) ==
                   true)
                 CommandBarButton(

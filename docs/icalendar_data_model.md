@@ -1,7 +1,7 @@
 # iCalendar and DAV data model
 
 This page describes the preservation and mutation rules maintainers must keep
-when changing BusyMax's Apple iCloud Calendar or Nextcloud integrations.
+when changing BusyMax's Apple iCloud Calendar, Nextcloud or generic CalDAV integrations.
 
 ## Complete resources and projections
 
@@ -21,13 +21,34 @@ octets. Unknown provider extensions, unsupported recurrence forms, detached
 instances, custom timezones, and alarm details remain intact when BusyMax edits
 a supported field.
 
+New DAV resources and edits that introduce IANA TZID references include missing
+`VTIMEZONE` definitions through the same first-party timezone exporter used by
+cloud series export. Existing embedded definitions, including custom zones,
+take precedence and remain intact. This prevents server-added timezone data
+from turning a successful create into a false conflict.
+
+Generic discovery respects advertised component restrictions. An absent
+`supported-calendar-component-set` uses RFC 4791's all-component default;
+absence is distinct from an invalid empty restriction or a denied property.
+Absent `supported-calendar-data`, and omitted attributes on its calendar-data
+elements, use text/calendar version 2.0 defaults. Unsupported advertised
+formats do not become invented capabilities. One mixed remote collection owns
+both event and task projections.
+
+Persisted capability metadata distinguishes unknown ACLs, explicit privileges
+and explicit denial. Confirmed write flags never become true merely because
+the ACL property is missing. Authenticated retrieval preserves readable
+projections; guarded item mutation entry points can attempt an unknown
+permission and retain rejected work for resolution. Subscriptions, scheduling
+resources and trash are not made writable by an unknown ACL.
+
 The `xml` package parses namespace-aware WebDAV responses. BusyMax enforces
 response, depth, element, and text limits and rejects DTD and entity
 declarations before parsing.
 
 ## Editable and preserved task data
 
-The Nextcloud task editor projects and patches the following supported data:
+The shared DAV task editor projects and patches the following supported data:
 
 | Area | iCalendar representation |
 |---|---|
@@ -40,6 +61,13 @@ The Nextcloud task editor projects and patches the following supported data:
 | Reminders | `VALARM` child components |
 | Nextcloud state | `X-PINNED`, `X-OC-HIDESUBTASKS`, `X-OC-HIDECOMPLETEDSUBTASKS` |
 | Bookkeeping | `CREATED`, `LAST-MODIFIED`, `DTSTAMP` |
+
+Generic accounts use the standard VTODO rows above. Nextcloud state extensions
+remain restricted to Nextcloud. `RELATED-TO` hierarchy is retained; cross-list
+generic moves require advertised MOVE and guarded source/destination access.
+Unknown task properties and parameters remain in the document when supported
+fields change. The recurrence history and hierarchy transitions are BusyMax
+application behavior, not an assumption that every server implements a task UI.
 
 Status, percentage, and completion time change as one state transition.
 Completing a parent completes open descendants; reopening a descendant reopens
@@ -83,6 +111,22 @@ Collection creation and administration are separate from object mutations and
 require live permission checks. Nextcloud event collections are created for
 `VEVENT`; task lists use a `VTODO` component set. Mixed collections remain a
 single remote resource.
+
+Generic collection administration negotiates MKCALENDAR or advertised Extended
+MKCOL through existing DAV request interfaces. Item editing rights, parent
+bind/unbind rights and property-write rights remain separate. Random
+creation operation UUIDs, reserved URLs and an account-bound schema-23 journal
+distinguish fresh requests from interrupted attempts. Existing names or matching
+component metadata do not prove ownership. Readback reconciles uncertain
+creation/property/deletion outcomes before another mutation. The dedicated
+Nextcloud collection and extension services retain their established behavior.
+
+When a successful PUT transforms a recognized local VTIMEZONE observance UNTIL
+to its equivalent UTC cutoff, BusyMax compares that narrowly defined semantic
+equivalence and retains the actual retrieved representation and authoritative
+ETag. Other fields, offsets and recurrence cutoffs must still match; data is not
+silently rewritten for the server. A successful response without ETag requires
+GET before another conditional edit.
 
 ## Nextcloud extensions
 

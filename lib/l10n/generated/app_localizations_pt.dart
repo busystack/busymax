@@ -3948,6 +3948,30 @@ class AppLocalizationsPt extends AppLocalizations {
     });
     return '$_temp0';
   }
+
+  @override
+  String get addCalDavAccount => 'Add CalDAV account';
+
+  @override
+  String get caldavServerUrl => 'Server URL';
+
+  @override
+  String get caldavUsername => 'Username';
+
+  @override
+  String get caldavPassword => 'Password or app password';
+
+  @override
+  String get caldavInvalidServerUrl =>
+      'Enter an HTTPS URL without credentials, query, or fragment.';
+
+  @override
+  String get caldavHttpsHelp =>
+      'Enter the HTTPS server URL or a direct CalDAV endpoint. Your password is stored securely.';
+
+  @override
+  String get davPermissionsUnknown =>
+      'The server has not advertised permissions. Requested changes will be checked by the server.';
 }
 
 /// The translations for Portuguese, as used in Portugal (`pt_PT`).
@@ -7899,4 +7923,28 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
     });
     return '$_temp0';
   }
+
+  @override
+  String get addCalDavAccount => 'Adicionar conta CalDAV';
+
+  @override
+  String get caldavServerUrl => 'URL do servidor';
+
+  @override
+  String get caldavUsername => 'Nome de utilizador';
+
+  @override
+  String get caldavPassword => 'Palavra-passe ou palavra-passe de aplicação';
+
+  @override
+  String get caldavInvalidServerUrl =>
+      'Introduza um URL HTTPS sem credenciais, consulta ou fragmento.';
+
+  @override
+  String get caldavHttpsHelp =>
+      'Introduza o URL HTTPS do servidor ou um ponto de acesso CalDAV direto. A palavra-passe é guardada em segurança.';
+
+  @override
+  String get davPermissionsUnknown =>
+      'O servidor não indicou as permissões. As alterações solicitadas serão verificadas pelo servidor.';
 }

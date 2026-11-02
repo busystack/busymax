@@ -32,6 +32,7 @@ String normalizeProviderAccountId(BusyProvider provider, String value) {
     BusyProvider.microsoft ||
     BusyProvider.nextcloud ||
     BusyProvider.webCal => trimmed,
+    BusyProvider.caldav => value,
   };
 }
 
@@ -50,6 +51,12 @@ String normalizeAccountAuthority(
             'Nextcloud requires the canonical server returned by Login Flow v2.',
           )),
     ),
+    BusyProvider.caldav => normalizeCalDavAuthority(
+      authority ??
+          (throw const InvalidAccountAuthorityException(
+            'CalDAV requires an HTTPS server URL.',
+          )),
+    ),
     BusyProvider.webCal => _safeHttpsOrigin(
       authority ??
           (throw const InvalidAccountAuthorityException(
@@ -57,6 +64,32 @@ String normalizeAccountAuthority(
           )),
     ),
   };
+}
+
+/// The entered service URL is an identity boundary, not an assumed Nextcloud
+/// installation root. Keep escaped path octets and significant trailing slashes.
+String normalizeCalDavAuthority(String value) {
+  final source = value.trim();
+  final uri = Uri.tryParse(source);
+  if (uri == null ||
+      uri.scheme != 'https' ||
+      !uri.hasAuthority ||
+      uri.host.isEmpty ||
+      uri.userInfo.isNotEmpty ||
+      uri.hasQuery ||
+      uri.hasFragment ||
+      uri.port < 1 ||
+      uri.port > 65535 ||
+      source.contains(r'\') ||
+      RegExp(r'[\x00-\x20\x7f]').hasMatch(source) ||
+      RegExp(r'%(?![0-9a-fA-F]{2})').hasMatch(source)) {
+    throw const InvalidAccountAuthorityException(
+      'CalDAV requires an HTTPS URL without credentials, query, or fragment.',
+    );
+  }
+  // Uri.replace preserves the escaped path; rebuilding with Uri(path: ...)
+  // would quote percent signs and change opaque server resource identities.
+  return uri.replace(path: uri.path.isEmpty ? '/' : uri.path).toString();
 }
 
 String _safeHttpsOrigin(String value) {

@@ -77,7 +77,9 @@ final class DavProjectionCoverageService {
     await Future.wait([
       for (final collection in collections)
         if (switch (providersByAccount[collection.accountId]) {
-          BusyProvider.nextcloud || BusyProvider.appleICloud => true,
+          BusyProvider.nextcloud ||
+          BusyProvider.appleICloud ||
+          BusyProvider.caldav => true,
           _ => false,
         })
           _queueCollection(

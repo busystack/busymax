@@ -147,6 +147,7 @@ final class DesktopAccountTokenBroker
       case BusyProvider.appleICloud:
       case BusyProvider.nextcloud:
       case BusyProvider.webCal:
+      case BusyProvider.caldav:
         throw StateError('$provider does not use OAuth API authorization.');
     }
   }

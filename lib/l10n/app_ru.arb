@@ -1381,5 +1381,12 @@
   "certificateRenewalHelp": "Предпочтителен частный УЦ: сертификаты сервера могут обновляться под его управлением. Любая замена закреплённого сертификата требует проверки, даже с тем же ключом. Публичные сертификаты обновляются обычно.",
   "certificateBrowserBoundary": "Авторизация проходит во внешнем браузере. Одобрение в BusyMax не меняет его доверие; браузер должен доверять серверу отдельно.",
   "certificateDetails": "Субъект: {subject}\nИздатель: {issuer}\nДействует с: {notBefore}\nДействует до: {notAfter}\nОтпечаток SHA-256: {fingerprint}",
-  "certificateFailure": "{reason, select, approvalRequired{Требуется одобрение} pinMismatch{Закреплённый сертификат изменился} expired{Сертификат истёк} notYetValid{Сертификат ещё не действует} hostnameMismatch{Имя сервера не совпадает} invalidPolicy{Недопустимая настройка частного УЦ} ineligible{Сертификат не подходит} verificationFailed{Проверка TLS не выполнена} other{Проверка TLS не выполнена}}"
+  "certificateFailure": "{reason, select, approvalRequired{Требуется одобрение} pinMismatch{Закреплённый сертификат изменился} expired{Сертификат истёк} notYetValid{Сертификат ещё не действует} hostnameMismatch{Имя сервера не совпадает} invalidPolicy{Недопустимая настройка частного УЦ} ineligible{Сертификат не подходит} verificationFailed{Проверка TLS не выполнена} other{Проверка TLS не выполнена}}",
+  "addCalDavAccount": "Добавить учётную запись CalDAV",
+  "caldavServerUrl": "URL сервера",
+  "caldavUsername": "Имя пользователя",
+  "caldavPassword": "Пароль или пароль приложения",
+  "caldavInvalidServerUrl": "Введите HTTPS-адрес без учётных данных, параметров запроса и фрагмента.",
+  "caldavHttpsHelp": "Введите HTTPS-адрес сервера или прямой адрес CalDAV. Пароль хранится безопасно.",
+  "davPermissionsUnknown": "Сервер не сообщил разрешения. Он проверит запрошенные изменения."
 }

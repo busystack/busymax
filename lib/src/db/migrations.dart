@@ -3,7 +3,7 @@ import 'package:drift/drift.dart';
 import 'app_database.dart';
 import 'location_migration.dart';
 
-const latestSchemaVersion = 21;
+const latestSchemaVersion = 23;
 
 /// A recoverable, non-secret diagnostic raised when an on-disk schema cannot
 /// be migrated without guessing remote identity or losing synchronized data.
@@ -32,6 +32,12 @@ MigrationStrategy busyMaxMigrationStrategy(AppDatabase database) {
       });
     },
     onUpgrade: (migrator, from, to) async {
+      if (from > to) {
+        throw const BusyMaxMigrationException(
+          'database_downgrade_unsupported',
+          'A newer BusyMax database cannot be opened by an older schema.',
+        );
+      }
       // SQLite ignores foreign_keys changes in a transaction. Table rebuilds
       // need it disabled before entering the migration, and beforeOpen restores it.
       await database.customStatement('PRAGMA foreign_keys = OFF');
@@ -134,6 +140,16 @@ MigrationStrategy busyMaxMigrationStrategy(AppDatabase database) {
               column,
             );
           }
+        }
+        if (from < 22) {
+          final counts = await _capturePreservedCounts(database);
+          await _verifyAccountIdentity(database);
+          await migrator.alterTable(TableMigration(database.accounts));
+          await _verifyPreservedCounts(database, counts);
+          await _verifyAccountIdentity(database);
+        }
+        if (from < 23) {
+          await migrator.createTable(database.davCollectionCreations);
         }
         await _createIndexes(database);
         await createLocationLifecycleTriggers(database);
@@ -568,6 +584,21 @@ Future<Map<String, int>> _capturePreservedCounts(AppDatabase database) async {
     'calendar_colors',
     'schedule_item_overrides',
     'notification_schedule',
+    'dav_account_services',
+    'dav_collections',
+    'dav_objects',
+    'dav_object_components',
+    'dav_conflict_snapshots',
+    'account_authorizations',
+    'authorization_generations',
+    'authorization_commits',
+    'domain_sync_schedules',
+    'bm_contact_accounts',
+    'bm_contact_account_links',
+    'bm_contact_sources',
+    'bm_contact_records',
+    'bm_contact_mutations',
+    'bm_contact_sync_states',
   ];
   final counts = <String, int>{};
   for (final table in tables) {
@@ -603,7 +634,7 @@ Future<void> _verifyAccountIdentity(AppDatabase database) async {
   final invalid = await database.customSelect('''
     SELECT id FROM accounts
     WHERE provider NOT IN (
-            'google', 'microsoft', 'apple_icloud', 'nextcloud', 'webcal'
+            'google', 'microsoft', 'apple_icloud', 'nextcloud', 'webcal', 'caldav'
           )
        OR trim(authority) = ''
        OR trim(provider_account_id) = ''
@@ -613,6 +644,7 @@ Future<void> _verifyAccountIdentity(AppDatabase database) async {
              credential_kind = 'apple_app_specific_password')
          OR (provider = 'nextcloud' AND
              credential_kind = 'nextcloud_app_password')
+         OR (provider = 'caldav' AND credential_kind = 'caldav_password')
          OR (provider = 'webcal' AND
              credential_kind = 'webcal_subscription')
        )
@@ -774,6 +806,13 @@ Future<void> _addV3Columns(Migrator migrator, AppDatabase database) async {
 }
 
 Future<void> _createIndexes(AppDatabase database) async {
+  if (await _hasTable(database, 'dav_collection_creations')) {
+    await database.customStatement(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_dav_creation_pending_name '
+      'ON dav_collection_creations(account_id, display_name) '
+      "WHERE state IN ('prepared', 'dispatched')",
+    );
+  }
   if (await _hasTable(database, 'accounts')) {
     await database.customStatement(
       'CREATE INDEX IF NOT EXISTS idx_accounts_provider '

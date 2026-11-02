@@ -158,9 +158,7 @@ class NotificationScheduleService {
     final provider = account == null
         ? null
         : BusyProviderCodec.requireStorageValue(account.provider);
-    final isDav =
-        provider == BusyProvider.appleICloud ||
-        provider == BusyProvider.nextcloud;
+    final isDav = provider?.isDav == true;
     final reminderEnabledTaskListIds = {
       for (final list
           in await (_database.select(_database.taskLists)..where(
@@ -734,6 +732,7 @@ List<_EventReminder> _eventReminders(
   }
   if ((provider == BusyProvider.appleICloud ||
           provider == BusyProvider.nextcloud ||
+          provider == BusyProvider.caldav ||
           provider == BusyProvider.webCal) &&
       decoded is Map) {
     return _davEventReminders(

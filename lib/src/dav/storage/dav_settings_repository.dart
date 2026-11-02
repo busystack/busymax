@@ -29,6 +29,7 @@ final class DavCollectionSettingsEntity {
     required this.syncErrorCode,
     required this.capabilities,
     this.canRemoveCollection = false,
+    this.collectionRemovalPermissionKnown = true,
   });
 
   final String id;
@@ -49,10 +50,13 @@ final class DavCollectionSettingsEntity {
   final String? syncErrorCode;
   final CollectionCapabilities capabilities;
   final bool canRemoveCollection;
+  final bool collectionRemovalPermissionKnown;
 
   TaskCollectionCapabilities get taskCapabilities {
     if (!supportsTasks) return noTaskCollectionCapabilities;
-    final base = nextcloudTaskCollectionCapabilities;
+    final base = provider == BusyProvider.caldav
+        ? caldavTaskCollectionCapabilities
+        : nextcloudTaskCollectionCapabilities;
     return TaskCollectionCapabilities(
       supportsDueDate: base.supportsDueDate,
       supportsDueTime: base.supportsDueTime,
@@ -63,23 +67,28 @@ final class DavCollectionSettingsEntity {
       supportsCategories: base.supportsCategories,
       supportsTaskHierarchy: base.supportsTaskHierarchy,
       supportsTaskReparenting:
-          base.supportsTaskReparenting && capabilities.canUpdateTask,
+          base.supportsTaskReparenting && capabilities.canAttemptUpdateTask,
       supportsCrossListMove:
-          base.supportsCrossListMove && capabilities.canDeleteTask,
+          base.supportsCrossListMove &&
+          capabilities.canAttemptDeleteTask &&
+          (provider != BusyProvider.caldav || capabilities.supportsMove),
       supportsClearCompleted:
-          base.supportsClearCompleted && capabilities.canDeleteTask,
+          base.supportsClearCompleted && capabilities.canAttemptDeleteTask,
       supportsHiddenTasks: false,
       supportsAssignedTasks: false,
       supportsListRename:
-          base.supportsListRename && capabilities.canWriteProperties,
+          base.supportsListRename &&
+          (capabilities.canWriteProperties ||
+              provider == BusyProvider.caldav &&
+                  !capabilities.permissionsKnown),
       supportsListDelete:
           base.supportsListDelete &&
-          (provider == BusyProvider.nextcloud
-              ? canRemoveCollection
-              : (!capabilities.isReadOnly || shared)),
-      canCreateTasks: capabilities.canCreateTask,
-      canUpdateTasks: capabilities.canUpdateTask,
-      canDeleteTasks: capabilities.canDeleteTask,
+          (canRemoveCollection ||
+              provider == BusyProvider.caldav &&
+                  !collectionRemovalPermissionKnown),
+      canCreateTasks: capabilities.canAttemptCreateTask,
+      canUpdateTasks: capabilities.canAttemptUpdateTask,
+      canDeleteTasks: capabilities.canAttemptDeleteTask,
       supportsIcalPriority: base.supportsIcalPriority,
       supportsPercentComplete: base.supportsPercentComplete,
       supportsTaskStatus: base.supportsTaskStatus,
@@ -138,6 +147,7 @@ final class DavSettingsRepository {
                 _database.accounts.provider.isIn(const [
                   'apple_icloud',
                   'nextcloud',
+                  'caldav',
                 ]),
           )
           ..orderBy([
@@ -315,6 +325,11 @@ DavCollectionSettingsEntity _fromRow(
     syncErrorCode: cursor?.lastFailureCode ?? service?.lastDiscoveryErrorCode,
     capabilities: capabilities,
     canRemoveCollection: _parentAllowsRemoval(collection),
+    collectionRemovalPermissionKnown:
+        provider != BusyProvider.caldav ||
+        (jsonDecode(collection.safeDisplayMetadataJson ?? '{}')
+                as Map)['parentPrivilegesKnown'] ==
+            'true',
   );
 }
 

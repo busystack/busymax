@@ -101,6 +101,17 @@ class AccountEntity {
   final DateTime? lastFullSyncAtUtc;
   final String authState;
 
+  bool get caldavCollectionCreationAvailable {
+    try {
+      final metadata = jsonDecode(providerMetadataJson ?? '{}');
+      return metadata is Map &&
+          metadata['caldavCollectionCreationSupported'] == true &&
+          metadata['caldavCollectionCreationPermission'] != 'denied';
+    } on FormatException {
+      return false;
+    }
+  }
+
   AccountConnectionState get connectionState =>
       AccountConnectionStateCodec.parse(authState);
 
@@ -397,6 +408,7 @@ CredentialKind _credentialKindFromStorage(String value) => switch (value) {
   'oauth' => CredentialKind.oauth,
   'apple_app_specific_password' => CredentialKind.appleAppSpecificPassword,
   'nextcloud_app_password' => CredentialKind.nextcloudAppPassword,
+  'caldav_password' => CredentialKind.caldavPassword,
   'webcal_subscription' => CredentialKind.webCalSubscription,
   _ => throw SecretStoreCorruptException(
     'Unsupported stored credential kind for account metadata.',

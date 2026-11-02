@@ -13,34 +13,54 @@ that a workflow has completed live-provider verification.
 | Microsoft | Microsoft Calendar | Microsoft To Do | Configured desktop public-client OAuth; native MSAL on Android |
 | Apple | iCloud Calendar | Not supported | Apple Account email and app-specific password |
 | Nextcloud | CalDAV events | CalDAV tasks | Login Flow v2 in the default browser |
+| CalDAV | Advertised VEVENT collections | Advertised VTODO collections | HTTPS server URL, username and password/app password |
 | WebCal | Read-only subscription | Not supported | Confirmed subscription URL |
 
-Apple Reminders, generic CalDAV accounts, Nextcloud Deck, and Nextcloud Notes
+Apple Reminders, Nextcloud Deck, and Nextcloud Notes
 are not supported. Production connections require normal platform TLS
 validation; BusyMax has no HTTP or invalid-certificate mode. The loopback HTTP
 fixtures documented for live tests are test-only.
 
+Generic CalDAV uses the existing DAV resource, queue and synchronization model.
+It supports writable event/task CRUD, supported recurrence and alarms,
+preservation of unknown iCalendar fields, and permission-dependent collection
+administration. Mixed collections retain one remote identity. Missing optional
+ACL information is shown as unknown; conditional user-requested operations can
+still be rejected by the server. Cross-list task movement requires advertised
+MOVE support. Nextcloud-specific pinning and subtask-visibility extensions,
+sharing, federation, trash, certificate exceptions and scheduling are not
+enabled for generic accounts. Standard resource import/export reuses the DAV
+implementation. See [CalDAV setup](caldav_setup.md) and the per-server
+[qualification matrix](caldav_qualification.md) for tested scope and limits.
+
+The current qualification targets are Radicale 3.9.0, Baïkal 0.13.0
+(sabre/dav 4.7.1) and BusyStack CalDAV Server 0.1.0. BusyStack uses separately
+issued DAV credentials and separate event/task collections; its normal account
+password is not a DAV password. These are server configurations of the same
+CalDAV provider. Native Windows and Android 17 permission-prompt acceptance
+remain unverified; see the qualification record for actual runtime evidence.
+
 Android Google authorization requires Google Play services; when absent, only
 Google is unavailable. Microsoft requires a registered MSAL redirect matching
 the certificate that signs the installed APK. Android uses native account
-authorization rather than desktop loopback flows. Local Nextcloud hosts on
+authorization rather than desktop loopback flows. Local Nextcloud and CalDAV hosts on
 Android 17 require contextual local-network permission; denial stops the
 connection. See [Android setup](android_setup.md) for registrations and
 permissions.
 
 ## Event objects
 
-| Capability | Google | Microsoft | Apple iCloud | Nextcloud | WebCal |
-|---|---|---|---|---|---|
-| View events | Yes | Yes | Yes | Yes | Yes |
-| Create, edit, delete | Supported | Supported | Writable calendars | Permission-dependent | No |
-| All-day and timed events | Yes | Yes | Yes | Yes | Preserved for display |
-| Recurrence and reminders | Yes | Yes | Preserved and editable subset | Preserved and editable subset | Read-only |
-| Attendee editing | Yes | Yes | No | Permission- and scheduling-dependent | No |
-| Free/busy workflow | Yes | Work/school accounts only | No | Permission- and scheduling-dependent | No |
-| Attachments | Supplied links open; permission-gated event reference add/remove using an existing HTTPS file URL | Event/task lists, explicit file downloads, and permission-gated file addition/removal | Preserved when present | Supplied URI references open; permission-gated URI `ATTACH` add/remove through the DAV queue | Read-only |
-| Provider-native event organization | Calendar-scoped event labels can be selected or cleared; ordinary event colors remain separate | Existing mailbox categories can be selected by name and viewed with their account colors; multiple assignments remain intact | Existing fields preserved | Existing categories preserved | Read-only |
-| Status events | Primary-calendar focus time, out-of-office, and working location, subject to Google's account eligibility and provider validation | No special authoring | No special authoring | No special authoring | Read-only |
+| Capability | Google | Microsoft | Apple iCloud | Nextcloud | WebCal | CalDAV |
+|---|---|---|---|---|---| --- |
+| View events | Yes | Yes | Yes | Yes | Yes | Yes |
+| Create, edit, delete | Supported | Supported | Writable calendars | Permission-dependent | No | Permission-dependent conditional writes |
+| All-day and timed events | Yes | Yes | Yes | Yes | Preserved for display | Yes |
+| Recurrence and reminders | Yes | Yes | Preserved and editable subset | Preserved and editable subset | Read-only | Preserved and editable subset |
+| Attendee editing | Yes | Yes | No | Permission- and scheduling-dependent | No | No; metadata preserved |
+| Free/busy workflow | Yes | Work/school accounts only | No | Permission- and scheduling-dependent | No | No |
+| Attachments | Supplied links open; permission-gated event reference add/remove using an existing HTTPS file URL | Event/task lists, explicit file downloads, and permission-gated file addition/removal | Preserved when present | Supplied URI references open; permission-gated URI `ATTACH` add/remove through the DAV queue | Read-only | Preserved; no provider attachment service |
+| Provider-native event organization | Calendar-scoped event labels can be selected or cleared; ordinary event colors remain separate | Existing mailbox categories can be selected by name and viewed with their account colors; multiple assignments remain intact | Existing fields preserved | Existing categories preserved | Read-only | iCalendar categories preserved |
+| Status events | Primary-calendar focus time, out-of-office, and working location, subject to Google's account eligibility and provider validation | No special authoring | No special authoring | No special authoring | Read-only | No special authoring |
 
 DAV-backed events preserve data BusyMax does not edit, including recurrence
 exceptions, alarms, timezones, parameters, and provider extensions. See the
@@ -56,8 +76,8 @@ incremental-sync cursor.
 Individual export distinguishes a standalone occurrence from an entire
 recurring series. Google and Microsoft series export reads the provider's
 master and exception identities online before writing an iCalendar file; it
-does not call a finite local month cache a complete backup. Nextcloud and
-iCloud resource export keeps the effective original iCalendar document,
+does not call a finite local month cache a complete backup. Nextcloud, generic
+CalDAV and iCloud resource export keeps the effective original iCalendar document,
 including pending local changes. A standalone occurrence export remains a
 portable snapshot, not a series backup. Provider fields that iCalendar cannot
 represent are not silently treated as a complete provider-account backup.
@@ -114,20 +134,20 @@ Scheduling inbox**.
 
 ## Task objects
 
-| Capability | Google Tasks | Microsoft To Do | Nextcloud Tasks |
-|---|---|---|---|
-| Create, edit, complete, delete | Yes | Yes | Permission-dependent |
-| Due date | Date only | Date and time | Date or date-time |
-| Start date/time | No | Yes | Yes |
-| Reminder | No | Single provider reminder | Multiple iCalendar alarms |
-| Recurrence | No | Provider recurrence subset | BusyMax/Nextcloud editable subset |
-| Importance/categories | No | Yes | Yes |
-| Hierarchy | Yes | Yes | Yes |
-| Move between lists | Yes | Not exposed | Between writable Nextcloud lists |
-| Status/progress/completed time | Completion only | Provider completion state | iCalendar status, percentage, and completion time |
-| Location, URL, classification | No | No | Yes |
-| Advanced iCalendar fields | No | No | Priority, alarms, recurrence, pinning, and subtask visibility |
-| Task source links | Supplied assignment/related/task-page URLs | Task-scoped linked resources fetched on request | Preserved task URL where present |
+| Capability | Google Tasks | Microsoft To Do | Nextcloud Tasks | CalDAV VTODO |
+|---|---|---|---| --- |
+| Create, edit, complete, delete | Yes | Yes | Permission-dependent | Permission-dependent |
+| Due date | Date only | Date and time | Date or date-time | Date or date-time |
+| Start date/time | No | Yes | Yes | Yes |
+| Reminder | No | Single provider reminder | Multiple iCalendar alarms | Multiple iCalendar alarms |
+| Recurrence | No | Provider recurrence subset | BusyMax/Nextcloud editable subset | BusyMax editable subset |
+| Importance/categories | No | Yes | Yes | Yes |
+| Hierarchy | Yes | Yes | Yes | RELATED-TO hierarchy |
+| Move between lists | Yes | Not exposed | Between writable Nextcloud lists | Advertised MOVE and suitable source/destination rights |
+| Status/progress/completed time | Completion only | Provider completion state | iCalendar status, percentage, and completion time | iCalendar status, percentage and completion time |
+| Location, URL, classification | No | No | Yes | Yes |
+| Advanced iCalendar fields | No | No | Priority, alarms, recurrence, pinning, and subtask visibility | Priority, alarms and supported recurrence; no Nextcloud pinning/visibility controls |
+| Task source links | Supplied assignment/related/task-page URLs | Task-scoped linked resources fetched on request | Preserved task URL where present | Preserved task URL where present |
 
 Google exposes assigned and hidden tasks from its API. Docs-assigned tasks
 cannot receive notes, and assigned tasks cannot become subtasks or parents;
@@ -144,17 +164,18 @@ detached task occurrences are not edited directly.
 
 Object editing and collection administration are separate capabilities.
 
-| Capability | Google | Microsoft | Apple iCloud | Nextcloud | WebCal |
-|---|---|---|---|---|---|
-| Create calendar | Yes | Yes | No | Online, with permission | No |
-| Rename/recolor/delete calendar | Yes | Yes | No | Online, property/owner permission-dependent | No |
-| Create task list | Yes | Yes | No | Online, with permission | No |
-| Rename/delete task list | Yes | Yes | No | Permission-dependent | No |
-| Share or publish collections | Owner-calendar ACL list/add/role/revoke from native settings; no public/domain administration | Signed-in primary-calendar permission list/add/role/revoke from native settings; provider allowed-role/removability enforced | No | Advertised, permission-dependent; calendar federation initiation on supported servers | No |
-| Restore deleted objects/collections | No | No | No | Advertised, permission-dependent | No |
-| Native collection import/export | No | No | No | Supported subset | No |
+| Capability | Google | Microsoft | Apple iCloud | Nextcloud | WebCal | CalDAV |
+|---|---|---|---|---|---| --- |
+| Create calendar | Yes | Yes | No | Online, with permission | No | Online, advertised method and permission-dependent |
+| Rename/recolor/delete calendar | Yes | Yes | No | Online, property/owner permission-dependent | No | Online, guarded property/parent permission checks |
+| Create task list | Yes | Yes | No | Online, with permission | No | Online, advertised method and permission-dependent |
+| Rename/delete task list | Yes | Yes | No | Permission-dependent | No | Online, guarded permission checks |
+| Share or publish collections | Owner-calendar ACL list/add/role/revoke from native settings; no public/domain administration | Signed-in primary-calendar permission list/add/role/revoke from native settings; provider allowed-role/removability enforced | No | Advertised, permission-dependent; calendar federation initiation on supported servers | No | No |
+| Restore deleted objects/collections | No | No | No | Advertised, permission-dependent | No | No |
+| Native collection import/export | No | No | No | Supported subset | No | Supported resource subset |
 
-Deleting an owned mixed Nextcloud collection removes both its events and tasks.
+Deleting an owned mixed Nextcloud or generic CalDAV collection removes both its
+events and tasks.
 Removing a received share removes the recipient's access. Nextcloud scheduling,
 sharing, publishing, trash, and native import/export behavior is described in
 [Nextcloud setup](nextcloud_setup.md) and the

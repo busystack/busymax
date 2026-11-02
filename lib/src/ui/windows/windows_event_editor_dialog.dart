@@ -1284,6 +1284,8 @@ Future<bool> showWindowsEventEditorDialog(
                               optionalLabel: l10n.attendeeOptional,
                               canEdit:
                                   !saving &&
+                                  selectedSource.provider !=
+                                      BusyProvider.caldav &&
                                   !attendee.self &&
                                   !attendee.organizer &&
                                   (selectedSource.provider !=
@@ -1310,7 +1312,8 @@ Future<bool> showWindowsEventEditorDialog(
                                 attendeesChanged = true;
                               }),
                             ),
-                          if ((originalDraft?.canManageAttendees ?? true) &&
+                          if (selectedSource.provider != BusyProvider.caldav &&
+                              (originalDraft?.canManageAttendees ?? true) &&
                               (selectedSource.provider !=
                                       BusyProvider.nextcloud ||
                                   selectedSource

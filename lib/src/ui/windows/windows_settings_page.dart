@@ -30,6 +30,7 @@ import '../../features/auth/data/auth_repository.dart';
 import '../../dav/dav_errors.dart';
 import '../../dav/http/dav_http_transport.dart';
 import 'windows_dav_account_dialogs.dart';
+import '../../dav/auth/caldav_credential_input.dart';
 import '../../features/calendar/data/calendar_repository.dart';
 import '../../features/calendar/data/cloud_calendar_sharing_service.dart';
 import '../../features/calendar/data/microsoft_shared_calendar_service.dart';
@@ -190,9 +191,12 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
   }
 
   Future<void> _connectDav(BusyProvider provider) async {
+    CalDavCredentialInput? caldav;
     WindowsAppleCredentialInput? apple;
     String? server;
-    if (provider == BusyProvider.appleICloud) {
+    if (provider == BusyProvider.caldav) {
+      caldav = await showWindowsCalDavCredentialDialog(context);
+    } else if (provider == BusyProvider.appleICloud) {
       apple = await showWindowsAppleICloudDialog(context);
     } else {
       server = await showWindowsNextcloudServerDialog(context);
@@ -202,6 +206,7 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
         (provider == BusyProvider.nextcloud && server == null)) {
       return;
     }
+    if (provider == BusyProvider.caldav && caldav == null) return;
     setState(() {
       _connectingDavProvider = provider;
       _davError = null;
@@ -210,7 +215,15 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
     _davCancellation = cancellation;
     try {
       final onboarding = ref.read(davAccountOnboardingServiceProvider);
-      if (provider == BusyProvider.appleICloud) {
+      if (provider == BusyProvider.caldav) {
+        final result = await onboarding.connectCalDav(
+          serverUrl: caldav!.serverUrl,
+          username: caldav.username,
+          password: caldav.password,
+          cancellationToken: cancellation,
+        );
+        await ref.read(signedInSyncRunnerProvider)(result.accountId, true);
+      } else if (provider == BusyProvider.appleICloud) {
         await onboarding.connectAppleICloud(
           email: apple!.email,
           appSpecificPassword: apple.password,
@@ -678,6 +691,13 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                 ),
                 ListTile(
                   leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.add)),
+                  title: Text(l10n.addCalDavAccount),
+                  onPressed: busy
+                      ? null
+                      : () => _connectDav(BusyProvider.caldav),
+                ),
+                ListTile(
+                  leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.add)),
                   title: Text(l10n.addGoogleAccount),
                   subtitle: config.googleSetupAvailable
                       ? null
@@ -748,6 +768,50 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                     trailing: DropDownButton(
                       title: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.more)),
                       items: [
+                        if (values[index].provider == BusyProvider.caldav)
+                          MenuFlyoutItem(
+                            text: Text(l10n.reconnectAccount),
+                            onPressed: () async {
+                              final account = values[index];
+                              final input =
+                                  await showWindowsCalDavCredentialDialog(
+                                    context,
+                                    fixedServer: account.authority,
+                                    fixedUsername: account.providerAccountId,
+                                  );
+                              if (input == null || !mounted) return;
+                              final cancellation = DavCancellationToken();
+                              _davCancellation = cancellation;
+                              setState(
+                                () => _connectingDavProvider =
+                                    BusyProvider.caldav,
+                              );
+                              try {
+                                await ref
+                                    .read(davAccountOnboardingServiceProvider)
+                                    .replaceCalDavPassword(
+                                      accountId: account.id,
+                                      password: input.password,
+                                      cancellationToken: cancellation,
+                                    );
+                                await ref.read(signedInSyncRunnerProvider)(
+                                  account.id,
+                                  true,
+                                );
+                              } on Object catch (error) {
+                                if (mounted) {
+                                  setState(
+                                    () => _davError = authErrorMessage(error),
+                                  );
+                                }
+                              } finally {
+                                _davCancellation = null;
+                                if (mounted) {
+                                  setState(() => _connectingDavProvider = null);
+                                }
+                              }
+                            },
+                          ),
                         if (values[index].provider == BusyProvider.nextcloud)
                           MenuFlyoutItem(
                             text: Text(l10n.privateServerCertificates),
@@ -868,7 +932,8 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                           ),
                     ),
                   ],
-                  if (values[index].provider == BusyProvider.nextcloud)
+                  if (values[index].provider == BusyProvider.nextcloud ||
+                      values[index].provider == BusyProvider.caldav)
                     for (final collection
                         in ref
                                 .watch(davCollectionsStreamProvider)
@@ -879,12 +944,22 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                               collection.supportsTasks))
                         ListTile(
                           title: Text(collection.name),
-                          subtitle: Text(l10n.nextcloudCollectionSettings),
-                          onPressed: () => showWindowsNextcloudCollectionDialog(
-                            context,
-                            accountId: collection.accountId,
-                            collectionId: collection.id,
+                          subtitle: Text(
+                            !collection.capabilities.permissionsKnown
+                                ? l10n.davPermissionsUnknown
+                                : l10n.collectionSettings,
                           ),
+                          onPressed: () =>
+                              collection.provider == BusyProvider.caldav
+                              ? showWindowsCalDavCollectionDialog(
+                                  context,
+                                  collection.id,
+                                )
+                              : showWindowsNextcloudCollectionDialog(
+                                  context,
+                                  accountId: collection.accountId,
+                                  collectionId: collection.id,
+                                ),
                         ),
                   if (index != values.length - 1) const Divider(),
                 ],
@@ -1405,9 +1480,7 @@ Future<void> _removeWindowsAccount(
   );
   if (options == null || !context.mounted) return;
   try {
-    final isDav =
-        account.provider == BusyProvider.appleICloud ||
-        account.provider == BusyProvider.nextcloud;
+    final isDav = account.provider.isDav;
     final authResult = isDav
         ? null
         : await ref

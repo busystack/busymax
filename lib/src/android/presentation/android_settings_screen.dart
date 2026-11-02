@@ -24,6 +24,7 @@ import '../../app/app_bootstrap.dart';
 import '../../calendar_providers/calendar_colors.dart';
 import '../../core/auth/oauth_models.dart';
 import '../../dav/dav_errors.dart';
+import '../../dav/auth/caldav_material_dialog.dart';
 import '../../dav/http/dav_http_transport.dart';
 import '../../dav/mutation/dav_conflict_repository.dart';
 import '../../dav/nextcloud/nextcloud_sharing_service.dart';
@@ -333,6 +334,21 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                   ),
                   onTap: () => unawaited(_editTaskList(list, accounts)),
                 ),
+              for (final collection
+                  in ref.watch(davCollectionsStreamProvider).valueOrNull ??
+                      const [])
+                if (collection.provider == BusyProvider.caldav &&
+                    (collection.supportsEvents || collection.supportsTasks))
+                  ListTile(
+                    leading: const Icon(Icons.tune_outlined),
+                    title: Text(collection.name),
+                    subtitle: Text(
+                      collection.capabilities.permissionsKnown
+                          ? context.l10n.collectionSettings
+                          : context.l10n.davPermissionsUnknown,
+                    ),
+                    onTap: () => _selectCalDavCollection(collection.id),
+                  ),
               for (final account in accounts.where(
                 (a) => a.provider == BusyProvider.nextcloud,
               ))
@@ -845,9 +861,7 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
         : account.needsReconnect
         ? context.l10n.accountReconnectRequired
         : account.authState;
-    final synced =
-        account.provider == BusyProvider.nextcloud ||
-            account.provider == BusyProvider.appleICloud
+    final synced = account.provider.isDav
         ? account.lastSuccessfulSyncAtUtc
         : null;
     return synced == null
@@ -869,11 +883,23 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
     final davCancellation = DavCancellationToken();
     unawaited(ownedCancellation.signal.then((_) => davCancellation.cancel()));
     try {
-      final localNetworkDenied = context.l10n.nextcloudOperationDenied;
+      final localNetworkDenied = provider == BusyProvider.caldav
+          ? context.l10n.oauthPermissionRefused
+          : context.l10n.nextcloudOperationDenied;
       String? email;
       String? password;
       String? server;
-      if (provider == BusyProvider.appleICloud) {
+      if (provider == BusyProvider.caldav) {
+        final input = await showMaterialCalDavCredentialDialog(
+          context,
+          fixedServer: reconnecting?.authority,
+          fixedUsername: reconnecting?.providerAccountId,
+        );
+        if (input == null || !mounted) return;
+        server = input.serverUrl;
+        email = input.username;
+        password = input.password;
+      } else if (provider == BusyProvider.appleICloud) {
         final input = await _appleCredentials(reconnecting?.email);
         if (input == null) return;
         (email, password) = input;
@@ -887,6 +913,8 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
           helper: context.l10n.nextcloudBrowserAuthorizationHelp,
         );
         if (server == null || !mounted) return;
+      }
+      if (server != null) {
         final uri = Uri.tryParse(server);
         if (uri != null && await requiresAndroidLocalNetworkAccess(uri.host)) {
           try {
@@ -981,6 +1009,20 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                     enteredServer: server!,
                     cancellationToken: davCancellation,
                   )).accountId;
+          case BusyProvider.caldav:
+            final service = ref.read(davAccountOnboardingServiceProvider);
+            accountId = reconnecting == null
+                ? (await service.connectCalDav(
+                    serverUrl: server!,
+                    username: email!,
+                    password: password!,
+                    cancellationToken: davCancellation,
+                  )).accountId
+                : (await service.replaceCalDavPassword(
+                    accountId: reconnecting.id,
+                    password: password!,
+                    cancellationToken: davCancellation,
+                  )).accountId;
           case BusyProvider.webCal:
             return;
         }
@@ -1065,8 +1107,7 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
     if (confirmed != true) return;
     setState(() => _removing.add(account.id));
     try {
-      if (account.provider == BusyProvider.appleICloud ||
-          account.provider == BusyProvider.nextcloud) {
+      if (account.provider.isDav) {
         // DAV onboarding owns this account gate, including contact preparation.
         final result = await ref
             .read(davAccountOnboardingServiceProvider)
@@ -1222,6 +1263,55 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
     );
   }
 
+  Future<void> _selectCalDavCollection(String id) => showDialog<void>(
+    context: context,
+    builder: (dialogContext) => Consumer(
+      builder: (context, ref, _) {
+        final collection = ref
+            .watch(davCollectionsStreamProvider)
+            .valueOrNull
+            ?.where((c) => c.id == id && c.provider == BusyProvider.caldav)
+            .firstOrNull;
+        return AlertDialog(
+          title: Text(collection?.name ?? context.l10n.collectionSettings),
+          content: collection == null
+              ? Text(context.l10n.collectionsUnavailable)
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (!collection.capabilities.permissionsKnown)
+                      Text(context.l10n.davPermissionsUnknown),
+                    if (collection.readOnly)
+                      Text(context.l10n.readOnlySharedCollection),
+                    if (collection.supportsEvents)
+                      SwitchListTile(
+                        title: Text(context.l10n.calendarContent),
+                        value: collection.eventsSelected,
+                        onChanged: (value) => ref
+                            .read(davSettingsRepositoryProvider)
+                            .setEventsSelected(id, value),
+                      ),
+                    if (collection.supportsTasks)
+                      SwitchListTile(
+                        title: Text(context.l10n.taskContent),
+                        value: collection.tasksSelected,
+                        onChanged: (value) => ref
+                            .read(davSettingsRepositoryProvider)
+                            .setTasksSelected(id, value),
+                      ),
+                  ],
+                ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(context.l10n.close),
+            ),
+          ],
+        );
+      },
+    ),
+  );
+
   Future<void> _editCalendarSource(CalendarSourceEntity source) async {
     final l10n = context.l10n;
     final action = await showModalBottomSheet<String>(
@@ -1231,7 +1321,15 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ListTile(title: Text(source.summary)),
+            ListTile(
+              title: Text(source.summary),
+              subtitle:
+                  source.provider == BusyProvider.caldav &&
+                      source.davEffectivePermissions['permissionsKnown'] ==
+                          false
+                  ? Text(context.l10n.davPermissionsUnknown)
+                  : null,
+            ),
             if (source.capabilities.canRenameCalendar)
               ListTile(
                 leading: const Icon(Icons.edit_outlined),
@@ -1362,6 +1460,8 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                         source.summary,
                       )
                     : l10n.removeCalendarConfirmation(source.summary)
+              : source.isMixedDavCollection
+              ? l10n.nextcloudRemoveMixed
               : l10n.deleteCalendarConfirmation(source.summary),
           remove ? l10n.removeAction : l10n.delete,
         );
@@ -2647,6 +2747,7 @@ class _AccountButtons extends StatelessWidget {
           context.l10n.addNextcloudAccount,
         ),
         _button(context, BusyProvider.google, context.l10n.addGoogleAccount),
+        _button(context, BusyProvider.caldav, context.l10n.addCalDavAccount),
         _button(
           context,
           BusyProvider.microsoft,
@@ -2713,6 +2814,7 @@ IconData _providerIcon(BusyProvider provider) => switch (provider) {
   BusyProvider.appleICloud => Icons.cloud_outlined,
   BusyProvider.nextcloud => Icons.cloud_sync_outlined,
   BusyProvider.webCal => Icons.public,
+  BusyProvider.caldav => Icons.calendar_month_outlined,
 };
 
 Color _colorFromHex(String value) =>
@@ -2771,7 +2873,8 @@ Future<void> showAndroidIcsImport(
                     onChanged: (value) =>
                         setDialogState(() => destination = value),
                   ),
-                if (destination?.provider == BusyProvider.nextcloud)
+                if (destination?.provider == BusyProvider.nextcloud ||
+                    destination?.provider == BusyProvider.caldav)
                   CheckboxListTile(
                     contentPadding: EdgeInsets.zero,
                     title: Text(context.l10n.nextcloudImportCopies),
@@ -2806,7 +2909,8 @@ Future<void> showAndroidIcsImport(
       destination: selection.destination,
       nativeDuplicates: selection.duplicatePolicy,
       normalizeNativeSchedulingMethod:
-          selection.destination.provider == BusyProvider.nextcloud,
+          selection.destination.provider == BusyProvider.nextcloud ||
+          selection.destination.provider == BusyProvider.caldav,
     );
     if (!context.mounted) return;
     await showDialog<void>(

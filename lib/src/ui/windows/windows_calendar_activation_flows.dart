@@ -50,8 +50,10 @@ Future<void> showWindowsIcsImportFlow(
       preview: preview,
       destination: selection.destination,
       nativeDuplicates: selection.duplicatePolicy,
-      normalizeNativeSchedulingMethod:
-          selection.destination.provider == BusyProvider.nextcloud,
+      normalizeNativeSchedulingMethod: const {
+        BusyProvider.nextcloud,
+        BusyProvider.caldav,
+      }.contains(selection.destination.provider),
     );
     if (!context.mounted) return;
     await showDialog<void>(
@@ -112,7 +114,10 @@ class _WindowsIcsPreviewDialogState extends State<_WindowsIcsPreviewDialog> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final native = _destination?.provider == BusyProvider.nextcloud;
+    final native = const {
+      BusyProvider.nextcloud,
+      BusyProvider.caldav,
+    }.contains(_destination?.provider);
     final omitted = native
         ? <String>[]
         : (widget.preview.fieldsThatWillBeOmitted.toList()..sort());

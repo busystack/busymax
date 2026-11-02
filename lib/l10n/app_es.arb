@@ -1444,5 +1444,12 @@
   "certificateRenewalHelp": "Se recomienda una CA privada: los certificados del servidor pueden renovarse bajo ella. Cada cambio de un certificado fijado requiere revisión, incluso con la misma clave. Los certificados públicos se renuevan normalmente.",
   "certificateBrowserBoundary": "La autorización usa el navegador externo. La aprobación de BusyMax no configura su confianza; el navegador debe confiar en el servidor por separado.",
   "certificateDetails": "Sujeto: {subject}\nEmisor: {issuer}\nVálido desde: {notBefore}\nVálido hasta: {notAfter}\nHuella SHA-256: {fingerprint}",
-  "certificateFailure": "{reason, select, approvalRequired{Se requiere aprobación} pinMismatch{El certificado fijado ha cambiado} expired{Certificado caducado} notYetValid{Certificado aún no válido} hostnameMismatch{El nombre del servidor no coincide} invalidPolicy{Configuración de CA privada no válida} ineligible{Certificado no apto} verificationFailed{Falló la verificación TLS} other{Falló la verificación TLS}}"
+  "certificateFailure": "{reason, select, approvalRequired{Se requiere aprobación} pinMismatch{El certificado fijado ha cambiado} expired{Certificado caducado} notYetValid{Certificado aún no válido} hostnameMismatch{El nombre del servidor no coincide} invalidPolicy{Configuración de CA privada no válida} ineligible{Certificado no apto} verificationFailed{Falló la verificación TLS} other{Falló la verificación TLS}}",
+  "addCalDavAccount": "Añadir cuenta CalDAV",
+  "caldavServerUrl": "URL del servidor",
+  "caldavUsername": "Nombre de usuario",
+  "caldavPassword": "Contraseña o contraseña de aplicación",
+  "caldavInvalidServerUrl": "Introduce una URL HTTPS sin credenciales, consulta ni fragmento.",
+  "caldavHttpsHelp": "Introduce la URL HTTPS del servidor o un punto de acceso CalDAV directo. La contraseña se guarda de forma segura.",
+  "davPermissionsUnknown": "El servidor no ha indicado los permisos. Comprobará los cambios solicitados."
 }

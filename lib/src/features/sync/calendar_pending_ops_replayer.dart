@@ -781,6 +781,7 @@ class CalendarPendingOpsReplayer {
       ),
       BusyProvider.appleICloud ||
       BusyProvider.nextcloud ||
+      BusyProvider.caldav ||
       BusyProvider.webCal => null,
     };
     if (identity == null ||

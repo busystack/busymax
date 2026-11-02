@@ -3958,4 +3958,28 @@ class AppLocalizationsFi extends AppLocalizations {
     });
     return '$_temp0';
   }
+
+  @override
+  String get addCalDavAccount => 'Lisää CalDAV-tili';
+
+  @override
+  String get caldavServerUrl => 'Palvelimen URL';
+
+  @override
+  String get caldavUsername => 'Käyttäjätunnus';
+
+  @override
+  String get caldavPassword => 'Salasana tai sovellussalasana';
+
+  @override
+  String get caldavInvalidServerUrl =>
+      'Anna HTTPS-osoite ilman tunnistetietoja, kyselyä tai fragmenttia.';
+
+  @override
+  String get caldavHttpsHelp =>
+      'Anna palvelimen HTTPS-osoite tai suora CalDAV-osoite. Salasana tallennetaan turvallisesti.';
+
+  @override
+  String get davPermissionsUnknown =>
+      'Palvelin ei ole ilmoittanut oikeuksia. Palvelin tarkistaa pyydetyt muutokset.';
 }

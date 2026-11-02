@@ -2149,5 +2149,12 @@
     "placeholders": {
       "reason": {}
     }
-  }
+  },
+  "addCalDavAccount": "Add CalDAV account",
+  "caldavServerUrl": "Server URL",
+  "caldavUsername": "Username",
+  "caldavPassword": "Password or app password",
+  "caldavInvalidServerUrl": "Enter an HTTPS URL without credentials, query, or fragment.",
+  "caldavHttpsHelp": "Enter the HTTPS server URL or a direct CalDAV endpoint. Your password is stored securely.",
+  "davPermissionsUnknown": "The server has not advertised permissions. Requested changes will be checked by the server."
 }

@@ -284,6 +284,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                       children: [
                         YaruListTile.square(
                           title: TextField(
+                            key: const Key('task-title-field'),
                             controller: _titleController,
                             autofocus: widget.isCreate,
                             enabled: _canWrite,

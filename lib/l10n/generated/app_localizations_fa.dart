@@ -3961,4 +3961,28 @@ class AppLocalizationsFa extends AppLocalizations {
     });
     return '$_temp0';
   }
+
+  @override
+  String get addCalDavAccount => 'افزودن حساب CalDAV';
+
+  @override
+  String get caldavServerUrl => 'نشانی سرور';
+
+  @override
+  String get caldavUsername => 'نام کاربری';
+
+  @override
+  String get caldavPassword => 'گذرواژه یا گذرواژهٔ برنامه';
+
+  @override
+  String get caldavInvalidServerUrl =>
+      'یک نشانی HTTPS بدون اطلاعات ورود، پرس‌وجو یا بخش پایانی وارد کنید.';
+
+  @override
+  String get caldavHttpsHelp =>
+      'نشانی HTTPS سرور یا نشانی مستقیم CalDAV را وارد کنید. گذرواژه به‌صورت امن ذخیره می‌شود.';
+
+  @override
+  String get davPermissionsUnknown =>
+      'سرور مجوزها را اعلام نکرده است. تغییرات درخواستی توسط سرور بررسی می‌شوند.';
 }

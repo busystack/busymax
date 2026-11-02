@@ -6559,6 +6559,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{reason, select, approvalRequired{Approval required} pinMismatch{Pinned certificate changed} expired{Certificate expired} notYetValid{Certificate not yet valid} hostnameMismatch{Certificate hostname mismatch} invalidPolicy{Invalid private CA configuration} ineligible{Certificate is ineligible} verificationFailed{TLS verification failed} other{TLS verification failed}}'**
   String certificateFailure(String reason);
+
+  /// No description provided for @addCalDavAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Add CalDAV account'**
+  String get addCalDavAccount;
+
+  /// No description provided for @caldavServerUrl.
+  ///
+  /// In en, this message translates to:
+  /// **'Server URL'**
+  String get caldavServerUrl;
+
+  /// No description provided for @caldavUsername.
+  ///
+  /// In en, this message translates to:
+  /// **'Username'**
+  String get caldavUsername;
+
+  /// No description provided for @caldavPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Password or app password'**
+  String get caldavPassword;
+
+  /// No description provided for @caldavInvalidServerUrl.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter an HTTPS URL without credentials, query, or fragment.'**
+  String get caldavInvalidServerUrl;
+
+  /// No description provided for @caldavHttpsHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter the HTTPS server URL or a direct CalDAV endpoint. Your password is stored securely.'**
+  String get caldavHttpsHelp;
+
+  /// No description provided for @davPermissionsUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'The server has not advertised permissions. Requested changes will be checked by the server.'**
+  String get davPermissionsUnknown;
 }
 
 class _AppLocalizationsDelegate

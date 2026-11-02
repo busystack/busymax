@@ -32,14 +32,15 @@ class Accounts extends Table {
   @override
   List<String> get customConstraints => const [
     "CHECK (provider IN ('google', 'microsoft', 'apple_icloud', 'nextcloud', "
-        "'webcal'))",
+        "'webcal', 'caldav'))",
     "CHECK (credential_kind IN ('oauth', 'apple_app_specific_password', "
-        "'nextcloud_app_password', 'webcal_subscription'))",
+        "'nextcloud_app_password', 'webcal_subscription', 'caldav_password'))",
     "CHECK ((provider IN ('google', 'microsoft') AND credential_kind = 'oauth') "
         "OR (provider = 'apple_icloud' AND credential_kind = "
         "'apple_app_specific_password') "
         "OR (provider = 'nextcloud' AND credential_kind = "
         "'nextcloud_app_password') "
+        "OR (provider = 'caldav' AND credential_kind = 'caldav_password') "
         "OR (provider = 'webcal' AND credential_kind = "
         "'webcal_subscription'))",
     'CHECK (length(trim(authority)) > 0)',
@@ -69,6 +70,27 @@ class DavAccountServices extends Table {
 
   @override
   Set<Column<Object>> get primaryKey => {accountId};
+}
+
+/// Durable collection-creation intent. Contains no credentials or item content.
+class DavCollectionCreations extends Table {
+  TextColumn get id => text()();
+  TextColumn get accountId =>
+      text().references(Accounts, #id, onDelete: KeyAction.cascade)();
+  TextColumn get authority => text()();
+  TextColumn get homeUri => text()();
+  TextColumn get targetUri => text().unique()();
+  TextColumn get displayName => text()();
+  TextColumn get componentsJson => text()();
+  TextColumn get state => text().withDefault(const Constant('prepared'))();
+  TextColumn get createdAtUtc => text()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+  @override
+  List<String> get customConstraints => const [
+    "CHECK (state IN ('prepared', 'dispatched', 'committed', 'rejected'))",
+  ];
 }
 
 class DavCollections extends Table {
