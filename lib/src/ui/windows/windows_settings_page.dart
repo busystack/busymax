@@ -731,7 +731,20 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                         style: FluentTheme.of(context).typography.bodyStrong,
                       ),
                     ),
-                    subtitle: Text(values[index].provider.storageValue),
+                    subtitle: Text(
+                      values[index].provider == BusyProvider.nextcloud &&
+                              (ref
+                                          .watch(
+                                            nextcloudPendingInvitationCountProvider(
+                                              values[index].id,
+                                            ),
+                                          )
+                                          .valueOrNull ??
+                                      0) >
+                                  0
+                          ? '${l10n.nextcloudFederationInvitations} (${ref.watch(nextcloudPendingInvitationCountProvider(values[index].id)).valueOrNull ?? 0})'
+                          : values[index].provider.storageValue,
+                    ),
                     trailing: DropDownButton(
                       title: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.more)),
                       items: [
@@ -753,7 +766,9 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                           ),
                         if (values[index].provider == BusyProvider.nextcloud)
                           MenuFlyoutItem(
-                            text: Text(l10n.nextcloudFederationInvitations),
+                            text: Text(
+                              '${l10n.nextcloudFederationInvitations} (${ref.watch(nextcloudPendingInvitationCountProvider(values[index].id)).valueOrNull ?? 0})',
+                            ),
                             onPressed: () =>
                                 showWindowsNextcloudFederationDialog(
                                   context,

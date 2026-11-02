@@ -1,5 +1,9 @@
 import 'dart:convert';
 
+import 'package:drift/drift.dart';
+
+import '../../db/app_database.dart';
+
 import '../dav_errors.dart';
 import 'nextcloud_collection_service.dart';
 import 'nextcloud_dav_context.dart';
@@ -34,14 +38,24 @@ final class NextcloudFederationService {
   NextcloudFederationService(this.collections);
   final NextcloudCollectionService collections;
 
-  Future<List<NextcloudFederationInvitation>> pending() async {
-    final context = await collections.openContext();
+  Future<List<NextcloudFederationInvitation>> pending({
+    bool refreshDiscovery = true,
+  }) async {
+    final context = refreshDiscovery
+        ? await collections.openContext()
+        : await NextcloudDavContext.open(
+            database: collections.database,
+            secrets: collections.secrets,
+            client: collections.client,
+            accountId: collections.accountId,
+            requireNetwork: collections.requireNetwork,
+          );
     final data = await _request(context, 'GET');
     if (data is! List || data.length > 1000) {
       throw nextcloudOperationError(502, 'NextcloudFederationResponseInvalid');
     }
     final ids = <int>{};
-    return List.unmodifiable(
+    final invitations = List<NextcloudFederationInvitation>.unmodifiable(
       data.map((value) {
         if (value is! Map ||
             value['id'] is! int ||
@@ -77,6 +91,63 @@ final class NextcloudFederationService {
         );
       }),
     );
+    await _storeCount(context, invitations.length);
+    return invitations;
+  }
+
+  /// Called only by the existing account refresh; never schedules a wakeup.
+  Future<void> discoverPending({bool force = false}) async {
+    final db = collections.database;
+    final account = await (db.select(
+      db.accounts,
+    )..where((r) => r.id.equals(collections.accountId))).getSingleOrNull();
+    final metadata = federationSummary(account?.providerMetadataJson);
+    final checked = DateTime.tryParse('${metadata['checkedAt']}');
+    final generation =
+        await (db.select(db.authorizationGenerations)
+              ..where((r) => r.accountId.equals(collections.accountId)))
+            .getSingleOrNull();
+    if (!force &&
+        metadata['generation'] == (generation?.generation ?? 0) &&
+        checked != null &&
+        DateTime.now().toUtc().difference(checked) <
+            const Duration(minutes: 15)) {
+      return;
+    }
+    // Do not recursively start account synchronization when discovery is stale.
+    await pending(refreshDiscovery: false);
+  }
+
+  Future<void> _storeCount(NextcloudDavContext context, int count) async {
+    final db = collections.database;
+    await db.transaction(() async {
+      final account = await (db.select(
+        db.accounts,
+      )..where((r) => r.id.equals(context.accountId))).getSingleOrNull();
+      final generation = await (db.select(
+        db.authorizationGenerations,
+      )..where((r) => r.accountId.equals(context.accountId))).getSingleOrNull();
+      if (account == null ||
+          account.provider != 'nextcloud' ||
+          account.authority != context.authority.toString() ||
+          (generation?.generation ?? 0) != context.authorizationGeneration) {
+        return;
+      }
+      final metadata = account.providerMetadataJson == null
+          ? <String, Object?>{}
+          : (jsonDecode(account.providerMetadataJson!) as Map)
+                .cast<String, Object?>();
+      metadata['federation'] = {
+        'count': count,
+        'generation': context.authorizationGeneration,
+        'checkedAt': DateTime.now().toUtc().toIso8601String(),
+      };
+      await (db.update(
+        db.accounts,
+      )..where((r) => r.id.equals(context.accountId))).write(
+        AccountsCompanion(providerMetadataJson: Value(jsonEncode(metadata))),
+      );
+    });
   }
 
   Future<NextcloudMutationOutcome> accept(
@@ -172,5 +243,17 @@ final class NextcloudFederationService {
       );
     }
     return (ocs as Map)['data'];
+  }
+}
+
+/// Only a count and freshness marker are retained; remote details stay in the
+/// explicitly opened invitation screen. No system notification is generated.
+Map<String, Object?> federationSummary(String? raw) {
+  try {
+    final data = jsonDecode(raw ?? '{}');
+    final summary = data is Map ? data['federation'] : null;
+    return summary is Map ? summary.cast<String, Object?>() : const {};
+  } on FormatException {
+    return const {};
   }
 }

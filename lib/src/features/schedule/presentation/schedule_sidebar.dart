@@ -744,7 +744,7 @@ class _SubscriptionSourceRow extends ConsumerWidget {
   }
 }
 
-class _AccountHeaderRow extends StatelessWidget {
+class _AccountHeaderRow extends ConsumerWidget {
   const _AccountHeaderRow({
     required this.account,
     required this.expanded,
@@ -762,7 +762,13 @@ class _AccountHeaderRow extends StatelessWidget {
   final ValueChanged<AccountHeaderCollectionAction> onActionSelected;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pending = account.provider == BusyProvider.nextcloud
+        ? ref
+                  .watch(nextcloudPendingInvitationCountProvider(account.id))
+                  .valueOrNull ??
+              0
+        : 0;
     final colorScheme = Theme.of(context).colorScheme;
     final secondaryLabel = _accountHeaderSecondaryLabel(account);
     final hasSecondaryLabel =
@@ -772,6 +778,8 @@ class _AccountHeaderRow extends StatelessWidget {
       providerName,
       account.displayLabel,
       if (hasSecondaryLabel) secondaryLabel,
+      if (pending > 0)
+        '${context.l10n.nextcloudFederationInvitations} ($pending)',
     ].join(', ');
     return Padding(
       padding: const EdgeInsetsDirectional.only(
@@ -798,6 +806,13 @@ class _AccountHeaderRow extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.labelLarge,
+                      ),
+                    if (pending > 0)
+                      Text(
+                        '${context.l10n.nextcloudFederationInvitations} ($pending)',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall,
                       ),
                     Row(
                       children: [

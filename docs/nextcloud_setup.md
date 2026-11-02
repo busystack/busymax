@@ -142,8 +142,12 @@ or task content does not automatically grant sharing administration.
 For a server that supports calendar federation, use the recipient's canonical
 **Cloud ID**, including any port and installation subpath. BusyMax sends the
 request to your own Nextcloud server. A grant on the owner's server does not
-prove peer delivery or remote acceptance. Open **Shared calendar invitations**
-in the recipient account settings to refresh, accept, or decline invitations.
+prove peer delivery or remote acceptance. Normal account refresh discovers pending invitations, with a 15-minute passive
+freshness interval and no extra Android wakeups. Account indicators show only
+the pending count, retained across restarts and hidden after authorization changes.
+Open **Shared calendar invitations** in recipient account settings to refresh,
+accept, or decline. Offline refresh retains the last known count. No invitation
+is accepted automatically, and no system notification exposes remote details.
 Acceptance is followed by calendar discovery and the server's federation
 synchronization. Writable shares support the components and permissions the
 server advertises; federated calendars do not support automatic meeting
@@ -183,7 +187,8 @@ Qualification uses Nextcloud 35.0.2 with Calendar 6.6.4 and Tasks 0.18.1.
 One server delivery limitation remains: with working SMTP and external invitations,
 removing an external attendee did not send cancellation mail, both through
 BusyMax and a minimal conditional CalDAV update. The opt-in external-cancellation
-acceptance test retains this failure. BusyMax relies on the server's automatic
+regression compares both paths and can detect a future upstream fix. See
+[Nextcloud/server #63242](https://github.com/nextcloud/server/issues/63242). BusyMax relies on the server's automatic
 scheduling and does not send a duplicate cancellation as a workaround.
 
 ## Import and export

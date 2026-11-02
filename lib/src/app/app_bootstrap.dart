@@ -1466,12 +1466,21 @@ final accountSyncOperationsProvider = Provider<AccountSyncOperations>((ref) {
     syncDav: (accountId, {required full}) => activity.run(
       accountId,
       'dav',
-      () => syncCoordinator.trackTaskImport(
-        accountId,
-        () => ref
+      () => syncCoordinator.trackTaskImport(accountId, () async {
+        await ref
             .read(davAccountSyncEngineFactoryProvider)(accountId)
-            .synchronize(full: full),
-      ),
+            .synchronize(full: full);
+        if (await providerForAccount(accountId) == BusyProvider.nextcloud) {
+          try {
+            await ref
+                .read(nextcloudFederationServiceProvider(accountId))
+                .discoverPending(force: full);
+          } on Object {
+            // Optional invitation discovery keeps its last known count while
+            // offline; the normal sync's successful data remains usable.
+          }
+        }
+      }),
     ),
     syncWebCal: (accountId, {required full}) => ref
         .read(webCalSubscriptionServiceProvider)
@@ -2369,3 +2378,28 @@ final dueTodayNotificationProvider = Provider<DueTodayNotificationScheduler>((
   ref.onDispose(scheduler.stop);
   return scheduler;
 });
+
+final nextcloudPendingInvitationCountProvider =
+    StreamProvider.family<int, String>((ref, id) {
+      final db = ref.watch(databaseProvider);
+      final query = db.select(db.accounts).join([
+        leftOuterJoin(
+          db.authorizationGenerations,
+          db.authorizationGenerations.accountId.equalsExp(db.accounts.id),
+        ),
+      ])..where(db.accounts.id.equals(id));
+      return query.watch().map((rows) {
+        if (rows.isEmpty) return 0;
+        final account = rows.single.readTable(db.accounts);
+        if (account.provider != 'nextcloud') return 0;
+        final generation =
+            rows.single
+                .readTableOrNull(db.authorizationGenerations)
+                ?.generation ??
+            0;
+        final summary = federationSummary(account.providerMetadataJson);
+        return summary['generation'] == generation && summary['count'] is int
+            ? summary['count'] as int
+            : 0;
+      });
+    });

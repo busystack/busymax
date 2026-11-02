@@ -773,7 +773,7 @@ class _WindowsScheduleSourcePaneState
   );
 }
 
-class _AccountHeader extends StatelessWidget {
+class _AccountHeader extends ConsumerWidget {
   const _AccountHeader({
     super.key,
     required this.account,
@@ -792,13 +792,24 @@ class _AccountHeader extends StatelessWidget {
   final bool online;
 
   @override
-  Widget build(BuildContext context) => Padding(
+  Widget build(BuildContext context, WidgetRef ref) => Padding(
     padding: const EdgeInsetsDirectional.fromSTEB(14, 10, 8, 4),
     child: Row(
       children: [
         Expanded(
           child: Text(
-            account.displayLabel,
+            account.provider == BusyProvider.nextcloud &&
+                    (ref
+                                .watch(
+                                  nextcloudPendingInvitationCountProvider(
+                                    account.id,
+                                  ),
+                                )
+                                .valueOrNull ??
+                            0) >
+                        0
+                ? '${account.displayLabel} • ${AppLocalizations.of(context).nextcloudFederationInvitations} (${ref.watch(nextcloudPendingInvitationCountProvider(account.id)).valueOrNull ?? 0})'
+                : account.displayLabel,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: FluentTheme.of(context).typography.caption,

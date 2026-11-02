@@ -151,7 +151,20 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                 ListTile(
                   leading: Icon(_providerIcon(account.provider)),
                   title: Text(account.displayLabel),
-                  subtitle: Text(_accountSubtitle(account)),
+                  subtitle: Text(
+                    account.provider == BusyProvider.nextcloud &&
+                            (ref
+                                        .watch(
+                                          nextcloudPendingInvitationCountProvider(
+                                            account.id,
+                                          ),
+                                        )
+                                        .valueOrNull ??
+                                    0) >
+                                0
+                        ? '${_accountSubtitle(account)} • ${context.l10n.nextcloudFederationInvitations} (${ref.watch(nextcloudPendingInvitationCountProvider(account.id)).valueOrNull ?? 0})'
+                        : _accountSubtitle(account),
+                  ),
                   trailing: _removing.contains(account.id)
                       ? const SizedBox.square(
                           dimension: 22,
@@ -354,7 +367,9 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
               ))
                 ListTile(
                   leading: const Icon(Icons.mark_email_unread_outlined),
-                  title: Text(context.l10n.nextcloudFederationInvitations),
+                  title: Text(
+                    '${context.l10n.nextcloudFederationInvitations} (${ref.watch(nextcloudPendingInvitationCountProvider(account.id)).valueOrNull ?? 0})',
+                  ),
                   subtitle: Text(account.displayLabel),
                   onTap: () => Navigator.of(context).push<void>(
                     MaterialPageRoute(

@@ -26,6 +26,68 @@ void main() {
   tearDown(() => fixture.close());
 
   test(
+    'normal refresh persists a private count and coalesces passive discovery',
+    () async {
+      await service.discoverPending();
+      var account = await fixture.database
+          .select(fixture.database.accounts)
+          .getSingle();
+      expect(federationSummary(account.providerMetadataJson)['count'], 1);
+      expect(account.providerMetadataJson, isNot(contains('Remote team')));
+      expect(account.providerMetadataJson, isNot(contains('untrusted.test')));
+      final count = fixture.requests.length;
+      await NextcloudFederationService(fixture.collections).discoverPending();
+      expect(fixture.requests, hasLength(count));
+      fixture.federationInvitations.clear();
+      await service.discoverPending(force: true);
+      account = await fixture.database
+          .select(fixture.database.accounts)
+          .getSingle();
+      expect(federationSummary(account.providerMetadataJson)['count'], 0);
+    },
+  );
+
+  test('offline discovery retains last count and stale responses cannot publish it', () async {
+    await service.pending();
+    fixture.ocsHttpStatus = 503;
+    await expectLater(service.pending(), throwsA(isA<DavException>()));
+    var account = await fixture.database
+        .select(fixture.database.accounts)
+        .getSingle();
+    expect(federationSummary(account.providerMetadataJson)['count'], 1);
+    fixture.ocsHttpStatus = 200;
+    fixture.beforeResponse = (request) async {
+      if (request.url.path.contains('federated_calendars')) {
+        await fixture.database
+            .into(fixture.database.authorizationGenerations)
+            .insertOnConflictUpdate(
+              AuthorizationGenerationsCompanion.insert(
+                accountId: 'account',
+                generation: 99,
+              ),
+            );
+      }
+    };
+    fixture.federationInvitations.clear();
+    await service.pending();
+    account = await fixture.database
+        .select(fixture.database.accounts)
+        .getSingle();
+    expect(
+      federationSummary(account.providerMetadataJson)['generation'],
+      isNot(99),
+    );
+    expect(federationSummary(account.providerMetadataJson)['count'], 1);
+    fixture.beforeResponse = null;
+    await service.discoverPending();
+    account = await fixture.database
+        .select(fixture.database.accounts)
+        .getSingle();
+    expect(federationSummary(account.providerMetadataJson)['generation'], 99);
+    expect(federationSummary(account.providerMetadataJson)['count'], 0);
+  });
+
+  test(
     'pending accept and decline use only the owning installation OCS API',
     () async {
       final invitation = (await service.pending()).single;
