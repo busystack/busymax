@@ -2464,18 +2464,18 @@ class _AndroidNextcloudTrashScreenState
   }
 
   Future<void> _load() async {
-    _listingEpoch++;
+    final epoch = ++_listingEpoch;
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
       final listing = await _service.list(cancellationToken: _loadCancellation);
-      if (mounted) setState(() => _listing = listing);
+      if (mounted && _listingEpoch == epoch) setState(() => _listing = listing);
     } on Object catch (error) {
-      if (mounted) setState(() => _error = error);
+      if (mounted && _listingEpoch == epoch) setState(() => _error = error);
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted && _listingEpoch == epoch) setState(() => _busy = false);
     }
   }
 

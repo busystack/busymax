@@ -495,6 +495,64 @@ void main() {
     );
   }
 
+  testWidgets(
+    'trash keeps the newest listing when refreshes finish in reverse order',
+    (tester) async {
+      final fixture = NextcloudAdminFixture();
+      await tester.runAsync(fixture.seed);
+      addTearDown(fixture.close);
+      await _pumpTrash(tester, fixture, platform: 'Android');
+      expect(find.text('42.ics'), findsOneWidget);
+      final olderStarted = Completer<void>();
+      final releaseOlder = Completer<void>();
+      addTearDown(() {
+        if (!releaseOlder.isCompleted) releaseOlder.complete();
+      });
+      fixture.beforeResponse = (request) async {
+        // Hold the older listing after its object inventory has been captured.
+        if (request.method == 'PROPFIND' &&
+            request.url.path == NextcloudAdminFixture.home &&
+            request.headers['depth'] == '1' &&
+            !olderStarted.isCompleted) {
+          olderStarted.complete();
+          await releaseOlder.future;
+        }
+      };
+      final refresh = tester
+          .widget<RefreshIndicator>(find.byType(RefreshIndicator))
+          .onRefresh;
+      Future<void> until(bool Function() done) async {
+        for (var i = 0; i < 50 && !done(); i++) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 10)),
+          );
+          await tester.pump(const Duration(milliseconds: 20));
+        }
+        expect(done(), isTrue);
+      }
+
+      var olderDone = false, newerDone = false;
+      final older = refresh().whenComplete(() => olderDone = true);
+      await until(() => olderStarted.isCompleted);
+      fixture.restored.add('${NextcloudAdminFixture.bin}objects/42.ics');
+      final newer = refresh().whenComplete(() => newerDone = true);
+      await until(() => newerDone);
+      await newer;
+      await tester.pump();
+      expect(find.text('41.ics'), findsOneWidget);
+      expect(find.text('42.ics'), findsNothing);
+      releaseOlder.complete();
+      await until(() => olderDone);
+      await older;
+      await tester.pump();
+      expect(find.text('41.ics'), findsOneWidget);
+      expect(find.text('42.ics'), findsNothing);
+      expect(find.byType(LinearProgressIndicator), findsNothing);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
   testWidgets('trash uses shared rows and confirms permanent deletion', (
     tester,
   ) async {

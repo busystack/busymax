@@ -476,7 +476,7 @@ class _WindowsNextcloudTrashState
   }
 
   Future<void> _load() async {
-    _listingEpoch++;
+    final epoch = ++_listingEpoch;
     setState(() {
       busy = true;
       failed = false;
@@ -485,21 +485,21 @@ class _WindowsNextcloudTrashState
       final result = await ref
           .read(nextcloudTrashServiceProvider(widget.accountId))
           .list(cancellationToken: _loadCancellation);
-      if (mounted) {
+      if (mounted && _listingEpoch == epoch) {
         setState(() {
           listing = result;
           refreshPending = false;
         });
       }
     } on Object catch (caught) {
-      if (mounted) {
+      if (mounted && _listingEpoch == epoch) {
         setState(() {
           failed = true;
           error = caught;
         });
       }
     }
-    if (mounted) setState(() => busy = false);
+    if (mounted && _listingEpoch == epoch) setState(() => busy = false);
   }
 
   Future<void> _mutate(NextcloudTrashItem item, bool permanent) async {
