@@ -215,6 +215,29 @@ native runs against this same fixture.
 
 ## Linux real keyring and process recovery
 
+The same existing harness can also run in the confinement of an installed
+BusyMax core24 strict Snap, without replacing that package or opening its normal
+account database. Close the normal BusyMax application, then run in an authorized
+desktop session after the live lifecycle tests:
+
+```bash
+flutter build linux --debug -t integration_test/caldav_linux_process_restart_test.dart
+python3 test/interop/caldav/linux-confined-restart.py
+```
+
+The helper creates one private UUID-named directory under that Snap's common
+directory, copies only the QA bundle/fixture inputs, and launches two separate
+processes through the installed wrappers with their matching official debug
+engine. It uses the production `SECRET_BACKEND=file` configuration and prefixed
+test keys, verifies independent DAV readback and notification-daemon acceptance,
+then removes test credentials and its owned directory. Ignored runtime logs and
+a secret-free result record retain the source/kernel/installed-profile identity.
+On failure it retains only its QA directory for diagnosis/recovery. A standalone
+integration-plugin warning is expected because the helper captures results
+directly; the existing harness assertions and per-server markers must pass.
+This verifies the installed confinement/storage profile; it does not substitute
+for interactive account/editor acceptance in an installed new release package.
+
 In an authorized Linux desktop session with its normal secret service and
 notification daemon, run this command twice as separate OS processes:
 

@@ -168,7 +168,14 @@ metadata remains covered by round-trip tests.
 
 - Linux real keyring, actual two-process recovery and daemon notification
   acceptance: **passed for all three**. The QA runner is a native application
-  with isolated key names/database paths; Snap confinement remains unverified.
+  with isolated key names/database paths. A further two-process run **passed
+  for all three under Snap confinement**, using the installed 0.3.2 core24
+  strict profile, its unchanged GNOME wrappers and `SECRET_BACKEND=file`, with
+  the current QA bundle in an isolated directory. Credentials, queued work,
+  creation reconciliation and daemon notification acceptance survived restart;
+  test credentials were removed. The installed package and normal account
+  database were untouched. This qualifies that storage/confinement profile,
+  not interactive account/editor acceptance in an installed 0.4.0 package.
 - Current three-server Linux connection/editor suite: **3 passed**, with
   independent event/task readback. Current Android editor rerun: **blocked on
   physical device unlock**, not counted as passed. The isolated QA APK is
