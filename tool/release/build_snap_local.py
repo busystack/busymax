@@ -133,7 +133,7 @@ def source_gate(source, revision, version):
         code = module.validate_versions(lambda p: (source / p).read_text(), version)
     except (ValueError, ET.ParseError, OSError):
         raise ReleaseError('Release metadata does not match the requested version.') from None
-    minimum_code = {'0.3.1': 6, '0.3.2': 7}.get(version, 1)
+    minimum_code = {'0.3.1': 6, '0.3.2': 7, '0.4.0': 8}.get(version, 1)
     require(code >= minimum_code, 'Android version code is too old.')
     recipe = (source / 'snap/snapcraft.yaml').read_text()
     for field, value in {'name': 'busymax', 'base': 'core24', 'grade': 'devel', 'confinement': 'strict'}.items():

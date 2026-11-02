@@ -209,8 +209,8 @@ their regression coverage.
 
 ## Release branches
 
-Start `release/v0.3.2` from current `main`, commit reviewed changes, and open it
-into `main` with title `release/v0.3.2`. Fetch before final review and incorporate
+Start `release/v0.4.0` from current `main`, commit reviewed changes, and open it
+into `main` with title `release/v0.4.0`. Fetch before final review and incorporate
 later `origin/main` commits with a normal merge. The existing
 `tool/check_release_pull_request.py` validates the actual PR head, release
 metadata and current-main ancestry. A synthetic PR merge does not establish
