@@ -60,7 +60,7 @@ void main() {
     );
     final unknownFailure = WindowsLocalTimeZoneSource(
       load: () async => throw PlatformException(
-        code: 'native-secret-C:/Users/albert',
+        code: 'native-secret-C:/Users/fixture',
         message: 'sensitive native detail',
       ),
     );

@@ -70,3 +70,21 @@ config/windows_store.local.json
 # Local public release settings; downloaded Google JSON stays outside Git.
 config/release.local.json
 client_secret*.json
+
+# Disposable QA, credentials, VM storage and platform packages.
+/qa-results/
+/test-results/
+/diagnostics-captures/
+/vm-backups/
+*.apk
+*.aab
+*.msix
+*.vdi
+*.vmdk
+*.qcow2
+.env
+.env.*
+!.env.example
+/config/*.local.*
+*.keystore
+*.jks

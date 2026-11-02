@@ -549,7 +549,7 @@ void main() {
         id: 'nextcloud-custom-port',
         authority:
             'https://cloud.example.test:8443/nextcloud/index.php?token=secret',
-        displayName: 'albert',
+        displayName: 'fixture',
       ),
       _account(
         BusyProvider.nextcloud,
@@ -564,7 +564,7 @@ void main() {
     expect(find.textContaining('/nextcloud'), findsNothing);
     expect(find.textContaining('token=secret'), findsNothing);
     expect(
-      find.bySemanticsLabel('Nextcloud, albert, cloud.example.test:8443'),
+      find.bySemanticsLabel('Nextcloud, fixture, cloud.example.test:8443'),
       findsOneWidget,
     );
     expect(
