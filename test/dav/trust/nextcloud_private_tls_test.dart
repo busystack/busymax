@@ -363,6 +363,26 @@ void main() {
       expect(received, 0);
     },
   );
+  test('expired fixtures retain ordered historical validity intervals', () {
+    final now = DateTime.now().toUtc();
+    for (final name in ['expired', 'expired-leaf']) {
+      final certificate = cert(name);
+      expect(certificate.notBefore.isBefore(certificate.notAfter), isTrue);
+      expect(certificate.notAfter.isBefore(now), isTrue);
+      final midpoint = certificate.notBefore.add(
+        Duration(
+          seconds:
+              certificate.notAfter
+                  .difference(certificate.notBefore)
+                  .inSeconds ~/
+              2,
+        ),
+      );
+      expect(() => certificate.validateTime(midpoint), returnsNormally);
+      expect(() => certificate.validateTime(now), throwsFormatException);
+      expect(certificate.subject == certificate.issuer, name == 'expired');
+    }
+  });
   test('reject expired, wrong-host, CA leaf, malformed containers and private keys', () async {
     await serve('self');
     for (final name in ['expired', 'wrong', 'cn-only', 'ca']) {

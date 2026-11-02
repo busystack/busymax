@@ -80,11 +80,7 @@ subjectAltName=DNS:localhost,IP:127.0.0.1,IP:::1
           '${entry.key}.pem',
         ]);
       }
-      for (final entry in {
-        'self': '3',
-        'self-renewed': '4',
-        'expired': '5',
-      }.entries) {
+      for (final entry in {'self': '3', 'self-renewed': '4'}.entries) {
         await fixture.openssl([
           'x509',
           '-req',
@@ -95,7 +91,7 @@ subjectAltName=DNS:localhost,IP:127.0.0.1,IP:::1
           '-set_serial',
           entry.value,
           '-days',
-          entry.key == 'expired' ? '-1' : '2',
+          '2',
           '-sha256',
           '-extfile',
           'server.ext',
@@ -156,29 +152,10 @@ subjectAltName=DNS:localhost,IP:127.0.0.1,IP:::1
           '$name-leaf.pem',
         ]);
       }
-      await fixture.openssl([
-        'x509',
-        '-req',
-        '-in',
-        'server.csr',
-        '-CA',
-        'ca.pem',
-        '-CAkey',
-        'ca.key',
-        '-set_serial',
-        '11',
-        '-days',
-        '-1',
-        '-sha256',
-        '-extfile',
-        'server.ext',
-        '-out',
-        'expired-leaf.pem',
-      ]);
       await File(fixture.path('index.txt')).writeAsString('');
       await File(fixture.path('serial.txt')).writeAsString('12\n');
       await Directory(fixture.path('issued')).create();
-      await File(fixture.path('future.cnf')).writeAsString('''
+      await File(fixture.path('validity.cnf')).writeAsString('''
 [ca]
 default_ca=authority
 [authority]
@@ -188,6 +165,7 @@ new_certs_dir=issued
 default_md=sha256
 policy=names
 x509_extensions=server
+unique_subject=no
 [names]
 commonName=supplied
 [server]
@@ -195,31 +173,43 @@ basicConstraints=critical,CA:FALSE
 keyUsage=critical,digitalSignature
 extendedKeyUsage=serverAuth
 subjectAltName=DNS:localhost
+[expired]
+${await File(fixture.path('server.ext')).readAsString()}
 ''');
       String date(DateTime value) =>
           '${value.year}${value.month.toString().padLeft(2, '0')}'
           '${value.day.toString().padLeft(2, '0')}${value.hour.toString().padLeft(2, '0')}'
           '${value.minute.toString().padLeft(2, '0')}${value.second.toString().padLeft(2, '0')}Z';
-      final future = DateTime.now().toUtc().add(const Duration(days: 1));
-      await fixture.openssl([
-        'ca',
-        '-batch',
-        '-config',
-        'future.cnf',
-        '-keyfile',
-        'ca.key',
-        '-cert',
-        'ca.pem',
-        '-in',
-        'server.csr',
-        '-startdate',
-        date(future),
-        '-enddate',
-        date(future.add(const Duration(days: 1))),
-        '-notext',
-        '-out',
-        'future-leaf.pem',
-      ]);
+      final now = DateTime.now().toUtc();
+      // An expired certificate still needs a correctly ordered validity
+      // interval. `x509 -days -1` produces end < start and is rejected by newer
+      // upstream OpenSSL releases, before any TLS assertion can run.
+      for (final name in ['expired', 'expired-leaf', 'future-leaf']) {
+        final selfSigned = name == 'expired';
+        final future = name == 'future-leaf';
+        await fixture.openssl([
+          'ca',
+          '-batch',
+          '-config',
+          'validity.cnf',
+          '-keyfile',
+          selfSigned ? 'server.key' : 'ca.key',
+          '-cert',
+          selfSigned ? 'self.pem' : 'ca.pem',
+          if (selfSigned) '-selfsign',
+          '-in',
+          'server.csr',
+          '-startdate',
+          date(now.add(Duration(days: future ? 1 : -2))),
+          '-enddate',
+          date(now.add(Duration(days: future ? 2 : -1))),
+          '-extensions',
+          future ? 'server' : 'expired',
+          '-notext',
+          '-out',
+          '$name.pem',
+        ]);
+      }
       await fixture.openssl([
         'req',
         '-x509',
