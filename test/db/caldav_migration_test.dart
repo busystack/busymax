@@ -6,6 +6,84 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart' as sqlite;
 
 void main() {
+  for (final interrupted in [false, true]) {
+    test(
+      'schema 22 collection-journal upgrade preserves account and rolls back atomically: $interrupted',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'busymax-v22-creation-',
+        );
+        addTearDown(() => directory.delete(recursive: true));
+        final file = File('${directory.path}/qa.sqlite');
+        var db = AppDatabase(NativeDatabase(file));
+        await db
+            .into(db.accounts)
+            .insert(
+              AccountsCompanion.insert(
+                id: 'caldav',
+                provider: 'caldav',
+                authority: 'https://example.test/',
+                providerAccountId: 'alice',
+                credentialKind: 'caldav_password',
+                createdAtUtc: 'now',
+                updatedAtUtc: 'now',
+              ),
+            );
+        await db.customStatement(
+          'INSERT INTO authorization_generations VALUES (?, ?)',
+          ['caldav', 9],
+        );
+        await db.close();
+        final raw = sqlite.sqlite3.open(file.path);
+        // The journal is the only schema-23 addition. Remove it to reproduce the
+        // exact preceding schema, retaining its existing accounts and generation.
+        raw.execute('DROP TABLE dav_collection_creations');
+        raw.execute('PRAGMA user_version = 22');
+        raw.close();
+        db = interrupted
+            ? _InterruptedDatabase(NativeDatabase(file))
+            : AppDatabase(NativeDatabase(file));
+        if (interrupted) {
+          await expectLater(db.select(db.accounts).get(), throwsStateError);
+          await db.close();
+          final check = sqlite.sqlite3.open(file.path);
+          expect(check.select('PRAGMA user_version').single.values.single, 22);
+          expect(
+            check.select(
+              "SELECT name FROM sqlite_master WHERE name='dav_collection_creations'",
+            ),
+            isEmpty,
+          );
+          expect(
+            check
+                .select('SELECT generation FROM authorization_generations')
+                .single
+                .values
+                .single,
+            9,
+          );
+          check.close();
+          db = AppDatabase(NativeDatabase(file));
+        }
+        expect((await db.select(db.accounts).getSingle()).provider, 'caldav');
+        expect(
+          (await db.select(db.authorizationGenerations).getSingle()).generation,
+          9,
+        );
+        expect(await db.select(db.davCollectionCreations).get(), isEmpty);
+        expect(
+          (await db.customSelect('PRAGMA user_version').getSingle())
+              .data['user_version'],
+          23,
+        );
+        expect(
+          await db.customSelect('PRAGMA foreign_key_check').get(),
+          isEmpty,
+        );
+        await db.close();
+      },
+    );
+  }
   for (final failure in [false, true]) {
     test(
       'actual v0.4.0 schema 21 ${failure ? 'rolls back interrupted upgrade' : 'preserves every row on upgrade'}',
@@ -156,7 +234,7 @@ void main() {
         expect(
           (await db.customSelect('PRAGMA user_version').getSingle())
               .data['user_version'],
-          22,
+          23,
         );
         for (final table in tables) {
           expect(
@@ -204,7 +282,7 @@ class _InterruptedDatabase extends AppDatabase {
 
   @override
   Future<void> customStatement(String statement, [List<Object?>? args]) async {
-    if (statement == 'PRAGMA user_version = 22') {
+    if (statement == 'PRAGMA user_version = 23') {
       throw StateError('Interrupted before commit');
     }
     await super.customStatement(statement, args);

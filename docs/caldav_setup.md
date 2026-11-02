@@ -78,6 +78,23 @@ dedicated Nextcloud account type for its supported extensions.
   queued work. It does not delete remote collections or revoke a server password.
   Rotate or revoke that password on the server separately when required.
 
+## BusyStack CalDAV Server
+
+For release 0.1.0, sign in to the server's account interface, complete its MFA
+requirements and issue a named DAV credential. Copy the displayed CalDAV
+endpoint, username and issued secret into BusyMax's CalDAV connection dialog.
+The normal account password does not authenticate DAV requests. Keep the issued
+secret securely; the server displays it once. Revoke it through the server when
+it is no longer needed, and use BusyMax's reconnect action after replacement.
+
+Use separate event and task collections: this release accepts VEVENT-only and
+VTODO-only collections, and rejects mixed collections. Owner-controlled READ
+and WRITE shares appear through ordinary DAV discovery; manage sharing on the
+server. Scheduling delivery, CardDAV, server-executed alarms and general file
+storage are outside this server's CalDAV scope. Stored attendee, organizer and
+alarm metadata remain preserved.
+
 See the [qualification record](caldav_qualification.md) for exact tested server
-versions, scenarios and verification boundaries. Qualification of Radicale and
-Baïkal does not establish universal interoperability.
+versions, scenarios and verification boundaries, and the
+[security and recovery model](caldav_security.md). Qualification of Radicale,
+Baïkal and BusyStack does not establish universal interoperability.

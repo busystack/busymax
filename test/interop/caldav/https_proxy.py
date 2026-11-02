@@ -23,6 +23,20 @@ def serve(port, upstream, prefix='', untrusted=False):
             # A redirect must consume this request body before a keep-alive
             # connection can receive the client's redirected PROPFIND.
             payload = self.rfile.read(length)
+            if self.path == '/.well-known/caldav' and port == 18448:
+                # The origin's proxy owns well-known routing for both released
+                # root and configured servlet-subpath deployments.
+                settings = dict(line.split('=', 1) for line in
+                                (RUNTIME / 'busystack-qa.env').read_text().splitlines() if '=' in line)
+                public = settings['BUSYSTACK_PUBLIC_BASE_URL']
+                if public not in ('https://localhost:18448', 'https://localhost:18448/calendar'):
+                    self.send_error(500)
+                    return
+                self.send_response(302)
+                self.send_header('Location', public + '/dav/')
+                self.send_header('Content-Length', '0')
+                self.end_headers()
+                return
             if self.path == '/.well-known/caldav' and port in (18444, 18447):
                 # The HTTPS origin owns well-known routing. The plain HTTP
                 # Apache upstream cannot construct the TLS terminator's scheme.
@@ -70,6 +84,7 @@ def serve(port, upstream, prefix='', untrusted=False):
 
         do_GET = do_HEAD = do_OPTIONS = do_PROPFIND = do_REPORT = proxy
         do_PUT = do_DELETE = do_MKCALENDAR = do_MKCOL = do_PROPPATCH = do_MOVE = proxy
+        do_POST = proxy
 
         def log_message(self, fmt, *args):
             # No headers, request bodies, URLs or credentials in diagnostics.
@@ -83,13 +98,14 @@ def serve(port, upstream, prefix='', untrusted=False):
     server.serve_forever()
 
 
-threads = []
-for args in [(18443, 'radicale:5232'), (18444, 'baikal:80'),
-             (18445, 'radicale:5232', '/installation'),
-             (18446, 'radicale:5232', '', True),
-             (18447, 'baikal-path:80')]:
-    thread = threading.Thread(target=serve, args=args)
-    thread.start()
-    threads.append(thread)
-for thread in threads:
-    thread.join()
+if __name__ == '__main__':
+    threads = []
+    for args in [(18443, 'radicale:5232'), (18444, 'baikal:80'),
+                 (18445, 'radicale:5232', '/installation'),
+                 (18446, 'radicale:5232', '', True),
+                 (18447, 'baikal-path:80')]:
+        thread = threading.Thread(target=serve, args=args)
+        thread.start()
+        threads.append(thread)
+    for thread in threads:
+        thread.join()

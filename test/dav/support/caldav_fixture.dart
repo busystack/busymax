@@ -1,4 +1,10 @@
 import 'dart:convert';
+
+import 'caldav_qa_targets.dart';
+
+import 'package:busymax/src/dav/ical/dav_native_import.dart';
+import 'package:busymax/src/dav/ical/dav_native_export.dart';
+
 import 'dart:io';
 
 import 'package:busymax/src/core/auth/authorization_persistence.dart';
@@ -27,10 +33,12 @@ final class CalDavFixture {
     this.onStage,
     this.wrapAccountClient,
     this.wrapDiscoveryClient,
+    SecretStore? secretStore,
   }) : fixtureDirectory =
            fixtureDirectory ??
            Platform.environment['BUSYMAX_CALDAV_FIXTURE_DIR'] ??
-           '${Directory.current.path}/test/interop/caldav/.runtime';
+           '${Directory.current.path}/test/interop/caldav/.runtime',
+       secrets = secretStore ?? InMemorySecretStore();
   final Uri uri;
   final String fixtureDirectory;
   final void Function(String)? onStage;
@@ -38,14 +46,16 @@ final class CalDavFixture {
   final http.Client Function(http.Client)? wrapDiscoveryClient;
   late Directory directory;
   late AppDatabase database;
-  final secrets = InMemorySecretStore();
+  final SecretStore secrets;
   late AuthorizationPersistence persistence;
   late DavAccountHttpClient client;
   late http.Client independent;
   late DavAccountOnboardingService onboarding;
   late String id, password, collectionName;
   String? collectionId;
+  String? eventCollectionId;
   Uri? createdCollectionUri;
+  Uri? createdEventCollectionUri;
   String username = 'alice';
   bool _storageOpened = false,
       _networkOpened = false,
@@ -75,9 +85,7 @@ final class CalDavFixture {
     onStage?.call('reading fixture');
     this.username = username;
     password =
-        (jsonDecode(
-              await File('$fixtureDirectory/credentials.json').readAsString(),
-            ) as Map)[username]
+        (await calDavQaCredentials(uri, directory: fixtureDirectory))[username]
             as String;
     directory = await Directory.systemTemp.createTemp('busymax-caldav-qa-');
     database = AppDatabase(
@@ -103,10 +111,11 @@ final class CalDavFixture {
     await synchronize(full: true);
     collectionName = 'BusyMax QA ${DateTime.now().microsecondsSinceEpoch}';
     onStage?.call('creating test collection');
-    final creation = await administration.create(collectionName, const {
-      'VEVENT',
-      'VTODO',
-    });
+    final mixed = calDavQaSupportsMixed(uri);
+    final creation = await administration.create(
+      collectionName,
+      mixed ? const {'VEVENT', 'VTODO'} : const {'VTODO'},
+    );
     if (creation != DavCollectionAdministrationOutcome.committed) {
       throw StateError('QA collection refresh failed');
     }
@@ -114,6 +123,14 @@ final class CalDavFixture {
         .singleWhere((c) => c.displayName == collectionName);
     collectionId = created.id;
     createdCollectionUri = Uri.parse(created.requestUri);
+    eventCollectionId = collectionId;
+    if (!mixed) {
+      await administration.create('$collectionName events', const {'VEVENT'});
+      final events = (await database.select(database.davCollections).get())
+          .singleWhere((c) => c.displayName == '$collectionName events');
+      eventCollectionId = events.id;
+      createdEventCollectionUri = Uri.parse(events.requestUri);
+    }
   }
 
   void _attach() {
@@ -212,6 +229,57 @@ final class CalDavFixture {
     await persistence.recover();
   }
 
+  /// No secrets are written to the receipt. A separate native process must
+  /// reopen the production secure store to attach to this private QA database.
+  Map<String, Object?> restartReceipt() => {
+    'databaseDirectory': directory.path,
+    'id': id,
+    'collectionName': collectionName,
+    'collectionId': collectionId,
+    'eventCollectionId': eventCollectionId,
+    'createdCollectionUri': createdCollectionUri?.toString(),
+    'createdEventCollectionUri': createdEventCollectionUri?.toString(),
+    'username': username,
+  };
+
+  Future<void> suspendForProcessRestart() async {
+    client.close();
+    independent.close();
+    await database.close();
+  }
+
+  Future<void> restoreAfterProcessRestart(Map<String, dynamic> receipt) async {
+    directory = Directory(receipt['databaseDirectory'] as String);
+    id = receipt['id'] as String;
+    username = receipt['username'] as String;
+    collectionName = receipt['collectionName'] as String;
+    collectionId = receipt['collectionId'] as String;
+    eventCollectionId = receipt['eventCollectionId'] as String;
+    createdCollectionUri = Uri.parse(receipt['createdCollectionUri'] as String);
+    createdEventCollectionUri = switch (receipt['createdEventCollectionUri']) {
+      final String value => Uri.parse(value),
+      _ => null,
+    };
+    database = AppDatabase(
+      NativeDatabase(File('${directory.path}/busymax.sqlite')),
+    );
+    _storageOpened = true;
+    independent = newClient();
+    _networkOpened = true;
+    _attach();
+    await persistence.recover();
+    final record =
+        await persistence.readCurrentCredential(id) as CalDavSecretRecord;
+    if (record.serviceAuthority != uri || record.username != username) {
+      throw StateError(
+        'Native QA receipt does not match the secure credential',
+      );
+    }
+    password = record.password;
+    _accountCreated = true;
+    _attachAccount();
+  }
+
   Future<http.Response> independentRequest(
     String method,
     Uri target, {
@@ -228,12 +296,58 @@ final class CalDavFixture {
     return http.Response.fromStream(await independent.send(request));
   }
 
+  Future<List<NativeImportItemResult>> importResources(
+    NextcloudNativeImportPreview preview,
+  ) async {
+    final importer = DavNativeImportService(database);
+    if (collectionId == eventCollectionId) {
+      return importer.import(
+        accountId: id,
+        collectionId: collectionId!,
+        preview: preview,
+      );
+    }
+    final results = <NativeImportItemResult>[];
+    for (final entry in {
+      eventCollectionId!: 'VEVENT',
+      collectionId!: 'VTODO',
+    }.entries) {
+      results.addAll(
+        await importer.import(
+          accountId: id,
+          collectionId: entry.key,
+          preview: NextcloudNativeImportPreview(
+            preview.resources
+                .where((r) => r.componentType == entry.value)
+                .toList(),
+            const [],
+            preview.schedulingMethod,
+          ),
+        ),
+      );
+    }
+    return results;
+  }
+
+  Future<List<NativeImportResource>> exportResources() async {
+    final result = <NativeImportResource>[];
+    for (final collection in {collectionId!, eventCollectionId!}) {
+      result.addAll(
+        await DavNativeExportService(database).collection(id, collection),
+      );
+    }
+    return result;
+  }
+
   Future<void> close() async {
     try {
       // Fixture teardown owns this uniquely named remote collection. It also
       // cleans up after tests deliberately retaining blocked local work; product
       // collection deletion correctly refuses such queued changes.
-      if (createdCollectionUri case final target?) {
+      for (final target in [
+        createdCollectionUri,
+        createdEventCollectionUri,
+      ].whereType<Uri>()) {
         final response = await independentRequest('DELETE', target);
         if (![200, 204, 404, 410].contains(response.statusCode)) {
           throw StateError(

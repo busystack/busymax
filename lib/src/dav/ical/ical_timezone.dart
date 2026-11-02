@@ -6,6 +6,47 @@ import 'ical_document.dart';
 import 'ical_semantics.dart';
 import '../../core/time/ical_time_zone.dart';
 
+/// Compares the UTC instants of observance cutoffs using the same semantics as
+/// the existing timezone reader. This changes a comparison copy only: wire and
+/// stored representations are retained verbatim. It grants no equivalence to
+/// different offsets, recurrence rules, calendar fields or opaque extensions.
+String canonicalIcalObservanceCutoffs(String raw) {
+  final document = IcalDocument.parse(raw);
+  var changed = false;
+  for (final zone in document.root.componentsNamed('VTIMEZONE')) {
+    for (final observance in zone.components.where(
+      (c) => c.name == 'STANDARD' || c.name == 'DAYLIGHT',
+    )) {
+      final offsets = observance.propertiesNamed('TZOFFSETFROM').toList();
+      if (offsets.length != 1) throw _invalidTimeZone();
+      for (final property in observance.propertiesNamed('RRULE')) {
+        final rule = _TimeZoneYearlyRule.parse(property);
+        if (rule.until == null || rule.untilIsUtc) continue;
+        if (rule.count != null) throw _invalidTimeZone();
+        final instant = rule.until!.subtract(
+          _parseUtcOffset(offsets.single.rawValue),
+        );
+        if (instant.year < 1 || instant.year > 9999) throw _invalidTimeZone();
+        String two(int value) => value.toString().padLeft(2, '0');
+        final cutoff =
+            '${instant.year.toString().padLeft(4, '0')}${two(instant.month)}${two(instant.day)}T${two(instant.hour)}${two(instant.minute)}${two(instant.second)}Z';
+        property.rawValue = property.rawValue
+            .split(';')
+            .map(
+              (part) =>
+                  part.substring(0, part.indexOf('=')).toUpperCase() == 'UNTIL'
+                  ? 'UNTIL=$cutoff'
+                  : part,
+            )
+            .join(';');
+        property.isDirty = true;
+        changed = true;
+      }
+    }
+  }
+  return changed ? document.serialize() : raw;
+}
+
 /// RFC 5545 requires a VTIMEZONE for every referenced TZID. Existing embedded
 /// definitions, including server-specific identifiers and unknown content, win.
 String completeIcalTimeZones(String raw) {

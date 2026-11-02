@@ -1,7 +1,8 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
-import 'package:drift/drift.dart' show BooleanExpressionOperators;
+import 'package:drift/drift.dart' show BooleanExpressionOperators, Value;
+import 'package:uuid/uuid.dart';
 import 'package:xml/xml.dart';
 
 import '../../core/secrets/secret_store.dart';
@@ -15,7 +16,12 @@ import '../http/dav_http_transport.dart';
 import '../xml/dav_xml.dart';
 import 'dav_collection_mutation_helpers.dart';
 
-enum DavCollectionAdministrationOutcome { committed, refreshPending }
+enum DavCollectionAdministrationOutcome {
+  committed,
+  refreshPending,
+  reconciled,
+  reconciledRefreshPending,
+}
 
 /// Standards-based collection mutations through BusyMax's existing bounded,
 /// credential-scoped DAV transport. Nextcloud extensions remain in their service.
@@ -27,13 +33,19 @@ final class DavCollectionAdministration {
     required this.accountId,
     required this.refresh,
     required this.requireNetwork,
-  });
+    String Function()? creationIdFactory,
+  }) : _creationIdFactory = creationIdFactory ?? const Uuid().v4;
   final AppDatabase database;
   final SecretStore secrets;
   final http.Client client;
   final String accountId;
   final Future<void> Function() refresh;
   final Future<void> Function() requireNetwork;
+  final String Function() _creationIdFactory;
+  static final _activeCreations =
+      <String, Future<DavCollectionAdministrationOutcome>>{};
+  static bool creationIsActive(String accountId, String operationId) =>
+      _activeCreations.containsKey('$accountId/$operationId');
 
   Future<_Context> _open() async {
     await requireNetwork();
@@ -208,6 +220,112 @@ final class DavCollectionAdministration {
       throw ArgumentError('Invalid collection');
     }
     final c = await _open();
+    final pending =
+        await (database.select(database.davCollectionCreations)..where(
+              (r) =>
+                  r.accountId.equals(accountId) &
+                  r.displayName.equals(title.trim()) &
+                  r.state.isIn(const ['prepared', 'dispatched']),
+            ))
+            .get();
+    if (pending.isNotEmpty) throw _error(409, 'DavCollectionCreationPending');
+    final existing =
+        await (database.select(database.davCollections)..where(
+              (r) =>
+                  r.accountId.equals(accountId) &
+                  r.displayName.equals(title.trim()) &
+                  r.deleted.equals(false) &
+                  r.serverMissing.equals(false),
+            ))
+            .get();
+    if (existing.any(
+      (r) =>
+          components.contains('VEVENT') && r.eventProjectionEnabled ||
+          components.contains('VTODO') && r.taskProjectionEnabled,
+    )) {
+      throw _error(409, 'DavCollectionNameConflict');
+    }
+    final id = _creationIdFactory();
+    if (!RegExp(
+      r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+    ).hasMatch(id)) {
+      throw ArgumentError('Invalid creation operation ID');
+    }
+    // Reserve an unpredictable operation-specific member. Persist both intent
+    // and URL before dispatch: a title-derived URL is not operation identity.
+    final target = davCollectionUri(c.home).resolve('busymax-$id/');
+    final sortedComponents = components.toList()..sort();
+    await database
+        .into(database.davCollectionCreations)
+        .insert(
+          DavCollectionCreationsCompanion.insert(
+            id: id,
+            accountId: accountId,
+            authority: c.authority.toString(),
+            homeUri: c.home.toString(),
+            targetUri: target.toString(),
+            displayName: title.trim(),
+            componentsJson: jsonEncode(sortedComponents),
+            createdAtUtc: DateTime.now().toUtc().toIso8601String(),
+          ),
+        );
+    return resumeCreation(id, cancellation: cancellation);
+  }
+
+  /// Only a persisted, account-bound operation ID authorizes recovery/retry.
+  /// Used by normal account synchronization after interrupted foreground work.
+  Future<DavCollectionAdministrationOutcome> resumeCreation(
+    String operationId, {
+    DavCancellationToken? cancellation,
+  }) async {
+    final key = '$accountId/$operationId';
+    final active = _activeCreations[key];
+    if (active != null) return active;
+    final work = _resumeCreation(operationId, cancellation);
+    _activeCreations[key] = work;
+    try {
+      return await work;
+    } finally {
+      if (identical(_activeCreations[key], work)) _activeCreations.remove(key);
+    }
+  }
+
+  Future<DavCollectionAdministrationOutcome> _resumeCreation(
+    String operationId,
+    DavCancellationToken? cancellation,
+  ) async {
+    final operation =
+        await (database.select(database.davCollectionCreations)..where(
+              (r) => r.id.equals(operationId) & r.accountId.equals(accountId),
+            ))
+            .getSingleOrNull();
+    if (operation == null) {
+      throw _error(404, 'DavCollectionCreationUnavailable');
+    }
+    final c = await _open();
+    if (operation.authority != c.authority.toString() ||
+        operation.homeUri != c.home.toString() ||
+        operation.targetUri !=
+            davCollectionUri(c.home)
+                .resolve('busymax-${operation.id}/')
+                .toString()) {
+      throw _error(409, 'DavCollectionCreationIdentityChanged');
+    }
+    final target = Uri.parse(operation.targetUri);
+    final title = operation.displayName;
+    final components = (jsonDecode(operation.componentsJson) as List)
+        .cast<String>()
+        .toSet();
+    if (components.isEmpty ||
+        !const {'VEVENT', 'VTODO'}.containsAll(components)) {
+      throw _error(409, 'DavCollectionCreationInvalid');
+    }
+    if (operation.state == 'rejected') {
+      throw _error(409, 'DavCollectionNameConflict');
+    }
+    if (operation.state == 'committed') {
+      return _creationRefresh(reconciled: true);
+    }
     final parent = await _read(c, c.home, cancellation: cancellation);
     if (parent == null) throw _error(404, 'DavCalendarHomeUnavailable');
     _requirePrivilege(parent, 'bind');
@@ -237,14 +355,6 @@ final class DavCollectionAdministration {
         ? 'MKCOL'
         : null;
     if (method == null) throw _error(405, 'DavCollectionCreationUnsupported');
-    // A deterministic URL allows a later user retry to reconcile a lost write
-    // response after process death without allocating a second remote resource.
-    final slug = nextcloudCollectionMemberName(
-      title,
-      homeUri: c.home,
-      existingCollectionUris: const [],
-    );
-    final target = davCollectionUri(c.home).resolve('$slug/');
     bool matches(DavMultistatusResponse entry) {
       final componentProperty = entry.successfulProperty(
         caldavNamespace,
@@ -260,9 +370,9 @@ final class DavCollectionAdministration {
           .toSet();
       return entry.successfulProperty(davNamespace, 'displayname')?.text ==
               title.trim() &&
-          (actual == null ||
+          (actual != null &&
               actual.length == components.length &&
-                  actual.containsAll(components)) &&
+              actual.containsAll(components)) &&
           entry
               .successfulProperty(davNamespace, 'resourcetype')!
               .element
@@ -276,12 +386,38 @@ final class DavCollectionAdministration {
 
     final existing = await _read(c, target, cancellation: cancellation);
     if (existing != null) {
-      if (!matches(existing)) throw _error(409, 'DavCollectionNameConflict');
-      return _refresh();
+      if (operation.state != 'dispatched' || !matches(existing)) {
+        await _creationState(operationId, 'rejected');
+        throw _error(409, 'DavCollectionNameConflict');
+      }
+      await _creationState(operationId, 'committed');
+      return _creationRefresh(reconciled: true);
+    }
+    // The absence check above is mandatory before a retry of a dispatched
+    // operation. MKCALENDAR/MKCOL are never blindly replayed by the transport.
+    if (operation.state == 'prepared') {
+      final claimed =
+          await (database.update(database.davCollectionCreations)..where(
+                (r) =>
+                    r.id.equals(operationId) &
+                    r.accountId.equals(accountId) &
+                    r.state.equals('prepared'),
+              ))
+              .write(
+                const DavCollectionCreationsCompanion(
+                  state: Value('dispatched'),
+                ),
+              );
+      if (claimed != 1) throw _error(409, 'DavCollectionCreationPending');
     }
     final tag = method == 'MKCOL' ? 'd:mkcol' : 'c:mkcalendar';
+    // MKCALENDAR creates a calendar resource type itself. DAV:resourcetype is
+    // protected there; only Extended MKCOL specifies it in the request body.
+    final resourceType = method == 'MKCOL'
+        ? '<d:resourcetype><d:collection/><c:calendar/></d:resourcetype>'
+        : '';
     final xml =
-        '<$tag $_namespaces><d:set><d:prop><d:resourcetype><d:collection/><c:calendar/></d:resourcetype><d:displayname>${escapeDavXmlText(title.trim())}</d:displayname><c:supported-calendar-component-set>${components.map((v) => '<c:comp name="$v"/>').join()}</c:supported-calendar-component-set></d:prop></d:set></$tag>';
+        '<$tag $_namespaces><d:set><d:prop>$resourceType<d:displayname>${escapeDavXmlText(title.trim())}</d:displayname><c:supported-calendar-component-set>${components.map((v) => '<c:comp name="$v"/>').join()}</c:supported-calendar-component-set></d:prop></d:set></$tag>';
     try {
       final response = await _send(
         c,
@@ -291,16 +427,84 @@ final class DavCollectionAdministration {
         cancellation: cancellation,
       );
       if (response.statusCode != 201) {
+        if (response.statusCode == 403 && response.bodyBytes.isNotEmpty) {
+          Set<DavPropertyName> conditions;
+          try {
+            conditions = const DavXmlParser().parseDavError(response.bodyBytes);
+          } on DavException {
+            conditions = const {};
+          }
+          if (conditions.contains(
+            const DavPropertyName(
+              caldavNamespace,
+              'supported-calendar-component',
+            ),
+          )) {
+            await _creationState(operationId, 'rejected');
+            throw const DavException(
+              kind: DavErrorKind.unsupportedComponent,
+              code: 'DavUnsupportedComponent',
+              statusCode: 403,
+              safeMessage: 'The server does not support the requested collection component set.',
+            );
+          }
+        }
+        // A definitive rejection is not evidence of an uncertain commit. In
+        // particular a fresh request that loses a namespace race must never
+        // adopt the conflicting collection on a subsequent recovery pass.
+        if (const {
+              400,
+              405,
+              409,
+              412,
+              415,
+              422,
+            }.contains(response.statusCode) &&
+            operation.state == 'prepared') {
+          await _creationState(operationId, 'rejected');
+        } else if (const {401, 403}.contains(response.statusCode) &&
+            operation.state == 'prepared') {
+          await _creationState(operationId, 'prepared');
+        }
         throw _error(response.statusCode, 'DavCollectionCreationFailed');
       }
     } on DavException catch (error) {
-      if (!_uncertain(error)) rethrow;
+      final pendingNamespaceRace =
+          operation.state == 'dispatched' &&
+          const {405, 409, 412}.contains(error.statusCode);
+      if (!_uncertain(error) && !pendingNamespaceRace) rethrow;
       final observed = await _read(c, target);
       if (observed == null || !matches(observed)) {
-        throw _error(409, 'DavCollectionOutcomeUnknown');
+        throw DavException(
+          kind: DavErrorKind.unknownOutcome,
+          code: 'DavCollectionOutcomeUnknown',
+          correlationId: operationId,
+          safeMessage: 'The collection operation is pending reconciliation.',
+        );
       }
+      await _creationState(operationId, 'committed');
+      return _creationRefresh(reconciled: true);
     }
-    return _refresh();
+    await _creationState(operationId, 'committed');
+    return _creationRefresh(reconciled: false);
+  }
+
+  Future<void> _creationState(String id, String state) async {
+    final updated =
+        await (database.update(database.davCollectionCreations)
+              ..where((r) => r.id.equals(id) & r.accountId.equals(accountId)))
+            .write(DavCollectionCreationsCompanion(state: Value(state)));
+    if (updated != 1) throw _error(404, 'DavAccountRemoved');
+  }
+
+  Future<DavCollectionAdministrationOutcome> _creationRefresh({
+    required bool reconciled,
+  }) async {
+    final result = await _refresh();
+    if (!reconciled) return result;
+    return result == DavCollectionAdministrationOutcome.refreshPending
+        ? DavCollectionAdministrationOutcome.reconciledRefreshPending
+        : DavCollectionAdministrationOutcome.reconciled;
   }
 
   Future<DavCollectionAdministrationOutcome> update(

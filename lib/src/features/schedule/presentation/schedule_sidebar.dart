@@ -29,7 +29,6 @@ import '../../../schedule/schedule_sidebar_sources.dart';
 import '../../../webcal/webcal_subscription_service.dart';
 import '../../accounts/data/accounts_repository.dart';
 import '../../accounts/domain/account_collection_creation_capabilities.dart';
-import '../../calendar/data/calendar_collection_creation_service.dart';
 import '../../calendar/data/calendar_repository.dart';
 import '../../connectivity/network_connectivity_service.dart';
 import '../../calendar/presentation/calendar_color_dialog.dart';
@@ -1562,9 +1561,7 @@ Future<void> _createAccountCalendar(
     final result = await ref
         .read(calendarCollectionCreationServiceProvider)
         .createCalendar(accountId: account.id, title: title);
-    if (context.mounted &&
-        result.outcome ==
-            CalendarCollectionCreationOutcome.createdRefreshPending) {
+    if (context.mounted && result.refreshPending) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(context.l10n.calendarCreatedRefreshPending)),
       );

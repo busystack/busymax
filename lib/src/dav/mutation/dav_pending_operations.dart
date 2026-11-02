@@ -1171,6 +1171,90 @@ final class DavPendingOperationsReplayer {
   final DateTime Function() _nowUtc;
   final Random _random;
 
+  /// Call only after a complete authenticated discovery has committed. A
+  /// previous authoritative denial requires newly advertised permission for
+  /// every blocked operation; missing/unknown privileges never clear it.
+  Future<void> revalidatePermissionsAfterDiscovery() async {
+    await _database.transaction(() async {
+      final account = await (_database.select(
+        _database.accounts,
+      )..where((r) => r.id.equals(_accountId))).getSingleOrNull();
+      if (account?.authState !=
+          AccountConnectionState.permissionChanged.storageValue) {
+        return;
+      }
+      final blocked =
+          await (_database.select(_database.pendingOps)..where(
+                (r) =>
+                    r.accountId.equals(_accountId) &
+                    r.state.equals('permission_blocked'),
+              ))
+              .get();
+      if (blocked.isEmpty || blocked.any((op) => !isDavPendingOperation(op))) {
+        return;
+      }
+      for (final op in blocked) {
+        try {
+          final source = collectionCapabilitiesFromStored(
+            await _requiredCollection(op),
+          );
+          if (!source.permissionsKnown || !source.canRead) return;
+          final event = switch (op.operationType) {
+            'dav.create' =>
+              _decodeCreate(op.requestJson).componentType == 'VEVENT',
+            'dav.update' => _decodePatch(op).target.componentType == 'VEVENT',
+            _ => _deleteIsEvent(op),
+          };
+          final permitted = switch (op.operationType) {
+            'dav.create' =>
+              event ? source.canCreateEvent : source.canCreateTask,
+            'dav.update' =>
+              event ? source.canUpdateEvent : source.canUpdateTask,
+            'dav.delete' ||
+            'dav.move' => event ? source.canDeleteEvent : source.canDeleteTask,
+            _ => false,
+          };
+          if (!permitted) return;
+          if (op.operationType == 'dav.move') {
+            final destination = collectionCapabilitiesFromStored(
+              await _requiredDestinationCollection(op),
+            );
+            if (!source.supportsMove ||
+                !destination.permissionsKnown ||
+                !destination.canRead ||
+                !(event
+                    ? destination.canCreateEvent
+                    : destination.canCreateTask)) {
+              return;
+            }
+          }
+        } on DavException {
+          return;
+        }
+      }
+      final now = _nowUtc().toUtc().toIso8601String();
+      for (final op in blocked) {
+        await (_database.update(_database.pendingOps)..where(
+              (r) =>
+                  r.id.equals(op.id) &
+                  r.accountId.equals(_accountId) &
+                  r.state.equals('permission_blocked'),
+            ))
+            .write(
+              PendingOpsCompanion(
+                state: const Value('retry'),
+                nextAttemptAtUtc: Value(now),
+                updatedAtUtc: Value(now),
+                retryClassification: const Value('permission_restored'),
+                lastErrorCode: const Value(null),
+                lastErrorMessage: const Value(null),
+              ),
+            );
+      }
+      await _setAccountState(AccountConnectionState.connected);
+    });
+  }
+
   Future<DavReplaySummary> replayDueOperations() async {
     final account = await (_database.select(
       _database.accounts,

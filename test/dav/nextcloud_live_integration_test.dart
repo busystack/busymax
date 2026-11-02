@@ -288,7 +288,6 @@ final class DavLiveFixture {
             '''<?xml version="1.0" encoding="utf-8"?>
 <c:mkcalendar xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:a="http://apple.com/ns/ical/">
   <d:set><d:prop>
-    <d:resourcetype><d:collection/><c:calendar/></d:resourcetype>
     <d:displayname>$displayName</d:displayname>
     <c:supported-calendar-component-set><c:comp name="$component"/></c:supported-calendar-component-set>
     <a:calendar-color>$color</a:calendar-color>

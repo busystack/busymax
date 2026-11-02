@@ -45,6 +45,55 @@ final class DavDiscoveryService {
     final serverFeatures = {...serviceCapabilities.serverFeatures};
     _transport.setServerFeatures(serverFeatures);
     final endpointOptions = <Uri, DavResponse>{};
+    final moveCapableCollectionHrefs = <String>{};
+    Future<void> probeCollectionMethods(
+      DavMultistatus inventory,
+      Uri responseUri,
+    ) async {
+      if (_profile.provider != BusyProvider.caldav) return;
+      for (final entry in inventory.responses) {
+        final type = entry.successfulProperty(davNamespace, 'resourcetype');
+        if (type == null ||
+            !type.element.descendantElements.any(
+              (e) =>
+                  e.name.namespaceUri == caldavNamespace &&
+                  e.name.local == 'calendar',
+            )) {
+          continue;
+        }
+        if (entry.successfulProperty(davNamespace, 'supported-method-set') !=
+            null) {
+          continue;
+        }
+        final target = resolveDavHref(
+          href: entry.href,
+          responseRequestUri: responseUri,
+          profile: _profile,
+          accountAuthority: _accountAuthority,
+          correlationId: correlationId,
+        );
+        final response = await _transport.send(
+          DavRequest(
+            method: 'OPTIONS',
+            uri: target,
+            accountId: _accountId,
+            correlationId: correlationId,
+            retryClass: DavRetryClass.safeRead,
+          ),
+          credential: _credential,
+          cancellationToken: cancellationToken,
+        );
+        // Optional method discovery is separate from read authorization.
+        if (const {403, 405, 501}.contains(response.statusCode)) continue;
+        _requireSuccessfulOrDav(response);
+        if (_allowedMethods(response).contains('MOVE')) {
+          moveCapableCollectionHrefs.add(
+            normalizedDavHrefKey(_profile.provider, target),
+          );
+        }
+      }
+    }
+
     Future<DavEndpointCapabilities> capabilitiesAt(
       Uri target,
       DavMultistatus properties,
@@ -165,8 +214,10 @@ final class DavDiscoveryService {
       inventoryResponse.bodyBytes,
       correlationId: correlationId,
     );
+    await probeCollectionMethods(inventory, inventoryResponse.requestUri);
     final collections = _parseCollections(
       inventory,
+      moveCapableCollectionHrefs: moveCapableCollectionHrefs,
       responseUri: inventoryResponse.requestUri,
       home: calendarHome,
       supportsMove:
@@ -225,8 +276,10 @@ final class DavDiscoveryService {
         listed.bodyBytes,
         correlationId: correlationId,
       );
+      await probeCollectionMethods(entries, listed.requestUri);
       final discovered = _parseCollections(
         entries,
+        moveCapableCollectionHrefs: moveCapableCollectionHrefs,
         responseUri: listed.requestUri,
         home: home,
         supportsMove:
@@ -358,8 +411,10 @@ final class DavDiscoveryService {
             listed.bodyBytes,
             correlationId: correlationId,
           );
+          await probeCollectionMethods(entries, listed.requestUri);
           final discovered = _parseCollections(
             entries,
+            moveCapableCollectionHrefs: moveCapableCollectionHrefs,
             responseUri: listed.requestUri,
             home: home,
             inbox: delegatedInbox,
@@ -702,6 +757,7 @@ final class DavDiscoveryService {
     required Uri principal,
     bool delegated = false,
     bool supportsMove = false,
+    Set<String> moveCapableCollectionHrefs = const {},
   }) {
     final result = <DavCollectionDiscovery>[];
     if (inventory.responses.isEmpty || inventory.errorConditions.isNotEmpty) {
@@ -828,10 +884,26 @@ final class DavDiscoveryService {
               ),
             )
           : const <Map<String, String>>[];
+      final advertisedMethods = response.successfulProperty(
+        davNamespace,
+        'supported-method-set',
+      );
+      final collectionSupportsMove = advertisedMethods == null
+          ? (_profile.provider == BusyProvider.caldav
+                ? moveCapableCollectionHrefs.contains(
+                    normalizedDavHrefKey(_profile.provider, requestUri),
+                  )
+                : supportsMove)
+          : advertisedMethods.element.descendantElements.any(
+              (e) =>
+                  e.name.namespaceUri == davNamespace &&
+                  e.name.local == 'supported-method' &&
+                  e.getAttribute('name')?.toUpperCase() == 'MOVE',
+            );
       final capabilities = CollectionCapabilities(
         permissionsKnown: privilegesKnown,
         allowsItemMutations: contentResource,
-        supportsMove: contentResource && supportsMove,
+        supportsMove: contentResource && collectionSupportsMove,
         canRead:
             !privilegesKnown ||
             hasAggregateAll ||
@@ -1372,7 +1444,7 @@ const _calendarHomeInventoryPropfind = '''<?xml version="1.0" encoding="utf-8"?>
  xmlns:nc="http://nextcloud.com/ns" xmlns:oc="http://owncloud.org/ns">
   <d:prop>
     <d:resourcetype/><d:displayname/><d:owner/>
-    <d:current-user-privilege-set/><d:supported-report-set/><d:sync-token/>
+    <d:current-user-privilege-set/><d:supported-report-set/><d:supported-method-set/><d:sync-token/>
     <c:supported-calendar-component-set/><c:supported-calendar-data/>
     <c:calendar-description/><c:calendar-timezone/><c:calendar-timezone-id/>
     <c:schedule-calendar-transp/><c:max-resource-size/><c:max-instances/>

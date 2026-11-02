@@ -87,7 +87,9 @@ final class DavTaskListMutationService implements DavTaskListMutationClient {
       final result = await _genericAdministration.create(displayName, const {
         'VTODO',
       });
-      if (result == DavCollectionAdministrationOutcome.refreshPending) {
+      if (result == DavCollectionAdministrationOutcome.refreshPending ||
+          result ==
+              DavCollectionAdministrationOutcome.reconciledRefreshPending) {
         throw const NextcloudRefreshPending();
       }
       return;

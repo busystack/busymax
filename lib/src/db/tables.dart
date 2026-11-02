@@ -72,6 +72,27 @@ class DavAccountServices extends Table {
   Set<Column<Object>> get primaryKey => {accountId};
 }
 
+/// Durable collection-creation intent. Contains no credentials or item content.
+class DavCollectionCreations extends Table {
+  TextColumn get id => text()();
+  TextColumn get accountId =>
+      text().references(Accounts, #id, onDelete: KeyAction.cascade)();
+  TextColumn get authority => text()();
+  TextColumn get homeUri => text()();
+  TextColumn get targetUri => text().unique()();
+  TextColumn get displayName => text()();
+  TextColumn get componentsJson => text()();
+  TextColumn get state => text().withDefault(const Constant('prepared'))();
+  TextColumn get createdAtUtc => text()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+  @override
+  List<String> get customConstraints => const [
+    "CHECK (state IN ('prepared', 'dispatched', 'committed', 'rejected'))",
+  ];
+}
+
 class DavCollections extends Table {
   TextColumn get id => text()();
   TextColumn get accountId =>

@@ -14,7 +14,6 @@ import '../../calendar_providers/calendar_colors.dart';
 import '../../dav/dav_errors.dart';
 import '../../features/accounts/data/accounts_repository.dart';
 import '../../features/accounts/domain/account_collection_creation_capabilities.dart';
-import '../../features/calendar/data/calendar_collection_creation_service.dart';
 import '../../features/calendar/data/calendar_repository.dart';
 import '../../features/connectivity/network_connectivity_service.dart';
 import '../../features/task_lists/data/task_lists_repository.dart';
@@ -514,9 +513,7 @@ class _WindowsScheduleSourcePaneState
       final result = await ref
           .read(calendarCollectionCreationServiceProvider)
           .createCalendar(accountId: account.id, title: title);
-      if (result.outcome ==
-              CalendarCollectionCreationOutcome.createdRefreshPending &&
-          mounted) {
+      if (result.refreshPending && mounted) {
         await _showMessage(
           AppLocalizations.of(context).calendarCreatedRefreshPending,
         );

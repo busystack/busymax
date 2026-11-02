@@ -119,8 +119,8 @@ void main() {
             );
             final records = <Map<String, Object?>>[];
             for (final server in {
-              'Radicale 3.8.1': 'https://localhost:18443/',
-              'Baikal 0.12.1': 'https://localhost:18444/dav.php/',
+              'Radicale 3.9.0': 'https://localhost:18443/',
+              'Baikal 0.13.0': 'https://localhost:18444/dav.php/',
             }.entries) {
               debugPrint('CalDAV native process: preparing ${server.key}');
               final id = (await onboarding.connectCalDav(

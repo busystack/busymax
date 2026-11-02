@@ -35,8 +35,26 @@ def password(server, value):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action', choices=['rotate', 'restore', 'restart'])
-    parser.add_argument('server', choices=['radicale', 'baikal'])
+    parser.add_argument('server', choices=['radicale', 'baikal', 'busystack'])
     args = parser.parse_args()
+    if args.server == 'busystack':
+        runner = ['python3', str(ROOT / 'busystack-fixture.py')]
+        if args.action == 'restart':
+            subprocess.run(runner + ['restart'], check=True, capture_output=True)
+            return
+        if args.action == 'restore':
+            raise SystemExit('A revoked DAV credential must never be restored; use the newly issued credential.')
+        state_path = RUNTIME / 'busystack-credential-label.json'
+        old_label = json.loads(state_path.read_text())['label'] if state_path.exists() else 'BusyMax QA primary'
+        label = 'BusyMax QA replacement ' + secrets.token_hex(8)
+        subprocess.run(runner + ['issue', 'alice', label], check=True, capture_output=True)
+        subprocess.run(runner + ['revoke', 'alice', old_label], check=True, capture_output=True)
+        value = json.loads((RUNTIME / 'busystack-credentials.json').read_text())['alice']
+        for path, data in [(state_path, {'label': label}), (RUNTIME / 'rotation-busystack.json', {'password': value})]:
+            path.write_text(json.dumps(data))
+            path.chmod(0o600)
+        print('Disposable named DAV credential reissued and predecessor revoked through MFA (not printed).')
+        return
     if args.action == 'restart':
         subprocess.run(COMPOSE + ['restart', args.server], check=True, capture_output=True)
         return

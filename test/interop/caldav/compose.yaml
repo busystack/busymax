@@ -1,7 +1,7 @@
 name: busymax-caldav-qa
 services:
   radicale:
-    image: ghcr.io/kozea/radicale:3.8.1@sha256:54d9406cd30f9e206a9dd6d61dfac48da26b9afc37200e14f23beb8fafa7d11c
+    image: ghcr.io/kozea/radicale:3.9.0@sha256:f68a99907f44b09dc12d81c3a1cdf221e3c55f08ceccfa17dc012991be9fb397
     command: [--config, /fixtures/radicale.conf]
     ports: ["127.0.0.1:18532:5232"]
     volumes:

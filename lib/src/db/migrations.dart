@@ -3,7 +3,7 @@ import 'package:drift/drift.dart';
 import 'app_database.dart';
 import 'location_migration.dart';
 
-const latestSchemaVersion = 22;
+const latestSchemaVersion = 23;
 
 /// A recoverable, non-secret diagnostic raised when an on-disk schema cannot
 /// be migrated without guessing remote identity or losing synchronized data.
@@ -147,6 +147,9 @@ MigrationStrategy busyMaxMigrationStrategy(AppDatabase database) {
           await migrator.alterTable(TableMigration(database.accounts));
           await _verifyPreservedCounts(database, counts);
           await _verifyAccountIdentity(database);
+        }
+        if (from < 23) {
+          await migrator.createTable(database.davCollectionCreations);
         }
         await _createIndexes(database);
         await createLocationLifecycleTriggers(database);
@@ -803,6 +806,13 @@ Future<void> _addV3Columns(Migrator migrator, AppDatabase database) async {
 }
 
 Future<void> _createIndexes(AppDatabase database) async {
+  if (await _hasTable(database, 'dav_collection_creations')) {
+    await database.customStatement(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_dav_creation_pending_name '
+      'ON dav_collection_creations(account_id, display_name) '
+      "WHERE state IN ('prepared', 'dispatched')",
+    );
+  }
   if (await _hasTable(database, 'accounts')) {
     await database.customStatement(
       'CREATE INDEX IF NOT EXISTS idx_accounts_provider '

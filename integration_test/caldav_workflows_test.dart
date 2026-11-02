@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:busymax/l10n/generated/app_localizations.dart';
@@ -19,15 +18,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
 import '../test/dav/support/caldav_fixture.dart';
+import '../test/dav/support/caldav_qa_targets.dart';
 import '../test/support/memory_settings_store.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   final enabled = Platform.environment['BUSYMAX_CALDAV_NATIVE'] == '1';
-  for (final server in {
-    'Radicale 3.8.1': 'https://localhost:18443/',
-    'Baikal 0.12.1': 'https://localhost:18444/dav.php/',
-  }.entries) {
+  for (final server in calDavQaTargets.entries) {
     testWidgets(
       '${server.key}: native CalDAV connect and existing event/task editors',
       (tester) async {
@@ -109,12 +106,9 @@ void main() {
                 .evaluate()
                 .isNotEmpty,
           );
-          final credentials = jsonDecode(
-            (await tester.runAsync(
-              () =>
-                  File('${f.fixtureDirectory}/credentials.json').readAsString(),
-            ))!,
-          ) as Map;
+          final credentials = (await tester.runAsync(
+            () => calDavQaCredentials(f.uri, directory: f.fixtureDirectory),
+          ))!;
           await tester.enterText(
             find.byKey(const Key('caldav-server-field')),
             server.value,
@@ -209,7 +203,8 @@ void main() {
             () => f.database.select(f.database.davObjects).get(),
           ))!;
           for (final object in objects.where(
-            (o) => o.collectionId == f.collectionId,
+            (o) =>
+                {f.collectionId, f.eventCollectionId}.contains(o.collectionId),
           )) {
             final response = await tester.runAsync(
               () => f.independentRequest('GET', Uri.parse(object.requestUri)),
@@ -265,13 +260,13 @@ class _EditorActions extends ConsumerWidget {
               .select(fixture.database.calendarSources)
               .get();
           final source = rows.singleWhere(
-            (s) => s.davCollectionId == fixture.collectionId,
+            (s) => s.davCollectionId == fixture.eventCollectionId,
           );
           final collection =
               (await fixture.database
                       .select(fixture.database.davCollections)
                       .get())
-                  .singleWhere((c) => c.id == fixture.collectionId);
+                  .singleWhere((c) => c.id == fixture.eventCollectionId);
           final accounts = await ref
               .read(accountsRepositoryProvider)
               .watchAccounts()

@@ -5,6 +5,7 @@ import '../dav_errors.dart';
 import '../http/dav_http_transport.dart';
 import '../ical/ical_document.dart';
 import '../ical/ical_semantics.dart';
+import '../ical/ical_timezone.dart';
 import '../sync/dav_collection_remote_client.dart';
 import '../xml/dav_xml.dart';
 import 'dav_conflict_analyzer.dart';
@@ -299,19 +300,28 @@ final class DavMutationHttpClient
         conditions.contains(DavPropertyName(namespace, local));
     final mapped = switch (response.statusCode) {
       401 => (DavErrorKind.authentication, 'DavAuthRejected'),
-      403 => (DavErrorKind.authorization, 'DavPermissionDenied'),
-      409 when has(caldavNamespace, 'no-uid-conflict') => (
+      403 || 409 when has(caldavNamespace, 'no-uid-conflict') => (
         DavErrorKind.uidConflict,
         'DavUidConflict',
       ),
+      403 when has(caldavNamespace, 'valid-calendar-data') => (
+        DavErrorKind.invalidCalendarData,
+        'DavMalformedResource',
+      ),
+      403 when has(caldavNamespace, 'supported-calendar-component') => (
+        DavErrorKind.unsupportedComponent,
+        'DavUnsupportedComponent',
+      ),
+      413 => (DavErrorKind.maximumResourceSize, 'DavMaximumResourceSize'),
+      403 || 507 when has(caldavNamespace, 'max-resource-size') => (
+        DavErrorKind.maximumResourceSize,
+        'DavMaximumResourceSize',
+      ),
+      403 => (DavErrorKind.authorization, 'DavPermissionDenied'),
       409 => (DavErrorKind.conflict, 'DavResourceConflict'),
       423 => (DavErrorKind.conflict, 'DavResourceLocked'),
       429 => (DavErrorKind.rateLimited, 'DavRateLimited'),
       415 => (DavErrorKind.invalidCalendarData, 'DavMalformedResource'),
-      507 when has(caldavNamespace, 'max-resource-size') => (
-        DavErrorKind.maximumResourceSize,
-        'DavMaximumResourceSize',
-      ),
       507 => (DavErrorKind.limitExceeded, 'DavQuotaOrSizeLimit'),
       >= 500 => (DavErrorKind.server, 'DavServerUnavailable'),
       _ when has(caldavNamespace, 'valid-calendar-data') => (
@@ -1102,8 +1112,19 @@ bool _sameSemanticObject(
 
     final intendedSemantic = IcalSemanticDocument.parse(normalized(intended));
     final currentSemantic = IcalSemanticDocument.parse(normalized(current));
-    return intendedSemantic.primaryUid == currentSemantic.primaryUid &&
-        intendedSemantic.semanticHash == currentSemantic.semanticHash;
+    if (intendedSemantic.primaryUid != currentSemantic.primaryUid) return false;
+    if (intendedSemantic.semanticHash == currentSemantic.semanticHash) {
+      return true;
+    }
+    // A server can return UTC observance cutoffs for equivalent local cutoffs.
+    // Compare their actual instants, retaining every other field in the hash.
+    final intendedZones = IcalSemanticDocument.parse(
+      canonicalIcalObservanceCutoffs(normalized(intended)),
+    );
+    final currentZones = IcalSemanticDocument.parse(
+      canonicalIcalObservanceCutoffs(normalized(current)),
+    );
+    return intendedZones.semanticHash == currentZones.semanticHash;
   } on DavException {
     return false;
   }

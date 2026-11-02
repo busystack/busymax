@@ -70,7 +70,7 @@ exact ID for silent foreground and WorkManager token requests.
 
 Apple iCloud Calendar continues to require an app-specific password. Nextcloud
 uses Login Flow v2 and stores the returned app password in secure storage.
-WebCal is read-only. On Android 17, a local Nextcloud hostname causes a
+WebCal is read-only. On Android 17, a local Nextcloud or CalDAV hostname causes a
 contextual local-network permission request; a public HTTPS server does not.
 Notification permission is requested when creating reminders or from Settings;
 exact-alarm access is requested from Settings. Exact access improves reminder

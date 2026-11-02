@@ -1,7 +1,213 @@
 # Generic CalDAV qualification
 
-This is the implementation checklist and maintained qualification record. A
-checked implementation item does not establish live or native acceptance.
+This is the maintained qualification record. A checked implementation item does
+not establish live or native acceptance.
+
+## Current release follow-up — final validation in progress
+
+Baseline: `feature/caldav-support`, clean implementation commit
+`3a0e6c368fa14917ff0ef50ecb682331bd200e29`, already committed and pushed.
+The release branch starts at `5fbb15a2e103f3ee12627c8ab77974996e60e4d6`.
+Corrections below are local until the final validation/commit steps complete.
+No release has been merged, tagged or published.
+
+### Corrected collection creation
+
+Schema **23** adds an account-owned creation journal: random operation UUID,
+reserved URL, validated authority/home, intended display name/component set and
+prepared/dispatched/committed/rejected state. A fresh matching target is a
+conflict, never `created`. Recovery requires the persisted operation ID;
+titles and deterministic URLs do not establish ownership. Definitive namespace
+rejection stays rejected. A pending operation checks remote absence before
+retry and reconciles a committed result before any repeat mutation.
+
+Regressions cover fresh creation, matching pre-existing conflict, lost-response
+reconciliation, retry of the same demonstrably pending operation, database
+reopening, changed intent, wrong account, account removal and both calling
+calendar/task-list services. MKCALENDAR and Extended MKCOL bodies are distinct.
+The schema-21 v0.4.0 fixture and schema-22 upgrade/rollback checks preserve
+accounts, foreign keys, generations, cached objects and queued work.
+
+**Actual OS process restart passed against all three servers:** the first Linux
+process saved real keyring credentials, two queued event/task creates and two
+committed VEVENT/VTODO collection creates with lost responses. A different PID
+recovered the persisted IDs, sent **zero** MKCALENDAR/MKCOL retries, verified
+remote collection and item state independently, drained the queue and removed
+its credentials. This is stronger evidence than the separate database-reopen
+unit tests. Receipts contain no secrets.
+
+### Released server identities and deployment
+
+| Server | Verified release | Isolated configuration |
+| --- | --- | --- |
+| Radicale | **3.9.0**, 2026-10-25 | Official image, explicit htpasswd authentication/rights, dedicated storage; root/non-root HTTPS fixtures |
+| Baïkal | **0.13.0**, 2026-10-19; bundled sabre/dav **4.7.1** | Official complete release archive, official PHP 8.4.13 Apache, SQLite; private configuration/storage outside DocumentRoot; root/non-root deployments |
+| BusyStack CalDAV Server | **v0.1.0**, source `db302ec69f786ba89945e1a761734a844572145b` | Official deployment bundle and application image, private PostgreSQL **18.6**, persistent volume, private secrets and HTTPS proxy |
+
+Radicale image index:
+`sha256:f68a99907f44b09dc12d81c3a1cdf221e3c55f08ceccfa17dc012991be9fb397`.
+Baïkal archive SHA-256:
+`81e74df123230e863f608d228fdd7b9a1a788f60b04d37e6973c302192e83f32`.
+BusyStack deployment archive SHA-256:
+`615c703ef94b21393a3e1ca2c2a1209c90d5f2716d302e1f3e664635a58f04b4`.
+Its release manifest, checksum list and every manifest deployment file are
+verified by `setup-busystack.py`. Application image:
+`ghcr.io/busystack/caldav-server:0.1.0@sha256:0701a86c1d9848924f36111e5a1223c7e5a368737637f4382d1edbe55a50dcb0`.
+PostgreSQL image digest:
+`sha256:edb0c08dc33befd0262ab3b5cf1c4f3f8cfd8b09e88c05b45adee29d6761ddb6`.
+All upstream servers, dependencies and runtime images remain unmodified.
+
+Projects are `busymax-caldav-qa` and `busymax-caldav-busystack-qa`; ports bind to
+loopback. BusyStack's database has no published port. Its official administrator
+bootstrap is followed by supported browser account creation, password sign-in,
+CTAP2 virtual-authenticator enrollment/MFA and named DAV credential issuance.
+Playwright 1.61.1 / Chromium 149.0.7827.55 uses a private container trust database.
+No normal account password is used for DAV; no artificial credential/verifier is
+inserted. The endpoint is `https://localhost:18448/dav/`.
+
+Primary references: [Radicale release](https://github.com/Kozea/Radicale/releases/tag/v3.9.0),
+[Baïkal release](https://github.com/sabre-io/Baikal/releases/tag/0.13.0),
+[BusyStack release](https://github.com/busystack/caldav-server/releases/tag/v0.1.0)
+and its [release conformance record](https://github.com/busystack/caldav-server/blob/db302ec69f786ba89945e1a761734a844572145b/docs/conformance.md).
+
+### Current execution evidence
+
+The clean final shared suite passed **56 tests with no failures or skips**:
+**Radicale 18 / Baïkal 20 / BusyStack 18**. Tests exercise production BusyMax
+transport, onboarding, repositories, queues and sync engines; independent DAV
+requests verify stored results. A prior run found four Baïkal fixture-selector
+failures because scheduling inbox/outbox entries also matched its generic
+read-only predicate. The selector now identifies the dedicated fixture explicitly
+and retains all privilege assertions; the complete suite was rerun cleanly.
+The following additional release-specific cases have passed:
+
+| Additional scenario | Radicale 3.9.0 | Baïkal 0.13.0 | BusyStack 0.1.0 |
+| --- | --- | --- | --- |
+| Conditional PUT `If-Match: *` existing/missing, zero-offset VALARM and VTODO time-range filters | Live pass | Covered by shared applicable CRUD/query tests | Covered by shared applicable CRUD/query tests |
+| Locked properties and protected collection deletion | Denial handled safely; upstream ACL inconsistency below | Shared read-only fixture | Shared READ/WRITE fixture |
+| Duplicate UID at different member URLs | Rejects 409 | **Still accepts 201**; historical limitation persists | Rejects 403 `CALDAV:no-uid-conflict`, correctly classified |
+| Real 507 bounded pages, strict Depth 0, opaque continuation, concurrent writes and server restart during paging | Existing sync coverage | Existing sync coverage | Live pass, 75 initial / 96 final resources, page size 17 |
+| Interrupt after first processed page, retain stable cursor/cache, reopen/resume | Existing interrupted multiget coverage | Existing interrupted multiget coverage | Live + fault pass |
+| Invalid stable token and real continuation invalidation on permission change | Existing invalid token coverage | Existing invalid token coverage | Live pass; safe rebaseline |
+| Direct READ→WRITE→READ→revoke, pending edit retained; group READ/WRITE and membership removal | Rights fixture | Shared read-only fixture | Live pass through supported owner/admin MFA interface |
+| Revocation/expiry/disabling reject an already-held local authorization lease | Password rotation coverage | Password rotation coverage | Live pass; queued edit preserved, valid replacement advances generation |
+| Transformed VTIMEZONE PUT omits validators, canonical GET, subsequent conditional edit | Normal unchanged timezone round trips | Normal unchanged timezone round trips | Live pass; no false conflict/duplicate, authoritative ETag retained |
+| Repair disabled: invalid local observance cutoff rejected atomically, valid UTC representation unchanged | Not applicable | Not applicable | Live pass |
+| Configured servlet installation prefix, origin well-known redirect, duplicate verified-identity rejection and restart | Existing root/non-root coverage | Existing root/non-root coverage | Live pass at `/calendar`, with independent resource readback |
+| Advertised 1 MiB resource limit, real 413, queued creation retained and remote baseline unchanged | Existing transport budgets | Existing transport budgets | Live pass; many bounded properties exceed resource budget |
+| Actual Linux keyring and separate-process collection recovery | Native pass | Native pass | Native pass |
+| Real desktop notification daemon accepts synchronized event/task reminders | Native pass | Native pass | Native pass |
+
+BusyStack extra tests total **6 passed**: sharing, paging/strict profile,
+representation repair, credential lifecycle, configured installation prefix,
+and atomic resource-limit rejection. Expiry is accelerated by aging
+only the timestamps of a genuinely MFA/browser-issued disposable credential in
+the private QA database; its verifier is unchanged. It tests expiry enforcement,
+not a natural 24-hour wait. The dedicated lifecycle user is disabled afterward.
+
+### Demonstrated defects and limitations
+
+BusyMax defects corrected within BusyMax:
+
+- Fresh collection creation could adopt unrelated matching metadata. The durable
+  operation identity and four-case regressions above correct it.
+- MKCALENDAR included protected `DAV:resourcetype`. BusyStack returned
+  `403 DAV:cannot-modify-protected-property`; that property is now sent only
+  for Extended MKCOL. References: [RFC 4791 §5.3.1](https://www.rfc-editor.org/rfc/rfc4791.html#section-5.3.1),
+  [RFC 5689 §3](https://www.rfc-editor.org/rfc/rfc5689.html#section-3).
+- `403 CALDAV:no-uid-conflict` was classified as authorization failure. It now
+  reports UID conflict, with separate invalid-data/component precondition
+  handling. No authorization failure is turned into success.
+- HTTP 413 resource rejection was recorded as a generic protocol error. It now
+  maps to the existing resource-size error, with explicit CalDAV size
+  preconditions handled separately from authorization. A live oversized queued
+  resource remains saved as failed and creates no remote member.
+- MOVE was inferred from home methods. Generic discovery now uses collection
+  supported-method-set or authenticated collection OPTIONS; it preserves
+  Nextcloud's established path and does not infer optional support by brand.
+- Equivalent VTIMEZONE observance cutoff repair produced a false conflict.
+  Comparison now recognizes only the existing reader's equivalent local/UTC
+  cutoff semantics, while retaining the actual GET body and ETag. Changed
+  offsets, cutoffs, fields or missing opaque properties still conflict.
+- Restored WRITE access left a previously denied edit permanently blocked.
+  Fresh complete discovery can release it only when explicit privileges cover
+  all required collections/operations. Unknown, missing, read-only and
+  authentication-blocked states retain the intent. The live direct/group test
+  and deterministic recovery cases cover this path.
+
+**Radicale upstream ACL limitation:** with rights `rwl`, authenticated
+`PROPFIND /alice/property-locked/` returns 207 and privileges including
+`DAV:all`, `DAV:write`, `DAV:write-content`; authenticated PROPPATCH of
+`DAV:displayname` returns **403**. The independent minimal requests are in
+`caldav_release_edges_live_test.dart`; the fixture rights are maintained in
+`test/interop/caldav/rights`. [RFC 3744 §§3.2–3.3, 3.11](https://www.rfc-editor.org/rfc/rfc3744.html#section-3.2)
+make the advertised aggregates include property writes. BusyMax reports the
+server rejection and preserves local/remote metadata; it does not invent a
+server-specific ACL exception. This is not qualified as accurate property-write
+advertisement. The separate `d` collection-delete denial is also preserved.
+
+**Baïkal duplicate UID limitation remains:** two independent conditional PUTs
+with the same UID at distinct member URLs both receive 201. This does not meet
+[CalDAV UID uniqueness, RFC 4791 §5.3.2](https://www.rfc-editor.org/rfc/rfc4791.html#section-5.3.2).
+BusyMax's normal mutation path still uses conditional writes and conflict logic;
+qualification does not claim upstream duplicate-UID enforcement.
+
+**BusyStack optional exclusions:** mixed VEVENT/VTODO creation returns
+`403 CALDAV:supported-calendar-component`. The released implementation accepts
+one VEVENT or VTODO component, so the shared harness uses separate collections.
+This is an advertised component restriction, not a fourth provider or client
+exception. Scheduling delivery, CardDAV, server-executed alarms and general
+file storage are outside this release's scope; stored organizer/attendee/alarm
+metadata remains covered by round-trip tests.
+
+### Available native and release checks
+
+- Linux real keyring, actual two-process recovery and daemon notification
+  acceptance: **passed for all three**. The QA runner is a native application
+  with isolated key names/database paths; Snap confinement remains unverified.
+- Current three-server Linux connection/editor suite: **3 passed**, with
+  independent event/task readback. Current Android editor rerun: **blocked on
+  physical device unlock**, not counted as passed. The isolated QA APK is
+  built and installed on the authorized ONEPLUS A6003; its secure keyguard
+  remains locked. No PIN bypass or device setting changes were attempted.
+- Preserved original Android production secure-storage/process-restart
+  qualification below remains valid; it is not claimed as new-server evidence.
+- **Windows native: unverified**; the user confirmed no authorized Windows
+  environment is available. The other workflow's VM remains untouched.
+- **Android 17 local-network permission prompting: unverified, environment
+  blocked.** An isolated official API 37.0 x86_64 revision-6 image and emulator
+  37.2.13 were installed outside the shared SDK. Acceleration precheck passed
+  but execution failed with `KVM: entry failed, hardware error 0x0`. The
+  official `-accel off` fallback exposed API 37 through ADB but did not reach
+  `sys.boot_completed=1` within 900 seconds. Only that owned AVD was stopped;
+  no host kernel, graphics, shared SDK or other VM was changed. Unexecuted
+  experimental harness files are excluded from the release candidate. The
+  authorized phone runs Android 10/API 29.
+- Real Google/Microsoft/iCloud authorizations remain separately unverified;
+  their deterministic regressions do not require unavailable production secrets.
+- Full final deterministic suite: **4,561 passed, 93 skipped**, no failures.
+  The skips require explicitly enabled live fixtures; live acceptance is
+  recorded separately above. Existing Google/Microsoft/Nextcloud/iCloud/WebCal,
+  authorization, migration, calendar/task, offline and security regressions pass.
+- Normal Linux release build: **passed**. Normal Android release APK/AAB
+  builds, native platform unit tests and lint: **passed**. Artifacts are
+  explicitly test-signed and not for distribution. Official bundletool 1.18.3
+  (verified SHA-256 `a099cfa1543f55593bc2ed16a70a7c67fe54b1747bb7301f37fdfd6d91028e29`)
+  confirms AAB `PAGE_ALIGNMENT_16K`; APK manifest/signature/alignment inspection
+  also completed. GitHub release-candidate CI remains pending. Read-only official SDK/package integrity passed (1,171 SDK
+  files, eight reviewed packages); Python release-tool tests **72 passed**,
+  upstream verifier tests **29 passed**; analysis and platform boundaries clean.
+  The pinned Git-mode source snapshot secret scan found **zero** leaks.
+
+Reproduction, credential handling, reset and teardown commands are maintained
+in [test/interop/caldav/README.md](../test/interop/caldav/README.md). The original
+qualification below remains historical evidence rather than current versions.
+
+## Historical qualification of the original implementation
+
+The remainder records the earlier Radicale 3.8.1 / Baïkal 0.12.1 runs.
+It does not qualify the follow-up. The exact original record remains in
+[implementation commit 3a0e6c3](https://github.com/busystack/busymax/blob/3a0e6c368fa14917ff0ef50ecb682331bd200e29/docs/caldav_qualification.md).
 
 ## Source baseline
 
@@ -16,9 +222,9 @@ checked implementation item does not establish live or native acceptance.
   29 credential-gated live tests skipped, no failures.
 - Schema 21 fixture captured from the actual unmodified AppDatabase onCreate
   path before implementation: `test/fixtures/schema_v21_v040.sql`.
-- Final source remains on the same branch and HEAD. Changes are local and
-  uncommitted; no new commit, push or release was created. No shared dependency,
-  SDK, package or upstream server source was changed.
+- The implementation was subsequently committed and pushed as `3a0e6c3`. No
+  release was published. No shared dependency, SDK, package or upstream server
+  source was changed.
 
 ## Source-grounded checklist
 
@@ -186,8 +392,8 @@ only in test-specific contexts. Global host/device trust settings are unchanged.
   was inspected but not installed or published. The final Linux release build
   also passed (`build/linux/x64/release/bundle/busymax`). No Windows build or
   installed-package acceptance is implied.
-- Final BusyMax working tree: **132 tracked files changed and 38 new files**,
-  all local and uncommitted. Two native import/export files and the first-party
+- The original implementation comprised **132 tracked files changed and 38 new
+  files**, subsequently committed and pushed in `3a0e6c3`. Two native import/export files and the first-party
   timezone data moved into provider-neutral DAV/time locations. Shared source
   revisions, the dependency manifest and `pubspec.lock` are unchanged; the
   shared DAV tree still has only its pre-existing IDE-cache modification.

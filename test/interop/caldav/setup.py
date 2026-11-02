@@ -10,15 +10,15 @@ import zipfile
 
 ROOT = pathlib.Path(__file__).resolve().parent
 RUNTIME = ROOT / '.runtime'
-SHA256 = '0449abb72b151d39d9c08c63cb83a05d9e9adb065b1165ef6786b0b6a13d203c'
+SHA256 = '81e74df123230e863f608d228fdd7b9a1a788f60b04d37e6973c302192e83f32'
 
 
 def main():
     RUNTIME.mkdir(mode=0o700, exist_ok=True)
-    archive = RUNTIME / 'baikal-0.12.1.zip'
+    archive = RUNTIME / 'baikal-0.13.0.zip'
     if not archive.exists():
         urllib.request.urlretrieve(
-            'https://github.com/sabre-io/Baikal/releases/download/0.12.1/baikal-0.12.1.zip', archive)
+            'https://github.com/sabre-io/Baikal/releases/download/0.13.0/baikal-0.13.0.zip', archive)
     if hashlib.sha256(archive.read_bytes()).hexdigest() != SHA256:
         raise SystemExit('Official Baikal archive checksum mismatch')
     with zipfile.ZipFile(archive) as z:

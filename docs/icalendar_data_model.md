@@ -114,10 +114,19 @@ single remote resource.
 
 Generic collection administration negotiates MKCALENDAR or advertised Extended
 MKCOL through existing DAV request interfaces. Item editing rights, parent
-bind/unbind rights and property-write rights remain separate. Deterministic
-creation targets and readback reconcile uncertain creation/property/deletion
-outcomes before another mutation. The dedicated Nextcloud collection and
-extension services retain their established behavior.
+bind/unbind rights and property-write rights remain separate. Random
+creation operation UUIDs, reserved URLs and an account-bound schema-23 journal
+distinguish fresh requests from interrupted attempts. Existing names or matching
+component metadata do not prove ownership. Readback reconciles uncertain
+creation/property/deletion outcomes before another mutation. The dedicated
+Nextcloud collection and extension services retain their established behavior.
+
+When a successful PUT transforms a recognized local VTIMEZONE observance UNTIL
+to its equivalent UTC cutoff, BusyMax compares that narrowly defined semantic
+equivalence and retains the actual retrieved representation and authoritative
+ETag. Other fields, offsets and recurrence cutoffs must still match; data is not
+silently rewritten for the server. A successful response without ETag requires
+GET before another conditional edit.
 
 ## Nextcloud extensions
 

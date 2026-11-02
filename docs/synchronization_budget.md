@@ -31,6 +31,12 @@ results retain committed objects and cursors. An unsuccessful inventory never
 establishes remote deletion. Offline mutations keep exact remote resource
 identity and ETags, and uncertain committed writes are read back before replay.
 Permission or authorization failures retain queued work and cached content.
+After a complete authenticated discovery, a permission-blocked intent can resume
+only when newly advertised privileges explicitly authorize every required
+operation and collection. Unknown ACLs never clear a previous authoritative
+denial, and this path cannot clear an authentication block. Sync reports use
+HTTP Depth: 0 with sync-level 1. Bounded pages and collection-level 507 continue
+through opaque tokens; the complete inventory alone advances the stable baseline.
 Account removal and credential replacement share the authorization lease and
 generation checks with active requests. See the [CalDAV qualification record](caldav_qualification.md)
 for measured live recovery scenarios; this policy is not itself runtime evidence.

@@ -14,7 +14,12 @@ import '../xml/dav_xml.dart';
 import 'dav_collection_mutation_helpers.dart';
 import 'dav_collection_administration.dart';
 
-enum DavCalendarCollectionCreationStatus { created, createdRefreshPending }
+enum DavCalendarCollectionCreationStatus {
+  created,
+  createdRefreshPending,
+  reconciled,
+  reconciledRefreshPending,
+}
 
 final class DavCalendarCollectionCreationResult {
   const DavCalendarCollectionCreationResult(this.status);
@@ -22,7 +27,8 @@ final class DavCalendarCollectionCreationResult {
   final DavCalendarCollectionCreationStatus status;
 
   bool get refreshPending =>
-      status == DavCalendarCollectionCreationStatus.createdRefreshPending;
+      status == DavCalendarCollectionCreationStatus.createdRefreshPending ||
+      status == DavCalendarCollectionCreationStatus.reconciledRefreshPending;
 }
 
 abstract interface class DavCalendarCollectionMutationClient {
@@ -84,11 +90,16 @@ final class DavCalendarCollectionMutationService
         refresh: _refreshAfterMutation,
         requireNetwork: _requireNetwork,
       ).create(displayName, const {'VEVENT'}, cancellation: cancellationToken);
-      return DavCalendarCollectionCreationResult(
-        result == DavCollectionAdministrationOutcome.refreshPending
-            ? DavCalendarCollectionCreationStatus.createdRefreshPending
-            : DavCalendarCollectionCreationStatus.created,
-      );
+      return DavCalendarCollectionCreationResult(switch (result) {
+        DavCollectionAdministrationOutcome.committed =>
+          DavCalendarCollectionCreationStatus.created,
+        DavCollectionAdministrationOutcome.refreshPending =>
+          DavCalendarCollectionCreationStatus.createdRefreshPending,
+        DavCollectionAdministrationOutcome.reconciled =>
+          DavCalendarCollectionCreationStatus.reconciled,
+        DavCollectionAdministrationOutcome.reconciledRefreshPending =>
+          DavCalendarCollectionCreationStatus.reconciledRefreshPending,
+      });
     }
     cancellationToken?.throwIfCancelled();
     await _requireNetwork();

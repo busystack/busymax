@@ -39,7 +39,7 @@ if (!file_exists("$root/Specific/db/db.sqlite")) {
 if (!file_exists("$root/config/baikal.yaml")) {
     $config = [
         'system' => [
-            'configured_version' => '0.12.1', 'timezone' => 'UTC',
+            'configured_version' => '0.13.0', 'timezone' => 'UTC',
             'card_enabled' => false, 'cal_enabled' => true,
             'dav_auth_type' => 'Basic', 'auth_realm' => 'BaikalDAV',
             'admin_passwordhash' => password_hash(bin2hex(random_bytes(32)), PASSWORD_DEFAULT),

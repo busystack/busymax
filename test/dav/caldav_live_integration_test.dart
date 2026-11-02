@@ -15,6 +15,7 @@ import 'package:http/io_client.dart';
 
 import 'nextcloud_live_integration_test.dart' show DavLiveFixture;
 import 'support/caldav_fixture.dart';
+import 'support/caldav_qa_targets.dart';
 
 import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
@@ -30,7 +31,6 @@ import 'package:busymax/src/dav/sync/dav_sync_engine.dart';
 import 'package:busymax/src/dav/sync/dav_account_sync_engine.dart';
 import 'package:busymax/src/dav/sync/dav_collection_remote_client.dart';
 import 'package:busymax/src/dav/ical/dav_native_import.dart';
-import 'package:busymax/src/dav/ical/dav_native_export.dart';
 import 'package:busymax/src/dav/ical/ical_document.dart';
 import 'package:busymax/src/dav/ical/ical_semantics.dart';
 import 'package:busymax/src/dav/storage/dav_collection_capabilities.dart';
@@ -43,22 +43,21 @@ void main() {
   final lifecycle =
       enabled && Platform.environment['BUSYMAX_CALDAV_LIFECYCLE'] == '1';
   for (final server in {
-    'Radicale 3.8.1 HTTPS root': 'https://localhost:18443/',
-    'Radicale 3.8.1 HTTPS installation':
+    'Radicale 3.9.0 HTTPS root': 'https://localhost:18443/',
+    'Radicale 3.9.0 HTTPS installation':
         'https://localhost:18445/installation/',
-    'Baikal 0.12.1 HTTPS direct': 'https://localhost:18444/dav.php/',
-    'Baikal 0.12.1 HTTPS well-known': 'https://localhost:18444/',
-    'Baikal 0.12.1 HTTPS installation':
+    'Baikal 0.13.0 HTTPS direct': 'https://localhost:18444/dav.php/',
+    'Baikal 0.13.0 HTTPS well-known': 'https://localhost:18444/',
+    'Baikal 0.13.0 HTTPS installation':
         'https://localhost:18447/baikal/dav.php/',
-    'Baikal 0.12.1 HTTPS installation base': 'https://localhost:18447/baikal/',
+    'Baikal 0.13.0 HTTPS installation base': 'https://localhost:18447/baikal/',
+    'BusyStack 0.1.0 HTTPS direct': 'https://localhost:18448/dav/',
+    'BusyStack 0.1.0 HTTPS well-known': 'https://localhost:18448/',
   }.entries) {
     test(
       '${server.key}: BusyMax discovers the actual authenticated inventory',
       () async {
-        final credentials = jsonDecode(
-          await File('test/interop/caldav/.runtime/credentials.json')
-              .readAsString(),
-        ) as Map;
+        final credentials = await calDavQaCredentials(Uri.parse(server.value));
         final uri = Uri.parse(server.value);
         final profile = DavProviderProfile(
           provider: BusyProvider.caldav,
@@ -94,20 +93,28 @@ void main() {
         final tasks = result.collections.singleWhere(
           (c) => c.hrefKey.endsWith('/tasks/'),
         );
-        final mixed = result.collections.singleWhere(
-          (c) => c.hrefKey.endsWith('/mixed/'),
-        );
+        final mixed = result.collections
+            .where((c) => c.hrefKey.endsWith('/mixed/'))
+            .firstOrNull;
         final restricted = result.collections.singleWhere(
-          (c) => c.hrefKey.endsWith('/restricted/'),
+          (c) =>
+              c.hrefKey.endsWith('/restricted/') ||
+              c.displayName == 'BusyMax QA restricted',
         );
+        expect(restricted.capabilities.permissionsKnown, isTrue);
         expect(events.eventProjectionEnabled, isTrue);
         expect(events.taskProjectionEnabled, isFalse);
         expect(tasks.eventProjectionEnabled, isFalse);
         expect(tasks.taskProjectionEnabled, isTrue);
-        expect(
-          mixed.eventProjectionEnabled && mixed.taskProjectionEnabled,
-          isTrue,
-        );
+        if (calDavQaSupportsMixed(uri)) {
+          expect(mixed, isNotNull);
+          expect(
+            mixed!.eventProjectionEnabled && mixed.taskProjectionEnabled,
+            isTrue,
+          );
+        } else {
+          expect(mixed, isNull);
+        }
         expect(restricted.capabilities.canWriteContent, isFalse);
         expect(restricted.capabilities.canRead, isTrue);
         expect(
@@ -118,17 +125,11 @@ void main() {
       skip: enabled ? false : 'Set BUSYMAX_CALDAV_LIVE=1 with the isolated Docker fixtures running.',
     );
   }
-  for (final server in {
-    'Radicale 3.8.1': 'https://localhost:18443/',
-    'Baikal 0.12.1': 'https://localhost:18444/dav.php/',
-  }.entries) {
+  for (final server in calDavQaTargets.entries) {
     test(
       '${server.key}: live TLS, origin protection, response budgets and XML limits',
       () async {
-        final credentials = jsonDecode(
-          await File('test/interop/caldav/.runtime/credentials.json')
-              .readAsString(),
-        ) as Map;
+        final credentials = await calDavQaCredentials(Uri.parse(server.value));
         final authority = Uri.parse(server.value);
         final tls = SecurityContext(withTrustedRoots: true)
           ..setTrustedCertificates('test/interop/caldav/.runtime/ca.pem');
@@ -483,9 +484,10 @@ void main() {
         final f = CalDavFixture(Uri.parse(server.value));
         await f.open();
         addTearDown(f.close);
-        final credentials = jsonDecode(
-          await File('${f.fixtureDirectory}/credentials.json').readAsString(),
-        ) as Map;
+        final credentials = await calDavQaCredentials(
+          f.uri,
+          directory: f.fixtureDirectory,
+        );
         final bob = (await f.onboarding.connectCalDav(
           serverUrl: server.value,
           username: 'bob',
@@ -523,7 +525,16 @@ void main() {
           await client.send(valid),
         );
         expect(response.statusCode, 207);
-        expect(response.body, contains('/bob/'));
+        final bobService =
+            (await f.database.select(f.database.davAccountServices).get())
+                .singleWhere((s) => s.accountId == bob);
+        final principal = XmlDocument.parse(response.body)
+            .findAllElements('current-user-principal', namespaceUri: 'DAV:')
+            .single
+            .findElements('href', namespaceUri: 'DAV:')
+            .single
+            .innerText;
+        expect(f.uri.resolve(principal), Uri.parse(bobService.principalHref!));
         expect(dispatches, 1);
         final list = (await f.database.select(f.database.taskLists).get())
             .singleWhere((l) => l.davCollectionId == f.collectionId);
@@ -631,7 +642,11 @@ void main() {
         addTearDown(f.close);
         final restricted =
             (await f.database.select(f.database.davCollections).get())
-                .singleWhere((c) => c.hrefKey.endsWith('/restricted/'));
+                .singleWhere(
+                  (c) =>
+                      c.hrefKey.endsWith('/restricted/') ||
+                      c.displayName == 'BusyMax QA restricted',
+                );
         final caps = collectionCapabilitiesFromStored(restricted);
         expect(caps.permissionsKnown, isFalse);
         expect(caps.canRead, isTrue);
@@ -686,12 +701,11 @@ void main() {
       skip: enabled ? false : 'Requires isolated HTTPS Docker fixtures.',
     );
     test(
-      '${server.key}: native mixed import/export preserves complete resources and duplicate identity',
+      '${server.key}: native event/task import/export preserves complete resources and duplicate identity',
       () async {
         final f = CalDavFixture(Uri.parse(server.value));
         await f.open();
         addTearDown(f.close);
-        final importer = DavNativeImportService(f.database);
         final preview = NextcloudNativeImportPreview.parse(
           IcalDocument.parse(
             _bulkItem(10000).replaceFirst(
@@ -706,18 +720,13 @@ void main() {
             ),
           ),
         );
-        final imported = await importer.import(
-          accountId: f.id,
-          collectionId: f.collectionId!,
-          preview: preview,
-        );
+        final imported = await f.importResources(preview);
         expect(
           imported.map((i) => i.status),
           everyElement(NativeImportItemStatus.queued),
         );
         expect(imported, hasLength(2));
-        final offline = await DavNativeExportService(f.database)
-            .collection(f.id, f.collectionId!);
+        final offline = await f.exportResources();
         expect(offline, hasLength(2));
         expect(
           offline.singleWhere((r) => r.componentType == 'VTODO').rawIcs,
@@ -738,17 +747,12 @@ void main() {
           const TaskPatchInput({'title': 'Edited recurrence master'}),
         );
         await f.synchronize();
-        final duplicates = await DavNativeImportService(f.database).import(
-          accountId: f.id,
-          collectionId: f.collectionId!,
-          preview: preview,
-        );
+        final duplicates = await f.importResources(preview);
         expect(
           duplicates.map((i) => i.status),
           everyElement(NativeImportItemStatus.duplicate),
         );
-        final export = await DavNativeExportService(f.database)
-            .collection(f.id, f.collectionId!);
+        final export = await f.exportResources();
         expect(export, hasLength(2));
         final exportedTask = export
             .singleWhere((r) => r.componentType == 'VTODO')
@@ -780,6 +784,8 @@ void main() {
       () async {
         final serverName = server.key.startsWith('Radicale')
             ? 'radicale'
+            : server.key.startsWith('BusyStack')
+            ? 'busystack'
             : 'baikal';
         final f = CalDavFixture(Uri.parse(server.value));
         await f.open();
@@ -872,30 +878,37 @@ void main() {
             contains('SUMMARY:Queued across password replacement'),
           );
         } finally {
-          await _control('restore', serverName);
-          f.password = oldPassword;
-          await _ready(f);
+          if (serverName != 'busystack') {
+            await _control('restore', serverName);
+            f.password = oldPassword;
+            await _ready(f);
+          }
         }
       },
       skip: lifecycle ? false : 'Set BUSYMAX_CALDAV_LIFECYCLE=1; changes/restarts only the isolated fixtures. Run without other live tests.',
       timeout: const Timeout(Duration(minutes: 5)),
     );
     test(
-      '${server.key}: large mixed inventory converges using sync tokens and forced ETag fallback',
+      '${server.key}: large inventory converges using sync tokens and forced ETag fallback',
       () async {
         final f = CalDavFixture(Uri.parse(server.value));
         await f.open();
         addTearDown(f.close);
         const count = 240;
         final base = f.createdCollectionUri!;
-        for (var start = 0; start < count; start += 12) {
+        for (var start = 0; start < count; start += 3) {
           await Future.wait([
-            for (var i = start; i < start + 12; i++)
+            for (var i = start; i < start + 3; i++)
               f
                   .independentRequest(
                     'PUT',
                     base.resolve('bulk-$i.ics'),
-                    body: _bulkItem(i),
+                    body: _bulkItem(
+                      i,
+                      onlyComponent: calDavQaSupportsMixed(f.uri)
+                          ? null
+                          : 'VTODO',
+                    ),
                     headers: const {
                       'content-type': 'text/calendar; charset=utf-8',
                       'if-none-match': '*',
@@ -915,13 +928,13 @@ void main() {
           (await f.database.select(f.database.calendarEvents).get()).where(
             (e) => e.davCollectionId == f.collectionId,
           ),
-          hasLength(count ~/ 2),
+          hasLength(calDavQaSupportsMixed(f.uri) ? count ~/ 2 : 0),
         );
         expect(
           (await f.database.select(f.database.tasks).get()).where(
             (t) => t.davCollectionId == f.collectionId,
           ),
-          hasLength(count ~/ 2),
+          hasLength(calDavQaSupportsMixed(f.uri) ? count ~/ 2 : count),
         );
         await f.reopen();
         final c = (await f.database.select(f.database.davCollections).get())
@@ -1000,7 +1013,10 @@ void main() {
           (await f.independentRequest(
             'PUT',
             base.resolve('bulk-$count.ics'),
-            body: _bulkItem(count),
+            body: _bulkItem(
+              count,
+              onlyComponent: calDavQaSupportsMixed(f.uri) ? null : 'VTODO',
+            ),
             headers: const {
               'content-type': 'text/calendar',
               'if-none-match': '*',
@@ -1023,14 +1039,15 @@ void main() {
               .serverDeleted,
           isTrue,
         );
-        expect(
-          (await f.database.select(f.database.calendarEvents).get()).any(
-            (e) =>
-                e.davCollectionId == f.collectionId &&
-                e.title == 'Remote bulk update',
-          ),
-          isTrue,
-        );
+        final updatedTitles = [
+          ...(await f.database.select(f.database.calendarEvents).get())
+              .where((e) => e.davCollectionId == f.collectionId)
+              .map((e) => e.title),
+          ...(await f.database.select(f.database.tasks).get())
+              .where((t) => t.davCollectionId == f.collectionId)
+              .map((t) => t.title),
+        ];
+        expect(updatedTitles, contains('Remote bulk update'));
         expect(
           (await f.database.select(f.database.davObjects).get()).where(
             (o) => o.collectionId == c.id && !o.serverDeleted,
@@ -1121,7 +1138,7 @@ void main() {
               await f.administration.create('${f.collectionName}-lost', const {
                 'VTODO',
               }),
-              DavCollectionAdministrationOutcome.committed,
+              DavCollectionAdministrationOutcome.reconciled,
             );
           } else {
             final collection =
@@ -1164,7 +1181,7 @@ void main() {
           for (final components in [
             const {'VEVENT'},
             const {'VTODO'},
-            const {'VEVENT', 'VTODO'},
+            if (calDavQaSupportsMixed(f.uri)) const {'VEVENT', 'VTODO'},
           ]) {
             final name = '${f.collectionName}-${components.join('-')}';
             expect(
@@ -1295,7 +1312,7 @@ void main() {
         await f.open();
         addTearDown(f.close);
         var source = (await f.database.select(f.database.calendarSources).get())
-            .singleWhere((s) => s.davCollectionId == f.collectionId);
+            .singleWhere((s) => s.davCollectionId == f.eventCollectionId);
         var list = (await f.database.select(f.database.taskLists).get())
             .singleWhere((s) => s.davCollectionId == f.collectionId);
         await f.calendars.createLocalEvent(
@@ -1330,7 +1347,7 @@ void main() {
         await f.synchronize();
         expect(await f.database.select(f.database.pendingOps).get(), isEmpty);
         var event = (await f.database.select(f.database.calendarEvents).get())
-            .singleWhere((e) => e.davCollectionId == f.collectionId);
+            .singleWhere((e) => e.davCollectionId == f.eventCollectionId);
         var task = (await f.database.select(f.database.tasks).get())
             .singleWhere((t) => t.davCollectionId == f.collectionId);
         final eventObject =
@@ -1391,7 +1408,7 @@ void main() {
         await f.reopen();
         await f.synchronize();
         event = (await f.database.select(f.database.calendarEvents).get())
-            .singleWhere((e) => e.davCollectionId == f.collectionId);
+            .singleWhere((e) => e.davCollectionId == f.eventCollectionId);
         task = (await f.database.select(f.database.tasks).get()).singleWhere(
           (t) => t.davCollectionId == f.collectionId,
         );
@@ -1461,10 +1478,7 @@ void main() {
     test(
       '${server.key}: generic VEVENT, VTODO, ETags, conflicts, sync and recovery round trips',
       () async {
-        final credentials = jsonDecode(
-          await File('test/interop/caldav/.runtime/credentials.json')
-              .readAsString(),
-        ) as Map;
+        final credentials = await calDavQaCredentials(Uri.parse(server.value));
         final tls = SecurityContext(withTrustedRoots: true)
           ..setTrustedCertificates('test/interop/caldav/.runtime/ca.pem');
         final fixture = DavLiveFixture.generic(
@@ -1525,11 +1539,11 @@ class _RecordingClient extends http.BaseClient {
   void close() => delegate.close();
 }
 
-String _bulkItem(int index) {
-  final component = index.isEven ? 'VEVENT' : 'VTODO';
+String _bulkItem(int index, {String? onlyComponent}) {
+  final component = onlyComponent ?? (index.isEven ? 'VEVENT' : 'VTODO');
   return 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Independent BusyMax QA//EN\r\n'
       'BEGIN:$component\r\nUID:bulk-$index@example.invalid\r\nDTSTAMP:20261102T000000Z\r\n'
-      '${index.isEven ? 'DTSTART:20261103T090000Z\r\nDTEND:20261103T100000Z\r\n' : 'DUE;VALUE=DATE:20261103\r\n'}'
+      '${component == 'VEVENT' ? 'DTSTART:20261103T090000Z\r\nDTEND:20261103T100000Z\r\n' : 'DUE;VALUE=DATE:20261103\r\n'}'
       'SUMMARY:Bulk $index\r\nX-BULK;X-OPAQUE=exact:$index\r\nEND:$component\r\nEND:VCALENDAR\r\n';
 }
 

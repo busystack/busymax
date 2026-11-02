@@ -16,6 +16,61 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  test(
+    'collection OPTIONS advertises MOVE independently of its home',
+    () async {
+      final c = (await _discover(
+        homeMove: false,
+        collectionMove: true,
+      )).collections.single;
+      expect(c.capabilities.supportsMove, isTrue);
+    },
+  );
+  test(
+    'collection OPTIONS constrains MOVE even when its home allows it',
+    () async {
+      final c = (await _discover(collectionMove: false)).collections.single;
+      expect(c.capabilities.supportsMove, isFalse);
+    },
+  );
+  test('unsupported optional method probe does not invent MOVE or hide readable inventory', () async {
+    final c = (await _discover(collectionOptionsStatus: 405))
+        .collections
+        .single;
+    expect(c.capabilities.supportsMove, isFalse);
+    expect(c.capabilities.canRead, isTrue);
+  });
+  test('method probe authentication failure remains authoritative', () async {
+    await expectLater(
+      _discover(collectionOptionsStatus: 401),
+      throwsA(
+        isA<DavException>().having(
+          (e) => e.kind,
+          'kind',
+          DavErrorKind.authentication,
+        ),
+      ),
+    );
+  });
+  test(
+    'collection supported-method-set can advertise MOVE absent from its home',
+    () async {
+      final c = (await _discover(
+        homeMove: false,
+        extra: '<d:supported-method-set><d:supported-method name="MOVE"/></d:supported-method-set>',
+      )).collections.single;
+      expect(c.capabilities.supportsMove, isTrue);
+    },
+  );
+  test(
+    'explicit collection method set constrains a broader home Allow',
+    () async {
+      final c = (await _discover(
+        extra: '<d:supported-method-set><d:supported-method name="PROPFIND"/></d:supported-method-set>',
+      )).collections.single;
+      expect(c.capabilities.supportsMove, isFalse);
+    },
+  );
   for (final aclStatus in [404, 403]) {
     test(
       'optional ACL $aclStatus is unknown and survives persistence',
@@ -208,6 +263,9 @@ Future<DavDiscoveryResult> _discover({
   String server = 'https://example.test/',
   bool missingPrincipal = false,
   int wellKnownStatus = 404,
+  bool homeMove = true,
+  bool? collectionMove,
+  int collectionOptionsStatus = 200,
   List<http.Request>? requests,
 }) {
   final authority = Uri.parse(server);
@@ -221,12 +279,14 @@ Future<DavDiscoveryResult> _discover({
       return http.Response('<html>Server home</html>', wellKnownStatus);
     }
     if (request.method == 'OPTIONS') {
+      final collection = request.url.path == '/home/team%2Fwork/';
       return http.Response(
         '',
-        200,
+        collection ? collectionOptionsStatus : 200,
         headers: {
           'dav': 'calendar-access',
-          'allow': 'OPTIONS, PROPFIND, REPORT, MKCALENDAR, MOVE',
+          'allow':
+              'OPTIONS, PROPFIND, REPORT, MKCALENDAR${(collection ? collectionMove ?? homeMove : homeMove) ? ', MOVE' : ''}',
         },
       );
     }

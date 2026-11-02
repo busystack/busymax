@@ -13,7 +13,133 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
+import '../support/ical_observance_fixture.dart';
+
 void main() {
+  for (final variant in [
+    'equivalent',
+    'different-cutoff',
+    'different-field',
+    'missing-extension',
+    'different-offset',
+  ]) {
+    test(
+      'canonical timezone cutoffs retain all other create semantics: $variant',
+      () async {
+        final intended = timezoneEvent('event@example.test', invalid: true);
+        var canonical = timezoneEvent('event@example.test', invalid: false);
+        canonical = switch (variant) {
+          'different-cutoff' => canonical.replaceFirst(
+            '20271107T090000Z',
+            '20271107T100000Z',
+          ),
+          'different-field' => canonical.replaceFirst(
+            'SUMMARY:Timezone QA',
+            'SUMMARY:Other event',
+          ),
+          'missing-extension' => canonical.replaceFirst(
+            'X-OPAQUE;X-PARAM=exact:preserve\r\n',
+            '',
+          ),
+          'different-offset' => canonical.replaceFirst(
+            'TZOFFSETFROM:-0700',
+            'TZOFFSETFROM:-0600',
+          ),
+          _ => canonical,
+        };
+        var puts = 0;
+        final remote = _FakeMutationRemote(
+          put:
+              ({
+                required uri,
+                required rawIcs,
+                required ifMatch,
+                required ifNoneMatch,
+              }) async {
+                puts++;
+                return _success;
+              },
+          fetcher: (href, uri) async =>
+              _live(href, uri, '"canonical"', canonical),
+        );
+        final result = await DavConditionalMutationService(remoteClient: remote)
+            .create(
+              collectionUri: _collectionUri,
+              object: DavNewObject(
+                uid: 'event@example.test',
+                initialMemberName: 'timezone.ics',
+                rawIcs: intended,
+                componentType: 'VEVENT',
+              ),
+              capabilities: _writable,
+              correlationId: 'cutoff-comparison',
+            );
+        expect(
+          result.outcome,
+          variant == 'equivalent'
+              ? DavMutationOutcome.succeeded
+              : DavMutationOutcome.conflict,
+        );
+        expect(puts, 1);
+        if (variant == 'equivalent') {
+          expect(result.canonicalObject!.rawIcsBody, canonical);
+          expect(result.canonicalObject!.etag, '"canonical"');
+        }
+      },
+    );
+  }
+  for (final (status, condition, kind) in [
+    (403, 'no-uid-conflict', DavErrorKind.uidConflict),
+    (403, 'valid-calendar-data', DavErrorKind.invalidCalendarData),
+    (403, 'supported-calendar-component', DavErrorKind.unsupportedComponent),
+    (403, 'max-resource-size', DavErrorKind.maximumResourceSize),
+    (507, 'max-resource-size', DavErrorKind.maximumResourceSize),
+    (413, 'max-resource-size', DavErrorKind.maximumResourceSize),
+    (413, '', DavErrorKind.maximumResourceSize),
+    (401, 'max-resource-size', DavErrorKind.authentication),
+    (403, '', DavErrorKind.authorization),
+  ]) {
+    test(
+      'HTTP $status CalDAV $condition retains authoritative classification $kind',
+      () async {
+        final authority = Uri.parse('https://example.test/');
+        final profile = davProviderProfile(
+          BusyProvider.caldav,
+          caldavServer: authority,
+        );
+        final httpClient = MockClient(
+          (_) async => http.Response(
+            '<d:error xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">${condition.isEmpty ? '' : '<c:$condition/>'}</d:error>',
+            status,
+          ),
+        );
+        addTearDown(httpClient.close);
+        final remote = DavMutationHttpClient(
+          transport: DavHttpTransport(
+            client: httpClient,
+            profile: profile,
+            accountAuthority: authority,
+          ),
+          accountId: 'account',
+          collectionId: 'collection',
+          credential: DavBasicCredential(username: 'alice', password: 'test'),
+        );
+        await expectLater(
+          remote.conditionalPut(
+            uri: authority.resolve('object.ics'),
+            rawIcs: _event('Test'),
+            correlationId: 'precondition',
+            ifNoneMatch: true,
+          ),
+          throwsA(
+            isA<DavException>()
+                .having((e) => e.kind, 'kind', kind)
+                .having((e) => e.statusCode, 'status', status),
+          ),
+        );
+      },
+    );
+  }
   test('scheduling retries preserve a concurrent attendee reply and refresh both validators', () async {
     final baseline = _event('Before').replaceFirst(
       'END:VEVENT',
