@@ -52,18 +52,30 @@ void main() {
       final serverVersion = status['versionstring'];
       expect(serverVersion, matches(RegExp(r'^\d+\.\d+\.\d+')));
       final context = await f.collections.openContext();
+      final principalSegments = Uri.parse(context.service.principalHref ?? '')
+          .pathSegments;
+      final principalStart = principalSegments.indexOf('principals');
+      if (principalStart < 0) {
+        throw StateError('Disposable account principal was not discovered.');
+      }
+      final principal = principalSegments
+          .skip(principalStart)
+          .where((s) => s.isNotEmpty)
+          .join('/');
       final setup = await Process.run('docker', [
         'exec',
         '--user',
         'www-data',
         '-e',
         'BUSYMAX_QA_CALENDAR=${f.created.pathSegments.where((s) => s.isNotEmpty).last}',
+        '-e',
+        'BUSYMAX_QA_PRINCIPAL=$principal',
         container,
         'php',
         '-r',
         r'''require "/var/www/html/lib/base.php";
 $b=\OCP\Server::get(\OCA\DAV\CalDAV\CalDavBackend::class);
-$c=$b->getCalendarByUri("principals/users/qa_admin",getenv("BUSYMAX_QA_CALENDAR"));
+$c=$b->getCalendarByUri(getenv("BUSYMAX_QA_PRINCIPAL"),getenv("BUSYMAX_QA_CALENDAR"));
 if (!$c) throw new RuntimeException("Missing disposable calendar");
 $description=implode("\r\n ",array_fill(0,1800,"synthetic disposable fixture text to exercise large trash payloads only."));
 for($i=0;$i<300;$i++) {
