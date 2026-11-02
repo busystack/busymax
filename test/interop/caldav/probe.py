@@ -45,8 +45,8 @@ def main():
     def authenticated(url, method, user='alice', body=None, headers=None):
         return request(url, method, user, body, headers, context)
     for name, root in servers.items():
-        mixed_supported = True
         for user in ['alice', 'bob']:
+            mixed_creation = 'not-attempted'
             status, _, data = authenticated(root, 'PROPFIND', user, PROPS, {'Depth': '0'})
             assert status == 207, (name, status)
             principal = ET.fromstring(data).find('.//d:current-user-principal/d:href', NS).text
@@ -68,11 +68,13 @@ def main():
                     xml = '<c:mkcalendar xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:d="DAV:"><d:set><d:prop><d:displayname>BusyMax QA ' + slug + '</d:displayname><c:supported-calendar-component-set>' + ''.join(f'<c:comp name="{c}"/>' for c in components) + '</c:supported-calendar-component-set></d:prop></d:set></c:mkcalendar>'
                     try:
                         authenticated(home + slug + '/', 'MKCALENDAR', provisioner, xml)
+                        if slug == 'mixed':
+                            mixed_creation = 'created'
                     except urllib.error.HTTPError as e:
                         if slug == 'mixed' and e.code == 403:
                             error = ET.fromstring(e.read())
                             if error.find('c:supported-calendar-component', NS) is not None:
-                                mixed_supported = False
+                                mixed_creation = 'rejected-component-set'
                                 continue
                         if e.code not in (405, 409):
                             raise
@@ -84,9 +86,12 @@ def main():
                 if components:
                     collections.append({'href': response.find('d:href', NS).text, 'components': components,
                                         'aclAdvertised': response.find('.//d:current-user-privilege-set', NS) is not None})
-            assert len(collections) >= (3 if mixed_supported else 2), (name, user, collections)
+            observed_components = {component for collection in collections for component in collection['components']}
+            assert len(collections) >= 2 and {'VEVENT', 'VTODO'} <= observed_components, (name, user, collections)
             print(json.dumps({'server': name, 'user': user, 'status': 'authenticated DAV ready',
-                              'allow': headers.get('Allow'), 'dav': headers.get('DAV'), 'mixedSupported': mixed_supported,
+                              'allow': headers.get('Allow'), 'dav': headers.get('DAV'),
+                              'mixedCollectionObserved': any({'VEVENT', 'VTODO'} <= set(c['components']) for c in collections),
+                              'mixedCreationResult': mixed_creation,
                               'collections': collections}))
 
 
