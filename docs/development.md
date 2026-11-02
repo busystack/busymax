@@ -164,6 +164,16 @@ dispatch, OAuth credentials or artifact uploads. Windows and Android CI remain
 independent. The official Linux build is `tool/release/build_snap_local.sh`;
 `tool/build_install_snap_local.sh` only repacks a development scaffold.
 
+### Android authorization engine coordination
+
+`integration_test/android_authorization_leases_test.dart` runs a foreground
+reader and a real WorkManager engine against the same native authorization gate.
+It verifies overlapping readers, exclusive replacement, account independence and
+lease cleanup with filesystem barriers. Use the isolated `busymaxNextcloudQa`
+package and explicit test signer described below, with
+`--dart-define=BUSYMAX_AUTHORIZATION_LEASE_QA=true`. It schedules and cancels only
+its unique fixture job; the normal application and its work are untouched.
+
 ### DAV transport regression comparison
 
 Run `BUSYMAX_DAV_BENCHMARK=1 flutter test test/dav/trust/dav_transport_benchmark_test.dart`

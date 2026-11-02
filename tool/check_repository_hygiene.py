@@ -24,7 +24,8 @@ WORKSTATION = re.compile(
 
 def violations(name, content):
     result = []
-    if ARTIFACT.search(name):
+    public_fixture = (name.startswith('test/fixtures/') and Path(name).suffix.lower() in ('.pem', '.crt', '.cer') and 'PRIVATE KEY' not in content)
+    if ARTIFACT.search(name) and not public_fixture:
         result.append(f'{name}: disposable or private artifact')
     # Tests may deliberately exercise arbitrary valid OS paths and private IPs.
     if name.startswith(('lib/', 'docs/')) or name in ('README.md', 'tool/README.md'):

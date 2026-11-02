@@ -18,5 +18,9 @@ class HygieneTest(unittest.TestCase):
         self.assertFalse(hygiene.violations('test/paths_test.dart', r'C:\Users\Renée\Calendar\予定.ics'))
         self.assertFalse(hygiene.violations('docs/development.md', '/home/example/sdk/'))
 
+    def test_public_certificate_fixture_is_not_private_signing_material(self):
+        self.assertFalse(hygiene.violations('test/fixtures/synthetic-ca.pem', '-----BEGIN CERTIFICATE-----'))
+        self.assertTrue(hygiene.violations('test/fixtures/private.pem', '-----BEGIN PRIVATE KEY-----'))
+
     def test_product_workstation_path_rejected(self):
         self.assertTrue(hygiene.violations('lib/config.dart', '/home/local-owner/sdk/'))
