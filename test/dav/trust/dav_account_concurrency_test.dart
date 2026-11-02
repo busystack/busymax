@@ -5,6 +5,10 @@ import 'dart:io';
 import 'package:busymax/src/core/auth/authorization_persistence.dart';
 import 'package:busymax/src/core/secrets/secret_store.dart';
 import 'package:busymax/src/dav/http/dav_account_http_client.dart';
+import 'package:busymax/src/dav/http/dav_http_transport.dart';
+import 'package:busymax/src/dav/dav_errors.dart';
+import 'package:busymax/src/dav/dav_provider_profile.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/dav/trust/nextcloud_certificate.dart';
 import 'package:busymax/src/dav/trust/nextcloud_http_client_factory.dart';
 import 'package:busymax/src/dav/trust/nextcloud_trust_policy.dart';
@@ -47,12 +51,14 @@ void main() {
       );
   DavAccountHttpClient client(
     String id, {
-    Duration lifetime = const Duration(seconds: 90),
+    Duration lifetime = const Duration(minutes: 2),
+    Duration acquisitionTimeout = const Duration(minutes: 2),
   }) {
     final value = DavAccountHttpClient(
       accountId: id,
       persistence: persistence,
       maximumLifetime: lifetime,
+      acquisitionTimeout: acquisitionTimeout,
       createClient: (credential) {
         final value = credential as NextcloudSecretRecord;
         return factory.create(
@@ -314,6 +320,109 @@ void main() {
       hold.complete();
     });
   }
+
+  test(
+    'queued authorization leaves a fresh active TLS response budget',
+    () async {
+      final entered = Completer<void>();
+      final release = Completer<void>();
+      final writer = persistence.run('one', () async {
+        entered.complete();
+        await release.future;
+      });
+      await entered.future;
+      handle = (request) async {
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+        request.response.write('slow response');
+        await request.response.close();
+      };
+      final scoped = client('one', lifetime: const Duration(milliseconds: 500));
+      final pending = scoped.get(endpoint);
+      await Future<void>.delayed(const Duration(milliseconds: 700));
+      expect(requests, isEmpty);
+      release.complete();
+      await writer;
+      expect((await pending).body, 'slow response');
+      expect(requests, hasLength(1));
+    },
+  );
+
+  test(
+    'expired authorization acquisition cannot transmit after writer release',
+    () async {
+      final entered = Completer<void>();
+      final release = Completer<void>();
+      final writer = persistence.run('one', () async {
+        entered.complete();
+        await release.future;
+      });
+      await entered.future;
+      final scoped = client(
+        'one',
+        acquisitionTimeout: const Duration(milliseconds: 75),
+      );
+      await expectLater(
+        scoped.post(endpoint, body: 'mutation'),
+        throwsA(isA<TimeoutException>()),
+      );
+      release.complete();
+      await writer;
+      await persistence.run('one', () async {});
+      expect(requests, isEmpty);
+    },
+  );
+
+  test(
+    'DAV operation deadline terminates a leased TLS mutation without replay',
+    () async {
+      final release = Completer<void>();
+      handle = (request) async {
+        await release.future;
+        request.response.write('late response');
+        await request.response.close();
+      };
+      final transport = DavHttpTransport(
+        client: client('one'),
+        profile: davProviderProfile(
+          BusyProvider.nextcloud,
+          nextcloudServer: endpoint,
+        ),
+        accountAuthority: endpoint,
+        limits: const DavTransportLimits(
+          operationTimeout: Duration(milliseconds: 250),
+        ),
+      );
+      try {
+        await expectLater(
+          transport.send(
+            DavRequest(
+              method: 'MOVE',
+              uri: endpoint,
+              accountId: 'one',
+              correlationId: 'fixture',
+            ),
+            credential: DavBasicCredential(
+              username: 'fixture',
+              password: 'synthetic',
+            ),
+          ),
+          throwsA(
+            isA<DavException>().having(
+              (e) => e.kind,
+              'operation deadline',
+              DavErrorKind.timeout,
+            ),
+          ),
+        );
+        await persistence
+            .run('one', () async {})
+            .timeout(const Duration(seconds: 2));
+        expect(requests, hasLength(1));
+      } finally {
+        release.complete();
+      }
+    },
+  );
 
   test(
     'simultaneous dispatched failures release all readers without replay',

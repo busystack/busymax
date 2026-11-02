@@ -12,12 +12,14 @@ final class AuthorizationLeasedHttpClient extends http.BaseClient
     required this.delegate,
     required this.runLease,
     required this.validate,
-    this.maximumLifetime = const Duration(seconds: 90),
+    this.maximumLifetime = const Duration(minutes: 2),
+    this.acquisitionTimeout = const Duration(minutes: 2),
   });
   final http.Client delegate;
   final Future<void> Function(Future<void> Function()) runLease;
   final Future<void> Function() validate;
   final Duration maximumLifetime;
+  final Duration acquisitionTimeout;
   final _active = <void Function()>{};
   bool _closed = false;
 
@@ -75,8 +77,9 @@ final class AuthorizationLeasedHttpClient extends http.BaseClient
     );
     _active.add(abort);
     timer = Timer(
-      maximumLifetime,
-      () => finish(TimeoutException('Authorization request lease expired.')),
+      acquisitionTimeout,
+      () =>
+          finish(TimeoutException('Authorization lease acquisition expired.')),
     );
     if (terminate != null) {
       unawaited(
@@ -90,6 +93,15 @@ final class AuthorizationLeasedHttpClient extends http.BaseClient
       runLease(() async {
             try {
               if (finished) return;
+              // Queueing must not consume the active request's budget. The
+              // transport's operation deadline/cancellation still takes priority.
+              timer?.cancel();
+              timer = Timer(
+                maximumLifetime,
+                () => finish(
+                  TimeoutException('Authorization request lease expired.'),
+                ),
+              );
               if (_closed) {
                 throw http.ClientException(
                   'HTTP client is closed.',

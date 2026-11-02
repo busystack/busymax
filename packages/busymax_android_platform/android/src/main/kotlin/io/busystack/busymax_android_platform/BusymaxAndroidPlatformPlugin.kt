@@ -864,7 +864,7 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
 
     private fun acquireAccountGate(call: MethodCall, result: MethodChannel.Result) {
         val accountId = call.argument<String>("accountId").orEmpty()
-        val timeout = (call.argument<Number>("timeoutMillis")?.toLong() ?: 30_000L).coerceIn(1_000L, 120_000L)
+        val timeout = (call.argument<Number>("timeoutMillis")?.toLong() ?: 30_000L).coerceIn(1_000L, 150_000L)
         if (accountId.isBlank()) return result.error("android/invalid-arguments", "Account id is required.", null)
         executor.execute {
             try {

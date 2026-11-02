@@ -26,7 +26,9 @@ final class AndroidCrossEngineAccountGate
       accountId,
       shared: shared,
       timeout: accountId.startsWith('authorization:')
-          ? const Duration(seconds: 120)
+          // Readers own at most two minutes of active HTTP work. Allow
+          // bounded cleanup time before failing an exclusive writer.
+          ? const Duration(seconds: 150)
           : const Duration(seconds: 30),
     );
     Object? failure;

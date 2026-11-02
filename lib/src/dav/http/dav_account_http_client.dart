@@ -19,9 +19,11 @@ final class DavAccountHttpClient extends http.BaseClient
     required this.accountId,
     required this.persistence,
     required this.createClient,
-    this.maximumLifetime = const Duration(seconds: 90),
+    this.maximumLifetime = const Duration(minutes: 2),
+    this.acquisitionTimeout = const Duration(minutes: 2),
   });
   final Duration maximumLifetime;
+  final Duration acquisitionTimeout;
   final String accountId;
   final AuthorizationPersistence persistence;
   final http.Client Function(SecretRecord) createClient;
@@ -53,6 +55,7 @@ final class DavAccountHttpClient extends http.BaseClient
     // lease as transmission. No credential is cached outside that boundary.
     lease = AuthorizationLeasedHttpClient(
       maximumLifetime: maximumLifetime,
+      acquisitionTimeout: acquisitionTimeout,
       delegate: _DeferredClient(() => selected),
       runLease: (work) => persistence.withCurrentCredential(accountId, (
         record,

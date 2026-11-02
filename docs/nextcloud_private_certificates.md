@@ -82,11 +82,14 @@ Secure-storage staging and SQLite journal commits remain exclusive.
 
 Each account request owns its TLS client, without idle connections surviving
 its lease. A response releases ownership on EOF, error, cancellation or client
-disposal. A 90-second absolute lifetime also covers queued requests, stalled
-connections, paused bodies and bodies that are never subscribed. Native clients
-are terminated before lease release. Authorization writers may wait up to 120
-seconds on Android. No request is replayed after a generation change. A failure
-after mutation dispatch still requires reconciliation.
+disposal. Lease acquisition has its own two-minute timeout. After acquisition,
+the active request has a fresh two-minute lifetime, matching the default DAV
+operation budget and covering stalled connections, paused bodies and bodies
+that are never subscribed. The transport's operation deadline and cancellation
+can terminate either phase sooner. Native clients are terminated before lease
+release. Authorization writers may wait up to 150 seconds on Android, allowing
+an active reader's two-minute budget plus cleanup. No request is replayed after
+a generation change. A failure after mutation dispatch still requires reconciliation.
 
 A replacement drains existing readers before invalidating local factory clients
 and committing the new generation. Other engines cannot acquire a new reader
