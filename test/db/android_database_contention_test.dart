@@ -158,7 +158,9 @@ void main() {
       closed = true;
       final files = await directory
           .list(recursive: true)
-          .where((f) => f is File && f.path.endsWith('/operations.jsonl'))
+          .where(
+            (f) => f is File && f.uri.pathSegments.last == 'operations.jsonl',
+          )
           .cast<File>()
           .toList();
       expect(files, hasLength(1));

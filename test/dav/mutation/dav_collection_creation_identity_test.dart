@@ -13,6 +13,8 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:xml/xml.dart';
 
+import '../../support/persistence_test_directory.dart';
+
 const _id = '03dcaedb-314a-46e3-824b-760521fb400b';
 const _home = 'https://example.test/home/';
 const _target = '${_home}busymax-$_id/';
@@ -425,7 +427,7 @@ class _Fixture {
 
   static Future<_Fixture> open(String component) async {
     final f = _Fixture(
-      await Directory.systemTemp.createTemp('busymax-creation-'),
+      await createPersistenceTestDirectory('busymax-creation-'),
       component,
     );
     f.database = AppDatabase(
