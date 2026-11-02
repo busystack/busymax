@@ -79,6 +79,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--device', required=True)
     parser.add_argument('--apk', required=True, type=Path)
+    parser.add_argument('--package', choices=(PACKAGE, PACKAGE + '.nextcloudqa'), default=PACKAGE,
+                        help='Exact isolated APK identity; an existing installation is always protected.')
     parser.add_argument('--output', type=Path)
     parser.add_argument('--sample-stacks', action='store_true', help='Collect expensive VM stacks in addition to connection timing.')
     parser.add_argument('--lifecycle', action='store_true', help='Evaluate the live certificate lifecycle and changed-pin restart after original worker completion.')
@@ -96,7 +98,7 @@ def main():
         return result
 
     def receipt(name):
-        result = adb('exec-out', 'run-as', PACKAGE, 'cat',
+        result = adb('exec-out', 'run-as', options.package, 'cat',
                      f'files/retained-startup-qa/{name}.json', check=False)
         try:
             return json.loads(result.stdout)
@@ -110,9 +112,13 @@ def main():
     if not aapt:
         raise SystemExit('Android SDK build-tools/aapt is required to verify the APK identity.')
     metadata = subprocess.check_output([aapt, 'dump', 'badging', str(options.apk)], timeout=20).decode()
-    if not re.search(r"^package: name='" + re.escape(PACKAGE) + r"'", metadata, re.M):
+    if not re.search(r"^package: name='" + re.escape(options.package) + r"'", metadata, re.M):
         raise SystemExit('The APK is not the isolated BusyMax test application.')
-    if adb('shell', 'pm', 'list', 'packages', PACKAGE).stdout.strip():
+    launcher = re.search(r"^launchable-activity: name='([^']+)'", metadata, re.M)
+    if launcher is None:
+        raise SystemExit('The test APK has no verified launcher activity.')
+    activity_component = options.package + '/' + launcher[1]
+    if adb('shell', 'pm', 'list', 'packages', options.package).stdout.strip():
         raise SystemExit('Refusing to replace an existing BusyMax installation.')
     policy = adb('shell', 'dumpsys', 'window', 'policy').stdout.decode()
     if 'showing=true' in policy:
@@ -194,7 +200,7 @@ def main():
             value = receipt(name)
             if value is not None and (name in ['seeded', 'prepared', 'retained-verified', 'certificate-paused'] or value.get('pid') == current.get('pid')):
                 (output / (name + '.json')).write_text(json.dumps(value, indent=2))
-        inventory = adb('shell', 'dumpsys', 'jobscheduler', PACKAGE, check=False)
+        inventory = adb('shell', 'dumpsys', 'jobscheduler', options.package, check=False)
         (output / 'jobscheduler.log').write_bytes(inventory.stdout)
 
     try:
@@ -205,7 +211,7 @@ def main():
             nonlocal capture_name, capture_pid
             deadline = time.monotonic() + 10
             while time.monotonic() < deadline:
-                value = adb('shell', 'pidof', PACKAGE, check=False).stdout.decode().strip()
+                value = adb('shell', 'pidof', options.package, check=False).stdout.decode().strip()
                 if value:
                     break
                 time.sleep(.05)
@@ -229,7 +235,7 @@ def main():
             cursor = logcat_resume_cursor((output / capture_name).read_text(errors='replace'))
             report['logcatReconnects'].append({'file': capture_name, 'pid': capture_pid, 'cursor': cursor})
             logcat = start_capture(capture_name, resume=cursor)
-        adb('shell', 'am', 'start', '-n', PACKAGE + '/.MainActivity')
+        adb('shell', 'am', 'start', '-n', activity_component)
         logcat = start_capture('prepare-logcat.log')
         observer = threading.Thread(target=vm_observer, daemon=True)
         observer.start()
@@ -248,16 +254,16 @@ def main():
         # Capture original IDs/states and stop promptly, before cold workers
         # can complete. This is the intended real process interruption.
         (output / 'before-stop.json').write_text(json.dumps(preparation, indent=2))
-        adb('shell', 'am', 'force-stop', PACKAGE)
+        adb('shell', 'am', 'force-stop', options.package)
         logcat.terminate()
         logcat.wait(timeout=10)
-        if adb('shell', 'pidof', PACKAGE, check=False).stdout.strip():
+        if adb('shell', 'pidof', options.package, check=False).stdout.strip():
             raise RuntimeError('The original QA process did not stop.')
         for source, target in [
                 ('no_backup/androidx.work.workdb', 'work-before-restart.db'),
                 ('files/busymax.sqlite', 'app-before-restart.db')]:
             for suffix in ['', '-wal', '-shm']:
-                result = adb('exec-out', 'run-as', PACKAGE, 'cat',
+                result = adb('exec-out', 'run-as', options.package, 'cat',
                              source + suffix, check=False)
                 if result.returncode == 0:
                     (output / (target + suffix)).write_bytes(result.stdout)
@@ -275,7 +281,7 @@ def main():
         # No WorkManager row, attempt count, constraints or backoff is edited.
         time.sleep(3)
         report['forceStopHostMonotonicNs'] = time.monotonic_ns()
-        adb('shell', 'am', 'start', '-n', PACKAGE + '/.MainActivity')
+        adb('shell', 'am', 'start', '-n', activity_component)
         logcat = start_capture('restart-logcat.log')
         deadline = time.monotonic() + 35
         report['evaluatedPids'] = [capture_pid]
@@ -312,10 +318,10 @@ def main():
                         if tag.startswith('busymax.qa.native.'):
                             outcomes[tag] = {'state': state, 'id': job}
                 if outcomes != published_outcomes:
-                    adb('shell', 'run-as', PACKAGE, 'tee',
+                    adb('shell', 'run-as', options.package, 'tee',
                         'files/retained-startup-qa/worker-outcomes.tmp',
                         data=json.dumps(outcomes).encode())
-                    adb('shell', 'run-as', PACKAGE, 'mv',
+                    adb('shell', 'run-as', options.package, 'mv',
                         'files/retained-startup-qa/worker-outcomes.tmp',
                         'files/retained-startup-qa/worker-outcomes.json')
                     published_outcomes = outcomes
@@ -329,7 +335,7 @@ def main():
                     'workerInitializationFailed': any(worker_results.get(job) == 'FAILURE' for job in expected_ids),
                     'notificationRefillSucceeded': bool(refill_ids) and all(worker_results.get(job) == 'SUCCESS' for job in refill_ids),
                 }
-                adb('shell', 'run-as', PACKAGE, 'tee',
+                adb('shell', 'run-as', options.package, 'tee',
                     'files/retained-startup-qa/workers-finished.json',
                     data=json.dumps(acknowledgment).encode())
                 acknowledged = True
@@ -342,12 +348,12 @@ def main():
             if options.lifecycle and receipt('certificate-paused') and not recovery_started:
                 collect()
                 report['changedPinProcessInterrupted'] = True
-                adb('shell', 'am', 'force-stop', PACKAGE)
+                adb('shell', 'am', 'force-stop', options.package)
                 logcat.terminate()
                 logcat.wait(timeout=10)
-                if adb('shell', 'pidof', PACKAGE, check=False).stdout.strip():
+                if adb('shell', 'pidof', options.package, check=False).stdout.strip():
                     raise RuntimeError('Changed-pin process did not stop.')
-                adb('shell', 'am', 'start', '-n', PACKAGE + '/.MainActivity')
+                adb('shell', 'am', 'start', '-n', activity_component)
                 logcat = start_capture('recovery-logcat.log')
                 report['evaluatedPids'].append(capture_pid)
                 recovery_started = True
@@ -379,12 +385,12 @@ def main():
         trace_lines = []
         trace_root = output / 'sql-traces'
         trace_root.mkdir(exist_ok=True)
-        names = adb('shell', 'run-as', PACKAGE, 'ls', '-1', 'files').stdout.decode().splitlines()
+        names = adb('shell', 'run-as', options.package, 'ls', '-1', 'files').stdout.decode().splitlines()
         for name in names:
             match = re.fullmatch(r'busymax-qa-sql-(\d+)-[A-Za-z0-9]+', name)
             if not match or match[1] not in report['evaluatedPids']:
                 continue
-            value = adb('exec-out', 'run-as', PACKAGE, 'cat', 'files/' + name + '/operations.jsonl').stdout
+            value = adb('exec-out', 'run-as', options.package, 'cat', 'files/' + name + '/operations.jsonl').stdout
             (trace_root / (name + '.jsonl')).write_bytes(value)
             trace_lines.extend(value.decode().splitlines())
         report['traceFailure'] = 'BUSYMAX_SQLITE_TRACE_FAILED' in text
@@ -451,8 +457,8 @@ def main():
             logcat.terminate()
             logcat.wait(timeout=10)
         if installed:
-            adb('shell', 'am', 'force-stop', PACKAGE, check=False)
-            removed = adb('uninstall', PACKAGE, check=False)
+            adb('shell', 'am', 'force-stop', options.package, check=False)
+            removed = adb('uninstall', options.package, check=False)
             report['testInstallationRemoved'] = b'Success' in removed.stdout
         for port in forwards:
             adb('forward', '--remove', 'tcp:' + port, check=False)

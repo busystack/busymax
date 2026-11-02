@@ -173,6 +173,9 @@ lease cleanup with filesystem barriers. Use the isolated `busymaxNextcloudQa`
 package and explicit test signer described below, with
 `--dart-define=BUSYMAX_AUTHORIZATION_LEASE_QA=true`. It schedules and cancels only
 its unique fixture job; the normal application and its work are untouched.
+The retained-startup host tool also supports
+`--package io.busystack.busymax.nextcloudqa`, verifies the APK and launcher, and
+refuses to replace an existing target installation.
 
 ### DAV transport regression comparison
 
@@ -187,6 +190,15 @@ The trash regression discovers all 300 objects representing 37.5 MiB of full
 content through size-budgeted batches, and verifies that the old single full-body
 response exceeds the unchanged limit. Run it with
 `flutter test test/dav/nextcloud/nextcloud_administration_test.dart`.
+For the real 300-object fixture, also enable `BUSYMAX_NEXTCLOUD_EXTENDED_LIVE=1`
+and `BUSYMAX_NEXTCLOUD_TRASH_SCALE_LIVE=1`, and set
+`BUSYMAX_NEXTCLOUD_LIVE_CONTAINER` to the explicitly disposable `busymax-qa-*`
+server. Fixture preparation calls official backend APIs; BusyMax listing,
+restoration and deletion use the configured account's pinned HTTPS transport.
+A Nextcloud 35.0.2/SQLite reference fixture listed all 300 mixed objects (~37 MiB)
+in 161 seconds and passed restore/permanent-delete readback; each detail batch
+stayed within the response budget. This is server-fixture timing, not a claim
+of native Windows or Android trash acceptance.
 
 ### Linux task lifecycle integration
 
