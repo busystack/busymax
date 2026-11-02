@@ -1,3 +1,5 @@
+import '../http/dav_http_transport.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -448,6 +450,13 @@ class _LinuxNextcloudTrashDialog extends ConsumerStatefulWidget {
 
 class _LinuxNextcloudTrashState
     extends ConsumerState<_LinuxNextcloudTrashDialog> {
+  final _loadCancellation = DavCancellationToken();
+  @override
+  void dispose() {
+    _loadCancellation.cancel();
+    super.dispose();
+  }
+
   NextcloudTrashListing? listing;
   bool busy = false, failed = false, refreshPending = false;
   Object? error;
@@ -465,7 +474,7 @@ class _LinuxNextcloudTrashState
     try {
       final result = await ref
           .read(nextcloudTrashServiceProvider(widget.accountId))
-          .list();
+          .list(cancellationToken: _loadCancellation);
       if (mounted) {
         setState(() {
           listing = result;

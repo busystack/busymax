@@ -2397,6 +2397,13 @@ class AndroidNextcloudTrashScreen extends ConsumerStatefulWidget {
 
 class _AndroidNextcloudTrashScreenState
     extends ConsumerState<AndroidNextcloudTrashScreen> {
+  final _loadCancellation = DavCancellationToken();
+  @override
+  void dispose() {
+    _loadCancellation.cancel();
+    super.dispose();
+  }
+
   NextcloudTrashListing? _listing;
   bool _busy = true;
   Object? _error;
@@ -2416,7 +2423,7 @@ class _AndroidNextcloudTrashScreenState
       _error = null;
     });
     try {
-      final listing = await _service.list();
+      final listing = await _service.list(cancellationToken: _loadCancellation);
       if (mounted) setState(() => _listing = listing);
     } on Object catch (error) {
       if (mounted) setState(() => _error = error);

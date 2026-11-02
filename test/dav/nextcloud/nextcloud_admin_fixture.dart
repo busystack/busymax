@@ -34,6 +34,8 @@ class NextcloudAdminFixture {
   late final sharing = NextcloudSharingService(collections);
   late final trash = NextcloudTrashService(collections);
   int refreshes = 0;
+  int trashObjectCount = 2;
+  int trashDescriptionBytes = 0;
   bool failRefresh = false,
       denyMetadata = false,
       denyParent = false,
@@ -253,18 +255,42 @@ class NextcloudAdminFixture {
         '<d:displayname>${group ? 'Team' : 'Bob'}</d:displayname><d:principal-URL><d:href>$path</d:href></d:principal-URL><c:calendar-user-type>${group ? 'GROUP' : 'INDIVIDUAL'}</c:calendar-user-type>',
       );
     }
-    if (request.method == 'REPORT' && request.body.contains('calendar-query')) {
-      final task = request.body.contains('VTODO');
-      final path = '${bin}objects/${task ? 42 : 41}.ics';
-      if (restored.contains(path)) {
-        return http.Response('<d:multistatus $nextcloudXmlNamespaces/>', 207);
+    if (request.method == 'REPORT' &&
+        (request.body.contains('calendar-query') ||
+            request.body.contains('calendar-multiget'))) {
+      final multiget = request.body.contains('calendar-multiget');
+      final requested = multiget
+          ? XmlDocument.parse(request.body).descendantElements
+                .where((e) => e.name.local == 'href')
+                .map((e) => e.innerText)
+                .toSet()
+          : <String>{};
+      final responses = <String>[];
+      for (var i = 0; i < trashObjectCount; i++) {
+        final task = i.isOdd;
+        if (!multiget &&
+            (request.body.contains('name="VEVENT"') ||
+                request.body.contains('name="VTODO"')) &&
+            task != request.body.contains('name="VTODO"')) {
+          continue;
+        }
+        final path = '${bin}objects/${41 + i}.ics';
+        if (restored.contains(path)) {
+          continue;
+        }
+        if (multiget && !requested.contains(path)) continue;
+        final component = task ? 'VTODO' : 'VEVENT';
+        final raw =
+            'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:$component\r\nUID:trash-$i\r\nDTSTAMP:20260905T120000Z\r\nDTSTART:20260905T120000Z\r\n${task ? 'DUE' : 'DTEND'}:20260905T130000Z\r\nSUMMARY:Deleted ${task ? 'task' : 'event'}\r\n${request.body.contains('calendar-data') && trashDescriptionBytes > 0 ? 'DESCRIPTION:${'x' * trashDescriptionBytes}\r\n' : ''}END:$component\r\nEND:VCALENDAR\r\n';
+        final response = multi(
+          unexpectedTrashHref ? '${collection}active.ics' : path,
+          '<d:current-user-privilege-set><d:privilege><d:${denyTrashObject ? 'read' : 'unbind'}/></d:privilege></d:current-user-privilege-set><d:getetag>"exact-trash-etag"</d:getetag><d:getcontentlength>${raw.length + (request.body.contains('calendar-data') ? 0 : trashDescriptionBytes)}</d:getcontentlength><d:getcontenttype>text/calendar; component=$component</d:getcontenttype>${request.body.contains('calendar-data') ? '<c:calendar-data>${raw.replaceAll('&', '&amp;').replaceAll('<', '&lt;')}</c:calendar-data>' : ''}<nc:deleted-at>2026-09-05T14:00:00Z</nc:deleted-at><nc:calendar-uri>work</nc:calendar-uri>',
+        );
+        responses.add(XmlDocument.parse(response.body).rootElement.innerXml);
       }
-      final component = task ? 'VTODO' : 'VEVENT';
-      final raw =
-          'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:$component\r\nUID:trash-${task ? 'task' : 'event'}\r\nDTSTAMP:20260905T120000Z\r\nDTSTART:20260905T120000Z\r\n${task ? 'DUE' : 'DTEND'}:20260905T130000Z\r\nSUMMARY:Deleted ${task ? 'task' : 'event'}\r\nEND:$component\r\nEND:VCALENDAR\r\n';
-      return multi(
-        unexpectedTrashHref ? '${collection}active.ics' : path,
-        '<d:current-user-privilege-set><d:privilege><d:${denyTrashObject ? 'read' : 'unbind'}/></d:privilege></d:current-user-privilege-set><d:getetag>"exact-trash-etag"</d:getetag><c:calendar-data>${raw.replaceAll('&', '&amp;').replaceAll('<', '&lt;')}</c:calendar-data><nc:deleted-at>2026-09-05T14:00:00Z</nc:deleted-at><nc:calendar-uri>work</nc:calendar-uri>',
+      return http.Response(
+        '<d:multistatus $nextcloudXmlNamespaces>${responses.join()}</d:multistatus>',
+        207,
       );
     }
     if (request.method == 'POST') {

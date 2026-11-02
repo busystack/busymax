@@ -1,4 +1,5 @@
 import 'package:busymax/src/dav/dav_errors.dart';
+import 'package:busymax/src/dav/http/dav_http_transport.dart';
 import 'package:busymax/src/dav/nextcloud/nextcloud_dav_context.dart';
 import 'package:busymax/src/dav/nextcloud/nextcloud_collection_service.dart';
 import 'package:busymax/src/dav/discovery/dav_discovery_models.dart';
@@ -460,6 +461,55 @@ void main() {
     expect(fixture.requests.where((r) => r.method == 'POST'), isEmpty);
   });
   test(
+    'cancelled trash loading stops before subsequent detail requests',
+    () async {
+      final token = DavCancellationToken();
+      fixture.beforeResponse = (request) async {
+        if (request.method == 'REPORT' &&
+            request.body.contains('calendar-query')) {
+          token.cancel();
+        }
+      };
+      await expectLater(
+        fixture.trash.list(cancellationToken: token),
+        throwsA(
+          isA<DavException>().having(
+            (e) => e.kind,
+            'kind',
+            DavErrorKind.cancelled,
+          ),
+        ),
+      );
+      expect(
+        fixture.requests.where((r) => r.body.contains('calendar-multiget')),
+        isEmpty,
+      );
+    },
+  );
+
+  test(
+    'missing multiget identities fail visibly instead of hiding trash',
+    () async {
+      fixture.beforeResponse = (request) async {
+        if (request.method == 'REPORT' &&
+            request.body.contains('calendar-multiget')) {
+          fixture.restored.add('${NextcloudAdminFixture.bin}objects/41.ics');
+        }
+      };
+      await expectLater(
+        fixture.trash.list(),
+        throwsA(
+          isA<DavException>().having(
+            (e) => e.code,
+            'code',
+            'DavTrashReadIncomplete',
+          ),
+        ),
+      );
+    },
+  );
+
+  test(
     'publishing rereads the server-selected URL and unpublishing removes it',
     () async {
       await fixture.sharing.setPublished('collection', true);
@@ -471,6 +521,49 @@ void main() {
       expect((await fixture.sharing.load('collection')).publishUrl, isNull);
     },
   );
+  test('large trash returns every identity with size-budgeted detail batches', () async {
+    fixture.trashObjectCount = 300;
+    fixture.trashDescriptionBytes = 128 * 1024;
+    final listing = await fixture.trash.list();
+    expect(listing.items, hasLength(300));
+    expect(listing.items.map((i) => i.href).toSet(), hasLength(300));
+    expect(
+      listing.items.where((i) => i.kind == NextcloudTrashKind.task),
+      hasLength(150),
+    );
+    final reports = fixture.requests
+        .where((r) => r.method == 'REPORT')
+        .toList();
+    expect(
+      reports
+          .where((r) => r.body.contains('calendar-query'))
+          .every((r) => !r.body.contains('calendar-data')),
+      isTrue,
+    );
+    final detail = reports
+        .where((r) => r.body.contains('calendar-multiget'))
+        .toList();
+    expect(detail.length, greaterThan(10));
+    expect(
+      detail.every((r) => RegExp('<d:href>').allMatches(r.body).length <= 32),
+      isTrue,
+    );
+    expect(detail.every((r) => r.body.contains('<c:calendar-data/>')), isTrue);
+    // The old shape crosses the unchanged 16 MiB safety limit for the same data.
+    final context = await fixture.collections.openContext();
+    await expectLater(
+      context.send(
+        'REPORT',
+        Uri.parse(
+          '${NextcloudAdminFixture.origin}${NextcloudAdminFixture.bin}objects',
+        ),
+        headers: {'depth': '1'},
+        xml: '<c:calendar-query xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:d="DAV:"><d:prop><c:calendar-data/></d:prop><c:filter><c:comp-filter name="VCALENDAR"><c:comp-filter name="VEVENT"/></c:comp-filter></c:filter></c:calendar-query>',
+      ),
+      throwsA(isA<DavException>()),
+    );
+  });
+
   test('trash queries events and tasks and restores the returned VTODO href', () async {
     final listing = await fixture.trash.list();
     expect(listing.items, hasLength(2));

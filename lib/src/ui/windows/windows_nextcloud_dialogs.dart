@@ -1,3 +1,5 @@
+import '../../dav/http/dav_http_transport.dart';
+
 import 'dart:async';
 
 import '../../l10n/nextcloud_collection_error_description.dart';
@@ -421,6 +423,13 @@ class _WindowsNextcloudTrashDialog extends ConsumerStatefulWidget {
 
 class _WindowsNextcloudTrashState
     extends ConsumerState<_WindowsNextcloudTrashDialog> {
+  final _loadCancellation = DavCancellationToken();
+  @override
+  void dispose() {
+    _loadCancellation.cancel();
+    super.dispose();
+  }
+
   NextcloudTrashListing? listing;
   bool busy = false, failed = false, refreshPending = false;
   Object? error;
@@ -438,7 +447,7 @@ class _WindowsNextcloudTrashState
     try {
       final result = await ref
           .read(nextcloudTrashServiceProvider(widget.accountId))
-          .list();
+          .list(cancellationToken: _loadCancellation);
       if (mounted) {
         setState(() {
           listing = result;

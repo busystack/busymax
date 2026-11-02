@@ -129,6 +129,7 @@ final class NextcloudDavContext {
     Uri uri, {
     String? xml,
     Map<String, String> headers = const {},
+    DavCancellationToken? cancellationToken,
   }) => transport.send(
     xml == null
         ? DavRequest(
@@ -159,12 +160,14 @@ final class NextcloudDavContext {
                 : DavRetryClass.never,
           ),
     credential: credential,
+    cancellationToken: cancellationToken,
   );
 
   Future<DavMultistatus> propfind(
     Uri uri,
     String properties, {
     String depth = '0',
+    DavCancellationToken? cancellationToken,
   }) async {
     final response = await send(
       'PROPFIND',
@@ -172,6 +175,7 @@ final class NextcloudDavContext {
       xml:
           '<d:propfind $nextcloudXmlNamespaces><d:prop>$properties</d:prop></d:propfind>',
       headers: {'depth': depth},
+      cancellationToken: cancellationToken,
     );
     if (response.statusCode != 207) {
       throw nextcloudOperationError(

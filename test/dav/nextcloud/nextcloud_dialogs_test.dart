@@ -685,7 +685,15 @@ Future<void> _pumpTrash(
     ),
   );
   await tester.tap(find.text('Open trash'));
-  await _settle(tester);
+  // Wait for the observable completion of the bounded multi-request listing.
+  for (var attempt = 0; attempt < 100; attempt++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 20)),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+    if (find.byType(YaruCircularProgressIndicator).evaluate().isEmpty) break;
+  }
+  await tester.pumpAndSettle();
 }
 
 Future<void> _pumpFederation(

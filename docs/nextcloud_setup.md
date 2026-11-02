@@ -241,3 +241,19 @@ and
 [Nextcloud WebDAV basics](https://docs.nextcloud.com/server/stable/developer_manual/client_apis/WebDAV/basic.html).
 Maintainers should use [live-provider tests](development.md#live-provider-tests) before
 making release-specific interoperability claims.
+
+Trash listing discovers identity, size and permissions in one lightweight
+VCALENDAR query without calendar bodies. Detail requests do not repeat the
+expensive per-object privilege inventory.
+Detail multigets contain at most 32 objects and 1 MiB of advertised raw content,
+leaving headroom for XML escaping. Larger or unknown-size objects use individual
+conditional GETs. Objects advertised above the 16 MiB limit remain discoverable
+by filename and metadata, without downloading their bodies just to show a title.
+The server's bundled SabreDAV does not implement component/property projection;
+BusyMax does not rely on it. Nextcloud
+35.0.2's [deleted-object container](https://github.com/nextcloud/server/blob/v35.0.2/apps/dav/lib/CalDAV/Trashbin/DeletedCalendarObjectsCollection.php)
+has no pagination API. The 16 MiB transport limit still applies to each response,
+including the lightweight identity inventory; an oversized inventory fails visibly,
+without truncating older entries. Concurrently withdrawn objects disappear; changed
+ETags fail the listing for refresh. Restore and delete revalidate identity,
+permissions and authorization generation after confirmation.

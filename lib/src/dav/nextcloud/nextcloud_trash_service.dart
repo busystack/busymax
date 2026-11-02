@@ -4,6 +4,7 @@ import 'package:drift/drift.dart';
 import 'package:xml/xml.dart';
 
 import '../dav_errors.dart';
+import '../http/dav_http_transport.dart';
 import '../ical/ical_semantics.dart';
 import '../mutation/dav_collection_mutation_helpers.dart';
 import '../xml/dav_xml.dart';
@@ -56,8 +57,12 @@ final class NextcloudTrashService {
   NextcloudTrashService(this.collections);
   final NextcloudCollectionService collections;
 
-  Future<NextcloudTrashListing> list() async {
+  Future<NextcloudTrashListing> list({
+    DavCancellationToken? cancellationToken,
+  }) async {
+    cancellationToken?.throwIfCancelled();
     final context = await collections.openContext();
+    cancellationToken?.throwIfCancelled();
     if (!context.features.contains('nc-calendar-trashbin')) {
       throw nextcloudOperationError(405, 'DavTrashUnsupported');
     }
@@ -91,6 +96,7 @@ final class NextcloudTrashService {
       final home = context.resolve(homeHref, context.authority);
       final binState = await context.propfind(
         binUri,
+        cancellationToken: cancellationToken,
         // Nextcloud's IProperties supplies the custom resource type while
         // resolving display properties. Request the same shape as inventory;
         // a minimal built-in-only PROPFIND can report just DAV:collection.
@@ -128,13 +134,21 @@ final class NextcloudTrashService {
         davCollectionUri(binUri).resolve('objects').toString(),
         binUri,
       );
-      for (final component in ['VEVENT', 'VTODO']) {
+      // The server has no cursor/pagination for this container. Discover only
+      // identity metadata first; never request all deleted calendar bodies.
+      final index = <Uri, DavMultistatusResponse>{};
+      const metadataProperties =
+          '<d:getetag/><d:getcontentlength/><d:getcontenttype/>'
+          '<d:current-user-privilege-set/><nc:deleted-at/><nc:calendar-uri/><nc:source-calendar-uri/>';
+      {
+        // A VCALENDAR query covers both events and tasks in one inventory.
         final response = await context.send(
           'REPORT',
           objects,
+          cancellationToken: cancellationToken,
           headers: {'depth': '1'},
           xml:
-              '<c:calendar-query $nextcloudXmlNamespaces><d:prop><d:getetag/><d:current-user-privilege-set/><c:calendar-data/><nc:deleted-at/><nc:calendar-uri/><nc:source-calendar-uri/></d:prop><c:filter><c:comp-filter name="VCALENDAR"><c:comp-filter name="$component"/></c:comp-filter></c:filter></c:calendar-query>',
+              '<c:calendar-query $nextcloudXmlNamespaces><d:prop>$metadataProperties</d:prop><c:filter><c:comp-filter name="VCALENDAR"/></c:filter></c:calendar-query>',
         );
         if (response.statusCode != 207) {
           throw nextcloudOperationError(
@@ -154,8 +168,175 @@ final class NextcloudTrashService {
             );
           }
           final href = context.resolve(row.href, response.requestUri);
-          if (!href.path.startsWith(davCollectionUri(objects).path)) {
+          if (!href.path.startsWith(davCollectionUri(objects).path) ||
+              href.path == davCollectionUri(objects).path) {
             throw nextcloudOperationError(502, 'DavTrashUnexpectedHref');
+          }
+          if (index.containsKey(href) &&
+              index[href]!.successfulProperty(davNamespace, 'getetag')?.text !=
+                  row.successfulProperty(davNamespace, 'getetag')?.text) {
+            throw nextcloudOperationError(409, 'DavTrashItemChanged');
+          }
+          index[href] = row;
+        }
+      }
+      void addItem(Uri href, DavMultistatusResponse row, String? raw) {
+        final content = raw == null
+            ? null
+            : IcalSemanticDocument.parse(raw).components
+                  .where(
+                    (c) =>
+                        c.componentType == 'VEVENT' ||
+                        c.componentType == 'VTODO',
+                  )
+                  .firstOrNull;
+        if (raw != null && content == null) {
+          throw nextcloudOperationError(502, 'DavTrashReadIncomplete');
+        }
+        // Nextcloud advertises unbind on modifiable deleted objects, including
+        // writable shares. The bin's owner ACL alone is not sufficient.
+        final canRemove = davPrivilege(
+          nextcloudPropertyNames(
+            row.successfulProperty(davNamespace, 'current-user-privilege-set'),
+          ),
+          'unbind',
+        );
+        items[href.toString()] = NextcloudTrashItem._(
+          accountId: collections.accountId,
+          authorizationGeneration: context.authorizationGeneration,
+          calendarHomeHref: home,
+          uid: content?.uid,
+          href: href,
+          trashBinHref: binUri,
+          kind:
+              (content?.componentType ??
+                      (row
+                                  .successfulProperty(
+                                    davNamespace,
+                                    'getcontenttype',
+                                  )
+                                  ?.text
+                                  .contains('VTODO') ==
+                              true
+                          ? 'VTODO'
+                          : 'VEVENT')) ==
+                  'VEVENT'
+              ? NextcloudTrashKind.event
+              : NextcloudTrashKind.task,
+          title: content?.summary ?? href.pathSegments.last,
+          deletedAt: row
+              .successfulProperty(nextcloudNamespace, 'deleted-at')
+              ?.text,
+          etag: row.successfulProperty(davNamespace, 'getetag')?.text,
+          canRestore: canRemove && canRestoreIntoBin,
+          canPermanentlyDelete: canRemove,
+          calendarUri: row
+              .successfulProperty(nextcloudNamespace, 'calendar-uri')
+              ?.text,
+          sourceCalendarUri: row
+              .successfulProperty(nextcloudNamespace, 'source-calendar-uri')
+              ?.text,
+        );
+      }
+
+      // Nextcloud's SabreDAV ignores calendar-data component projection. Budget
+      // complete bodies by advertised size instead: <=1 MiB raw per multiget,
+      // at most 32 hrefs, leaving headroom for XML escaping under 16 MiB.
+      const detailBudget = 1024 * 1024;
+      final batches = <List<Uri>>[];
+      var batch = <Uri>[];
+      var bytes = 0;
+      for (final entry in index.entries) {
+        final size = int.tryParse(
+          entry.value
+                  .successfulProperty(davNamespace, 'getcontentlength')
+                  ?.text ??
+              '',
+        );
+        if (size == null || size < 0 || size > detailBudget) {
+          if (batch.isNotEmpty) {
+            batches.add(batch);
+            batch = [];
+            bytes = 0;
+          }
+          // Unusually large objects remain discoverable from metadata. They
+          // are restored/deleted with the same ETag and ACL checks, without
+          // downloading attachments simply to display a trash title.
+          if (size != null && size > 16 * detailBudget) {
+            addItem(entry.key, entry.value, null);
+            continue;
+          }
+          final response = await context.send(
+            'GET',
+            entry.key,
+            cancellationToken: cancellationToken,
+            headers: {
+              if (entry.value.successfulProperty(davNamespace, 'getetag')?.text
+                  case final etag?)
+                'If-Match': etag,
+            },
+          );
+          if (response.statusCode == 404 || response.statusCode == 410) {
+            continue;
+          }
+          if (response.statusCode != 200) {
+            throw nextcloudOperationError(
+              response.statusCode,
+              'DavTrashReadFailed',
+            );
+          }
+          if (response.etag !=
+              entry.value.successfulProperty(davNamespace, 'getetag')?.text) {
+            throw nextcloudOperationError(409, 'DavTrashItemChanged');
+          }
+          addItem(entry.key, entry.value, response.bodyText);
+          continue;
+        }
+        if (batch.length == 32 || bytes + size > detailBudget) {
+          batches.add(batch);
+          batch = [];
+          bytes = 0;
+        }
+        batch.add(entry.key);
+        bytes += size;
+      }
+      if (batch.isNotEmpty) batches.add(batch);
+      for (final batch in batches) {
+        final response = await context.send(
+          'REPORT',
+          objects,
+          cancellationToken: cancellationToken,
+          xml:
+              '<c:calendar-multiget $nextcloudXmlNamespaces><d:prop><d:getetag/><c:calendar-data/></d:prop>'
+              '${batch.map((h) => '<d:href>${XmlText(h.path).toXmlString()}</d:href>').join()}'
+              '</c:calendar-multiget>',
+        );
+        if (response.statusCode != 207) {
+          throw nextcloudOperationError(
+            response.statusCode,
+            'DavTrashReadFailed',
+          );
+        }
+        final data = const DavXmlParser().parseMultistatus(response.bodyBytes);
+        if (data.errorConditions.isNotEmpty) {
+          throw nextcloudOperationError(502, 'DavTrashReadIncomplete');
+        }
+        final seen = <Uri>{};
+        for (final row in data.responses) {
+          final href = context.resolve(row.href, response.requestUri);
+          if (!batch.contains(href) || !seen.add(href)) {
+            throw nextcloudOperationError(502, 'DavTrashUnexpectedHref');
+          }
+          if (row.statusCode == 404 || row.statusCode == 410) continue;
+          if ((row.statusCode ?? 200) >= 400) {
+            throw nextcloudOperationError(
+              row.statusCode!,
+              'DavTrashReadFailed',
+            );
+          }
+          if (row.successfulProperty(davNamespace, 'getetag')?.text !=
+              index[href]!.successfulProperty(davNamespace, 'getetag')?.text) {
+            throw nextcloudOperationError(409, 'DavTrashItemChanged');
           }
           final raw = row
               .successfulProperty(caldavNamespace, 'calendar-data')
@@ -163,46 +344,10 @@ final class NextcloudTrashService {
           if (raw == null) {
             throw nextcloudOperationError(502, 'DavTrashReadIncomplete');
           }
-          final document = IcalSemanticDocument.parse(raw);
-          final content = document.components
-              .where((c) => c.componentType == component)
-              .firstOrNull;
-          if (content == null) continue;
-          // Nextcloud advertises unbind on modifiable deleted objects, including
-          // writable shares. The bin's owner ACL alone is not sufficient.
-          final canRemove = davPrivilege(
-            nextcloudPropertyNames(
-              row.successfulProperty(
-                davNamespace,
-                'current-user-privilege-set',
-              ),
-            ),
-            'unbind',
-          );
-          items[href.toString()] = NextcloudTrashItem._(
-            accountId: collections.accountId,
-            authorizationGeneration: context.authorizationGeneration,
-            calendarHomeHref: home,
-            uid: content.uid,
-            href: href,
-            trashBinHref: binUri,
-            kind: component == 'VEVENT'
-                ? NextcloudTrashKind.event
-                : NextcloudTrashKind.task,
-            title: content.summary ?? '',
-            deletedAt: row
-                .successfulProperty(nextcloudNamespace, 'deleted-at')
-                ?.text,
-            etag: row.successfulProperty(davNamespace, 'getetag')?.text,
-            canRestore: canRemove && canRestoreIntoBin,
-            canPermanentlyDelete: canRemove,
-            calendarUri: row
-                .successfulProperty(nextcloudNamespace, 'calendar-uri')
-                ?.text,
-            sourceCalendarUri: row
-                .successfulProperty(nextcloudNamespace, 'source-calendar-uri')
-                ?.text,
-          );
+          addItem(href, index[href]!, raw);
+        }
+        if (seen.length != batch.length) {
+          throw nextcloudOperationError(502, 'DavTrashReadIncomplete');
         }
       }
       // Deleted calendars live in their actual calendar home, not the bin's
@@ -212,6 +357,7 @@ final class NextcloudTrashService {
         home,
         '<d:resourcetype/><d:displayname/><d:current-user-privilege-set/><d:getetag/><c:supported-calendar-component-set/><nc:deleted-at/>',
         depth: '1',
+        cancellationToken: cancellationToken,
       );
       if (inventory.errorConditions.isNotEmpty || inventory.responses.isEmpty) {
         throw nextcloudOperationError(502, 'DavTrashReadIncomplete');
