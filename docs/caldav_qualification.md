@@ -3,13 +3,17 @@
 This is the maintained qualification record. A checked implementation item does
 not establish live or native acceptance.
 
-## Current release follow-up — final validation in progress
+## Current release candidate — protocol qualification and native limits
 
 Baseline: `feature/caldav-support`, clean implementation commit
 `3a0e6c368fa14917ff0ef50ecb682331bd200e29`, already committed and pushed.
 The release branch starts at `5fbb15a2e103f3ee12627c8ab77974996e60e4d6`.
-Corrections below are local until the final validation/commit steps complete.
-No release has been merged, tagged or published.
+Source corrections and maintained fixtures are committed as
+[`221c757f58473c322f03d25fe4d2f6f1766d1099`](https://github.com/busystack/busymax/commit/221c757f58473c322f03d25fe4d2f6f1766d1099)
+on `feature/caldav-support`. Documentation/status commits follow that source
+commit. Release-candidate CI and publication state are recorded below. No
+release PR has been merged and no tag or release has been published. Full native
+acceptance remains incomplete where explicitly marked blocked/unverified.
 
 ### Corrected collection creation
 
