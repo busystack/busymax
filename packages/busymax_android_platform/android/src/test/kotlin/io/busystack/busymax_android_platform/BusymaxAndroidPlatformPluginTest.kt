@@ -9,12 +9,36 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.util.Locale
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Test
 import sun.misc.Unsafe
 import org.mockito.Mockito
 
 internal class BusymaxAndroidPlatformPluginTest {
+    @Test
+    fun sharedAuthorizationLeases_overlapAcrossEnginesAndExcludeReplacement() {
+        val id = "authorization:shared-fixture"
+        val first = EngineOwnedAccountGateRegistry.acquire(id, "foreground", 1, true)
+        val second = EngineOwnedAccountGateRegistry.acquire(id, "background", 1, true)
+        assertNotNull(first)
+        assertNotNull(second)
+        assertNull(EngineOwnedAccountGateRegistry.acquire(id, "writer", 1))
+        assertEquals(false, EngineOwnedAccountGateRegistry.release(first, "other-engine"))
+        EngineOwnedAccountGateRegistry.releaseOwned("foreground")
+        assertNull(EngineOwnedAccountGateRegistry.acquire(id, "writer", 1))
+        EngineOwnedAccountGateRegistry.releaseOwned("background")
+        val writer = EngineOwnedAccountGateRegistry.acquire(id, "writer", 1)
+        assertNotNull(writer)
+        assertNull(EngineOwnedAccountGateRegistry.acquire(id, "foreground", 1, true))
+        val other = EngineOwnedAccountGateRegistry.acquire("authorization:other", "background", 1, true)
+        assertNotNull(other)
+        EngineOwnedAccountGateRegistry.releaseOwned("background")
+        EngineOwnedAccountGateRegistry.releaseOwned("writer")
+        assertNotNull(EngineOwnedAccountGateRegistry.acquire(id, "foreground", 1, true))
+        EngineOwnedAccountGateRegistry.releaseOwned("foreground")
+    }
+
     @Test
     fun silentRecovery_propagatesForceRefreshIntoPinnedMsalParameters() {
         val account = object : IAccount {

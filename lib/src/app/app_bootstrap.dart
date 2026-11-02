@@ -1,7 +1,7 @@
 import '../dav/dav_errors.dart';
-import '../dav/trust/nextcloud_leased_http_client.dart';
+import '../core/http/authorization_leased_http_client.dart';
 import '../dav/trust/nextcloud_http_client_factory.dart';
-import '../dav/trust/nextcloud_account_http_client.dart';
+import '../dav/http/dav_account_http_client.dart';
 import '../features/notifications/operational_notification_coordinator.dart';
 import '../core/http/request_dispatch_exception.dart';
 import '../features/sync/domain_sync_schedule.dart';
@@ -176,14 +176,34 @@ final nextcloudHttpClientFactoryProvider = Provider<NextcloudHttpClientFactory>(
   },
 );
 
-final nextcloudAccountHttpClientProvider = Provider.family<http.Client, String>(
-  (ref, id) => NextcloudAccountHttpClient(
+final davAccountHttpClientProvider = Provider.family<http.Client, String>((
+  ref,
+  id,
+) {
+  final client = DavAccountHttpClient(
     accountId: id,
     persistence: ref.watch(authorizationPersistenceProvider),
-    factory: ref.watch(nextcloudHttpClientFactoryProvider),
-    standardClient: ref.watch(baseHttpClientProvider),
-  ),
-);
+    createClient: (credential) => switch (credential) {
+      NextcloudSecretRecord() =>
+        ref
+            .read(nextcloudHttpClientFactoryProvider)
+            .create(
+              owner: id,
+              authority: credential.canonicalServer,
+              policy: credential.trustPolicy,
+            ),
+      AppleICloudSecretRecord() => ConnectivityAwareHttpClient(
+        inner: NativeTerminatingHttpClient(),
+        requireNetwork: ref
+            .read(networkConnectivityMonitorProvider)
+            .requireNetwork,
+      ),
+      _ => throw StateError('DAV credential required.'),
+    },
+  );
+  ref.onDispose(client.close);
+  return client;
+});
 
 final nextcloudLoginFlowV2Provider = Provider<NextcloudLoginFlowV2>((ref) {
   final flow = NextcloudLoginFlowV2(client: ref.watch(baseHttpClientProvider));
@@ -238,10 +258,11 @@ davAccountOnboardingServiceProvider = Provider<DavAccountOnboardingService>((
                 authority: accountAuthority,
                 policy: secret.trustPolicy,
               );
-          final scoped = NextcloudLeasedHttpClient(
+          final scoped = AuthorizationLeasedHttpClient(
             delegate: raw,
-            runLease: (work) =>
-                ref.read(authorizationPersistenceProvider).run(accountId, work),
+            runLease: (work) => ref
+                .read(authorizationPersistenceProvider)
+                .runShared(accountId, work),
             validate: () async {
               final persistence = ref.read(authorizationPersistenceProvider);
               final account = await ref
@@ -497,8 +518,7 @@ final busyMaxContactsControllerProvider = Provider<BusyMaxContactsController>((
     httpClient: ref.watch(baseHttpClientProvider),
     nextcloudClients: ref.watch(nextcloudHttpClientFactoryProvider),
     accountGate: ref.watch(crossEngineAccountGateProvider),
-    linkedNextcloudClient: (id) =>
-        ref.read(nextcloudAccountHttpClientProvider(id)),
+    linkedNextcloudClient: (id) => ref.read(davAccountHttpClientProvider(id)),
     readDavSecret: (accountId) => storage.read(key: key(accountId)),
     writeDavSecret: (accountId, value) =>
         storage.write(key: key(accountId), value: value),
@@ -1321,7 +1341,7 @@ final davAccountSyncEngineFactoryProvider =
       return (accountId) => DavAccountSyncEngine(
         database: ref.read(databaseProvider),
         secretStore: ref.read(secretStoreProvider),
-        httpClient: ref.read(nextcloudAccountHttpClientProvider(accountId)),
+        httpClient: ref.read(davAccountHttpClientProvider(accountId)),
         accountId: accountId,
         rebuildNotifications: (accountId, _) async {
           await NotificationScheduleService(
@@ -1762,7 +1782,7 @@ final davTaskListMutationClientForAccountProvider =
       return DavTaskListMutationService(
         database: ref.watch(databaseProvider),
         secretStore: ref.watch(secretStoreProvider),
-        httpClient: ref.watch(nextcloudAccountHttpClientProvider(accountId)),
+        httpClient: ref.watch(davAccountHttpClientProvider(accountId)),
         accountId: accountId,
         refreshAfterMutation: () =>
             ref.read(signedInSyncRunnerProvider)(accountId, true),
@@ -1777,7 +1797,7 @@ final nextcloudCollectionServiceProvider =
       (ref, accountId) => NextcloudCollectionService(
         database: ref.watch(databaseProvider),
         secrets: ref.watch(secretStoreProvider),
-        client: ref.watch(nextcloudAccountHttpClientProvider(accountId)),
+        client: ref.watch(davAccountHttpClientProvider(accountId)),
         accountId: accountId,
         requireNetwork: ref
             .watch(networkConnectivityMonitorProvider)
@@ -1824,7 +1844,7 @@ final davCalendarCollectionMutationClientForAccountProvider =
       return DavCalendarCollectionMutationService(
         database: ref.watch(databaseProvider),
         secretStore: ref.watch(secretStoreProvider),
-        httpClient: ref.watch(nextcloudAccountHttpClientProvider(accountId)),
+        httpClient: ref.watch(davAccountHttpClientProvider(accountId)),
         accountId: accountId,
         refreshAfterMutation: () =>
             ref.read(signedInSyncRunnerProvider)(accountId, true),

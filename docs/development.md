@@ -164,6 +164,20 @@ dispatch, OAuth credentials or artifact uploads. Windows and Android CI remain
 independent. The official Linux build is `tool/release/build_snap_local.sh`;
 `tool/build_install_snap_local.sh` only repacks a development scaffold.
 
+### DAV transport regression comparison
+
+Run `BUSYMAX_DAV_BENCHMARK=1 flutter test test/dav/trust/dav_transport_benchmark_test.dart`
+for the maintained real-loopback TLS comparison. A reference run with four
+concurrent operations, 5,000-event payloads, six task-list paths, 40 ms server
+delay and simultaneous mutations measured: direct pre-lease transport **511 ms**,
+exclusive leases **930 ms**, shared leases **561 ms** for 16 requests. Peak server
+concurrency was respectively **4 / 1 / 4**. This isolates transport overhead;
+it is not a live Nextcloud synchronization benchmark or native-platform acceptance.
+The trash regression discovers all 300 objects representing 37.5 MiB of full
+content through size-budgeted batches, and verifies that the old single full-body
+response exceeds the unchanged limit. Run it with
+`flutter test test/dav/nextcloud/nextcloud_administration_test.dart`.
+
 ### Linux task lifecycle integration
 
 Run [the native task lifecycle test](../integration_test/task_lifecycle_linux_test.dart)

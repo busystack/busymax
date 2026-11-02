@@ -25,6 +25,11 @@ abstract interface class CrossEngineAccountGate {
   Future<T> run<T>(String accountId, Future<T> Function() operation);
 }
 
+abstract interface class SharedCrossEngineAccountGate
+    implements CrossEngineAccountGate {
+  Future<T> runShared<T>(String accountId, Future<T> Function() operation);
+}
+
 final class InProcessAccountGate implements CrossEngineAccountGate {
   const InProcessAccountGate();
 

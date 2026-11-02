@@ -8,6 +8,7 @@ import '../../providers/busy_provider.dart';
 import '../secrets/secret_store.dart';
 import 'oauth_models.dart';
 import 'oauth_registration.dart';
+import 'authorization_gate.dart';
 
 /// Serialized, recoverable boundary for secure storage and account metadata.
 /// A normal token refresh leaves authorization generation unchanged.
@@ -31,7 +32,7 @@ final class AuthorizationPersistence {
   final AppDatabase database;
   final SecretStore secrets;
   final CrossEngineAccountGate gate;
-  final AccountSyncCoordinator _coordinator = AccountSyncCoordinator();
+  final AuthorizationGate _coordinator = AuthorizationGate();
   final AccountSyncCoordinator _removals = AccountSyncCoordinator();
 
   final Set<void Function(String)> _nextcloudInvalidators = {};
@@ -55,7 +56,18 @@ final class AuthorizationPersistence {
   Future<T> withCurrentCredential<T>(
     String id,
     Future<T> Function(SecretRecord? credential) operation,
-  ) => run(id, () async => operation(await _readCurrentCredential(id)));
+  ) => runShared(id, () async => operation(await _readCurrentCredential(id)));
+
+  /// The shared lease covers validation and transmission, including response
+  /// ownership. Writers use the same durable cross-engine boundary. Unknown
+  /// gates conservatively retain exclusive behavior.
+  Future<T> runShared<T>(String id, Future<T> Function() operation) =>
+      _coordinator.run(id, () {
+        final native = gate;
+        return native is SharedCrossEngineAccountGate
+            ? native.runShared('authorization:$id', operation)
+            : native.run('authorization:$id', operation);
+      }, shared: true);
 
   Future<T> run<T>(String id, Future<T> Function() operation) =>
       _coordinator.run(id, () => gate.run('authorization:$id', operation));

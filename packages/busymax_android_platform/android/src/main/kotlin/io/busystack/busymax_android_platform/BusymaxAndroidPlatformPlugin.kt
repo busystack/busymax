@@ -77,16 +77,21 @@ internal fun microsoftSilentParameters(
 }
 
 internal object EngineOwnedAccountGateRegistry {
-    internal data class Lease(val ownerId: String, val semaphore: Semaphore)
+    internal data class Lease(val ownerId: String, val semaphore: Semaphore, val permits: Int)
+
+    private const val ALL_PERMITS = 1_000_000
 
     private val accountGates = ConcurrentHashMap<String, Semaphore>()
     private val leases = ConcurrentHashMap<String, Lease>()
 
-    fun acquire(accountId: String, ownerId: String, timeoutMillis: Long): String? {
-        val semaphore = accountGates.computeIfAbsent(accountId) { Semaphore(1, true) }
-        if (!semaphore.tryAcquire(timeoutMillis, TimeUnit.MILLISECONDS)) return null
+    fun acquire(accountId: String, ownerId: String, timeoutMillis: Long, shared: Boolean = false): String? {
+        // Fair multi-permit acquisition is independent of executor threads.
+        // A writer waiting for all permits blocks later readers in every engine.
+        val semaphore = accountGates.computeIfAbsent(accountId) { Semaphore(ALL_PERMITS, true) }
+        val permits = if (shared) 1 else ALL_PERMITS
+        if (!semaphore.tryAcquire(permits, timeoutMillis, TimeUnit.MILLISECONDS)) return null
         val leaseId = UUID.randomUUID().toString()
-        leases[leaseId] = Lease(ownerId, semaphore)
+        leases[leaseId] = Lease(ownerId, semaphore, permits)
         return leaseId
     }
 
@@ -95,7 +100,7 @@ internal object EngineOwnedAccountGateRegistry {
         var released = false
         leases.computeIfPresent(leaseId) { _, lease ->
             if (lease.ownerId == ownerId) {
-                lease.semaphore.release()
+                lease.semaphore.release(lease.permits)
                 released = true
                 null
             } else {
@@ -108,7 +113,7 @@ internal object EngineOwnedAccountGateRegistry {
     fun releaseOwned(ownerId: String) {
         for ((leaseId, lease) in leases.entries) {
             if (lease.ownerId == ownerId && leases.remove(leaseId, lease)) {
-                lease.semaphore.release()
+                lease.semaphore.release(lease.permits)
             }
         }
     }
@@ -863,7 +868,7 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
         if (accountId.isBlank()) return result.error("android/invalid-arguments", "Account id is required.", null)
         executor.execute {
             try {
-                val lease = EngineOwnedAccountGateRegistry.acquire(accountId, engineId, timeout)
+                val lease = EngineOwnedAccountGateRegistry.acquire(accountId, engineId, timeout, call.argument<Boolean>("shared") == true)
                     ?: return@execute postError(result, "android/account-busy", "This account is already synchronizing.", null)
                 if (detached) {
                     EngineOwnedAccountGateRegistry.release(lease, engineId)

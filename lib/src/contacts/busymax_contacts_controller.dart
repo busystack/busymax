@@ -1,4 +1,4 @@
-import '../dav/trust/nextcloud_leased_http_client.dart';
+import '../core/http/authorization_leased_http_client.dart';
 import '../features/sync/account_sync_operations.dart';
 import '../dav/trust/nextcloud_http_client_factory.dart';
 import '../dav/trust/nextcloud_trust_policy.dart';
@@ -966,7 +966,7 @@ final class BusyMaxContactsController {
     if (config['nextcloud'] == true &&
         scopedClient == null &&
         nextcloudClients != null) {
-      client = NextcloudLeasedHttpClient(
+      client = AuthorizationLeasedHttpClient(
         delegate: client,
         runLease: (work) => accountGate.run('contacts:${account.id}', work),
         validate: () async {
@@ -1478,7 +1478,7 @@ final class BusyMaxContactsController {
             : null,
       );
       if (reconnectClient != null) {
-        reconnectClient = NextcloudLeasedHttpClient(
+        reconnectClient = AuthorizationLeasedHttpClient(
           delegate: reconnectClient,
           runLease: (work) => accountGate.run('contacts:$id', work),
           validate: () async {

@@ -1,8 +1,8 @@
 import 'package:busymax/src/core/auth/authorization_persistence.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/sync/account_sync_operations.dart';
-import 'package:busymax/src/dav/trust/nextcloud_account_http_client.dart';
-import 'package:busymax/src/dav/trust/nextcloud_leased_http_client.dart';
+import 'package:busymax/src/dav/http/dav_account_http_client.dart';
+import 'package:busymax/src/core/http/authorization_leased_http_client.dart';
 import 'package:drift/native.dart';
 import 'package:asn1lib/asn1lib.dart';
 
@@ -633,11 +633,17 @@ void main() {
         ),
       );
       final standard = http.Client();
-      final scoped = NextcloudAccountHttpClient(
+      final scoped = DavAccountHttpClient(
         accountId: 'one',
         persistence: persistence,
-        factory: factory,
-        standardClient: standard,
+        createClient: (record) {
+          final secret = record as NextcloudSecretRecord;
+          return factory.create(
+            owner: 'one',
+            authority: secret.canonicalServer,
+            policy: secret.trustPolicy,
+          );
+        },
       );
       try {
         final abort = Completer<void>();
@@ -664,7 +670,7 @@ void main() {
     await serve('self');
     final coordinator = AccountSyncCoordinator();
     var generation = 1;
-    final leased = NextcloudLeasedHttpClient(
+    final leased = AuthorizationLeasedHttpClient(
       delegate: client(policy(NextcloudTrustMode.pinnedLeaf, 'self')),
       runLease: (work) => coordinator.run('contacts:one', work),
       validate: () async {
@@ -706,7 +712,7 @@ void main() {
         await release.future;
       });
       await entered.future;
-      final leased = NextcloudLeasedHttpClient(
+      final leased = AuthorizationLeasedHttpClient(
         delegate: client(policy(NextcloudTrustMode.pinnedLeaf, 'self')),
         runLease: (work) => coordinator.run('contacts:one', work),
         validate: () async {},

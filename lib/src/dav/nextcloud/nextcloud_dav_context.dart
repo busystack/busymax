@@ -12,6 +12,7 @@ import '../dav_href.dart';
 import '../dav_provider_profile.dart';
 import '../discovery/dav_discovery_models.dart';
 import '../http/dav_http_transport.dart';
+import '../http/dav_account_http_client.dart';
 import '../xml/dav_xml.dart';
 
 /// Shared context for Nextcloud DAV administration. Authentication, redirect
@@ -135,7 +136,10 @@ final class NextcloudDavContext {
             uri: uri,
             accountId: accountId,
             correlationId: const Uuid().v4(),
-            headers: headers,
+            headers: {
+              ...headers,
+              davAuthorizationGenerationHeader: '$authorizationGeneration',
+            },
             retryClass: method == 'GET'
                 ? DavRetryClass.safeRead
                 : DavRetryClass.never,
@@ -146,7 +150,10 @@ final class NextcloudDavContext {
             accountId: accountId,
             correlationId: const Uuid().v4(),
             body: xml,
-            headers: headers,
+            headers: {
+              ...headers,
+              davAuthorizationGenerationHeader: '$authorizationGeneration',
+            },
             retryClass: method == 'PROPFIND' || method == 'REPORT'
                 ? DavRetryClass.safeRead
                 : DavRetryClass.never,

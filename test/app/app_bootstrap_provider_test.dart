@@ -492,7 +492,7 @@ void main() {
           databaseProvider.overrideWithValue(database),
           secretStoreProvider.overrideWithValue(secrets),
           baseHttpClientProvider.overrideWithValue(client),
-          nextcloudAccountHttpClientProvider('nextcloud-account')
+          davAccountHttpClientProvider('nextcloud-account')
               .overrideWithValue(client),
           notificationSchedulerProvider.overrideWithValue(scheduler),
         ],

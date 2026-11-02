@@ -14,7 +14,7 @@ import 'package:busymax/src/dav/dav_provider_profile.dart';
 import 'package:busymax/src/dav/discovery/dav_discovery_service.dart';
 import 'package:busymax/src/dav/discovery/dav_discovery_repository.dart';
 import 'package:busymax/src/dav/http/dav_http_transport.dart';
-import 'package:busymax/src/dav/trust/nextcloud_account_http_client.dart';
+import 'package:busymax/src/dav/http/dav_account_http_client.dart';
 import 'package:busymax/src/dav/trust/nextcloud_certificate.dart';
 import 'package:busymax/src/dav/trust/nextcloud_http_client_factory.dart';
 import 'package:busymax/src/dav/trust/nextcloud_trust_policy.dart';
@@ -38,7 +38,7 @@ final class NextcloudExtendedFixture {
   final factory = NextcloudHttpClientFactory(requireNetwork: () async {});
   final standard = http.Client();
   late final AuthorizationPersistence persistence;
-  late final NextcloudAccountHttpClient client;
+  late final DavAccountHttpClient client;
   late final Uri authority;
   late final NextcloudSecretRecord secret;
   late final String id, uid, title;
@@ -176,11 +176,17 @@ final class NextcloudExtendedFixture {
       },
     );
     raw.close();
-    client = NextcloudAccountHttpClient(
+    client = DavAccountHttpClient(
       accountId: id,
       persistence: persistence,
-      factory: factory,
-      standardClient: standard,
+      createClient: (record) {
+        final secret = record as NextcloudSecretRecord;
+        return factory.create(
+          owner: id,
+          authority: secret.canonicalServer,
+          policy: secret.trustPolicy,
+        );
+      },
     );
     transport = DavHttpTransport(
       client: client,

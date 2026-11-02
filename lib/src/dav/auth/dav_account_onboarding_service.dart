@@ -1,4 +1,4 @@
-import '../trust/nextcloud_leased_http_client.dart';
+import '../../core/http/authorization_leased_http_client.dart';
 
 import 'package:http/http.dart' as http;
 
@@ -189,9 +189,9 @@ final class DavAccountOnboardingService {
       );
       if (accountId != null) {
         final id = accountId;
-        client = NextcloudLeasedHttpClient(
+        client = AuthorizationLeasedHttpClient(
           delegate: client,
-          runLease: (work) => _persistence.run(id, work),
+          runLease: (work) => _persistence.runShared(id, work),
           validate: () async {
             if (await _persistence.generation(id) != expectedGeneration ||
                 await _accountsRepository.accountById(id) == null) {
