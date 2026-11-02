@@ -175,13 +175,18 @@ package and explicit test signer described below, with
 its unique fixture job; the normal application and its work are untouched.
 The retained-startup host tool also supports
 `--package io.busystack.busymax.nextcloudqa`, verifies the APK and launcher, and
-refuses to replace an existing target installation.
+refuses to replace an existing target installation. Build
+`integration_test/android_retained_startup_test.dart` with both
+`--dart-define=BUSYMAX_RETAINED_STARTUP_QA=true` and
+`--dart-define=BUSYMAX_SQLITE_TRACE=true`; the host requires the trace to prove
+real database overlap. Traces record operation timing, never SQL text, parameters
+or credentials. The same APK and original periodic jobs must survive restart.
 
 ### DAV transport regression comparison
 
 Run `BUSYMAX_DAV_BENCHMARK=1 flutter test test/dav/trust/dav_transport_benchmark_test.dart`
 for the maintained real-loopback TLS comparison. A reference run with four
-concurrent operations, 5,000-event payloads, six task-list paths, 40 ms server
+concurrent operations, 5,000-event payloads, eight task-list paths, 40 ms server
 delay and simultaneous mutations measured: direct pre-lease transport **511 ms**,
 exclusive leases **930 ms**, shared leases **561 ms** for 16 requests. Peak server
 concurrency was respectively **4 / 1 / 4**. This isolates transport overhead;

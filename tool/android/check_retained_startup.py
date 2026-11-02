@@ -2,7 +2,8 @@
 """Exercise an isolated APK across a retained-WorkManager process restart.
 
 Build integration_test/android_retained_startup_test.dart with
-BUSYMAX_RETAINED_STARTUP_QA=true. Run the same APK in both phases. Requires an
+BUSYMAX_RETAINED_STARTUP_QA=true and BUSYMAX_SQLITE_TRACE=true. Run the
+same APK in both phases. Requires an
 unlocked designated Android device with NO installed BusyMax package. Only this
 new test installation is removed after evidence capture, including on failure.
 No scheduled jobs are cancelled or replaced to obtain a passing restart.

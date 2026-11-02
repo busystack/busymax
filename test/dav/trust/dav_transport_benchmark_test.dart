@@ -77,7 +77,7 @@ void main() {
         for (final mode in ['direct', 'exclusive', 'shared']) {
           peak = 0;
           final timer = Stopwatch()..start();
-          // Two calendar batches, six task lists and simultaneous mutations,
+          // Four calendar batches, eight task-list paths and simultaneous mutations,
           // bounded to the shared DAV per-account concurrency of four.
           for (var batch = 0; batch < 4; batch++) {
             await Future.wait([
