@@ -13,6 +13,8 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:xml/xml.dart';
 
+import '../../support/persistence_test_directory.dart';
+
 const _id = '03dcaedb-314a-46e3-824b-760521fb400b';
 const _home = 'https://example.test/home/';
 const _target = '${_home}busymax-$_id/';
@@ -94,11 +96,52 @@ void main() {
         expect(f.writes, 1);
       });
 
+      test('lost response and unavailable reconciliation retain the operation across restart', () async {
+        f.loseResponse = true;
+        f.reconciliationUnavailable = true;
+        await expectLater(
+          f.admin.create('Work', {component}),
+          throwsA(
+            isA<DavException>().having((e) => e.statusCode, 'status', 503),
+          ),
+        );
+        expect(f.writes, 1);
+        expect(f.unavailableProbes, 3);
+        expect(
+          DavCollectionAdministration.creationIsActive('qa', _id),
+          isFalse,
+        );
+        expect(
+          (await f.database
+                  .select(f.database.davCollectionCreations)
+                  .getSingle())
+              .state,
+          'dispatched',
+        );
+        await f.reopen();
+        expect(
+          await f.admin.resumeCreation(_id),
+          DavCollectionAdministrationOutcome.reconciled,
+        );
+        expect(f.writes, 1);
+      });
+
       test('interrupted dispatched operation survives database reopening and reconciles', () async {
         f.interrupt = true;
         await expectLater(
           f.admin.create('Work', {component}),
-          throwsA(anything),
+          throwsA(
+            isA<DavException>().having(
+              (e) => e.kind,
+              'kind',
+              DavErrorKind.cancelled,
+            ),
+          ),
+        );
+        expect(f.interruptedProbes, 1);
+        expect(
+          DavCollectionAdministration.creationIsActive('qa', _id),
+          isFalse,
         );
         expect(
           (await f.database
@@ -122,7 +165,18 @@ void main() {
           f.commitBeforeInterrupt = false;
           await expectLater(
             f.admin.create('Work', {component}),
-            throwsA(anything),
+            throwsA(
+              isA<DavException>().having(
+                (e) => e.kind,
+                'kind',
+                DavErrorKind.cancelled,
+              ),
+            ),
+          );
+          expect(f.interruptedProbes, 1);
+          expect(
+            DavCollectionAdministration.creationIsActive('qa', _id),
+            isFalse,
           );
           await f.reopen();
           f.interrupt = false;
@@ -141,7 +195,18 @@ void main() {
           f.interrupt = true;
           await expectLater(
             f.admin.create('Work', {component}),
-            throwsA(anything),
+            throwsA(
+              isA<DavException>().having(
+                (e) => e.kind,
+                'kind',
+                DavErrorKind.cancelled,
+              ),
+            ),
+          );
+          expect(f.interruptedProbes, 1);
+          expect(
+            DavCollectionAdministration.creationIsActive('qa', _id),
+            isFalse,
           );
           await f.reopen();
           await expectLater(
@@ -205,7 +270,18 @@ void main() {
         f.interrupt = true;
         await expectLater(
           f.admin.create('Work', {component}),
-          throwsA(anything),
+          throwsA(
+            isA<DavException>().having(
+              (e) => e.kind,
+              'kind',
+              DavErrorKind.cancelled,
+            ),
+          ),
+        );
+        expect(f.interruptedProbes, 1);
+        expect(
+          DavCollectionAdministration.creationIsActive('qa', _id),
+          isFalse,
         );
         await f.reopen();
         f.remote = f.collectionXml.replaceFirst('Work', 'Unrelated');
@@ -247,7 +323,18 @@ void main() {
           f.interrupt = true;
           await expectLater(
             f.admin.create('Work', {component}),
-            throwsA(anything),
+            throwsA(
+              isA<DavException>().having(
+                (e) => e.kind,
+                'kind',
+                DavErrorKind.cancelled,
+              ),
+            ),
+          );
+          expect(f.interruptedProbes, 1);
+          expect(
+            DavCollectionAdministration.creationIsActive('qa', _id),
+            isFalse,
           );
           await f.database.delete(f.database.accounts).go();
           await f.reopen();
@@ -317,11 +404,12 @@ class _Fixture {
   late AppDatabase database;
   final secrets = InMemorySecretStore();
   late final http.Client client = MockClient(handle);
-  int writes = 0;
+  int writes = 0, interruptedProbes = 0, unavailableProbes = 0;
   int? rejectionStatus;
   bool loseResponse = false,
       interrupt = false,
       commitBeforeInterrupt = true,
+      reconciliationUnavailable = false,
       extendedMkcol = false;
   bool preflightBeforeRetry = false;
   String? remote;
@@ -339,7 +427,7 @@ class _Fixture {
 
   static Future<_Fixture> open(String component) async {
     final f = _Fixture(
-      await Directory.systemTemp.createTemp('busymax-creation-'),
+      await createPersistenceTestDirectory('busymax-creation-'),
       component,
     );
     f.database = AppDatabase(
@@ -381,11 +469,26 @@ class _Fixture {
   }
 
   Future<http.Response> handle(http.Request request) async {
+    if (reconciliationUnavailable &&
+        writes > 0 &&
+        request.method == 'PROPFIND' &&
+        request.url.toString() == _target) {
+      unavailableProbes++;
+      return http.Response('', 503, headers: {'retry-after': '0'});
+    }
     if (interrupt &&
         writes > 0 &&
         request.method == 'PROPFIND' &&
         request.url.toString() == _target) {
-      throw http.ClientException('reconciliation interrupted');
+      // This fixture models a stopped process, which cannot keep retrying
+      // network reads until test teardown. Network loss with reconciliation
+      // remains covered separately by loseResponse and the real-server suite.
+      interruptedProbes++;
+      throw const DavException(
+        kind: DavErrorKind.cancelled,
+        code: 'TestProcessStopped',
+        safeMessage: 'The simulated process stopped before reconciliation.',
+      );
     }
     if (request.method == 'OPTIONS') {
       return http.Response(
@@ -440,6 +543,7 @@ class _Fixture {
     await database.close();
     database = AppDatabase(NativeDatabase(File('${directory.path}/qa.sqlite')));
     interrupt = false;
+    reconciliationUnavailable = false;
     preflightBeforeRetry = false;
   }
 

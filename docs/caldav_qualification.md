@@ -196,7 +196,7 @@ metadata remains covered by round-trip tests.
   authorized phone runs Android 10/API 29.
 - Real Google/Microsoft/iCloud authorizations remain separately unverified;
   their deterministic regressions do not require unavailable production secrets.
-- Full final deterministic suite: **4,561 passed, 93 skipped**, no failures.
+- Full final deterministic suite: **4,564 passed, 93 skipped**, no failures.
   The skips require explicitly enabled live fixtures; live acceptance is
   recorded separately above. Existing Google/Microsoft/Nextcloud/iCloud/WebCal,
   authorization, migration, calendar/task, offline and security regressions pass.
@@ -212,8 +212,47 @@ metadata remains covered by round-trip tests.
 
 ### Published branches and required CI
 
+Windows CI exposed a pre-existing first-party TLS-fixture defect, retained in
+[failed run 41508169451](https://github.com/busystack/busymax/actions/runs/41508169451):
+`openssl x509 -req ... -days -1` returned `Error: end date before start date`.
+That caused six Nextcloud/iCloud certificate-fixture creation failures and
+five secondary teardown errors; no DAV request was involved. The same fixture
+command existed in the original implementation baseline. Commit
+`0b0c00812c5beef9cab2e61a1015456c7d332800` uses documented
+[`openssl ca` start/end dates and self-signing](https://docs.openssl.org/3.0/man1/openssl-ca/)
+to issue correctly ordered, wholly expired validity intervals. A regression
+checks both self-signed and CA-issued fixtures. All affected suites pass locally:
+**115 passed, one existing skip**. Production TLS policy, platform trust stores,
+SDKs and upstream tools were not modified. Final-head CI remains authoritative
+for the corrected Windows execution; the earlier failure is not suppressed.
+
+The complete Windows log also records an independent pre-existing diagnostic
+fixture failure: `Expected: ... length of <1>; Actual: []`. Its file selector
+matched the literal Unix suffix `/operations.jsonl`, excluding Windows-native
+paths. The selector is made platform-independent using the file URI's final
+path component; trace flushing, typed errors and all private-payload/SQL
+redaction assertions remain enforced.
+
+Two local full repeats also exposed 30-second SQLite file-fixture timeouts,
+followed by database-closed errors after teardown. The unchanged isolated suite
+passed 26/26. The new creation fixture had bypassed BusyMax's established
+`createPersistenceTestDirectory` helper for shared-host journal latency. It uses
+that helper's private Linux tmpfs files (normal temporary files elsewhere),
+retaining real native SQLite, unchanged durability settings and close/reopen
+checks. The stopped-process model also uses terminal cancellation and asserts
+one reconciliation probe with no active creation future. A separate lost-response
+case verifies three simulated 503 read responses (`Retry-After: 0`), persisted
+intent and successful recovery after database reopening. Production retry/timeout
+policy and the independent live lost-response/actual OS restart tests are
+unchanged. The final focused run passed **147 tests, one existing skip**
+(28 creation-identity, four native database and 115 TLS/authorization cases).
+
 - Original implementation: `3a0e6c368fa14917ff0ef50ecb682331bd200e29`.
 - Source corrections and qualification: `221c757f58473c322f03d25fe4d2f6f1766d1099`.
+- Installed Snap profile qualification: `6b5e89dc993a22d3f6d7d33880d3cf351878130a`.
+- Portable expired-certificate fixtures: `0b0c00812c5beef9cab2e61a1015456c7d332800`.
+- Deterministic stopped-process fixtures and 503 recovery: `f4448520e6922a9e9218d6d4c37b616078c5b675`.
+- Established persistence helper and portable trace paths: `42fc91508e6451636c7f593f21c0dc0830401c52`.
 - Initial follow-up record: `ae6799294e65b0a52681bcdaa74f089cc239130d`.
 - Initial normal release merge: `da859b9b01258bcaeca3399cf4dfd85a4b098c8a`.
 - Feature branch: `feature/caldav-support`; release branch: `release/v0.4.0`.
