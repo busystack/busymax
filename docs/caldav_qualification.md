@@ -198,10 +198,31 @@ metadata remains covered by round-trip tests.
   explicitly test-signed and not for distribution. Official bundletool 1.18.3
   (verified SHA-256 `a099cfa1543f55593bc2ed16a70a7c67fe54b1747bb7301f37fdfd6d91028e29`)
   confirms AAB `PAGE_ALIGNMENT_16K`; APK manifest/signature/alignment inspection
-  also completed. GitHub release-candidate CI remains pending. Read-only official SDK/package integrity passed (1,171 SDK
+  also completed. Required GitHub CI is tracked against the current release PR head below. Read-only official SDK/package integrity passed (1,171 SDK
   files, eight reviewed packages); Python release-tool tests **72 passed**,
   upstream verifier tests **29 passed**; analysis and platform boundaries clean.
   The pinned Git-mode source snapshot secret scan found **zero** leaks.
+
+### Published branches and required CI
+
+- Original implementation: `3a0e6c368fa14917ff0ef50ecb682331bd200e29`.
+- Source corrections and qualification: `221c757f58473c322f03d25fe4d2f6f1766d1099`.
+- Initial follow-up record: `ae6799294e65b0a52681bcdaa74f089cc239130d`.
+- Initial normal release merge: `da859b9b01258bcaeca3399cf4dfd85a4b098c8a`.
+- Feature branch: `feature/caldav-support`; release branch: `release/v0.4.0`.
+  Both are pushed. Subsequent record-only commits preserve normal merge history.
+- [Draft release PR #38](https://github.com/busystack/busymax/pull/38) originates
+  from `release/v0.4.0` and targets `main`, with the required matching title.
+  [Current-head CI checks](https://github.com/busystack/busymax/pull/38/checks)
+  are the authoritative Linux, Android and Windows build/regression results.
+  These checks do not establish the blocked native runtime scenarios above.
+- Local full reachable-history secret scan: **256 commits, zero leaks** at the
+  source-correction commit. Runtime secrets, private keys, SDK/AVD scratch data
+  and QA binaries are excluded from Git. The shared DAV source and pin remain
+  unchanged; its pre-existing IDE cache change is untouched.
+- Version remains **0.4.0**, Android versionCode **8** (current main uses 7).
+  Current main is an ancestor of the release head. No release PR merge, tag,
+  production deployment or release publication has occurred.
 
 Reproduction, credential handling, reset and teardown commands are maintained
 in [test/interop/caldav/README.md](../test/interop/caldav/README.md). The original
