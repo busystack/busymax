@@ -571,7 +571,13 @@ void main() {
       (i) => i.kind == NextcloudTrashKind.task,
     );
     expect(task.href.path, endsWith('/objects/42.ics'));
+    fixture.requests.clear();
     await fixture.trash.restore(task);
+    expect(
+      fixture.requests.where((r) => r.body.contains('calendar-data')),
+      isEmpty,
+      reason: 'Confirmation revalidates identity and ACL without fetching calendar bodies.',
+    );
     final move = fixture.requests.singleWhere((r) => r.method == 'MOVE');
     expect(move.url, task.href);
     expect(

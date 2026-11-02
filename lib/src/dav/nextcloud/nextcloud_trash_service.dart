@@ -59,6 +59,7 @@ final class NextcloudTrashService {
 
   Future<NextcloudTrashListing> list({
     DavCancellationToken? cancellationToken,
+    bool includeContent = true,
   }) async {
     cancellationToken?.throwIfCancelled();
     final context = await collections.openContext();
@@ -247,6 +248,17 @@ final class NextcloudTrashService {
       var batch = <Uri>[];
       var bytes = 0;
       for (final entry in index.entries) {
+        if (!includeContent) {
+          final type = entry.value
+              .successfulProperty(davNamespace, 'getcontenttype')
+              ?.text;
+          if (type == null ||
+              !(type.contains('VEVENT') || type.contains('VTODO'))) {
+            throw nextcloudOperationError(502, 'DavTrashReadIncomplete');
+          }
+          addItem(entry.key, entry.value, null);
+          continue;
+        }
         final size = int.tryParse(
           entry.value
                   .successfulProperty(davNamespace, 'getcontentlength')
@@ -438,7 +450,7 @@ final class NextcloudTrashService {
     }
     // Re-list after confirmation: expired or changed entries cannot be replayed
     // against a guessed href, UID, account or replacement collection.
-    final current = (await list()).items
+    final current = (await list(includeContent: false)).items
         .where(
           (r) =>
               r.href == item.href &&

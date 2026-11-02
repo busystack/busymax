@@ -260,5 +260,6 @@ BusyMax does not rely on it. Nextcloud
 has no pagination API. The 16 MiB transport limit still applies to each response,
 including the lightweight identity inventory; an oversized inventory fails visibly,
 without truncating older entries. Concurrently withdrawn objects disappear; changed
-ETags fail the listing for refresh. Restore and delete revalidate identity,
+ETags fail the listing for refresh. Restore and delete revalidate lightweight metadata rather than downloading
+calendar bodies again. They recheck identity,
 permissions and authorization generation after confirmation.
