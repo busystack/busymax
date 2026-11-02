@@ -462,7 +462,7 @@ void main() {
   });
   test('oversized objects without component metadata stay discoverable and conditional', () async {
     fixture.trashDescriptionBytes = 20 * 1024 * 1024;
-    final listing = await fixture.trash.list();
+    final listing = await fixture.trash.list(includeContent: true);
     expect(listing.items, hasLength(2));
     expect(
       listing.items.map((i) => i.kind),
@@ -492,7 +492,7 @@ void main() {
 
   test('weak ETags cannot authorize metadata-only trash mutations', () async {
     fixture.trashEtag = 'W/"weak-trash-etag"';
-    final item = (await fixture.trash.list()).items.first;
+    final item = (await fixture.trash.list(includeContent: true)).items.first;
     await expectLater(
       fixture.trash.permanentlyDelete(item),
       throwsA(
@@ -546,7 +546,7 @@ void main() {
         }
       };
       await expectLater(
-        fixture.trash.list(),
+        fixture.trash.list(includeContent: true),
         throwsA(
           isA<DavException>().having(
             (e) => e.code,
@@ -570,10 +570,85 @@ void main() {
       expect((await fixture.sharing.load('collection')).publishUrl, isNull);
     },
   );
-  test('large trash returns every identity with size-budgeted detail batches', () async {
+  test('default large trash listing returns all metadata without downloading bodies', () async {
     fixture.trashObjectCount = 300;
     fixture.trashDescriptionBytes = 128 * 1024;
     final listing = await fixture.trash.list();
+    expect(listing.items, hasLength(300));
+    expect(listing.items.map((i) => i.href).toSet(), hasLength(300));
+    expect(listing.items.every((i) => !i.contentLoaded), isTrue);
+    expect(
+      fixture.requests.where(
+        (r) => r.method == 'GET' || r.body.contains('calendar-data'),
+      ),
+      isEmpty,
+    );
+    fixture.requests.clear();
+    final selected = listing.items[1];
+    final detail = await fixture.trash.details(selected);
+    expect(detail.title, 'Deleted task');
+    expect(detail.kind, NextcloudTrashKind.task);
+    expect(detail.uid, 'trash-1');
+    expect(detail.contentLoaded, isTrue);
+    expect(listing.items[1].contentLoaded, isFalse);
+    final get = fixture.requests.where((r) => r.method == 'GET').single;
+    expect(get.url, selected.href);
+    expect(get.headers['if-match'], selected.etag);
+    await fixture.trash.restore(detail);
+    expect(fixture.requests.where((r) => r.method == 'GET'), hasLength(1));
+  });
+
+  test('on-demand details reject changed and withdrawn snapshots', () async {
+    final listing = await fixture.trash.list();
+    final item = listing.items.first;
+    fixture.trashEtag = '"changed"';
+    await expectLater(
+      fixture.trash.details(item),
+      throwsA(isA<DavException>()),
+    );
+    fixture.trashEtag = item.etag!;
+    fixture.restored.add(item.href.path);
+    await expectLater(
+      fixture.trash.details(item),
+      throwsA(isA<DavException>()),
+    );
+    expect(listing.items, hasLength(2));
+    expect(
+      fixture.requests.where((r) => r.method == 'DELETE' || r.method == 'MOVE'),
+      isEmpty,
+    );
+  });
+
+  test(
+    'on-demand details reject stale authorization and support cancellation',
+    () async {
+      final listing = await fixture.trash.list();
+      final token = DavCancellationToken()..cancel();
+      await expectLater(
+        fixture.trash.details(listing.items.first, cancellationToken: token),
+        throwsA(isA<DavException>()),
+      );
+      await fixture.database
+          .into(fixture.database.authorizationGenerations)
+          .insert(
+            AuthorizationGenerationsCompanion.insert(
+              accountId: 'account',
+              generation: 1,
+            ),
+          );
+      fixture.requests.clear();
+      await expectLater(
+        fixture.trash.details(listing.items.first),
+        throwsA(isA<DavException>()),
+      );
+      expect(fixture.requests, isEmpty);
+    },
+  );
+
+  test('large trash returns every identity with size-budgeted detail batches', () async {
+    fixture.trashObjectCount = 300;
+    fixture.trashDescriptionBytes = 128 * 1024;
+    final listing = await fixture.trash.list(includeContent: true);
     expect(listing.items, hasLength(300));
     expect(listing.items.map((i) => i.href).toSet(), hasLength(300));
     expect(
@@ -614,7 +689,7 @@ void main() {
   });
 
   test('trash queries events and tasks and restores the returned VTODO href', () async {
-    final listing = await fixture.trash.list();
+    final listing = await fixture.trash.list(includeContent: true);
     expect(listing.items, hasLength(2));
     final task = listing.items.singleWhere(
       (i) => i.kind == NextcloudTrashKind.task,
@@ -636,7 +711,10 @@ void main() {
     expect(move.headers['if-match'], '"exact-trash-etag"');
     expect(move.headers['overwrite'], 'F');
     expect(move.headers['x-nc-caldav-no-trashbin'], isNull);
-    expect((await fixture.trash.list()).items, hasLength(1));
+    expect(
+      (await fixture.trash.list(includeContent: true)).items,
+      hasLength(1),
+    );
     expect(
       await fixture.database.select(fixture.database.pendingOps).get(),
       isEmpty,
@@ -653,7 +731,7 @@ void main() {
   test(
     'expired trash entries cannot produce a second restore request',
     () async {
-      final task = (await fixture.trash.list()).items.last;
+      final task = (await fixture.trash.list(includeContent: true)).items.last;
       await fixture.trash.restore(task);
       await expectLater(
         fixture.trash.restore(task),
@@ -669,7 +747,7 @@ void main() {
     },
   );
   test('restoration cannot replay an older pending deletion over the restored task', () async {
-    final item = (await fixture.trash.list()).items.last;
+    final item = (await fixture.trash.list(includeContent: true)).items.last;
     await fixture.database
         .into(fixture.database.pendingOps)
         .insert(
@@ -707,9 +785,9 @@ void main() {
   test(
     'trash rechecks object permissions independently from the bin owner',
     () async {
-      final item = (await fixture.trash.list()).items.first;
+      final item = (await fixture.trash.list(includeContent: true)).items.first;
       fixture.denyTrashObject = true;
-      final listing = await fixture.trash.list();
+      final listing = await fixture.trash.list(includeContent: true);
       expect(listing.retentionSeconds, 2592000);
       expect(
         listing.items.every((i) => !i.canRestore && !i.canPermanentlyDelete),
@@ -731,9 +809,8 @@ void main() {
       ]) {
         fixture.deletedCollectionType = component;
         fixture.restored.clear();
-        final item = (await fixture.trash.list()).items.singleWhere(
-          (i) => i.kind == kind,
-        );
+        final item = (await fixture.trash.list(includeContent: true)).items
+            .singleWhere((i) => i.kind == kind);
         await fixture.trash.restore(item);
         expect(
           fixture.requests.lastWhere((r) => r.method == 'MOVE').url,
@@ -752,7 +829,7 @@ void main() {
   test(
     'permanent trash deletion is separately requested and conditional',
     () async {
-      final item = (await fixture.trash.list()).items.first;
+      final item = (await fixture.trash.list(includeContent: true)).items.first;
       await fixture.trash.permanentlyDelete(item);
       final deletion = fixture.requests.singleWhere(
         (r) => r.method == 'DELETE',
@@ -765,7 +842,9 @@ void main() {
     test(
       'authorization replacement during trash refresh invalidates ${permanent ? 'permanent deletion' : 'restore'}',
       () async {
-        final item = (await fixture.trash.list()).items.first;
+        final item = (await fixture.trash.list(includeContent: true))
+            .items
+            .first;
         fixture.beforeResponse = (_) async {
           fixture.beforeResponse = null;
           await fixture.database
@@ -802,7 +881,9 @@ void main() {
     test(
       'interrupted trash ${permanent ? 'deletion' : 'restore'} stays uncertain without repetition',
       () async {
-        final item = (await fixture.trash.list()).items.first;
+        final item = (await fixture.trash.list(includeContent: true))
+            .items
+            .first;
         fixture.loseTrashMutationResponse = true;
         await expectLater(
           permanent
@@ -818,7 +899,8 @@ void main() {
         );
         expect(fixture.refreshes, 1);
         expect(
-          (await fixture.trash.list()).items.where((i) => i.href == item.href),
+          (await fixture.trash.list(includeContent: true)).items
+              .where((i) => i.href == item.href),
           isEmpty,
         );
         await expectLater(
@@ -843,7 +925,7 @@ void main() {
     () async {
       fixture.unexpectedTrashHref = true;
       await expectLater(
-        fixture.trash.list(),
+        fixture.trash.list(includeContent: true),
         throwsA(
           isA<DavException>().having(
             (e) => e.code,

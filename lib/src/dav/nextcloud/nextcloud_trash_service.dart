@@ -36,6 +36,7 @@ final class NextcloudTrashItem {
     this.uid,
     this.calendarUri,
     this.sourceCalendarUri,
+    this.contentLoaded = false,
   });
   final String accountId;
   final Uri href;
@@ -51,6 +52,14 @@ final class NextcloudTrashItem {
   final String? uid;
   final String? calendarUri;
   final String? sourceCalendarUri;
+  final bool contentLoaded;
+
+  bool get isObject => switch (kind) {
+    NextcloudTrashKind.event ||
+    NextcloudTrashKind.task ||
+    NextcloudTrashKind.unknownObject => true,
+    _ => false,
+  };
 }
 
 final class NextcloudTrashListing {
@@ -66,11 +75,72 @@ final class NextcloudTrashService {
 
   Future<NextcloudTrashListing> list({
     DavCancellationToken? cancellationToken,
-    bool includeContent = true,
+    bool includeContent = false,
   }) => _list(
     cancellationToken: cancellationToken,
     includeContent: includeContent,
   );
+
+  /// Enrich only an explicitly selected object. The metadata snapshot remains
+  /// usable if this bounded read fails; mutations still revalidate live ACLs.
+  Future<NextcloudTrashItem> details(
+    NextcloudTrashItem item, {
+    DavCancellationToken? cancellationToken,
+  }) async {
+    if (item.accountId != collections.accountId) {
+      throw nextcloudOperationError(403, 'DavTrashIdentityMismatch');
+    }
+    if (!item.isObject || item.contentLoaded) return item;
+    final context = await collections.openContext();
+    if (item.authorizationGeneration != context.authorizationGeneration) {
+      throw nextcloudOperationError(412, 'DavTrashIdentityChanged');
+    }
+    final etag = item.etag;
+    if (etag == null || etag.startsWith('W/')) {
+      throw nextcloudOperationError(412, 'DavTrashItemChanged');
+    }
+    final response = await context.send(
+      'GET',
+      context.resolve(item.href.toString(), context.authority),
+      headers: {'If-Match': etag},
+      cancellationToken: cancellationToken,
+    );
+    if (response.statusCode != 200) {
+      throw nextcloudOperationError(response.statusCode, 'DavTrashReadFailed');
+    }
+    if (response.etag != etag) {
+      throw nextcloudOperationError(412, 'DavTrashItemChanged');
+    }
+    final content = IcalSemanticDocument.parse(response.bodyText).components
+        .where((c) => c.componentType == 'VEVENT' || c.componentType == 'VTODO')
+        .firstOrNull;
+    if (content == null) {
+      throw nextcloudOperationError(502, 'DavTrashReadIncomplete');
+    }
+    final kind = content.componentType == 'VTODO'
+        ? NextcloudTrashKind.task
+        : NextcloudTrashKind.event;
+    if (item.kind != NextcloudTrashKind.unknownObject && item.kind != kind) {
+      throw nextcloudOperationError(412, 'DavTrashItemChanged');
+    }
+    return NextcloudTrashItem._(
+      accountId: item.accountId,
+      href: item.href,
+      trashBinHref: item.trashBinHref,
+      kind: kind,
+      title: content.summary ?? item.title,
+      deletedAt: item.deletedAt,
+      etag: etag,
+      canRestore: item.canRestore,
+      canPermanentlyDelete: item.canPermanentlyDelete,
+      authorizationGeneration: item.authorizationGeneration,
+      calendarHomeHref: item.calendarHomeHref,
+      uid: content.uid,
+      calendarUri: item.calendarUri,
+      sourceCalendarUri: item.sourceCalendarUri,
+      contentLoaded: true,
+    );
+  }
 
   Future<NextcloudTrashListing> _list({
     DavCancellationToken? cancellationToken,
@@ -228,6 +298,7 @@ final class NextcloudTrashService {
           authorizationGeneration: context.authorizationGeneration,
           calendarHomeHref: home,
           uid: content?.uid,
+          contentLoaded: raw != null,
           href: href,
           trashBinHref: binUri,
           kind:

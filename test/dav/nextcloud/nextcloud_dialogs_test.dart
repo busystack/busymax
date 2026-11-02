@@ -434,6 +434,67 @@ void main() {
     );
   });
 
+  for (final platform in ['Linux', 'Windows', 'Android']) {
+    testWidgets(
+      '$platform shows trash metadata before an on-demand detail read completes',
+      (tester) async {
+        final fixture = NextcloudAdminFixture();
+        await tester.runAsync(fixture.seed);
+        addTearDown(fixture.close);
+        await _pumpTrash(tester, fixture, platform: platform);
+        expect(find.text('41.ics'), findsOneWidget);
+        expect(find.text('42.ics'), findsOneWidget);
+        expect(
+          fixture.requests.where(
+            (r) => r.method == 'GET' || r.body.contains('calendar-data'),
+          ),
+          isEmpty,
+        );
+        final started = Completer<void>();
+        final release = Completer<void>();
+        addTearDown(() {
+          if (!release.isCompleted) release.complete();
+        });
+        fixture.beforeResponse = (request) async {
+          if (request.method == 'GET') {
+            started.complete();
+            await release.future;
+          }
+        };
+        final href =
+            '${NextcloudAdminFixture.origin}${NextcloudAdminFixture.bin}objects/41.ics';
+        if (platform == 'Android') {
+          await tester.tap(
+            find.byKey(ValueKey(('nextcloud-trash-menu', href))),
+          );
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('Show'));
+        } else {
+          await tester.tap(
+            find.byKey(ValueKey(('nextcloud-trash-details', href))),
+          );
+        }
+        for (var i = 0; i < 30 && !started.isCompleted; i++) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 10)),
+          );
+          await tester.pump(const Duration(milliseconds: 20));
+        }
+        expect(started.isCompleted, isTrue);
+        expect(find.text('42.ics'), findsOneWidget);
+        expect(find.text('Deleted event'), findsNothing);
+        release.complete();
+        await _settle(tester);
+        expect(find.text('Deleted event'), findsOneWidget);
+        expect(find.text('42.ics'), findsOneWidget);
+        expect(find.text('Deleted task'), findsNothing);
+        expect(fixture.requests.where((r) => r.method == 'GET'), hasLength(1));
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+  }
+
   testWidgets('trash uses shared rows and confirms permanent deletion', (
     tester,
   ) async {
@@ -443,7 +504,18 @@ void main() {
     await _pumpTrash(tester, fixture);
 
     expect(find.byType(BusyMaxDialogShell), findsOneWidget);
-    expect(find.byType(BusyMaxGroupedList), findsOneWidget);
+    expect(find.byType(BusyMaxGroupedList), findsWidgets);
+    for (final id in [41, 42]) {
+      final action = find.byKey(
+        ValueKey((
+          'nextcloud-trash-details',
+          '${NextcloudAdminFixture.origin}${NextcloudAdminFixture.bin}objects/$id.ics',
+        )),
+      );
+      await tester.ensureVisible(action);
+      await tester.tap(action);
+      await _settle(tester);
+    }
     expect(find.text('Deleted event'), findsOneWidget);
     expect(find.text('Deleted task'), findsOneWidget);
     expect(find.textContaining('30'), findsOneWidget);
@@ -652,10 +724,28 @@ Future<void> _pump(
 
 Future<void> _pumpTrash(
   WidgetTester tester,
-  NextcloudAdminFixture fixture,
-) async {
-  await tester.binding.setSurfaceSize(const Size(760, 700));
+  NextcloudAdminFixture fixture, {
+  String platform = 'Linux',
+}) async {
+  await tester.binding.setSurfaceSize(const Size(760, 850));
   addTearDown(() => tester.binding.setSurfaceSize(null));
+  final home = Builder(
+    builder: (context) => Center(
+      child: platform == 'Windows'
+          ? fluent.Button(
+              onPressed: () => showWindowsNextcloudTrashDialog(
+                context,
+                accountId: 'account',
+              ),
+              child: const Text('Open trash'),
+            )
+          : BusyMaxPushButton.standard(
+              onPressed: () =>
+                  showLinuxNextcloudTrashDialog(context, accountId: 'account'),
+              child: const Text('Open trash'),
+            ),
+    ),
+  );
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -663,37 +753,25 @@ Future<void> _pumpTrash(
         nextcloudTrashServiceProvider('account')
             .overrideWithValue(fixture.trash),
       ],
-      child: localizedTestApp(
-        theme: BusyMaxYaruTheme.build(
-          brightness: Brightness.dark,
-          accentColor: YaruColors.orange,
-        ),
-        child: Scaffold(
-          body: Builder(
-            builder: (context) => Center(
-              child: BusyMaxPushButton.standard(
-                onPressed: () => showLinuxNextcloudTrashDialog(
-                  context,
-                  accountId: 'account',
-                ),
-                child: const Text('Open trash'),
+      child: platform == 'Windows'
+          ? fluent.FluentApp(
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: home,
+            )
+          : localizedTestApp(
+              theme: BusyMaxYaruTheme.build(
+                brightness: Brightness.dark,
+                accentColor: YaruColors.orange,
               ),
+              child: platform == 'Android'
+                  ? const AndroidNextcloudTrashScreen(accountId: 'account')
+                  : Scaffold(body: home),
             ),
-          ),
-        ),
-      ),
     ),
   );
-  await tester.tap(find.text('Open trash'));
-  // Wait for the observable completion of the bounded multi-request listing.
-  for (var attempt = 0; attempt < 100; attempt++) {
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 20)),
-    );
-    await tester.pump(const Duration(milliseconds: 100));
-    if (find.byType(YaruCircularProgressIndicator).evaluate().isEmpty) break;
-  }
-  await tester.pumpAndSettle();
+  if (platform != 'Android') await tester.tap(find.text('Open trash'));
+  await _settle(tester);
 }
 
 Future<void> _pumpFederation(

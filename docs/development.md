@@ -200,10 +200,28 @@ and `BUSYMAX_NEXTCLOUD_TRASH_SCALE_LIVE=1`, and set
 `BUSYMAX_NEXTCLOUD_LIVE_CONTAINER` to the explicitly disposable `busymax-qa-*`
 server. Fixture preparation calls official backend APIs; BusyMax listing,
 restoration and deletion use the configured account's pinned HTTPS transport.
-A Nextcloud 35.0.2/SQLite reference fixture listed all 300 mixed objects (~37 MiB)
-in 161 seconds and passed restore/permanent-delete readback; each detail batch
-stayed within the response budget. This is server-fixture timing, not a claim
-of native Windows or Android trash acceptance.
+A Nextcloud 35.0.2/SQLite fixture returned metadata for all 300 mixed objects
+(~37 MiB of full content) in **1.10 seconds**; two explicitly selected detail
+reads took **1.26 seconds** combined. The previous eager listing took 134 seconds.
+Restore and permanent-delete readback passed. These are server-fixture timings,
+not native Windows or Android acceptance.
+
+Authorization acquisition and active HTTP ownership each have a separate
+two-minute bound; the DAV operation deadline can cancel either sooner.
+`test/core/http/authorization_leased_http_client_test.dart` checks the real
+default durations with a fake clock; the real TLS concurrency regression also
+queues longer than its scaled active budget before completing a slow response.
+Native Linux qualification uses
+`flutter test integration_test/nextcloud_private_tls_linux_test.dart -d linux`.
+On a prepared Windows host with OpenSSL available in PATH:
+
+```powershell
+flutter test integration_test/nextcloud_private_tls_windows_test.dart -d windows
+```
+
+This Windows target exercises real loopback TLS, authorization replacement,
+concurrency, abandonment and ordinary iCloud HTTPS. It does not use a user profile
+or install fixture certificates into a platform trust store.
 
 ### Linux task lifecycle integration
 

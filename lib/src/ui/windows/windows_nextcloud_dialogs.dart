@@ -439,7 +439,44 @@ class _WindowsNextcloudTrashState
     unawaited(_load());
   }
 
+  int _listingEpoch = 0;
+  final _loadingDetails = <Uri>{};
+
+  Future<void> _details(NextcloudTrashItem item) async {
+    if (!_loadingDetails.add(item.href)) return;
+    final epoch = _listingEpoch;
+    setState(() {});
+    try {
+      final detailed = await ref
+          .read(nextcloudTrashServiceProvider(widget.accountId))
+          .details(item, cancellationToken: _loadCancellation);
+      if (mounted && _listingEpoch == epoch) {
+        setState(
+          () => listing = NextcloudTrashListing(
+            List.unmodifiable(
+              listing!.items.map(
+                (row) => row.href == item.href ? detailed : row,
+              ),
+            ),
+            listing!.retentionSeconds,
+          ),
+        );
+      }
+    } on Object catch (caught) {
+      if (mounted && _listingEpoch == epoch) {
+        setState(() {
+          failed = true;
+          error = caught;
+        });
+      }
+    } finally {
+      _loadingDetails.remove(item.href);
+      if (mounted) setState(() {});
+    }
+  }
+
   Future<void> _load() async {
+    _listingEpoch++;
     setState(() {
       busy = true;
       failed = false;
@@ -529,74 +566,94 @@ class _WindowsNextcloudTrashState
       content: SizedBox(
         width: 620,
         height: math.min(460.0, MediaQuery.sizeOf(context).height * .6),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (busy) Center(child: const ProgressRing()),
-              if (failed) Text(localizedNextcloudCollectionError(l10n, error)),
-              if (refreshPending) Text(l10n.nextcloudRefreshPending),
-              if (listing?.retentionSeconds != null)
-                Text(
-                  listing!.retentionSeconds == 0
-                      ? l10n.nextcloudTrashDisabled
-                      : l10n.nextcloudTrashRetention(
-                          (listing!.retentionSeconds! / 86400).ceil(),
-                        ),
-                ),
-              if (listing?.items.isEmpty == true)
-                Text(l10n.nextcloudTrashEmpty),
-              for (final item in listing?.items ?? const <NextcloudTrashItem>[])
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+        child: ListView.builder(
+          itemCount: (listing?.items.length ?? 0) + 1,
+          itemBuilder: (context, index) {
+            if (index == 0) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (busy) Center(child: const ProgressRing()),
+                  if (failed)
+                    Text(localizedNextcloudCollectionError(l10n, error)),
+                  if (refreshPending) Text(l10n.nextcloudRefreshPending),
+                  if (listing?.retentionSeconds != null)
+                    Text(
+                      listing!.retentionSeconds == 0
+                          ? l10n.nextcloudTrashDisabled
+                          : l10n.nextcloudTrashRetention(
+                              (listing!.retentionSeconds! / 86400).ceil(),
+                            ),
+                    ),
+                  if (listing?.items.isEmpty == true)
+                    Text(l10n.nextcloudTrashEmpty),
+                ],
+              );
+            }
+            final item = listing!.items[index - 1];
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(item.title),
+                  if (item.deletedAt != null) Text(item.deletedAt!),
+                  Text(switch (item.kind) {
+                    NextcloudTrashKind.unknownObject => 'iCalendar',
+                    NextcloudTrashKind.event => l10n.calendarEvents,
+                    NextcloudTrashKind.task => l10n.calendarTasks,
+                    NextcloudTrashKind.calendar => l10n.calendar,
+                    NextcloudTrashKind.taskList => l10n.taskLists,
+                    NextcloudTrashKind.mixedCollection =>
+                      l10n.collectionSupportsEventsAndTasks,
+                  }),
+                  Wrap(
+                    spacing: 8,
                     children: [
-                      Text(item.title),
-                      if (item.deletedAt != null) Text(item.deletedAt!),
-                      Text(switch (item.kind) {
-                        NextcloudTrashKind.unknownObject => 'iCalendar',
-                        NextcloudTrashKind.event => l10n.calendarEvents,
-                        NextcloudTrashKind.task => l10n.calendarTasks,
-                        NextcloudTrashKind.calendar => l10n.calendar,
-                        NextcloudTrashKind.taskList => l10n.taskLists,
-                        NextcloudTrashKind.mixedCollection =>
-                          l10n.collectionSupportsEventsAndTasks,
-                      }),
-                      Wrap(
-                        spacing: 8,
-                        children: [
-                          Button(
-                            key: ValueKey((
-                              'nextcloud-trash-restore',
-                              item.href.toString(),
-                            )),
-                            onPressed:
-                                busy || refreshPending || !item.canRestore
-                                ? null
-                                : () => _mutate(item, false),
-                            child: Text(l10n.nextcloudRestore),
-                          ),
-                          Button(
-                            key: ValueKey((
-                              'nextcloud-trash-delete',
-                              item.href.toString(),
-                            )),
-                            onPressed:
-                                busy ||
-                                    refreshPending ||
-                                    !item.canPermanentlyDelete
-                                ? null
-                                : () => _mutate(item, true),
-                            child: Text(l10n.nextcloudPermanentDelete),
-                          ),
-                        ],
+                      if (item.isObject && !item.contentLoaded)
+                        Button(
+                          key: ValueKey((
+                            'nextcloud-trash-details',
+                            item.href.toString(),
+                          )),
+                          onPressed: busy || _loadingDetails.contains(item.href)
+                              ? null
+                              : () => _details(item),
+                          child: _loadingDetails.contains(item.href)
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: ProgressRing(),
+                                )
+                              : Text(l10n.show),
+                        ),
+                      Button(
+                        key: ValueKey((
+                          'nextcloud-trash-restore',
+                          item.href.toString(),
+                        )),
+                        onPressed: busy || refreshPending || !item.canRestore
+                            ? null
+                            : () => _mutate(item, false),
+                        child: Text(l10n.nextcloudRestore),
+                      ),
+                      Button(
+                        key: ValueKey((
+                          'nextcloud-trash-delete',
+                          item.href.toString(),
+                        )),
+                        onPressed:
+                            busy || refreshPending || !item.canPermanentlyDelete
+                            ? null
+                            : () => _mutate(item, true),
+                        child: Text(l10n.nextcloudPermanentDelete),
                       ),
                     ],
                   ),
-                ),
-            ],
-          ),
+                ],
+              ),
+            );
+          },
         ),
       ),
       actions: [

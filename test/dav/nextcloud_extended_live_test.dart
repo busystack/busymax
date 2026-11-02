@@ -32,7 +32,7 @@ void main() {
   driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
   final enabled = Platform.environment[_enabledVariable] == '1';
   test(
-    'large mixed trash remains complete across bounded retrieval and conditional mutations',
+    'large mixed trash returns metadata before on-demand details and conditional mutations',
     () async {
       final container =
           Platform.environment['BUSYMAX_NEXTCLOUD_LIVE_CONTAINER'];
@@ -101,16 +101,27 @@ echo "Prepared 300 official-backend objects\n";
           .toList();
       expect(ours.length, 300);
       expect(ours.map((i) => i.href).toSet().length, 300);
-      expect(ours.where((i) => i.kind == NextcloudTrashKind.task).length, 150);
+      expect(ours.every((i) => !i.contentLoaded), isTrue);
+      final listingMilliseconds = watch.elapsedMilliseconds;
+      watch.reset();
+      final samples = [
+        await trash.details(ours.first),
+        await trash.details(ours.last),
+      ];
+      expect(samples.map((i) => i.kind).toSet(), {
+        NextcloudTrashKind.event,
+        NextcloudTrashKind.task,
+      });
       stdout.writeln(
-        'LIVE Nextcloud $serverVersion: 300 mixed trash objects, ~37 MiB, list ${watch.elapsedMilliseconds} ms',
+        'LIVE Nextcloud $serverVersion: 300 mixed trash objects, ~37 MiB, '
+        'metadata $listingMilliseconds ms, two selected details ${watch.elapsedMilliseconds} ms',
       );
-      final item = ours.singleWhere((i) => i.uid == 'scale-0@example.invalid');
+      final item = samples.first;
       await trash.restore(item);
       expect(
         (await context.send(
           'GET',
-          f.created.resolve('scale-0.ics'),
+          f.created.resolve('${item.uid!.split('@').first}.ics'),
         )).statusCode,
         200,
       );
@@ -325,9 +336,8 @@ echo "Prepared 300 official-backend objects\n";
         204,
       );
       final trash = NextcloudTrashService(f.collections);
-      final removed = (await trash.list()).items.singleWhere(
-        (i) => i.title == f.title,
-      );
+      final removed = (await trash.list(includeContent: true)).items
+          .singleWhere((i) => i.title == f.title);
       expect(await trash.restore(removed), isNotNull);
       expect(
         (await context.send('GET', Uri.parse(object.requestUri))).statusCode,
@@ -337,12 +347,12 @@ echo "Prepared 300 official-backend objects\n";
         (await context.send('DELETE', Uri.parse(object.requestUri))).statusCode,
         204,
       );
-      final deleted = (await trash.list()).items.singleWhere(
-        (i) => i.title == f.title,
-      );
+      final deleted = (await trash.list(includeContent: true)).items
+          .singleWhere((i) => i.title == f.title);
       await trash.permanentlyDelete(deleted);
       expect(
-        (await trash.list()).items.where((i) => i.title == f.title),
+        (await trash.list(includeContent: true)).items
+            .where((i) => i.title == f.title),
         isEmpty,
       );
     },
@@ -411,9 +421,8 @@ echo "Prepared 300 official-backend objects\n";
         );
         await f.synchronize();
         final trash = NextcloudTrashService(f.collections);
-        final item = (await trash.list()).items.singleWhere(
-          (i) => i.title == f.title,
-        );
+        final item = (await trash.list(includeContent: true)).items
+            .singleWhere((i) => i.title == f.title);
         expect(
           item.kind,
           todo ? NextcloudTrashKind.task : NextcloudTrashKind.event,
@@ -431,9 +440,8 @@ echo "Prepared 300 official-backend objects\n";
           originalWire,
         );
         await f.collections.remove(f.collection.id);
-        final removedCollection = (await trash.list()).items.singleWhere(
-          (i) => i.title == f.title,
-        );
+        final removedCollection = (await trash.list(includeContent: true)).items
+            .singleWhere((i) => i.title == f.title);
         expect(
           removedCollection.kind,
           components.length == 2
@@ -465,15 +473,16 @@ echo "Prepared 300 official-backend objects\n";
           );
         }
         await f.collections.remove(f.collection.id);
-        final permanentlyRemoved = (await trash.list()).items.singleWhere(
-          (i) => i.title == f.title,
-        );
+        final permanentlyRemoved = (await trash.list(includeContent: true))
+            .items
+            .singleWhere((i) => i.title == f.title);
         expect(
           await trash.permanentlyDelete(permanentlyRemoved),
           NextcloudMutationOutcome.committed,
         );
         expect(
-          (await trash.list()).items.where((i) => i.title == f.title),
+          (await trash.list(includeContent: true)).items
+              .where((i) => i.title == f.title),
           isEmpty,
         );
       },
@@ -545,9 +554,8 @@ echo "Prepared 300 official-backend objects\n";
         204,
       );
       final trash = NextcloudTrashService(guest.collections);
-      var item = (await trash.list()).items.singleWhere(
-        (i) => i.uid == owner.uid,
-      );
+      var item = (await trash.list(includeContent: true)).items
+          .singleWhere((i) => i.uid == owner.uid);
       expect(item.canRestore, isTrue);
       await sharing.changeShare(
         owner.collection.id,
@@ -565,7 +573,8 @@ echo "Prepared 300 official-backend objects\n";
         ),
       );
       await sharing.changeShare(owner.collection.id, recipient, writable: true);
-      item = (await trash.list()).items.singleWhere((i) => i.uid == owner.uid);
+      item = (await trash.list(includeContent: true)).items
+          .singleWhere((i) => i.uid == owner.uid);
       await trash.restore(item);
       await owner.synchronize();
       expect(
@@ -585,12 +594,12 @@ echo "Prepared 300 official-backend objects\n";
         )).statusCode,
         204,
       );
-      final stale = (await trash.list()).items.singleWhere(
-        (i) => i.uid == owner.uid,
-      );
+      final stale = (await trash.list(includeContent: true)).items
+          .singleWhere((i) => i.uid == owner.uid);
       final ownerTrash = NextcloudTrashService(owner.collections);
       await ownerTrash.restore(
-        (await ownerTrash.list()).items.singleWhere((i) => i.uid == owner.uid),
+        (await ownerTrash.list(includeContent: true)).items
+            .singleWhere((i) => i.uid == owner.uid),
       );
       await expectLater(
         trash.permanentlyDelete(stale),
@@ -1070,7 +1079,8 @@ echo "Prepared 300 official-backend objects\n";
         (await context.send('DELETE', Uri.parse(object.requestUri))).statusCode,
         204,
       );
-      final listing = await NextcloudTrashService(f.collections).list();
+      final listing = await NextcloudTrashService(f.collections)
+          .list(includeContent: true);
       expect(listing.retentionSeconds, 0);
       expect(listing.items.where((i) => i.uid == f.uid), isEmpty);
       expect(

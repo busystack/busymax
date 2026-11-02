@@ -140,8 +140,9 @@ void main() {
       }
 
       await tester.runAsync(remove);
-      var item = (await tester.runAsync(trash.list))!.items
-          .singleWhere((i) => i.title == fixture.title);
+      var item = (await tester.runAsync(
+        () => trash.list(includeContent: true),
+      ))!.items.singleWhere((i) => i.title == fixture.title);
       await _open(tester, fixture, 'trash');
       await _trashAction(tester, item, permanent: false);
       await _until(tester, () => _trashAbsent(trash, item.href));
@@ -157,13 +158,14 @@ void main() {
       });
       await tester.pumpWidget(const SizedBox());
       await tester.runAsync(remove);
-      item = (await tester.runAsync(trash.list))!.items
+      item = (await tester.runAsync(() => trash.list(includeContent: true)))!
+          .items
           .singleWhere((i) => i.title == fixture.title);
       await _open(tester, fixture, 'trash');
       await _trashAction(tester, item, permanent: true);
       // Opening the destructive confirmation must not delete anything.
       expect(
-        (await tester.runAsync(trash.list))!.items
+        (await tester.runAsync(() => trash.list(includeContent: true)))!.items
             .any((i) => i.href == item.href),
         isTrue,
       );

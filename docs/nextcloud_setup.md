@@ -248,18 +248,21 @@ Maintainers should use [live-provider tests](development.md#live-provider-tests)
 making release-specific interoperability claims.
 
 Trash listing discovers identity, size and permissions in one lightweight
-VCALENDAR query without calendar bodies. Detail requests do not repeat the
-expensive per-object privilege inventory.
-Detail multigets contain at most 32 objects and 1 MiB of advertised raw content,
-leaving headroom for XML escaping. Larger or unknown-size objects use individual
-conditional GETs. Objects advertised above the 16 MiB limit remain discoverable
-by filename and metadata, without downloading their bodies just to show a title.
+VCALENDAR query without calendar bodies. The interfaces immediately show this
+metadata in scrolling lists. Choose **Show** on an object to load its title and
+type through a conditional GET; other rows remain available during that read.
+Closing the view cancels its reads. No full bodies are fetched automatically.
+The opt-in service batch-enrichment path retains its 32-object/1 MiB raw budget;
+interactive listing does not wait for those batches. Objects above the 16 MiB
+response limit remain discoverable by filename and metadata, and can still be
+restored or deleted without downloading their bodies.
 The server's bundled SabreDAV does not implement component/property projection;
 BusyMax does not rely on it. Nextcloud
 35.0.2's [deleted-object container](https://github.com/nextcloud/server/blob/v35.0.2/apps/dav/lib/CalDAV/Trashbin/DeletedCalendarObjectsCollection.php)
 has no pagination API. The 16 MiB transport limit still applies to each response,
 including the lightweight identity inventory; an oversized inventory fails visibly,
-without truncating older entries. Concurrently withdrawn objects disappear; changed
-ETags fail the listing for refresh. Restore and delete revalidate lightweight metadata rather than downloading
+without truncating older entries. Refresh removes withdrawn objects; on-demand
+details reject changed ETags and leave the metadata listing intact for refresh.
+Restore and delete revalidate lightweight metadata rather than downloading
 calendar bodies again. They recheck identity,
 permissions and authorization generation after confirmation.

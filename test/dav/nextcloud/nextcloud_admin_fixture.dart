@@ -223,6 +223,29 @@ class NextcloudAdminFixture {
         '<d:resourcetype><d:collection/><c:calendar/></d:resourcetype><d:displayname>$displayName</d:displayname><d:owner><d:href>/remote.php/dav/principals/users/alex/</d:href></d:owner><d:current-user-privilege-set><d:privilege><d:read/></d:privilege>${denyMetadata ? '' : '<d:privilege><d:write-properties/></d:privilege>'}</d:current-user-privilege-set><a:calendar-color>#3584e4</a:calendar-color><a:calendar-order>2</a:calendar-order><oc:calendar-enabled>1</oc:calendar-enabled><c:schedule-calendar-transp><c:opaque/></c:schedule-calendar-transp><cs:allowed-sharing-modes><cs:can-be-shared/><cs:can-be-published/></cs:allowed-sharing-modes><oc:invite>${shares.entries.map((s) => '<oc:user><d:href>${s.key}</d:href><oc:common-name>Bob</oc:common-name><oc:access><oc:${s.value ? 'read-write' : 'read'}/></oc:access><oc:invite-accepted/></oc:user>').join()}</oc:invite>${published ? '<cs:publish-url><d:href>https://cloud.example.test/published/server-selected</d:href></cs:publish-url>' : ''}',
       );
     }
+    if (request.method == 'GET' &&
+        request.url.path.startsWith('${bin}objects/')) {
+      final id = int.tryParse(
+        request.url.pathSegments.last.replaceAll('.ics', ''),
+      );
+      if (id == null ||
+          id < 41 ||
+          id >= 41 + trashObjectCount ||
+          restored.contains(request.url.path)) {
+        return http.Response('', 404);
+      }
+      if (request.headers['if-match'] != trashEtag) {
+        return http.Response('', 412);
+      }
+      final i = id - 41;
+      final task = i.isOdd;
+      final component = task ? 'VTODO' : 'VEVENT';
+      return http.Response(
+        'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:$component\r\nUID:trash-$i\r\nDTSTAMP:20260905T120000Z\r\nDTSTART:20260905T120000Z\r\n${task ? 'DUE' : 'DTEND'}:20260905T130000Z\r\nSUMMARY:Deleted ${task ? 'task' : 'event'}\r\n${trashDescriptionBytes > 0 ? 'DESCRIPTION:${'x' * trashDescriptionBytes}\r\n' : ''}END:$component\r\nEND:VCALENDAR\r\n',
+        200,
+        headers: {'etag': trashEtag},
+      );
+    }
     if (request.method == 'PROPPATCH') {
       final document = XmlDocument.parse(request.body);
       final properties = document.descendantElements

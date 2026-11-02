@@ -466,7 +466,44 @@ class _LinuxNextcloudTrashState
     unawaited(_load());
   }
 
+  int _listingEpoch = 0;
+  final _loadingDetails = <Uri>{};
+
+  Future<void> _details(NextcloudTrashItem item) async {
+    if (!_loadingDetails.add(item.href)) return;
+    final epoch = _listingEpoch;
+    setState(() {});
+    try {
+      final detailed = await ref
+          .read(nextcloudTrashServiceProvider(widget.accountId))
+          .details(item, cancellationToken: _loadCancellation);
+      if (mounted && _listingEpoch == epoch) {
+        setState(
+          () => listing = NextcloudTrashListing(
+            List.unmodifiable(
+              listing!.items.map(
+                (row) => row.href == item.href ? detailed : row,
+              ),
+            ),
+            listing!.retentionSeconds,
+          ),
+        );
+      }
+    } on Object catch (caught) {
+      if (mounted && _listingEpoch == epoch) {
+        setState(() {
+          failed = true;
+          error = caught;
+        });
+      }
+    } finally {
+      _loadingDetails.remove(item.href);
+      if (mounted) setState(() {});
+    }
+  }
+
   Future<void> _load() async {
+    _listingEpoch++;
     setState(() {
       busy = true;
       failed = false;
@@ -563,61 +600,88 @@ class _LinuxNextcloudTrashState
             ),
           if (listing?.items.isEmpty == true) Text(l10n.nextcloudTrashEmpty),
           if (listing?.items.isNotEmpty == true)
-            BusyMaxGroupedList(
-              filled: true,
-              children: [
-                for (final item in listing!.items) ...[
-                  YaruListTile.square(
-                    leading: Icon(switch (item.kind) {
-                      NextcloudTrashKind.unknownObject =>
-                        Icons.description_outlined,
-                      NextcloudTrashKind.event => YaruIcons.calendar,
-                      NextcloudTrashKind.task => Icons.task_alt,
-                      NextcloudTrashKind.calendar => YaruIcons.calendar,
-                      NextcloudTrashKind.taskList => Icons.checklist,
-                      NextcloudTrashKind.mixedCollection =>
-                        Icons.view_agenda_outlined,
-                    }),
-                    title: Text(item.title),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (item.deletedAt != null) Text(item.deletedAt!),
-                        Text(switch (item.kind) {
-                          NextcloudTrashKind.unknownObject => 'iCalendar',
-                          NextcloudTrashKind.event => l10n.calendarEvents,
-                          NextcloudTrashKind.task => l10n.calendarTasks,
-                          NextcloudTrashKind.calendar => l10n.calendar,
-                          NextcloudTrashKind.taskList => l10n.taskLists,
+            SizedBox(
+              height: MediaQuery.sizeOf(context).height * .5,
+              child: ListView.builder(
+                itemCount: listing!.items.length,
+                itemBuilder: (context, index) {
+                  final item = listing!.items[index];
+                  return BusyMaxGroupedList(
+                    filled: true,
+                    children: [
+                      YaruListTile.square(
+                        leading: Icon(switch (item.kind) {
+                          NextcloudTrashKind.unknownObject =>
+                            Icons.description_outlined,
+                          NextcloudTrashKind.event => YaruIcons.calendar,
+                          NextcloudTrashKind.task => Icons.task_alt,
+                          NextcloudTrashKind.calendar => YaruIcons.calendar,
+                          NextcloudTrashKind.taskList => Icons.checklist,
                           NextcloudTrashKind.mixedCollection =>
-                            l10n.collectionSupportsEventsAndTasks,
+                            Icons.view_agenda_outlined,
                         }),
-                      ],
-                    ),
-                  ),
-                  BusyMaxActionRow(
-                    key: ValueKey((
-                      'nextcloud-trash-restore',
-                      item.href.toString(),
-                    )),
-                    title: l10n.nextcloudRestore,
-                    leading: const Icon(Icons.restore),
-                    enabled: !busy && !refreshPending && item.canRestore,
-                    onTap: () => _mutate(item, false),
-                  ),
-                  BusyMaxActionRow(
-                    key: ValueKey((
-                      'nextcloud-trash-delete',
-                      item.href.toString(),
-                    )),
-                    title: l10n.nextcloudPermanentDelete,
-                    leading: const Icon(YaruIcons.trash),
-                    enabled:
-                        !busy && !refreshPending && item.canPermanentlyDelete,
-                    onTap: () => _mutate(item, true),
-                  ),
-                ],
-              ],
+                        title: Text(item.title),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (item.deletedAt != null) Text(item.deletedAt!),
+                            Text(switch (item.kind) {
+                              NextcloudTrashKind.unknownObject => 'iCalendar',
+                              NextcloudTrashKind.event => l10n.calendarEvents,
+                              NextcloudTrashKind.task => l10n.calendarTasks,
+                              NextcloudTrashKind.calendar => l10n.calendar,
+                              NextcloudTrashKind.taskList => l10n.taskLists,
+                              NextcloudTrashKind.mixedCollection =>
+                                l10n.collectionSupportsEventsAndTasks,
+                            }),
+                          ],
+                        ),
+                      ),
+                      if (item.isObject && !item.contentLoaded)
+                        BusyMaxActionRow(
+                          key: ValueKey((
+                            'nextcloud-trash-details',
+                            item.href.toString(),
+                          )),
+                          title: l10n.show,
+                          leading: _loadingDetails.contains(item.href)
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: YaruCircularProgressIndicator(),
+                                )
+                              : const Icon(Icons.description_outlined),
+                          enabled:
+                              !busy && !_loadingDetails.contains(item.href),
+                          onTap: () => _details(item),
+                        ),
+                      BusyMaxActionRow(
+                        key: ValueKey((
+                          'nextcloud-trash-restore',
+                          item.href.toString(),
+                        )),
+                        title: l10n.nextcloudRestore,
+                        leading: const Icon(Icons.restore),
+                        enabled: !busy && !refreshPending && item.canRestore,
+                        onTap: () => _mutate(item, false),
+                      ),
+                      BusyMaxActionRow(
+                        key: ValueKey((
+                          'nextcloud-trash-delete',
+                          item.href.toString(),
+                        )),
+                        title: l10n.nextcloudPermanentDelete,
+                        leading: const Icon(YaruIcons.trash),
+                        enabled:
+                            !busy &&
+                            !refreshPending &&
+                            item.canPermanentlyDelete,
+                        onTap: () => _mutate(item, true),
+                      ),
+                    ],
+                  );
+                },
+              ),
             ),
         ],
       ),

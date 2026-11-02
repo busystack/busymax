@@ -2432,7 +2432,39 @@ class _AndroidNextcloudTrashScreenState
     unawaited(_load());
   }
 
+  int _listingEpoch = 0;
+  final _loadingDetails = <Uri>{};
+
+  Future<void> _details(NextcloudTrashItem item) async {
+    if (!_loadingDetails.add(item.href)) return;
+    final epoch = _listingEpoch;
+    setState(() {});
+    try {
+      final detailed = await ref
+          .read(nextcloudTrashServiceProvider(widget.accountId))
+          .details(item, cancellationToken: _loadCancellation);
+      if (mounted && _listingEpoch == epoch) {
+        setState(
+          () => _listing = NextcloudTrashListing(
+            List.unmodifiable(
+              _listing!.items.map(
+                (row) => row.href == item.href ? detailed : row,
+              ),
+            ),
+            _listing!.retentionSeconds,
+          ),
+        );
+      }
+    } on Object catch (caught) {
+      if (mounted && _listingEpoch == epoch) setState(() => _error = caught);
+    } finally {
+      _loadingDetails.remove(item.href);
+      if (mounted) setState(() {});
+    }
+  }
+
   Future<void> _load() async {
+    _listingEpoch++;
     setState(() {
       _busy = true;
       _error = null;
@@ -2490,63 +2522,83 @@ class _AndroidNextcloudTrashScreenState
       appBar: AppBar(title: Text(context.l10n.nextcloudTrash)),
       body: RefreshIndicator(
         onRefresh: _load,
-        child: ListView(
+        child: ListView.builder(
           padding: const EdgeInsets.all(16),
-          children: [
-            if (_error != null)
-              ListTile(
-                leading: const Icon(Icons.error_outline),
-                title: Text(context.l10n.operationFailed),
-                subtitle: Text(
-                  localizedNextcloudCollectionError(context.l10n, _error),
-                ),
-              ),
-            if (_listing?.retentionSeconds case final seconds?)
-              ListTile(
-                title: Text(
-                  seconds == 0
-                      ? context.l10n.nextcloudTrashDisabled
-                      : context.l10n.nextcloudTrashRetention(
-                          (seconds / 86400).ceil(),
-                        ),
-                ),
-              ),
-            if (!_busy && items.isEmpty && _error == null)
-              ListTile(title: Text(context.l10n.nextcloudTrashEmpty)),
-            for (final item in items)
-              ListTile(
-                leading: Icon(switch (item.kind) {
-                  NextcloudTrashKind.unknownObject =>
-                    Icons.description_outlined,
-                  NextcloudTrashKind.event => Icons.event_outlined,
-                  NextcloudTrashKind.task => Icons.task_alt_outlined,
-                  NextcloudTrashKind.calendar => Icons.calendar_month_outlined,
-                  NextcloudTrashKind.taskList => Icons.checklist_outlined,
-                  NextcloudTrashKind.mixedCollection =>
-                    Icons.folder_copy_outlined,
-                }),
-                title: Text(item.title),
-                subtitle: item.deletedAt == null ? null : Text(item.deletedAt!),
-                trailing: PopupMenuButton<String>(
-                  key: ValueKey(('nextcloud-trash-menu', item.href.toString())),
-                  onSelected: (value) =>
-                      unawaited(_act(item, permanent: value == 'delete')),
-                  itemBuilder: (context) => [
-                    if (item.canRestore)
-                      PopupMenuItem(
-                        value: 'restore',
-                        child: Text(context.l10n.nextcloudRestore),
+          itemCount: items.length + 1,
+          itemBuilder: (context, index) {
+            if (index == 0) {
+              return Column(
+                children: [
+                  if (_error != null)
+                    ListTile(
+                      leading: const Icon(Icons.error_outline),
+                      title: Text(context.l10n.operationFailed),
+                      subtitle: Text(
+                        localizedNextcloudCollectionError(context.l10n, _error),
                       ),
-                    if (item.canPermanentlyDelete)
-                      PopupMenuItem(
-                        value: 'delete',
-                        child: Text(context.l10n.nextcloudPermanentDelete),
+                    ),
+                  if (_listing?.retentionSeconds case final seconds?)
+                    ListTile(
+                      title: Text(
+                        seconds == 0
+                            ? context.l10n.nextcloudTrashDisabled
+                            : context.l10n.nextcloudTrashRetention(
+                                (seconds / 86400).ceil(),
+                              ),
                       ),
-                  ],
+                    ),
+                  if (!_busy && items.isEmpty && _error == null)
+                    ListTile(title: Text(context.l10n.nextcloudTrashEmpty)),
+                  if (_busy) const LinearProgressIndicator(),
+                ],
+              );
+            }
+            final item = items[index - 1];
+            return ListTile(
+              leading: Icon(switch (item.kind) {
+                NextcloudTrashKind.unknownObject => Icons.description_outlined,
+                NextcloudTrashKind.event => Icons.event_outlined,
+                NextcloudTrashKind.task => Icons.task_alt_outlined,
+                NextcloudTrashKind.calendar => Icons.calendar_month_outlined,
+                NextcloudTrashKind.taskList => Icons.checklist_outlined,
+                NextcloudTrashKind.mixedCollection =>
+                  Icons.folder_copy_outlined,
+              }),
+              title: Text(item.title),
+              subtitle: _loadingDetails.contains(item.href)
+                  ? const LinearProgressIndicator()
+                  : item.deletedAt == null
+                  ? null
+                  : Text(item.deletedAt!),
+              trailing: PopupMenuButton<String>(
+                key: ValueKey(('nextcloud-trash-menu', item.href.toString())),
+                onSelected: (value) => unawaited(
+                  value == 'details'
+                      ? _details(item)
+                      : _act(item, permanent: value == 'delete'),
                 ),
+                enabled: !_busy,
+                itemBuilder: (context) => [
+                  if (item.isObject && !item.contentLoaded)
+                    PopupMenuItem(
+                      value: 'details',
+                      enabled: !_loadingDetails.contains(item.href),
+                      child: Text(context.l10n.show),
+                    ),
+                  if (item.canRestore)
+                    PopupMenuItem(
+                      value: 'restore',
+                      child: Text(context.l10n.nextcloudRestore),
+                    ),
+                  if (item.canPermanentlyDelete)
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: Text(context.l10n.nextcloudPermanentDelete),
+                    ),
+                ],
               ),
-            if (_busy) const LinearProgressIndicator(),
-          ],
+            );
+          },
         ),
       ),
     );
