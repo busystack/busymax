@@ -3907,4 +3907,28 @@ class AppLocalizationsEt extends AppLocalizations {
     });
     return '$_temp0';
   }
+
+  @override
+  String get addCalDavAccount => 'Lisa CalDAV-konto';
+
+  @override
+  String get caldavServerUrl => 'Serveri URL';
+
+  @override
+  String get caldavUsername => 'Kasutajanimi';
+
+  @override
+  String get caldavPassword => 'Parool või rakenduse parool';
+
+  @override
+  String get caldavInvalidServerUrl =>
+      'Sisesta HTTPS-aadress ilma kasutajaandmete, päringu või fragmendita.';
+
+  @override
+  String get caldavHttpsHelp =>
+      'Sisesta serveri HTTPS-aadress või otsene CalDAV-aadress. Parool salvestatakse turvaliselt.';
+
+  @override
+  String get davPermissionsUnknown =>
+      'Server pole õigusi teatanud. Server kontrollib taotletud muudatusi.';
 }

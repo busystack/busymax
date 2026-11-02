@@ -103,7 +103,7 @@ const microsoftCalendarProviderCapabilities = CalendarProviderCapabilities(
 CalendarManagementCapabilities calendarManagementCapabilities(
   BusyProvider provider,
 ) {
-  if (provider == BusyProvider.nextcloud) {
+  if (provider == BusyProvider.nextcloud || provider == BusyProvider.caldav) {
     return const CalendarManagementCapabilities(
       supportsCreate: true,
       supportsRename: true,
@@ -116,6 +116,7 @@ CalendarManagementCapabilities calendarManagementCapabilities(
     BusyProvider.microsoft => microsoftCalendarProviderCapabilities,
     BusyProvider.appleICloud ||
     BusyProvider.nextcloud ||
+    BusyProvider.caldav ||
     BusyProvider.webCal => null,
   };
   return CalendarManagementCapabilities(

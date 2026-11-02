@@ -1444,5 +1444,12 @@
   "certificateRenewalHelp": "Préférez une AC privée : les certificats du serveur peuvent être renouvelés sous cette autorité. Chaque changement de certificat épinglé exige une vérification, même avec la même clé. Les certificats publics se renouvellent normalement.",
   "certificateBrowserBoundary": "L’autorisation utilise le navigateur externe. L’approbation dans BusyMax ne configure pas sa confiance ; le navigateur doit faire confiance au serveur séparément.",
   "certificateDetails": "Sujet: {subject}\nÉmetteur: {issuer}\nValide à partir du: {notBefore}\nValide jusqu’au: {notAfter}\nEmpreinte SHA-256: {fingerprint}",
-  "certificateFailure": "{reason, select, approvalRequired{Approbation requise} pinMismatch{Le certificat épinglé a changé} expired{Certificat expiré} notYetValid{Certificat pas encore valide} hostnameMismatch{Le nom du serveur ne correspond pas} invalidPolicy{Configuration de l’AC privée invalide} ineligible{Certificat non admissible} verificationFailed{Échec de la vérification TLS} other{Échec de la vérification TLS}}"
+  "certificateFailure": "{reason, select, approvalRequired{Approbation requise} pinMismatch{Le certificat épinglé a changé} expired{Certificat expiré} notYetValid{Certificat pas encore valide} hostnameMismatch{Le nom du serveur ne correspond pas} invalidPolicy{Configuration de l’AC privée invalide} ineligible{Certificat non admissible} verificationFailed{Échec de la vérification TLS} other{Échec de la vérification TLS}}",
+  "addCalDavAccount": "Ajouter un compte CalDAV",
+  "caldavServerUrl": "URL du serveur",
+  "caldavUsername": "Nom d’utilisateur",
+  "caldavPassword": "Mot de passe ou mot de passe d’application",
+  "caldavInvalidServerUrl": "Saisissez une URL HTTPS sans identifiants, requête ni fragment.",
+  "caldavHttpsHelp": "Saisissez l’URL HTTPS du serveur ou un point d’accès CalDAV direct. Votre mot de passe est stocké de manière sécurisée.",
+  "davPermissionsUnknown": "Le serveur n’a pas indiqué les autorisations. Il vérifiera les modifications demandées."
 }

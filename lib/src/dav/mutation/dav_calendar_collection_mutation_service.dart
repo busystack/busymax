@@ -12,6 +12,7 @@ import '../dav_provider_profile.dart';
 import '../http/dav_http_transport.dart';
 import '../xml/dav_xml.dart';
 import 'dav_collection_mutation_helpers.dart';
+import 'dav_collection_administration.dart';
 
 enum DavCalendarCollectionCreationStatus { created, createdRefreshPending }
 
@@ -71,6 +72,24 @@ final class DavCalendarCollectionMutationService
     DavCancellationToken? cancellationToken,
   }) async {
     final displayName = _requiredCalendarTitle(title);
+    final account = await (_database.select(
+      _database.accounts,
+    )..where((r) => r.id.equals(_accountId))).getSingleOrNull();
+    if (account?.provider == 'caldav') {
+      final result = await DavCollectionAdministration(
+        database: _database,
+        secrets: _secretStore,
+        client: _httpClient,
+        accountId: _accountId,
+        refresh: _refreshAfterMutation,
+        requireNetwork: _requireNetwork,
+      ).create(displayName, const {'VEVENT'}, cancellation: cancellationToken);
+      return DavCalendarCollectionCreationResult(
+        result == DavCollectionAdministrationOutcome.refreshPending
+            ? DavCalendarCollectionCreationStatus.createdRefreshPending
+            : DavCalendarCollectionCreationStatus.created,
+      );
+    }
     cancellationToken?.throwIfCancelled();
     await _requireNetwork();
     final context = await _loadContext();

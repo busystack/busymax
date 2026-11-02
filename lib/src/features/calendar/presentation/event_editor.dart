@@ -468,6 +468,7 @@ class _EventEditorState extends ConsumerState<EventEditor> {
     final provider = currentSource.provider;
     final schedulingReadOnly =
         provider == BusyProvider.appleICloud ||
+        provider == BusyProvider.caldav ||
         (provider == BusyProvider.nextcloud &&
             currentSource.davEffectivePermissions['canInvite'] != true);
     final recurringOccurrence = _draft.providerRecurringEventId != null;
@@ -507,6 +508,7 @@ class _EventEditorState extends ConsumerState<EventEditor> {
               children: [
                 YaruListTile.square(
                   title: TextFormField(
+                    key: const Key('event-title-field'),
                     initialValue: _draft.title,
                     autofocus: true,
                     decoration: busyMaxGroupedTextFieldDecoration(
@@ -1433,6 +1435,7 @@ class _EventEditorState extends ConsumerState<EventEditor> {
       ),
       BusyProvider.appleICloud ||
       BusyProvider.nextcloud ||
+      BusyProvider.caldav ||
       BusyProvider.webCal => false,
     };
     if (hasConference || canCreateConference) {
@@ -2395,10 +2398,7 @@ bool _isFloatingDavTime(
   required bool allDay,
   required String? timeZone,
 }) {
-  return !allDay &&
-      (timeZone?.trim().isEmpty ?? true) &&
-      (provider == BusyProvider.appleICloud ||
-          provider == BusyProvider.nextcloud);
+  return !allDay && (timeZone?.trim().isEmpty ?? true) && (provider.isDav);
 }
 
 class _CalendarSourceDot extends StatelessWidget {

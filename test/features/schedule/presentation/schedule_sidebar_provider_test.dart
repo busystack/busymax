@@ -173,6 +173,7 @@ AccountEntity _account(
       BusyProvider.appleICloud => 'https://caldav.icloud.com',
       BusyProvider.nextcloud => 'https://cloud.example.test/nextcloud',
       BusyProvider.webCal => 'https://calendar.example.test',
+      BusyProvider.caldav => 'https://dav.example.test/',
     },
     providerAccountId: 'account',
     authState: authState,

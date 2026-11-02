@@ -116,8 +116,8 @@ final class NextcloudNativeImportPreview {
   }
 }
 
-final class NextcloudNativeImportService {
-  NextcloudNativeImportService(
+final class DavNativeImportService {
+  DavNativeImportService(
     this.database, {
     String Function()? idFactory,
     DateTime Function()? nowUtc,
@@ -236,10 +236,10 @@ final class NextcloudNativeImportService {
             database.accounts,
           )..where((r) => r.id.equals(accountId))).getSingle();
           final caps = collectionCapabilitiesFromStored(collection);
-          if (account.provider != 'nextcloud' ||
+          if (!const {'nextcloud', 'caldav'}.contains(account.provider) ||
               !(resource.componentType == 'VEVENT'
-                  ? caps.canCreateEvent
-                  : caps.canCreateTask)) {
+                  ? caps.canAttemptCreateEvent
+                  : caps.canAttemptCreateTask)) {
             return NativeImportItemResult(
               resource.uid,
               resource.componentType,
@@ -304,7 +304,7 @@ final class NextcloudNativeImportService {
             initialMemberName: '${_idFactory()}.ics',
             rawIcs: document.serialize(),
             componentType: resource.componentType,
-            suppressScheduling: true,
+            suppressScheduling: account.provider == 'nextcloud',
           );
           final target = Uri.parse(
             collection.requestUri.endsWith('/')

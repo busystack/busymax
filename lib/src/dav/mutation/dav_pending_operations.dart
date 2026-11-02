@@ -101,8 +101,8 @@ final class DavPendingOperationQueue {
     final capabilities = collectionCapabilitiesFromStored(context.collection);
     final isEvent = _componentIsEvent(object.componentType);
     final canCreate = isEvent
-        ? capabilities.canCreateEvent
-        : capabilities.canCreateTask;
+        ? capabilities.canAttemptCreateEvent
+        : capabilities.canAttemptCreateTask;
     if (!canCreate) throw _permissionError();
     if (localObjectId != null) {
       final local = await _objectContext(
@@ -191,7 +191,9 @@ final class DavPendingOperationQueue {
     final context = await _objectContext(accountId, collectionId, objectId);
     final capabilities = collectionCapabilitiesFromStored(context.collection);
     final event = _componentIsEvent(patch.target.componentType);
-    if (event ? !capabilities.canUpdateEvent : !capabilities.canUpdateTask) {
+    if (event
+        ? !capabilities.canAttemptUpdateEvent
+        : !capabilities.canAttemptUpdateTask) {
       throw _permissionError();
     }
     final etag = context.object.etag;
@@ -746,7 +748,9 @@ final class DavPendingOperationQueue {
     final context = await _objectContext(accountId, collectionId, objectId);
     final capabilities = collectionCapabilitiesFromStored(context.collection);
     final event = _componentIsEvent(target.componentType);
-    if (event ? !capabilities.canDeleteEvent : !capabilities.canDeleteTask) {
+    if (event
+        ? !capabilities.canAttemptDeleteEvent
+        : !capabilities.canAttemptDeleteTask) {
       throw _permissionError();
     }
     final etag = context.object.etag;
@@ -829,9 +833,7 @@ final class DavPendingOperationQueue {
       objectId,
     );
     final destination = await _context(accountId, destinationCollectionId);
-    final providerSupportsMove =
-        source.provider == BusyProvider.nextcloud ||
-        source.provider == BusyProvider.appleICloud;
+    final providerSupportsMove = source.provider.isDav;
     if (!providerSupportsMove ||
         destination.provider != source.provider ||
         source.collection.id == destination.collection.id) {
@@ -843,16 +845,20 @@ final class DavPendingOperationQueue {
     final destinationCapabilities = collectionCapabilitiesFromStored(
       destination.collection,
     );
+    if (source.provider == BusyProvider.caldav &&
+        !sourceCapabilities.supportsMove) {
+      throw _invalidPendingOperation();
+    }
     final event = _componentIsEvent(target.componentType);
     final canDelete = event
-        ? sourceCapabilities.canDeleteEvent
-        : sourceCapabilities.canDeleteTask;
+        ? sourceCapabilities.canAttemptDeleteEvent
+        : sourceCapabilities.canAttemptDeleteTask;
     final canCreate = event
-        ? destinationCapabilities.canCreateEvent
-        : destinationCapabilities.canCreateTask;
+        ? destinationCapabilities.canAttemptCreateEvent
+        : destinationCapabilities.canAttemptCreateTask;
     final canUpdate = event
-        ? destinationCapabilities.canUpdateEvent
-        : destinationCapabilities.canUpdateTask;
+        ? destinationCapabilities.canAttemptUpdateEvent
+        : destinationCapabilities.canAttemptUpdateTask;
     if (!canDelete ||
         !canCreate ||
         (postMovePatch != null && !canUpdate) ||
@@ -980,8 +986,7 @@ final class DavPendingOperationQueue {
       throw _invalidPendingOperation();
     }
     final provider = BusyProviderCodec.requireStorageValue(account.provider);
-    if (provider != BusyProvider.appleICloud &&
-        provider != BusyProvider.nextcloud) {
+    if (!provider.isDav) {
       throw _invalidPendingOperation();
     }
     return _DavContext(

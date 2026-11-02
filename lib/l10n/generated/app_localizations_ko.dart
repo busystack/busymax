@@ -3828,4 +3828,28 @@ class AppLocalizationsKo extends AppLocalizations {
     });
     return '$_temp0';
   }
+
+  @override
+  String get addCalDavAccount => 'CalDAV 계정 추가';
+
+  @override
+  String get caldavServerUrl => '서버 URL';
+
+  @override
+  String get caldavUsername => '사용자 이름';
+
+  @override
+  String get caldavPassword => '비밀번호 또는 앱 비밀번호';
+
+  @override
+  String get caldavInvalidServerUrl =>
+      '인증 정보, 쿼리 또는 프래그먼트가 없는 HTTPS URL을 입력하세요.';
+
+  @override
+  String get caldavHttpsHelp =>
+      'HTTPS 서버 URL 또는 직접 CalDAV 주소를 입력하세요. 비밀번호는 안전하게 저장됩니다.';
+
+  @override
+  String get davPermissionsUnknown =>
+      '서버가 권한을 알리지 않았습니다. 요청한 변경 사항은 서버에서 확인합니다.';
 }

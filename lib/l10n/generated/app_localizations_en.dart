@@ -3948,4 +3948,28 @@ class AppLocalizationsEn extends AppLocalizations {
     });
     return '$_temp0';
   }
+
+  @override
+  String get addCalDavAccount => 'Add CalDAV account';
+
+  @override
+  String get caldavServerUrl => 'Server URL';
+
+  @override
+  String get caldavUsername => 'Username';
+
+  @override
+  String get caldavPassword => 'Password or app password';
+
+  @override
+  String get caldavInvalidServerUrl =>
+      'Enter an HTTPS URL without credentials, query, or fragment.';
+
+  @override
+  String get caldavHttpsHelp =>
+      'Enter the HTTPS server URL or a direct CalDAV endpoint. Your password is stored securely.';
+
+  @override
+  String get davPermissionsUnknown =>
+      'The server has not advertised permissions. Requested changes will be checked by the server.';
 }

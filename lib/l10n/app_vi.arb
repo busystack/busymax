@@ -1381,5 +1381,12 @@
   "certificateRenewalHelp": "Ưu tiên CA riêng: chứng chỉ máy chủ có thể được gia hạn dưới CA đó. Mỗi thay đổi chứng chỉ được ghim đều cần xem xét rõ ràng, kể cả khi dùng cùng khóa. Chứng chỉ công khai được gia hạn bình thường.",
   "certificateBrowserBoundary": "Việc ủy quyền dùng trình duyệt bên ngoài. Phê duyệt trong BusyMax không cấu hình độ tin cậy của trình duyệt; trình duyệt phải tin máy chủ riêng biệt.",
   "certificateDetails": "Chủ thể: {subject}\nNhà phát hành: {issuer}\nCó hiệu lực từ: {notBefore}\nHết hạn: {notAfter}\nDấu vân tay SHA-256: {fingerprint}",
-  "certificateFailure": "{reason, select, approvalRequired{Cần phê duyệt} pinMismatch{Chứng chỉ được ghim đã thay đổi} expired{Chứng chỉ đã hết hạn} notYetValid{Chứng chỉ chưa có hiệu lực} hostnameMismatch{Tên máy chủ không khớp} invalidPolicy{Cấu hình CA riêng không hợp lệ} ineligible{Chứng chỉ không đủ điều kiện} verificationFailed{Xác minh TLS thất bại} other{Xác minh TLS thất bại}}"
+  "certificateFailure": "{reason, select, approvalRequired{Cần phê duyệt} pinMismatch{Chứng chỉ được ghim đã thay đổi} expired{Chứng chỉ đã hết hạn} notYetValid{Chứng chỉ chưa có hiệu lực} hostnameMismatch{Tên máy chủ không khớp} invalidPolicy{Cấu hình CA riêng không hợp lệ} ineligible{Chứng chỉ không đủ điều kiện} verificationFailed{Xác minh TLS thất bại} other{Xác minh TLS thất bại}}",
+  "addCalDavAccount": "Thêm tài khoản CalDAV",
+  "caldavServerUrl": "URL máy chủ",
+  "caldavUsername": "Tên người dùng",
+  "caldavPassword": "Mật khẩu hoặc mật khẩu ứng dụng",
+  "caldavInvalidServerUrl": "Nhập URL HTTPS không chứa thông tin đăng nhập, truy vấn hoặc đoạn định danh.",
+  "caldavHttpsHelp": "Nhập URL HTTPS của máy chủ hoặc địa chỉ CalDAV trực tiếp. Mật khẩu được lưu trữ an toàn.",
+  "davPermissionsUnknown": "Máy chủ chưa thông báo quyền. Máy chủ sẽ kiểm tra các thay đổi được yêu cầu."
 }

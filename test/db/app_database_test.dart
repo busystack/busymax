@@ -345,7 +345,7 @@ void main() {
         .select(database.locationResolutions)
         .getSingle();
 
-    expect(latestSchemaVersion, 21);
+    expect(latestSchemaVersion, 22);
     expect(version.read<int>('user_version'), latestSchemaVersion);
     expect(event.locationLatitude, 49.2827);
     expect(event.locationLongitude, -123.1207);

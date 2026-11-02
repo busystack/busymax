@@ -4,6 +4,66 @@ import 'package:timezone/timezone.dart' as time_zone;
 import '../dav_errors.dart';
 import 'ical_document.dart';
 import 'ical_semantics.dart';
+import '../../core/time/ical_time_zone.dart';
+
+/// RFC 5545 requires a VTIMEZONE for every referenced TZID. Existing embedded
+/// definitions, including server-specific identifiers and unknown content, win.
+String completeIcalTimeZones(String raw) {
+  final document = IcalDocument.parse(raw);
+  final embedded = {
+    for (final zone in document.root.componentsNamed('VTIMEZONE'))
+      zone.firstProperty('TZID')?.decodedTextValue,
+  };
+  final references = <String, int>{};
+  void visit(IcalComponent component) {
+    for (final property in component.properties) {
+      for (final parameter in property.parameters.where(
+        (p) => p.name == 'TZID',
+      )) {
+        for (final zone in parameter.values) {
+          final year = int.tryParse(
+            property.rawValue.substring(
+              0,
+              property.rawValue.length < 4 ? property.rawValue.length : 4,
+            ),
+          );
+          references.update(
+            zone,
+            (current) => year != null && year < current ? year : current,
+            ifAbsent: () => year ?? 1970,
+          );
+        }
+      }
+    }
+    for (final child in component.components) {
+      visit(child);
+    }
+  }
+
+  visit(document.root);
+  var changed = false;
+  for (final reference in references.entries) {
+    if (embedded.contains(reference.key)) continue;
+    final lines = icalTimeZoneLines(
+      reference.key,
+      firstYear: reference.value > 1 ? reference.value - 1 : 1,
+    );
+    final zone = IcalDocument.parse(
+      'BEGIN:VCALENDAR\r\nVERSION:2.0\r\n${lines.join('\r\n')}\r\nEND:VCALENDAR\r\n',
+    ).root.componentsNamed('VTIMEZONE').single;
+    final index = document.root.children.indexWhere(
+      (node) => node is IcalComponent,
+    );
+    document.root.children.insert(
+      index < 0 ? document.root.children.length : index,
+      zone,
+    );
+    changed = true;
+  }
+  if (!changed) return raw;
+  document.root.structurallyDirty = true;
+  return document.serialize();
+}
 
 /// Resolves native iCalendar temporal values without flattening their wire
 /// representation. Embedded VTIMEZONE definitions take precedence over the

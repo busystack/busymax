@@ -2415,6 +2415,7 @@ Future<void> _insertScheduleAccount(
             BusyProvider.appleICloud => 'apple_app_specific_password',
             BusyProvider.nextcloud => 'nextcloud_app_password',
             BusyProvider.webCal => 'webcal_subscription',
+            BusyProvider.caldav => 'caldav_password',
           },
           displayName: const Value('Ada Lovelace'),
           email: const Value('ada@example.com'),

@@ -1,7 +1,7 @@
 import '../../providers/busy_provider.dart';
 import '../../providers/provider_capabilities.dart';
 
-const davCapabilitiesSchemaVersion = 3;
+const davCapabilitiesSchemaVersion = 4;
 const davComponentEvent = 1 << 0;
 const davComponentTodo = 1 << 1;
 const davComponentTimezone = 1 << 2;
@@ -70,6 +70,7 @@ final class DavPrincipalContext {
     this.scheduleOutboxHref,
     this.scheduleDefaultCalendarHref,
     this.homePrivileges = const {},
+    this.homePrivilegesKnown = false,
     this.outboxPrivileges = const {},
     this.inboxPrivileges = const {},
     this.endpointCapabilities = const [],
@@ -82,6 +83,7 @@ final class DavPrincipalContext {
   final Uri? scheduleOutboxHref;
   final Uri? scheduleDefaultCalendarHref;
   final Set<String> homePrivileges;
+  final bool homePrivilegesKnown;
   final Set<String> outboxPrivileges;
   final Set<String> inboxPrivileges;
   final List<DavEndpointCapabilities> endpointCapabilities;
@@ -99,6 +101,7 @@ final class DavPrincipalContext {
     'scheduleOutboxHref': scheduleOutboxHref?.toString(),
     'scheduleDefaultCalendarHref': scheduleDefaultCalendarHref?.toString(),
     'homePrivileges': homePrivileges.toList()..sort(),
+    'homePrivilegesKnown': homePrivilegesKnown,
     'outboxPrivileges': outboxPrivileges.toList()..sort(),
     'inboxPrivileges': inboxPrivileges.toList()..sort(),
     'endpointCapabilities': endpointCapabilities
@@ -127,6 +130,7 @@ final class DavPrincipalContext {
         homePrivileges: (value['homePrivileges'] as List? ?? [])
             .cast<String>()
             .toSet(),
+        homePrivilegesKnown: value['homePrivilegesKnown'] == true,
         outboxPrivileges: (value['outboxPrivileges'] as List? ?? [])
             .cast<String>()
             .toSet(),

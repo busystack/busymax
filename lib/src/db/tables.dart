@@ -32,14 +32,15 @@ class Accounts extends Table {
   @override
   List<String> get customConstraints => const [
     "CHECK (provider IN ('google', 'microsoft', 'apple_icloud', 'nextcloud', "
-        "'webcal'))",
+        "'webcal', 'caldav'))",
     "CHECK (credential_kind IN ('oauth', 'apple_app_specific_password', "
-        "'nextcloud_app_password', 'webcal_subscription'))",
+        "'nextcloud_app_password', 'webcal_subscription', 'caldav_password'))",
     "CHECK ((provider IN ('google', 'microsoft') AND credential_kind = 'oauth') "
         "OR (provider = 'apple_icloud' AND credential_kind = "
         "'apple_app_specific_password') "
         "OR (provider = 'nextcloud' AND credential_kind = "
         "'nextcloud_app_password') "
+        "OR (provider = 'caldav' AND credential_kind = 'caldav_password') "
         "OR (provider = 'webcal' AND credential_kind = "
         "'webcal_subscription'))",
     'CHECK (length(trim(authority)) > 0)',

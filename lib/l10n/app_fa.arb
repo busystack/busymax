@@ -1471,5 +1471,12 @@
   "certificateRenewalHelp": "مرجع خصوصی ترجیح دارد: گواهی سرور می‌تواند زیر نظر آن تمدید شود. هر تغییر گواهی سنجاق‌شده، حتی با همان کلید، نیاز به بررسی صریح دارد. گواهی‌های عمومی به‌طور عادی تمدید می‌شوند.",
   "certificateBrowserBoundary": "مجوز در مرورگر خارجی انجام می‌شود. تأیید BusyMax اعتماد مرورگر را تنظیم نمی‌کند؛ مرورگر باید جداگانه به سرور اعتماد کند.",
   "certificateDetails": "موضوع: ⁨{subject}⁩\nصادرکننده: ⁨{issuer}⁩\nمعتبر از: ⁨{notBefore}⁩\nمعتبر تا: ⁨{notAfter}⁩\nاثر انگشت SHA-256: ⁨{fingerprint}⁩",
-  "certificateFailure": "{reason, select, approvalRequired{تأیید لازم است} pinMismatch{گواهی سنجاق‌شده تغییر کرده است} expired{گواهی منقضی شده است} notYetValid{گواهی هنوز معتبر نیست} hostnameMismatch{نام میزبان با گواهی یکسان نیست} invalidPolicy{پیکربندی مرجع خصوصی نامعتبر است} ineligible{گواهی واجد شرایط نیست} verificationFailed{بررسی TLS ناموفق بود} other{بررسی TLS ناموفق بود}}"
+  "certificateFailure": "{reason, select, approvalRequired{تأیید لازم است} pinMismatch{گواهی سنجاق‌شده تغییر کرده است} expired{گواهی منقضی شده است} notYetValid{گواهی هنوز معتبر نیست} hostnameMismatch{نام میزبان با گواهی یکسان نیست} invalidPolicy{پیکربندی مرجع خصوصی نامعتبر است} ineligible{گواهی واجد شرایط نیست} verificationFailed{بررسی TLS ناموفق بود} other{بررسی TLS ناموفق بود}}",
+  "addCalDavAccount": "افزودن حساب CalDAV",
+  "caldavServerUrl": "نشانی سرور",
+  "caldavUsername": "نام کاربری",
+  "caldavPassword": "گذرواژه یا گذرواژهٔ برنامه",
+  "caldavInvalidServerUrl": "یک نشانی HTTPS بدون اطلاعات ورود، پرس‌وجو یا بخش پایانی وارد کنید.",
+  "caldavHttpsHelp": "نشانی HTTPS سرور یا نشانی مستقیم CalDAV را وارد کنید. گذرواژه به‌صورت امن ذخیره می‌شود.",
+  "davPermissionsUnknown": "سرور مجوزها را اعلام نکرده است. تغییرات درخواستی توسط سرور بررسی می‌شوند."
 }

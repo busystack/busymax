@@ -364,7 +364,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
       if (list.pendingDelete) return false;
       final account = accountsById[list.accountId];
       if (account == null || !account.isTaskCapable) return false;
-      if (account.provider == BusyProvider.nextcloud) {
+      if (account.provider.isDav) {
         return ref
                 .watch(
                   davTaskCollectionCapabilitiesProvider((
@@ -1991,8 +1991,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
         } else if (series || !recurring) {
           rawICalendar = await repository.nativeEventExport(item.id);
         }
-      } else if (item is TaskScheduleItem &&
-          item.provider == BusyProvider.nextcloud) {
+      } else if (item is TaskScheduleItem && item.provider.isDav) {
         rawICalendar = await ref
             .read(tasksRepositoryForAccountProvider(item.accountId))
             .nativeTaskExport(item.sourceId, item.id);

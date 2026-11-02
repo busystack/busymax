@@ -76,7 +76,8 @@ final class CalendarCollectionCreationService
     return switch (mode) {
       CalendarCollectionCreationMode.cloudPendingOperation =>
         _createCloudCalendar(accountId, trimmedTitle),
-      CalendarCollectionCreationMode.nextcloudDav => _createNextcloudCalendar(
+      CalendarCollectionCreationMode.nextcloudDav ||
+      CalendarCollectionCreationMode.genericDav => _createNextcloudCalendar(
         accountId,
         trimmedTitle,
       ),

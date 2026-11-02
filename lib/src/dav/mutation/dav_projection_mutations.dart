@@ -139,6 +139,14 @@ final class DavEventMutationInput {
   final DateTime? mutationAtUtc;
 }
 
+DavNewObject _completeObjectTimeZones(DavNewObject object) => DavNewObject(
+  uid: object.uid,
+  initialMemberName: object.initialMemberName,
+  rawIcs: completeIcalTimeZones(object.rawIcs),
+  componentType: object.componentType,
+  suppressScheduling: object.suppressScheduling,
+);
+
 DavNewObject buildDavEventObject(
   DavEventMutationInput input, {
   String Function()? idFactory,
@@ -184,7 +192,7 @@ DavNewObject buildDavEventObject(
     ..._recurrenceOperations(input.recurrence),
     ..._eventAlarmOperations(input.reminders, startIndex: 0),
   ];
-  if (operations.isEmpty) return initial;
+  if (operations.isEmpty) return _completeObjectTimeZones(initial);
   final patch = DavMutationPatch(
     target: IcalComponentKey(componentType: 'VEVENT', uid: initial.uid),
     scope: DavMutationScope.object,
@@ -948,7 +956,7 @@ DavNewObject buildDavTaskObject(
     else if (_taskReminder(fields) case final alarm?)
       DavPatchOperation.replaceAlarm(alarmIndex: 0, alarm: alarm),
   ];
-  if (operations.isEmpty) return initial;
+  if (operations.isEmpty) return _completeObjectTimeZones(initial);
   final patch = DavMutationPatch(
     target: target,
     scope: DavMutationScope.object,

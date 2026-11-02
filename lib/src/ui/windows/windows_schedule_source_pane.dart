@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'windows_nextcloud_dialogs.dart';
+import 'windows_dav_account_dialogs.dart';
 import '../../dav/nextcloud/nextcloud_dav_context.dart';
 
 import 'package:fluent_ui/fluent_ui.dart';
@@ -361,16 +362,22 @@ class _WindowsScheduleSourcePaneState
   ) {
     final l10n = AppLocalizations.of(context);
     return [
-      if (source.provider == BusyProvider.nextcloud &&
+      if ((source.provider == BusyProvider.nextcloud ||
+              source.provider == BusyProvider.caldav) &&
           source.davCollectionId != null)
         MenuFlyoutItem(
           text: Text(l10n.nextcloudCollectionSettings),
           onPressed: () => unawaited(
-            showWindowsNextcloudCollectionDialog(
-              context,
-              accountId: source.accountId,
-              collectionId: source.davCollectionId!,
-            ),
+            source.provider == BusyProvider.caldav
+                ? showWindowsCalDavCollectionDialog(
+                    context,
+                    source.davCollectionId!,
+                  )
+                : showWindowsNextcloudCollectionDialog(
+                    context,
+                    accountId: source.accountId,
+                    collectionId: source.davCollectionId!,
+                  ),
           ),
         ),
       ..._movementItems(
@@ -445,16 +452,22 @@ class _WindowsScheduleSourcePaneState
         ? davCapabilities?.supportsListDelete ?? false
         : true;
     return [
-      if (account.provider == BusyProvider.nextcloud &&
+      if ((account.provider == BusyProvider.nextcloud ||
+              account.provider == BusyProvider.caldav) &&
           list.davCollectionId != null)
         MenuFlyoutItem(
           text: Text(l10n.nextcloudCollectionSettings),
           onPressed: () => unawaited(
-            showWindowsNextcloudCollectionDialog(
-              context,
-              accountId: list.accountId,
-              collectionId: list.davCollectionId!,
-            ),
+            account.provider == BusyProvider.caldav
+                ? showWindowsCalDavCollectionDialog(
+                    context,
+                    list.davCollectionId!,
+                  )
+                : showWindowsNextcloudCollectionDialog(
+                    context,
+                    accountId: list.accountId,
+                    collectionId: list.davCollectionId!,
+                  ),
           ),
         ),
       ..._movementItems(
@@ -613,8 +626,7 @@ class _WindowsScheduleSourcePaneState
           : l10n.delete,
       message: removeFromList
           ? l10n.removeCalendarConfirmation(source.summary)
-          : source.provider == BusyProvider.nextcloud &&
-                source.davEffectivePermissions['supportedComponentMask'] == 3
+          : source.isMixedDavCollection
           ? l10n.nextcloudRemoveMixed
           : l10n.deleteCalendarConfirmation(source.summary),
       actionLabel: removeFromList ? l10n.removeAction : l10n.delete,

@@ -227,6 +227,38 @@ const nextcloudTaskCollectionCapabilities = TaskCollectionCapabilities(
   supportsTaskReparenting: true,
 );
 
+/// Standard VTODO fields; Nextcloud sorting/pinning extensions stay disabled.
+const caldavTaskCollectionCapabilities = TaskCollectionCapabilities(
+  supportsDueDate: true,
+  supportsDueTime: true,
+  supportsStartDateTime: true,
+  supportsReminderDateTime: true,
+  supportsRecurrence: true,
+  supportsImportance: true,
+  supportsCategories: true,
+  supportsTaskHierarchy: true,
+  supportsCrossListMove: true,
+  supportsClearCompleted: true,
+  supportsHiddenTasks: false,
+  supportsAssignedTasks: false,
+  supportsListRename: true,
+  supportsListDelete: true,
+  supportsIcalPriority: true,
+  supportsPercentComplete: true,
+  supportsTaskStatus: true,
+  supportsCompletedDateTime: true,
+  supportsLocation: true,
+  supportsUrl: true,
+  supportsClassification: true,
+  supportsMultipleReminders: true,
+  supportsAdvancedRecurrence: true,
+  supportsPinning: false,
+  supportsSubtaskVisibility: false,
+  supportsDuplicate: true,
+  supportsNativeExport: true,
+  supportsTaskReparenting: true,
+);
+
 const noTaskCollectionCapabilities = TaskCollectionCapabilities(
   supportsDueDate: false,
   supportsDueTime: false,
@@ -255,5 +287,6 @@ TaskCollectionCapabilities adapterDefaultTaskCapabilities(
   BusyProvider.microsoft => microsoftTaskCollectionCapabilities,
   BusyProvider.appleICloud => noTaskCollectionCapabilities,
   BusyProvider.nextcloud => nextcloudTaskCollectionCapabilities,
+  BusyProvider.caldav => caldavTaskCollectionCapabilities,
   BusyProvider.webCal => noTaskCollectionCapabilities,
 };

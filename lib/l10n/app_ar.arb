@@ -1381,5 +1381,12 @@
   "certificateRenewalHelp": "يُفضّل استخدام جهة إصدار خاصة: يمكن تجديد شهادات الخادم تحتها. كل تغيير في الشهادة المثبّتة يتطلب مراجعة صريحة، حتى بالمفتاح نفسه. تتجدد الشهادات العامة كالمعتاد.",
   "certificateBrowserBoundary": "يتم التفويض في المتصفح الخارجي. موافقة BusyMax لا تضبط ثقة المتصفح؛ يجب أن يثق المتصفح بالخادم بشكل منفصل.",
   "certificateDetails": "صاحب الشهادة: ⁨{subject}⁩\nجهة الإصدار: ⁨{issuer}⁩\nصالح من: ⁨{notBefore}⁩\nصالح حتى: ⁨{notAfter}⁩\nبصمة SHA-256: ⁨{fingerprint}⁩",
-  "certificateFailure": "{reason, select, approvalRequired{الموافقة مطلوبة} pinMismatch{تغيّرت الشهادة المثبّتة} expired{انتهت صلاحية الشهادة} notYetValid{الشهادة غير صالحة بعد} hostnameMismatch{اسم المضيف لا يطابق الشهادة} invalidPolicy{إعداد جهة الإصدار الخاصة غير صالح} ineligible{الشهادة غير مؤهلة} verificationFailed{فشل التحقق من TLS} other{فشل التحقق من TLS}}"
+  "certificateFailure": "{reason, select, approvalRequired{الموافقة مطلوبة} pinMismatch{تغيّرت الشهادة المثبّتة} expired{انتهت صلاحية الشهادة} notYetValid{الشهادة غير صالحة بعد} hostnameMismatch{اسم المضيف لا يطابق الشهادة} invalidPolicy{إعداد جهة الإصدار الخاصة غير صالح} ineligible{الشهادة غير مؤهلة} verificationFailed{فشل التحقق من TLS} other{فشل التحقق من TLS}}",
+  "addCalDavAccount": "إضافة حساب CalDAV",
+  "caldavServerUrl": "عنوان URL للخادم",
+  "caldavUsername": "اسم المستخدم",
+  "caldavPassword": "كلمة المرور أو كلمة مرور التطبيق",
+  "caldavInvalidServerUrl": "أدخل عنوان HTTPS دون بيانات اعتماد أو استعلام أو جزء.",
+  "caldavHttpsHelp": "أدخل عنوان HTTPS للخادم أو عنوان CalDAV المباشر. تُحفظ كلمة المرور بأمان.",
+  "davPermissionsUnknown": "لم يعلن الخادم عن الأذونات. سيتحقق الخادم من التغييرات المطلوبة."
 }

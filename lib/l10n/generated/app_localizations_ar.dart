@@ -3973,4 +3973,28 @@ class AppLocalizationsAr extends AppLocalizations {
     });
     return '$_temp0';
   }
+
+  @override
+  String get addCalDavAccount => 'إضافة حساب CalDAV';
+
+  @override
+  String get caldavServerUrl => 'عنوان URL للخادم';
+
+  @override
+  String get caldavUsername => 'اسم المستخدم';
+
+  @override
+  String get caldavPassword => 'كلمة المرور أو كلمة مرور التطبيق';
+
+  @override
+  String get caldavInvalidServerUrl =>
+      'أدخل عنوان HTTPS دون بيانات اعتماد أو استعلام أو جزء.';
+
+  @override
+  String get caldavHttpsHelp =>
+      'أدخل عنوان HTTPS للخادم أو عنوان CalDAV المباشر. تُحفظ كلمة المرور بأمان.';
+
+  @override
+  String get davPermissionsUnknown =>
+      'لم يعلن الخادم عن الأذونات. سيتحقق الخادم من التغييرات المطلوبة.';
 }

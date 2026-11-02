@@ -7,6 +7,8 @@ import '../../core/auth/authorization_persistence.dart';
 import '../../core/http/authorization_leased_http_client.dart';
 import '../../core/http/terminating_http_client.dart';
 import '../../core/secrets/secret_store.dart';
+import '../dav_provider_profile.dart';
+import '../../providers/busy_provider.dart';
 
 /// Internal dispatch guard consumed by this client, never sent on the wire.
 const davAuthorizationGenerationHeader = 'x-busymax-authorization-generation';
@@ -65,6 +67,7 @@ final class DavAccountHttpClient extends http.BaseClient
         }
         final (String, String) identity = switch (record) {
           NextcloudSecretRecord() => (record.loginName, record.appPassword),
+          CalDavSecretRecord() => (record.username, record.password),
           AppleICloudSecretRecord() => (
             record.username,
             record.appSpecificPassword,
@@ -76,6 +79,26 @@ final class DavAccountHttpClient extends http.BaseClient
         };
         final expected =
             'Basic ${base64Encode(utf8.encode('${identity.$1}:${identity.$2}'))}';
+        if (record is CalDavSecretRecord) {
+          final account = await (persistence.database.select(
+            persistence.database.accounts,
+          )..where((r) => r.id.equals(accountId))).getSingleOrNull();
+          if (account?.provider != 'caldav' ||
+              account?.authority != record.serviceAuthority.toString() ||
+              account?.providerAccountId != record.username ||
+              !davProviderProfile(
+                BusyProvider.caldav,
+                caldavServer: record.serviceAuthority,
+              ).isTrustedCredentialDestination(
+                request.url,
+                accountAuthority: record.serviceAuthority,
+              )) {
+            throw const SecretStoreException(
+              'DavCredentialBindingInvalid',
+              'The DAV credential does not match this account and destination.',
+            );
+          }
+        }
         final expectedGeneration = request.headers.remove(
           davAuthorizationGenerationHeader,
         );

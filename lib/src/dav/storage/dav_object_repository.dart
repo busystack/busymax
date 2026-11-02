@@ -560,14 +560,14 @@ final class DavObjectRepository {
       _database.accounts,
     )..where((r) => r.id.equals(accountId))).getSingle();
     if (collection.accountId != accountId ||
-        account.provider != BusyProvider.nextcloud.storageValue) {
+        !const {'nextcloud', 'caldav'}.contains(account.provider)) {
       throw ArgumentError('Invalid native import destination.');
     }
     final range = _projectionRange(await cursor(collectionId), nowUtc);
     final context = DavCollectionCommit(
       accountId: accountId,
       collectionId: collectionId,
-      provider: BusyProvider.nextcloud,
+      provider: BusyProviderCodec.requireStorageValue(account.provider),
       objects: const [],
       deletedHrefKeys: const {},
       completeMembership: false,

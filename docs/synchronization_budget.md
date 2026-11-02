@@ -23,6 +23,18 @@ Calendar keeps its established incremental cursor/recovery behavior.
 
 ## Request costs
 
+Generic CalDAV uses the existing DAV account gate and engine. Discovery and
+complete collection inventory precede baseline changes. RFC 6578
+sync-collection is used when advertised, with ETag inventory/multiget fallback
+otherwise. Invalid tokens cause a safe rebaseline; interrupted or incomplete
+results retain committed objects and cursors. An unsuccessful inventory never
+establishes remote deletion. Offline mutations keep exact remote resource
+identity and ETags, and uncertain committed writes are read back before replay.
+Permission or authorization failures retain queued work and cached content.
+Account removal and credential replacement share the authorization lease and
+generation checks with active requests. See the [CalDAV qualification record](caldav_qualification.md)
+for measured live recovery scenarios; this policy is not itself runtime evidence.
+
 A quiet Tasks pull costs `collection-list pages + sum(task pages per collection)`.
 `updatedMin` reduces response contents; it does not eliminate requests to each
 collection. The two-minute Tasks checkpoint overlap, pagination, pending-edit

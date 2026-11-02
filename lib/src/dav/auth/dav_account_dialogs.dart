@@ -5,6 +5,36 @@ import '../../app/busymax_design.dart';
 import '../../app/busymax_dialogs.dart';
 import '../../l10n/l10n.dart';
 import '../../providers/busy_provider.dart';
+import 'caldav_credential_input.dart';
+import 'caldav_material_dialog.dart';
+
+Future<CalDavCredentialInput?> showCalDavCredentialDialog(
+  BuildContext context, {
+  String? fixedServer,
+  String? fixedUsername,
+}) => showBusyMaxModalDialog<CalDavCredentialInput>(
+  context,
+  barrierDismissible: false,
+  builder: (_) => CalDavCredentialForm(
+    fixedServer: fixedServer,
+    fixedUsername: fixedUsername,
+    builder: (context, fields, submit) => BusyMaxDialogShell(
+      title: context.l10n.registrationSetupTitle('CalDAV'),
+      maxWidth: 520,
+      actions: [
+        BusyMaxPushButton.standard(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(context.l10n.cancel),
+        ),
+        BusyMaxPushButton.suggested(
+          onPressed: submit,
+          child: Text(context.l10n.connectAccountAction),
+        ),
+      ],
+      children: [fields],
+    ),
+  ),
+);
 
 final class AppleICloudCredentialInput {
   AppleICloudCredentialInput({required this.email, required this.password});

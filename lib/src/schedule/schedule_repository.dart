@@ -655,8 +655,8 @@ class ScheduleRepository {
           capabilities: ScheduleItemCapabilities(
             canEdit:
                 !restrictedPrivate &&
-                (provider == BusyProvider.nextcloud
-                    ? davCapabilities?.canUpdateEvent == true &&
+                (provider.isDav
+                    ? davCapabilities?.canAttemptUpdateEvent == true &&
                           source?.isDeleted == false
                     : sourceWritable) &&
                 _eventAllowsFullEditing(
@@ -667,8 +667,8 @@ class ScheduleRepository {
                 ),
             canDelete:
                 !restrictedPrivate &&
-                (provider == BusyProvider.nextcloud
-                    ? davCapabilities?.canDeleteEvent == true &&
+                (provider.isDav
+                    ? davCapabilities?.canAttemptDeleteEvent == true &&
                           source?.isDeleted == false
                     : sourceWritable),
           ),
@@ -824,9 +824,7 @@ class ScheduleRepository {
 
     final effectiveLimit = limit < 1 ? 1 : limit;
     final includesDav = context.providers.values.any(
-      (provider) =>
-          provider == BusyProvider.appleICloud ||
-          provider == BusyProvider.nextcloud,
+      (provider) => provider.isDav,
     );
     final query =
         _database.select(_database.tasks).join([
@@ -1317,8 +1315,7 @@ bool _taskAllDay(Task task, BusyProvider provider) {
 
 bool _isDateOnly(String value) => !value.contains('T');
 
-bool _isDavProvider(BusyProvider provider) =>
-    provider == BusyProvider.appleICloud || provider == BusyProvider.nextcloud;
+bool _isDavProvider(BusyProvider provider) => provider.isDav;
 
 _DavTaskTemporal? _davTaskScheduleTemporal(Task task, {bool dueOnly = false}) {
   final source = task.providerMetadataJson;
@@ -1485,7 +1482,9 @@ bool? _eventIsOrganizer(
     BusyProvider.google => organizer?['self'] as bool?,
     BusyProvider.microsoft ||
     BusyProvider.nextcloud => raw['isOrganizer'] as bool?,
-    BusyProvider.appleICloud || BusyProvider.webCal => null,
+    BusyProvider.appleICloud ||
+    BusyProvider.caldav ||
+    BusyProvider.webCal => null,
   };
 }
 
@@ -1554,7 +1553,9 @@ String? _eventJoinMeetingUrl(
     BusyProvider.google => raw['hangoutLink']?.toString().trim(),
     BusyProvider.microsoft => raw['onlineMeetingUrl']?.toString().trim(),
     BusyProvider.nextcloud => _nextcloudConferenceUrl(raw),
-    BusyProvider.appleICloud || BusyProvider.webCal => null,
+    BusyProvider.appleICloud ||
+    BusyProvider.caldav ||
+    BusyProvider.webCal => null,
   };
   return _isWebUrl(fallback) ? fallback : null;
 }
@@ -1613,6 +1614,7 @@ List<int> _eventReminderMinutes(
               },
       BusyProvider.appleICloud ||
       BusyProvider.nextcloud ||
+      BusyProvider.caldav ||
       BusyProvider.webCal => switch (map['minutes'] ?? map['overrides']) {
         final List<Object?> values => values,
         final int value => [value],

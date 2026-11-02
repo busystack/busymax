@@ -25,8 +25,8 @@ relying on a particular task field or operation.
 ## Highlights
 
 - Calendar and task planning in day, week, month, year, and agenda views.
-- Direct connections to Google, Microsoft, Apple iCloud Calendar, and
-  Nextcloud, plus read-only WebCal subscriptions.
+- Direct connections to Google, Microsoft, Apple iCloud Calendar, Nextcloud,
+  and generic CalDAV, plus read-only WebCal subscriptions.
 - Event and task editing that follows each provider's supported fields and the
   permissions granted for a collection.
 - Local caching for offline viewing. Supported changes can be queued for some
@@ -75,6 +75,9 @@ build, users can connect without creating their own OAuth registration:
   not supported. See [Connect Apple iCloud Calendar](docs/apple_icloud_setup.md).
 - Nextcloud authorizes BusyMax in the default browser and requires a compatible
   HTTPS server. See [Connect Nextcloud Calendar and Tasks](docs/nextcloud_setup.md).
+- CalDAV connects compatible HTTPS servers with a username and password/app
+  password. See [CalDAV setup](docs/caldav_setup.md) and the exact tested scope
+  in the [Radicale/Baïkal qualification record](docs/caldav_qualification.md).
 - WebCal adds a read-only calendar subscription from a confirmed URL.
 
 Developers who need to configure their own desktop OAuth applications should
@@ -108,6 +111,7 @@ Account, provider, and data information:
 - [Provider support matrix](docs/provider_support_matrix.md)
 - [Apple iCloud Calendar setup](docs/apple_icloud_setup.md)
 - [Nextcloud Calendar and Tasks setup](docs/nextcloud_setup.md)
+- [Generic CalDAV setup](docs/caldav_setup.md)
 - [Privacy and data map](docs/privacy_data_map.md)
 - [Notification delivery and recovery](docs/notifications.md)
 - [Android setup and OAuth registration](docs/android_setup.md)

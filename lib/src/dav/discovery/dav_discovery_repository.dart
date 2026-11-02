@@ -25,6 +25,55 @@ final class DavDiscoveryRepository {
       final notificationProjectionsBefore =
           await _notificationEnabledProjectionKeys(result.accountId);
       final service = result.service;
+      if (result.provider == BusyProvider.caldav) {
+        final account = await (_database.select(
+          _database.accounts,
+        )..where((r) => r.id.equals(result.accountId))).getSingle();
+        final home = service.principalContexts
+            .where(
+              (c) =>
+                  !c.delegated &&
+                  c.calendarHomeHref == service.calendarHomeHref,
+            )
+            .firstOrNull;
+        final existingMetadata = jsonDecode(
+          account.providerMetadataJson ?? '{}',
+        );
+        final permitted =
+            home?.homePrivileges.any(
+              (p) =>
+                  const {'{DAV:}all', '{DAV:}write', '{DAV:}bind'}.contains(p),
+            ) ==
+            true;
+        final supported =
+            home?.endpointCapabilities.any(
+              (e) =>
+                  e.href == service.calendarHomeHref &&
+                  (e.serverFeatures.contains('calendar-access') ||
+                      e.allowedMethods.contains('MKCALENDAR') ||
+                      e.serverFeatures.contains('extended-mkcol') &&
+                          e.allowedMethods.contains('MKCOL')),
+            ) ==
+            true;
+        await (_database.update(
+          _database.accounts,
+        )..where((r) => r.id.equals(result.accountId))).write(
+          AccountsCompanion(
+            providerMetadataJson: Value(
+              jsonEncode({
+                if (existingMetadata is Map)
+                  ...existingMetadata.cast<String, Object?>(),
+                'caldavCollectionCreationSupported': supported,
+                'caldavCollectionCreationPermission': permitted
+                    ? 'allowed'
+                    : home?.homePrivilegesKnown == true
+                    ? 'denied'
+                    : 'unknown',
+              }),
+            ),
+          ),
+        );
+      }
       await _database
           .into(_database.davAccountServices)
           .insertOnConflictUpdate(
@@ -375,6 +424,10 @@ String _projectionMetadata(DavCollectionDiscovery collection) => jsonEncode({
   'supportedComponentMask': collection.supportedComponentMask,
   'readOnly': collection.capabilities.isReadOnly,
   'canRead': collection.capabilities.canRead,
+  'permissionsKnown': collection.capabilities.permissionsKnown,
+  'canAttemptCreateEvents': collection.capabilities.canAttemptCreateEvent,
+  'canAttemptEditEvents': collection.capabilities.canAttemptUpdateEvent,
+  'canAttemptDeleteEvents': collection.capabilities.canAttemptDeleteEvent,
   'canCreateEvents': collection.capabilities.canCreateEvent,
   'canEditEvents': collection.capabilities.canUpdateEvent,
   'canDeleteEvents': collection.capabilities.canDeleteEvent,

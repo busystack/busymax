@@ -995,6 +995,7 @@ String _accountProviderLetter(BusyProvider provider) => switch (provider) {
   BusyProvider.nextcloud => 'N',
   BusyProvider.appleICloud => 'A',
   BusyProvider.webCal => 'W',
+  BusyProvider.caldav => 'C',
 };
 
 String _accountProviderName(BuildContext context, BusyProvider provider) =>
@@ -1004,6 +1005,7 @@ String _accountProviderName(BuildContext context, BusyProvider provider) =>
       BusyProvider.nextcloud => context.l10n.nextcloudProvider,
       BusyProvider.appleICloud => context.l10n.appleICloudProvider,
       BusyProvider.webCal => 'WebCal',
+      BusyProvider.caldav => 'CalDAV',
     };
 
 class _AccountCalendarSources extends ConsumerWidget {
@@ -1265,6 +1267,7 @@ Uri? scheduleCalendarProviderWebUri(
     BusyProvider.appleICloud => null,
     BusyProvider.nextcloud => _safeAccountWebUri(account.authority),
     BusyProvider.webCal => null,
+    BusyProvider.caldav => null,
   };
 }
 
@@ -1276,6 +1279,7 @@ Uri? scheduleTaskProviderWebUri(AccountEntity account) {
     BusyProvider.appleICloud => null,
     BusyProvider.nextcloud => _safeAccountWebUri(account.authority),
     BusyProvider.webCal => null,
+    BusyProvider.caldav => null,
   };
 }
 
@@ -1754,8 +1758,7 @@ Future<void> _deleteCalendar(
         : context.l10n.delete,
     message: removeFromList
         ? context.l10n.removeCalendarConfirmation(source.summary)
-        : source.provider == BusyProvider.nextcloud &&
-              source.davEffectivePermissions['supportedComponentMask'] == 3
+        : source.isMixedDavCollection
         ? context.l10n.nextcloudRemoveMixed
         : context.l10n.deleteCalendarConfirmation(source.summary),
     confirmLabel: removeFromList

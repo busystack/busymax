@@ -326,6 +326,7 @@ final class RoutingAccountSyncOperations implements AccountSyncOperations {
     switch (await _providerForAccount(accountId)) {
       case BusyProvider.appleICloud:
       case BusyProvider.nextcloud:
+      case BusyProvider.caldav:
         await _syncDav(accountId, full: full);
       case BusyProvider.webCal:
         await _syncWebCal(accountId, full: full);
@@ -356,6 +357,7 @@ final class RoutingAccountSyncOperations implements AccountSyncOperations {
     switch (await _providerForAccount(accountId)) {
       case BusyProvider.appleICloud:
       case BusyProvider.nextcloud:
+      case BusyProvider.caldav:
         await _syncDav(accountId, full: full);
       case BusyProvider.webCal:
         await _syncWebCal(accountId, full: full);
@@ -370,6 +372,7 @@ final class RoutingAccountSyncOperations implements AccountSyncOperations {
     switch (await _providerForAccount(accountId)) {
       case BusyProvider.appleICloud:
       case BusyProvider.nextcloud:
+      case BusyProvider.caldav:
         await _syncDav(accountId, full: full);
       case BusyProvider.webCal:
         return;

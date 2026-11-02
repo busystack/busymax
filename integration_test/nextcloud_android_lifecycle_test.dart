@@ -19,7 +19,7 @@ import 'package:busymax/src/dav/discovery/dav_discovery_repository.dart';
 import 'package:busymax/src/dav/discovery/dav_discovery_service.dart';
 import 'package:busymax/src/dav/http/dav_http_transport.dart';
 import 'package:busymax/src/dav/ical/ical_document.dart';
-import 'package:busymax/src/dav/nextcloud/nextcloud_native_import.dart';
+import 'package:busymax/src/dav/ical/dav_native_import.dart';
 import 'package:busymax/src/dav/trust/nextcloud_certificate.dart';
 import 'package:busymax/src/dav/trust/nextcloud_trust_policy.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
@@ -389,7 +389,7 @@ void main() {
                       r.supportedComponentMask & 1 != 0,
                 );
         if (!resumingPaused) {
-          final imported = await NextcloudNativeImportService(database).import(
+          final imported = await DavNativeImportService(database).import(
             accountId: pin['id'] as String,
             collectionId: target.id,
             preview: NextcloudNativeImportPreview.parse(

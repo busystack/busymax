@@ -1,0 +1,24 @@
+[root]
+user = .+
+collection =
+permissions = R
+
+[principal]
+user = .+
+collection = {user}
+permissions = RW
+
+[restricted-fixture-owner]
+user = bob
+collection = alice/restricted
+permissions = rw
+
+[readonly]
+user = .+
+collection = {user}/restricted
+permissions = r
+
+[owner]
+user = .+
+collection = {user}/(?!restricted$)[^/]+
+permissions = rw

@@ -30,7 +30,7 @@ import '../contacts/busymax_contacts_store.dart';
 import '../core/auth/account_token_broker.dart';
 import '../core/http/native_terminating_http_client.dart';
 import '../core/time/stored_temporal_projection.dart';
-import '../dav/nextcloud/nextcloud_native_export.dart';
+import '../dav/ical/dav_native_export.dart';
 import '../config/build_config.dart';
 import '../calendar_providers/cloud_calendar_client.dart';
 import '../db/app_database.dart';
@@ -42,6 +42,7 @@ import '../dav/discovery/dav_discovery_service.dart';
 import '../dav/http/dav_http_transport.dart';
 import '../dav/mutation/dav_conflict_repository.dart';
 import '../dav/mutation/dav_calendar_collection_mutation_service.dart';
+import '../dav/mutation/dav_collection_administration.dart';
 import '../dav/mutation/dav_pending_operations.dart';
 import '../dav/mutation/dav_task_list_mutation_service.dart';
 import '../dav/sync/dav_account_sync_engine.dart';
@@ -192,7 +193,8 @@ final davAccountHttpClientProvider = Provider.family<http.Client, String>((
               authority: credential.canonicalServer,
               policy: credential.trustPolicy,
             ),
-      AppleICloudSecretRecord() => ConnectivityAwareHttpClient(
+      AppleICloudSecretRecord() ||
+      CalDavSecretRecord() => ConnectivityAwareHttpClient(
         inner: NativeTerminatingHttpClient(),
         requireNetwork: ref
             .read(networkConnectivityMonitorProvider)
@@ -313,6 +315,9 @@ davAccountOnboardingServiceProvider = Provider<DavAccountOnboardingService>((
           final profile = davProviderProfile(
             provider,
             nextcloudServer: provider == BusyProvider.nextcloud
+                ? accountAuthority
+                : null,
+            caldavServer: provider == BusyProvider.caldav
                 ? accountAuthority
                 : null,
           );
@@ -1197,6 +1202,7 @@ final taskRemoteApiClientForAccountProvider =
         ),
         BusyProvider.appleICloud ||
         BusyProvider.nextcloud ||
+        BusyProvider.caldav ||
         BusyProvider.webCal => null,
       };
     });
@@ -1221,6 +1227,7 @@ final calendarRemoteApiClientForAccountProvider =
         ),
         BusyProvider.appleICloud ||
         BusyProvider.nextcloud ||
+        BusyProvider.caldav ||
         BusyProvider.webCal => null,
       };
     });
@@ -1241,7 +1248,8 @@ final syncEngineForAccountFactoryProvider =
             googleTasksApiClientForAccountProvider(accountId),
           ),
           BusyProvider.appleICloud ||
-          BusyProvider.nextcloud => throw StateError(
+          BusyProvider.nextcloud ||
+          BusyProvider.caldav => throw StateError(
             'DAV task accounts must use DavSynchronizationEngine.',
           ),
           BusyProvider.webCal => throw StateError(
@@ -1304,7 +1312,8 @@ final calendarSyncEngineForAccountFactoryProvider =
             googleCalendarApiClientForAccountProvider(accountId),
           ),
           BusyProvider.appleICloud ||
-          BusyProvider.nextcloud => throw StateError(
+          BusyProvider.nextcloud ||
+          BusyProvider.caldav => throw StateError(
             'DAV calendar accounts must use DavSynchronizationEngine.',
           ),
           BusyProvider.webCal => throw StateError(
@@ -1616,6 +1625,16 @@ final calendarRepositoryProvider = Provider<CalendarRepository>((ref) {
     localTimeZone: ref.watch(localTimeZoneProvider),
     nextcloudCollections: (accountId) =>
         ref.read(nextcloudCollectionServiceProvider(accountId)),
+    genericCollections: (accountId) => DavCollectionAdministration(
+      database: ref.read(databaseProvider),
+      secrets: ref.read(secretStoreProvider),
+      client: ref.read(davAccountHttpClientProvider(accountId)),
+      accountId: accountId,
+      refresh: () => ref.read(signedInSyncRunnerProvider)(accountId, true),
+      requireNetwork: ref
+          .read(networkConnectivityMonitorProvider)
+          .requireNetwork,
+    ),
     onNotificationScheduleChanged: () =>
         ref.read(notificationReconcilerProvider).reconcile(),
   );
@@ -1814,10 +1833,9 @@ final nextcloudCollectionServiceProvider =
         refresh: () => ref.read(signedInSyncRunnerProvider)(accountId, true),
       ),
     );
-final nextcloudNativeExportServiceProvider =
-    Provider<NextcloudNativeExportService>(
-      (ref) => NextcloudNativeExportService(ref.watch(databaseProvider)),
-    );
+final nextcloudNativeExportServiceProvider = Provider<DavNativeExportService>(
+  (ref) => DavNativeExportService(ref.watch(databaseProvider)),
+);
 final nextcloudSharingServiceProvider =
     Provider.family<NextcloudSharingService, String>(
       (ref, accountId) => NextcloudSharingService(
@@ -2092,7 +2110,7 @@ final trayPresentationServiceProvider =
             return adapterDefaultTaskCapabilities(account.provider)
                 .canCreateTasks;
           }
-          if (account.provider != BusyProvider.nextcloud) return false;
+          if (!account.provider.isDav) return false;
           final capabilities = await ref.read(
             davTaskCollectionCapabilitiesProvider((
               accountId: account.id,

@@ -101,7 +101,9 @@ final class AuthorizationPersistence {
         'Authorization recovery must complete before this account can be used.',
       );
     }
-    if (record is NextcloudSecretRecord || record is AppleICloudSecretRecord) {
+    if (record is NextcloudSecretRecord ||
+        record is AppleICloudSecretRecord ||
+        record is CalDavSecretRecord) {
       final journal = await (database.select(
         database.authorizationCommits,
       )..where((r) => r.accountId.equals(id))).getSingleOrNull();
@@ -275,7 +277,8 @@ final class AuthorizationPersistence {
     var credential = candidate;
     final davCredential =
         candidate is NextcloudSecretRecord ||
-        candidate is AppleICloudSecretRecord;
+        candidate is AppleICloudSecretRecord ||
+        candidate is CalDavSecretRecord;
     final candidateGeneration = davCredential
         ? expectedGeneration + 1
         : _generation(candidate);

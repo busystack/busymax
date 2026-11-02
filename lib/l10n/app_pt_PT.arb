@@ -1381,5 +1381,12 @@
   "nextcloudFederationInvitations": "Convites para calendários partilhados",
   "nextcloudFederationEmpty": "Não há convites pendentes para calendários partilhados.",
   "nextcloudFederationGrant": "Partilha criada neste servidor. A aceitação e a sincronização remotas não estão confirmadas.",
-  "nextcloudTrashDisabled": "A retenção no lixo dos calendários está desativada neste servidor."
+  "nextcloudTrashDisabled": "A retenção no lixo dos calendários está desativada neste servidor.",
+  "addCalDavAccount": "Adicionar conta CalDAV",
+  "caldavServerUrl": "URL do servidor",
+  "caldavUsername": "Nome de utilizador",
+  "caldavPassword": "Palavra-passe ou palavra-passe de aplicação",
+  "caldavInvalidServerUrl": "Introduza um URL HTTPS sem credenciais, consulta ou fragmento.",
+  "caldavHttpsHelp": "Introduza o URL HTTPS do servidor ou um ponto de acesso CalDAV direto. A palavra-passe é guardada em segurança.",
+  "davPermissionsUnknown": "O servidor não indicou as permissões. As alterações solicitadas serão verificadas pelo servidor."
 }

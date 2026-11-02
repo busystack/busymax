@@ -143,8 +143,7 @@ final class DavAccountSyncEngine {
       );
     }
     final provider = BusyProviderCodec.requireStorageValue(account.provider);
-    if (provider != BusyProvider.appleICloud &&
-        provider != BusyProvider.nextcloud) {
+    if (!provider.isDav) {
       throw const DavException(
         kind: DavErrorKind.protocol,
         code: 'DavUnsupportedAccountProvider',
@@ -180,6 +179,7 @@ final class DavAccountSyncEngine {
       nextcloudServer: provider == BusyProvider.nextcloud
           ? loaded.authority
           : null,
+      caldavServer: provider == BusyProvider.caldav ? loaded.authority : null,
     );
     final transport = DavHttpTransport(
       client: _httpClient,
@@ -216,8 +216,9 @@ final class DavAccountSyncEngine {
       // Permissions and delegated scheduling identities can change while
       // edits are offline. Refresh the complete inventory before replay; a
       // failed discovery keeps every queued operation and cached source.
-      final pendingNextcloud =
-          provider == BusyProvider.nextcloud &&
+      final pendingDav =
+          (provider == BusyProvider.nextcloud ||
+              provider == BusyProvider.caldav) &&
           (await (_database.select(_database.pendingOps)
                     ..where(
                       (r) =>
@@ -232,7 +233,7 @@ final class DavAccountSyncEngine {
                     ..limit(1))
                   .get())
               .isNotEmpty;
-      if (full || pendingNextcloud || await _discoveryIsDue()) {
+      if (full || pendingDav || await _discoveryIsDue()) {
         discoveryRefreshed = true;
         final discovery =
             await DavDiscoveryService(
@@ -360,6 +361,28 @@ final class DavAccountSyncEngine {
           );
         }
       }
+      if (replay.paused && provider == BusyProvider.caldav) {
+        final current = await (_database.select(
+          _database.accounts,
+        )..where((r) => r.id.equals(_accountId))).getSingleOrNull();
+        final state = AccountConnectionStateCodec.parse(
+          current?.authState ?? 'signed_out',
+        );
+        if (state == AccountConnectionState.permissionChanged ||
+            state == AccountConnectionState.reauthenticationRequired) {
+          final denied = state == AccountConnectionState.permissionChanged;
+          failures.add(
+            DavException(
+              kind: denied
+                  ? DavErrorKind.authorization
+                  : DavErrorKind.authentication,
+              code: denied ? 'DavPermissionDenied' : 'DavAuthRejected',
+              statusCode: denied ? 403 : 401,
+              safeMessage: 'Queued CalDAV changes require account authorization before they can synchronize.',
+            ),
+          );
+        }
+      }
       if (failures.isNotEmpty) {
         if (affected.isNotEmpty || notificationProjectionsChanged) {
           await _rebuildNotifications?.call(_accountId, affected);
@@ -417,6 +440,25 @@ final class DavAccountSyncEngine {
         basic: DavBasicCredential(
           username: secret.username,
           password: secret.appSpecificPassword,
+        ),
+      );
+    }
+    if (provider == BusyProvider.caldav && secret is CalDavSecretRecord) {
+      final authority = Uri.parse(account.authority);
+      if (secret.serviceAuthority != authority ||
+          secret.username != account.providerAccountId) {
+        throw SecretStoreCredentialMismatchException(
+          accountId: _accountId,
+          expectedProvider: provider,
+          actualProvider: secret.provider,
+          actualKind: secret.kind,
+        );
+      }
+      return _DavCredentialContext(
+        authority: authority,
+        basic: DavBasicCredential(
+          username: secret.username,
+          password: secret.password,
         ),
       );
     }

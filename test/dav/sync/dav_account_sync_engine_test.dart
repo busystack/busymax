@@ -42,6 +42,74 @@ void main() {
 
   tearDown(() => database.close());
 
+  for (final status in [401, 403]) {
+    test(
+      'generic pending work refreshes discovery before replay after HTTP $status',
+      () async {
+        await database
+            .update(database.accounts)
+            .write(
+              const AccountsCompanion(
+                provider: Value('caldav'),
+                credentialKind: Value('caldav_password'),
+              ),
+            );
+        await database
+            .update(database.calendarSources)
+            .write(const CalendarSourcesCompanion(provider: Value('caldav')));
+        await secrets.saveCredential(
+          'account',
+          CalDavSecretRecord(
+            serviceAuthority: Uri.parse('https://cloud.example.test/cloud'),
+            username: 'alex',
+            password: 'password',
+          ),
+        );
+        await TasksRepository(
+          database: database,
+          accountId: 'account',
+        ).createTask(
+          'dav-task-list-collection',
+          const TaskCreateInput(title: 'Must remain queued'),
+        );
+        final pending = await database.select(database.pendingOps).getSingle();
+        final tasks = await database.select(database.tasks).get();
+        final requests = <http.Request>[];
+        final client = MockClient((request) async {
+          requests.add(request);
+          return http.Response('', status);
+        });
+        addTearDown(client.close);
+        await expectLater(
+          DavAccountSyncEngine(
+            database: database,
+            secretStore: secrets,
+            httpClient: client,
+            accountId: 'account',
+            nowUtc: () => _now,
+          ).synchronize(),
+          throwsA(
+            isA<DavException>().having(
+              (e) => e.kind,
+              'kind',
+              status == 401
+                  ? DavErrorKind.authentication
+                  : DavErrorKind.authorization,
+            ),
+          ),
+        );
+        expect(requests, isNotEmpty);
+        expect(requests.every((r) => r.method == 'PROPFIND'), isTrue);
+        expect(await database.select(database.pendingOps).getSingle(), pending);
+        expect(await database.select(database.tasks).get(), tasks);
+        expect(
+          await database.select(database.davCollections).get(),
+          hasLength(1),
+        );
+      },
+    );
+  }
+
   test('account sequence syncs, conditionally replays, follows up, then pauses on 401', () async {
     var syncReports = 0;
     var unauthorized = false;

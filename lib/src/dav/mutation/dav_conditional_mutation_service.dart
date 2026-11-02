@@ -517,9 +517,9 @@ final class DavConditionalMutationService {
     bool reconcileFirst = false,
   }) async {
     final allowed = object.componentType == 'VEVENT'
-        ? capabilities.canCreateEvent
+        ? capabilities.canAttemptCreateEvent
         : object.componentType == 'VTODO'
-        ? capabilities.canCreateTask
+        ? capabilities.canAttemptCreateTask
         : false;
     if (!allowed) throw _readOnlyError(correlationId);
     if (!object.suppressScheduling) {
@@ -632,7 +632,9 @@ final class DavConditionalMutationService {
   }) async {
     final event = patch.target.componentType.toUpperCase() == 'VEVENT';
     if (baselineEtag.isEmpty ||
-        (event ? !capabilities.canUpdateEvent : !capabilities.canUpdateTask)) {
+        (event
+            ? !capabilities.canAttemptUpdateEvent
+            : !capabilities.canAttemptUpdateTask)) {
       throw _readOnlyError(correlationId);
     }
     var expectedEtag = baselineEtag;
@@ -757,14 +759,14 @@ final class DavConditionalMutationService {
     bool reconcileFirst = false,
   }) async {
     final canDelete = isEvent
-        ? sourceCapabilities.canDeleteEvent
-        : sourceCapabilities.canDeleteTask;
+        ? sourceCapabilities.canAttemptDeleteEvent
+        : sourceCapabilities.canAttemptDeleteTask;
     final canCreate = isEvent
-        ? destinationCapabilities.canCreateEvent
-        : destinationCapabilities.canCreateTask;
+        ? destinationCapabilities.canAttemptCreateEvent
+        : destinationCapabilities.canAttemptCreateTask;
     final canUpdate = isEvent
-        ? destinationCapabilities.canUpdateEvent
-        : destinationCapabilities.canUpdateTask;
+        ? destinationCapabilities.canAttemptUpdateEvent
+        : destinationCapabilities.canAttemptUpdateTask;
     if (baselineEtag.isEmpty ||
         !canDelete ||
         !canCreate ||
@@ -979,8 +981,8 @@ final class DavConditionalMutationService {
   }) async {
     if (baselineEtag.isEmpty ||
         (isEvent
-            ? !capabilities.canDeleteEvent
-            : !capabilities.canDeleteTask)) {
+            ? !capabilities.canAttemptDeleteEvent
+            : !capabilities.canAttemptDeleteTask)) {
       throw _readOnlyError(correlationId);
     }
     var expectedEtag = baselineEtag;

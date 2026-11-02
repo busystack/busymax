@@ -1381,5 +1381,12 @@
   "certificateRenewalHelp": "プライベートCAを推奨します。その配下でサーバー証明書を更新できます。固定した証明書は、同じ鍵でも証明書が変わるたびに明示的な確認が必要です。公開証明書は通常どおり更新されます。",
   "certificateBrowserBoundary": "認証には外部ブラウザーを使います。BusyMaxの承認はブラウザーの信頼設定を変更しません。ブラウザーでも別途サーバーを信頼する必要があります。",
   "certificateDetails": "主体: {subject}\n発行者: {issuer}\n有効期間の開始: {notBefore}\n有効期限: {notAfter}\nSHA-256フィンガープリント: {fingerprint}",
-  "certificateFailure": "{reason, select, approvalRequired{承認が必要です} pinMismatch{固定した証明書が変更されました} expired{証明書の期限切れ} notYetValid{証明書はまだ有効ではありません} hostnameMismatch{証明書のホスト名が一致しません} invalidPolicy{プライベートCAの設定が無効です} ineligible{証明書は使用できません} verificationFailed{TLS検証に失敗しました} other{TLS検証に失敗しました}}"
+  "certificateFailure": "{reason, select, approvalRequired{承認が必要です} pinMismatch{固定した証明書が変更されました} expired{証明書の期限切れ} notYetValid{証明書はまだ有効ではありません} hostnameMismatch{証明書のホスト名が一致しません} invalidPolicy{プライベートCAの設定が無効です} ineligible{証明書は使用できません} verificationFailed{TLS検証に失敗しました} other{TLS検証に失敗しました}}",
+  "addCalDavAccount": "CalDAVアカウントを追加",
+  "caldavServerUrl": "サーバーURL",
+  "caldavUsername": "ユーザー名",
+  "caldavPassword": "パスワードまたはアプリ用パスワード",
+  "caldavInvalidServerUrl": "認証情報、クエリ、フラグメントを含まないHTTPS URLを入力してください。",
+  "caldavHttpsHelp": "HTTPSサーバーURLまたはCalDAVの直接URLを入力してください。パスワードは安全に保存されます。",
+  "davPermissionsUnknown": "サーバーは権限を通知していません。要求された変更はサーバーで確認されます。"
 }

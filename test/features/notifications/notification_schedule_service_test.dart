@@ -1015,6 +1015,7 @@ Future<void> _insertAccount(
             BusyProvider.appleICloud => 'https://caldav.icloud.com',
             BusyProvider.nextcloud => 'https://cloud.example.com',
             BusyProvider.webCal => 'https://calendar.example.com',
+            BusyProvider.caldav => 'https://dav.example.com/',
           },
           providerAccountId: id,
           credentialKind: switch (provider) {
@@ -1022,6 +1023,7 @@ Future<void> _insertAccount(
             BusyProvider.appleICloud => 'apple_app_specific_password',
             BusyProvider.nextcloud => 'nextcloud_app_password',
             BusyProvider.webCal => 'webcal_subscription',
+            BusyProvider.caldav => 'caldav_password',
           },
           authState: const Value('signed_in'),
           grantedScopes: const Value(''),

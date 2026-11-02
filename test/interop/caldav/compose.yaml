@@ -1,0 +1,52 @@
+name: busymax-caldav-qa
+services:
+  radicale:
+    image: ghcr.io/kozea/radicale:3.8.1@sha256:54d9406cd30f9e206a9dd6d61dfac48da26b9afc37200e14f23beb8fafa7d11c
+    command: [--config, /fixtures/radicale.conf]
+    ports: ["127.0.0.1:18532:5232"]
+    volumes:
+      - .:/fixtures:ro
+      - radicale-data:/var/lib/radicale
+    healthcheck:
+      test: [CMD, /app/bin/python, /fixtures/health.py]
+      interval: 5s
+      timeout: 6s
+      retries: 12
+      start_period: 10s
+  baikal:
+    build:
+      context: .
+      dockerfile: baikal.Dockerfile
+    ports: ["127.0.0.1:18580:80"]
+    volumes:
+      - baikal-config:/var/www/baikal/config
+      - baikal-data:/var/www/baikal/Specific
+      - ./.runtime/credentials.json:/fixtures/credentials.json:ro
+  https:
+    image: python:3.13.7-slim-bookworm@sha256:adafcc17694d715c905b4c7bebd96907a1fd5cf183395f0ebc4d3428bd22d92d
+    profiles: [https]
+    command: [python, /fixtures/https_proxy.py]
+    ports:
+      - "127.0.0.1:18443:18443"
+      - "127.0.0.1:18444:18444"
+      - "127.0.0.1:18445:18445"
+      - "127.0.0.1:18446:18446"
+      - "127.0.0.1:18447:18447"
+    volumes: [".:/fixtures:ro"]
+  baikal-path:
+    profiles: [https]
+    build:
+      context: .
+      dockerfile: baikal.Dockerfile
+    environment:
+      BUSYMAX_BAIKAL_BASE_URI: /baikal/
+    volumes:
+      - baikal-path-config:/var/www/baikal/config
+      - baikal-path-data:/var/www/baikal/Specific
+      - ./.runtime/credentials.json:/fixtures/credentials.json:ro
+volumes:
+  radicale-data:
+  baikal-config:
+  baikal-data:
+  baikal-path-config:
+  baikal-path-data:

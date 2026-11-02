@@ -19,7 +19,7 @@ import 'package:busymax/src/dav/trust/nextcloud_certificate.dart';
 import 'package:busymax/src/dav/trust/nextcloud_http_client_factory.dart';
 import 'package:busymax/src/dav/trust/nextcloud_trust_policy.dart';
 import 'package:busymax/src/dav/nextcloud/nextcloud_collection_service.dart';
-import 'package:busymax/src/dav/nextcloud/nextcloud_native_import.dart';
+import 'package:busymax/src/dav/ical/dav_native_import.dart';
 import 'package:busymax/src/dav/ical/ical_document.dart';
 import 'package:busymax/src/dav/mutation/dav_pending_operations.dart';
 import 'package:busymax/src/dav/mutation/dav_conditional_mutation_service.dart';
@@ -212,7 +212,7 @@ final class NextcloudExtendedFixture {
         'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//BusyMax QA//EN\r\nBEGIN:VEVENT\r\nUID:$uid\r\nDTSTAMP:20261031T000000Z\r\nDTSTART:20261101T120000Z\r\nDTEND:20261101T130000Z\r\nSUMMARY:$title\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n',
       ),
     );
-    final imported = await NextcloudNativeImportService(database)
+    final imported = await DavNativeImportService(database)
         .import(accountId: id, collectionId: collection.id, preview: preview);
     expect(imported.single.status, NativeImportItemStatus.queued);
     final replay = await DavPendingOperationsReplayer(
@@ -251,7 +251,7 @@ final class NextcloudExtendedFixture {
 
   Future<DavObject> importRaw(String raw, {String? objectUid}) async {
     final preview = NextcloudNativeImportPreview.parse(IcalDocument.parse(raw));
-    final result = await NextcloudNativeImportService(database)
+    final result = await DavNativeImportService(database)
         .import(accountId: id, collectionId: collection.id, preview: preview);
     expect(result.single.status, NativeImportItemStatus.queued);
     await synchronize();
