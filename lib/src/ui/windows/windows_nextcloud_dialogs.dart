@@ -555,6 +555,7 @@ class _WindowsNextcloudTrashState
                       Text(item.title),
                       if (item.deletedAt != null) Text(item.deletedAt!),
                       Text(switch (item.kind) {
+                        NextcloudTrashKind.unknownObject => 'iCalendar',
                         NextcloudTrashKind.event => l10n.calendarEvents,
                         NextcloudTrashKind.task => l10n.calendarTasks,
                         NextcloudTrashKind.calendar => l10n.calendar,

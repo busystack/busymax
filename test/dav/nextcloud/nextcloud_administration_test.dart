@@ -460,6 +460,55 @@ void main() {
     }
     expect(fixture.requests.where((r) => r.method == 'POST'), isEmpty);
   });
+  test('oversized objects without component metadata stay discoverable and conditional', () async {
+    fixture.trashDescriptionBytes = 20 * 1024 * 1024;
+    final listing = await fixture.trash.list();
+    expect(listing.items, hasLength(2));
+    expect(
+      listing.items.map((i) => i.kind),
+      everyElement(NextcloudTrashKind.unknownObject),
+    );
+    await fixture.trash.restore(listing.items.first);
+    await fixture.trash.permanentlyDelete(listing.items.last);
+    expect(
+      fixture.requests.where((r) => r.body.contains('<c:calendar-data')),
+      isEmpty,
+    );
+    expect(
+      fixture.requests
+          .where((r) => r.method == 'MOVE')
+          .single
+          .headers['if-match'],
+      '"exact-trash-etag"',
+    );
+    expect(
+      fixture.requests
+          .where((r) => r.method == 'DELETE')
+          .single
+          .headers['if-match'],
+      '"exact-trash-etag"',
+    );
+  });
+
+  test('weak ETags cannot authorize metadata-only trash mutations', () async {
+    fixture.trashEtag = 'W/"weak-trash-etag"';
+    final item = (await fixture.trash.list()).items.first;
+    await expectLater(
+      fixture.trash.permanentlyDelete(item),
+      throwsA(
+        isA<DavException>().having(
+          (e) => e.code,
+          'code',
+          'DavTrashItemChanged',
+        ),
+      ),
+    );
+    expect(
+      fixture.requests.where((r) => r.method == 'MOVE' || r.method == 'DELETE'),
+      isEmpty,
+    );
+  });
+
   test(
     'cancelled trash loading stops before subsequent detail requests',
     () async {

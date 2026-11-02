@@ -2516,6 +2516,8 @@ class _AndroidNextcloudTrashScreenState
             for (final item in items)
               ListTile(
                 leading: Icon(switch (item.kind) {
+                  NextcloudTrashKind.unknownObject =>
+                    Icons.description_outlined,
                   NextcloudTrashKind.event => Icons.event_outlined,
                   NextcloudTrashKind.task => Icons.task_alt_outlined,
                   NextcloudTrashKind.calendar => Icons.calendar_month_outlined,

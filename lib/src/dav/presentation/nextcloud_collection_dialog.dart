@@ -569,6 +569,8 @@ class _LinuxNextcloudTrashState
                 for (final item in listing!.items) ...[
                   YaruListTile.square(
                     leading: Icon(switch (item.kind) {
+                      NextcloudTrashKind.unknownObject =>
+                        Icons.description_outlined,
                       NextcloudTrashKind.event => YaruIcons.calendar,
                       NextcloudTrashKind.task => Icons.task_alt,
                       NextcloudTrashKind.calendar => YaruIcons.calendar,
@@ -582,6 +584,7 @@ class _LinuxNextcloudTrashState
                       children: [
                         if (item.deletedAt != null) Text(item.deletedAt!),
                         Text(switch (item.kind) {
+                          NextcloudTrashKind.unknownObject => 'iCalendar',
                           NextcloudTrashKind.event => l10n.calendarEvents,
                           NextcloudTrashKind.task => l10n.calendarTasks,
                           NextcloudTrashKind.calendar => l10n.calendar,

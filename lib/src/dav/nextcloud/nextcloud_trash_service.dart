@@ -11,7 +11,14 @@ import '../xml/dav_xml.dart';
 import 'nextcloud_collection_service.dart';
 import 'nextcloud_dav_context.dart';
 
-enum NextcloudTrashKind { event, task, calendar, taskList, mixedCollection }
+enum NextcloudTrashKind {
+  event,
+  task,
+  unknownObject,
+  calendar,
+  taskList,
+  mixedCollection,
+}
 
 final class NextcloudTrashItem {
   const NextcloudTrashItem._({
@@ -60,6 +67,15 @@ final class NextcloudTrashService {
   Future<NextcloudTrashListing> list({
     DavCancellationToken? cancellationToken,
     bool includeContent = true,
+  }) => _list(
+    cancellationToken: cancellationToken,
+    includeContent: includeContent,
+  );
+
+  Future<NextcloudTrashListing> _list({
+    DavCancellationToken? cancellationToken,
+    bool includeContent = true,
+    NextcloudTrashItem? revalidateItem,
   }) async {
     cancellationToken?.throwIfCancelled();
     final context = await collections.openContext();
@@ -181,7 +197,12 @@ final class NextcloudTrashService {
           index[href] = row;
         }
       }
-      void addItem(Uri href, DavMultistatusResponse row, String? raw) {
+      void addItem(
+        Uri href,
+        DavMultistatusResponse row,
+        String? raw, {
+        NextcloudTrashKind? knownKind,
+      }) {
         final content = raw == null
             ? null
             : IcalSemanticDocument.parse(raw).components
@@ -210,20 +231,31 @@ final class NextcloudTrashService {
           href: href,
           trashBinHref: binUri,
           kind:
-              (content?.componentType ??
-                      (row
-                                  .successfulProperty(
-                                    davNamespace,
-                                    'getcontenttype',
-                                  )
-                                  ?.text
-                                  .contains('VTODO') ==
-                              true
-                          ? 'VTODO'
-                          : 'VEVENT')) ==
-                  'VEVENT'
-              ? NextcloudTrashKind.event
-              : NextcloudTrashKind.task,
+              knownKind ??
+              switch (content?.componentType) {
+                'VEVENT' => NextcloudTrashKind.event,
+                'VTODO' => NextcloudTrashKind.task,
+                _ =>
+                  row
+                              .successfulProperty(
+                                davNamespace,
+                                'getcontenttype',
+                              )
+                              ?.text
+                              .contains('VTODO') ==
+                          true
+                      ? NextcloudTrashKind.task
+                      : row
+                                .successfulProperty(
+                                  davNamespace,
+                                  'getcontenttype',
+                                )
+                                ?.text
+                                .contains('VEVENT') ==
+                            true
+                      ? NextcloudTrashKind.event
+                      : NextcloudTrashKind.unknownObject,
+              },
           title: content?.summary ?? href.pathSegments.last,
           deletedAt: row
               .successfulProperty(nextcloudNamespace, 'deleted-at')
@@ -249,14 +281,25 @@ final class NextcloudTrashService {
       var bytes = 0;
       for (final entry in index.entries) {
         if (!includeContent) {
-          final type = entry.value
-              .successfulProperty(davNamespace, 'getcontenttype')
-              ?.text;
-          if (type == null ||
-              !(type.contains('VEVENT') || type.contains('VTODO'))) {
-            throw nextcloudOperationError(502, 'DavTrashReadIncomplete');
+          if (revalidateItem != null) {
+            if (entry.key != revalidateItem.href) continue;
+            final etag = entry.value
+                .successfulProperty(davNamespace, 'getetag')
+                ?.text;
+            // Component metadata is optional. A matching strong ETag proves
+            // the previously parsed type/UID still identifies this same body.
+            if (etag == null ||
+                etag.startsWith('W/') ||
+                etag != revalidateItem.etag) {
+              throw nextcloudOperationError(412, 'DavTrashItemChanged');
+            }
           }
-          addItem(entry.key, entry.value, null);
+          addItem(
+            entry.key,
+            entry.value,
+            null,
+            knownKind: revalidateItem?.kind,
+          );
           continue;
         }
         final size = int.tryParse(
@@ -450,7 +493,8 @@ final class NextcloudTrashService {
     }
     // Re-list after confirmation: expired or changed entries cannot be replayed
     // against a guessed href, UID, account or replacement collection.
-    final current = (await list(includeContent: false)).items
+    final current = (await _list(includeContent: false, revalidateItem: item))
+        .items
         .where(
           (r) =>
               r.href == item.href &&
@@ -526,7 +570,8 @@ final class NextcloudTrashService {
       final uri = Uri.parse(row.requestUri);
       final isCollection =
           item.kind != NextcloudTrashKind.event &&
-          item.kind != NextcloudTrashKind.task;
+          item.kind != NextcloudTrashKind.task &&
+          item.kind != NextcloudTrashKind.unknownObject;
       if (isCollection
           ? uri == item.href
           : uri.path.startsWith(davCollectionUri(item.calendarHomeHref).path) &&

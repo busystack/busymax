@@ -32,6 +32,96 @@ void main() {
   driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
   final enabled = Platform.environment[_enabledVariable] == '1';
   test(
+    'large mixed trash remains complete across bounded retrieval and conditional mutations',
+    () async {
+      final container =
+          Platform.environment['BUSYMAX_NEXTCLOUD_LIVE_CONTAINER'];
+      if (container == null ||
+          !RegExp(r'^busymax-qa-[a-z0-9-]+$').hasMatch(container)) {
+        throw StateError(
+          'Select an explicitly disposable busymax-qa-* container.',
+        );
+      }
+      final f = await NextcloudExtendedFixture.open(
+        components: ['VEVENT', 'VTODO'],
+      );
+      addTearDown(f.close);
+      final status = jsonDecode(
+        (await f.client.get(f.authority.resolve('status.php'))).body,
+      ) as Map;
+      final serverVersion = status['versionstring'];
+      expect(serverVersion, matches(RegExp(r'^\d+\.\d+\.\d+')));
+      final context = await f.collections.openContext();
+      final setup = await Process.run('docker', [
+        'exec',
+        '--user',
+        'www-data',
+        '-e',
+        'BUSYMAX_QA_CALENDAR=${f.created.pathSegments.where((s) => s.isNotEmpty).last}',
+        container,
+        'php',
+        '-r',
+        r'''require "/var/www/html/lib/base.php";
+$b=\OCP\Server::get(\OCA\DAV\CalDAV\CalDavBackend::class);
+$c=$b->getCalendarByUri("principals/users/qa_admin",getenv("BUSYMAX_QA_CALENDAR"));
+if (!$c) throw new RuntimeException("Missing disposable calendar");
+$description=implode("\r\n ",array_fill(0,1800,"synthetic disposable fixture text to exercise large trash payloads only."));
+for($i=0;$i<300;$i++) {
+ $kind=$i%2 ? "VTODO" : "VEVENT";
+ $raw="BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//BusyMax QA//EN\r\nBEGIN:$kind\r\nUID:scale-$i@example.invalid\r\nDTSTAMP:20261101T000000Z\r\nDTSTART:20261102T120000Z\r\n".($kind==="VEVENT"?"DTEND":"DUE").":20261102T130000Z\r\nSUMMARY:Scale $i\r\nDESCRIPTION:$description\r\nEND:$kind\r\nEND:VCALENDAR\r\n";
+ $b->createCalendarObject($c["id"],"scale-$i.ics",$raw);
+ $b->deleteCalendarObject($c["id"],"scale-$i.ics");
+}
+echo "Prepared 300 official-backend objects\n";
+''',
+      ]);
+      expect(setup.exitCode, 0, reason: '${setup.stderr}');
+      stdout.writeln(setup.stdout);
+      final watch = Stopwatch()..start();
+      final trash = NextcloudTrashService(f.collections);
+      final listing = await trash.list();
+      final ours = listing.items
+          .where(
+            (i) =>
+                i.calendarUri ==
+                f.created.pathSegments.where((s) => s.isNotEmpty).last,
+          )
+          .toList();
+      expect(ours.length, 300);
+      expect(ours.map((i) => i.href).toSet().length, 300);
+      expect(ours.where((i) => i.kind == NextcloudTrashKind.task).length, 150);
+      stdout.writeln(
+        'LIVE Nextcloud $serverVersion: 300 mixed trash objects, ~37 MiB, list ${watch.elapsedMilliseconds} ms',
+      );
+      final item = ours.singleWhere((i) => i.uid == 'scale-0@example.invalid');
+      await trash.restore(item);
+      expect(
+        (await context.send(
+          'GET',
+          f.created.resolve('scale-0.ics'),
+        )).statusCode,
+        200,
+      );
+      final remaining = (await trash.list(includeContent: false)).items
+          .where((i) => i.calendarUri == ours.first.calendarUri)
+          .toList();
+      expect(remaining.length, 299);
+      await trash.permanentlyDelete(remaining.first);
+      expect(
+        (await trash.list(includeContent: false)).items
+            .where((i) => i.calendarUri == ours.first.calendarUri)
+            .length,
+        298,
+      );
+    },
+    skip:
+        !enabled ||
+            Platform.environment['BUSYMAX_NEXTCLOUD_TRASH_SCALE_LIVE'] != '1'
+        ? 'Opt-in disposable-server large trash fixture.'
+        : false,
+    timeout: const Timeout(Duration(minutes: 15)),
+  );
+  test(
     'real federation delivers and revokes access on an independent HTTPS peer',
     () async {
       final f = await NextcloudExtendedFixture.open();
