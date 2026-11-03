@@ -198,6 +198,10 @@ class AppLocalizationsPt extends AppLocalizations {
       'Collection creation is pending. Synchronize this account before trying again; do not repeat the operation.';
 
   @override
+  String get davCollectionCreationDenied =>
+      'The server did not allow collection creation.';
+
+  @override
   String get nextcloudOutcomeUnknown =>
       'The server outcome could not be confirmed. Refresh before trying again.';
 
@@ -4171,6 +4175,10 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
   @override
   String get davCollectionCreationPending =>
       'A criação da coleção está pendente. Sincronize esta conta antes de tentar novamente; não repita a operação.';
+
+  @override
+  String get davCollectionCreationDenied =>
+      'O servidor não permitiu criar a coleção.';
 
   @override
   String get nextcloudOutcomeUnknown =>

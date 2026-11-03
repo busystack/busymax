@@ -192,6 +192,9 @@ class AppLocalizationsKo extends AppLocalizations {
       '컬렉션 생성이 대기 중입니다. 다시 시도하기 전에 이 계정을 동기화하세요. 작업을 반복하지 마세요.';
 
   @override
+  String get davCollectionCreationDenied => '서버에서 컬렉션 생성을 허용하지 않았습니다.';
+
+  @override
   String get nextcloudOutcomeUnknown => '서버 결과를 확인하지 못했습니다. 새로 고친 후 다시 시도하세요.';
 
   @override

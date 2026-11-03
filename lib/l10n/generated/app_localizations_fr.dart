@@ -202,6 +202,10 @@ class AppLocalizationsFr extends AppLocalizations {
       'La création de la collection est en attente. Synchronisez ce compte avant de réessayer ; ne répétez pas l’opération.';
 
   @override
+  String get davCollectionCreationDenied =>
+      'Le serveur n’a pas autorisé la création de la collection.';
+
+  @override
   String get nextcloudOutcomeUnknown =>
       'Le résultat sur le serveur n’a pas pu être confirmé. Actualisez avant de réessayer.';
 

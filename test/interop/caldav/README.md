@@ -59,6 +59,7 @@ flutter test test/dav/caldav_live_integration_test.dart --plain-name 'real passw
 
 # Audit-correction probe: real read-only namespace, rejected journal, DB reopen,
 # three subsequent rounds of independently changed VEVENT/VTODO synchronization.
+# Uses the production account-sync route and checks durable operation feedback.
 BUSYMAX_CALDAV_LIVE=1 flutter test test/dav/caldav_live_integration_test.dart \
   --plain-name 'rejected creation in a read-only namespace' --reporter expanded
 
@@ -105,7 +106,9 @@ BusyStack DAV credential. The QA flags are mutually exclusive with Nextcloud QA 
 signing. Only this QA package keeps its test activity awake; device lock and
 power settings are unchanged. The native harness injects disposable in-memory
 secrets, a file-backed test database and the fixture CA; it does not qualify
-platform secure storage.
+platform secure storage. It also checks a rejected VTODO collection's named
+account-settings notice through the production sync route while ordinary
+synchronization remains successful.
 `integration_test/caldav_android_process_restart_test.dart` is a separate
 two-process qualification using production Android secure storage, SQLite,
 authorization recovery and native account gates. Run it twice with the same

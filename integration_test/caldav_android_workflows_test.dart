@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:busymax/l10n/generated/app_localizations.dart';
+import 'package:busymax/l10n/generated/app_localizations_en.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/android/android_notifications.dart';
 import 'package:busymax/src/config/build_config.dart';
@@ -10,6 +11,10 @@ import 'package:busymax/src/android/presentation/android_schedule_screen.dart';
 import 'package:busymax/src/android/presentation/android_tasks_screen.dart';
 import 'package:busymax/src/dav/http/dav_account_http_client.dart';
 import 'package:busymax/src/dav/sync/dav_account_sync_engine.dart';
+import 'package:busymax/src/dav/mutation/dav_collection_administration.dart';
+import 'package:busymax/src/dav/dav_errors.dart';
+import 'package:busymax/src/db/app_database.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
 import 'package:busymax/src/features/connectivity/network_connectivity_service.dart';
@@ -82,6 +87,12 @@ void main() {
             networkAvailabilityProvider.overrideWith(
               (ref) => Stream.value(NetworkAvailability.online),
             ),
+            networkConnectivityMonitorProvider.overrideWith((ref) {
+              final monitor =
+                  NetworkConnectivityMonitor.withoutPlatformObservation();
+              ref.onDispose(monitor.dispose);
+              return monitor;
+            }),
             davAccountHttpClientProvider.overrideWith((ref, id) {
               final client = DavAccountHttpClient(
                 accountId: id,
@@ -200,6 +211,78 @@ void main() {
               () => f.database.select(f.database.pendingOps).get(),
             ),
             isEmpty,
+          );
+          // Exercise the complete application route and actual settings view:
+          // a rejected collection must remain visible alongside healthy pulls.
+          late String aliceId, creationId;
+          const failedTitle = 'Android denied collection';
+          await tester.runAsync(() async {
+            aliceId = (await f.database.select(f.database.accounts).get())
+                .singleWhere((a) => a.providerAccountId == 'alice')
+                .id;
+            final restricted =
+                (await f.database.select(f.database.davCollections).get())
+                    .singleWhere(
+                      (c) =>
+                          c.accountId == aliceId &&
+                          (c.displayName == 'BusyMax QA restricted' ||
+                              c.hrefKey.endsWith('/restricted/')),
+                    );
+            await (f.database.update(
+              f.database.davAccountServices,
+            )..where((r) => r.accountId.equals(aliceId))).write(
+              DavAccountServicesCompanion(
+                calendarHomeHref: Value(restricted.requestUri),
+              ),
+            );
+            await expectLater(
+              DavCollectionAdministration(
+                database: f.database,
+                secrets: f.secrets,
+                client: container.read(davAccountHttpClientProvider(aliceId)),
+                accountId: aliceId,
+                refresh: () async {},
+                requireNetwork: () async {},
+              ).create(failedTitle, const {'VTODO'}),
+              throwsA(
+                isA<DavException>().having((e) => e.statusCode, 'denied', 403),
+              ),
+            );
+            creationId =
+                (await f.database
+                        .select(f.database.davCollectionCreations)
+                        .get())
+                    .singleWhere(
+                      (o) =>
+                          o.accountId == aliceId &&
+                          o.displayName == failedTitle,
+                    )
+                    .id;
+            await container
+                .read(accountSyncOperationsProvider)
+                .syncAccount(aliceId, full: true);
+            final activity = container.read(accountSyncActivityProvider);
+            expect(activity.failure(aliceId, 'dav'), isNull);
+            expect(
+              activity.collectionCreationFailures(aliceId)[creationId]!.pending,
+              isFalse,
+            );
+          });
+          await tester.pumpWidget(app(const AndroidSettingsScreen()));
+          final feedback = find.byKey(
+            ValueKey(('collection-creation-feedback', aliceId, creationId)),
+          );
+          await _until(tester, () async => feedback.evaluate().isNotEmpty);
+          final l10n = AppLocalizationsEn();
+          expect(find.text(failedTitle), findsOneWidget);
+          expect(
+            find.text(
+              l10n.taskListCreateFailed(l10n.davCollectionCreationDenied),
+            ),
+            findsOneWidget,
+          );
+          debugPrint(
+            'BUSYMAX_CALDAV_NATIVE_FEEDBACK_PASS ${server.key} android',
           );
           debugPrint('BUSYMAX_CALDAV_NATIVE_PASS ${server.key} android');
         } finally {

@@ -11,6 +11,8 @@ import 'windows_time_picker.dart';
 
 import 'dart:async';
 
+import '../../features/settings/presentation/account_collection_creation_feedback.dart';
+
 import 'windows_nextcloud_dialogs.dart';
 
 import 'package:fluent_ui/fluent_ui.dart';
@@ -732,6 +734,13 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                 ],
                 if (values.isNotEmpty) const Divider(),
                 for (var index = 0; index < values.length; index++) ...[
+                  if (ref
+                      .watch(accountSyncActivityProvider)
+                      .collectionCreationFailures(values[index].id)
+                      .isNotEmpty)
+                    AccountCollectionCreationFeedback(
+                      accountId: values[index].id,
+                    ),
                   if (values[index].provider == BusyProvider.google ||
                       values[index].provider == BusyProvider.microsoft)
                     _WindowsRegistrationCard(

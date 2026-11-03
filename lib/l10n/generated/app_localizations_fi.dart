@@ -198,6 +198,10 @@ class AppLocalizationsFi extends AppLocalizations {
       'Kokoelman luominen odottaa. Synkronoi tämä tili ennen uutta yritystä; älä toista toimintoa.';
 
   @override
+  String get davCollectionCreationDenied =>
+      'Palvelin ei sallinut kokoelman luomista.';
+
+  @override
   String get nextcloudOutcomeUnknown =>
       'Palvelimen tulosta ei voitu vahvistaa. Päivitä ennen uutta yritystä.';
 

@@ -2,6 +2,7 @@ import '../../../ui/linux/nextcloud_certificate_dialog.dart';
 import '../../../ui/common/nextcloud_certificate_review.dart';
 import '../../../l10n/oauth_error_description.dart';
 import '../../../l10n/contacts_error_description.dart';
+import 'account_collection_creation_feedback.dart';
 
 import 'package:busymax/src/core/auth/authorization_attempt.dart';
 
@@ -2656,7 +2657,11 @@ class _AccountOverviewRow extends ConsumerWidget {
         '${_accountProviderLabel(context, account.provider)} · $status',
       ),
       leading: Icon(
-        feedback != null || domainFailure || inventoryFailed || visibilityFailed
+        feedback != null ||
+                domainFailure ||
+                inventoryFailed ||
+                visibilityFailed ||
+                activity.collectionCreationFailures(account.id).isNotEmpty
             ? YaruIcons.warning
             : YaruIcons.user,
       ),
@@ -4375,6 +4380,8 @@ class _AccountManagementCard extends ConsumerWidget {
     return BusyMaxGroupedList(
       filled: true,
       children: [
+        if (activity.collectionCreationFailures(account.id).isNotEmpty)
+          AccountCollectionCreationFeedback(accountId: account.id),
         if (primary != null)
           failureRow(primary)
         else ...[

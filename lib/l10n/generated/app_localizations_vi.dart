@@ -199,6 +199,10 @@ class AppLocalizationsVi extends AppLocalizations {
       'Đang chờ tạo bộ sưu tập. Hãy đồng bộ hóa tài khoản này trước khi thử lại; không lặp lại thao tác.';
 
   @override
+  String get davCollectionCreationDenied =>
+      'Máy chủ không cho phép tạo bộ sưu tập.';
+
+  @override
   String get nextcloudOutcomeUnknown =>
       'Không thể xác nhận kết quả trên máy chủ. Làm mới trước khi thử lại.';
 

@@ -82,6 +82,7 @@
   "nextcloudRefreshPending": "Muudatus salvestati Nextcloudi. Värskendamine on ootel; ära korda muudatust.",
   "davRefreshPending": "Muudatus salvestati CalDAV-serverisse. Värskendamine on ootel; ära korda muudatust.",
   "davCollectionCreationPending": "Kogumi loomine on ootel. Enne uuesti proovimist sünkrooni see konto; ära korda toimingut.",
+  "davCollectionCreationDenied": "Server ei lubanud kogumit luua.",
   "nextcloudOutcomeUnknown": "Serveri tulemust ei saanud kinnitada. Värskenda enne uuesti proovimist.",
   "nextcloudRemoveShared": "Eemalda jagatud kalender/loend",
   "nextcloudRemoveMixed": "Kogu sisaldab sündmusi ja ülesandeid. Kustutamine eemaldab mõlemad.",

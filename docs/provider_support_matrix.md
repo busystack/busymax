@@ -37,8 +37,10 @@ The current qualification targets are Radicale 3.9.0, Baïkal 0.13.0
 (sabre/dav 4.7.1) and BusyStack CalDAV Server 0.1.0. BusyStack uses separately
 issued DAV credentials and separate event/task collections; its normal account
 password is not a DAV password. These are server configurations of the same
-CalDAV provider. Native Windows and Android 17 permission-prompt acceptance
-remain unverified; see the qualification record for actual runtime evidence.
+CalDAV provider. The three-server Android connection/editor and collection-recovery
+feedback workflows passed on the authorized ONEPLUS A6003 (Android 10/API 29).
+Native Windows and Android 17 permission-prompt acceptance remain unverified;
+see the qualification record for actual runtime evidence.
 
 Android Google authorization requires Google Play services; when absent, only
 Google is unavailable. Microsoft requires a registered MSAL redirect matching

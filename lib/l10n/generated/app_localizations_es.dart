@@ -202,6 +202,10 @@ class AppLocalizationsEs extends AppLocalizations {
       'La creación de la colección está pendiente. Sincroniza esta cuenta antes de volver a intentarlo; no repitas la operación.';
 
   @override
+  String get davCollectionCreationDenied =>
+      'El servidor no permitió crear la colección.';
+
+  @override
   String get nextcloudOutcomeUnknown =>
       'No se pudo confirmar el resultado en el servidor. Actualiza antes de volver a intentarlo.';
 

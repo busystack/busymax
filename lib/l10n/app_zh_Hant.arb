@@ -82,6 +82,7 @@
   "nextcloudRefreshPending": "變更已儲存在 Nextcloud。更新尚未完成；請勿重複變更。",
   "davRefreshPending": "變更已儲存在 CalDAV 伺服器。更新尚未完成；請勿重複變更。",
   "davCollectionCreationPending": "集合建立尚未完成。請先同步此帳戶再重試；請勿重複此操作。",
+  "davCollectionCreationDenied": "伺服器不允許建立集合。",
   "nextcloudOutcomeUnknown": "無法確認伺服器結果。請重新整理後再試。",
   "nextcloudRemoveShared": "移除共用行事曆／清單",
   "nextcloudRemoveMixed": "此集合包含事件和工作。刪除集合將同時刪除兩者。",

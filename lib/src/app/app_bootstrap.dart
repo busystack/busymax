@@ -6,6 +6,7 @@ import '../features/notifications/operational_notification_coordinator.dart';
 import '../core/http/request_dispatch_exception.dart';
 import '../features/sync/domain_sync_schedule.dart';
 import '../features/sync/account_sync_activity.dart';
+import '../dav/mutation/dav_collection_creation_failure.dart';
 import '../core/auth/authorization_persistence.dart';
 import '../core/auth/registration_staging.dart';
 import '../core/auth/oauth_registration.dart';
@@ -1476,9 +1477,33 @@ final accountSyncOperationsProvider = Provider<AccountSyncOperations>((ref) {
       accountId,
       'dav',
       () => syncCoordinator.trackTaskImport(accountId, () async {
-        await ref
+        final result = await ref
             .read(davAccountSyncEngineFactoryProvider)(accountId)
             .synchronize(full: full);
+        // Pull success and collection-administration outcomes are independent.
+        // Rehydrate terminal diagnostics too: a later sync/restart must not
+        // silently clear a rejection that is no longer in the recovery queue.
+        final database = ref.read(databaseProvider);
+        final creations =
+            await (database.select(database.davCollectionCreations)..where(
+                  (row) =>
+                      row.accountId.equals(accountId) &
+                      row.state.isIn(const [
+                        'prepared',
+                        'dispatched',
+                        'rejected',
+                      ]) &
+                      (row.lastErrorCode.isNotNull() |
+                          row.id.isIn(result.collectionCreationFailures.keys)),
+                ))
+                .get();
+        activity.setCollectionCreationFailures(accountId, [
+          for (final creation in creations)
+            DavCollectionCreationFailure.fromStored(
+              creation,
+              currentError: result.collectionCreationFailures[creation.id],
+            ),
+        ]);
         if (await providerForAccount(accountId) == BusyProvider.nextcloud) {
           try {
             await ref

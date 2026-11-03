@@ -82,6 +82,7 @@
   "nextcloudRefreshPending": "बदलाव Nextcloud पर सहेजा गया। रीफ़्रेश होना बाकी है; बदलाव न दोहराएँ।",
   "davRefreshPending": "बदलाव CalDAV सर्वर पर सहेजा गया। रीफ़्रेश होना बाकी है; बदलाव न दोहराएँ।",
   "davCollectionCreationPending": "संग्रह बनना बाकी है। फिर से कोशिश करने से पहले इस खाते को सिंक करें; कार्रवाई न दोहराएँ।",
+  "davCollectionCreationDenied": "सर्वर ने संग्रह बनाने की अनुमति नहीं दी।",
   "nextcloudOutcomeUnknown": "सर्वर के परिणाम की पुष्टि नहीं हो सकी। फिर कोशिश करने से पहले रीफ़्रेश करें।",
   "nextcloudRemoveShared": "साझा कैलेंडर/सूची हटाएँ",
   "nextcloudRemoveMixed": "इस संग्रह में इवेंट और कार्य हैं। इसे हटाने से दोनों हटेंगे।",

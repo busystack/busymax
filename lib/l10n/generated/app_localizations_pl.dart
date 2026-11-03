@@ -209,6 +209,10 @@ class AppLocalizationsPl extends AppLocalizations {
       'Tworzenie kolekcji oczekuje na wykonanie. Zsynchronizuj to konto przed ponowną próbą; nie powtarzaj operacji.';
 
   @override
+  String get davCollectionCreationDenied =>
+      'Serwer nie zezwolił na utworzenie kolekcji.';
+
+  @override
   String get nextcloudOutcomeUnknown =>
       'Nie udało się potwierdzić wyniku operacji na serwerze. Odśwież przed ponowną próbą.';
 

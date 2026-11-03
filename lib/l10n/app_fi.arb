@@ -82,6 +82,7 @@
   "nextcloudRefreshPending": "Muutos tallennettiin Nextcloudiin. Päivitys odottaa; älä toista muutosta.",
   "davRefreshPending": "Muutos tallennettiin CalDAV-palvelimelle. Päivitys odottaa; älä toista muutosta.",
   "davCollectionCreationPending": "Kokoelman luominen odottaa. Synkronoi tämä tili ennen uutta yritystä; älä toista toimintoa.",
+  "davCollectionCreationDenied": "Palvelin ei sallinut kokoelman luomista.",
   "nextcloudOutcomeUnknown": "Palvelimen tulosta ei voitu vahvistaa. Päivitä ennen uutta yritystä.",
   "nextcloudRemoveShared": "Poista jaettu kalenteri/luettelo",
   "nextcloudRemoveMixed": "Kokoelma sisältää tapahtumia ja tehtäviä. Poistaminen poistaa molemmat.",

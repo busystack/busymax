@@ -82,6 +82,7 @@
   "nextcloudRefreshPending": "El cambio se guardó en Nextcloud. La actualización está pendiente; no repitas el cambio.",
   "davRefreshPending": "El cambio se guardó en el servidor CalDAV. La actualización está pendiente; no repitas el cambio.",
   "davCollectionCreationPending": "La creación de la colección está pendiente. Sincroniza esta cuenta antes de volver a intentarlo; no repitas la operación.",
+  "davCollectionCreationDenied": "El servidor no permitió crear la colección.",
   "nextcloudOutcomeUnknown": "No se pudo confirmar el resultado en el servidor. Actualiza antes de volver a intentarlo.",
   "nextcloudRemoveShared": "Quitar calendario/lista compartida",
   "nextcloudRemoveMixed": "Esta colección contiene eventos y tareas. Al eliminarla se borrarán ambos.",

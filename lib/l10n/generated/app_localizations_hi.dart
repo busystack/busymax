@@ -197,6 +197,10 @@ class AppLocalizationsHi extends AppLocalizations {
       'संग्रह बनना बाकी है। फिर से कोशिश करने से पहले इस खाते को सिंक करें; कार्रवाई न दोहराएँ।';
 
   @override
+  String get davCollectionCreationDenied =>
+      'सर्वर ने संग्रह बनाने की अनुमति नहीं दी।';
+
+  @override
   String get nextcloudOutcomeUnknown =>
       'सर्वर के परिणाम की पुष्टि नहीं हो सकी। फिर कोशिश करने से पहले रीफ़्रेश करें।';
 

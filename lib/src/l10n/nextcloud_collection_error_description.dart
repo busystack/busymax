@@ -28,6 +28,13 @@ String localizedNextcloudCollectionError(
     l10n.davCollectionCreationPending,
   DavException(code: 'DavCollectionOutcomeUnknown') =>
     l10n.nextcloudOutcomeUnknown,
+  DavException(code: 'DavCollectionCreationUnsupported') ||
+  DavException(
+    code: 'DavCollectionCreationFailed',
+    statusCode: 405,
+  ) => l10n.nextcloudUnsupported,
+  DavException(code: 'DavCollectionCreationInvalid') =>
+    l10n.invalidCollectionValue,
   DavException(
     code: 'DavDiscoveryRequired' ||
         'DavIncompleteInventory' ||

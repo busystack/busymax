@@ -181,6 +181,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get davCollectionCreationPending => '集合创建尚未完成。请先同步此账户再重试；请勿重复此操作。';
 
   @override
+  String get davCollectionCreationDenied => '服务器不允许创建集合。';
+
+  @override
   String get nextcloudOutcomeUnknown => '无法确认服务器结果。请刷新后再试。';
 
   @override
@@ -3954,6 +3957,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get davCollectionCreationPending => '集合创建尚未完成。请先同步此账户再重试；请勿重复此操作。';
 
   @override
+  String get davCollectionCreationDenied => '服务器不允许创建集合。';
+
+  @override
   String get nextcloudOutcomeUnknown => '无法确认服务器结果。请刷新后再试。';
 
   @override
@@ -7725,6 +7731,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get davCollectionCreationPending => '集合建立尚未完成。請先同步此帳戶再重試；請勿重複此操作。';
+
+  @override
+  String get davCollectionCreationDenied => '伺服器不允許建立集合。';
 
   @override
   String get nextcloudOutcomeUnknown => '無法確認伺服器結果。請重新整理後再試。';

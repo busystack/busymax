@@ -200,6 +200,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'Die Erstellung der Sammlung steht aus. Synchronisieren Sie dieses Konto, bevor Sie es erneut versuchen; wiederholen Sie den Vorgang nicht.';
 
   @override
+  String get davCollectionCreationDenied =>
+      'Der Server hat das Erstellen der Sammlung nicht erlaubt.';
+
+  @override
   String get nextcloudOutcomeUnknown =>
       'Das Serverergebnis konnte nicht bestätigt werden. Aktualisieren Sie vor einem neuen Versuch.';
 

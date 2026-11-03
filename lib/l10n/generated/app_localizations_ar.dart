@@ -197,6 +197,9 @@ class AppLocalizationsAr extends AppLocalizations {
       'إنشاء المجموعة معلّق. زامن هذا الحساب قبل المحاولة مجددًا؛ لا تكرر العملية.';
 
   @override
+  String get davCollectionCreationDenied => 'لم يسمح الخادم بإنشاء المجموعة.';
+
+  @override
   String get nextcloudOutcomeUnknown =>
       'تعذّر تأكيد النتيجة لدى الخادم. حدّث قبل المحاولة مجددًا.';
 

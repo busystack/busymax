@@ -191,6 +191,9 @@ class AppLocalizationsJa extends AppLocalizations {
       'コレクションの作成は保留中です。再試行する前にこのアカウントを同期してください。同じ操作を繰り返さないでください。';
 
   @override
+  String get davCollectionCreationDenied => 'サーバーはコレクションの作成を許可しませんでした。';
+
+  @override
   String get nextcloudOutcomeUnknown =>
       'サーバーの結果を確認できませんでした。再読み込みしてから再試行してください。';
 

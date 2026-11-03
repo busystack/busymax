@@ -3,6 +3,113 @@
 This is the maintained qualification record. A checked implementation item does
 not establish live or native acceptance.
 
+## Recovery feedback and unlocked Android qualification — 2026-11-03
+
+Follow-up baseline: `release/v0.4.0` at
+`56abc81d8a6664ea465bd7de01e27b0524e9246c`. The earlier qualification and
+correction records below are preserved.
+
+### Operation-specific recovery feedback
+
+The sync engine returned collection-creation failures, but the production
+`accountSyncOperationsProvider` discarded the result. A recovered rejection
+could therefore remain invisible while existing calendars/tasks synchronized
+successfully. The application now consumes that result into a separate
+collection-creation section of `AccountSyncActivity`. It also rehydrates safe
+persisted journal diagnostics, so rejected operations remain visible after
+subsequent successful pulls and another database/runtime reopening, even though
+they are no longer in the active recovery queue.
+
+The account settings views on Linux, Windows and Android use the same feedback
+content: the requested collection name and a localized calendar/task-list
+creation error, or a pending-reconciliation message. Collection failures do not
+populate the account's synchronization-failure slot, change authentication
+state, or turn a completed event/task pull into a failed future. Pending
+outcomes instruct users to synchronize and avoid repeating the mutation. The
+feedback performs no writes or automatic mutation retries. Existing Nextcloud
+messages are preserved; a dedicated generic permission message is translated
+through all existing catalogs and generated with the official toolchain.
+
+The production-route regression invokes `accountSyncOperationsProvider` with
+its real routing, coordinator, activity and DAV engine factory. It reopens a
+file-backed SQLite database before recovery, checks definitive bind/method/HTTP
+rejections and transient failures, verifies synchronized event/task bodies,
+ETags/cursors and healthy authentication, then creates another application
+container/database connection to check persisted feedback on later pulls.
+Authentication failures still propagate through the production authorization
+path. Six shared-content widget cases cover event/task messages in Material
+and Fluent hosts, pending versus rejected outcomes, account isolation and
+retention across successful sync.
+
+- Focused engine/application-route, presentation and localization run:
+  **66 passed**.
+- Affected real-server tests through the production account-sync route:
+  **Radicale 3.9.0 passed; Baïkal 0.13.0 passed; BusyStack 0.1.0 passed**.
+  The existing read-only namespace fixture verifies VEVENT/VTODO rejection,
+  durable feedback across reopening and three later event/task update rounds.
+  It uses the same unmodified deployments and maintains the earlier full matrix.
+
+### Physical Android acceptance
+
+The authorized **ONEPLUS A6003, Android 10/API 29** was unlocked. The final
+three-server native suite passed **3 tests**, including UI connection,
+calendar/task editing, independent authenticated server readback, and an
+additional assertion of the actual Android account-settings rejection notice
+through the production synchronization route. Each server emitted both
+`BUSYMAX_CALDAV_NATIVE_FEEDBACK_PASS` and `BUSYMAX_CALDAV_NATIVE_PASS`.
+The ordinary synchronization failure slot remained empty.
+
+This closes the previously blocked three-server Android editor rerun. The
+suite used the existing isolated `io.busystack.busymax.caldavqa` package,
+fixture CA and injected disposable secrets. It does not extend the separate
+production Android secure-storage/process-restart qualification, which remains
+preserved below. Only the QA package used its existing keep-awake flag; no
+device lock, power, trust or normal-app settings were changed. The runner
+removed its QA package and the three mappings created for this run were removed.
+
+Native Windows, Android 17 local-network permission prompting and interactive
+installed 0.4.0 Snap acceptance remain separate limitations. Unlocking this
+API-29 phone does not qualify API-37 behavior.
+
+### Follow-up release validation
+
+- Complete deterministic suite: **4,657 passed, 96 gated/optional skips**.
+  Existing provider, authorization, migration, offline/conflict and security
+  regressions pass; the earlier broad protocol matrix remains preserved.
+- Static analysis: **no issues**. Formatting: **842 Dart files, zero changes**.
+  Platform boundaries and repository hygiene passed.
+- Official localization regeneration reproduced the generated sources. Schema
+  **24**, generated Drift sources, dependency lockfile and revision manifest
+  are unchanged by this follow-up; no migration is needed for UI feedback.
+- Linux release build and normal-ID Android release APK/AAB: **passed**.
+  Android native platform unit tests and lint passed. Manifest/signature and
+  native alignment inspection passed, including AAB `PAGE_ALIGNMENT_16K` via
+  the verified official bundletool jar. Android release artifacts are explicitly
+  **test-signed and not for distribution**.
+- Read-only integrity verification passed **1,171 SDK files** and **eight
+  reviewed packages**. `busystack_dav` remains at
+  `33afd70a761822847a37c7ad47f5e61dfeaa74a7`; shared source and upstream servers
+  remain unmodified. Existing dependency IDE-cache changes remain untouched.
+
+Only the existing release branch is used. No push, branch operation, PR #38
+change, tag or publication is part of this follow-up. The follow-up commit is
+identified by `git log -1 release/v0.4.0`; its reviewed parent is `56abc81`.
+Private fixture material and execution logs remain outside the commit.
+
+Reproduce the focused and affected live checks:
+
+```bash
+flutter test test/dav/sync/dav_account_sync_engine_test.dart \
+  test/features/settings/presentation/account_collection_creation_feedback_test.dart \
+  test/app/localization_audit_test.dart --reporter expanded
+BUSYMAX_CALDAV_LIVE=1 flutter test test/dav/caldav_live_integration_test.dart \
+  --plain-name 'rejected creation in a read-only namespace' --reporter expanded
+```
+
+Use the existing Android command in
+[`test/interop/caldav/README.md`](../test/interop/caldav/README.md) for the native
+suite. Generated fixture defines contain disposable credentials and stay ignored.
+
 ## v0.4.0 audit corrections — 2026-11-02
 
 These local corrections start from `release/v0.4.0` at
@@ -352,8 +459,9 @@ metadata remains covered by round-trip tests.
   database were untouched. This qualifies that storage/confinement profile,
   not interactive account/editor acceptance in an installed 0.4.0 package.
 - Current three-server Linux connection/editor suite: **3 passed**, with
-  independent event/task readback. Current Android editor rerun: **blocked on
-  physical device unlock**, not counted as passed. The isolated QA APK is
+  independent event/task readback. At this reviewed baseline, the Android editor
+  rerun was **blocked on physical device unlock**, not counted as passed.
+  **Resolved by the 2026-11-03 three-server Android follow-up above.** The isolated QA APK is
   built and installed on the authorized ONEPLUS A6003; its secure keyguard
   remains locked. No PIN bypass or device setting changes were attempted.
 - Preserved original Android production secure-storage/process-restart

@@ -1,9 +1,13 @@
+import 'package:busymax/src/app/app_bootstrap.dart';
+import 'package:busymax/src/features/connectivity/network_connectivity_service.dart';
+import 'package:busymax/src/features/notifications/notification_reconciler.dart';
+import 'package:busymax/src/core/http/request_dispatch_exception.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:busymax/src/dav/discovery/dav_discovery_models.dart';
 
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:busymax/src/app/app_settings.dart';
 import 'package:busymax/src/core/secrets/secret_store.dart';
 import 'package:busymax/src/dav/dav_errors.dart';
 import 'package:busymax/src/dav/dav_provider_profile.dart';
@@ -33,6 +37,7 @@ import '../../support/persistence_test_directory.dart';
 void main() {
   late AppDatabase database;
   late InMemorySecretStore secrets;
+  Directory? applicationDirectory;
 
   setUp(() async {
     database = AppDatabase(NativeDatabase.memory());
@@ -40,7 +45,11 @@ void main() {
     await _seed(database, secrets);
   });
 
-  tearDown(() => database.close());
+  tearDown(() async {
+    await database.close();
+    await applicationDirectory?.delete(recursive: true);
+    applicationDirectory = null;
+  });
 
   for (final failure in [
     'bind',
@@ -49,189 +58,281 @@ void main() {
     'transient',
     'authentication',
   ]) {
-    test(
-      'collection creation $failure does not mask ordinary event/task synchronization',
-      () async {
-        await database
-            .update(database.accounts)
-            .write(
-              const AccountsCompanion(
-                provider: Value('caldav'),
-                credentialKind: Value('caldav_password'),
-              ),
+    for (final throughApplication in [false, true]) {
+      test(
+        'collection creation $failure does not mask ordinary event/task synchronization; production=$throughApplication',
+        () async {
+          if (throughApplication) {
+            applicationDirectory = await createPersistenceTestDirectory(
+              'busymax-creation-feedback-',
             );
-        await database
-            .update(database.calendarSources)
-            .write(const CalendarSourcesCompanion(provider: Value('caldav')));
-        await secrets.saveCredential(
-          'account',
-          CalDavSecretRecord(
-            serviceAuthority: Uri.parse('https://cloud.example.test/cloud'),
-            username: 'alex',
-            password: 'synthetic',
-          ),
-        );
-        const operationId = 'fe56ed0d-c620-4134-9a79-560da6aee085';
-        const home =
-            'https://cloud.example.test/cloud/remote.php/dav/calendars/alex/';
-        const target = '${home}busymax-$operationId/';
-        await database
-            .into(database.davCollectionCreations)
-            .insert(
-              DavCollectionCreationsCompanion.insert(
-                id: operationId,
-                accountId: 'account',
-                authority: 'https://cloud.example.test/cloud',
-                homeUri: home,
-                targetUri: target,
-                displayName: 'Pending',
-                componentsJson: '["VEVENT"]',
-                createdAtUtc: 'now',
-              ),
+            await database.close();
+            database = AppDatabase(
+              NativeDatabase(File('${applicationDirectory!.path}/app.sqlite')),
             );
-        var rounds = 0, writes = 0;
-        final client = MockClient((request) async {
-          final administration =
-              (request.headers['x-busymax-correlation-id'] ?? '').startsWith(
-                'collection-',
-              );
-          if (request.method == 'OPTIONS') {
-            if (administration && failure == 'transient') {
-              return http.Response('', 503, headers: {'retry-after': '0'});
-            }
-            if (administration && failure == 'authentication') {
-              return http.Response('', 401);
-            }
-            return http.Response(
-              '',
-              200,
-              headers: {
-                'dav': administration && failure == 'unsupported'
-                    ? '1'
-                    : '1, calendar-access, sync-collection',
-                'allow': administration && failure == 'unsupported'
-                    ? 'GET, PROPFIND'
-                    : 'GET, PROPFIND, REPORT, MKCALENDAR',
-              },
-            );
+            await _seed(database, secrets);
           }
-          if (request.method == 'PROPFIND') {
-            if (request.url.toString() == target) return http.Response('', 404);
-            if (request.body.contains('<d:current-user-principal/>')) {
-              return _discoveryMultistatus(
-                _currentPrincipalResponse.replaceFirst(
-                  '/cloud/.well-known/caldav',
-                  request.url.path,
+          await database
+              .update(database.accounts)
+              .write(
+                const AccountsCompanion(
+                  provider: Value('caldav'),
+                  credentialKind: Value('caldav_password'),
                 ),
               );
-            }
-            if (request.body.contains('<c:calendar-home-set/>')) {
-              return _discoveryMultistatus(_principalPropertiesResponse);
-            }
-            if (request.url.toString() == home &&
-                request.headers['depth'] == '0') {
-              return _discoveryMultistatus(
-                '<d:multistatus xmlns:d="DAV:"><d:response><d:href>$home</d:href><d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype><d:current-user-privilege-set><d:privilege><d:${failure == 'bind' ? 'read' : 'bind'}/></d:privilege></d:current-user-privilege-set></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>',
-              );
-            }
-            return _discoveryMultistatus(_singleCollectionInventoryResponse);
-          }
-          if (request.method == 'MKCALENDAR') {
-            writes++;
-            expect(failure, 'http403');
-            return http.Response('', 403);
-          }
-          const todoHref = '${_collectionHref}task.ics';
-          if (request.method == 'REPORT' &&
-              request.body.contains('sync-collection')) {
-            rounds++;
-            String member(String href) =>
-                '<d:response><d:href>$href</d:href><d:propstat><d:prop><d:getetag>"v$rounds"</d:getetag></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>';
-            return _discoveryMultistatus(
-              '<d:multistatus xmlns:d="DAV:">${member(_eventHref)}${member(todoHref)}<d:sync-token>urn:test:round-$rounds</d:sync-token></d:multistatus>',
-            );
-          }
-          if (request.method == 'REPORT') {
-            String member(String href, String body) =>
-                '<d:response><d:href>$href</d:href><d:propstat><d:prop><d:getetag>"v$rounds"</d:getetag><c:calendar-data><![CDATA[$body]]></c:calendar-data></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>';
-            final todo =
-                'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VTODO\r\nUID:task@example.test\r\nSUMMARY:Task $rounds\r\nEND:VTODO\r\nEND:VCALENDAR\r\n';
-            return _discoveryMultistatus(
-              '<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">${member(_eventHref, _event('Event $rounds'))}${member(todoHref, todo)}</d:multistatus>',
-            );
-          }
-          throw StateError('Unexpected ${request.method} ${request.url}');
-        });
-        addTearDown(client.close);
-        final engine = DavAccountSyncEngine(
-          database: database,
-          secretStore: secrets,
-          httpClient: client,
-          accountId: 'account',
-          nowUtc: () => _now,
-        );
-        if (failure == 'authentication') {
-          await expectLater(
-            engine.synchronize(),
-            throwsA(
-              isA<DavException>().having(
-                (e) => e.kind,
-                'kind',
-                DavErrorKind.authentication,
-              ),
+          await database
+              .update(database.calendarSources)
+              .write(const CalendarSourcesCompanion(provider: Value('caldav')));
+          await secrets.saveCredential(
+            'account',
+            CalDavSecretRecord(
+              serviceAuthority: Uri.parse('https://cloud.example.test/cloud'),
+              username: 'alex',
+              password: 'synthetic',
             ),
           );
-          expect(rounds, 0);
-          expect(
-            (await database.select(database.davCollectionCreations).getSingle())
-                .state,
-            'prepared',
+          const operationId = 'fe56ed0d-c620-4134-9a79-560da6aee085';
+          const home =
+              'https://cloud.example.test/cloud/remote.php/dav/calendars/alex/';
+          const target = '${home}busymax-$operationId/';
+          await database
+              .into(database.davCollectionCreations)
+              .insert(
+                DavCollectionCreationsCompanion.insert(
+                  id: operationId,
+                  accountId: 'account',
+                  authority: 'https://cloud.example.test/cloud',
+                  homeUri: home,
+                  targetUri: target,
+                  displayName: 'Pending',
+                  componentsJson: '["VEVENT"]',
+                  createdAtUtc: 'now',
+                ),
+              );
+          if (throughApplication) {
+            // Reopen the prepared operation before using the real application route.
+            await database.close();
+            database = AppDatabase(
+              NativeDatabase(File('${applicationDirectory!.path}/app.sqlite')),
+            );
+          }
+          var rounds = 0, writes = 0;
+          final client = MockClient((request) async {
+            final administration =
+                (request.headers['x-busymax-correlation-id'] ?? '').startsWith(
+                  'collection-',
+                );
+            if (request.method == 'OPTIONS') {
+              if (administration && failure == 'transient') {
+                return http.Response('', 503, headers: {'retry-after': '0'});
+              }
+              if (administration && failure == 'authentication') {
+                return http.Response('', 401);
+              }
+              return http.Response(
+                '',
+                200,
+                headers: {
+                  'dav': administration && failure == 'unsupported'
+                      ? '1'
+                      : '1, calendar-access, sync-collection',
+                  'allow': administration && failure == 'unsupported'
+                      ? 'GET, PROPFIND'
+                      : 'GET, PROPFIND, REPORT, MKCALENDAR',
+                },
+              );
+            }
+            if (request.method == 'PROPFIND') {
+              if (request.url.toString() == target) {
+                return http.Response('', 404);
+              }
+              if (request.body.contains('<d:current-user-principal/>')) {
+                return _discoveryMultistatus(
+                  _currentPrincipalResponse.replaceFirst(
+                    '/cloud/.well-known/caldav',
+                    request.url.path,
+                  ),
+                );
+              }
+              if (request.body.contains('<c:calendar-home-set/>')) {
+                return _discoveryMultistatus(_principalPropertiesResponse);
+              }
+              if (request.url.toString() == home &&
+                  request.headers['depth'] == '0') {
+                return _discoveryMultistatus(
+                  '<d:multistatus xmlns:d="DAV:"><d:response><d:href>$home</d:href><d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype><d:current-user-privilege-set><d:privilege><d:${failure == 'bind' ? 'read' : 'bind'}/></d:privilege></d:current-user-privilege-set></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>',
+                );
+              }
+              return _discoveryMultistatus(_singleCollectionInventoryResponse);
+            }
+            if (request.method == 'MKCALENDAR') {
+              writes++;
+              expect(failure, 'http403');
+              return http.Response('', 403);
+            }
+            const todoHref = '${_collectionHref}task.ics';
+            if (request.method == 'REPORT' &&
+                request.body.contains('sync-collection')) {
+              rounds++;
+              String member(String href) =>
+                  '<d:response><d:href>$href</d:href><d:propstat><d:prop><d:getetag>"v$rounds"</d:getetag></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>';
+              return _discoveryMultistatus(
+                '<d:multistatus xmlns:d="DAV:">${member(_eventHref)}${member(todoHref)}<d:sync-token>urn:test:round-$rounds</d:sync-token></d:multistatus>',
+              );
+            }
+            if (request.method == 'REPORT') {
+              String member(String href, String body) =>
+                  '<d:response><d:href>$href</d:href><d:propstat><d:prop><d:getetag>"v$rounds"</d:getetag><c:calendar-data><![CDATA[$body]]></c:calendar-data></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>';
+              final todo =
+                  'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VTODO\r\nUID:task@example.test\r\nSUMMARY:Task $rounds\r\nEND:VTODO\r\nEND:VCALENDAR\r\n';
+              return _discoveryMultistatus(
+                '<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">${member(_eventHref, _event('Event $rounds'))}${member(todoHref, todo)}</d:multistatus>',
+              );
+            }
+            throw StateError('Unexpected ${request.method} ${request.url}');
+          });
+          addTearDown(client.close);
+          final engine = DavAccountSyncEngine(
+            database: database,
+            secretStore: secrets,
+            httpClient: client,
+            accountId: 'account',
+            nowUtc: () => _now,
           );
-          expect(
-            (await database.select(database.accounts).getSingle()).authState,
-            'reauth_required',
+          ProviderContainer application() => ProviderContainer(
+            overrides: [
+              databaseProvider.overrideWithValue(database),
+              secretStoreProvider.overrideWithValue(secrets),
+              baseHttpClientProvider.overrideWithValue(client),
+              davAccountHttpClientProvider('account').overrideWithValue(client),
+              networkConnectivityMonitorProvider.overrideWith((ref) {
+                final monitor =
+                    NetworkConnectivityMonitor.withoutPlatformObservation();
+                ref.onDispose(monitor.dispose);
+                return monitor;
+              }),
+              notificationReconcilerProvider.overrideWithValue(
+                CallbackNotificationReconciler(() async {}),
+              ),
+            ],
           );
-          return;
-        }
-        for (var iteration = 1; iteration <= 3; iteration++) {
-          final result = await engine.synchronize();
-          expect(result.collectionsSynchronized, 1);
-          expect(
-            result.collectionCreationFailures.length,
-            failure == 'transient' || iteration == 1 ? 1 : 0,
-          );
-          expect(
-            (await database.select(database.calendarEvents).getSingle()).title,
-            'Event $iteration',
-          );
-          expect(
-            (await database.select(database.tasks).getSingle()).title,
-            'Task $iteration',
-          );
-          expect(
-            (await database.select(database.davObjects).get())
-                .map((o) => o.etag)
-                .toSet(),
-            {'"v$iteration"'},
-          );
-          expect(
-            (await database.select(database.accounts).getSingle()).authState,
-            'signed_in',
-          );
-          expect(
-            (await database.select(database.syncCursors).getSingle())
-                .cursorValue,
-            'urn:test:round-$iteration',
-          );
-        }
-        final row = await database
-            .select(database.davCollectionCreations)
-            .getSingle();
-        expect(row.state, failure == 'transient' ? 'prepared' : 'rejected');
-        expect(row.lastErrorCode, isNotNull);
-        expect(writes, failure == 'http403' ? 1 : 0);
-      },
-    );
+          ProviderContainer? container = throughApplication
+              ? application()
+              : null;
+          addTearDown(() => container?.dispose());
+          Future<void> runApplicationSync() => container!
+              .read(accountSyncOperationsProvider)
+              .syncAccount('account', full: false);
+          if (failure == 'authentication') {
+            await expectLater(
+              throughApplication ? runApplicationSync() : engine.synchronize(),
+              throwsA(
+                predicate((error) {
+                  final effective = resolveEffectiveSyncFailure(error!);
+                  return effective is DavException &&
+                      effective.kind == DavErrorKind.authentication;
+                }),
+              ),
+            );
+            expect(rounds, 0);
+            expect(
+              (await database
+                      .select(database.davCollectionCreations)
+                      .getSingle())
+                  .state,
+              'prepared',
+            );
+            expect(
+              (await database.select(database.accounts).getSingle()).authState,
+              'reauth_required',
+            );
+            return;
+          }
+          for (var iteration = 1; iteration <= 3; iteration++) {
+            if (throughApplication) {
+              await runApplicationSync();
+              final activity = container!.read(accountSyncActivityProvider);
+              expect(activity.failure('account', 'dav'), isNull);
+              expect(activity.isRunning('account', 'dav'), isFalse);
+              final notice = activity
+                  .collectionCreationFailures('account')
+                  .values
+                  .single;
+              expect(notice.operation.id, operationId);
+              expect(notice.operation.displayName, 'Pending');
+              expect(notice.pending, failure == 'transient');
+              expect(
+                notice.error.statusCode,
+                failure == 'unsupported'
+                    ? 405
+                    : failure == 'transient'
+                    ? 503
+                    : 403,
+              );
+              expect(
+                activity.collectionCreationFailures('other-account'),
+                isEmpty,
+              );
+            } else {
+              final result = await engine.synchronize();
+              expect(result.collectionsSynchronized, 1);
+              expect(
+                result.collectionCreationFailures.length,
+                failure == 'transient' || iteration == 1 ? 1 : 0,
+              );
+            }
+            expect(
+              (await database.select(database.calendarEvents).getSingle())
+                  .title,
+              'Event $iteration',
+            );
+            expect(
+              (await database.select(database.tasks).getSingle()).title,
+              'Task $iteration',
+            );
+            expect(
+              (await database.select(database.davObjects).get())
+                  .map((o) => o.etag)
+                  .toSet(),
+              {'"v$iteration"'},
+            );
+            expect(
+              (await database.select(database.accounts).getSingle()).authState,
+              'signed_in',
+            );
+            expect(
+              (await database.select(database.syncCursors).getSingle())
+                  .cursorValue,
+              'urn:test:round-$iteration',
+            );
+            if (throughApplication && iteration == 1) {
+              // Terminal rejections leave the recovery queue, but their feedback
+              // must survive another process and another successful pull.
+              container!.dispose();
+              await database.close();
+              database = AppDatabase(
+                NativeDatabase(
+                  File('${applicationDirectory!.path}/app.sqlite'),
+                ),
+              );
+              container = application();
+              expect(
+                container
+                    .read(accountSyncActivityProvider)
+                    .collectionCreationFailures('account'),
+                isEmpty,
+              );
+            }
+          }
+          final row = await database
+              .select(database.davCollectionCreations)
+              .getSingle();
+          expect(row.state, failure == 'transient' ? 'prepared' : 'rejected');
+          expect(row.lastErrorCode, isNotNull);
+          expect(writes, failure == 'http403' ? 1 : 0);
+        },
+      );
+    }
   }
   for (final status in [401, 403]) {
     test(

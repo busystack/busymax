@@ -1,14 +1,37 @@
 import 'package:flutter/foundation.dart';
 
+import '../../dav/mutation/dav_collection_creation_failure.dart';
+
 /// Current-process outcomes are separate from durable successful pull times.
 /// A deferred pull never manufactures a new successful synchronization date.
 final class AccountSyncActivity extends ChangeNotifier {
   final _running = <(String, String), int>{};
   final _failures = <(String, String), Object>{};
+  final _collectionCreationFailures =
+      <String, Map<String, DavCollectionCreationFailure>>{};
   bool _disposed = false;
 
   bool isRunning(String id, String domain) => (_running[(id, domain)] ?? 0) > 0;
   Object? failure(String id, String domain) => _failures[(id, domain)];
+
+  Map<String, DavCollectionCreationFailure> collectionCreationFailures(
+    String id,
+  ) => _collectionCreationFailures[id] ?? const {};
+
+  void setCollectionCreationFailures(
+    String id,
+    Iterable<DavCollectionCreationFailure> failures,
+  ) {
+    final values = {
+      for (final failure in failures) failure.operation.id: failure,
+    };
+    if (values.isEmpty) {
+      _collectionCreationFailures.remove(id);
+    } else {
+      _collectionCreationFailures[id] = Map.unmodifiable(values);
+    }
+    _notify();
+  }
 
   Future<T> run<T>(
     String id,

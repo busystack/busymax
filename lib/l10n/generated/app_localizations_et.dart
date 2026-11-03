@@ -199,6 +199,9 @@ class AppLocalizationsEt extends AppLocalizations {
       'Kogumi loomine on ootel. Enne uuesti proovimist sünkrooni see konto; ära korda toimingut.';
 
   @override
+  String get davCollectionCreationDenied => 'Server ei lubanud kogumit luua.';
+
+  @override
   String get nextcloudOutcomeUnknown =>
       'Serveri tulemust ei saanud kinnitada. Värskenda enne uuesti proovimist.';
 

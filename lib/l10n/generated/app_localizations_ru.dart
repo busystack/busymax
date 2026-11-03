@@ -200,6 +200,10 @@ class AppLocalizationsRu extends AppLocalizations {
       'Создание коллекции ожидается. Синхронизируйте эту учётную запись перед новой попыткой; не повторяйте операцию.';
 
   @override
+  String get davCollectionCreationDenied =>
+      'Сервер не разрешил создание коллекции.';
+
+  @override
   String get nextcloudOutcomeUnknown =>
       'Результат на сервере не подтверждён. Обновите данные перед повторной попыткой.';
 

@@ -10,6 +10,9 @@ import 'android_registration_setup_dialog.dart';
 import '../../core/auth/oauth_registration.dart';
 
 import 'dart:async';
+
+import '../../features/settings/presentation/account_collection_creation_feedback.dart';
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -143,6 +146,11 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                     widget.notificationAccountId == null ||
                     account.id == widget.notificationAccountId,
               )) ...[
+                if (ref
+                    .watch(accountSyncActivityProvider)
+                    .collectionCreationFailures(account.id)
+                    .isNotEmpty)
+                  AccountCollectionCreationFeedback(accountId: account.id),
                 if (account.provider == BusyProvider.microsoft ||
                     account.provider == BusyProvider.google)
                   _AndroidRegistrationCard(

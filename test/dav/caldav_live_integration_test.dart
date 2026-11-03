@@ -1,6 +1,11 @@
 @Timeout(Duration(minutes: 5))
 library;
 
+import 'package:busymax/src/app/app_bootstrap.dart';
+import 'package:busymax/src/features/connectivity/network_connectivity_service.dart';
+import 'package:busymax/src/features/notifications/notification_reconciler.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import 'dart:convert';
 import 'dart:io';
 import 'dart:async';
@@ -132,6 +137,54 @@ void main() {
         final f = CalDavFixture(Uri.parse(server.value));
         await f.open();
         addTearDown(f.close);
+        Future<void> productionSync({bool full = false}) async {
+          final container = ProviderContainer(
+            overrides: [
+              databaseProvider.overrideWithValue(f.database),
+              secretStoreProvider.overrideWithValue(f.secrets),
+              davAccountHttpClientProvider(f.id).overrideWithValue(f.client),
+              networkConnectivityMonitorProvider.overrideWith((ref) {
+                final monitor =
+                    NetworkConnectivityMonitor.withoutPlatformObservation();
+                ref.onDispose(monitor.dispose);
+                return monitor;
+              }),
+              notificationReconcilerProvider.overrideWithValue(
+                CallbackNotificationReconciler(() async {}),
+              ),
+            ],
+          );
+          try {
+            await container
+                .read(accountSyncOperationsProvider)
+                .syncAccount(f.id, full: full);
+            final activity = container.read(accountSyncActivityProvider);
+            expect(activity.failure(f.id, 'dav'), isNull);
+            final rejected =
+                (await f.database
+                        .select(f.database.davCollectionCreations)
+                        .get())
+                    .where((row) => row.state == 'rejected')
+                    .toList();
+            expect(
+              activity.collectionCreationFailures(f.id).keys.toSet(),
+              rejected.map((row) => row.id).toSet(),
+            );
+            expect(
+              activity
+                  .collectionCreationFailures(f.id)
+                  .values
+                  .every(
+                    (notice) =>
+                        !notice.pending && notice.error.statusCode == 403,
+                  ),
+              isTrue,
+            );
+          } finally {
+            container.dispose();
+          }
+        }
+
         final restricted =
             (await f.database.select(f.database.davCollections).get())
                 .singleWhere(
@@ -181,7 +234,7 @@ void main() {
             '${server.key}: $component creation rejected 403; target probe ${absent.statusCode}; journal=rejected',
           );
           await f.reopen();
-          await f.synchronize(full: true);
+          await productionSync(full: true);
           expect(
             (await f.database.select(f.database.davCollectionCreations).get())
                 .singleWhere((o) => o.id == rejected.id)
@@ -209,7 +262,7 @@ void main() {
               contains('After denial $round $component'),
             );
           }
-          await f.synchronize();
+          await productionSync();
           expect(
             (await f.database.select(f.database.calendarEvents).get()).any(
               (e) => e.title == 'After denial $round VEVENT',

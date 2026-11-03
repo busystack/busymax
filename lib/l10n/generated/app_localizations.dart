@@ -447,6 +447,12 @@ abstract class AppLocalizations {
   /// **'Collection creation is pending. Synchronize this account before trying again; do not repeat the operation.'**
   String get davCollectionCreationPending;
 
+  /// No description provided for @davCollectionCreationDenied.
+  ///
+  /// In en, this message translates to:
+  /// **'The server did not allow collection creation.'**
+  String get davCollectionCreationDenied;
+
   /// No description provided for @nextcloudOutcomeUnknown.
   ///
   /// In en, this message translates to:
