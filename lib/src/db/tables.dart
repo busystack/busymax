@@ -97,6 +97,19 @@ class DavCollectionCreations extends Table {
   ];
 }
 
+/// Presentation acknowledgments never change a creation's execution history.
+class DavCollectionCreationAcknowledgments extends Table {
+  TextColumn get operationId => text().references(
+    DavCollectionCreations,
+    #id,
+    onDelete: KeyAction.cascade,
+  )();
+  TextColumn get acknowledgedAtUtc => text()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {operationId};
+}
+
 class DavCollections extends Table {
   TextColumn get id => text()();
   TextColumn get accountId =>

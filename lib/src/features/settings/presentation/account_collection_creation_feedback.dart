@@ -8,12 +8,64 @@ import '../../../l10n/nextcloud_collection_error_description.dart';
 
 /// Shared account feedback content hosted by each platform's settings view.
 /// It never labels a successful calendar/task pull as failed or retries writes.
-class AccountCollectionCreationFeedback extends ConsumerWidget {
-  const AccountCollectionCreationFeedback({super.key, required this.accountId});
+class AccountCollectionCreationFeedback extends ConsumerStatefulWidget {
+  const AccountCollectionCreationFeedback({
+    super.key,
+    required this.accountId,
+    required this.dismissButtonBuilder,
+  });
   final String accountId;
+  final Widget Function(
+    BuildContext context,
+    VoidCallback? onPressed,
+    String label,
+  )
+  dismissButtonBuilder;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AccountCollectionCreationFeedback> createState() =>
+      _AccountCollectionCreationFeedbackState();
+}
+
+class _AccountCollectionCreationFeedbackState
+    extends ConsumerState<AccountCollectionCreationFeedback> {
+  final _dismissing = <String>{};
+  final _failed = <String>{};
+
+  @override
+  void didUpdateWidget(covariant AccountCollectionCreationFeedback oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.accountId != widget.accountId) {
+      _dismissing.clear();
+      _failed.clear();
+    }
+  }
+
+  Future<void> _dismiss(String accountId, String operationId) async {
+    setState(() {
+      _dismissing.add(operationId);
+      _failed.remove(operationId);
+    });
+    var failed = false;
+    try {
+      failed = !await ref.read(acknowledgeDavCollectionCreationNoticeProvider)(
+        accountId,
+        operationId,
+      );
+    } on Object {
+      failed = true;
+    }
+    if (mounted && widget.accountId == accountId) {
+      setState(() {
+        _dismissing.remove(operationId);
+        if (failed) _failed.add(operationId);
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final accountId = widget.accountId;
     final l10n = AppLocalizations.of(context);
     final failures = ref
         .watch(accountSyncActivityProvider)
@@ -67,6 +119,28 @@ class AccountCollectionCreationFeedback extends ConsumerWidget {
                       ],
                     ),
                   ),
+                  if (failure.operation.state == 'rejected')
+                    Column(
+                      children: [
+                        KeyedSubtree(
+                          key: ValueKey((
+                            'dismiss-collection-creation',
+                            accountId,
+                            failure.operation.id,
+                          )),
+                          child: widget.dismissButtonBuilder(
+                            context,
+                            _dismissing.contains(failure.operation.id)
+                                ? null
+                                : () =>
+                                      _dismiss(accountId, failure.operation.id),
+                            l10n.notificationDismissAction,
+                          ),
+                        ),
+                        if (_failed.contains(failure.operation.id))
+                          Text(l10n.operationFailed),
+                      ],
+                    ),
                 ],
               ),
             ),

@@ -740,6 +740,8 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                       .isNotEmpty)
                     AccountCollectionCreationFeedback(
                       accountId: values[index].id,
+                      dismissButtonBuilder: (_, onPressed, label) =>
+                          Button(onPressed: onPressed, child: Text(label)),
                     ),
                   if (values[index].provider == BusyProvider.google ||
                       values[index].provider == BusyProvider.microsoft)

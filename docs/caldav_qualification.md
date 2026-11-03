@@ -3,6 +3,122 @@
 This is the maintained qualification record. A checked implementation item does
 not establish live or native acceptance.
 
+## Terminal notice acknowledgment — 2026-11-03
+
+Follow-up baseline: `release/v0.4.0` at
+`3be80a351f6178df2bf7e17f35a8e89de93d3e89`. Earlier qualification records below
+are retained. This follow-up changes the feedback lifecycle, not the remote
+creation or synchronization protocols.
+
+### Correction and persistence
+
+A rejected creation stayed in the durable journal and was loaded after every
+successful pull. A later committed creation did not acknowledge the old notice,
+and the account settings offered no dismissal. Consequently the old warning
+could remain visible indefinitely after the user resolved the problem.
+
+Account settings now offer the existing localized **Dismiss** action for a
+terminal rejected creation. An acknowledgment is keyed by the operation UUID
+and verified against its owning account and current rejected state. Schema
+**25** adds a separate acknowledgment table with a timestamp and a cascading
+foreign key to the journal. Dismissal never edits the journal's execution state,
+identity or rejection diagnostics, never dispatches a remote request, and never
+infers operation identity from a matching collection name. New failures remain
+visible even when their title matches a previously dismissed notice.
+
+Acknowledgment and feedback reload run through the existing account coordinator
+so an in-flight pull cannot reinstate a dismissed notice. The control is disabled
+while saving; a failed write keeps the notice and offers another attempt with a
+localized error. Prepared/dispatched outcomes remain visible and cannot be
+dismissed. Account removal cascades acknowledgment metadata with its journal.
+Each settings host supplies its native control: the shared BusyMax push-button
+role on Linux, Material on Android and Fluent on Windows. The shared feedback
+content introduces no desktop dependency into Android.
+Existing translations are reused; no catalogs require new strings.
+
+### Regression evidence
+
+- **70 focused tests passed**, covering the notice repository, production
+  account-sync route, all database tests and the Linux/Windows/Android feedback
+  hosts. File-backed VEVENT and VTODO lifecycle cases recover rejected operation
+  A, repair bind permission, commit fresh B with the same name, synchronize,
+  acknowledge A, synchronize again, close/reopen SQLite and recreate the
+  application container. A stays rejected with its original diagnostics, B
+  stays committed, no second creation request is sent, existing event/task
+  contents remain available, and the acknowledged notice stays absent.
+- Additional assertions cover account isolation, idempotence, failed persistence,
+  pending-operation protection, new same-title failures, account-removal cleanup
+  and exact journal preservation. Schema-24 upgrade and interrupted-upgrade
+  rollback preserve all four journal states, diagnostics and the active-name
+  unique index. Existing actual schema-21 migration regressions also pass.
+- The focused button-style, three-platform feedback and release-workflow run
+  passed **16 tests**, including the existing Linux push-button contract.
+- Affected real-server tests passed independently on **Radicale 3.9.0**,
+  **Baïkal 0.13.0** and **BusyStack CalDAV Server 0.1.0**, using their existing
+  pinned, unmodified Docker deployments. Each tests rejected VEVENT/VTODO
+  creations and continued item synchronization, then fresh successful creations
+  in the verified owner home, independent authenticated PROPFIND readback,
+  production notice acknowledgment, database reopening and another successful
+  synchronization. The original rejected and new committed journal rows remain
+  unchanged. The real read-only namespace fixture restores the verified owner
+  home for the successful retry; it does not claim to change server ACLs. The
+  deterministic lifecycle fixture tests bind denial followed by permission grant
+  on the same home.
+
+### Follow-up release validation
+
+- Complete deterministic suite: **4,665 passed, 96 gated/optional skips** using
+  four workers. Existing provider, authorization, migration, offline/conflict
+  and security regressions pass. An initial run exposed a raw Linux button
+  constructor, which was corrected to the existing shared action role, and a
+  two-minute timeout in the existing local-Git release-workflow test. The focused
+  rerun and complete four-worker run pass with the original assertions,
+  timeouts and skip conditions unchanged.
+- Static analysis: **no issues**. Formatting: **844 Dart files, zero changes**.
+  Platform boundaries pass. Official Drift and localization regeneration
+  reproduces the checked-in generated sources; the acknowledgment table is the
+  only schema-25 addition.
+- Linux release build and normal-ID Android release APK/AAB: **passed**.
+  Android native platform unit tests and lint pass. Artifact inspection passes
+  for manifests/signatures, native library alignment and AAB
+  `PAGE_ALIGNMENT_16K`, using the verified official bundletool jar. Android
+  artifacts are explicitly **test-signed and not for distribution**.
+- Read-only integrity verification passes **1,171 SDK files** and **eight
+  reviewed packages**. `busystack_dav` remains at
+  `33afd70a761822847a37c7ad47f5e61dfeaa74a7`; its source, revision manifest and
+  dependency lockfile are unchanged. No upstream server was modified. Existing
+  dependency IDE-cache changes are preserved. Repository hygiene passes.
+- The pinned upstream Gitleaks staged-diff scan reports **no leaks**. A separate
+  check excludes the private QA credential values and temporary artifacts from
+  the staged file inventory.
+
+Only the existing `release/v0.4.0` branch is changed. No push, branch operation,
+PR #38 change, merge, tag or publication is part of this follow-up. Its commit
+can be located with `git log --grep='Persist acknowledgment of terminal CalDAV creation notices'`;
+the reviewed parent is `3be80a3`.
+
+The preceding complete three-server interoperability matrix is preserved. This
+follow-up reruns the affected lifecycle tests; it does not claim another full
+native runtime qualification. Existing physical Android acceptance remains
+valid as historical evidence. Native Windows, Android 17 permission prompting
+and interactive installed Snap acceptance remain unverified separately.
+
+Reproduce the focused and affected live checks:
+
+```bash
+flutter test test/dav/storage/dav_collection_creation_notices_test.dart \
+  test/dav/sync/dav_account_sync_engine_test.dart \
+  test/features/settings/presentation/account_collection_creation_feedback_test.dart \
+  test/db --reporter expanded
+flutter test --concurrency=4 --reporter expanded
+BUSYMAX_CALDAV_LIVE=1 flutter test test/dav/caldav_live_integration_test.dart \
+  --plain-name 'rejected creation in a read-only namespace' --reporter expanded
+```
+
+Start the existing fixtures as documented in
+[`test/interop/caldav/README.md`](../test/interop/caldav/README.md). Disposable
+credentials, private keys and execution logs remain outside the commit.
+
 ## Recovery feedback and unlocked Android qualification — 2026-11-03
 
 Follow-up baseline: `release/v0.4.0` at

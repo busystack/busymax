@@ -12,6 +12,126 @@ import 'package:sqlite3/sqlite3.dart' as sqlite;
 void main() {
   for (final interrupted in [false, true]) {
     test(
+      'schema 24 acknowledgment migration preserves all journal states and rolls back; interrupted=$interrupted',
+      () async {
+        final directory = await createPersistenceTestDirectory(
+          'busymax-v24-notice-',
+        );
+        addTearDown(() => directory.delete(recursive: true));
+        final file = File('${directory.path}/app.sqlite');
+        var db = AppDatabase(NativeDatabase(file));
+        await db
+            .into(db.accounts)
+            .insert(
+              AccountsCompanion.insert(
+                id: 'caldav',
+                provider: 'caldav',
+                authority: 'https://example.test/',
+                providerAccountId: 'alice',
+                credentialKind: 'caldav_password',
+                createdAtUtc: 'now',
+                updatedAtUtc: 'now',
+              ),
+            );
+        for (final state in [
+          'prepared',
+          'dispatched',
+          'committed',
+          'rejected',
+        ]) {
+          await db
+              .into(db.davCollectionCreations)
+              .insert(
+                DavCollectionCreationsCompanion.insert(
+                  id: state,
+                  accountId: 'caldav',
+                  authority: 'https://example.test/',
+                  homeUri: 'https://example.test/home/',
+                  targetUri: 'https://example.test/home/$state/',
+                  displayName: state,
+                  componentsJson: '["VTODO"]',
+                  state: Value(state),
+                  lastErrorKind: const Value('authorization'),
+                  lastErrorCode: const Value('DavPermissionDenied'),
+                  lastErrorStatus: const Value(403),
+                  createdAtUtc: 'now',
+                ),
+              );
+        }
+        await db.close();
+        var raw = sqlite.sqlite3.open(file.path);
+        raw.execute('DROP TABLE dav_collection_creation_acknowledgments');
+        raw.execute('PRAGMA user_version = 24');
+        final before = raw
+            .select('SELECT * FROM dav_collection_creations ORDER BY id')
+            .map((r) => Map<String, Object?>.from(r))
+            .toList();
+        final index = raw
+            .select(
+              "SELECT sql FROM sqlite_master WHERE name='idx_dav_creation_pending_name'",
+            )
+            .single['sql'];
+        raw.close();
+        if (interrupted) {
+          db = _InterruptedDatabase(NativeDatabase(file));
+          await expectLater(db.select(db.accounts).get(), throwsStateError);
+          await db.close();
+          raw = sqlite.sqlite3.open(file.path);
+          expect(raw.select('PRAGMA user_version').single.values.single, 24);
+          expect(
+            raw.select(
+              "SELECT name FROM sqlite_master WHERE name='dav_collection_creation_acknowledgments'",
+            ),
+            isEmpty,
+          );
+          expect(
+            raw
+                .select('SELECT * FROM dav_collection_creations ORDER BY id')
+                .map((r) => Map<String, Object?>.from(r))
+                .toList(),
+            before,
+          );
+          raw.close();
+        }
+        db = AppDatabase(NativeDatabase(file));
+        expect(
+          (await db.customSelect('PRAGMA user_version').getSingle())
+              .data['user_version'],
+          25,
+        );
+        expect(
+          (await db
+                  .customSelect(
+                    'SELECT * FROM dav_collection_creations ORDER BY id',
+                  )
+                  .get())
+              .map((r) => r.data)
+              .toList(),
+          before,
+        );
+        expect(
+          (await db
+                  .customSelect(
+                    "SELECT sql FROM sqlite_master WHERE name='idx_dav_creation_pending_name'",
+                  )
+                  .getSingle())
+              .data['sql'],
+          index,
+        );
+        expect(
+          await db.select(db.davCollectionCreationAcknowledgments).get(),
+          isEmpty,
+        );
+        expect(
+          await db.customSelect('PRAGMA foreign_key_check').get(),
+          isEmpty,
+        );
+        await db.close();
+      },
+    );
+  }
+  for (final interrupted in [false, true]) {
+    test(
       'schema 23 upgrade preserves creation states and unique index; interrupted=$interrupted',
       () async {
         final directory = await createPersistenceTestDirectory(
@@ -145,7 +265,7 @@ void main() {
         expect(
           (await db.customSelect('PRAGMA user_version').getSingle())
               .data['user_version'],
-          24,
+          25,
         );
         await db.close();
       },
@@ -219,7 +339,7 @@ void main() {
         expect(
           (await db.customSelect('PRAGMA user_version').getSingle())
               .data['user_version'],
-          24,
+          25,
         );
         expect(
           await db.customSelect('PRAGMA foreign_key_check').get(),
@@ -379,7 +499,7 @@ void main() {
         expect(
           (await db.customSelect('PRAGMA user_version').getSingle())
               .data['user_version'],
-          24,
+          25,
         );
         for (final table in tables) {
           expect(
@@ -427,7 +547,7 @@ class _InterruptedDatabase extends AppDatabase {
 
   @override
   Future<void> customStatement(String statement, [List<Object?>? args]) async {
-    if (statement == 'PRAGMA user_version = 24') {
+    if (statement == 'PRAGMA user_version = 25') {
       throw StateError('Interrupted before commit');
     }
     await super.customStatement(statement, args);

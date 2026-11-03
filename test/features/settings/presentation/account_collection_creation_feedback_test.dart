@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:busymax/l10n/generated/app_localizations_en.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
+import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/dav/mutation/dav_collection_creation_failure.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/settings/presentation/account_collection_creation_feedback.dart';
@@ -19,15 +22,41 @@ void main() {
         '$platform account shows operation rejection while pull stays successful; tasks=$taskList',
         (tester) async {
           final activity = AccountSyncActivity();
+          var acknowledgment = Completer<bool>();
+          var acknowledgments = 0;
           final container = ProviderContainer(
             overrides: [
               accountSyncActivityProvider.overrideWith((ref) => activity),
+              acknowledgeDavCollectionCreationNoticeProvider.overrideWithValue((
+                accountId,
+                operationId,
+              ) async {
+                expect(accountId, 'account');
+                expect(operationId, 'creation');
+                acknowledgments++;
+                final saved = await acknowledgment.future;
+                if (saved) {
+                  activity.setCollectionCreationFailures(accountId, []);
+                }
+                return saved;
+              }),
             ],
           );
           addTearDown(container.dispose);
           final l10n = AppLocalizationsEn();
-          const content = AccountCollectionCreationFeedback(
+          final content = AccountCollectionCreationFeedback(
             accountId: 'account',
+            dismissButtonBuilder: (_, onPressed, label) => switch (platform) {
+              'windows' => fluent.Button(
+                onPressed: onPressed,
+                child: Text(label),
+              ),
+              'linux' => BusyMaxPushButton.standard(
+                onPressed: onPressed,
+                child: Text(label),
+              ),
+              _ => TextButton(onPressed: onPressed, child: Text(label)),
+            },
           );
           Widget host(Widget child) => platform == 'windows'
               ? fluent.FluentApp(
@@ -58,6 +87,33 @@ void main() {
           );
           expect(find.text(l10n.syncFailureNotificationTitle), findsNothing);
           expect(find.textContaining('Nextcloud'), findsNothing);
+          final dismiss = find.byKey(
+            const ValueKey((
+              'dismiss-collection-creation',
+              'account',
+              'creation',
+            )),
+          );
+          expect(dismiss, findsOneWidget);
+          await tester.tap(dismiss);
+          await tester.pump();
+          expect(acknowledgments, 1);
+          expect(find.text('Requested collection'), findsOneWidget);
+          acknowledgment.completeError(StateError('persistence unavailable'));
+          await tester.pumpAndSettle();
+          expect(find.text(l10n.operationFailed), findsOneWidget);
+          expect(find.text('Requested collection'), findsOneWidget);
+          acknowledgment = Completer<bool>();
+          await tester.tap(dismiss);
+          await tester.pump();
+          acknowledgment.complete(true);
+          await tester.pumpAndSettle();
+          expect(acknowledgments, 2);
+          expect(find.text('Requested collection'), findsNothing);
+          activity.setCollectionCreationFailures('account', [
+            _failure(taskList: taskList),
+          ]);
+          await tester.pumpAndSettle();
           await activity.run('account', 'dav', () async {});
           await tester.pump();
           expect(activity.failure('account', 'dav'), isNull);
@@ -68,6 +124,7 @@ void main() {
           ]);
           await tester.pumpAndSettle();
           expect(find.text(l10n.davCollectionCreationPending), findsOneWidget);
+          expect(dismiss, findsNothing);
           expect(find.textContaining('Could not create'), findsNothing);
           activity.setCollectionCreationFailures('account', []);
           await tester.pumpAndSettle();

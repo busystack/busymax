@@ -1,3 +1,4 @@
+import 'package:busymax/src/dav/mutation/dav_collection_administration.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/features/connectivity/network_connectivity_service.dart';
 import 'package:busymax/src/features/notifications/notification_reconciler.dart';
@@ -333,6 +334,195 @@ void main() {
         },
       );
     }
+  }
+  for (final component in ['VEVENT', 'VTODO']) {
+    test(
+      'rejection, successful $component retry, acknowledgment and production restart preserve the journal',
+      () async {
+        applicationDirectory = await createPersistenceTestDirectory(
+          'busymax-notice-lifecycle-',
+        );
+        final file = File('${applicationDirectory!.path}/app.sqlite');
+        await database.close();
+        database = AppDatabase(NativeDatabase(file));
+        await _seed(database, secrets);
+        await database
+            .update(database.accounts)
+            .write(
+              const AccountsCompanion(
+                provider: Value('caldav'),
+                credentialKind: Value('caldav_password'),
+              ),
+            );
+        await database
+            .update(database.calendarSources)
+            .write(const CalendarSourcesCompanion(provider: Value('caldav')));
+        await secrets.saveCredential(
+          'account',
+          CalDavSecretRecord(
+            serviceAuthority: Uri.parse('https://cloud.example.test/cloud'),
+            username: 'alex',
+            password: 'synthetic',
+          ),
+        );
+        final wire = _NoticeLifecycleWire(component);
+        final client = MockClient(wire.handle);
+        addTearDown(client.close);
+        await database
+            .into(database.davCollectionCreations)
+            .insert(
+              DavCollectionCreationsCompanion.insert(
+                id: _NoticeLifecycleWire.operationA,
+                accountId: 'account',
+                authority: 'https://cloud.example.test/cloud',
+                homeUri: _NoticeLifecycleWire.home,
+                targetUri: _NoticeLifecycleWire.targetA,
+                displayName: 'Recovered collection',
+                componentsJson: '["$component"]',
+                createdAtUtc: 'now',
+              ),
+            );
+        await database.close();
+        database = AppDatabase(NativeDatabase(file));
+        ProviderContainer application() => ProviderContainer(
+          overrides: [
+            databaseProvider.overrideWithValue(database),
+            secretStoreProvider.overrideWithValue(secrets),
+            baseHttpClientProvider.overrideWithValue(client),
+            davAccountHttpClientProvider('account').overrideWithValue(client),
+            networkConnectivityMonitorProvider.overrideWith((ref) {
+              final monitor =
+                  NetworkConnectivityMonitor.withoutPlatformObservation();
+              ref.onDispose(monitor.dispose);
+              return monitor;
+            }),
+            notificationReconcilerProvider.overrideWithValue(
+              CallbackNotificationReconciler(() async {}),
+            ),
+          ],
+        );
+        var container = application();
+        addTearDown(() => container.dispose());
+        Future<void> sync() => container
+            .read(accountSyncOperationsProvider)
+            .syncAccount('account', full: true);
+        await sync();
+        final rejected =
+            await (database.select(database.davCollectionCreations)
+                  ..where((r) => r.id.equals(_NoticeLifecycleWire.operationA)))
+                .getSingle();
+        expect(rejected.state, 'rejected');
+        expect(rejected.lastErrorStatus, 403);
+        expect(
+          container
+              .read(accountSyncActivityProvider)
+              .collectionCreationFailures('account')
+              .keys,
+          [_NoticeLifecycleWire.operationA],
+        );
+        expect(wire.creationCalls, 0);
+        wire.bindAllowed = true;
+        await sync(); // Revalidate the repaired permissions without changing A.
+        expect(
+          await DavCollectionAdministration(
+            database: database,
+            secrets: secrets,
+            client: client,
+            accountId: 'account',
+            creationIdFactory: () => _NoticeLifecycleWire.operationB,
+            refresh: () async {},
+            requireNetwork: () async {},
+          ).create('Recovered collection', {component}),
+          DavCollectionAdministrationOutcome.committed,
+        );
+        expect(wire.created, isTrue);
+        expect(wire.creationCalls, 1);
+        await sync();
+        final journalBefore = {
+          for (final row
+              in await database.select(database.davCollectionCreations).get())
+            row.id: row.toJson(),
+        };
+        expect(
+          journalBefore[_NoticeLifecycleWire.operationB]!['state'],
+          'committed',
+        );
+        expect(
+          journalBefore[_NoticeLifecycleWire.operationA],
+          rejected.toJson(),
+        );
+        // The matching name is not operation identity: B cannot silently rewrite A.
+        expect(
+          container
+              .read(accountSyncActivityProvider)
+              .collectionCreationFailures('account')
+              .keys,
+          [_NoticeLifecycleWire.operationA],
+        );
+        expect(
+          await container.read(acknowledgeDavCollectionCreationNoticeProvider)(
+            'account',
+            _NoticeLifecycleWire.operationA,
+          ),
+          isTrue,
+        );
+        expect(
+          container
+              .read(accountSyncActivityProvider)
+              .collectionCreationFailures('account'),
+          isEmpty,
+        );
+        expect(
+          container.read(accountSyncActivityProvider).failure('account', 'dav'),
+          isNull,
+        );
+        expect(
+          (await database
+                  .select(database.davCollectionCreationAcknowledgments)
+                  .getSingle())
+              .operationId,
+          _NoticeLifecycleWire.operationA,
+        );
+        await sync();
+        container.dispose();
+        await database.close();
+        database = AppDatabase(NativeDatabase(file));
+        container = application();
+        await sync();
+        expect(
+          container
+              .read(accountSyncActivityProvider)
+              .collectionCreationFailures('account'),
+          isEmpty,
+        );
+        expect(
+          container.read(accountSyncActivityProvider).failure('account', 'dav'),
+          isNull,
+        );
+        expect({
+          for (final row
+              in await database.select(database.davCollectionCreations).get())
+            row.id: row.toJson(),
+        }, journalBefore);
+        expect(wire.creationCalls, 1);
+        expect(
+          (await database.select(database.calendarEvents).get()).any(
+            (e) => e.title == 'Existing event',
+          ),
+          isTrue,
+        );
+        expect(
+          (await database.select(database.tasks).get()).any(
+            (t) => t.title == 'Existing task',
+          ),
+          isTrue,
+        );
+        expect(
+          (await database.select(database.accounts).getSingle()).authState,
+          'signed_in',
+        );
+      },
+    );
   }
   for (final status in [401, 403]) {
     test(
@@ -2084,3 +2274,96 @@ const _twoCollectionInventoryResponse =
    <d:supported-report><d:report><c:calendar-multiget/></d:report></d:supported-report></d:supported-report-set>
  </d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
 </d:multistatus>''';
+
+final class _NoticeLifecycleWire {
+  _NoticeLifecycleWire(this.component);
+  final String component;
+  static const operationA = 'fe56ed0d-c620-4134-9a79-560da6aee085';
+  static const operationB = 'ca40c96b-63df-4c82-b182-f007d192d934';
+  static const home =
+      'https://cloud.example.test/cloud/remote.php/dav/calendars/alex/';
+  static const targetA = '${home}busymax-$operationA/';
+  static const targetB = '${home}busymax-$operationB/';
+  bool bindAllowed = false, created = false;
+  int creationCalls = 0, revision = 0;
+  String get properties =>
+      '<d:resourcetype><d:collection/><c:calendar/></d:resourcetype><d:displayname>Recovered collection</d:displayname><d:current-user-privilege-set><d:privilege><d:all/></d:privilege></d:current-user-privilege-set><c:supported-calendar-component-set><c:comp name="$component"/></c:supported-calendar-component-set><d:supported-report-set><d:supported-report><d:report><d:sync-collection/></d:report></d:supported-report></d:supported-report-set>';
+  String entry(String uri, String properties) =>
+      '<d:response><d:href>$uri</d:href><d:propstat><d:prop>$properties</d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>';
+  http.Response multi(String body) => _discoveryMultistatus(
+    '<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">$body</d:multistatus>',
+  );
+  Future<http.Response> handle(http.Request request) async {
+    if (request.method == 'OPTIONS') {
+      return http.Response(
+        '',
+        200,
+        headers: {
+          'dav': '1, calendar-access, sync-collection',
+          'allow': 'GET, PROPFIND, REPORT, MKCALENDAR',
+        },
+      );
+    }
+    if (request.method == 'MKCALENDAR') {
+      expect(bindAllowed, isTrue);
+      expect(request.url.toString(), targetB);
+      creationCalls++;
+      created = true;
+      return http.Response('', 201);
+    }
+    if (request.method == 'PROPFIND') {
+      if (request.url.toString() == targetA) return http.Response('', 404);
+      if (request.url.toString() == targetB) {
+        return created
+            ? multi(entry(targetB, properties))
+            : http.Response('', 404);
+      }
+      if (request.body.contains('<d:current-user-principal/>')) {
+        return _discoveryMultistatus(
+          _currentPrincipalResponse.replaceFirst(
+            '/cloud/.well-known/caldav',
+            request.url.path,
+          ),
+        );
+      }
+      if (request.body.contains('<c:calendar-home-set/>')) {
+        return _discoveryMultistatus(_principalPropertiesResponse);
+      }
+      if (request.url.toString() == home && request.headers['depth'] == '0') {
+        return multi(
+          entry(
+            home,
+            '<d:resourcetype><d:collection/></d:resourcetype><d:current-user-privilege-set><d:privilege><d:${bindAllowed ? 'all' : 'read'}/></d:privilege></d:current-user-privilege-set>',
+          ),
+        );
+      }
+      return _discoveryMultistatus(
+        _singleCollectionInventoryResponse.replaceFirst(
+          '</d:multistatus>',
+          '${created ? entry(targetB, properties) : ''}</d:multistatus>',
+        ),
+      );
+    }
+    if (request.method == 'REPORT' &&
+        request.body.contains('sync-collection')) {
+      if (request.url.toString() == targetB) {
+        return multi('<d:sync-token>urn:lifecycle:empty</d:sync-token>');
+      }
+      revision++;
+      String member(String href) => entry(href, '<d:getetag>"v1"</d:getetag>');
+      return multi(
+        '${member(_eventHref)}${member('${_collectionHref}todo.ics')}<d:sync-token>urn:lifecycle:$revision</d:sync-token>',
+      );
+    }
+    if (request.method == 'REPORT') {
+      String member(String href, String body) => entry(
+        href,
+        '<d:getetag>"v1"</d:getetag><c:calendar-data><![CDATA[$body]]></c:calendar-data>',
+      );
+      return multi(
+        '${member(_eventHref, _event('Existing event'))}${member('${_collectionHref}todo.ics', 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VTODO\r\nUID:notice-task@example.test\r\nDTSTAMP:20261103T000000Z\r\nSUMMARY:Existing task\r\nEND:VTODO\r\nEND:VCALENDAR\r\n')}',
+      );
+    }
+    throw StateError('Unexpected ${request.method} ${request.url}');
+  }
+}

@@ -150,7 +150,11 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                     .watch(accountSyncActivityProvider)
                     .collectionCreationFailures(account.id)
                     .isNotEmpty)
-                  AccountCollectionCreationFeedback(accountId: account.id),
+                  AccountCollectionCreationFeedback(
+                    accountId: account.id,
+                    dismissButtonBuilder: (_, onPressed, label) =>
+                        TextButton(onPressed: onPressed, child: Text(label)),
+                  ),
                 if (account.provider == BusyProvider.microsoft ||
                     account.provider == BusyProvider.google)
                   _AndroidRegistrationCard(

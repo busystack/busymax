@@ -4381,7 +4381,14 @@ class _AccountManagementCard extends ConsumerWidget {
       filled: true,
       children: [
         if (activity.collectionCreationFailures(account.id).isNotEmpty)
-          AccountCollectionCreationFeedback(accountId: account.id),
+          AccountCollectionCreationFeedback(
+            accountId: account.id,
+            dismissButtonBuilder: (_, onPressed, label) =>
+                BusyMaxPushButton.standard(
+                  onPressed: onPressed,
+                  child: Text(label),
+                ),
+          ),
         if (primary != null)
           failureRow(primary)
         else ...[

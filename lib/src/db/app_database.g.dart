@@ -4399,6 +4399,258 @@ class DavCollectionCreationsCompanion
   }
 }
 
+class $DavCollectionCreationAcknowledgmentsTable
+    extends DavCollectionCreationAcknowledgments
+    with
+        TableInfo<
+          $DavCollectionCreationAcknowledgmentsTable,
+          DavCollectionCreationAcknowledgment
+        > {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DavCollectionCreationAcknowledgmentsTable(
+    this.attachedDatabase, [
+    this._alias,
+  ]);
+  static const VerificationMeta _operationIdMeta = const VerificationMeta(
+    'operationId',
+  );
+  @override
+  late final GeneratedColumn<String> operationId = GeneratedColumn<String>(
+    'operation_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES dav_collection_creations (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _acknowledgedAtUtcMeta = const VerificationMeta(
+    'acknowledgedAtUtc',
+  );
+  @override
+  late final GeneratedColumn<String> acknowledgedAtUtc =
+      GeneratedColumn<String>(
+        'acknowledged_at_utc',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: true,
+      );
+  @override
+  List<GeneratedColumn> get $columns => [operationId, acknowledgedAtUtc];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'dav_collection_creation_acknowledgments';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DavCollectionCreationAcknowledgment> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('operation_id')) {
+      context.handle(
+        _operationIdMeta,
+        operationId.isAcceptableOrUnknown(
+          data['operation_id']!,
+          _operationIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_operationIdMeta);
+    }
+    if (data.containsKey('acknowledged_at_utc')) {
+      context.handle(
+        _acknowledgedAtUtcMeta,
+        acknowledgedAtUtc.isAcceptableOrUnknown(
+          data['acknowledged_at_utc']!,
+          _acknowledgedAtUtcMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_acknowledgedAtUtcMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {operationId};
+  @override
+  DavCollectionCreationAcknowledgment map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DavCollectionCreationAcknowledgment(
+      operationId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}operation_id'],
+      )!,
+      acknowledgedAtUtc: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}acknowledged_at_utc'],
+      )!,
+    );
+  }
+
+  @override
+  $DavCollectionCreationAcknowledgmentsTable createAlias(String alias) {
+    return $DavCollectionCreationAcknowledgmentsTable(attachedDatabase, alias);
+  }
+}
+
+class DavCollectionCreationAcknowledgment extends DataClass
+    implements Insertable<DavCollectionCreationAcknowledgment> {
+  final String operationId;
+  final String acknowledgedAtUtc;
+  const DavCollectionCreationAcknowledgment({
+    required this.operationId,
+    required this.acknowledgedAtUtc,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['operation_id'] = Variable<String>(operationId);
+    map['acknowledged_at_utc'] = Variable<String>(acknowledgedAtUtc);
+    return map;
+  }
+
+  DavCollectionCreationAcknowledgmentsCompanion toCompanion(bool nullToAbsent) {
+    return DavCollectionCreationAcknowledgmentsCompanion(
+      operationId: Value(operationId),
+      acknowledgedAtUtc: Value(acknowledgedAtUtc),
+    );
+  }
+
+  factory DavCollectionCreationAcknowledgment.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DavCollectionCreationAcknowledgment(
+      operationId: serializer.fromJson<String>(json['operationId']),
+      acknowledgedAtUtc: serializer.fromJson<String>(json['acknowledgedAtUtc']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'operationId': serializer.toJson<String>(operationId),
+      'acknowledgedAtUtc': serializer.toJson<String>(acknowledgedAtUtc),
+    };
+  }
+
+  DavCollectionCreationAcknowledgment copyWith({
+    String? operationId,
+    String? acknowledgedAtUtc,
+  }) => DavCollectionCreationAcknowledgment(
+    operationId: operationId ?? this.operationId,
+    acknowledgedAtUtc: acknowledgedAtUtc ?? this.acknowledgedAtUtc,
+  );
+  DavCollectionCreationAcknowledgment copyWithCompanion(
+    DavCollectionCreationAcknowledgmentsCompanion data,
+  ) {
+    return DavCollectionCreationAcknowledgment(
+      operationId: data.operationId.present
+          ? data.operationId.value
+          : this.operationId,
+      acknowledgedAtUtc: data.acknowledgedAtUtc.present
+          ? data.acknowledgedAtUtc.value
+          : this.acknowledgedAtUtc,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DavCollectionCreationAcknowledgment(')
+          ..write('operationId: $operationId, ')
+          ..write('acknowledgedAtUtc: $acknowledgedAtUtc')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(operationId, acknowledgedAtUtc);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DavCollectionCreationAcknowledgment &&
+          other.operationId == this.operationId &&
+          other.acknowledgedAtUtc == this.acknowledgedAtUtc);
+}
+
+class DavCollectionCreationAcknowledgmentsCompanion
+    extends UpdateCompanion<DavCollectionCreationAcknowledgment> {
+  final Value<String> operationId;
+  final Value<String> acknowledgedAtUtc;
+  final Value<int> rowid;
+  const DavCollectionCreationAcknowledgmentsCompanion({
+    this.operationId = const Value.absent(),
+    this.acknowledgedAtUtc = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DavCollectionCreationAcknowledgmentsCompanion.insert({
+    required String operationId,
+    required String acknowledgedAtUtc,
+    this.rowid = const Value.absent(),
+  }) : operationId = Value(operationId),
+       acknowledgedAtUtc = Value(acknowledgedAtUtc);
+  static Insertable<DavCollectionCreationAcknowledgment> custom({
+    Expression<String>? operationId,
+    Expression<String>? acknowledgedAtUtc,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (operationId != null) 'operation_id': operationId,
+      if (acknowledgedAtUtc != null) 'acknowledged_at_utc': acknowledgedAtUtc,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DavCollectionCreationAcknowledgmentsCompanion copyWith({
+    Value<String>? operationId,
+    Value<String>? acknowledgedAtUtc,
+    Value<int>? rowid,
+  }) {
+    return DavCollectionCreationAcknowledgmentsCompanion(
+      operationId: operationId ?? this.operationId,
+      acknowledgedAtUtc: acknowledgedAtUtc ?? this.acknowledgedAtUtc,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (operationId.present) {
+      map['operation_id'] = Variable<String>(operationId.value);
+    }
+    if (acknowledgedAtUtc.present) {
+      map['acknowledged_at_utc'] = Variable<String>(acknowledgedAtUtc.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DavCollectionCreationAcknowledgmentsCompanion(')
+          ..write('operationId: $operationId, ')
+          ..write('acknowledgedAtUtc: $acknowledgedAtUtc, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $DavCollectionsTable extends DavCollections
     with TableInfo<$DavCollectionsTable, DavCollection> {
   @override
@@ -30038,6 +30290,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $DavAccountServicesTable(this);
   late final $DavCollectionCreationsTable davCollectionCreations =
       $DavCollectionCreationsTable(this);
+  late final $DavCollectionCreationAcknowledgmentsTable
+  davCollectionCreationAcknowledgments =
+      $DavCollectionCreationAcknowledgmentsTable(this);
   late final $DavCollectionsTable davCollections = $DavCollectionsTable(this);
   late final $DavObjectsTable davObjects = $DavObjectsTable(this);
   late final $DavObjectComponentsTable davObjectComponents =
@@ -30093,6 +30348,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     domainSyncSchedules,
     davAccountServices,
     davCollectionCreations,
+    davCollectionCreationAcknowledgments,
     davCollections,
     davObjects,
     davObjectComponents,
@@ -30156,6 +30412,18 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       ),
       result: [
         TableUpdate('dav_collection_creations', kind: UpdateKind.delete),
+      ],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'dav_collection_creations',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [
+        TableUpdate(
+          'dav_collection_creation_acknowledgments',
+          kind: UpdateKind.delete,
+        ),
       ],
     ),
     WritePropagation(
@@ -34712,6 +34980,31 @@ final class $$DavCollectionCreationsTableReferences
       manager.$state.copyWith(prefetchedData: [item]),
     );
   }
+
+  static MultiTypedResultKey<
+    $DavCollectionCreationAcknowledgmentsTable,
+    List<DavCollectionCreationAcknowledgment>
+  >
+  _davCollectionCreationAcknowledgmentsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.davCollectionCreationAcknowledgments,
+        aliasName: 'dav_collection_creations__id__dav_collection_creation_acknowledgments__operation_id',
+      );
+
+  $$DavCollectionCreationAcknowledgmentsTableProcessedTableManager
+  get davCollectionCreationAcknowledgmentsRefs {
+    final manager = $$DavCollectionCreationAcknowledgmentsTableTableManager(
+      $_db,
+      $_db.davCollectionCreationAcknowledgments,
+    ).filter((f) => f.operationId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _davCollectionCreationAcknowledgmentsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$DavCollectionCreationsTableFilterComposer
@@ -34799,6 +35092,35 @@ class $$DavCollectionCreationsTableFilterComposer
           ),
     );
     return composer;
+  }
+
+  Expression<bool> davCollectionCreationAcknowledgmentsRefs(
+    Expression<bool> Function(
+      $$DavCollectionCreationAcknowledgmentsTableFilterComposer f,
+    )
+    f,
+  ) {
+    final $$DavCollectionCreationAcknowledgmentsTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.davCollectionCreationAcknowledgments,
+          getReferencedColumn: (t) => t.operationId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$DavCollectionCreationAcknowledgmentsTableFilterComposer(
+                $db: $db,
+                $table: $db.davCollectionCreationAcknowledgments,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
   }
 }
 
@@ -34966,6 +35288,35 @@ class $$DavCollectionCreationsTableAnnotationComposer
     );
     return composer;
   }
+
+  Expression<T> davCollectionCreationAcknowledgmentsRefs<T extends Object>(
+    Expression<T> Function(
+      $$DavCollectionCreationAcknowledgmentsTableAnnotationComposer a,
+    )
+    f,
+  ) {
+    final $$DavCollectionCreationAcknowledgmentsTableAnnotationComposer
+    composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.davCollectionCreationAcknowledgments,
+      getReferencedColumn: (t) => t.operationId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavCollectionCreationAcknowledgmentsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.davCollectionCreationAcknowledgments,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$DavCollectionCreationsTableTableManager
@@ -34981,7 +35332,10 @@ class $$DavCollectionCreationsTableTableManager
           $$DavCollectionCreationsTableUpdateCompanionBuilder,
           (DavCollectionCreation, $$DavCollectionCreationsTableReferences),
           DavCollectionCreation,
-          PrefetchHooks Function({bool accountId})
+          PrefetchHooks Function({
+            bool accountId,
+            bool davCollectionCreationAcknowledgmentsRefs,
+          })
         > {
   $$DavCollectionCreationsTableTableManager(
     _$AppDatabase db,
@@ -35076,7 +35430,341 @@ class $$DavCollectionCreationsTableTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({accountId = false}) {
+          prefetchHooksCallback:
+              ({
+                accountId = false,
+                davCollectionCreationAcknowledgmentsRefs = false,
+              }) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (davCollectionCreationAcknowledgmentsRefs)
+                      db.davCollectionCreationAcknowledgments,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (accountId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.accountId,
+                            referencedTable:
+                                $$DavCollectionCreationsTableReferences
+                                    ._accountIdTable(db),
+                            referencedColumn:
+                                $$DavCollectionCreationsTableReferences
+                                    ._accountIdTable(db)
+                                    .id,
+                          ) as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (davCollectionCreationAcknowledgmentsRefs)
+                        await $_getPrefetchedData<
+                          DavCollectionCreation,
+                          $DavCollectionCreationsTable,
+                          DavCollectionCreationAcknowledgment
+                        >(
+                          currentTable: table,
+                          referencedTable: $$DavCollectionCreationsTableReferences
+                              ._davCollectionCreationAcknowledgmentsRefsTable(
+                                db,
+                              ),
+                          managerFromTypedResult: (p0) =>
+                              $$DavCollectionCreationsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).davCollectionCreationAcknowledgmentsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.operationId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$DavCollectionCreationsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $DavCollectionCreationsTable,
+      DavCollectionCreation,
+      $$DavCollectionCreationsTableFilterComposer,
+      $$DavCollectionCreationsTableOrderingComposer,
+      $$DavCollectionCreationsTableAnnotationComposer,
+      $$DavCollectionCreationsTableCreateCompanionBuilder,
+      $$DavCollectionCreationsTableUpdateCompanionBuilder,
+      (DavCollectionCreation, $$DavCollectionCreationsTableReferences),
+      DavCollectionCreation,
+      PrefetchHooks Function({
+        bool accountId,
+        bool davCollectionCreationAcknowledgmentsRefs,
+      })
+    >;
+typedef $$DavCollectionCreationAcknowledgmentsTableCreateCompanionBuilder =
+    DavCollectionCreationAcknowledgmentsCompanion Function({
+      required String operationId,
+      required String acknowledgedAtUtc,
+      Value<int> rowid,
+    });
+typedef $$DavCollectionCreationAcknowledgmentsTableUpdateCompanionBuilder =
+    DavCollectionCreationAcknowledgmentsCompanion Function({
+      Value<String> operationId,
+      Value<String> acknowledgedAtUtc,
+      Value<int> rowid,
+    });
+
+final class $$DavCollectionCreationAcknowledgmentsTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $DavCollectionCreationAcknowledgmentsTable,
+          DavCollectionCreationAcknowledgment
+        > {
+  $$DavCollectionCreationAcknowledgmentsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $DavCollectionCreationsTable _operationIdTable(_$AppDatabase db) =>
+      db.davCollectionCreations.createAlias(
+        'dav_collection_creation_acknowledgments__operation_id__dav_collection_creations__id',
+      );
+
+  $$DavCollectionCreationsTableProcessedTableManager get operationId {
+    final $_column = $_itemColumn<String>('operation_id')!;
+
+    final manager = $$DavCollectionCreationsTableTableManager(
+      $_db,
+      $_db.davCollectionCreations,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_operationIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$DavCollectionCreationAcknowledgmentsTableFilterComposer
+    extends
+        Composer<_$AppDatabase, $DavCollectionCreationAcknowledgmentsTable> {
+  $$DavCollectionCreationAcknowledgmentsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get acknowledgedAtUtc => $composableBuilder(
+    column: $table.acknowledgedAtUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$DavCollectionCreationsTableFilterComposer get operationId {
+    final $$DavCollectionCreationsTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.operationId,
+          referencedTable: $db.davCollectionCreations,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$DavCollectionCreationsTableFilterComposer(
+                $db: $db,
+                $table: $db.davCollectionCreations,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+}
+
+class $$DavCollectionCreationAcknowledgmentsTableOrderingComposer
+    extends
+        Composer<_$AppDatabase, $DavCollectionCreationAcknowledgmentsTable> {
+  $$DavCollectionCreationAcknowledgmentsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get acknowledgedAtUtc => $composableBuilder(
+    column: $table.acknowledgedAtUtc,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$DavCollectionCreationsTableOrderingComposer get operationId {
+    final $$DavCollectionCreationsTableOrderingComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.operationId,
+          referencedTable: $db.davCollectionCreations,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$DavCollectionCreationsTableOrderingComposer(
+                $db: $db,
+                $table: $db.davCollectionCreations,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+}
+
+class $$DavCollectionCreationAcknowledgmentsTableAnnotationComposer
+    extends
+        Composer<_$AppDatabase, $DavCollectionCreationAcknowledgmentsTable> {
+  $$DavCollectionCreationAcknowledgmentsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get acknowledgedAtUtc => $composableBuilder(
+    column: $table.acknowledgedAtUtc,
+    builder: (column) => column,
+  );
+
+  $$DavCollectionCreationsTableAnnotationComposer get operationId {
+    final $$DavCollectionCreationsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.operationId,
+          referencedTable: $db.davCollectionCreations,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$DavCollectionCreationsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.davCollectionCreations,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+}
+
+class $$DavCollectionCreationAcknowledgmentsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $DavCollectionCreationAcknowledgmentsTable,
+          DavCollectionCreationAcknowledgment,
+          $$DavCollectionCreationAcknowledgmentsTableFilterComposer,
+          $$DavCollectionCreationAcknowledgmentsTableOrderingComposer,
+          $$DavCollectionCreationAcknowledgmentsTableAnnotationComposer,
+          $$DavCollectionCreationAcknowledgmentsTableCreateCompanionBuilder,
+          $$DavCollectionCreationAcknowledgmentsTableUpdateCompanionBuilder,
+          (
+            DavCollectionCreationAcknowledgment,
+            $$DavCollectionCreationAcknowledgmentsTableReferences,
+          ),
+          DavCollectionCreationAcknowledgment,
+          PrefetchHooks Function({bool operationId})
+        > {
+  $$DavCollectionCreationAcknowledgmentsTableTableManager(
+    _$AppDatabase db,
+    $DavCollectionCreationAcknowledgmentsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DavCollectionCreationAcknowledgmentsTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$DavCollectionCreationAcknowledgmentsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$DavCollectionCreationAcknowledgmentsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> operationId = const Value.absent(),
+                Value<String> acknowledgedAtUtc = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DavCollectionCreationAcknowledgmentsCompanion(
+                operationId: operationId,
+                acknowledgedAtUtc: acknowledgedAtUtc,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String operationId,
+                required String acknowledgedAtUtc,
+                Value<int> rowid = const Value.absent(),
+              }) => DavCollectionCreationAcknowledgmentsCompanion.insert(
+                operationId: operationId,
+                acknowledgedAtUtc: acknowledgedAtUtc,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<
+                    $DavCollectionCreationAcknowledgmentsTable,
+                    DavCollectionCreationAcknowledgment
+                  >(table),
+                  $$DavCollectionCreationAcknowledgmentsTableReferences(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({operationId = false}) {
             return PrefetchHooks(
               db: db,
               explicitlyWatchedTables: [],
@@ -35096,15 +35784,16 @@ class $$DavCollectionCreationsTableTableManager
                       dynamic
                     >
                   >(state) {
-                    if (accountId) {
+                    if (operationId) {
                       state = state.withJoin(
                         currentTable: table,
-                        currentColumn: table.accountId,
-                        referencedTable: $$DavCollectionCreationsTableReferences
-                            ._accountIdTable(db),
+                        currentColumn: table.operationId,
+                        referencedTable:
+                            $$DavCollectionCreationAcknowledgmentsTableReferences
+                                ._operationIdTable(db),
                         referencedColumn:
-                            $$DavCollectionCreationsTableReferences
-                                ._accountIdTable(db)
+                            $$DavCollectionCreationAcknowledgmentsTableReferences
+                                ._operationIdTable(db)
                                 .id,
                       ) as T;
                     }
@@ -35120,19 +35809,22 @@ class $$DavCollectionCreationsTableTableManager
       );
 }
 
-typedef $$DavCollectionCreationsTableProcessedTableManager =
+typedef $$DavCollectionCreationAcknowledgmentsTableProcessedTableManager =
     ProcessedTableManager<
       _$AppDatabase,
-      $DavCollectionCreationsTable,
-      DavCollectionCreation,
-      $$DavCollectionCreationsTableFilterComposer,
-      $$DavCollectionCreationsTableOrderingComposer,
-      $$DavCollectionCreationsTableAnnotationComposer,
-      $$DavCollectionCreationsTableCreateCompanionBuilder,
-      $$DavCollectionCreationsTableUpdateCompanionBuilder,
-      (DavCollectionCreation, $$DavCollectionCreationsTableReferences),
-      DavCollectionCreation,
-      PrefetchHooks Function({bool accountId})
+      $DavCollectionCreationAcknowledgmentsTable,
+      DavCollectionCreationAcknowledgment,
+      $$DavCollectionCreationAcknowledgmentsTableFilterComposer,
+      $$DavCollectionCreationAcknowledgmentsTableOrderingComposer,
+      $$DavCollectionCreationAcknowledgmentsTableAnnotationComposer,
+      $$DavCollectionCreationAcknowledgmentsTableCreateCompanionBuilder,
+      $$DavCollectionCreationAcknowledgmentsTableUpdateCompanionBuilder,
+      (
+        DavCollectionCreationAcknowledgment,
+        $$DavCollectionCreationAcknowledgmentsTableReferences,
+      ),
+      DavCollectionCreationAcknowledgment,
+      PrefetchHooks Function({bool operationId})
     >;
 typedef $$DavCollectionsTableCreateCompanionBuilder =
     DavCollectionsCompanion Function({
@@ -52365,6 +53057,12 @@ class $AppDatabaseManager {
       $$DavCollectionCreationsTableTableManager(
         _db,
         _db.davCollectionCreations,
+      );
+  $$DavCollectionCreationAcknowledgmentsTableTableManager
+  get davCollectionCreationAcknowledgments =>
+      $$DavCollectionCreationAcknowledgmentsTableTableManager(
+        _db,
+        _db.davCollectionCreationAcknowledgments,
       );
   $$DavCollectionsTableTableManager get davCollections =>
       $$DavCollectionsTableTableManager(_db, _db.davCollections);

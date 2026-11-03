@@ -137,7 +137,11 @@ void main() {
         final f = CalDavFixture(Uri.parse(server.value));
         await f.open();
         addTearDown(f.close);
-        Future<void> productionSync({bool full = false}) async {
+        final acknowledged = <String>{};
+        Future<void> productionSync({
+          bool full = false,
+          String? dismiss,
+        }) async {
           final container = ProviderContainer(
             overrides: [
               databaseProvider.overrideWithValue(f.database),
@@ -168,7 +172,7 @@ void main() {
                     .toList();
             expect(
               activity.collectionCreationFailures(f.id).keys.toSet(),
-              rejected.map((row) => row.id).toSet(),
+              rejected.map((row) => row.id).toSet().difference(acknowledged),
             );
             expect(
               activity
@@ -180,6 +184,19 @@ void main() {
                   ),
               isTrue,
             );
+            if (dismiss != null) {
+              expect(
+                await container.read(
+                  acknowledgeDavCollectionCreationNoticeProvider,
+                )(f.id, dismiss),
+                isTrue,
+              );
+              acknowledged.add(dismiss);
+              expect(
+                activity.collectionCreationFailures(f.id).keys.toSet(),
+                rejected.map((row) => row.id).toSet().difference(acknowledged),
+              );
+            }
           } finally {
             container.dispose();
           }
@@ -285,6 +302,90 @@ void main() {
             'signed_in',
           );
         }
+        // The verified writable home is restored. A fresh retry succeeds at
+        // a new operation URL; only an explicit acknowledgment resolves A's
+        // presentation. Its execution history remains rejected and unchanged.
+        final rejected =
+            (await f.database.select(f.database.davCollectionCreations).get())
+                .where((r) => r.state == 'rejected')
+                .toList();
+        for (final operation in rejected) {
+          final component = operation.displayName.endsWith('VEVENT')
+              ? 'VEVENT'
+              : 'VTODO';
+          expect(
+            await f.administration.create(operation.displayName, {component}),
+            DavCollectionAdministrationOutcome.committed,
+          );
+          final committed =
+              (await f.database.select(f.database.davCollectionCreations).get())
+                  .singleWhere(
+                    (r) =>
+                        r.state == 'committed' &&
+                        r.displayName == operation.displayName,
+                  );
+          final createdTarget = Uri.parse(committed.targetUri);
+          addTearDown(() async {
+            final response = await f.independentRequest(
+              'DELETE',
+              createdTarget,
+            );
+            expect(response.statusCode, anyOf(200, 204, 404, 410));
+          });
+          expect(committed.id, isNot(operation.id));
+          expect(committed.targetUri, isNot(operation.targetUri));
+          final remote = await f.independentRequest(
+            'PROPFIND',
+            createdTarget,
+            headers: const {'Depth': '0', 'content-type': 'application/xml'},
+            body: '<d:propfind xmlns:d="DAV:"><d:prop><d:displayname/></d:prop></d:propfind>',
+          );
+          expect(remote.statusCode, 207);
+          expect(remote.body, contains(operation.displayName));
+        }
+        await productionSync(full: true);
+        final journal = {
+          for (final row
+              in await f.database
+                  .select(f.database.davCollectionCreations)
+                  .get())
+            row.id: row.toJson(),
+        };
+        for (final operation in rejected) {
+          await productionSync(dismiss: operation.id);
+        }
+        await f.reopen();
+        await productionSync(full: true);
+        expect(
+          (await f.database.select(f.database.calendarEvents).get()).any(
+            (e) => e.title == 'After denial 3 VEVENT',
+          ),
+          isTrue,
+        );
+        expect(
+          (await f.database.select(f.database.tasks).get()).any(
+            (t) => t.title == 'After denial 3 VTODO',
+          ),
+          isTrue,
+        );
+        expect({
+          for (final row
+              in await f.database
+                  .select(f.database.davCollectionCreations)
+                  .get())
+            row.id: row.toJson(),
+        }, journal);
+        expect(
+          (await f.database
+                  .select(f.database.davCollectionCreationAcknowledgments)
+                  .get())
+              .map((r) => r.operationId)
+              .toSet(),
+          acknowledged,
+        );
+        debugPrint(
+          '${server.key}: successful fresh retries, durable acknowledgment and restart preserve rejected journals',
+        );
       },
       skip: enabled ? false : 'Requires isolated HTTPS Docker fixtures.',
     );

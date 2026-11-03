@@ -72,6 +72,12 @@ dedicated Nextcloud account type for its supported extensions.
 - For discovery errors, use the administrator's direct DAV URL and verify the
   principal and calendar-home properties are accessible.
 - For missing tasks, check the collection's VTODO configuration and selection.
+- After resolving a failed calendar or task-list creation, use **Dismiss** on
+  its account-settings notice. Dismissal persists across synchronization and
+  restarts and retains the operation's diagnostic history. A successful new
+  request does not automatically clear an older failure with the same name.
+  Pending reconciliation notices cannot be dismissed; synchronize to determine
+  their remote outcome before attempting another creation.
 - For TLS errors, correct the certificate chain and hostname. Generic accounts
   use normal platform validation; no certificate bypass is provided.
 - Removing the account removes local credentials, cached account data and

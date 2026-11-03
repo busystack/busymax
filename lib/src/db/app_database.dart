@@ -28,6 +28,7 @@ part 'daos/tasks_dao.dart';
     DomainSyncSchedules,
     DavAccountServices,
     DavCollectionCreations,
+    DavCollectionCreationAcknowledgments,
     DavCollections,
     DavObjects,
     DavObjectComponents,

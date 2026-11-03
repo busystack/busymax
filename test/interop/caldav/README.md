@@ -59,7 +59,8 @@ flutter test test/dav/caldav_live_integration_test.dart --plain-name 'real passw
 
 # Audit-correction probe: real read-only namespace, rejected journal, DB reopen,
 # three subsequent rounds of independently changed VEVENT/VTODO synchronization.
-# Uses the production account-sync route and checks durable operation feedback.
+# Uses the production account-sync route, fresh successful retries in the owner
+# home, explicit notice dismissal, and acknowledgment persistence after reopening.
 BUSYMAX_CALDAV_LIVE=1 flutter test test/dav/caldav_live_integration_test.dart \
   --plain-name 'rejected creation in a read-only namespace' --reporter expanded
 

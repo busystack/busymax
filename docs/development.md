@@ -69,7 +69,12 @@ database into an older application. Schema 23 adds the account-owned collection
 creation journal. A random operation UUID and reserved remote URL are persisted
 before dispatch; recovery uses that ID rather than a matching title. The
 schema-22 additive migration and rollback are also tested. Never downgrade a
-schema-23 database into an older application.
+schema-23 database into an older application. Schema 24 adds safe rejection
+diagnostics. Schema 25 stores terminal-notice acknowledgments separately from
+the journal; dismissal preserves operation identity, execution state and
+diagnostics. The schema-24 acknowledgment upgrade and interrupted-upgrade
+rollback preserve all journal states and the active-name constraint. Do not
+open a schema-25 database with an older application.
 
 The Linux CI build runs on Ubuntu 24.04 and installs the following packages:
 
