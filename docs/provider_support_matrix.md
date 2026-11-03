@@ -38,7 +38,7 @@ The current qualification targets are Radicale 3.9.0, Baïkal 0.13.0
 issued DAV credentials and separate event/task collections; its normal account
 password is not a DAV password. These are server configurations of the same
 CalDAV provider. The three-server Android connection/editor and collection-recovery
-feedback workflows passed on the authorized ONEPLUS A6003 (Android 10/API 29).
+feedback workflows are qualified on Android 10/API 29.
 Native Windows and Android 17 permission-prompt acceptance remain unverified;
 see the qualification record for actual runtime evidence.
 

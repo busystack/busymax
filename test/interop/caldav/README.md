@@ -5,8 +5,9 @@ These first-party deployment fixtures package **unmodified** upstream Radicale
 `compose.yaml` and `baikal.Dockerfile`. Baïkal's official release archive is
 verified against SHA-256
 `81e74df123230e863f608d228fdd7b9a1a788f60b04d37e6973c302192e83f32`.
-BusyStack CalDAV Server v0.1.0 is the third mandatory target. Historical
-Radicale 3.8.1 / Baïkal 0.12.1 evidence remains in the qualification record.
+BusyStack CalDAV Server v0.1.0 is the third mandatory target. The
+qualification record distinguishes current protocol results from older native
+process-restart evidence.
 
 Prerequisites: Docker with Compose v2, Python 3, OpenSSL, the repository's
 official Flutter/Dart toolchain, free loopback ports 18443–18448, 18532, 18580 and 18581.

@@ -210,12 +210,11 @@ or credentials. The same APK and original periodic jobs must survive restart.
 ### DAV transport regression comparison
 
 Run `BUSYMAX_DAV_BENCHMARK=1 flutter test test/dav/trust/dav_transport_benchmark_test.dart`
-for the maintained real-loopback TLS comparison. A reference run with four
-concurrent operations, 5,000-event payloads, eight task-list paths, 40 ms server
-delay and simultaneous mutations measured: direct pre-lease transport **511 ms**,
-exclusive leases **930 ms**, shared leases **561 ms** for 16 requests. Peak server
-concurrency was respectively **4 / 1 / 4**. This isolates transport overhead;
-it is not a live Nextcloud synchronization benchmark or native-platform acceptance.
+for the maintained real-loopback TLS comparison of direct transport, exclusive
+leases and shared leases under concurrent reads and mutations. Its synthetic
+5,000-event payloads, eight task-list paths and controlled server delay isolate
+transport overhead; results do not establish live Nextcloud synchronization
+performance or native-platform acceptance.
 The trash regression discovers all 300 objects representing 37.5 MiB of full
 content through size-budgeted batches, and verifies that the old single full-body
 response exceeds the unchanged limit. Run it with
@@ -225,11 +224,9 @@ and `BUSYMAX_NEXTCLOUD_TRASH_SCALE_LIVE=1`, and set
 `BUSYMAX_NEXTCLOUD_LIVE_CONTAINER` to the explicitly disposable `busymax-qa-*`
 server. Fixture preparation calls official backend APIs; BusyMax listing,
 restoration and deletion use the configured account's pinned HTTPS transport.
-A Nextcloud 35.0.2/SQLite fixture returned metadata for all 300 mixed objects
-(~37 MiB of full content) in **1.10 seconds**; two explicitly selected detail
-reads took **1.26 seconds** combined. The previous eager listing took 134 seconds.
-Restore and permanent-delete readback passed. These are server-fixture timings,
-not native Windows or Android acceptance.
+The live fixture measures metadata listing separately from explicitly selected
+full-detail reads and verifies restore/permanent-delete readback. These checks
+remain separate from native Windows and Android acceptance.
 
 Authorization acquisition and active HTTP ownership each have a separate
 two-minute bound; the DAV operation deadline can cancel either sooner.
@@ -293,9 +290,9 @@ their regression coverage.
 
 ## Release branches
 
-Start `release/v0.4.0` from current `main`, commit reviewed changes, and open it
-into `main` with title `release/v0.4.0`. Fetch before final review and incorporate
-later `origin/main` commits with a normal merge. The existing
+Continue reviewed v0.4.0 work on the existing `release/v0.4.0` branch and its
+release PR into `main`, with matching title `release/v0.4.0`. Fetch before final
+review and incorporate later `origin/main` commits with a normal merge. The existing
 `tool/check_release_pull_request.py` validates the actual PR head, release
 metadata and current-main ancestry. A synthetic PR merge does not establish
 that ancestry. Preserve worktrees and uncommitted work; do not rewrite history

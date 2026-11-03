@@ -118,8 +118,10 @@ PowerShell modules and validators under `tool/windows/` are implementation
 details of these entry points.
 
 Repository checks: `python3 tool/check_repository_hygiene.py` checks tracked
-artifacts and product/documentation paths. CI also runs the official Gitleaks
-image pinned by digest against reachable history; `.gitleaks.toml` retains upstream
+artifacts, private key material and workstation paths in all tracked UTF-8 text
+files. NUL-containing and non-UTF-8 binary resources are not decoded. Exact
+synthetic path exceptions are documented in the checker. CI also runs the official
+Gitleaks image pinned by digest against reachable history; `.gitleaks.toml` retains upstream
 rules with narrow checksum, public-curve and synthetic-ID exceptions. Locally,
 run `gitleaks git --log-opts=--all --redact --config .gitleaks.toml` and scan a
 tracked-source export with `gitleaks dir` before release. Removing source values
