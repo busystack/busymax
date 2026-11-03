@@ -1,3 +1,5 @@
+import 'package:busymax/src/features/calendar/data/calendar_collection_creation_service.dart';
+import 'package:busymax/l10n/generated/app_localizations_en.dart';
 import 'package:busymax/src/android/presentation/android_settings_screen.dart';
 import 'package:busymax/src/android/android_notifications.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
@@ -17,6 +19,34 @@ import '../../support/memory_settings_store.dart';
 import '../../test_localized_app.dart';
 
 void main() {
+  testWidgets(
+    'CalDAV calendar creation with a failed refresh is shown as saved without retry',
+    (tester) async {
+      final creator = _PendingCreator();
+      final harness = await _pumpAndroidSettings(
+        tester,
+        provider: BusyProvider.caldav,
+        creator: creator,
+      );
+      addTearDown(harness.dispose);
+      final row = find.widgetWithText(ListTile, 'New calendar');
+      await tester.scrollUntilVisible(
+        row,
+        500,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.ensureVisible(row);
+      await tester.tap(row);
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'Work');
+      await tester.tap(find.text('Save').last);
+      await tester.pumpAndSettle();
+      expect(creator.calls, 1);
+      expect(find.text(AppLocalizationsEn().davRefreshPending), findsOneWidget);
+      expect(find.textContaining('saved on Nextcloud'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
   testWidgets(
     'blocked notification System action opens app settings separately from precision',
     (tester) async {
@@ -222,6 +252,8 @@ void main() {
 
 Future<_AndroidSettingsHarness> _pumpAndroidSettings(
   WidgetTester tester, {
+  BusyProvider provider = BusyProvider.google,
+  CalendarCollectionCreator? creator,
   bool reconnectRequired = false,
   SignedInSyncRunner? signedInSyncRunner,
   AllAccountsSyncRunner? allAccountsSyncRunner,
@@ -234,7 +266,8 @@ Future<_AndroidSettingsHarness> _pumpAndroidSettings(
   final accounts = AccountsRepository(database: database);
   await accounts.upsertSignedInAccount(
     id: 'google:g',
-    provider: BusyProvider.google,
+    provider: provider,
+    authority: provider == BusyProvider.caldav ? 'https://example.test/' : null,
     grantedScopes: 'tasks calendar',
     displayName: 'Google User',
   );
@@ -243,6 +276,8 @@ Future<_AndroidSettingsHarness> _pumpAndroidSettings(
   }
   final container = ProviderContainer(
     overrides: [
+      if (creator != null)
+        calendarCollectionCreationServiceProvider.overrideWithValue(creator),
       buildConfigProvider.overrideWithValue(BuildConfig.forAndroid()),
       databaseProvider.overrideWithValue(database),
       initialAppSettingsProvider.overrideWithValue(AppSettings.defaults()),
@@ -311,5 +346,19 @@ final class _AndroidSettingsHarness {
     await tester.pumpWidget(const SizedBox.shrink());
     container.dispose();
     await database.close();
+  }
+}
+
+final class _PendingCreator implements CalendarCollectionCreator {
+  int calls = 0;
+  @override
+  Future<CalendarCollectionCreationResult> createCalendar({
+    required String accountId,
+    required String title,
+  }) async {
+    calls++;
+    return const CalendarCollectionCreationResult(
+      outcome: CalendarCollectionCreationOutcome.createdRefreshPending,
+    );
   }
 }

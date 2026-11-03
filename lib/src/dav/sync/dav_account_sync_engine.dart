@@ -44,8 +44,12 @@ final class DavAccountSyncResult {
     required this.conflictsCreated,
     required this.followUpCollectionsSynchronized,
     required this.affectedObjectIds,
+    this.collectionCreationFailures = const {},
   });
 
+  /// Nonblocking administration failures keyed by their durable operation ID.
+  /// These never masquerade as failed calendar/task synchronization.
+  final Map<String, DavException> collectionCreationFailures;
   final bool discoveryRefreshed;
   final int collectionsSynchronized;
   final int pendingOperationsApplied;
@@ -264,6 +268,7 @@ final class DavAccountSyncEngine {
       }
 
       var recoveredCreation = false;
+      final creationFailures = <String, DavException>{};
       for (final operation in pendingCreations) {
         if (DavCollectionAdministration.creationIsActive(
           _accountId,
@@ -271,17 +276,29 @@ final class DavAccountSyncEngine {
         )) {
           continue;
         }
-        await DavCollectionAdministration(
-          database: _database,
-          secrets: _secretStore,
-          client: _httpClient,
-          accountId: _accountId,
-          refresh: () async {},
-          requireNetwork: () async {
-            cancellationToken.throwIfCancelled();
-          },
-        ).resumeCreation(operation.id, cancellation: cancellationToken);
-        recoveredCreation = true;
+        try {
+          await DavCollectionAdministration(
+            database: _database,
+            secrets: _secretStore,
+            client: _httpClient,
+            accountId: _accountId,
+            refresh: () async {},
+            requireNetwork: () async {
+              cancellationToken.throwIfCancelled();
+            },
+          ).resumeCreation(operation.id, cancellation: cancellationToken);
+          recoveredCreation = true;
+        } on DavException catch (error) {
+          // A denied/unsupported creation is scoped to this operation, not
+          // to readable collections. Authentication, TLS and cancellation are
+          // account/network boundaries and must still abort authoritatively.
+          if (error.kind == DavErrorKind.authentication ||
+              error.kind == DavErrorKind.tls ||
+              error.kind == DavErrorKind.cancelled) {
+            rethrow;
+          }
+          creationFailures[operation.id] = error;
+        }
       }
       if (recoveredCreation) {
         final discovery =
@@ -458,6 +475,7 @@ final class DavAccountSyncEngine {
         conflictsCreated: replay.conflictCount,
         followUpCollectionsSynchronized: followUpCount,
         affectedObjectIds: Set.unmodifiable(affected),
+        collectionCreationFailures: Map.unmodifiable(creationFailures),
       );
     } on DavAccountSyncException {
       rethrow;

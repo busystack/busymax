@@ -80,6 +80,8 @@
   "nextcloudAvailability": "将此集合纳入空闲状态计算",
   "nextcloudCalendarTimezone": "日历时区（VTIMEZONE 文档）",
   "nextcloudRefreshPending": "更改已保存在 Nextcloud。刷新尚未完成；请勿重复更改。",
+  "davRefreshPending": "更改已保存在 CalDAV 服务器上。刷新尚未完成；请勿重复更改。",
+  "davCollectionCreationPending": "集合创建尚未完成。请先同步此账户再重试；请勿重复此操作。",
   "nextcloudOutcomeUnknown": "无法确认服务器结果。请刷新后再试。",
   "nextcloudRemoveShared": "移除共享日历/列表",
   "nextcloudRemoveMixed": "此集合包含事件和任务。删除集合将同时删除两者。",

@@ -127,6 +127,115 @@ void main() {
   }
   for (final server in calDavQaTargets.entries) {
     test(
+      '${server.key}: rejected creation in a read-only namespace survives restart without blocking event/task sync',
+      () async {
+        final f = CalDavFixture(Uri.parse(server.value));
+        await f.open();
+        addTearDown(f.close);
+        final restricted =
+            (await f.database.select(f.database.davCollections).get())
+                .singleWhere(
+                  (c) =>
+                      c.displayName == 'BusyMax QA restricted' ||
+                      c.hrefKey.endsWith('/restricted/'),
+                );
+        final parent = Uri.parse(restricted.requestUri);
+        // Model the selected creation namespace being read-only. The server's
+        // real advertised privileges and real authenticated responses remain
+        // authoritative; normal account discovery is restored by the sync below.
+        for (final component in ['VEVENT', 'VTODO']) {
+          await (f.database.update(
+            f.database.davAccountServices,
+          )..where((r) => r.accountId.equals(f.id))).write(
+            DavAccountServicesCompanion(
+              calendarHomeHref: Value(parent.toString()),
+            ),
+          );
+          await expectLater(
+            f.administration.create('${f.collectionName} denied $component', {
+              component,
+            }),
+            throwsA(
+              isA<DavException>().having(
+                (e) => e.statusCode,
+                'permission denial',
+                403,
+              ),
+            ),
+          );
+          final rejected =
+              (await f.database.select(f.database.davCollectionCreations).get())
+                  .lastWhere(
+                    (o) => o.displayName.endsWith('denied $component'),
+                  );
+          expect(rejected.state, 'rejected');
+          expect(rejected.lastErrorStatus, 403);
+          final absent = await f.independentRequest(
+            'PROPFIND',
+            Uri.parse(rejected.targetUri),
+            headers: const {'Depth': '0', 'content-type': 'application/xml'},
+            body: '<d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/></d:prop></d:propfind>',
+          );
+          expect(absent.statusCode, anyOf(403, 404));
+          debugPrint(
+            '${server.key}: $component creation rejected 403; target probe ${absent.statusCode}; journal=rejected',
+          );
+          await f.reopen();
+          await f.synchronize(full: true);
+          expect(
+            (await f.database.select(f.database.davCollectionCreations).get())
+                .singleWhere((o) => o.id == rejected.id)
+                .state,
+            'rejected',
+          );
+        }
+        for (var round = 1; round <= 3; round++) {
+          for (final component in ['VEVENT', 'VTODO']) {
+            final base = component == 'VEVENT'
+                ? (f.createdEventCollectionUri ?? f.createdCollectionUri!)
+                : f.createdCollectionUri!;
+            final target = base.resolve('post-denial-$component.ics');
+            final body =
+                'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//BusyMax//QA//EN\r\nBEGIN:$component\r\nUID:post-denial-$component-${f.collectionName}\r\nDTSTAMP:20261102T000000Z\r\nDTSTART:20261103T120000Z\r\nSUMMARY:After denial $round $component\r\nEND:$component\r\nEND:VCALENDAR\r\n';
+            final response = await f.independentRequest(
+              'PUT',
+              target,
+              headers: const {'content-type': 'text/calendar'},
+              body: body,
+            );
+            expect(response.statusCode, anyOf(201, 204));
+            expect(
+              (await f.independentRequest('GET', target)).body,
+              contains('After denial $round $component'),
+            );
+          }
+          await f.synchronize();
+          expect(
+            (await f.database.select(f.database.calendarEvents).get()).any(
+              (e) => e.title == 'After denial $round VEVENT',
+            ),
+            isTrue,
+          );
+          expect(
+            (await f.database.select(f.database.tasks).get()).any(
+              (t) => t.title == 'After denial $round VTODO',
+            ),
+            isTrue,
+          );
+          final objects = (await f.database.select(f.database.davObjects).get())
+              .where((o) => o.requestUri.contains('/post-denial-'));
+          expect(objects.length, 2);
+          expect(objects.every((o) => o.etag?.isNotEmpty == true), isTrue);
+          expect(
+            (await f.database.select(f.database.accounts).getSingle())
+                .authState,
+            'signed_in',
+          );
+        }
+      },
+      skip: enabled ? false : 'Requires isolated HTTPS Docker fixtures.',
+    );
+    test(
       '${server.key}: live TLS, origin protection, response budgets and XML limits',
       () async {
         final credentials = await calDavQaCredentials(Uri.parse(server.value));

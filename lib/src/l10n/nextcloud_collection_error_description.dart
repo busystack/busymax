@@ -23,6 +23,11 @@ String localizedNextcloudCollectionError(
   NextcloudCollectionValidationException() => l10n.invalidCollectionValue,
   SecretStoreException() => l10n.oauthSecureStorageUnavailable,
   NextcloudRefreshPending() => l10n.nextcloudRefreshPending,
+  DavRefreshPending() => l10n.davRefreshPending,
+  DavException(code: 'DavCollectionCreationPending') =>
+    l10n.davCollectionCreationPending,
+  DavException(code: 'DavCollectionOutcomeUnknown') =>
+    l10n.nextcloudOutcomeUnknown,
   DavException(
     code: 'DavDiscoveryRequired' ||
         'DavIncompleteInventory' ||

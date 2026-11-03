@@ -194,6 +194,14 @@ class AppLocalizationsEs extends AppLocalizations {
       'El cambio se guardó en Nextcloud. La actualización está pendiente; no repitas el cambio.';
 
   @override
+  String get davRefreshPending =>
+      'El cambio se guardó en el servidor CalDAV. La actualización está pendiente; no repitas el cambio.';
+
+  @override
+  String get davCollectionCreationPending =>
+      'La creación de la colección está pendiente. Sincroniza esta cuenta antes de volver a intentarlo; no repitas la operación.';
+
+  @override
   String get nextcloudOutcomeUnknown =>
       'No se pudo confirmar el resultado en el servidor. Actualiza antes de volver a intentarlo.';
 

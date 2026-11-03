@@ -2,12 +2,37 @@ import 'package:busymax/l10n/generated/app_localizations_en.dart';
 import 'package:busymax/src/dav/dav_errors.dart';
 import 'package:busymax/src/dav/nextcloud/nextcloud_dav_context.dart';
 import 'package:busymax/src/l10n/nextcloud_collection_error_description.dart';
+import 'package:busymax/src/l10n/oauth_error_description.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   final l10n = AppLocalizationsEn();
   String describe(Object error) =>
       localizedNextcloudCollectionError(l10n, error);
+  test('CalDAV committed, pending and uncertain outcomes stay distinct from Nextcloud', () {
+    expect(
+      describe(const NextcloudRefreshPending()),
+      l10n.nextcloudRefreshPending,
+    );
+    for (final describe in [
+      (Object e) => localizedNextcloudCollectionError(l10n, e),
+      (Object e) => localizedSyncFailureMessage(l10n, e),
+    ]) {
+      expect(describe(const DavRefreshPending()), l10n.davRefreshPending);
+      expect(describe(const DavRefreshPending()), isNot(contains('Nextcloud')));
+
+      final pending = nextcloudOperationError(
+        409,
+        'DavCollectionCreationPending',
+      );
+      expect(describe(pending), l10n.davCollectionCreationPending);
+      expect(describe(pending), isNot(l10n.davRefreshPending));
+      expect(
+        describe(nextcloudOperationError(409, 'DavCollectionOutcomeUnknown')),
+        l10n.nextcloudOutcomeUnknown,
+      );
+    }
+  });
   test('discovery, permission, conflict and unsupported remain distinct', () {
     expect(
       describe(nextcloudOperationError(409, 'DavDiscoveryRequired')),

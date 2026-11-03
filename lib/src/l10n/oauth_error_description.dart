@@ -66,6 +66,13 @@ String localizedSyncFailureMessage(
   Object error, {
   String? networkUnavailableMessage,
 }) {
+  if (error is DavRefreshPending) return l10n.davRefreshPending;
+  if (error is DavException && error.code == 'DavCollectionCreationPending') {
+    return l10n.davCollectionCreationPending;
+  }
+  if (error is DavException && error.code == 'DavCollectionOutcomeUnknown') {
+    return l10n.nextcloudOutcomeUnknown;
+  }
   final effective = resolveEffectiveSyncFailure(error);
   if (syncFailureNotificationDisposition(effective) ==
       SyncFailureNotificationDisposition.certificateReviewRequired) {

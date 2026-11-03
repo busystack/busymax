@@ -80,6 +80,8 @@
   "nextcloudAvailability": "Tính bộ sưu tập này khi kiểm tra thời gian rảnh",
   "nextcloudCalendarTimezone": "Múi giờ lịch (tài liệu VTIMEZONE)",
   "nextcloudRefreshPending": "Đã lưu thay đổi trên Nextcloud. Đang chờ làm mới; không lặp lại thay đổi.",
+  "davRefreshPending": "Đã lưu thay đổi trên máy chủ CalDAV. Đang chờ làm mới; không lặp lại thay đổi.",
+  "davCollectionCreationPending": "Đang chờ tạo bộ sưu tập. Hãy đồng bộ hóa tài khoản này trước khi thử lại; không lặp lại thao tác.",
   "nextcloudOutcomeUnknown": "Không thể xác nhận kết quả trên máy chủ. Làm mới trước khi thử lại.",
   "nextcloudRemoveShared": "Gỡ lịch/danh sách được chia sẻ",
   "nextcloudRemoveMixed": "Bộ sưu tập có sự kiện và công việc. Xóa bộ sưu tập sẽ xóa cả hai.",

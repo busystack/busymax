@@ -302,6 +302,13 @@ final class DavSyncEngine {
         cancellationToken: cancellationToken,
       );
       pages += 1;
+      if (page.nextSyncToken.trim().isEmpty) {
+        throw const DavException(
+          kind: DavErrorKind.protocol,
+          code: 'DavSyncResponseMissingToken',
+          safeMessage: 'The DAV synchronization response omitted its token.',
+        );
+      }
       for (final member in page.changedMembers) {
         live[member.hrefKey] = member;
         deleted.remove(member.hrefKey);

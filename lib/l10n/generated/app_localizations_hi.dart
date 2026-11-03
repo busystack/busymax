@@ -189,6 +189,14 @@ class AppLocalizationsHi extends AppLocalizations {
       'बदलाव Nextcloud पर सहेजा गया। रीफ़्रेश होना बाकी है; बदलाव न दोहराएँ।';
 
   @override
+  String get davRefreshPending =>
+      'बदलाव CalDAV सर्वर पर सहेजा गया। रीफ़्रेश होना बाकी है; बदलाव न दोहराएँ।';
+
+  @override
+  String get davCollectionCreationPending =>
+      'संग्रह बनना बाकी है। फिर से कोशिश करने से पहले इस खाते को सिंक करें; कार्रवाई न दोहराएँ।';
+
+  @override
   String get nextcloudOutcomeUnknown =>
       'सर्वर के परिणाम की पुष्टि नहीं हो सकी। फिर कोशिश करने से पहले रीफ़्रेश करें।';
 

@@ -435,6 +435,18 @@ abstract class AppLocalizations {
   /// **'The change was saved on Nextcloud. Refresh is pending; do not repeat the change.'**
   String get nextcloudRefreshPending;
 
+  /// No description provided for @davRefreshPending.
+  ///
+  /// In en, this message translates to:
+  /// **'The change was saved on the CalDAV server. Refresh is pending; do not repeat the change.'**
+  String get davRefreshPending;
+
+  /// No description provided for @davCollectionCreationPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Collection creation is pending. Synchronize this account before trying again; do not repeat the operation.'**
+  String get davCollectionCreationPending;
+
   /// No description provided for @nextcloudOutcomeUnknown.
   ///
   /// In en, this message translates to:

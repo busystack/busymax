@@ -80,6 +80,8 @@
   "nextcloudAvailability": "Uwzględniaj tę kolekcję przy określaniu dostępności",
   "nextcloudCalendarTimezone": "Strefa czasowa kalendarza (dokument VTIMEZONE)",
   "nextcloudRefreshPending": "Zmianę zapisano w Nextcloud. Odświeżenie oczekuje na wykonanie; nie powtarzaj zmiany.",
+  "davRefreshPending": "Zmianę zapisano na serwerze CalDAV. Odświeżenie oczekuje na wykonanie; nie powtarzaj zmiany.",
+  "davCollectionCreationPending": "Tworzenie kolekcji oczekuje na wykonanie. Zsynchronizuj to konto przed ponowną próbą; nie powtarzaj operacji.",
   "nextcloudOutcomeUnknown": "Nie udało się potwierdzić wyniku operacji na serwerze. Odśwież przed ponowną próbą.",
   "nextcloudRemoveShared": "Usuń udostępniony kalendarz lub listę",
   "nextcloudRemoveMixed": "Ta kolekcja zawiera wydarzenia i zadania. Jej usunięcie spowoduje usunięcie zarówno wydarzeń, jak i zadań.",

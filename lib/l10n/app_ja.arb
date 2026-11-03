@@ -80,6 +80,8 @@
   "nextcloudAvailability": "このコレクションを空き状況に含める",
   "nextcloudCalendarTimezone": "カレンダーのタイムゾーン（VTIMEZONE 文書）",
   "nextcloudRefreshPending": "変更は Nextcloud に保存されました。再読み込み待ちです。同じ変更を繰り返さないでください。",
+  "davRefreshPending": "変更は CalDAV サーバーに保存されました。再読み込み待ちです。同じ変更を繰り返さないでください。",
+  "davCollectionCreationPending": "コレクションの作成は保留中です。再試行する前にこのアカウントを同期してください。同じ操作を繰り返さないでください。",
   "nextcloudOutcomeUnknown": "サーバーの結果を確認できませんでした。再読み込みしてから再試行してください。",
   "nextcloudRemoveShared": "共有カレンダー／リストを削除",
   "nextcloudRemoveMixed": "このコレクションには予定とタスクが含まれます。削除すると両方が削除されます。",

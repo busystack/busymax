@@ -1598,6 +1598,10 @@ Future<void> _createAccountTaskList(
     await ref
         .read(taskListsRepositoryForAccountProvider(account.id))
         .createTaskList(title);
+  } on DavRefreshPending {
+    if (context.mounted) {
+      _showCalendarMutationFailure(context, context.l10n.davRefreshPending);
+    }
   } on Object catch (error) {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1666,6 +1670,10 @@ Future<void> _changeCalendarColor(
         .read(calendarRepositoryProvider)
         .setSourceColor(source.id, choice);
     _requestCalendarMutationSync(ref, source.accountId);
+  } on DavRefreshPending {
+    if (context.mounted) {
+      _showCalendarMutationFailure(context, context.l10n.davRefreshPending);
+    }
   } on NextcloudRefreshPending {
     if (context.mounted) {
       _showCalendarMutationFailure(
@@ -1716,6 +1724,10 @@ Future<void> _renameCalendar(
         .read(calendarRepositoryProvider)
         .renameLocalSource(source.id, title.trim());
     _requestCalendarMutationSync(ref, source.accountId);
+  } on DavRefreshPending {
+    if (context.mounted) {
+      _showCalendarMutationFailure(context, context.l10n.davRefreshPending);
+    }
   } on NextcloudRefreshPending {
     if (context.mounted) {
       _showCalendarMutationFailure(
@@ -1769,6 +1781,10 @@ Future<void> _deleteCalendar(
   try {
     await ref.read(calendarRepositoryProvider).deleteLocalSource(source.id);
     _requestCalendarMutationSync(ref, source.accountId);
+  } on DavRefreshPending {
+    if (context.mounted) {
+      _showCalendarMutationFailure(context, context.l10n.davRefreshPending);
+    }
   } on NextcloudRefreshPending {
     if (context.mounted) {
       _showCalendarMutationFailure(
@@ -1828,6 +1844,10 @@ Future<void> _renameTaskList(
     await ref
         .read(taskListsRepositoryForAccountProvider(list.accountId))
         .renameTaskList(list.id, title.trim());
+  } on DavRefreshPending {
+    if (context.mounted) {
+      _showCalendarMutationFailure(context, context.l10n.davRefreshPending);
+    }
   } on Object catch (error) {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1876,6 +1896,10 @@ Future<void> _deleteTaskList(
     await ref
         .read(taskListsRepositoryForAccountProvider(list.accountId))
         .deleteTaskList(list.id);
+  } on DavRefreshPending {
+    if (context.mounted) {
+      _showCalendarMutationFailure(context, context.l10n.davRefreshPending);
+    }
   } on Object catch (error) {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

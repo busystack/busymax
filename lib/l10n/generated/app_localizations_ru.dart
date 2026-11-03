@@ -192,6 +192,14 @@ class AppLocalizationsRu extends AppLocalizations {
       'Изменение сохранено в Nextcloud. Обновление ожидается; не повторяйте изменение.';
 
   @override
+  String get davRefreshPending =>
+      'Изменение сохранено на сервере CalDAV. Обновление ожидается; не повторяйте изменение.';
+
+  @override
+  String get davCollectionCreationPending =>
+      'Создание коллекции ожидается. Синхронизируйте эту учётную запись перед новой попыткой; не повторяйте операцию.';
+
+  @override
   String get nextcloudOutcomeUnknown =>
       'Результат на сервере не подтверждён. Обновите данные перед повторной попыткой.';
 

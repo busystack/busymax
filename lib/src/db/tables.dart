@@ -83,6 +83,10 @@ class DavCollectionCreations extends Table {
   TextColumn get displayName => text()();
   TextColumn get componentsJson => text()();
   TextColumn get state => text().withDefault(const Constant('prepared'))();
+  // Safe typed diagnostics; never response bodies, titles or credentials.
+  TextColumn get lastErrorKind => text().nullable()();
+  TextColumn get lastErrorCode => text().nullable()();
+  IntColumn get lastErrorStatus => integer().nullable()();
   TextColumn get createdAtUtc => text()();
 
   @override

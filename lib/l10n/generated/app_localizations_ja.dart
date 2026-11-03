@@ -183,6 +183,14 @@ class AppLocalizationsJa extends AppLocalizations {
       '変更は Nextcloud に保存されました。再読み込み待ちです。同じ変更を繰り返さないでください。';
 
   @override
+  String get davRefreshPending =>
+      '変更は CalDAV サーバーに保存されました。再読み込み待ちです。同じ変更を繰り返さないでください。';
+
+  @override
+  String get davCollectionCreationPending =>
+      'コレクションの作成は保留中です。再試行する前にこのアカウントを同期してください。同じ操作を繰り返さないでください。';
+
+  @override
   String get nextcloudOutcomeUnknown =>
       'サーバーの結果を確認できませんでした。再読み込みしてから再試行してください。';
 

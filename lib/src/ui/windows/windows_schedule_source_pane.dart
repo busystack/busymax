@@ -693,6 +693,10 @@ class _WindowsScheduleSourcePaneState
     try {
       await operation();
       if (mounted) widget.onSourcesChanged();
+    } on DavRefreshPending {
+      if (mounted) {
+        await _showMessage(AppLocalizations.of(context).davRefreshPending);
+      }
     } on NextcloudRefreshPending {
       if (mounted) {
         await _showMessage(

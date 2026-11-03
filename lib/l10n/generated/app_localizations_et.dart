@@ -191,6 +191,14 @@ class AppLocalizationsEt extends AppLocalizations {
       'Muudatus salvestati Nextcloudi. Värskendamine on ootel; ära korda muudatust.';
 
   @override
+  String get davRefreshPending =>
+      'Muudatus salvestati CalDAV-serverisse. Värskendamine on ootel; ära korda muudatust.';
+
+  @override
+  String get davCollectionCreationPending =>
+      'Kogumi loomine on ootel. Enne uuesti proovimist sünkrooni see konto; ära korda toimingut.';
+
+  @override
   String get nextcloudOutcomeUnknown =>
       'Serveri tulemust ei saanud kinnitada. Värskenda enne uuesti proovimist.';
 

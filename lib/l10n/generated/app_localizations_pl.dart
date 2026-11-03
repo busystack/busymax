@@ -201,6 +201,14 @@ class AppLocalizationsPl extends AppLocalizations {
       'Zmianę zapisano w Nextcloud. Odświeżenie oczekuje na wykonanie; nie powtarzaj zmiany.';
 
   @override
+  String get davRefreshPending =>
+      'Zmianę zapisano na serwerze CalDAV. Odświeżenie oczekuje na wykonanie; nie powtarzaj zmiany.';
+
+  @override
+  String get davCollectionCreationPending =>
+      'Tworzenie kolekcji oczekuje na wykonanie. Zsynchronizuj to konto przed ponowną próbą; nie powtarzaj operacji.';
+
+  @override
   String get nextcloudOutcomeUnknown =>
       'Nie udało się potwierdzić wyniku operacji na serwerze. Odśwież przed ponowną próbą.';
 

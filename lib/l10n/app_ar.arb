@@ -80,6 +80,8 @@
   "nextcloudAvailability": "تضمين هذه المجموعة في التوفر",
   "nextcloudCalendarTimezone": "المنطقة الزمنية للتقويم (مستند VTIMEZONE)",
   "nextcloudRefreshPending": "حُفظ التغيير في Nextcloud. التحديث معلّق؛ لا تكرر التغيير.",
+  "davRefreshPending": "حُفظ التغيير على خادم CalDAV. التحديث معلّق؛ لا تكرر التغيير.",
+  "davCollectionCreationPending": "إنشاء المجموعة معلّق. زامن هذا الحساب قبل المحاولة مجددًا؛ لا تكرر العملية.",
   "nextcloudOutcomeUnknown": "تعذّر تأكيد النتيجة لدى الخادم. حدّث قبل المحاولة مجددًا.",
   "nextcloudRemoveShared": "إزالة التقويم أو القائمة المشتركة",
   "nextcloudRemoveMixed": "تحتوي هذه المجموعة على أحداث ومهام. يؤدي حذفها إلى إزالة كليهما.",

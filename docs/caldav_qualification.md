@@ -3,7 +3,182 @@
 This is the maintained qualification record. A checked implementation item does
 not establish live or native acceptance.
 
-## Current release candidate — protocol qualification and native limits
+## v0.4.0 audit corrections — 2026-11-02
+
+These local corrections start from `release/v0.4.0` at
+`2c7821d72b1250c4c5cf64b90b1c937db1795321`. The records below this section
+remain historical evidence for that reviewed implementation. These corrections
+do not push a branch, change PR #38, merge, tag, or publish a release.
+
+### Durable collection-creation failures
+
+Preflight permission/method failures previously left `prepared` operations
+active; recovering them could abort ordinary account synchronization repeatedly.
+Definitive pre-dispatch failures and definitive new-request HTTP rejections now
+persist `rejected`. Transient pre-dispatch failures retain `prepared`; uncertain
+post-dispatch outcomes retain `dispatched` and their original operation UUID.
+Recovery probes the reserved target before checking permission to create again,
+so a committed creation can reconcile even after collection-creation permission
+is revoked. A fresh matching target remains a conflict. No blind creation retry
+or title-based adoption was added.
+
+Schema **24** adds nullable typed error kind/code/status columns to the existing
+journal, preserving the partial unique index, identities, authorization
+generations and all existing states. Reopening a rejected operation reports its
+original category. Account sync returns collection-specific administration
+failures separately and continues accessible event/task synchronization;
+authentication, TLS and cancellation still abort with their proper semantics.
+Tests cover VEVENT and VTODO, all four journal states across database reopening,
+preflight bind/method rejection, HTTP rejection, transient failures, lost
+responses, reconciliation without another MKCALENDAR/MKCOL, malformed stored
+intent, and repeated successful item sync after rejection. Schema-21 migration
+and schema-23 additive migration/transaction rollback are verified.
+
+### RFC 6578 truncation and incomplete inventories
+
+The old member resolver skipped the collection URI before inspecting its status.
+A collection-level 507 inside HTTP 207 could therefore appear complete when the
+optional DAV error condition was absent. Responses now resolve the URI first,
+interpret the collection status separately, and recognize that 507 with or
+without `DAV:number-of-matches-within-limits`. Member-level 507, contradictory
+status/property forms, duplicate responses/properties/tokens, incomplete member
+ETags, invalid tokens and overall HTTP 507 are rejected. This follows
+[RFC 6578 §3.6](https://www.rfc-editor.org/rfc/rfc6578.html#section-3.6);
+no server-specific exception is used.
+
+The sync engine retains its token-loop/page limits and stages all pages before
+committing a final cursor or resource inventory. Exact wire fixtures exercise
+initial sync, incremental sync and invalid-token rebaseline, concurrent changes,
+interruption, repeated/cyclic/missing tokens and page failures. They verify
+bodies, ETags, final membership, cursor stability and absence of accidental
+cached-resource deletion. A continuation is never stored as the final cursor.
+
+Radicale 3.9.0 also returns removed members in an empty-token inventory,
+contrary to [RFC 6578 §3.4](https://www.rfc-editor.org/rfc/rfc6578.html#section-3.4).
+An independent isolated reproduction creates `kept.ics` and `deleted.ics`,
+deletes the latter, then sends:
+
+```http
+REPORT /alice/<disposable-qa-collection>/ HTTP/1.1
+Depth: 0
+Content-Type: application/xml
+
+<d:sync-collection xmlns:d="DAV:"><d:sync-token/><d:sync-level>1</d:sync-level><d:prop><d:getetag/></d:prop></d:sync-collection>
+```
+
+The actual response is HTTP **207**, with an opaque URI sync token, a direct
+`404 Not Found` response for `deleted.ics`, and a `200` getetag propstat for
+`kept.ics`. BusyMax retains its pre-existing handling of valid-form tombstones;
+it does not infer completion from them or bypass pagination validation. An
+extra newly introduced initial-tombstone rejection was removed during live
+verification to preserve existing interoperability. No server-name condition
+or upstream modification was added. The parser regression and the complete
+Radicale lost-response/rebaseline round trips cover this behavior. This remains
+a server response conformance limitation, not a BusyMax claim of server
+conformance.
+
+### Provider-neutral refresh-pending presentation
+
+Only generic CalDAV collection paths now use `DavRefreshPending`; the existing
+Nextcloud exception and messages are unchanged. Calendar rename/color/delete
+and task-list create/rename/metadata/delete distinguish a remotely committed
+change from a failed refresh. Linux sidebar, Fluent Windows and Android
+settings show the localized neutral saved/pending message without a failure
+prefix or invitation to repeat the mutation. Android calendar creation also
+honors its existing refresh-pending result. Both new messages are translated
+through the existing ARB catalogs and official localization generator.
+Repository/service regressions verify remote changes and a single mutation;
+widget regressions verify provider-correct messages on all three UI surfaces.
+Windows widget execution on Linux does not establish Windows native acceptance.
+
+### Correction verification
+
+The focused correction/regression run passed **467 tests**. The complete Flutter
+suite passed **4,646 tests**, with **96** credential-gated/optional tests skipped;
+those skips do not stand in for live acceptance. The localization audit passed
+**38 tests**, repository-tool tests **72**, and upstream-integrity verifier
+regressions **29**. Existing Google/Microsoft, Nextcloud/iCloud DAV,
+authorization, conflict/offline, notification and database regressions remain
+part of the passing full suite.
+
+| Final main live harness | Passed | Correction-specific evidence |
+| --- | ---: | --- |
+| Radicale 3.9.0 | **19** | Real read-only privileges reject VEVENT/VTODO namespace creation; rejected journals survive DB reopening; three subsequent event/task change rounds converge; lost-response recovery and rebaseline pass |
+| Baïkal 0.13.0 / sabre/dav 4.7.1 | **21** | Same denied-creation/reopen/sync checks; calendar/task administration, conflicts, restarts and recovery pass |
+| BusyStack CalDAV Server 0.1.0 | **19** | Same denied-creation/reopen/sync checks; conditional writes, administration, credential replacement, offline work and restart pass |
+
+The new live denial fixture selects an actual read-only collection as the
+creation namespace in the fixture's cached service record. The real advertised
+privileges cause a **403 preflight rejection**; an independent authenticated
+probe returns **404** for the uncreated target. Full account discovery then
+restores the normal home, and three independent remote event/task updates are
+verified in BusyMax, including ETags and signed-in account state. It does not
+claim that all users' normal calendar homes deny creation. Deterministic tests
+separately cover a read-only home, unsupported methods, definitive mutation HTTP
+rejection, transient failures and account sync resuming prepared operations.
+
+Passing harness counts include accurate observations of unsupported features
+and documented upstream deviations; they do not assert server conformance for
+Baïkal duplicate UIDs or Radicale's ACL/initial-tombstone inconsistencies.
+
+BusyStack's separate strict-pagination integration test also passed: real 507
+pages with a limit of 17, strict Depth 0, 75 initial/96 final resources,
+concurrent writes, server restart, invalidated tokens, interruption and retained
+stable cursor/cache. Both Radicale release-edge tests passed (conditional PUT,
+VTODO/VALARM time filtering, property and deletion denial handling).
+
+The current Linux native connection/event/task editor workflow passed **3 tests**,
+one per server, with independent remote readback. Linux, Windows and Android
+refresh-message widget regressions passed in the focused/full suites; Windows
+widgets executing on Linux do not qualify Windows runtime behavior.
+
+- Linux release build: **passed**, `lib/main_linux.dart`.
+- Android release APK/AAB: **passed**, normal application ID/version, explicitly
+  **test-signed and not for distribution**. Native platform unit tests and
+  Android lint passed. APK manifest/signature/native alignment and AAB
+  `PAGE_ALIGNMENT_16K` inspection passed using the already verified official
+  bundletool 1.18.3 jar recorded in the baseline below.
+- Formatting: **839 Dart files, zero changes** in the final check. Analysis:
+  **no issues**. Platform boundaries and `git diff --check` passed.
+- Official localization/Drift regeneration reproduced the reviewed generated
+  sources. Read-only upstream integrity verification passed **1,171 SDK files**
+  and **eight packages**. Shared revision pins and the dependency lockfile are
+  unchanged. Existing dependency IDE-cache changes were left untouched.
+- All **10** final authenticated readiness probes passed (two users across root
+  and installation-path fixtures). No server was rebuilt or patched for these
+  corrections. No private QA credentials, certificates, keys or execution logs
+  are included in the commit.
+
+Reproduce the focused run and complete deterministic run from the release
+checkout with the documented official Flutter/Dart toolchain:
+
+```bash
+flutter test test/dav/mutation test/dav/sync test/dav/auth test/db \
+  test/dav/nextcloud/nextcloud_error_description_test.dart \
+  test/features/schedule/presentation/schedule_sidebar_collection_actions_test.dart \
+  test/platform/windows/windows_schedule_source_pane_test.dart \
+  test/platform/android/android_settings_sync_test.dart --reporter expanded
+flutter test --reporter expanded
+```
+
+For the **59-test main live run**, creation-denial probe, separate BusyStack
+strict-pagination test and Linux native commands, use
+[`test/interop/caldav/README.md`](../test/interop/caldav/README.md). The native
+Linux run used the available X11 session and the documented command; it required
+no graphics installation or global trust changes. Release builds used
+`flutter build linux --release -t lib/main_linux.dart` and
+`tool/android/build_release.sh --all --test-signing --allow-unconfigured-providers`.
+The corrections remain local on the existing release branch; no new remote CI
+run or change to PR #38 is claimed. The local correction commit is identified
+by `git log -1 release/v0.4.0`; its reviewed parent is the baseline above.
+
+Existing native limitations
+(Windows runtime, Android 17 local-network prompt and installed 0.4.0 Snap
+interactive acceptance) remain separate; none is reclassified as passed by
+these corrections. Shared DAV remains at
+`33afd70a761822847a37c7ad47f5e61dfeaa74a7`; upstream servers are unmodified.
+
+## Reviewed baseline — protocol qualification and native limits
 
 Baseline: `feature/caldav-support`, clean implementation commit
 `3a0e6c368fa14917ff0ef50ecb682331bd200e29`, already committed and pushed.
@@ -74,7 +249,7 @@ Primary references: [Radicale release](https://github.com/Kozea/Radicale/release
 [BusyStack release](https://github.com/busystack/caldav-server/releases/tag/v0.1.0)
 and its [release conformance record](https://github.com/busystack/caldav-server/blob/db302ec69f786ba89945e1a761734a844572145b/docs/conformance.md).
 
-### Current execution evidence
+### Baseline execution evidence
 
 The clean final shared suite passed **56 tests with no failures or skips**:
 **Radicale 18 / Baïkal 20 / BusyStack 18**. Tests exercise production BusyMax
@@ -210,7 +385,7 @@ metadata remains covered by round-trip tests.
   upstream verifier tests **29 passed**; analysis and platform boundaries clean.
   The pinned Git-mode source snapshot secret scan found **zero** leaks.
 
-### Published branches and required CI
+### Published branches and required CI (reviewed baseline)
 
 Windows CI exposed a pre-existing first-party TLS-fixture defect, retained in
 [failed run 41508169451](https://github.com/busystack/busymax/actions/runs/41508169451):

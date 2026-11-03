@@ -471,12 +471,12 @@ void main() {
           syncReports += 1;
           if (syncReports == 1) {
             return http.Response(
-              _davSyncResponse(token: 'token-1', etag: '"v1"'),
+              _davSyncResponse(token: 'urn:test:token-1', etag: '"v1"'),
               207,
             );
           }
           return http.Response(
-            _davSyncResponse(token: 'token-2', deleted: true),
+            _davSyncResponse(token: 'urn:test:token-2', deleted: true),
             207,
           );
         }

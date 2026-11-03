@@ -42,6 +42,197 @@ void main() {
 
   tearDown(() => database.close());
 
+  for (final failure in [
+    'bind',
+    'unsupported',
+    'http403',
+    'transient',
+    'authentication',
+  ]) {
+    test(
+      'collection creation $failure does not mask ordinary event/task synchronization',
+      () async {
+        await database
+            .update(database.accounts)
+            .write(
+              const AccountsCompanion(
+                provider: Value('caldav'),
+                credentialKind: Value('caldav_password'),
+              ),
+            );
+        await database
+            .update(database.calendarSources)
+            .write(const CalendarSourcesCompanion(provider: Value('caldav')));
+        await secrets.saveCredential(
+          'account',
+          CalDavSecretRecord(
+            serviceAuthority: Uri.parse('https://cloud.example.test/cloud'),
+            username: 'alex',
+            password: 'synthetic',
+          ),
+        );
+        const operationId = 'fe56ed0d-c620-4134-9a79-560da6aee085';
+        const home =
+            'https://cloud.example.test/cloud/remote.php/dav/calendars/alex/';
+        const target = '${home}busymax-$operationId/';
+        await database
+            .into(database.davCollectionCreations)
+            .insert(
+              DavCollectionCreationsCompanion.insert(
+                id: operationId,
+                accountId: 'account',
+                authority: 'https://cloud.example.test/cloud',
+                homeUri: home,
+                targetUri: target,
+                displayName: 'Pending',
+                componentsJson: '["VEVENT"]',
+                createdAtUtc: 'now',
+              ),
+            );
+        var rounds = 0, writes = 0;
+        final client = MockClient((request) async {
+          final administration =
+              (request.headers['x-busymax-correlation-id'] ?? '').startsWith(
+                'collection-',
+              );
+          if (request.method == 'OPTIONS') {
+            if (administration && failure == 'transient') {
+              return http.Response('', 503, headers: {'retry-after': '0'});
+            }
+            if (administration && failure == 'authentication') {
+              return http.Response('', 401);
+            }
+            return http.Response(
+              '',
+              200,
+              headers: {
+                'dav': administration && failure == 'unsupported'
+                    ? '1'
+                    : '1, calendar-access, sync-collection',
+                'allow': administration && failure == 'unsupported'
+                    ? 'GET, PROPFIND'
+                    : 'GET, PROPFIND, REPORT, MKCALENDAR',
+              },
+            );
+          }
+          if (request.method == 'PROPFIND') {
+            if (request.url.toString() == target) return http.Response('', 404);
+            if (request.body.contains('<d:current-user-principal/>')) {
+              return _discoveryMultistatus(
+                _currentPrincipalResponse.replaceFirst(
+                  '/cloud/.well-known/caldav',
+                  request.url.path,
+                ),
+              );
+            }
+            if (request.body.contains('<c:calendar-home-set/>')) {
+              return _discoveryMultistatus(_principalPropertiesResponse);
+            }
+            if (request.url.toString() == home &&
+                request.headers['depth'] == '0') {
+              return _discoveryMultistatus(
+                '<d:multistatus xmlns:d="DAV:"><d:response><d:href>$home</d:href><d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype><d:current-user-privilege-set><d:privilege><d:${failure == 'bind' ? 'read' : 'bind'}/></d:privilege></d:current-user-privilege-set></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>',
+              );
+            }
+            return _discoveryMultistatus(_singleCollectionInventoryResponse);
+          }
+          if (request.method == 'MKCALENDAR') {
+            writes++;
+            expect(failure, 'http403');
+            return http.Response('', 403);
+          }
+          const todoHref = '${_collectionHref}task.ics';
+          if (request.method == 'REPORT' &&
+              request.body.contains('sync-collection')) {
+            rounds++;
+            String member(String href) =>
+                '<d:response><d:href>$href</d:href><d:propstat><d:prop><d:getetag>"v$rounds"</d:getetag></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>';
+            return _discoveryMultistatus(
+              '<d:multistatus xmlns:d="DAV:">${member(_eventHref)}${member(todoHref)}<d:sync-token>urn:test:round-$rounds</d:sync-token></d:multistatus>',
+            );
+          }
+          if (request.method == 'REPORT') {
+            String member(String href, String body) =>
+                '<d:response><d:href>$href</d:href><d:propstat><d:prop><d:getetag>"v$rounds"</d:getetag><c:calendar-data><![CDATA[$body]]></c:calendar-data></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>';
+            final todo =
+                'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VTODO\r\nUID:task@example.test\r\nSUMMARY:Task $rounds\r\nEND:VTODO\r\nEND:VCALENDAR\r\n';
+            return _discoveryMultistatus(
+              '<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">${member(_eventHref, _event('Event $rounds'))}${member(todoHref, todo)}</d:multistatus>',
+            );
+          }
+          throw StateError('Unexpected ${request.method} ${request.url}');
+        });
+        addTearDown(client.close);
+        final engine = DavAccountSyncEngine(
+          database: database,
+          secretStore: secrets,
+          httpClient: client,
+          accountId: 'account',
+          nowUtc: () => _now,
+        );
+        if (failure == 'authentication') {
+          await expectLater(
+            engine.synchronize(),
+            throwsA(
+              isA<DavException>().having(
+                (e) => e.kind,
+                'kind',
+                DavErrorKind.authentication,
+              ),
+            ),
+          );
+          expect(rounds, 0);
+          expect(
+            (await database.select(database.davCollectionCreations).getSingle())
+                .state,
+            'prepared',
+          );
+          expect(
+            (await database.select(database.accounts).getSingle()).authState,
+            'reauth_required',
+          );
+          return;
+        }
+        for (var iteration = 1; iteration <= 3; iteration++) {
+          final result = await engine.synchronize();
+          expect(result.collectionsSynchronized, 1);
+          expect(
+            result.collectionCreationFailures.length,
+            failure == 'transient' || iteration == 1 ? 1 : 0,
+          );
+          expect(
+            (await database.select(database.calendarEvents).getSingle()).title,
+            'Event $iteration',
+          );
+          expect(
+            (await database.select(database.tasks).getSingle()).title,
+            'Task $iteration',
+          );
+          expect(
+            (await database.select(database.davObjects).get())
+                .map((o) => o.etag)
+                .toSet(),
+            {'"v$iteration"'},
+          );
+          expect(
+            (await database.select(database.accounts).getSingle()).authState,
+            'signed_in',
+          );
+          expect(
+            (await database.select(database.syncCursors).getSingle())
+                .cursorValue,
+            'urn:test:round-$iteration',
+          );
+        }
+        final row = await database
+            .select(database.davCollectionCreations)
+            .getSingle();
+        expect(row.state, failure == 'transient' ? 'prepared' : 'rejected');
+        expect(row.lastErrorCode, isNotNull);
+        expect(writes, failure == 'http403' ? 1 : 0);
+      },
+    );
+  }
   for (final status in [401, 403]) {
     test(
       'generic pending work refreshes discovery before replay after HTTP $status',
@@ -151,20 +342,23 @@ void main() {
         if (syncReports == 1) {
           expect(request.body, contains('<d:sync-token></d:sync-token>'));
           return http.Response(
-            _syncResponse(token: 'token-1', etag: serverEtag),
+            _syncResponse(token: 'urn:test:token-1', etag: serverEtag),
             207,
           );
         }
         if (syncReports == 2) {
           expect(
             request.body,
-            contains('<d:sync-token>token-1</d:sync-token>'),
+            contains('<d:sync-token>urn:test:token-1</d:sync-token>'),
           );
-          return http.Response(_syncResponse(token: 'token-2'), 207);
+          return http.Response(_syncResponse(token: 'urn:test:token-2'), 207);
         }
-        expect(request.body, contains('<d:sync-token>token-2</d:sync-token>'));
+        expect(
+          request.body,
+          contains('<d:sync-token>urn:test:token-2</d:sync-token>'),
+        );
         return http.Response(
-          _syncResponse(token: 'token-3', etag: serverEtag),
+          _syncResponse(token: 'urn:test:token-3', etag: serverEtag),
           207,
         );
       }
@@ -248,7 +442,7 @@ void main() {
     );
     expect(
       (await database.select(database.syncCursors).getSingle()).cursorValue,
-      'token-3',
+      'urn:test:token-3',
     );
     expect(notificationObjects, isNotEmpty);
 
@@ -593,7 +787,7 @@ void main() {
         if (request.url.path == _collectionHref) {
           return http.Response(
             _syncMemberResponse(
-              token: 'source-$token',
+              token: 'urn:test:source-$token',
               href: sourceHref,
               etag: sourceExists ? '"source-1"' : null,
               deleted: !sourceExists,
@@ -604,7 +798,7 @@ void main() {
         if (request.url.path == _destinationCollectionHref) {
           return http.Response(
             _syncMemberResponse(
-              token: 'destination-$token',
+              token: 'urn:test:destination-$token',
               href: destinationHref,
               etag: destinationRaw == null ? null : destinationEtag,
             ),
@@ -965,7 +1159,10 @@ void main() {
           request.body.contains('sync-collection')) {
         syncReports += 1;
         return http.Response(
-          _syncResponse(token: 'recovered-$syncReports', etag: '"reminder-2"'),
+          _syncResponse(
+            token: 'urn:test:recovered-$syncReports',
+            etag: '"reminder-2"',
+          ),
           207,
         );
       }
@@ -1141,9 +1338,11 @@ void main() {
             if (request.url.path == _collectionHref) {
               return http.Response(
                 _syncMemberResponse(
-                  token: 'restart-source-$token',
+                  token: 'urn:test:restart-source-$token',
                   href: sourceHref,
-                  deleted: true,
+                  deleted: !request.body.contains(
+                    '<d:sync-token></d:sync-token>',
+                  ),
                 ),
                 207,
               );
@@ -1151,7 +1350,7 @@ void main() {
             if (request.url.path == _destinationCollectionHref) {
               return http.Response(
                 _syncMemberResponse(
-                  token: 'restart-destination-$token',
+                  token: 'urn:test:restart-destination-$token',
                   href: destinationHref,
                   etag: destinationEtag,
                 ),
@@ -1400,7 +1599,7 @@ final class _ConflictSyncServer {
       syncReports += 1;
       return http.Response(
         _syncMemberResponse(
-          token: 'conflict-$syncReports',
+          token: 'urn:test:conflict-$syncReports',
           href: href,
           etag: _etag,
         ),

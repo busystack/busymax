@@ -3747,6 +3747,39 @@ class $DavCollectionCreationsTable extends DavCollectionCreations
     requiredDuringInsert: false,
     defaultValue: const Constant('prepared'),
   );
+  static const VerificationMeta _lastErrorKindMeta = const VerificationMeta(
+    'lastErrorKind',
+  );
+  @override
+  late final GeneratedColumn<String> lastErrorKind = GeneratedColumn<String>(
+    'last_error_kind',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastErrorCodeMeta = const VerificationMeta(
+    'lastErrorCode',
+  );
+  @override
+  late final GeneratedColumn<String> lastErrorCode = GeneratedColumn<String>(
+    'last_error_code',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastErrorStatusMeta = const VerificationMeta(
+    'lastErrorStatus',
+  );
+  @override
+  late final GeneratedColumn<int> lastErrorStatus = GeneratedColumn<int>(
+    'last_error_status',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _createdAtUtcMeta = const VerificationMeta(
     'createdAtUtc',
   );
@@ -3768,6 +3801,9 @@ class $DavCollectionCreationsTable extends DavCollectionCreations
     displayName,
     componentsJson,
     state,
+    lastErrorKind,
+    lastErrorCode,
+    lastErrorStatus,
     createdAtUtc,
   ];
   @override
@@ -3847,6 +3883,33 @@ class $DavCollectionCreationsTable extends DavCollectionCreations
         state.isAcceptableOrUnknown(data['state']!, _stateMeta),
       );
     }
+    if (data.containsKey('last_error_kind')) {
+      context.handle(
+        _lastErrorKindMeta,
+        lastErrorKind.isAcceptableOrUnknown(
+          data['last_error_kind']!,
+          _lastErrorKindMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_error_code')) {
+      context.handle(
+        _lastErrorCodeMeta,
+        lastErrorCode.isAcceptableOrUnknown(
+          data['last_error_code']!,
+          _lastErrorCodeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_error_status')) {
+      context.handle(
+        _lastErrorStatusMeta,
+        lastErrorStatus.isAcceptableOrUnknown(
+          data['last_error_status']!,
+          _lastErrorStatusMeta,
+        ),
+      );
+    }
     if (data.containsKey('created_at_utc')) {
       context.handle(
         _createdAtUtcMeta,
@@ -3899,6 +3962,18 @@ class $DavCollectionCreationsTable extends DavCollectionCreations
         DriftSqlType.string,
         data['${effectivePrefix}state'],
       )!,
+      lastErrorKind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_error_kind'],
+      ),
+      lastErrorCode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_error_code'],
+      ),
+      lastErrorStatus: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_error_status'],
+      ),
       createdAtUtc: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}created_at_utc'],
@@ -3922,6 +3997,9 @@ class DavCollectionCreation extends DataClass
   final String displayName;
   final String componentsJson;
   final String state;
+  final String? lastErrorKind;
+  final String? lastErrorCode;
+  final int? lastErrorStatus;
   final String createdAtUtc;
   const DavCollectionCreation({
     required this.id,
@@ -3932,6 +4010,9 @@ class DavCollectionCreation extends DataClass
     required this.displayName,
     required this.componentsJson,
     required this.state,
+    this.lastErrorKind,
+    this.lastErrorCode,
+    this.lastErrorStatus,
     required this.createdAtUtc,
   });
   @override
@@ -3945,6 +4026,15 @@ class DavCollectionCreation extends DataClass
     map['display_name'] = Variable<String>(displayName);
     map['components_json'] = Variable<String>(componentsJson);
     map['state'] = Variable<String>(state);
+    if (!nullToAbsent || lastErrorKind != null) {
+      map['last_error_kind'] = Variable<String>(lastErrorKind);
+    }
+    if (!nullToAbsent || lastErrorCode != null) {
+      map['last_error_code'] = Variable<String>(lastErrorCode);
+    }
+    if (!nullToAbsent || lastErrorStatus != null) {
+      map['last_error_status'] = Variable<int>(lastErrorStatus);
+    }
     map['created_at_utc'] = Variable<String>(createdAtUtc);
     return map;
   }
@@ -3959,6 +4049,15 @@ class DavCollectionCreation extends DataClass
       displayName: Value(displayName),
       componentsJson: Value(componentsJson),
       state: Value(state),
+      lastErrorKind: lastErrorKind == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastErrorKind),
+      lastErrorCode: lastErrorCode == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastErrorCode),
+      lastErrorStatus: lastErrorStatus == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastErrorStatus),
       createdAtUtc: Value(createdAtUtc),
     );
   }
@@ -3977,6 +4076,9 @@ class DavCollectionCreation extends DataClass
       displayName: serializer.fromJson<String>(json['displayName']),
       componentsJson: serializer.fromJson<String>(json['componentsJson']),
       state: serializer.fromJson<String>(json['state']),
+      lastErrorKind: serializer.fromJson<String?>(json['lastErrorKind']),
+      lastErrorCode: serializer.fromJson<String?>(json['lastErrorCode']),
+      lastErrorStatus: serializer.fromJson<int?>(json['lastErrorStatus']),
       createdAtUtc: serializer.fromJson<String>(json['createdAtUtc']),
     );
   }
@@ -3992,6 +4094,9 @@ class DavCollectionCreation extends DataClass
       'displayName': serializer.toJson<String>(displayName),
       'componentsJson': serializer.toJson<String>(componentsJson),
       'state': serializer.toJson<String>(state),
+      'lastErrorKind': serializer.toJson<String?>(lastErrorKind),
+      'lastErrorCode': serializer.toJson<String?>(lastErrorCode),
+      'lastErrorStatus': serializer.toJson<int?>(lastErrorStatus),
       'createdAtUtc': serializer.toJson<String>(createdAtUtc),
     };
   }
@@ -4005,6 +4110,9 @@ class DavCollectionCreation extends DataClass
     String? displayName,
     String? componentsJson,
     String? state,
+    Value<String?> lastErrorKind = const Value.absent(),
+    Value<String?> lastErrorCode = const Value.absent(),
+    Value<int?> lastErrorStatus = const Value.absent(),
     String? createdAtUtc,
   }) => DavCollectionCreation(
     id: id ?? this.id,
@@ -4015,6 +4123,15 @@ class DavCollectionCreation extends DataClass
     displayName: displayName ?? this.displayName,
     componentsJson: componentsJson ?? this.componentsJson,
     state: state ?? this.state,
+    lastErrorKind: lastErrorKind.present
+        ? lastErrorKind.value
+        : this.lastErrorKind,
+    lastErrorCode: lastErrorCode.present
+        ? lastErrorCode.value
+        : this.lastErrorCode,
+    lastErrorStatus: lastErrorStatus.present
+        ? lastErrorStatus.value
+        : this.lastErrorStatus,
     createdAtUtc: createdAtUtc ?? this.createdAtUtc,
   );
   DavCollectionCreation copyWithCompanion(
@@ -4033,6 +4150,15 @@ class DavCollectionCreation extends DataClass
           ? data.componentsJson.value
           : this.componentsJson,
       state: data.state.present ? data.state.value : this.state,
+      lastErrorKind: data.lastErrorKind.present
+          ? data.lastErrorKind.value
+          : this.lastErrorKind,
+      lastErrorCode: data.lastErrorCode.present
+          ? data.lastErrorCode.value
+          : this.lastErrorCode,
+      lastErrorStatus: data.lastErrorStatus.present
+          ? data.lastErrorStatus.value
+          : this.lastErrorStatus,
       createdAtUtc: data.createdAtUtc.present
           ? data.createdAtUtc.value
           : this.createdAtUtc,
@@ -4050,6 +4176,9 @@ class DavCollectionCreation extends DataClass
           ..write('displayName: $displayName, ')
           ..write('componentsJson: $componentsJson, ')
           ..write('state: $state, ')
+          ..write('lastErrorKind: $lastErrorKind, ')
+          ..write('lastErrorCode: $lastErrorCode, ')
+          ..write('lastErrorStatus: $lastErrorStatus, ')
           ..write('createdAtUtc: $createdAtUtc')
           ..write(')'))
         .toString();
@@ -4065,6 +4194,9 @@ class DavCollectionCreation extends DataClass
     displayName,
     componentsJson,
     state,
+    lastErrorKind,
+    lastErrorCode,
+    lastErrorStatus,
     createdAtUtc,
   );
   @override
@@ -4079,6 +4211,9 @@ class DavCollectionCreation extends DataClass
           other.displayName == this.displayName &&
           other.componentsJson == this.componentsJson &&
           other.state == this.state &&
+          other.lastErrorKind == this.lastErrorKind &&
+          other.lastErrorCode == this.lastErrorCode &&
+          other.lastErrorStatus == this.lastErrorStatus &&
           other.createdAtUtc == this.createdAtUtc);
 }
 
@@ -4092,6 +4227,9 @@ class DavCollectionCreationsCompanion
   final Value<String> displayName;
   final Value<String> componentsJson;
   final Value<String> state;
+  final Value<String?> lastErrorKind;
+  final Value<String?> lastErrorCode;
+  final Value<int?> lastErrorStatus;
   final Value<String> createdAtUtc;
   final Value<int> rowid;
   const DavCollectionCreationsCompanion({
@@ -4103,6 +4241,9 @@ class DavCollectionCreationsCompanion
     this.displayName = const Value.absent(),
     this.componentsJson = const Value.absent(),
     this.state = const Value.absent(),
+    this.lastErrorKind = const Value.absent(),
+    this.lastErrorCode = const Value.absent(),
+    this.lastErrorStatus = const Value.absent(),
     this.createdAtUtc = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -4115,6 +4256,9 @@ class DavCollectionCreationsCompanion
     required String displayName,
     required String componentsJson,
     this.state = const Value.absent(),
+    this.lastErrorKind = const Value.absent(),
+    this.lastErrorCode = const Value.absent(),
+    this.lastErrorStatus = const Value.absent(),
     required String createdAtUtc,
     this.rowid = const Value.absent(),
   }) : id = Value(id),
@@ -4134,6 +4278,9 @@ class DavCollectionCreationsCompanion
     Expression<String>? displayName,
     Expression<String>? componentsJson,
     Expression<String>? state,
+    Expression<String>? lastErrorKind,
+    Expression<String>? lastErrorCode,
+    Expression<int>? lastErrorStatus,
     Expression<String>? createdAtUtc,
     Expression<int>? rowid,
   }) {
@@ -4146,6 +4293,9 @@ class DavCollectionCreationsCompanion
       if (displayName != null) 'display_name': displayName,
       if (componentsJson != null) 'components_json': componentsJson,
       if (state != null) 'state': state,
+      if (lastErrorKind != null) 'last_error_kind': lastErrorKind,
+      if (lastErrorCode != null) 'last_error_code': lastErrorCode,
+      if (lastErrorStatus != null) 'last_error_status': lastErrorStatus,
       if (createdAtUtc != null) 'created_at_utc': createdAtUtc,
       if (rowid != null) 'rowid': rowid,
     });
@@ -4160,6 +4310,9 @@ class DavCollectionCreationsCompanion
     Value<String>? displayName,
     Value<String>? componentsJson,
     Value<String>? state,
+    Value<String?>? lastErrorKind,
+    Value<String?>? lastErrorCode,
+    Value<int?>? lastErrorStatus,
     Value<String>? createdAtUtc,
     Value<int>? rowid,
   }) {
@@ -4172,6 +4325,9 @@ class DavCollectionCreationsCompanion
       displayName: displayName ?? this.displayName,
       componentsJson: componentsJson ?? this.componentsJson,
       state: state ?? this.state,
+      lastErrorKind: lastErrorKind ?? this.lastErrorKind,
+      lastErrorCode: lastErrorCode ?? this.lastErrorCode,
+      lastErrorStatus: lastErrorStatus ?? this.lastErrorStatus,
       createdAtUtc: createdAtUtc ?? this.createdAtUtc,
       rowid: rowid ?? this.rowid,
     );
@@ -4204,6 +4360,15 @@ class DavCollectionCreationsCompanion
     if (state.present) {
       map['state'] = Variable<String>(state.value);
     }
+    if (lastErrorKind.present) {
+      map['last_error_kind'] = Variable<String>(lastErrorKind.value);
+    }
+    if (lastErrorCode.present) {
+      map['last_error_code'] = Variable<String>(lastErrorCode.value);
+    }
+    if (lastErrorStatus.present) {
+      map['last_error_status'] = Variable<int>(lastErrorStatus.value);
+    }
     if (createdAtUtc.present) {
       map['created_at_utc'] = Variable<String>(createdAtUtc.value);
     }
@@ -4224,6 +4389,9 @@ class DavCollectionCreationsCompanion
           ..write('displayName: $displayName, ')
           ..write('componentsJson: $componentsJson, ')
           ..write('state: $state, ')
+          ..write('lastErrorKind: $lastErrorKind, ')
+          ..write('lastErrorCode: $lastErrorCode, ')
+          ..write('lastErrorStatus: $lastErrorStatus, ')
           ..write('createdAtUtc: $createdAtUtc, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -34492,6 +34660,9 @@ typedef $$DavCollectionCreationsTableCreateCompanionBuilder =
       required String displayName,
       required String componentsJson,
       Value<String> state,
+      Value<String?> lastErrorKind,
+      Value<String?> lastErrorCode,
+      Value<int?> lastErrorStatus,
       required String createdAtUtc,
       Value<int> rowid,
     });
@@ -34505,6 +34676,9 @@ typedef $$DavCollectionCreationsTableUpdateCompanionBuilder =
       Value<String> displayName,
       Value<String> componentsJson,
       Value<String> state,
+      Value<String?> lastErrorKind,
+      Value<String?> lastErrorCode,
+      Value<int?> lastErrorStatus,
       Value<String> createdAtUtc,
       Value<int> rowid,
     });
@@ -34584,6 +34758,21 @@ class $$DavCollectionCreationsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get lastErrorKind => $composableBuilder(
+    column: $table.lastErrorKind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastErrorCode => $composableBuilder(
+    column: $table.lastErrorCode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastErrorStatus => $composableBuilder(
+    column: $table.lastErrorStatus,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<String> get createdAtUtc => $composableBuilder(
     column: $table.createdAtUtc,
     builder: (column) => ColumnFilters(column),
@@ -34657,6 +34846,21 @@ class $$DavCollectionCreationsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get lastErrorKind => $composableBuilder(
+    column: $table.lastErrorKind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastErrorCode => $composableBuilder(
+    column: $table.lastErrorCode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lastErrorStatus => $composableBuilder(
+    column: $table.lastErrorStatus,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get createdAtUtc => $composableBuilder(
     column: $table.createdAtUtc,
     builder: (column) => ColumnOrderings(column),
@@ -34719,6 +34923,21 @@ class $$DavCollectionCreationsTableAnnotationComposer
 
   GeneratedColumn<String> get state =>
       $composableBuilder(column: $table.state, builder: (column) => column);
+
+  GeneratedColumn<String> get lastErrorKind => $composableBuilder(
+    column: $table.lastErrorKind,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get lastErrorCode => $composableBuilder(
+    column: $table.lastErrorCode,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get lastErrorStatus => $composableBuilder(
+    column: $table.lastErrorStatus,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<String> get createdAtUtc => $composableBuilder(
     column: $table.createdAtUtc,
@@ -34796,6 +35015,9 @@ class $$DavCollectionCreationsTableTableManager
                 Value<String> displayName = const Value.absent(),
                 Value<String> componentsJson = const Value.absent(),
                 Value<String> state = const Value.absent(),
+                Value<String?> lastErrorKind = const Value.absent(),
+                Value<String?> lastErrorCode = const Value.absent(),
+                Value<int?> lastErrorStatus = const Value.absent(),
                 Value<String> createdAtUtc = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => DavCollectionCreationsCompanion(
@@ -34807,6 +35029,9 @@ class $$DavCollectionCreationsTableTableManager
                 displayName: displayName,
                 componentsJson: componentsJson,
                 state: state,
+                lastErrorKind: lastErrorKind,
+                lastErrorCode: lastErrorCode,
+                lastErrorStatus: lastErrorStatus,
                 createdAtUtc: createdAtUtc,
                 rowid: rowid,
               ),
@@ -34820,6 +35045,9 @@ class $$DavCollectionCreationsTableTableManager
                 required String displayName,
                 required String componentsJson,
                 Value<String> state = const Value.absent(),
+                Value<String?> lastErrorKind = const Value.absent(),
+                Value<String?> lastErrorCode = const Value.absent(),
+                Value<int?> lastErrorStatus = const Value.absent(),
                 required String createdAtUtc,
                 Value<int> rowid = const Value.absent(),
               }) => DavCollectionCreationsCompanion.insert(
@@ -34831,6 +35059,9 @@ class $$DavCollectionCreationsTableTableManager
                 displayName: displayName,
                 componentsJson: componentsJson,
                 state: state,
+                lastErrorKind: lastErrorKind,
+                lastErrorCode: lastErrorCode,
+                lastErrorStatus: lastErrorStatus,
                 createdAtUtc: createdAtUtc,
                 rowid: rowid,
               ),

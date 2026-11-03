@@ -57,6 +57,17 @@ BUSYMAX_CALDAV_LIVE=1 BUSYMAX_CALDAV_LIFECYCLE=1 flutter test test/dav/caldav_li
 BUSYMAX_CALDAV_LIVE=1 BUSYMAX_CALDAV_LIFECYCLE=1 \
 flutter test test/dav/caldav_live_integration_test.dart --plain-name 'real password' --reporter expanded
 
+# Audit-correction probe: real read-only namespace, rejected journal, DB reopen,
+# three subsequent rounds of independently changed VEVENT/VTODO synchronization.
+BUSYMAX_CALDAV_LIVE=1 flutter test test/dav/caldav_live_integration_test.dart \
+  --plain-name 'rejected creation in a read-only namespace' --reporter expanded
+
+# Real RFC 6578 pagination, strict Depth 0, concurrent writes and interruption.
+# Run alone: the test changes/restores only the isolated BusyStack QA profile.
+BUSYMAX_CALDAV_LIVE=1 BUSYMAX_CALDAV_LIFECYCLE=1 \
+flutter test test/dav/busystack_live_integration_test.dart \
+  --plain-name 'strict Depth, real 507 pages' --reporter expanded
+
 # Actual Linux settings and editors, with independent server readback.
 BUSYMAX_CALDAV_NATIVE=1 \
 BUSYMAX_CALDAV_FIXTURE_DIR="$PWD/test/interop/caldav/.runtime" \

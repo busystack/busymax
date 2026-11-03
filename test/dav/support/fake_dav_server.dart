@@ -87,7 +87,7 @@ final class FakeDavServer {
   bool rewriteMutations = false;
   bool raceNextMutation = false;
   bool dropAfterNextMutation = false;
-  String finalSyncToken = 'sync-token-1';
+  String finalSyncToken = 'urn:test:sync-token-1';
   int _revision = 10;
 
   String get davRootPath => '$installationPath/remote.php/dav/';
@@ -308,16 +308,19 @@ final class FakeDavServer {
     if (token.isEmpty && paginateInitialSync && live.length > 1) {
       await _xml(
         request,
-        HttpStatus.insufficientStorage,
+        HttpStatus.multiStatus,
         _syncResponse(
-          token: 'intermediate-token',
+          token: 'urn:test:intermediate-token',
           live: [live.first],
           deleted: const [],
+        ).replaceFirst(
+          '</d:multistatus>',
+          '<d:response><d:href>$collectionPath</d:href><d:status>HTTP/1.1 507 Insufficient Storage</d:status></d:response></d:multistatus>',
         ),
       );
       return;
     }
-    final page = token == 'intermediate-token'
+    final page = token == 'urn:test:intermediate-token'
         ? live.skip(1).toList(growable: false)
         : token.isEmpty
         ? live

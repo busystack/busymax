@@ -1469,7 +1469,15 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
         await ref.read(calendarRepositoryProvider).deleteLocalSource(source.id);
         if (!openedMicrosoftOwner) _requestQueuedCalendarSync(source);
       }
+    } on DavRefreshPending {
+      _message(l10n.davRefreshPending);
     } on Object catch (error) {
+      if (error is DavException &&
+          error.code == 'DavCollectionCreationPending') {
+        _message(l10n.davCollectionCreationPending);
+        return;
+      }
+
       _message(
         l10n.calendarUpdateFailed(
           syncFailureMessage(
@@ -1602,7 +1610,15 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
             .read(taskListsRepositoryForAccountProvider(list.accountId))
             .deleteTaskList(list.id);
       }
+    } on DavRefreshPending {
+      _message(l10n.davRefreshPending);
     } on Object catch (error) {
+      if (error is DavException &&
+          error.code == 'DavCollectionCreationPending') {
+        _message(l10n.davCollectionCreationPending);
+        return;
+      }
+
       _message(
         l10n.taskListRenameFailed(
           syncFailureMessage(
@@ -1667,15 +1683,26 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
     if (title == null || !mounted) return;
     try {
       if (calendar) {
-        await ref
+        final result = await ref
             .read(calendarCollectionCreationServiceProvider)
             .createCalendar(accountId: account.id, title: title);
+        if (account.provider == BusyProvider.caldav && result.refreshPending) {
+          _message(l10n.davRefreshPending);
+        }
       } else {
         await ref
             .read(taskListsRepositoryForAccountProvider(account.id))
             .createTaskList(title);
       }
+    } on DavRefreshPending {
+      _message(l10n.davRefreshPending);
     } on Object catch (error) {
+      if (error is DavException &&
+          error.code == 'DavCollectionCreationPending') {
+        _message(l10n.davCollectionCreationPending);
+        return;
+      }
+
       final message = syncFailureMessage(
         error,
         networkUnavailableMessage: l10n.networkOfflineTryAgain,

@@ -70,6 +70,8 @@
   "nextcloudAvailability": "Include this collection in availability",
   "nextcloudCalendarTimezone": "Calendar timezone (VTIMEZONE document)",
   "nextcloudRefreshPending": "The change was saved on Nextcloud. Refresh is pending; do not repeat the change.",
+  "davRefreshPending": "The change was saved on the CalDAV server. Refresh is pending; do not repeat the change.",
+  "davCollectionCreationPending": "Collection creation is pending. Synchronize this account before trying again; do not repeat the operation.",
   "nextcloudOutcomeUnknown": "The server outcome could not be confirmed. Refresh before trying again.",
   "nextcloudRemoveShared": "Remove shared calendar/list",
   "nextcloudRemoveMixed": "This collection contains events and tasks. Deleting it removes both its events and tasks.",

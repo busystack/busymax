@@ -302,6 +302,49 @@ final class DavCollectionAdministration {
     if (operation == null) {
       throw _error(404, 'DavCollectionCreationUnavailable');
     }
+    if (operation.state == 'rejected') throw _rejectedCreationError(operation);
+    try {
+      return await _runCreation(operation, cancellation);
+    } on DavException catch (error) {
+      final current =
+          await (database.select(database.davCollectionCreations)..where(
+                (r) => r.id.equals(operationId) & r.accountId.equals(accountId),
+              ))
+              .getSingleOrNull();
+      if (current == null ||
+          current.state == 'committed' ||
+          current.state == 'rejected') {
+        rethrow;
+      }
+      final reject =
+          current.state == 'prepared' && _definitiveBeforeDispatch(error);
+      await _creationState(
+        operationId,
+        reject ? 'rejected' : current.state,
+        error: error,
+      );
+      if (current.state == 'dispatched' &&
+          error.kind != DavErrorKind.authentication &&
+          error.kind != DavErrorKind.cancelled &&
+          error.kind != DavErrorKind.tls &&
+          error.kind != DavErrorKind.unknownOutcome) {
+        throw DavException(
+          kind: DavErrorKind.unknownOutcome,
+          code: 'DavCollectionOutcomeUnknown',
+          correlationId: operationId,
+          statusCode: error.statusCode,
+          safeMessage: 'The collection operation is pending reconciliation; do not repeat it.',
+        );
+      }
+      rethrow;
+    }
+  }
+
+  Future<DavCollectionAdministrationOutcome> _runCreation(
+    DavCollectionCreation operation,
+    DavCancellationToken? cancellation,
+  ) async {
+    final operationId = operation.id;
     final c = await _open();
     if (operation.authority != c.authority.toString() ||
         operation.homeUri != c.home.toString() ||
@@ -313,48 +356,21 @@ final class DavCollectionAdministration {
     }
     final target = Uri.parse(operation.targetUri);
     final title = operation.displayName;
-    final components = (jsonDecode(operation.componentsJson) as List)
-        .cast<String>()
-        .toSet();
+    Set<String> components;
+    try {
+      components = (jsonDecode(operation.componentsJson) as List)
+          .cast<String>()
+          .toSet();
+    } on Object {
+      throw _error(400, 'DavCollectionCreationInvalid');
+    }
     if (components.isEmpty ||
         !const {'VEVENT', 'VTODO'}.containsAll(components)) {
-      throw _error(409, 'DavCollectionCreationInvalid');
-    }
-    if (operation.state == 'rejected') {
-      throw _error(409, 'DavCollectionNameConflict');
+      throw _error(400, 'DavCollectionCreationInvalid');
     }
     if (operation.state == 'committed') {
       return _creationRefresh(reconciled: true);
     }
-    final parent = await _read(c, c.home, cancellation: cancellation);
-    if (parent == null) throw _error(404, 'DavCalendarHomeUnavailable');
-    _requirePrivilege(parent, 'bind');
-    final options = await _send(
-      c,
-      'OPTIONS',
-      c.home,
-      cancellation: cancellation,
-    );
-    if (options.statusCode < 200 || options.statusCode >= 300) {
-      throw _error(options.statusCode, 'DavCollectionCapabilitiesUnavailable');
-    }
-    final methods = (options.headers['allow'] ?? '')
-        .split(',')
-        .map((s) => s.trim().toUpperCase())
-        .toSet();
-    final features = (options.headers['dav'] ?? '')
-        .split(',')
-        .map((s) => s.trim().toLowerCase())
-        .toSet();
-    // MKCALENDAR is required by calendar-access (RFC 4791). Some conforming
-    // implementations omit it from home Allow; no server-name inference.
-    final method =
-        methods.contains('MKCALENDAR') || features.contains('calendar-access')
-        ? 'MKCALENDAR'
-        : features.contains('extended-mkcol') && methods.contains('MKCOL')
-        ? 'MKCOL'
-        : null;
-    if (method == null) throw _error(405, 'DavCollectionCreationUnsupported');
     bool matches(DavMultistatusResponse entry) {
       final componentProperty = entry.successfulProperty(
         caldavNamespace,
@@ -387,12 +403,42 @@ final class DavCollectionAdministration {
     final existing = await _read(c, target, cancellation: cancellation);
     if (existing != null) {
       if (operation.state != 'dispatched' || !matches(existing)) {
-        await _creationState(operationId, 'rejected');
-        throw _error(409, 'DavCollectionNameConflict');
+        final error = _error(409, 'DavCollectionNameConflict');
+        await _creationState(operationId, 'rejected', error: error);
+        throw error;
       }
       await _creationState(operationId, 'committed');
       return _creationRefresh(reconciled: true);
     }
+    final parent = await _read(c, c.home, cancellation: cancellation);
+    if (parent == null) throw _error(404, 'DavCalendarHomeUnavailable');
+    _requirePrivilege(parent, 'bind');
+    final options = await _send(
+      c,
+      'OPTIONS',
+      c.home,
+      cancellation: cancellation,
+    );
+    if (options.statusCode < 200 || options.statusCode >= 300) {
+      throw _error(options.statusCode, 'DavCollectionCapabilitiesUnavailable');
+    }
+    final methods = (options.headers['allow'] ?? '')
+        .split(',')
+        .map((s) => s.trim().toUpperCase())
+        .toSet();
+    final features = (options.headers['dav'] ?? '')
+        .split(',')
+        .map((s) => s.trim().toLowerCase())
+        .toSet();
+    // MKCALENDAR is required by calendar-access (RFC 4791). Some conforming
+    // implementations omit it from home Allow; no server-name inference.
+    final method =
+        methods.contains('MKCALENDAR') || features.contains('calendar-access')
+        ? 'MKCALENDAR'
+        : features.contains('extended-mkcol') && methods.contains('MKCOL')
+        ? 'MKCOL'
+        : null;
+    if (method == null) throw _error(405, 'DavCollectionCreationUnsupported');
     // The absence check above is mandatory before a retry of a dispatched
     // operation. MKCALENDAR/MKCOL are never blindly replayed by the transport.
     if (operation.state == 'prepared') {
@@ -440,13 +486,16 @@ final class DavCollectionAdministration {
               'supported-calendar-component',
             ),
           )) {
-            await _creationState(operationId, 'rejected');
-            throw const DavException(
+            final error = const DavException(
               kind: DavErrorKind.unsupportedComponent,
               code: 'DavUnsupportedComponent',
               statusCode: 403,
               safeMessage: 'The server does not support the requested collection component set.',
             );
+            if (operation.state == 'prepared') {
+              await _creationState(operationId, 'rejected', error: error);
+            }
+            throw error;
           }
         }
         // A definitive rejection is not evidence of an uncertain commit. In
@@ -454,15 +503,22 @@ final class DavCollectionAdministration {
         // adopt the conflicting collection on a subsequent recovery pass.
         if (const {
               400,
+              403,
+              404,
               405,
+              410,
               409,
               412,
               415,
               422,
             }.contains(response.statusCode) &&
             operation.state == 'prepared') {
-          await _creationState(operationId, 'rejected');
-        } else if (const {401, 403}.contains(response.statusCode) &&
+          await _creationState(
+            operationId,
+            'rejected',
+            error: _error(response.statusCode, 'DavCollectionCreationFailed'),
+          );
+        } else if (response.statusCode == 401 &&
             operation.state == 'prepared') {
           await _creationState(operationId, 'prepared');
         }
@@ -489,11 +545,22 @@ final class DavCollectionAdministration {
     return _creationRefresh(reconciled: false);
   }
 
-  Future<void> _creationState(String id, String state) async {
+  Future<void> _creationState(
+    String id,
+    String state, {
+    DavException? error,
+  }) async {
     final updated =
-        await (database.update(database.davCollectionCreations)
-              ..where((r) => r.id.equals(id) & r.accountId.equals(accountId)))
-            .write(DavCollectionCreationsCompanion(state: Value(state)));
+        await (database.update(
+          database.davCollectionCreations,
+        )..where((r) => r.id.equals(id) & r.accountId.equals(accountId))).write(
+          DavCollectionCreationsCompanion(
+            state: Value(state),
+            lastErrorKind: Value(error?.kind.name),
+            lastErrorCode: Value(error?.code),
+            lastErrorStatus: Value(error?.statusCode),
+          ),
+        );
     if (updated != 1) throw _error(404, 'DavAccountRemoved');
   }
 
@@ -667,6 +734,7 @@ DavException _error(int status, String code) => DavException(
   kind: switch (status) {
     401 => DavErrorKind.authentication,
     403 => DavErrorKind.authorization,
+    429 => DavErrorKind.rateLimited,
     404 || 410 => DavErrorKind.notFound,
     409 || 412 => DavErrorKind.conflict,
     >= 500 => DavErrorKind.server,
@@ -676,3 +744,35 @@ DavException _error(int status, String code) => DavException(
   statusCode: status,
   safeMessage: 'The server could not complete the collection operation.',
 );
+
+// Definitive preflight failures cannot have created a remote collection. A
+// stale discovery, transport interruption, TLS failure or authentication lease
+// remains recoverable and is never relabeled as collection rejection.
+bool _definitiveBeforeDispatch(DavException error) =>
+    error.code != 'DavDiscoveryRequired' &&
+    error.kind != DavErrorKind.authentication &&
+    const {
+      400,
+      403,
+      404,
+      405,
+      409,
+      410,
+      412,
+      415,
+      422,
+    }.contains(error.statusCode);
+
+DavException _rejectedCreationError(DavCollectionCreation operation) {
+  final kind = DavErrorKind.values
+      .where((k) => k.name == operation.lastErrorKind)
+      .firstOrNull;
+  return DavException(
+    kind: kind ?? DavErrorKind.conflict,
+    code: operation.lastErrorCode ?? 'DavCollectionNameConflict',
+    statusCode: operation.lastErrorStatus ?? 409,
+    correlationId: operation.id,
+    safeMessage:
+        'The collection creation was rejected before it could complete.',
+  );
+}

@@ -192,6 +192,14 @@ class AppLocalizationsIt extends AppLocalizations {
       'La modifica è salvata su Nextcloud. L’aggiornamento è in attesa; non ripetere la modifica.';
 
   @override
+  String get davRefreshPending =>
+      'La modifica è salvata sul server CalDAV. L’aggiornamento è in attesa; non ripetere la modifica.';
+
+  @override
+  String get davCollectionCreationPending =>
+      'La creazione della raccolta è in attesa. Sincronizza questo account prima di riprovare; non ripetere l’operazione.';
+
+  @override
   String get nextcloudOutcomeUnknown =>
       'Impossibile confermare l’esito sul server. Aggiorna prima di riprovare.';
 

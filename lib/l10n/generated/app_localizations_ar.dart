@@ -189,6 +189,14 @@ class AppLocalizationsAr extends AppLocalizations {
       'حُفظ التغيير في Nextcloud. التحديث معلّق؛ لا تكرر التغيير.';
 
   @override
+  String get davRefreshPending =>
+      'حُفظ التغيير على خادم CalDAV. التحديث معلّق؛ لا تكرر التغيير.';
+
+  @override
+  String get davCollectionCreationPending =>
+      'إنشاء المجموعة معلّق. زامن هذا الحساب قبل المحاولة مجددًا؛ لا تكرر العملية.';
+
+  @override
   String get nextcloudOutcomeUnknown =>
       'تعذّر تأكيد النتيجة لدى الخادم. حدّث قبل المحاولة مجددًا.';
 

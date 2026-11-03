@@ -80,6 +80,8 @@
   "nextcloudAvailability": "Diese Sammlung bei der Verfügbarkeit berücksichtigen",
   "nextcloudCalendarTimezone": "Kalenderzeitzone (VTIMEZONE-Dokument)",
   "nextcloudRefreshPending": "Die Änderung wurde auf Nextcloud gespeichert. Die Aktualisierung steht aus; wiederholen Sie die Änderung nicht.",
+  "davRefreshPending": "Die Änderung wurde auf dem CalDAV-Server gespeichert. Die Aktualisierung steht aus; wiederholen Sie die Änderung nicht.",
+  "davCollectionCreationPending": "Die Erstellung der Sammlung steht aus. Synchronisieren Sie dieses Konto, bevor Sie es erneut versuchen; wiederholen Sie den Vorgang nicht.",
   "nextcloudOutcomeUnknown": "Das Serverergebnis konnte nicht bestätigt werden. Aktualisieren Sie vor einem neuen Versuch.",
   "nextcloudRemoveShared": "Freigegebenen Kalender/Liste entfernen",
   "nextcloudRemoveMixed": "Diese Sammlung enthält Termine und Aufgaben. Beim Löschen werden beide entfernt.",

@@ -188,6 +188,14 @@ class AppLocalizationsFa extends AppLocalizations {
       'تغییر در Nextcloud ذخیره شد. تازه‌سازی در انتظار است؛ تغییر را تکرار نکنید.';
 
   @override
+  String get davRefreshPending =>
+      'تغییر در سرور CalDAV ذخیره شد. تازه‌سازی در انتظار است؛ تغییر را تکرار نکنید.';
+
+  @override
+  String get davCollectionCreationPending =>
+      'ایجاد مجموعه در انتظار است. پیش از تلاش دوباره، این حساب را همگام‌سازی کنید؛ عملیات را تکرار نکنید.';
+
+  @override
   String get nextcloudOutcomeUnknown =>
       'نتیجهٔ سرور تأیید نشد. پیش از تلاش دوباره تازه‌سازی کنید.';
 

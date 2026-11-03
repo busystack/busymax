@@ -190,6 +190,14 @@ class AppLocalizationsPt extends AppLocalizations {
       'The change was saved on Nextcloud. Refresh is pending; do not repeat the change.';
 
   @override
+  String get davRefreshPending =>
+      'The change was saved on the CalDAV server. Refresh is pending; do not repeat the change.';
+
+  @override
+  String get davCollectionCreationPending =>
+      'Collection creation is pending. Synchronize this account before trying again; do not repeat the operation.';
+
+  @override
   String get nextcloudOutcomeUnknown =>
       'The server outcome could not be confirmed. Refresh before trying again.';
 
@@ -4155,6 +4163,14 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
   @override
   String get nextcloudRefreshPending =>
       'A alteração foi guardada no Nextcloud. A atualização está pendente; não repita a alteração.';
+
+  @override
+  String get davRefreshPending =>
+      'A alteração foi guardada no servidor CalDAV. A atualização está pendente; não repita a alteração.';
+
+  @override
+  String get davCollectionCreationPending =>
+      'A criação da coleção está pendente. Sincronize esta conta antes de tentar novamente; não repita a operação.';
 
   @override
   String get nextcloudOutcomeUnknown =>

@@ -184,6 +184,14 @@ class AppLocalizationsKo extends AppLocalizations {
       '변경 내용을 Nextcloud에 저장했습니다. 새로 고침이 대기 중이므로 변경을 반복하지 마세요.';
 
   @override
+  String get davRefreshPending =>
+      '변경 내용을 CalDAV 서버에 저장했습니다. 새로 고침이 대기 중이므로 변경을 반복하지 마세요.';
+
+  @override
+  String get davCollectionCreationPending =>
+      '컬렉션 생성이 대기 중입니다. 다시 시도하기 전에 이 계정을 동기화하세요. 작업을 반복하지 마세요.';
+
+  @override
   String get nextcloudOutcomeUnknown => '서버 결과를 확인하지 못했습니다. 새로 고친 후 다시 시도하세요.';
 
   @override

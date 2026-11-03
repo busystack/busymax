@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:busymax/src/core/secrets/secret_store.dart';
 import 'package:busymax/src/dav/dav_errors.dart';
@@ -6,6 +7,9 @@ import 'package:busymax/src/dav/mutation/dav_calendar_collection_mutation_servic
 import 'package:busymax/src/dav/mutation/dav_collection_administration.dart';
 import 'package:busymax/src/dav/mutation/dav_task_list_mutation_service.dart';
 import 'package:busymax/src/db/app_database.dart';
+import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
+import 'package:busymax/src/calendar_providers/calendar_colors.dart';
 import 'package:drift/native.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter_test/flutter_test.dart';
@@ -70,6 +74,168 @@ void main() {
         },
       );
 
+      test('network failure before dispatch retains the prepared identity across restart', () async {
+        f.optionsNetworkFailure = true;
+        await expectLater(
+          f.admin.create('Work', {component}),
+          throwsA(
+            isA<DavException>().having(
+              (e) => e.kind,
+              'network failure',
+              DavErrorKind.network,
+            ),
+          ),
+        );
+        final prepared = await f.database
+            .select(f.database.davCollectionCreations)
+            .getSingle();
+        expect(prepared.state, 'prepared');
+        expect(prepared.lastErrorKind, 'network');
+        expect(f.writes, 0);
+        await f.reopen();
+        f.optionsNetworkFailure = false;
+        expect(
+          await f.admin.resumeCreation(prepared.id),
+          DavCollectionAdministrationOutcome.committed,
+        );
+        expect(f.writes, 1);
+        expect(
+          (await f.database
+                  .select(f.database.davCollectionCreations)
+                  .getSingle())
+              .id,
+          prepared.id,
+        );
+      });
+
+      for (final denial in ['bind', 'method', 'http403']) {
+        test(
+          'definitive $denial rejection is durable and never retried',
+          () async {
+            f.bindDenied = denial == 'bind';
+            f.unsupported = denial == 'method';
+            f.rejectionStatus = denial == 'http403' ? 403 : null;
+            await expectLater(
+              f.admin.create('Work', {component}),
+              throwsA(isA<DavException>()),
+            );
+            final row = await f.database
+                .select(f.database.davCollectionCreations)
+                .getSingle();
+            expect(row.state, 'rejected');
+            expect(row.lastErrorStatus, denial == 'method' ? 405 : 403);
+            expect(
+              row.lastErrorKind,
+              denial == 'method' ? 'protocol' : 'authorization',
+            );
+            expect(f.writes, denial == 'http403' ? 1 : 0);
+            expect(f.remote, isNull);
+            final writes = f.writes;
+            await f.reopen();
+            await expectLater(
+              f.admin.resumeCreation(_id),
+              throwsA(
+                isA<DavException>().having(
+                  (e) => e.code,
+                  'stored reason',
+                  row.lastErrorCode,
+                ),
+              ),
+            );
+            expect(f.writes, writes);
+          },
+        );
+      }
+      test('prepared transient failure survives reopening and uses the same operation', () async {
+        f.optionsStatus = 503;
+        await expectLater(
+          f.admin.create('Work', {component}),
+          throwsA(isA<DavException>()),
+        );
+        var row = await f.database
+            .select(f.database.davCollectionCreations)
+            .getSingle();
+        expect(row.state, 'prepared');
+        expect(row.lastErrorStatus, 503);
+        expect(f.writes, 0);
+        await f.reopen();
+        f.optionsStatus = 200;
+        expect(
+          await f.admin.resumeCreation(_id),
+          DavCollectionAdministrationOutcome.committed,
+        );
+        row = await f.database
+            .select(f.database.davCollectionCreations)
+            .getSingle();
+        expect(row.id, _id);
+        expect(row.targetUri, _target);
+        expect(row.state, 'committed');
+        expect(row.lastErrorCode, isNull);
+        expect(f.writes, 1);
+      });
+      test(
+        'prepared intent can resume after process restart before any request',
+        () async {
+          await f.prepare();
+          await f.reopen();
+          expect(
+            await f.admin.resumeCreation(_id),
+            DavCollectionAdministrationOutcome.committed,
+          );
+          expect(f.writes, 1);
+        },
+      );
+      test(
+        'malformed prepared intent is rejected without a remote mutation',
+        () async {
+          await f.prepare(components: 'invalid-json');
+          await expectLater(
+            f.admin.resumeCreation(_id),
+            throwsA(isA<DavException>()),
+          );
+          final row = await f.database
+              .select(f.database.davCollectionCreations)
+              .getSingle();
+          expect(row.state, 'rejected');
+          expect(row.lastErrorCode, 'DavCollectionCreationInvalid');
+          expect(f.writes, 0);
+        },
+      );
+      test('an already committed dispatched intent reconciles after bind is revoked', () async {
+        f.interrupt = true;
+        await expectLater(
+          f.admin.create('Work', {component}),
+          throwsA(isA<DavException>()),
+        );
+        await f.reopen();
+        f.bindDenied = true;
+        expect(
+          await f.admin.resumeCreation(_id),
+          DavCollectionAdministrationOutcome.reconciled,
+        );
+        expect(f.writes, 1);
+      });
+      test('credential failure before dispatch remains authentication, not rejection', () async {
+        f.optionsStatus = 401;
+        await expectLater(
+          f.admin.create('Work', {component}),
+          throwsA(
+            isA<DavException>().having(
+              (e) => e.kind,
+              'kind',
+              DavErrorKind.authentication,
+            ),
+          ),
+        );
+        expect(
+          (await f.database
+                  .select(f.database.davCollectionCreations)
+                  .getSingle())
+              .state,
+          'prepared',
+        );
+        expect(f.writes, 0);
+      });
       test(
         'advertised Extended MKCOL sets its required resource type',
         () async {
@@ -251,7 +417,7 @@ void main() {
               isA<DavException>().having(
                 (e) => e.code,
                 'code',
-                'DavCollectionNameConflict',
+                'DavCollectionCreationFailed',
               ),
             ),
           );
@@ -350,6 +516,131 @@ void main() {
         },
       );
 
+      test(
+        'committed calendar/task creation distinguishes a failed refresh',
+        () async {
+          if (component == 'VEVENT') {
+            final result = await DavCalendarCollectionMutationService(
+              database: f.database,
+              secretStore: f.secrets,
+              httpClient: f.client,
+              accountId: 'qa',
+              refreshAfterMutation: () async =>
+                  throw StateError('refresh failed'),
+            ).createEventCalendar('Work');
+            expect(result.refreshPending, isTrue);
+          } else {
+            await expectLater(
+              DavTaskListMutationService(
+                database: f.database,
+                secretStore: f.secrets,
+                httpClient: f.client,
+                accountId: 'qa',
+                refreshAfterMutation: () async =>
+                    throw StateError('refresh failed'),
+              ).createTaskList('Work'),
+              throwsA(isA<DavRefreshPending>()),
+            );
+          }
+          expect(f.writes, 1);
+          expect(f.remote, isNotNull);
+          expect(
+            (await f.database
+                    .select(f.database.davCollectionCreations)
+                    .getSingle())
+                .state,
+            'committed',
+          );
+        },
+      );
+
+      for (final action in ['rename', 'color', 'delete']) {
+        test(
+          '$action committed but refresh failed uses the neutral exception',
+          () async {
+            f.remote = f.collectionXml;
+            f.refreshFails = true;
+            await f.database
+                .into(f.database.davCollections)
+                .insert(
+                  DavCollectionsCompanion.insert(
+                    id: 'collection',
+                    accountId: 'qa',
+                    hrefKey: Uri.parse(_target).path,
+                    requestUri: _target,
+                    displayName: 'Work',
+                    createdAtUtc: 'now',
+                    updatedAtUtc: 'now',
+                    safeDisplayMetadataJson: const Value(
+                      '{"parentPrivilegesKnown":"false"}',
+                    ),
+                    supportedComponentMask: Value(
+                      component == 'VEVENT' ? 1 : 2,
+                    ),
+                    eventProjectionEnabled: Value(component == 'VEVENT'),
+                    taskProjectionEnabled: Value(component == 'VTODO'),
+                  ),
+                );
+            Future<void> mutation;
+            if (component == 'VEVENT') {
+              await f.database
+                  .into(f.database.calendarSources)
+                  .insert(
+                    CalendarSourcesCompanion.insert(
+                      id: 'source',
+                      accountId: 'qa',
+                      provider: 'caldav',
+                      providerCalendarId: _target,
+                      davCollectionId: const Value('collection'),
+                      summary: 'Work',
+                      createdAtLocal: 0,
+                      updatedAtLocal: 0,
+                    ),
+                  );
+              final repository = CalendarRepository(
+                database: f.database,
+                genericCollections: (_) => f.admin,
+              );
+              mutation = switch (action) {
+                'rename' => repository.renameLocalSource('source', 'Changed'),
+                'color' => repository.setSourceColor(
+                  'source',
+                  calendarColorChoices(BusyProvider.caldav).first,
+                ),
+                _ => repository.deleteLocalSource('source'),
+              };
+            } else {
+              final service = DavTaskListMutationService(
+                database: f.database,
+                secretStore: f.secrets,
+                httpClient: f.client,
+                accountId: 'qa',
+                refreshAfterMutation: () async =>
+                    throw StateError('refresh failed'),
+              );
+              mutation = switch (action) {
+                'rename' => service.renameTaskList('collection', 'Changed'),
+                'color' =>
+                  service
+                      .setTaskListMetadata('collection', color: '#123456')
+                      .then((_) {}),
+                _ => service.deleteTaskList('collection'),
+              };
+            }
+            await expectLater(mutation, throwsA(isA<DavRefreshPending>()));
+            expect(f.metadataWrites, 1);
+            if (action == 'delete') {
+              expect(f.remote, isNull);
+            } else {
+              expect(
+                f.remote,
+                contains(action == 'rename' ? 'Changed' : 'calendar-color'),
+              );
+            }
+          },
+        );
+      }
+
       test('calendar/task service never reports success for unrelated existing metadata', () async {
         await f.database
             .into(f.database.davCollections)
@@ -404,8 +695,13 @@ class _Fixture {
   late AppDatabase database;
   final secrets = InMemorySecretStore();
   late final http.Client client = MockClient(handle);
+  int metadataWrites = 0;
+  bool refreshFails = false;
+  bool optionsNetworkFailure = false;
   int writes = 0, interruptedProbes = 0, unavailableProbes = 0;
   int? rejectionStatus;
+  int optionsStatus = 200;
+  bool bindDenied = false, unsupported = false;
   bool loseResponse = false,
       interrupt = false,
       commitBeforeInterrupt = true,
@@ -420,7 +716,9 @@ class _Fixture {
     secrets: secrets,
     client: client,
     accountId: 'qa',
-    refresh: () async {},
+    refresh: () async {
+      if (refreshFails) throw StateError('refresh failed');
+    },
     requireNetwork: () async {},
     creationIdFactory: () => _id,
   );
@@ -490,11 +788,35 @@ class _Fixture {
         safeMessage: 'The simulated process stopped before reconciliation.',
       );
     }
+    if (request.method == 'PROPPATCH') {
+      metadataWrites++;
+      final props = XmlDocument.parse(request.body).descendants
+          .whereType<XmlElement>()
+          .firstWhere((e) => e.name.local == 'prop');
+      remote =
+          '<d:resourcetype><d:collection/><c:calendar/></d:resourcetype>${props.children.join()}';
+      return http.Response(
+        '<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:a="http://apple.com/ns/ical/"><d:response><d:href>${request.url}</d:href><d:propstat><d:prop>${props.children.join()}</d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>',
+        207,
+      );
+    }
+    if (request.method == 'DELETE') {
+      metadataWrites++;
+      remote = null;
+      return http.Response('', 204);
+    }
     if (request.method == 'OPTIONS') {
+      if (optionsNetworkFailure) {
+        throw http.ClientException('Simulated pre-dispatch connection loss');
+      }
       return http.Response(
         '',
-        200,
-        headers: extendedMkcol
+        optionsStatus,
+        headers: optionsStatus == 503
+            ? {'retry-after': '0'}
+            : unsupported
+            ? {'dav': '1', 'allow': 'GET, PROPFIND'}
+            : extendedMkcol
             ? {'dav': '1, extended-mkcol', 'allow': 'MKCOL'}
             : {'dav': 'calendar-access', 'allow': 'MKCALENDAR'},
       );
@@ -515,7 +837,9 @@ class _Fixture {
       expect(request.body.contains('<d:resourcetype>'), extendedMkcol);
       writes++;
       if (rejectionStatus != null) {
-        remote = collectionXml;
+        if (const {405, 409, 412}.contains(rejectionStatus)) {
+          remote = collectionXml;
+        }
         return http.Response('', rejectionStatus!);
       }
       if (interrupt && !commitBeforeInterrupt) {
@@ -530,7 +854,7 @@ class _Fixture {
       preflightBeforeRetry = true;
     }
     final properties = request.url.toString() == _home
-        ? '<d:resourcetype><d:collection/></d:resourcetype><d:current-user-privilege-set><d:privilege><d:bind/></d:privilege></d:current-user-privilege-set>'
+        ? '<d:resourcetype><d:collection/></d:resourcetype><d:current-user-privilege-set><d:privilege><d:${bindDenied ? 'read' : 'all'}/></d:privilege></d:current-user-privilege-set>'
         : remote;
     if (properties == null) return http.Response('', 404);
     return http.Response(
@@ -538,6 +862,21 @@ class _Fixture {
       207,
     );
   }
+
+  Future<int> prepare({String? components}) => database
+      .into(database.davCollectionCreations)
+      .insert(
+        DavCollectionCreationsCompanion.insert(
+          id: _id,
+          accountId: 'qa',
+          authority: 'https://example.test/',
+          homeUri: _home,
+          targetUri: _target,
+          displayName: 'Work',
+          componentsJson: components ?? jsonEncode([component]),
+          createdAtUtc: 'now',
+        ),
+      );
 
   Future<void> reopen() async {
     await database.close();

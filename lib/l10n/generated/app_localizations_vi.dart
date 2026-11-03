@@ -191,6 +191,14 @@ class AppLocalizationsVi extends AppLocalizations {
       'Đã lưu thay đổi trên Nextcloud. Đang chờ làm mới; không lặp lại thay đổi.';
 
   @override
+  String get davRefreshPending =>
+      'Đã lưu thay đổi trên máy chủ CalDAV. Đang chờ làm mới; không lặp lại thay đổi.';
+
+  @override
+  String get davCollectionCreationPending =>
+      'Đang chờ tạo bộ sưu tập. Hãy đồng bộ hóa tài khoản này trước khi thử lại; không lặp lại thao tác.';
+
+  @override
   String get nextcloudOutcomeUnknown =>
       'Không thể xác nhận kết quả trên máy chủ. Làm mới trước khi thử lại.';
 

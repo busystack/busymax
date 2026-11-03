@@ -80,6 +80,8 @@
   "nextcloudAvailability": "Includi questa raccolta nella disponibilità",
   "nextcloudCalendarTimezone": "Fuso orario del calendario (documento VTIMEZONE)",
   "nextcloudRefreshPending": "La modifica è salvata su Nextcloud. L’aggiornamento è in attesa; non ripetere la modifica.",
+  "davRefreshPending": "La modifica è salvata sul server CalDAV. L’aggiornamento è in attesa; non ripetere la modifica.",
+  "davCollectionCreationPending": "La creazione della raccolta è in attesa. Sincronizza questo account prima di riprovare; non ripetere l’operazione.",
   "nextcloudOutcomeUnknown": "Impossibile confermare l’esito sul server. Aggiorna prima di riprovare.",
   "nextcloudRemoveShared": "Rimuovi calendario/elenco condiviso",
   "nextcloudRemoveMixed": "Questa raccolta contiene eventi e attività. Eliminandola verranno rimossi entrambi.",

@@ -13,6 +13,7 @@ import '../../../calendar_providers/calendar_create_identity.dart';
 import '../../../calendar_providers/calendar_mutation.dart';
 import '../../../calendar_providers/calendar_provider_capabilities.dart';
 import '../../../dav/storage/dav_collection_capabilities.dart';
+import '../../../dav/dav_errors.dart';
 import '../../../dav/mutation/dav_collection_administration.dart';
 import '../../../dav/nextcloud/nextcloud_collection_service.dart';
 import '../../../dav/nextcloud/nextcloud_dav_context.dart';
@@ -739,7 +740,7 @@ class CalendarRepository {
         const DavPropertyName(davNamespace, 'displayname'): title,
       });
       if (result == DavCollectionAdministrationOutcome.refreshPending) {
-        throw const NextcloudRefreshPending();
+        throw const DavRefreshPending();
       }
       return;
     }
@@ -838,7 +839,7 @@ class CalendarRepository {
             choice.backgroundColor,
       });
       if (result == DavCollectionAdministrationOutcome.refreshPending) {
-        throw const NextcloudRefreshPending();
+        throw const DavRefreshPending();
       }
       return;
     }
@@ -928,7 +929,7 @@ class CalendarRepository {
       }
       final result = await administration.remove(source.davCollectionId!);
       if (result == DavCollectionAdministrationOutcome.refreshPending) {
-        throw const NextcloudRefreshPending();
+        throw const DavRefreshPending();
       }
       return;
     }

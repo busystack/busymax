@@ -1,4 +1,5 @@
 import 'package:busymax/src/dav/dav_provider_profile.dart';
+import 'package:busymax/src/dav/dav_errors.dart';
 import 'package:busymax/src/dav/http/dav_http_transport.dart';
 import 'package:busymax/src/dav/sync/dav_collection_remote_client.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
@@ -24,7 +25,7 @@ void main() {
         }
         return http.Response(
           '''<?xml version="1.0"?>
-<d:multistatus xmlns:d="DAV:"><d:sync-token>next-token</d:sync-token></d:multistatus>''',
+<d:multistatus xmlns:d="DAV:"><d:sync-token>urn:test:next-token</d:sync-token></d:multistatus>''',
           207,
           headers: const {'content-type': 'application/xml'},
         );
@@ -57,7 +58,166 @@ void main() {
         correlationId: 'strict-depth',
       );
 
-      expect(page.nextSyncToken, 'next-token');
+      expect(page.nextSyncToken, 'urn:test:next-token');
     });
+  }
+  for (final condition in [false, true]) {
+    test(
+      'collection 507 recognizes truncation; optional condition=$condition',
+      () async {
+        final page = await _page(
+          _multi(
+            _collection507(condition) + _changed(),
+            token: 'urn:test:page',
+          ),
+        );
+        expect(page.truncated, isTrue);
+        expect(page.changedMembers.single.hrefKey, '/calendars/u/work/a.ics');
+        expect(page.changedMembers.single.etag, '"a1"');
+        expect(page.nextSyncToken, 'urn:test:page');
+        expect(page.deletedHrefKeys, isEmpty);
+      },
+    );
+  }
+  test('initial inventory retains existing tolerance for valid-form tombstones', () async {
+    final page = await _page(
+      _multi(
+        '${_changed()}<d:response><d:href>removed.ics</d:href><d:status>HTTP/1.1 404 Not Found</d:status></d:response>',
+      ),
+      syncToken: '',
+    );
+    expect(page.truncated, isFalse);
+    expect(page.changedMembers.single.etag, '"a1"');
+    expect(page.deletedHrefKeys, {'/calendars/u/work/removed.ics'});
+  });
+  final invalid = <String, (String, int)>{
+    'member 507': (
+      _multi(
+        '<d:response><d:href>a.ics</d:href><d:status>HTTP/1.1 507 Insufficient Storage</d:status></d:response>',
+      ),
+      207,
+    ),
+    'member property 507': (_multi(_changed(status: 507)), 207),
+    'contradictory property statuses': (
+      _multi(
+        _changed().replaceFirst(
+          '</d:propstat>',
+          '<d:status>HTTP/1.1 507 Insufficient Storage</d:status></d:propstat>',
+        ),
+      ),
+      207,
+    ),
+    'duplicate property containers': (
+      _multi(_changed().replaceFirst('</d:prop>', '</d:prop><d:prop/>')),
+      207,
+    ),
+    'missing token': (_multi(_collection507(false), token: null), 207),
+    'empty token': (_multi(_collection507(false), token: ''), 207),
+    'invalid token URI': (
+      _multi(_collection507(false), token: 'not-a-uri'),
+      207,
+    ),
+    'unchanged continuation': (
+      _multi(_collection507(false), token: 'urn:test:previous'),
+      207,
+    ),
+    'duplicate token': (
+      _multi(_changed()).replaceFirst(
+        '</d:multistatus>',
+        '<d:sync-token>urn:test:other</d:sync-token></d:multistatus>',
+      ),
+      207,
+    ),
+    'overall 507': (_multi(_collection507(true)), 507),
+    'limit condition without collection 507': (
+      _multi(_changed()).replaceFirst(
+        '</d:multistatus>',
+        '<d:error><d:number-of-matches-within-limits/></d:error></d:multistatus>',
+      ),
+      207,
+    ),
+    'collection 507 with properties': (
+      _multi(
+        _collection507(false).replaceFirst(
+          '</d:response>',
+          '<d:propstat><d:prop/><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>',
+        ),
+      ),
+      207,
+    ),
+    'duplicate collection': (
+      _multi(_collection507(false) + _collection507(true)),
+      207,
+    ),
+    'duplicate member': (_multi(_changed() + _changed()), 207),
+    'changed member status': (
+      _multi(
+        '<d:response><d:href>a.ics</d:href><d:status>HTTP/1.1 200 OK</d:status></d:response>',
+      ),
+      207,
+    ),
+    'status plus property': (
+      _multi(
+        _changed().replaceFirst(
+          '</d:href>',
+          '</d:href><d:status>HTTP/1.1 200 OK</d:status>',
+        ),
+      ),
+      207,
+    ),
+    'member error status': (_multi(_changed(status: 500)), 207),
+    'missing ETag': (
+      _multi(_changed().replaceFirst('<d:getetag>"a1"</d:getetag>', '')),
+      207,
+    ),
+    'outside member': (
+      _multi(_changed().replaceFirst('a.ics', '../outside.ics')),
+      207,
+    ),
+  };
+  for (final entry in invalid.entries) {
+    test('rejects ${entry.key}', () async {
+      await expectLater(
+        _page(entry.value.$1, status: entry.value.$2),
+        throwsA(isA<DavException>()),
+      );
+    });
+  }
+}
+
+String _collection507(bool condition) =>
+    '<d:response><d:href>/calendars/u/work/</d:href><d:status>HTTP/1.1 507 Insufficient Storage</d:status>${condition ? '<d:error><d:number-of-matches-within-limits/></d:error>' : ''}</d:response>';
+String _changed({int status = 200}) =>
+    '<d:response><d:href>a.ics</d:href><d:propstat><d:prop><d:getetag>"a1"</d:getetag></d:prop><d:status>HTTP/1.1 $status status</d:status></d:propstat></d:response>';
+String _multi(String responses, {String? token = 'urn:test:page'}) =>
+    '<d:multistatus xmlns:d="DAV:">$responses${token == null ? '' : '<d:sync-token>$token</d:sync-token>'}</d:multistatus>';
+Future<DavSyncPage> _page(
+  String body, {
+  int status = 207,
+  String syncToken = 'urn:test:previous',
+}) async {
+  final authority = Uri.parse('https://cal.example.test/');
+  final profile = davProviderProfile(
+    BusyProvider.caldav,
+    caldavServer: authority,
+  );
+  final client = MockClient((_) async => http.Response(body, status));
+  try {
+    return await DavCollectionHttpClient(
+      transport: DavHttpTransport(
+        client: client,
+        profile: profile,
+        accountAuthority: authority,
+        limits: const DavTransportLimits(maximumReadAttempts: 1),
+      ),
+      profile: profile,
+      accountAuthority: authority,
+      accountId: 'account',
+      collectionId: 'collection',
+      collectionUri: authority.resolve('/calendars/u/work/'),
+      credential: DavBasicCredential(username: 'u', password: 'synthetic'),
+    ).syncCollectionPage(syncToken: syncToken, correlationId: 'rfc6578');
+  } finally {
+    client.close();
   }
 }

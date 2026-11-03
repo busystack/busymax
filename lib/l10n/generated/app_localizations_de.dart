@@ -192,6 +192,14 @@ class AppLocalizationsDe extends AppLocalizations {
       'Die Änderung wurde auf Nextcloud gespeichert. Die Aktualisierung steht aus; wiederholen Sie die Änderung nicht.';
 
   @override
+  String get davRefreshPending =>
+      'Die Änderung wurde auf dem CalDAV-Server gespeichert. Die Aktualisierung steht aus; wiederholen Sie die Änderung nicht.';
+
+  @override
+  String get davCollectionCreationPending =>
+      'Die Erstellung der Sammlung steht aus. Synchronisieren Sie dieses Konto, bevor Sie es erneut versuchen; wiederholen Sie den Vorgang nicht.';
+
+  @override
   String get nextcloudOutcomeUnknown =>
       'Das Serverergebnis konnte nicht bestätigt werden. Aktualisieren Sie vor einem neuen Versuch.';
 

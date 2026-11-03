@@ -175,6 +175,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get nextcloudRefreshPending => '更改已保存在 Nextcloud。刷新尚未完成；请勿重复更改。';
 
   @override
+  String get davRefreshPending => '更改已保存在 CalDAV 服务器上。刷新尚未完成；请勿重复更改。';
+
+  @override
+  String get davCollectionCreationPending => '集合创建尚未完成。请先同步此账户再重试；请勿重复此操作。';
+
+  @override
   String get nextcloudOutcomeUnknown => '无法确认服务器结果。请刷新后再试。';
 
   @override
@@ -3942,6 +3948,12 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get nextcloudRefreshPending => '更改已保存在 Nextcloud。刷新尚未完成；请勿重复更改。';
 
   @override
+  String get davRefreshPending => '更改已保存在 CalDAV 服务器上。刷新尚未完成；请勿重复更改。';
+
+  @override
+  String get davCollectionCreationPending => '集合创建尚未完成。请先同步此账户再重试；请勿重复此操作。';
+
+  @override
   String get nextcloudOutcomeUnknown => '无法确认服务器结果。请刷新后再试。';
 
   @override
@@ -7707,6 +7719,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get nextcloudRefreshPending => '變更已儲存在 Nextcloud。更新尚未完成；請勿重複變更。';
+
+  @override
+  String get davRefreshPending => '變更已儲存在 CalDAV 伺服器。更新尚未完成；請勿重複變更。';
+
+  @override
+  String get davCollectionCreationPending => '集合建立尚未完成。請先同步此帳戶再重試；請勿重複此操作。';
 
   @override
   String get nextcloudOutcomeUnknown => '無法確認伺服器結果。請重新整理後再試。';
