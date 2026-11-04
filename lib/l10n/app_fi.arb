@@ -1,4 +1,8 @@
 {
+  "caldavNativeImport": "Tuo tapahtumien ja tehtävien täydelliset resurssit. CalDAV-palvelin saattaa lähettää kutsuja tai kokouspäivityksiä kohteille, joissa on osallistujia. Olemassa olevat UID-tunnisteet ohitetaan, ellet valitse uusia kopioita. Resursseista, joita ei tueta, ilmoitetaan erikseen.",
+  "davInsufficientStorage": "Palvelimella ei ole tarpeeksi tallennustilaa tämän kokoelman luomiseen.",
+  "davCollectionPropertyRejected": "Palvelin hylkäsi kokoelmalle pyydetyn ominaisuuden.",
+  "davCollectionDiscoveryRequired": "Päivitä tämä tili, jotta palvelimen ominaisuudet ja käyttöoikeudet päivittyvät.",
   "caldavImportSchedulingWarning": "Tämä tiedosto sisältää osallistujia. Sallin tämän tuonnin, joka voi saada CalDAV-palvelimen lähettämään kutsuja tai kokouspäivityksiä.",
   "nextcloudCanonicalServerReview": "Nextcloud palautti osoitteen {canonical} palvelimelle {entered}. Saako BusyMax lähettää uuden sovellussalasanan tähän osoitteeseen?",
   "contactsAccountsUnavailable": "Yhteystietotilejä ei voitu ladata",

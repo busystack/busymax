@@ -1,4 +1,8 @@
 {
+  "caldavNativeImport": "Impordi sündmuste ja ülesannete täielikud ressursid. Osalejatega kirjete puhul võib CalDAV-server saata kutseid või koosoleku uuendusi. Olemasolevad UID-d jäetakse vahele, kui sa ei vali uusi koopiaid. Toetamata ressurssidest teatatakse eraldi.",
+  "davInsufficientStorage": "Serveris pole selle kogu loomiseks piisavalt salvestusruumi.",
+  "davCollectionPropertyRejected": "Server lükkas kogu taotletud omaduse tagasi.",
+  "davCollectionDiscoveryRequired": "Värskenda seda kontot, et uuendada serveri võimalusi ja õigusi.",
   "caldavImportSchedulingWarning": "See fail sisaldab osalejaid. Luban selle impordi, mille tõttu võib CalDAV-server saata kutseid või koosolekute uuendusi.",
   "nextcloudCanonicalServerReview": "Nextcloud tagastas serveri {entered} jaoks aadressi {canonical}. Kas lubada BusyMaxil saata uus rakenduse parool sellele aadressile?",
   "contactsAccountsUnavailable": "Kontaktikontosid ei õnnestunud laadida",

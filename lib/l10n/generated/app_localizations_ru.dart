@@ -14,6 +14,22 @@ class AppLocalizationsRu extends AppLocalizations {
   AppLocalizationsRu([String locale = 'ru']) : super(locale);
 
   @override
+  String get caldavNativeImport =>
+      'Импорт полных ресурсов событий и задач. Для элементов с участниками сервер CalDAV может отправлять приглашения или обновления встреч. Существующие UID пропускаются, если не выбрано создание новых копий. О неподдерживаемых ресурсах сообщается отдельно.';
+
+  @override
+  String get davInsufficientStorage =>
+      'На сервере недостаточно места для создания этой коллекции.';
+
+  @override
+  String get davCollectionPropertyRejected =>
+      'Сервер отклонил запрошенное свойство коллекции.';
+
+  @override
+  String get davCollectionDiscoveryRequired =>
+      'Обновите эту учётную запись, чтобы обновить сведения о возможностях и разрешениях сервера.';
+
+  @override
   String get caldavImportSchedulingWarning =>
       'Этот файл содержит участников. Я разрешаю импорт, при котором сервер CalDAV может отправить приглашения или обновления встреч.';
 

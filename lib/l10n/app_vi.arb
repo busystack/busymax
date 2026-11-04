@@ -1,4 +1,8 @@
 {
+  "caldavNativeImport": "Nhập tài nguyên đầy đủ của sự kiện và công việc. Với các mục có người tham dự, máy chủ CalDAV có thể gửi lời mời hoặc cập nhật cuộc họp. Các UID hiện có sẽ bị bỏ qua trừ khi bạn chọn tạo bản sao mới. Tài nguyên không được hỗ trợ sẽ được báo cáo riêng.",
+  "davInsufficientStorage": "Máy chủ không đủ dung lượng lưu trữ để tạo bộ sưu tập này.",
+  "davCollectionPropertyRejected": "Máy chủ đã từ chối một thuộc tính được yêu cầu của bộ sưu tập.",
+  "davCollectionDiscoveryRequired": "Làm mới tài khoản này để cập nhật khả năng và quyền của máy chủ.",
   "caldavImportSchedulingWarning": "Tệp này có người tham dự. Tôi cho phép nhập tệp, thao tác có thể khiến máy chủ CalDAV gửi lời mời hoặc cập nhật cuộc họp.",
   "nextcloudCanonicalServerReview": "Nextcloud trả về {canonical} cho máy chủ {entered}. Cho phép BusyMax gửi mật khẩu ứng dụng mới đến địa chỉ này?",
   "contactsAccountsUnavailable": "Không thể tải các tài khoản danh bạ",

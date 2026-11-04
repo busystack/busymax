@@ -430,10 +430,9 @@ final class DavCollectionAdministration {
         .split(',')
         .map((s) => s.trim().toLowerCase())
         .toSet();
-    // MKCALENDAR is required by calendar-access (RFC 4791). Some conforming
-    // implementations omit it from home Allow; no server-name inference.
-    final method =
-        methods.contains('MKCALENDAR') || features.contains('calendar-access')
+    // calendar-access does not require MKCALENDAR (RFC 4791 section 5.3.1).
+    // Select only an advertised creation method, including Extended MKCOL.
+    final method = methods.contains('MKCALENDAR')
         ? 'MKCALENDAR'
         : features.contains('extended-mkcol') && methods.contains('MKCOL')
         ? 'MKCOL'
@@ -464,6 +463,7 @@ final class DavCollectionAdministration {
         : '';
     final xml =
         '<$tag $_namespaces><d:set><d:prop>$resourceType<d:displayname>${escapeDavXmlText(title.trim())}</d:displayname><c:supported-calendar-component-set>${components.map((v) => '<c:comp name="$v"/>').join()}</c:supported-calendar-component-set></d:prop></d:set></$tag>';
+    var rejected = false;
     try {
       final response = await _send(
         c,
@@ -473,6 +473,14 @@ final class DavCollectionAdministration {
         cancellation: cancellation,
       );
       if (response.statusCode != 201) {
+        if (method == 'MKCALENDAR' && response.statusCode == 207) {
+          final error = _mkcalendarPropertyFailure(c, target, response);
+          // RFC 4791 section 5.3.1.1: a property failure rolls back the
+          // entire creation, including on a previously dispatched retry.
+          await _creationState(operationId, 'rejected', error: error);
+          rejected = true;
+          throw error;
+        }
         if (response.statusCode == 403 && response.bodyBytes.isNotEmpty) {
           Set<DavPropertyName> conditions;
           try {
@@ -511,6 +519,7 @@ final class DavCollectionAdministration {
               412,
               415,
               422,
+              507,
             }.contains(response.statusCode) &&
             operation.state == 'prepared') {
           await _creationState(
@@ -518,6 +527,7 @@ final class DavCollectionAdministration {
             'rejected',
             error: _error(response.statusCode, 'DavCollectionCreationFailed'),
           );
+          rejected = true;
         } else if (response.statusCode == 401 &&
             operation.state == 'prepared') {
           await _creationState(operationId, 'prepared');
@@ -525,6 +535,7 @@ final class DavCollectionAdministration {
         throw _error(response.statusCode, 'DavCollectionCreationFailed');
       }
     } on DavException catch (error) {
+      if (rejected) rethrow;
       final pendingNamespaceRace =
           operation.state == 'dispatched' &&
           const {405, 409, 412}.contains(error.statusCode);
@@ -543,6 +554,61 @@ final class DavCollectionAdministration {
     }
     await _creationState(operationId, 'committed');
     return _creationRefresh(reconciled: false);
+  }
+
+  DavException _mkcalendarPropertyFailure(
+    _Context c,
+    Uri target,
+    DavResponse response,
+  ) {
+    final data = const DavXmlParser().parseMultistatus(response.bodyBytes);
+    if (data.responses.length != 1 ||
+        resolveDavHref(
+              href: data.responses.single.href,
+              responseRequestUri: target,
+              profile: c.profile,
+              accountAuthority: c.authority,
+            ) !=
+            target) {
+      throw _error(502, 'DavCollectionCreationResponseIncomplete');
+    }
+    final entry = data.responses.single;
+    final failures = entry.propstats
+        .where((s) => s.statusCode >= 400 && s.properties.isNotEmpty)
+        .toList();
+    if (failures.isEmpty) {
+      throw _error(502, 'DavCollectionCreationResponseIncomplete');
+    }
+    // 424 describes the atomic rollback, not the property that caused it.
+    final failure =
+        failures.where((s) => s.statusCode != 424).firstOrNull ??
+        failures.first;
+    final conditions = {
+      ...data.errorConditions,
+      ...entry.errorConditions,
+      ...failure.errorConditions,
+    };
+    if (conditions.contains(
+      const DavPropertyName(caldavNamespace, 'supported-calendar-component'),
+    )) {
+      return DavException(
+        kind: DavErrorKind.unsupportedComponent,
+        code: 'DavUnsupportedComponent',
+        statusCode: failure.statusCode,
+        safeMessage: 'The server does not support the requested collection component set.',
+      );
+    }
+    if (conditions.contains(
+      const DavPropertyName(davNamespace, 'cannot-modify-protected-property'),
+    )) {
+      return DavException(
+        kind: DavErrorKind.protocol,
+        code: 'DavCollectionPropertyUnsupported',
+        statusCode: failure.statusCode,
+        safeMessage: 'The server does not allow setting a requested collection property.',
+      );
+    }
+    return _error(failure.statusCode, 'DavCollectionPropertyRejected');
   }
 
   Future<void> _creationState(

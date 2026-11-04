@@ -598,6 +598,37 @@ void main() {
     expect(fixture.requests.where((r) => r.method == 'GET'), hasLength(1));
   });
 
+  test(
+    'metadata listing uses server display names without downloading bodies',
+    () async {
+      fixture.trashDisplayName = '  Planning & review  ';
+      final listing = await fixture.trash.list();
+      expect(
+        listing.items.every((i) => i.title == 'Planning & review'),
+        isTrue,
+      );
+      expect(listing.items.every((i) => !i.contentLoaded), isTrue);
+      expect(
+        fixture.requests.where(
+          (r) => r.method == 'GET' || r.body.contains('calendar-data'),
+        ),
+        isEmpty,
+      );
+      final details = await fixture.trash.details(listing.items.first);
+      expect(details.title, 'Deleted event');
+    },
+  );
+
+  test(
+    'blank server display names fall back to the resource filename',
+    () async {
+      fixture.trashDisplayName = '  ';
+      final listing = await fixture.trash.list();
+      expect(listing.items.first.title, '41.ics');
+      expect(listing.items.first.contentLoaded, isFalse);
+    },
+  );
+
   test('on-demand details reject changed and withdrawn snapshots', () async {
     final listing = await fixture.trash.list();
     final item = listing.items.first;

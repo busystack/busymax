@@ -73,8 +73,7 @@ final class DavDiscoveryRepository {
             home?.endpointCapabilities.any(
               (e) =>
                   e.href == service.calendarHomeHref &&
-                  (e.serverFeatures.contains('calendar-access') ||
-                      e.allowedMethods.contains('MKCALENDAR') ||
+                  (e.allowedMethods.contains('MKCALENDAR') ||
                       e.serverFeatures.contains('extended-mkcol') &&
                           e.allowedMethods.contains('MKCOL')),
             ) ==

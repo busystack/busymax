@@ -108,13 +108,17 @@ void main() {
         );
       });
 
-      for (final denial in ['bind', 'method', 'http403']) {
+      for (final denial in ['bind', 'method', 'http403', 'http507']) {
         test(
           'definitive $denial rejection is durable and never retried',
           () async {
             f.bindDenied = denial == 'bind';
             f.unsupported = denial == 'method';
-            f.rejectionStatus = denial == 'http403' ? 403 : null;
+            f.rejectionStatus = switch (denial) {
+              'http403' => 403,
+              'http507' => 507,
+              _ => null,
+            };
             await expectLater(
               f.admin.create('Work', {component}),
               throwsA(isA<DavException>()),
@@ -123,12 +127,23 @@ void main() {
                 .select(f.database.davCollectionCreations)
                 .getSingle();
             expect(row.state, 'rejected');
-            expect(row.lastErrorStatus, denial == 'method' ? 405 : 403);
+            expect(
+              row.lastErrorStatus,
+              denial == 'method'
+                  ? 405
+                  : denial == 'http507'
+                  ? 507
+                  : 403,
+            );
             expect(
               row.lastErrorKind,
-              denial == 'method' ? 'protocol' : 'authorization',
+              denial == 'method'
+                  ? 'protocol'
+                  : denial == 'http507'
+                  ? 'server'
+                  : 'authorization',
             );
-            expect(f.writes, denial == 'http403' ? 1 : 0);
+            expect(f.writes, denial.startsWith('http') ? 1 : 0);
             expect(f.remote, isNull);
             final writes = f.writes;
             await f.reopen();
@@ -247,6 +262,129 @@ void main() {
           expect(f.writes, 1);
         },
       );
+
+      test(
+        'calendar-access alone does not advertise a creation method',
+        () async {
+          f.calendarAccessOnly = true;
+          await expectLater(
+            f.admin.create('Work', {component}),
+            throwsA(
+              isA<DavException>().having(
+                (e) => e.code,
+                'code',
+                'DavCollectionCreationUnsupported',
+              ),
+            ),
+          );
+          expect(f.writes, 0);
+          expect(
+            (await f.database
+                    .select(f.database.davCollectionCreations)
+                    .getSingle())
+                .state,
+            'rejected',
+          );
+        },
+      );
+
+      for (final (status, condition, kind, code) in [
+        (403, '', DavErrorKind.authorization, 'DavCollectionPropertyRejected'),
+        (409, '', DavErrorKind.conflict, 'DavCollectionPropertyRejected'),
+        (423, '', DavErrorKind.protocol, 'DavCollectionPropertyRejected'),
+        (507, '', DavErrorKind.server, 'DavCollectionPropertyRejected'),
+        (
+          403,
+          '<c:supported-calendar-component/>',
+          DavErrorKind.unsupportedComponent,
+          'DavUnsupportedComponent',
+        ),
+        (
+          403,
+          '<d:cannot-modify-protected-property/>',
+          DavErrorKind.protocol,
+          'DavCollectionPropertyUnsupported',
+        ),
+      ]) {
+        for (final resumed in [false, true]) {
+          test('MKCALENDAR 207 $status $condition is durably rejected; resumed=$resumed', () async {
+            if (resumed) {
+              await f.prepare();
+              await (f.database.update(f.database.davCollectionCreations))
+                  .write(
+                    const DavCollectionCreationsCompanion(
+                      state: Value('dispatched'),
+                    ),
+                  );
+            }
+            f.rejectionStatus = 207;
+            f.rejectionBody =
+                '<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">'
+                '<d:response><d:href>$_target</d:href>'
+                '<d:propstat><d:prop><d:displayname/></d:prop><d:status>HTTP/1.1 424 Failed Dependency</d:status></d:propstat>'
+                '<d:propstat><d:prop><c:supported-calendar-component-set/></d:prop><d:status>HTTP/1.1 $status Property Failure</d:status>'
+                '${condition.isEmpty ? '' : '<d:error>$condition</d:error>'}</d:propstat>'
+                '</d:response></d:multistatus>';
+            final failure = isA<DavException>()
+                .having((e) => e.statusCode, 'property status', status)
+                .having((e) => e.kind, 'property kind', kind)
+                .having((e) => e.code, 'property reason', code);
+            await expectLater(
+              resumed
+                  ? f.admin.resumeCreation(_id)
+                  : f.admin.create('Work', {component}),
+              throwsA(failure),
+            );
+            final row = await f.database
+                .select(f.database.davCollectionCreations)
+                .getSingle();
+            expect(row.state, 'rejected');
+            expect(row.lastErrorStatus, status);
+            expect(row.lastErrorKind, kind.name);
+            expect(row.lastErrorCode, code);
+            expect(f.writes, 1);
+            expect(f.targetReads, 1); // Only the preflight; no reconciliation.
+            expect(f.remote, isNull);
+            await f.reopen();
+            await expectLater(f.admin.resumeCreation(_id), throwsA(failure));
+            expect(f.writes, 1);
+            expect(f.targetReads, 1);
+          });
+        }
+      }
+
+      for (final body in [
+        '<broken',
+        '<d:multistatus xmlns:d="DAV:"/>',
+        '<d:multistatus xmlns:d="DAV:"><d:response><d:href>$_target</d:href><d:propstat><d:prop><d:displayname/></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>',
+        '<d:multistatus xmlns:d="DAV:"><d:response><d:href>${_home}unrelated/</d:href><d:propstat><d:prop><d:displayname/></d:prop><d:status>HTTP/1.1 403 Forbidden</d:status></d:propstat></d:response></d:multistatus>',
+      ]) {
+        test(
+          'unusable 207 response keeps an uncertain creation pending: $body',
+          () async {
+            f.rejectionStatus = 207;
+            f.rejectionBody = body;
+            await expectLater(
+              f.admin.create('Work', {component}),
+              throwsA(
+                isA<DavException>().having(
+                  (e) => e.kind,
+                  'kind',
+                  DavErrorKind.unknownOutcome,
+                ),
+              ),
+            );
+            expect(
+              (await f.database
+                      .select(f.database.davCollectionCreations)
+                      .getSingle())
+                  .state,
+              'dispatched',
+            );
+            expect(f.writes, 1);
+          },
+        );
+      }
 
       test('lost committed response reconciles this operation without another write', () async {
         f.loseResponse = true;
@@ -699,6 +837,9 @@ class _Fixture {
   bool refreshFails = false;
   bool optionsNetworkFailure = false;
   int writes = 0, interruptedProbes = 0, unavailableProbes = 0;
+  int targetReads = 0;
+  String? rejectionBody;
+  bool calendarAccessOnly = false;
   int? rejectionStatus;
   int optionsStatus = 200;
   bool bindDenied = false, unsupported = false;
@@ -767,6 +908,9 @@ class _Fixture {
   }
 
   Future<http.Response> handle(http.Request request) async {
+    if (request.method == 'PROPFIND' && request.url.toString() == _target) {
+      targetReads++;
+    }
     if (reconciliationUnavailable &&
         writes > 0 &&
         request.method == 'PROPFIND' &&
@@ -814,10 +958,12 @@ class _Fixture {
         optionsStatus,
         headers: optionsStatus == 503
             ? {'retry-after': '0'}
+            : calendarAccessOnly
+            ? {'dav': 'calendar-access', 'allow': 'GET, PROPFIND'}
             : unsupported
             ? {'dav': '1', 'allow': 'GET, PROPFIND'}
             : extendedMkcol
-            ? {'dav': '1, extended-mkcol', 'allow': 'MKCOL'}
+            ? {'dav': '1, calendar-access, extended-mkcol', 'allow': 'MKCOL'}
             : {'dav': 'calendar-access', 'allow': 'MKCALENDAR'},
       );
     }
@@ -840,7 +986,7 @@ class _Fixture {
         if (const {405, 409, 412}.contains(rejectionStatus)) {
           remote = collectionXml;
         }
-        return http.Response('', rejectionStatus!);
+        return http.Response(rejectionBody ?? '', rejectionStatus!);
       }
       if (interrupt && !commitBeforeInterrupt) {
         throw StateError('interrupted before remote commit');

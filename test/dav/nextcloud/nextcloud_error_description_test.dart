@@ -2,6 +2,7 @@ import 'package:busymax/l10n/generated/app_localizations_en.dart';
 import 'package:busymax/src/dav/dav_errors.dart';
 import 'package:busymax/src/dav/nextcloud/nextcloud_dav_context.dart';
 import 'package:busymax/src/l10n/nextcloud_collection_error_description.dart';
+import 'package:busymax/src/l10n/dav_collection_error_description.dart';
 import 'package:busymax/src/l10n/oauth_error_description.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -33,6 +34,62 @@ void main() {
       );
     }
   });
+  test(
+    'generic CalDAV collection failures use neutral, status-specific wording',
+    () {
+      final errors = [
+        (
+          nextcloudOperationError(507, 'DavCollectionCreationFailed'),
+          l10n.davInsufficientStorage,
+        ),
+        (
+          nextcloudOperationError(507, 'DavCollectionPropertyRejected'),
+          l10n.davInsufficientStorage,
+        ),
+        (
+          nextcloudOperationError(403, 'DavCollectionPropertyUnsupported'),
+          l10n.davCollectionPropertyRejected,
+        ),
+        (
+          nextcloudOperationError(403, 'DavPermissionDenied'),
+          l10n.davCollectionCreationDenied,
+        ),
+        (
+          nextcloudOperationError(405, 'DavCollectionCreationUnsupported'),
+          l10n.nextcloudUnsupported,
+        ),
+        (
+          nextcloudOperationError(409, 'DavDiscoveryRequired'),
+          l10n.davCollectionDiscoveryRequired,
+        ),
+        (
+          nextcloudOperationError(503, 'DavCollectionCreationFailed'),
+          l10n.davTemporarilyUnavailable,
+        ),
+        (
+          nextcloudOperationError(409, 'DavCollectionOutcomeUnknown'),
+          l10n.nextcloudOutcomeUnknown,
+        ),
+      ];
+      for (final (error, expected) in errors) {
+        expect(localizedDavCollectionError(l10n, error), expected);
+        expect(
+          localizedDavCollectionError(l10n, error),
+          isNot(contains('Nextcloud')),
+        );
+      }
+      final unavailable = nextcloudOperationError(
+        503,
+        'DavCollectionCreationFailed',
+      );
+      expect(describe(unavailable), l10n.nextcloudServerUnavailable);
+      expect(
+        describe(nextcloudOperationError(507, 'DavCollectionCreationFailed')),
+        l10n.davInsufficientStorage,
+      );
+    },
+  );
+
   test('discovery, permission, conflict and unsupported remain distinct', () {
     expect(
       describe(nextcloudOperationError(409, 'DavDiscoveryRequired')),

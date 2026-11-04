@@ -14,6 +14,22 @@ class AppLocalizationsFa extends AppLocalizations {
   AppLocalizationsFa([String locale = 'fa']) : super(locale);
 
   @override
+  String get caldavNativeImport =>
+      'منابع کامل رویدادها و کارها را وارد کنید. برای موارد دارای شرکت‌کننده، سرور CalDAV ممکن است دعوت‌نامه یا به‌روزرسانی جلسه ارسال کند. شناسه‌های UID موجود نادیده گرفته می‌شوند، مگر اینکه نسخه‌های جدید را انتخاب کنید. منابع پشتیبانی‌نشده به‌صورت جداگانه گزارش می‌شوند.';
+
+  @override
+  String get davInsufficientStorage =>
+      'سرور فضای ذخیره‌سازی کافی برای ایجاد این مجموعه ندارد.';
+
+  @override
+  String get davCollectionPropertyRejected =>
+      'سرور یکی از ویژگی‌های درخواستی مجموعه را رد کرد.';
+
+  @override
+  String get davCollectionDiscoveryRequired =>
+      'برای به‌روزرسانی قابلیت‌ها و مجوزهای سرور، این حساب را تازه‌سازی کنید.';
+
+  @override
   String get caldavImportSchedulingWarning =>
       'این فایل شامل شرکت‌کنندگان است. این واردکردن را مجاز می‌دانم؛ ممکن است سرور CalDAV دعوت‌نامه یا به‌روزرسانی جلسه ارسال کند.';
 

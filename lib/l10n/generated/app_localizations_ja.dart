@@ -14,6 +14,20 @@ class AppLocalizationsJa extends AppLocalizations {
   AppLocalizationsJa([String locale = 'ja']) : super(locale);
 
   @override
+  String get caldavNativeImport =>
+      '予定とタスクの完全なリソースをインポートします。参加者がいる項目では、CalDAVサーバーが招待や会議の更新を送信する場合があります。新しいコピーを選択しない限り、既存のUIDはスキップされます。非対応のリソースは個別に報告されます。';
+
+  @override
+  String get davInsufficientStorage => 'このコレクションを作成するためのサーバーの保存容量が不足しています。';
+
+  @override
+  String get davCollectionPropertyRejected => 'コレクションに指定したプロパティがサーバーに拒否されました。';
+
+  @override
+  String get davCollectionDiscoveryRequired =>
+      'このアカウントを更新して、サーバーの機能と権限を更新してください。';
+
+  @override
   String get caldavImportSchedulingWarning =>
       'このファイルには参加者が含まれています。CalDAVサーバーから招待や会議の更新が送信される可能性があることを了承し、インポートを許可します。';
 

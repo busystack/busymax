@@ -14,6 +14,22 @@ class AppLocalizationsEt extends AppLocalizations {
   AppLocalizationsEt([String locale = 'et']) : super(locale);
 
   @override
+  String get caldavNativeImport =>
+      'Impordi sündmuste ja ülesannete täielikud ressursid. Osalejatega kirjete puhul võib CalDAV-server saata kutseid või koosoleku uuendusi. Olemasolevad UID-d jäetakse vahele, kui sa ei vali uusi koopiaid. Toetamata ressurssidest teatatakse eraldi.';
+
+  @override
+  String get davInsufficientStorage =>
+      'Serveris pole selle kogu loomiseks piisavalt salvestusruumi.';
+
+  @override
+  String get davCollectionPropertyRejected =>
+      'Server lükkas kogu taotletud omaduse tagasi.';
+
+  @override
+  String get davCollectionDiscoveryRequired =>
+      'Värskenda seda kontot, et uuendada serveri võimalusi ja õigusi.';
+
+  @override
   String get caldavImportSchedulingWarning =>
       'See fail sisaldab osalejaid. Luban selle impordi, mille tõttu võib CalDAV-server saata kutseid või koosolekute uuendusi.';
 

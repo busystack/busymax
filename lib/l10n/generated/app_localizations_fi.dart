@@ -14,6 +14,22 @@ class AppLocalizationsFi extends AppLocalizations {
   AppLocalizationsFi([String locale = 'fi']) : super(locale);
 
   @override
+  String get caldavNativeImport =>
+      'Tuo tapahtumien ja tehtävien täydelliset resurssit. CalDAV-palvelin saattaa lähettää kutsuja tai kokouspäivityksiä kohteille, joissa on osallistujia. Olemassa olevat UID-tunnisteet ohitetaan, ellet valitse uusia kopioita. Resursseista, joita ei tueta, ilmoitetaan erikseen.';
+
+  @override
+  String get davInsufficientStorage =>
+      'Palvelimella ei ole tarpeeksi tallennustilaa tämän kokoelman luomiseen.';
+
+  @override
+  String get davCollectionPropertyRejected =>
+      'Palvelin hylkäsi kokoelmalle pyydetyn ominaisuuden.';
+
+  @override
+  String get davCollectionDiscoveryRequired =>
+      'Päivitä tämä tili, jotta palvelimen ominaisuudet ja käyttöoikeudet päivittyvät.';
+
+  @override
   String get caldavImportSchedulingWarning =>
       'Tämä tiedosto sisältää osallistujia. Sallin tämän tuonnin, joka voi saada CalDAV-palvelimen lähettämään kutsuja tai kokouspäivityksiä.';
 

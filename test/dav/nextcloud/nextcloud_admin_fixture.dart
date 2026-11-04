@@ -36,6 +36,7 @@ class NextcloudAdminFixture {
   int refreshes = 0;
   int trashObjectCount = 2;
   int trashDescriptionBytes = 0;
+  String? trashDisplayName;
   String trashEtag = '"exact-trash-etag"';
   bool failRefresh = false,
       denyMetadata = false,
@@ -308,7 +309,7 @@ class NextcloudAdminFixture {
             'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:$component\r\nUID:trash-$i\r\nDTSTAMP:20260905T120000Z\r\nDTSTART:20260905T120000Z\r\n${task ? 'DUE' : 'DTEND'}:20260905T130000Z\r\nSUMMARY:Deleted ${task ? 'task' : 'event'}\r\n${request.body.contains('calendar-data') && trashDescriptionBytes > 0 ? 'DESCRIPTION:${'x' * trashDescriptionBytes}\r\n' : ''}END:$component\r\nEND:VCALENDAR\r\n';
         final response = multi(
           unexpectedTrashHref ? '${collection}active.ics' : path,
-          '<d:current-user-privilege-set><d:privilege><d:${denyTrashObject ? 'read' : 'unbind'}/></d:privilege></d:current-user-privilege-set><d:getetag>$trashEtag</d:getetag><d:getcontentlength>${raw.length + (request.body.contains('calendar-data') ? 0 : trashDescriptionBytes)}</d:getcontentlength><d:getcontenttype>text/calendar; charset=utf-8</d:getcontenttype>${request.body.contains('calendar-data') ? '<c:calendar-data>${raw.replaceAll('&', '&amp;').replaceAll('<', '&lt;')}</c:calendar-data>' : ''}<nc:deleted-at>2026-09-05T14:00:00Z</nc:deleted-at><nc:calendar-uri>work</nc:calendar-uri>',
+          '${trashDisplayName != null && request.body.contains('<d:displayname/>') ? '<d:displayname>${XmlText(trashDisplayName!).toXmlString()}</d:displayname>' : ''}<d:current-user-privilege-set><d:privilege><d:${denyTrashObject ? 'read' : 'unbind'}/></d:privilege></d:current-user-privilege-set><d:getetag>$trashEtag</d:getetag><d:getcontentlength>${raw.length + (request.body.contains('calendar-data') ? 0 : trashDescriptionBytes)}</d:getcontentlength><d:getcontenttype>text/calendar; charset=utf-8</d:getcontenttype>${request.body.contains('calendar-data') ? '<c:calendar-data>${raw.replaceAll('&', '&amp;').replaceAll('<', '&lt;')}</c:calendar-data>' : ''}<nc:deleted-at>2026-09-05T14:00:00Z</nc:deleted-at><nc:calendar-uri>work</nc:calendar-uri>',
         );
         responses.add(XmlDocument.parse(response.body).rootElement.innerXml);
       }

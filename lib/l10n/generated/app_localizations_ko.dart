@@ -14,6 +14,20 @@ class AppLocalizationsKo extends AppLocalizations {
   AppLocalizationsKo([String locale = 'ko']) : super(locale);
 
   @override
+  String get caldavNativeImport =>
+      '일정과 작업의 전체 리소스를 가져옵니다. 참석자가 있는 항목의 경우 CalDAV 서버가 초대 또는 회의 업데이트를 보낼 수 있습니다. 새 사본을 선택하지 않으면 기존 UID는 건너뜁니다. 지원되지 않는 리소스는 개별적으로 보고됩니다.';
+
+  @override
+  String get davInsufficientStorage => '서버에 이 컬렉션을 만들 저장 공간이 부족합니다.';
+
+  @override
+  String get davCollectionPropertyRejected => '서버가 요청된 컬렉션 속성을 거부했습니다.';
+
+  @override
+  String get davCollectionDiscoveryRequired =>
+      '이 계정을 새로 고쳐 서버 기능과 권한을 업데이트하세요.';
+
+  @override
   String get caldavImportSchedulingWarning =>
       '이 파일에는 참석자가 포함되어 있습니다. CalDAV 서버가 초대장이나 회의 업데이트를 보낼 수 있음을 이해하고 가져오기를 허용합니다.';
 

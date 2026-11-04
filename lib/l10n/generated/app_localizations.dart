@@ -135,6 +135,30 @@ abstract class AppLocalizations {
     Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant'),
   ];
 
+  /// No description provided for @caldavNativeImport.
+  ///
+  /// In en, this message translates to:
+  /// **'Import complete event and task resources. For items with attendees, the CalDAV server may send invitations or meeting updates. Existing UIDs are skipped unless you choose new copies. Unsupported resources are reported individually.'**
+  String get caldavNativeImport;
+
+  /// No description provided for @davInsufficientStorage.
+  ///
+  /// In en, this message translates to:
+  /// **'The server has insufficient storage to create this collection.'**
+  String get davInsufficientStorage;
+
+  /// No description provided for @davCollectionPropertyRejected.
+  ///
+  /// In en, this message translates to:
+  /// **'The server rejected a requested collection property.'**
+  String get davCollectionPropertyRejected;
+
+  /// No description provided for @davCollectionDiscoveryRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh this account to update its server capabilities and permissions.'**
+  String get davCollectionDiscoveryRequired;
+
   /// No description provided for @caldavImportSchedulingWarning.
   ///
   /// In en, this message translates to:

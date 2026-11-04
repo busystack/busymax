@@ -14,6 +14,22 @@ class AppLocalizationsPl extends AppLocalizations {
   AppLocalizationsPl([String locale = 'pl']) : super(locale);
 
   @override
+  String get caldavNativeImport =>
+      'Importuj pełne zasoby wydarzeń i zadań. W przypadku elementów z uczestnikami serwer CalDAV może wysyłać zaproszenia lub aktualizacje spotkań. Istniejące identyfikatory UID są pomijane, chyba że wybierzesz nowe kopie. Nieobsługiwane zasoby są zgłaszane osobno.';
+
+  @override
+  String get davInsufficientStorage =>
+      'Serwer nie ma wystarczającej ilości miejsca, aby utworzyć tę kolekcję.';
+
+  @override
+  String get davCollectionPropertyRejected =>
+      'Serwer odrzucił żądaną właściwość kolekcji.';
+
+  @override
+  String get davCollectionDiscoveryRequired =>
+      'Odśwież to konto, aby zaktualizować możliwości i uprawnienia serwera.';
+
+  @override
   String get caldavImportSchedulingWarning =>
       'Ten plik zawiera uczestników. Zezwalam na ten import, który może spowodować wysłanie zaproszeń lub aktualizacji spotkań przez serwer CalDAV.';
 

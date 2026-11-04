@@ -3,8 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../app/app_bootstrap.dart';
-import '../../../dav/dav_errors.dart';
-import '../../../l10n/nextcloud_collection_error_description.dart';
+import '../../../l10n/dav_collection_error_description.dart';
 
 /// Shared account feedback content hosted by each platform's settings view.
 /// It never labels a successful calendar/task pull as failed or retries writes.
@@ -99,22 +98,16 @@ class _AccountCollectionCreationFeedbackState
                               ? l10n.davCollectionCreationPending
                               : failure.taskList
                               ? l10n.taskListCreateFailed(
-                                  failure.error.kind ==
-                                          DavErrorKind.authorization
-                                      ? l10n.davCollectionCreationDenied
-                                      : localizedNextcloudCollectionError(
-                                          l10n,
-                                          failure.error,
-                                        ),
+                                  localizedDavCollectionError(
+                                    l10n,
+                                    failure.error,
+                                  ),
                                 )
                               : l10n.calendarCreateFailed(
-                                  failure.error.kind ==
-                                          DavErrorKind.authorization
-                                      ? l10n.davCollectionCreationDenied
-                                      : localizedNextcloudCollectionError(
-                                          l10n,
-                                          failure.error,
-                                        ),
+                                  localizedDavCollectionError(
+                                    l10n,
+                                    failure.error,
+                                  ),
                                 ),
                         ),
                       ],

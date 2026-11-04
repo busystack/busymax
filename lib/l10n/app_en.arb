@@ -1,4 +1,8 @@
 {
+  "caldavNativeImport": "Import complete event and task resources. For items with attendees, the CalDAV server may send invitations or meeting updates. Existing UIDs are skipped unless you choose new copies. Unsupported resources are reported individually.",
+  "davInsufficientStorage": "The server has insufficient storage to create this collection.",
+  "davCollectionPropertyRejected": "The server rejected a requested collection property.",
+  "davCollectionDiscoveryRequired": "Refresh this account to update its server capabilities and permissions.",
   "caldavImportSchedulingWarning": "This file contains attendees. I allow this import, which may cause the CalDAV server to send invitations or meeting updates.",
   "nextcloudCanonicalServerReview": "Nextcloud returned {canonical} for the server {entered}. Allow BusyMax to send the new app password to this address?",
   "@nextcloudCanonicalServerReview": {

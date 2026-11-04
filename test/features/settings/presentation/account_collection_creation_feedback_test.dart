@@ -85,6 +85,40 @@ void main() {
     },
   );
 
+  testWidgets(
+    'stored CalDAV storage rejection names storage instead of Nextcloud or connectivity',
+    (tester) async {
+      final failure = _failure(taskList: false, storageFailure: true);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            storedDavCollectionCreationNoticesProvider.overrideWith(
+              (ref, id) => Stream.value([failure]),
+            ),
+          ],
+          child: localizedTestApp(
+            child: Scaffold(
+              body: AccountCollectionCreationFeedback(
+                accountId: 'account',
+                dismissButtonBuilder: (_, onPressed, label) =>
+                    TextButton(onPressed: onPressed, child: Text(label)),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final l10n = AppLocalizationsEn();
+      expect(
+        find.text(l10n.calendarCreateFailed(l10n.davInsufficientStorage)),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Nextcloud'), findsNothing);
+      expect(find.textContaining('could not be reached'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   for (final platform in ['linux', 'windows', 'android']) {
     for (final taskList in [false, true]) {
       testWidgets(
@@ -211,6 +245,7 @@ void main() {
 DavCollectionCreationFailure _failure({
   required bool taskList,
   bool pending = false,
+  bool storageFailure = false,
 }) => DavCollectionCreationFailure.fromStored(
   DavCollectionCreation(
     id: 'creation',
@@ -221,9 +256,11 @@ DavCollectionCreationFailure _failure({
     displayName: 'Requested collection',
     componentsJson: taskList ? '["VTODO"]' : '["VEVENT"]',
     state: pending ? 'dispatched' : 'rejected',
-    lastErrorKind: 'authorization',
-    lastErrorCode: 'DavPermissionDenied',
-    lastErrorStatus: 403,
+    lastErrorKind: storageFailure ? 'server' : 'authorization',
+    lastErrorCode: storageFailure
+        ? 'DavCollectionCreationFailed'
+        : 'DavPermissionDenied',
+    lastErrorStatus: storageFailure ? 507 : 403,
     createdAtUtc: '2026-11-02T00:00:00Z',
   ),
 );

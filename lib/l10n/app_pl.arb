@@ -1,4 +1,8 @@
 {
+  "caldavNativeImport": "Importuj pełne zasoby wydarzeń i zadań. W przypadku elementów z uczestnikami serwer CalDAV może wysyłać zaproszenia lub aktualizacje spotkań. Istniejące identyfikatory UID są pomijane, chyba że wybierzesz nowe kopie. Nieobsługiwane zasoby są zgłaszane osobno.",
+  "davInsufficientStorage": "Serwer nie ma wystarczającej ilości miejsca, aby utworzyć tę kolekcję.",
+  "davCollectionPropertyRejected": "Serwer odrzucił żądaną właściwość kolekcji.",
+  "davCollectionDiscoveryRequired": "Odśwież to konto, aby zaktualizować możliwości i uprawnienia serwera.",
   "caldavImportSchedulingWarning": "Ten plik zawiera uczestników. Zezwalam na ten import, który może spowodować wysłanie zaproszeń lub aktualizacji spotkań przez serwer CalDAV.",
   "nextcloudCanonicalServerReview": "Nextcloud zwrócił adres {canonical} dla serwera {entered}. Zezwolić BusyMax na wysłanie nowego hasła aplikacji na ten adres?",
   "contactsAccountsUnavailable": "Nie udało się wczytać kont kontaktów",

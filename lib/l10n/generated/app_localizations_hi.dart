@@ -14,6 +14,22 @@ class AppLocalizationsHi extends AppLocalizations {
   AppLocalizationsHi([String locale = 'hi']) : super(locale);
 
   @override
+  String get caldavNativeImport =>
+      'इवेंट और कार्यों के पूरे संसाधन आयात करें। उपस्थित लोगों वाले आइटम के लिए CalDAV सर्वर आमंत्रण या मीटिंग अपडेट भेज सकता है। जब तक आप नई प्रतियाँ नहीं चुनते, मौजूदा UID छोड़ दिए जाते हैं। असमर्थित संसाधनों की सूचना अलग-अलग दी जाती है।';
+
+  @override
+  String get davInsufficientStorage =>
+      'यह संग्रह बनाने के लिए सर्वर पर पर्याप्त संग्रहण स्थान नहीं है।';
+
+  @override
+  String get davCollectionPropertyRejected =>
+      'सर्वर ने संग्रह की अनुरोधित प्रॉपर्टी अस्वीकार कर दी।';
+
+  @override
+  String get davCollectionDiscoveryRequired =>
+      'सर्वर की क्षमताएँ और अनुमतियाँ अपडेट करने के लिए यह खाता रीफ़्रेश करें।';
+
+  @override
   String get caldavImportSchedulingWarning =>
       'इस फ़ाइल में प्रतिभागी हैं। मैं इस आयात की अनुमति देता हूँ, जिससे CalDAV सर्वर निमंत्रण या मीटिंग के अपडेट भेज सकता है।';
 

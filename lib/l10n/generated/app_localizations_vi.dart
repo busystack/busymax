@@ -14,6 +14,22 @@ class AppLocalizationsVi extends AppLocalizations {
   AppLocalizationsVi([String locale = 'vi']) : super(locale);
 
   @override
+  String get caldavNativeImport =>
+      'Nhập tài nguyên đầy đủ của sự kiện và công việc. Với các mục có người tham dự, máy chủ CalDAV có thể gửi lời mời hoặc cập nhật cuộc họp. Các UID hiện có sẽ bị bỏ qua trừ khi bạn chọn tạo bản sao mới. Tài nguyên không được hỗ trợ sẽ được báo cáo riêng.';
+
+  @override
+  String get davInsufficientStorage =>
+      'Máy chủ không đủ dung lượng lưu trữ để tạo bộ sưu tập này.';
+
+  @override
+  String get davCollectionPropertyRejected =>
+      'Máy chủ đã từ chối một thuộc tính được yêu cầu của bộ sưu tập.';
+
+  @override
+  String get davCollectionDiscoveryRequired =>
+      'Làm mới tài khoản này để cập nhật khả năng và quyền của máy chủ.';
+
+  @override
   String get caldavImportSchedulingWarning =>
       'Tệp này có người tham dự. Tôi cho phép nhập tệp, thao tác có thể khiến máy chủ CalDAV gửi lời mời hoặc cập nhật cuộc họp.';
 

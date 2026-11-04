@@ -1,4 +1,8 @@
 {
+  "caldavNativeImport": "匯入完整的行程和工作資源。對於有參與者的項目，CalDAV 伺服器可能會傳送邀請或會議更新。除非選擇建立新副本，否則將略過現有的 UID。不支援的資源將個別回報。",
+  "davInsufficientStorage": "伺服器儲存空間不足，無法建立此集合。",
+  "davCollectionPropertyRejected": "伺服器拒絕了要求設定的集合屬性。",
+  "davCollectionDiscoveryRequired": "請重新整理此帳號以更新伺服器功能和權限。",
   "caldavImportSchedulingWarning": "此檔案包含與會者。我允許匯入，並知悉 CalDAV 伺服器可能會傳送邀請或會議更新。",
   "nextcloudCanonicalServerReview": "Nextcloud 為伺服器 {entered} 傳回了 {canonical}。是否允許 BusyMax 向此位址傳送新的應用程式密碼？",
   "contactsAccountsUnavailable": "無法載入聯絡人帳號",

@@ -167,7 +167,11 @@ class _IcalImportPreviewDialogState extends State<_IcalImportPreviewDialog> {
               : l10n.importEventsFound(widget.preview.eventCount),
         ),
         if (native) ...[
-          Text(l10n.nextcloudNativeImport),
+          Text(
+            _destination?.provider == BusyProvider.nextcloud
+                ? l10n.nextcloudNativeImport
+                : l10n.caldavNativeImport,
+          ),
           if (widget.preview.nativePreview.schedulingMethod != null)
             Text(l10n.nextcloudImportMethod),
           BusyMaxGroupedList(

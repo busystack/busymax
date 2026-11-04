@@ -24,6 +24,7 @@ String localizedNextcloudCollectionError(
   SecretStoreException() => l10n.oauthSecureStorageUnavailable,
   NextcloudRefreshPending() => l10n.nextcloudRefreshPending,
   DavRefreshPending() => l10n.davRefreshPending,
+  DavException(statusCode: 507) => l10n.davInsufficientStorage,
   DavException(code: 'DavCollectionCreationPending') =>
     l10n.davCollectionCreationPending,
   DavException(code: 'DavCollectionOutcomeUnknown') =>

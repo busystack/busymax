@@ -14,6 +14,22 @@ class AppLocalizationsAr extends AppLocalizations {
   AppLocalizationsAr([String locale = 'ar']) : super(locale);
 
   @override
+  String get caldavNativeImport =>
+      'استيراد موارد الأحداث والمهام كاملة. بالنسبة للعناصر التي تضم حاضرين، قد يرسل خادم CalDAV دعوات أو تحديثات للاجتماعات. يتم تخطي معرّفات UID الموجودة ما لم تختر نسخًا جديدة. يُبلّغ عن الموارد غير المدعومة كلٌّ على حدة.';
+
+  @override
+  String get davInsufficientStorage =>
+      'لا تتوفر على الخادم مساحة تخزين كافية لإنشاء هذه المجموعة.';
+
+  @override
+  String get davCollectionPropertyRejected =>
+      'رفض الخادم إحدى الخصائص المطلوبة للمجموعة.';
+
+  @override
+  String get davCollectionDiscoveryRequired =>
+      'حدّث هذا الحساب لتحديث إمكانات الخادم وأذوناته.';
+
+  @override
   String get caldavImportSchedulingWarning =>
       'يحتوي هذا الملف على مشاركين. أسمح بهذا الاستيراد الذي قد يجعل خادم CalDAV يرسل دعوات أو تحديثات للاجتماعات.';
 

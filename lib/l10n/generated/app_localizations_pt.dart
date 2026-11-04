@@ -14,6 +14,22 @@ class AppLocalizationsPt extends AppLocalizations {
   AppLocalizationsPt([String locale = 'pt']) : super(locale);
 
   @override
+  String get caldavNativeImport =>
+      'Import complete event and task resources. For items with attendees, the CalDAV server may send invitations or meeting updates. Existing UIDs are skipped unless you choose new copies. Unsupported resources are reported individually.';
+
+  @override
+  String get davInsufficientStorage =>
+      'The server has insufficient storage to create this collection.';
+
+  @override
+  String get davCollectionPropertyRejected =>
+      'The server rejected a requested collection property.';
+
+  @override
+  String get davCollectionDiscoveryRequired =>
+      'Refresh this account to update its server capabilities and permissions.';
+
+  @override
   String get caldavImportSchedulingWarning =>
       'This file contains attendees. I allow this import, which may cause the CalDAV server to send invitations or meeting updates.';
 
@@ -3998,6 +4014,22 @@ class AppLocalizationsPt extends AppLocalizations {
 /// The translations for Portuguese, as used in Portugal (`pt_PT`).
 class AppLocalizationsPtPt extends AppLocalizationsPt {
   AppLocalizationsPtPt() : super('pt_PT');
+
+  @override
+  String get caldavNativeImport =>
+      'Importar os recursos completos de eventos e tarefas. Para itens com participantes, o servidor CalDAV pode enviar convites ou atualizações de reuniões. Os UID existentes são ignorados, a menos que escolha novas cópias. Os recursos não suportados são comunicados individualmente.';
+
+  @override
+  String get davInsufficientStorage =>
+      'O servidor não tem espaço de armazenamento suficiente para criar esta coleção.';
+
+  @override
+  String get davCollectionPropertyRejected =>
+      'O servidor rejeitou uma propriedade solicitada da coleção.';
+
+  @override
+  String get davCollectionDiscoveryRequired =>
+      'Atualize esta conta para renovar as capacidades e permissões do servidor.';
 
   @override
   String get caldavImportSchedulingWarning =>

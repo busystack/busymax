@@ -20,6 +20,11 @@ enum NextcloudTrashKind {
   mixedCollection,
 }
 
+String? _displayName(DavMultistatusResponse row) {
+  final name = row.successfulProperty(davNamespace, 'displayname')?.text.trim();
+  return name == null || name.isEmpty ? null : name;
+}
+
 final class NextcloudTrashItem {
   const NextcloudTrashItem._({
     required this.accountId,
@@ -225,7 +230,7 @@ final class NextcloudTrashService {
       // identity metadata first; never request all deleted calendar bodies.
       final index = <Uri, DavMultistatusResponse>{};
       const metadataProperties =
-          '<d:getetag/><d:getcontentlength/><d:getcontenttype/>'
+          '<d:displayname/><d:getetag/><d:getcontentlength/><d:getcontenttype/>'
           '<d:current-user-privilege-set/><nc:deleted-at/><nc:calendar-uri/><nc:source-calendar-uri/>';
       {
         // A VCALENDAR query covers both events and tasks in one inventory.
@@ -327,7 +332,8 @@ final class NextcloudTrashService {
                       ? NextcloudTrashKind.event
                       : NextcloudTrashKind.unknownObject,
               },
-          title: content?.summary ?? href.pathSegments.last,
+          title:
+              content?.summary ?? _displayName(row) ?? href.pathSegments.last,
           deletedAt: row
               .successfulProperty(nextcloudNamespace, 'deleted-at')
               ?.text,

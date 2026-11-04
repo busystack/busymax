@@ -14,6 +14,19 @@ class AppLocalizationsZh extends AppLocalizations {
   AppLocalizationsZh([String locale = 'zh']) : super(locale);
 
   @override
+  String get caldavNativeImport =>
+      '导入完整的日程和任务资源。对于有参与者的项目，CalDAV 服务器可能会发送邀请或会议更新。除非选择创建新副本，否则将跳过已有的 UID。不支持的资源将单独报告。';
+
+  @override
+  String get davInsufficientStorage => '服务器存储空间不足，无法创建此集合。';
+
+  @override
+  String get davCollectionPropertyRejected => '服务器拒绝了请求设置的集合属性。';
+
+  @override
+  String get davCollectionDiscoveryRequired => '请刷新此账号以更新服务器功能和权限。';
+
+  @override
   String get caldavImportSchedulingWarning =>
       '此文件包含与会者。我允许导入，并知悉 CalDAV 服务器可能会发送邀请或会议更新。';
 
@@ -3799,6 +3812,19 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   AppLocalizationsZhHans() : super('zh_Hans');
 
   @override
+  String get caldavNativeImport =>
+      '导入完整的日程和任务资源。对于有参与者的项目，CalDAV 服务器可能会发送邀请或会议更新。除非选择创建新副本，否则将跳过已有的 UID。不支持的资源将单独报告。';
+
+  @override
+  String get davInsufficientStorage => '服务器存储空间不足，无法创建此集合。';
+
+  @override
+  String get davCollectionPropertyRejected => '服务器拒绝了请求设置的集合属性。';
+
+  @override
+  String get davCollectionDiscoveryRequired => '请刷新此账号以更新服务器功能和权限。';
+
+  @override
   String get caldavImportSchedulingWarning =>
       '此文件包含与会者。我允许导入，并知悉 CalDAV 服务器可能会发送邀请或会议更新。';
 
@@ -7582,6 +7608,19 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 /// The translations for Chinese, using the Han script (`zh_Hant`).
 class AppLocalizationsZhHant extends AppLocalizationsZh {
   AppLocalizationsZhHant() : super('zh_Hant');
+
+  @override
+  String get caldavNativeImport =>
+      '匯入完整的行程和工作資源。對於有參與者的項目，CalDAV 伺服器可能會傳送邀請或會議更新。除非選擇建立新副本，否則將略過現有的 UID。不支援的資源將個別回報。';
+
+  @override
+  String get davInsufficientStorage => '伺服器儲存空間不足，無法建立此集合。';
+
+  @override
+  String get davCollectionPropertyRejected => '伺服器拒絕了要求設定的集合屬性。';
+
+  @override
+  String get davCollectionDiscoveryRequired => '請重新整理此帳號以更新伺服器功能和權限。';
 
   @override
   String get caldavImportSchedulingWarning =>

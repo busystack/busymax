@@ -101,6 +101,47 @@ void main() {
     );
   });
 
+  for (final (methods, features, supported) in [
+    ('PROPFIND, REPORT', 'calendar-access', false),
+    ('PROPFIND, REPORT, MKCALENDAR', 'calendar-access', true),
+    ('PROPFIND, REPORT, MKCOL', 'calendar-access, extended-mkcol', true),
+    ('PROPFIND, REPORT, MKCOL', 'calendar-access', false),
+  ]) {
+    test(
+      'persisted creation capability requires an advertised method: $methods; $features',
+      () async {
+        final result = await _discover(
+          creationMethods: methods,
+          serverFeatures: features,
+        );
+        final db = AppDatabase.memoryForTests();
+        addTearDown(db.close);
+        await db
+            .into(db.accounts)
+            .insert(
+              AccountsCompanion.insert(
+                id: 'caldav',
+                provider: 'caldav',
+                providerAccountId: 'user',
+                authority: 'https://example.test/',
+                credentialKind: 'caldav_password',
+                createdAtUtc: 'now',
+                updatedAtUtc: 'now',
+              ),
+            );
+        await DavDiscoveryRepository(database: db)
+            .commitSuccessfulInventory(result);
+        final account = await db.select(db.accounts).getSingle();
+        expect(
+          jsonDecode(
+            account.providerMetadataJson!,
+          )['caldavCollectionCreationSupported'],
+          supported,
+        );
+      },
+    );
+  }
+
   test(
     'optional method-probe server failure preserves readable discovery',
     () async {
@@ -362,6 +403,8 @@ Future<DavDiscoveryResult> _discover({
   String server = 'https://example.test/',
   bool missingPrincipal = false,
   int wellKnownStatus = 404,
+  String creationMethods = 'OPTIONS, PROPFIND, REPORT, MKCALENDAR',
+  String serverFeatures = 'calendar-access',
   bool homeMove = true,
   bool? collectionMove,
   int collectionOptionsStatus = 200,
@@ -389,9 +432,9 @@ Future<DavDiscoveryResult> _discover({
         '',
         collection ? collectionOptionsStatus : 200,
         headers: {
-          'dav': 'calendar-access',
+          'dav': serverFeatures,
           'allow':
-              'OPTIONS, PROPFIND, REPORT, MKCALENDAR${(collection ? collectionMove ?? homeMove : homeMove) ? ', MOVE' : ''}',
+              '$creationMethods${(collection ? collectionMove ?? homeMove : homeMove) ? ', MOVE' : ''}',
         },
       );
     }
