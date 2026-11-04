@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../core/secrets/secret_store.dart';
 import '../../db/app_database.dart';
+import '../../features/sync/account_sync_operations.dart';
 import '../../features/accounts/domain/account_connection_state.dart';
 import '../../providers/busy_provider.dart';
 import '../dav_errors.dart';
@@ -78,6 +79,7 @@ final class DavAccountSyncEngine {
     required SecretStore secretStore,
     required http.Client httpClient,
     required String accountId,
+    CrossEngineAccountGate creationGate = const InProcessAccountGate(),
     DavAccountSyncPolicy policy = const DavAccountSyncPolicy(),
     DavTransportLimits transportLimits = const DavTransportLimits(),
     DavSyncLimits syncLimits = const DavSyncLimits(),
@@ -91,6 +93,7 @@ final class DavAccountSyncEngine {
        _secretStore = secretStore,
        _httpClient = httpClient,
        _accountId = accountId,
+       _creationGate = creationGate,
        _policy = policy,
        _transportLimits = transportLimits,
        _syncLimits = syncLimits,
@@ -103,6 +106,7 @@ final class DavAccountSyncEngine {
   final SecretStore _secretStore;
   final http.Client _httpClient;
   final String _accountId;
+  final CrossEngineAccountGate _creationGate;
   final DavAccountSyncPolicy _policy;
   final DavTransportLimits _transportLimits;
   final DavSyncLimits _syncLimits;
@@ -281,6 +285,7 @@ final class DavAccountSyncEngine {
         try {
           await DavCollectionAdministration(
             database: _database,
+            creationGate: _creationGate,
             secrets: _secretStore,
             client: _httpClient,
             accountId: _accountId,

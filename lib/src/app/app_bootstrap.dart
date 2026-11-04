@@ -1351,6 +1351,7 @@ typedef DavAccountSyncEngineFactory = DavAccountSyncEngine Function(
 final davAccountSyncEngineFactoryProvider =
     Provider<DavAccountSyncEngineFactory>((ref) {
       return (accountId) => DavAccountSyncEngine(
+        creationGate: ref.read(crossEngineAccountGateProvider),
         database: ref.read(databaseProvider),
         secretStore: ref.read(secretStoreProvider),
         httpClient: ref.read(davAccountHttpClientProvider(accountId)),
@@ -1693,6 +1694,7 @@ final calendarRepositoryProvider = Provider<CalendarRepository>((ref) {
     nextcloudCollections: (accountId) =>
         ref.read(nextcloudCollectionServiceProvider(accountId)),
     genericCollections: (accountId) => DavCollectionAdministration(
+      creationGate: ref.read(crossEngineAccountGateProvider),
       database: ref.read(databaseProvider),
       secrets: ref.read(secretStoreProvider),
       client: ref.read(davAccountHttpClientProvider(accountId)),
@@ -1875,6 +1877,7 @@ final googleTasksApiClientProvider = Provider<TaskRemoteClient?>((ref) {
 final davTaskListMutationClientForAccountProvider =
     Provider.family<DavTaskListMutationClient, String>((ref, accountId) {
       return DavTaskListMutationService(
+        creationGate: ref.read(crossEngineAccountGateProvider),
         database: ref.watch(databaseProvider),
         secretStore: ref.watch(secretStoreProvider),
         httpClient: ref.watch(davAccountHttpClientProvider(accountId)),
@@ -1936,6 +1939,7 @@ final davCalendarCollectionMutationClientForAccountProvider =
       accountId,
     ) {
       return DavCalendarCollectionMutationService(
+        creationGate: ref.read(crossEngineAccountGateProvider),
         database: ref.watch(databaseProvider),
         secretStore: ref.watch(secretStoreProvider),
         httpClient: ref.watch(davAccountHttpClientProvider(accountId)),

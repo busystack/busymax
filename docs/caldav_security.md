@@ -31,8 +31,17 @@ UUID, an operation-specific reserved member URL, account/service/home identity,
 component set and state. Matching names or deterministic title URLs cannot
 authorize recovery. A fresh pre-existing target is a conflict. A dispatched
 operation is reconciled by its persisted identity and verified remote state
-before retry. Definitive rejection cannot become successful reconciliation.
+before retry. A rejected journal cannot become successful reconciliation.
 Account removal cascades the journal and does not delete remote collections.
+
+Android creation/recovery holds an exclusive native lease for the persisted
+operation across journal reload, remote checks, dispatch, and terminal state
+writes. Refresh runs after releasing that lease. A retry's definitive rejection
+is resolved with another read of its reserved URL: matching intent commits,
+confirmed absence rejects, and a different collection rejects as a conflict.
+Failed or incomplete verification retains the dispatched journal for recovery.
+Rejected operations use the existing acknowledgments and release the pending
+name reservation.
 
 Native import preserves organizer and attendee properties. Generic CalDAV
 servers advertising RFC 6638 implicit scheduling may send invitations or meeting

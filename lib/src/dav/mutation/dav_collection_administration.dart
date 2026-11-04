@@ -7,6 +7,7 @@ import 'package:xml/xml.dart';
 
 import '../../core/secrets/secret_store.dart';
 import '../../db/app_database.dart';
+import '../../features/sync/account_sync_operations.dart';
 import '../../providers/busy_provider.dart';
 import '../dav_errors.dart';
 import '../dav_href.dart';
@@ -33,6 +34,7 @@ final class DavCollectionAdministration {
     required this.accountId,
     required this.refresh,
     required this.requireNetwork,
+    this.creationGate = const InProcessAccountGate(),
     String Function()? creationIdFactory,
   }) : _creationIdFactory = creationIdFactory ?? const Uuid().v4;
   final AppDatabase database;
@@ -41,6 +43,7 @@ final class DavCollectionAdministration {
   final String accountId;
   final Future<void> Function() refresh;
   final Future<void> Function() requireNetwork;
+  final CrossEngineAccountGate creationGate;
   final String Function() _creationIdFactory;
   static final _activeCreations =
       <String, Future<DavCollectionAdministrationOutcome>>{};
@@ -281,13 +284,31 @@ final class DavCollectionAdministration {
     final key = '$accountId/$operationId';
     final active = _activeCreations[key];
     if (active != null) return active;
-    final work = _resumeCreation(operationId, cancellation);
+    final work = _resumeAndRefreshCreation(operationId, cancellation);
     _activeCreations[key] = work;
     try {
       return await work;
     } finally {
       if (identical(_activeCreations[key], work)) _activeCreations.remove(key);
     }
+  }
+
+  Future<DavCollectionAdministrationOutcome> _resumeAndRefreshCreation(
+    String operationId,
+    DavCancellationToken? cancellation,
+  ) async {
+    // The process-local map only coalesces callers in this isolate. Android's
+    // native exclusive lease also covers other engines, from journal reload
+    // through remote reconciliation/dispatch and the durable terminal state.
+    final result = await creationGate.run(
+      'dav-collection-creation:$accountId/$operationId',
+      () => _resumeCreation(operationId, cancellation),
+    );
+    // Refresh may acquire the account sync gate while another engine owns it
+    // and is waiting for this creation lease. Release our lease first.
+    return _creationRefresh(
+      reconciled: result == DavCollectionAdministrationOutcome.reconciled,
+    );
   }
 
   Future<DavCollectionAdministrationOutcome> _resumeCreation(
@@ -369,7 +390,7 @@ final class DavCollectionAdministration {
       throw _error(400, 'DavCollectionCreationInvalid');
     }
     if (operation.state == 'committed') {
-      return _creationRefresh(reconciled: true);
+      return DavCollectionAdministrationOutcome.reconciled;
     }
     bool matches(DavMultistatusResponse entry) {
       final componentProperty = entry.successfulProperty(
@@ -408,7 +429,7 @@ final class DavCollectionAdministration {
         throw error;
       }
       await _creationState(operationId, 'committed');
-      return _creationRefresh(reconciled: true);
+      return DavCollectionAdministrationOutcome.reconciled;
     }
     final parent = await _read(c, c.home, cancellation: cancellation);
     if (parent == null) throw _error(404, 'DavCalendarHomeUnavailable');
@@ -481,6 +502,7 @@ final class DavCollectionAdministration {
           rejected = true;
           throw error;
         }
+        var error = _error(response.statusCode, 'DavCollectionCreationFailed');
         if (response.statusCode == 403 && response.bodyBytes.isNotEmpty) {
           Set<DavPropertyName> conditions;
           try {
@@ -494,52 +516,50 @@ final class DavCollectionAdministration {
               'supported-calendar-component',
             ),
           )) {
-            final error = const DavException(
+            error = const DavException(
               kind: DavErrorKind.unsupportedComponent,
               code: 'DavUnsupportedComponent',
               statusCode: 403,
               safeMessage: 'The server does not support the requested collection component set.',
             );
-            if (operation.state == 'prepared') {
-              await _creationState(operationId, 'rejected', error: error);
-            }
-            throw error;
           }
         }
-        // A definitive rejection is not evidence of an uncertain commit. In
-        // particular a fresh request that loses a namespace race must never
-        // adopt the conflicting collection on a subsequent recovery pass.
+        // A retry's rejection describes this attempt, not the original lost
+        // response. Reconcile once more before resolving the durable intent.
+        // Fresh requests must never adopt a collection from a namespace race.
         if (const {
-              400,
-              403,
-              404,
-              405,
-              410,
-              409,
-              412,
-              415,
-              422,
-              507,
-            }.contains(response.statusCode) &&
-            operation.state == 'prepared') {
-          await _creationState(
-            operationId,
-            'rejected',
-            error: _error(response.statusCode, 'DavCollectionCreationFailed'),
-          );
+          400,
+          403,
+          404,
+          405,
+          410,
+          409,
+          412,
+          415,
+          422,
+          507,
+        }.contains(response.statusCode)) {
+          if (operation.state == 'dispatched') {
+            final observed = await _read(c, target);
+            if (observed != null && matches(observed)) {
+              await _creationState(operationId, 'committed');
+              return DavCollectionAdministrationOutcome.reconciled;
+            }
+            if (observed != null) {
+              error = _error(409, 'DavCollectionNameConflict');
+            }
+          }
+          await _creationState(operationId, 'rejected', error: error);
           rejected = true;
         } else if (response.statusCode == 401 &&
             operation.state == 'prepared') {
           await _creationState(operationId, 'prepared');
         }
-        throw _error(response.statusCode, 'DavCollectionCreationFailed');
+        throw error;
       }
     } on DavException catch (error) {
       if (rejected) rethrow;
-      final pendingNamespaceRace =
-          operation.state == 'dispatched' &&
-          const {405, 409, 412}.contains(error.statusCode);
-      if (!_uncertain(error) && !pendingNamespaceRace) rethrow;
+      if (!_uncertain(error)) rethrow;
       final observed = await _read(c, target);
       if (observed == null || !matches(observed)) {
         throw DavException(
@@ -550,10 +570,10 @@ final class DavCollectionAdministration {
         );
       }
       await _creationState(operationId, 'committed');
-      return _creationRefresh(reconciled: true);
+      return DavCollectionAdministrationOutcome.reconciled;
     }
     await _creationState(operationId, 'committed');
-    return _creationRefresh(reconciled: false);
+    return DavCollectionAdministrationOutcome.committed;
   }
 
   DavException _mkcalendarPropertyFailure(

@@ -1,13 +1,18 @@
 import 'dart:io';
 import 'dart:convert';
+import 'dart:isolate';
 
+import 'package:busymax/src/core/auth/authorization_gate.dart';
 import 'package:busymax/src/core/secrets/secret_store.dart';
 import 'package:busymax/src/dav/dav_errors.dart';
 import 'package:busymax/src/dav/mutation/dav_calendar_collection_mutation_service.dart';
 import 'package:busymax/src/dav/mutation/dav_collection_administration.dart';
 import 'package:busymax/src/dav/mutation/dav_task_list_mutation_service.dart';
+import 'package:busymax/src/dav/storage/dav_collection_creation_notices.dart';
 import 'package:busymax/src/db/app_database.dart';
+import 'package:busymax/src/db/native_database_connection.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
+import 'package:busymax/src/features/sync/account_sync_operations.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/calendar_providers/calendar_colors.dart';
 import 'package:drift/native.dart';
@@ -527,6 +532,173 @@ void main() {
         },
       );
 
+      for (final status in [403, 507]) {
+        test(
+          'interrupted creation then HTTP $status is durably rejected',
+          () async {
+            f.interrupt = true;
+            f.commitBeforeInterrupt = false;
+            await expectLater(
+              f.admin.create('Work', {component}),
+              throwsA(isA<DavException>()),
+            );
+            await f.reopen();
+            f.rejectionStatus = status;
+            final failure = isA<DavException>()
+                .having((e) => e.statusCode, 'status', status)
+                .having((e) => e.code, 'code', 'DavCollectionCreationFailed');
+            await expectLater(f.admin.resumeCreation(_id), throwsA(failure));
+            final row = await f.database
+                .select(f.database.davCollectionCreations)
+                .getSingle();
+            expect(row.state, 'rejected');
+            expect(row.lastErrorStatus, status);
+            expect(f.remote, isNull);
+            expect(f.writes, 2);
+            await f.reopen();
+            await expectLater(f.admin.resumeCreation(_id), throwsA(failure));
+            expect(f.writes, 2);
+            final notices = DavCollectionCreationNotices(f.database);
+            expect(await notices.acknowledge('qa', _id), isTrue);
+            expect(await notices.load('qa'), isEmpty);
+          },
+        );
+      }
+
+      for (final extended in [false, true]) {
+        for (final status in [null, 403, 507]) {
+          test(
+            'independent runtimes recover one dispatched creation with one mutation; MKCOL=$extended, rejection=$status',
+            () async {
+              await f.prepare();
+              await f.database
+                  .update(f.database.davCollectionCreations)
+                  .write(
+                    const DavCollectionCreationsCompanion(
+                      state: Value('dispatched'),
+                    ),
+                  );
+              f.extendedMkcol = extended;
+              f.rejectionStatus = status;
+              final results = await _recoverConcurrently(f);
+              expect(f.writes, 1);
+              expect(
+                results,
+                status == null
+                    ? unorderedEquals(['committed', 'reconciled'])
+                    : everyElement('DavCollectionCreationFailed:$status'),
+              );
+              final row = await f.database
+                  .select(f.database.davCollectionCreations)
+                  .getSingle();
+              expect(row.state, status == null ? 'committed' : 'rejected');
+            },
+          );
+        }
+      }
+
+      for (final status in [403, 507]) {
+        for (final observation in ['matching', 'conflicting', 'unavailable']) {
+          test(
+            'recovered HTTP $status verifies the original outcome: $observation',
+            () async {
+              await f.prepare();
+              await f.database
+                  .update(f.database.davCollectionCreations)
+                  .write(
+                    const DavCollectionCreationsCompanion(
+                      state: Value('dispatched'),
+                    ),
+                  );
+              f.rejectionStatus = status;
+              f.remoteAfterRejection = switch (observation) {
+                'matching' => f.collectionXml,
+                'conflicting' => f.collectionXml.replaceFirst(
+                  'Work',
+                  'Unrelated',
+                ),
+                _ => null,
+              };
+              f.reconciliationUnavailable = observation == 'unavailable';
+              if (observation == 'matching') {
+                expect(
+                  await f.admin.resumeCreation(_id),
+                  DavCollectionAdministrationOutcome.reconciled,
+                );
+              } else {
+                await expectLater(
+                  f.admin.resumeCreation(_id),
+                  throwsA(
+                    isA<DavException>().having(
+                      (e) => e.code,
+                      'code',
+                      observation == 'conflicting'
+                          ? 'DavCollectionNameConflict'
+                          : 'DavCollectionOutcomeUnknown',
+                    ),
+                  ),
+                );
+              }
+              final row = await f.database
+                  .select(f.database.davCollectionCreations)
+                  .getSingle();
+              expect(row.state, switch (observation) {
+                'matching' => 'committed',
+                'conflicting' => 'rejected',
+                _ => 'dispatched',
+              });
+              expect(f.writes, 1);
+              if (observation == 'unavailable') {
+                await f.reopen();
+                await expectLater(
+                  f.admin.resumeCreation(_id),
+                  throwsA(
+                    isA<DavException>().having(
+                      (e) => e.statusCode,
+                      'status',
+                      status,
+                    ),
+                  ),
+                );
+                expect(
+                  (await f.database
+                          .select(f.database.davCollectionCreations)
+                          .getSingle())
+                      .state,
+                  'rejected',
+                );
+              }
+            },
+          );
+        }
+      }
+
+      test('recovered unsupported-component HTTP 403 preserves the typed rejection', () async {
+        await f.prepare();
+        await f.database
+            .update(f.database.davCollectionCreations)
+            .write(
+              const DavCollectionCreationsCompanion(state: Value('dispatched')),
+            );
+        f.rejectionStatus = 403;
+        f.rejectionBody = '<d:error xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><c:supported-calendar-component/></d:error>';
+        await expectLater(
+          f.admin.resumeCreation(_id),
+          throwsA(
+            isA<DavException>().having(
+              (e) => e.kind,
+              'kind',
+              DavErrorKind.unsupportedComponent,
+            ),
+          ),
+        );
+        final row = await f.database
+            .select(f.database.davCollectionCreations)
+            .getSingle();
+        expect(row.state, 'rejected');
+        expect(row.lastErrorCode, 'DavUnsupportedComponent');
+      });
+
       test(
         'unknown or wrong-account operation ID cannot authorize recovery',
         () async {
@@ -839,6 +1011,7 @@ class _Fixture {
   int writes = 0, interruptedProbes = 0, unavailableProbes = 0;
   int targetReads = 0;
   String? rejectionBody;
+  String? remoteAfterRejection;
   bool calendarAccessOnly = false;
   int? rejectionStatus;
   int optionsStatus = 200;
@@ -983,7 +1156,9 @@ class _Fixture {
       expect(request.body.contains('<d:resourcetype>'), extendedMkcol);
       writes++;
       if (rejectionStatus != null) {
-        if (const {405, 409, 412}.contains(rejectionStatus)) {
+        if (remoteAfterRejection != null) {
+          remote = remoteAfterRejection;
+        } else if (const {405, 409, 412}.contains(rejectionStatus)) {
           remote = collectionXml;
         }
         return http.Response(rejectionBody ?? '', rejectionStatus!);
@@ -1036,5 +1211,158 @@ class _Fixture {
     client.close();
     await database.close();
     await directory.delete(recursive: true);
+  }
+}
+
+// Separate isolates have independent static maps and SQLite connections, just
+// like foreground/headless engines. The port host models the native exclusive
+// gate and a shared server; reads and mutation responses are deliberately slow.
+Future<List<String>> _recoverConcurrently(_Fixture fixture) async {
+  final control = ReceivePort();
+  final gate = AuthorizationGate();
+  final starters = <SendPort>[];
+  final heldBy = <int>{};
+  final failures = <Object>[];
+  final subscription = control.listen((message) async {
+    final (payload, reply) = message as (List<Object?>, SendPort);
+    try {
+      switch (payload[0]) {
+        case 'start':
+          starters.add(reply);
+          if (starters.length == 2) {
+            for (final starter in starters) {
+              starter.send(null);
+            }
+          }
+        case 'gate':
+          final runtime = payload[1] as int;
+          await gate.run(payload[2] as String, () async {
+            heldBy.add(runtime);
+            final release = ReceivePort();
+            reply.send(release.sendPort);
+            final (_, released) =
+                await release.first as (List<Object?>, SendPort);
+            heldBy.remove(runtime);
+            released.send(null);
+            release.close();
+          });
+        case 'http':
+          final request = http.Request(
+            payload[1] as String,
+            Uri.parse(payload[2] as String),
+          )..body = payload[3] as String;
+          request.headers.addAll((payload[4] as Map).cast<String, String>());
+          // Capture the server's state before delaying the response. Without
+          // the shared gate both runtimes can observe the same absence.
+          final response = await fixture.handle(request);
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+          reply.send((response.statusCode, response.body, response.headers));
+        case 'refresh':
+          expect(
+            heldBy,
+            isNot(contains(payload[1])),
+            reason: 'Refresh must run after releasing the creation lease.',
+          );
+          reply.send(null);
+      }
+    } catch (error) {
+      failures.add(error);
+      reply.send(error.toString());
+    }
+  });
+  final databasePath = '${fixture.directory.path}/qa.sqlite';
+  final port = control.sendPort;
+  try {
+    final results = await Future.wait([
+      for (var runtime = 0; runtime < 2; runtime++)
+        _startRecoveryRuntime(databasePath, port, runtime),
+    ]).timeout(const Duration(seconds: 15));
+    expect(failures, isEmpty);
+    return results;
+  } finally {
+    await subscription.cancel();
+    control.close();
+  }
+}
+
+// Keep the spawned closure separate from the fixture's unsendable SQLite FFI
+// objects; Dart closures can retain their entire enclosing context.
+Future<String> _startRecoveryRuntime(String path, SendPort port, int runtime) =>
+    Isolate.run(() => _recoverInRuntime(path, port, runtime));
+
+Future<String> _recoverInRuntime(
+  String databasePath,
+  SendPort control,
+  int runtime,
+) async {
+  final database = AppDatabase(
+    NativeDatabase(File(databasePath), setup: configureAndroidDatabase),
+  );
+  final secrets = InMemorySecretStore();
+  await secrets.saveCredential(
+    'qa',
+    CalDavSecretRecord(
+      serviceAuthority: Uri.parse('https://example.test/'),
+      username: 'alice',
+      password: 'test-password',
+    ),
+  );
+  final client = MockClient((request) async {
+    final (status, body, headers) = await _runtimeRequest(control, [
+      'http',
+      request.method,
+      request.url.toString(),
+      request.body,
+      request.headers,
+    ]) as (int, String, Map<String, String>);
+    return http.Response(body, status, headers: headers);
+  });
+  try {
+    // Force both independent runtimes to be ready before either starts work.
+    await _runtimeRequest(control, ['start']);
+    final result = await DavCollectionAdministration(
+      database: database,
+      secrets: secrets,
+      client: client,
+      accountId: 'qa',
+      creationGate: _RuntimeGate(control, runtime),
+      requireNetwork: () async {},
+      refresh: () async {
+        await _runtimeRequest(control, ['refresh', runtime]);
+      },
+    ).resumeCreation(_id);
+    return result.name;
+  } on DavException catch (error) {
+    return '${error.code}:${error.statusCode}';
+  } finally {
+    client.close();
+    await database.close();
+  }
+}
+
+Future<Object?> _runtimeRequest(SendPort port, List<Object?> payload) async {
+  final reply = ReceivePort();
+  try {
+    port.send((payload, reply.sendPort));
+    return await reply.first;
+  } finally {
+    reply.close();
+  }
+}
+
+final class _RuntimeGate implements CrossEngineAccountGate {
+  _RuntimeGate(this.control, this.runtime);
+  final SendPort control;
+  final int runtime;
+
+  @override
+  Future<T> run<T>(String key, Future<T> Function() operation) async {
+    final release =
+        await _runtimeRequest(control, ['gate', runtime, key]) as SendPort;
+    try {
+      return await operation();
+    } finally {
+      await _runtimeRequest(release, []);
+    }
   }
 }

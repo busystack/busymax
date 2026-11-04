@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../core/secrets/secret_store.dart';
 import '../../db/app_database.dart';
+import '../../features/sync/account_sync_operations.dart';
 import '../../providers/busy_provider.dart';
 import '../dav_errors.dart';
 import '../dav_provider_profile.dart';
@@ -47,6 +48,7 @@ final class DavCalendarCollectionMutationService
     required SecretStore secretStore,
     required http.Client httpClient,
     required String accountId,
+    CrossEngineAccountGate creationGate = const InProcessAccountGate(),
     required Future<void> Function() refreshAfterMutation,
     Future<void> Function()? requireNetwork,
     DavTransportLimits transportLimits = const DavTransportLimits(),
@@ -56,6 +58,7 @@ final class DavCalendarCollectionMutationService
        _secretStore = secretStore,
        _httpClient = httpClient,
        _accountId = accountId,
+       _creationGate = creationGate,
        _refreshAfterMutation = refreshAfterMutation,
        _requireNetwork = requireNetwork ?? _noNetworkCheck,
        _transportLimits = transportLimits,
@@ -66,6 +69,7 @@ final class DavCalendarCollectionMutationService
   final SecretStore _secretStore;
   final http.Client _httpClient;
   final String _accountId;
+  final CrossEngineAccountGate _creationGate;
   final Future<void> Function() _refreshAfterMutation;
   final Future<void> Function() _requireNetwork;
   final DavTransportLimits _transportLimits;
@@ -84,6 +88,7 @@ final class DavCalendarCollectionMutationService
     if (account?.provider == 'caldav') {
       final result = await DavCollectionAdministration(
         database: _database,
+        creationGate: _creationGate,
         secrets: _secretStore,
         client: _httpClient,
         accountId: _accountId,
