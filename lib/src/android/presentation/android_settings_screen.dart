@@ -146,10 +146,12 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                     widget.notificationAccountId == null ||
                     account.id == widget.notificationAccountId,
               )) ...[
-                if (ref
-                    .watch(accountSyncActivityProvider)
-                    .collectionCreationFailures(account.id)
-                    .isNotEmpty)
+                if (account.provider.isDav &&
+                    ref
+                        .watch(
+                          accountCollectionCreationFailuresProvider(account.id),
+                        )
+                        .isNotEmpty)
                   AccountCollectionCreationFeedback(
                     accountId: account.id,
                     dismissButtonBuilder: (_, onPressed, label) =>

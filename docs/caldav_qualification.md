@@ -151,6 +151,28 @@ The native tests use disposable fixture storage and CA material. They do not
 establish production secure-storage behavior or installed release-package
 acceptance. Skipped tests do not add live or native evidence.
 
+### Offline-notice settings correction (2026-11-04)
+
+A follow-up review found that the earlier offline-notice regression mounted the
+shared feedback widget directly. It missed all three production settings parents,
+which still required an in-memory failure before mounting that widget. The
+4,683-test run and native/build results above predate this correction.
+
+The settings parents now observe a shared provider merging persisted notices
+with current-process failures before deciding whether to mount feedback. Empty
+results produce no feedback row or warning panel. The Linux account overview
+uses the same persisted state for its warning indicator.
+
+Six regressions exercise the real Linux, Android and Windows settings screens
+with empty collection-failure activity and a failed DAV synchronization: stored
+rejections appear, accounts without notices have no feedback widget, other-account
+notices stay hidden, and offline dismissal removes feedback while preserving the
+rejected journal entry. These tests issue no HTTP requests. Restoring the original
+parents makes all three stored-rejection cases fail; the corrected parents pass.
+The affected settings/storage/native-UI suite passed **191 tests**, and static
+analysis was clean. This is scoped validation, not another full-suite or native
+runtime qualification; CI must still cover the final committed revision.
+
 ### Comparative transport and discovery measurements
 
 The transport workload uses 50 sequential synthetic DAV resources through a TCP
@@ -247,6 +269,7 @@ private keys, local defines and execution logs in ignored fixture storage.
 flutter test test/dav/storage/dav_collection_creation_notices_test.dart \
   test/dav/sync/dav_account_sync_engine_test.dart \
   test/features/settings/presentation/account_collection_creation_feedback_test.dart \
+  test/features/settings/presentation/account_collection_creation_routes_test.dart \
   test/db --reporter expanded
 flutter test --concurrency=4 --reporter expanded
 

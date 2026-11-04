@@ -1417,6 +1417,25 @@ final storedDavCollectionCreationNoticesProvider = StreamProvider.autoDispose
           ref.watch(davCollectionCreationNoticesProvider).watch(accountId),
     );
 
+/// Parents must observe persisted notices even before feedback is mounted.
+final accountCollectionCreationFailuresProvider = Provider.autoDispose
+    .family<Map<String, DavCollectionCreationFailure>, String>((
+      ref,
+      accountId,
+    ) {
+      final current = ref
+          .watch(accountSyncActivityProvider)
+          .collectionCreationFailures(accountId);
+      final stored = ref
+          .watch(storedDavCollectionCreationNoticesProvider(accountId))
+          .value;
+      return {
+        ...current,
+        for (final failure in stored ?? const <DavCollectionCreationFailure>[])
+          failure.operation.id: current[failure.operation.id] ?? failure,
+      };
+    });
+
 typedef DavCollectionCreationNoticeAcknowledger = Future<bool> Function(
   String accountId,
   String operationId,

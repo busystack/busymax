@@ -2675,7 +2675,12 @@ class _AccountOverviewRow extends ConsumerWidget {
                 domainFailure ||
                 inventoryFailed ||
                 visibilityFailed ||
-                activity.collectionCreationFailures(account.id).isNotEmpty
+                (account.provider.isDav &&
+                    ref
+                        .watch(
+                          accountCollectionCreationFailuresProvider(account.id),
+                        )
+                        .isNotEmpty)
             ? YaruIcons.warning
             : YaruIcons.user,
       ),
@@ -4394,7 +4399,10 @@ class _AccountManagementCard extends ConsumerWidget {
     return BusyMaxGroupedList(
       filled: true,
       children: [
-        if (activity.collectionCreationFailures(account.id).isNotEmpty)
+        if (account.provider.isDav &&
+            ref
+                .watch(accountCollectionCreationFailuresProvider(account.id))
+                .isNotEmpty)
           AccountCollectionCreationFeedback(
             accountId: account.id,
             dismissButtonBuilder: (_, onPressed, label) =>

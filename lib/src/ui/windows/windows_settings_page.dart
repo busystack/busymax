@@ -737,10 +737,14 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                 ],
                 if (values.isNotEmpty) const Divider(),
                 for (var index = 0; index < values.length; index++) ...[
-                  if (ref
-                      .watch(accountSyncActivityProvider)
-                      .collectionCreationFailures(values[index].id)
-                      .isNotEmpty)
+                  if (values[index].provider.isDav &&
+                      ref
+                          .watch(
+                            accountCollectionCreationFailuresProvider(
+                              values[index].id,
+                            ),
+                          )
+                          .isNotEmpty)
                     AccountCollectionCreationFeedback(
                       accountId: values[index].id,
                       dismissButtonBuilder: (_, onPressed, label) =>
