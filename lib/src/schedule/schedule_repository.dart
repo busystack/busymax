@@ -1384,8 +1384,8 @@ ScheduleItemCapabilities _taskScheduleCapabilities(DavCollection? collection) {
   try {
     final capabilities = collectionCapabilitiesFromStored(collection);
     return ScheduleItemCapabilities(
-      canEdit: capabilities.canUpdateTask,
-      canDelete: capabilities.canDeleteTask,
+      canEdit: capabilities.canAttemptUpdateTask,
+      canDelete: capabilities.canAttemptDeleteTask,
     );
   } on Object {
     // Corrupt or stale capability state must fail closed in mutation UI.

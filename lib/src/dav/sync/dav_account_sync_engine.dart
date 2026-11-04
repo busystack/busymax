@@ -245,6 +245,7 @@ final class DavAccountSyncEngine {
                             'pending',
                             'retry',
                             'in_progress',
+                            'permission_blocked',
                           ]),
                     )
                     ..limit(1))
@@ -396,7 +397,9 @@ final class DavAccountSyncEngine {
             );
           },
         );
-        if (provider == BusyProvider.caldav && discoveryRefreshed) {
+        if ((provider == BusyProvider.caldav ||
+                provider == BusyProvider.nextcloud) &&
+            discoveryRefreshed) {
           await replayer.revalidatePermissionsAfterDiscovery();
         }
         replay = await replayer.replayDueOperations();
@@ -736,13 +739,26 @@ final class DavAccountSyncEngine {
     await _setConnectionState(state);
   }
 
-  Future<void> _markSuccessful({required bool full}) {
+  Future<void> _markSuccessful({required bool full}) async {
+    final blocked =
+        await (_database.select(_database.pendingOps)
+              ..where(
+                (r) =>
+                    r.accountId.equals(_accountId) &
+                    r.state.equals('permission_blocked'),
+              )
+              ..limit(1))
+            .get();
     final now = _nowUtc().toUtc().toIso8601String();
-    return (_database.update(
+    await (_database.update(
       _database.accounts,
     )..where((row) => row.id.equals(_accountId))).write(
       AccountsCompanion(
-        authState: Value(AccountConnectionState.connected.storageValue),
+        authState: Value(
+          blocked.isEmpty
+              ? AccountConnectionState.connected.storageValue
+              : AccountConnectionState.permissionChanged.storageValue,
+        ),
         lastSuccessfulSyncAtUtc: Value(now),
         lastFullSyncAtUtc: full ? Value(now) : const Value.absent(),
         updatedAtUtc: Value(now),

@@ -252,6 +252,8 @@ class CalendarSourceCapabilities {
       _ => CalendarRenameMode.unavailable,
     };
     final removalMode = switch (source.provider) {
+      // Generic CalDAV has no standard shared-calendar unsubscribe operation.
+      BusyProvider.caldav when receivedShare => CalendarRemovalMode.unavailable,
       BusyProvider.nextcloud || BusyProvider.caldav when davRemovable =>
         receivedShare
             ? CalendarRemovalMode.removeFromList

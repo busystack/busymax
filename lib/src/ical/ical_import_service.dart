@@ -171,12 +171,12 @@ final class IcalImportService {
             (s.davCollectionId != null &&
                 native[s.davCollectionId] != null &&
                 collectionCapabilitiesFromStored(native[s.davCollectionId]!)
-                    .canCreateTask),
+                    .canAttemptCreateTask),
       ),
       for (final collection in collections)
         if (accounts.any((a) => a.id == collection.accountId) &&
             !sources.any((s) => s.davCollectionId == collection.id) &&
-            collectionCapabilitiesFromStored(collection).canCreateTask)
+            collectionCapabilitiesFromStored(collection).canAttemptCreateTask)
           CalendarSourceEntity(
             id: 'dav-import-${collection.id}',
             accountId: collection.accountId,

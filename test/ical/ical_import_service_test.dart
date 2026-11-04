@@ -1,5 +1,9 @@
 import 'dart:convert';
 
+import '../support/dav_task_inventory_fixture.dart';
+
+import 'package:busymax/src/schedule/schedule_repository.dart';
+
 import 'package:busymax/src/core/time/provider_date_time.dart';
 
 import 'package:busymax/src/calendar_providers/calendar_mutation.dart';
@@ -47,6 +51,98 @@ void main() {
   });
 
   tearDown(() async => database.close());
+
+  for (final mappedSource in [false, true]) {
+    test(
+      'unknown CalDAV VTODO privileges allow import and schedule mutations; mapped=$mappedSource',
+      () async {
+        final inventory = DavTaskInventoryFixture(database);
+        await inventory.seedAccount();
+        await inventory.commit(writable: true);
+        await (database.update(
+          database.accounts,
+        )..where((r) => r.id.equals(DavTaskInventoryFixture.accountId))).write(
+          const AccountsCompanion(
+            provider: Value('caldav'),
+            credentialKind: Value('caldav_password'),
+          ),
+        );
+        final collection = await database
+            .select(database.davCollections)
+            .getSingle();
+        await database
+            .update(database.davCollections)
+            .write(
+              const DavCollectionsCompanion(
+                currentUserPrivilegesJson: Value('[]'),
+                safeDisplayMetadataJson: Value(
+                  '{"privilegesKnown":"false","readAccessConfirmed":"true"}',
+                ),
+                readOnly: Value(true),
+              ),
+            );
+        if (mappedSource) {
+          await database
+              .into(database.calendarSources)
+              .insert(
+                CalendarSourcesCompanion.insert(
+                  id: 'mapped-dav-tasks',
+                  accountId: collection.accountId,
+                  provider: 'caldav',
+                  providerCalendarId: collection.hrefKey,
+                  davCollectionId: Value(collection.id),
+                  summary: 'Tasks',
+                  readOnly: const Value(true),
+                  createdAtLocal: 1,
+                  updatedAtLocal: 1,
+                ),
+              );
+        }
+        final destination = (await importService.writableDestinations())
+            .singleWhere((s) => s.davCollectionId == collection.id);
+        final preview = importService.parsePreview(
+          utf8.encode(
+            _calendar('''
+BEGIN:VTODO
+UID:unknown-permissions-task
+DTSTAMP:20260829T000000Z
+SUMMARY:Imported task
+DUE:20260830T090000Z
+END:VTODO
+'''),
+          ),
+        );
+        final report = await importService.importPreview(
+          preview: preview,
+          destination: destination,
+        );
+        expect(report.queued, 1);
+        final task = (await ScheduleRepository(database).listAllTasks()).single;
+        expect(task.capabilities.canEdit, isTrue);
+        expect(task.capabilities.canDelete, isTrue);
+
+        await database
+            .update(database.davCollections)
+            .write(
+              const DavCollectionsCompanion(
+                currentUserPrivilegesJson: Value('["{DAV:}read"]'),
+                safeDisplayMetadataJson: Value('{"privilegesKnown":"true"}'),
+              ),
+            );
+        expect(
+          (await importService.writableDestinations()).where(
+            (s) => s.davCollectionId == collection.id,
+          ),
+          isEmpty,
+        );
+        final restricted = (await ScheduleRepository(
+          database,
+        ).listAllTasks()).single;
+        expect(restricted.capabilities.canEdit, isFalse);
+        expect(restricted.capabilities.canDelete, isFalse);
+      },
+    );
+  }
 
   for (final durationProvider in [
     BusyProvider.google,

@@ -84,6 +84,28 @@ final class DavCollectionAdministration {
       profile: profile,
       accountAuthority: secret.serviceAuthority,
     );
+    final metadata = jsonDecode(service.capabilitiesJson);
+    final identities = <({Uri home, String? principal})>[
+      (home: home, principal: service.principalHref),
+    ];
+    if (metadata is Map && metadata['principalContexts'] is List) {
+      for (final context in metadata['principalContexts'] as List) {
+        if (context is! Map ||
+            context['calendarHomeHref'] is! String ||
+            context['principalHref'] is! String) {
+          continue;
+        }
+        identities.add((
+          home: resolveDavHref(
+            href: context['calendarHomeHref'] as String,
+            responseRequestUri: secret.serviceAuthority,
+            profile: profile,
+            accountAuthority: secret.serviceAuthority,
+          ),
+          principal: context['principalHref'] as String,
+        ));
+      }
+    }
     return _Context(
       secret.serviceAuthority,
       home,
@@ -95,6 +117,7 @@ final class DavCollectionAdministration {
       ),
       DavBasicCredential(username: secret.username, password: secret.password),
       generation?.generation ?? 0,
+      identities,
     );
   }
 
@@ -168,7 +191,7 @@ final class DavCollectionAdministration {
     return entries.single;
   }
 
-  Future<Uri> _target(_Context c, String id) async {
+  Future<({Uri uri, Uri home})> _target(_Context c, String id) async {
     final row =
         await (database.select(database.davCollections)..where(
               (r) =>
@@ -179,17 +202,38 @@ final class DavCollectionAdministration {
             ))
             .getSingleOrNull();
     if (row == null) throw _error(404, 'DavCollectionRemoved');
+    final metadata = jsonDecode(row.safeDisplayMetadataJson ?? '{}');
+    final homeHref = metadata is Map ? metadata['calendarHomeHref'] : null;
+    final principal = metadata is Map ? metadata['principalHref'] : null;
+    final home = homeHref is String
+        ? resolveDavHref(
+            href: homeHref,
+            responseRequestUri: c.authority,
+            profile: c.profile,
+            accountAuthority: c.authority,
+          )
+        : c.home;
+    // Bind the collection to an identity committed by authenticated discovery.
+    // Path containment alone does not establish a principal's calendar home.
+    if (!c.identities.any(
+      (identity) =>
+          davCollectionUri(identity.home) == davCollectionUri(home) &&
+          (principal == null || identity.principal == principal),
+    )) {
+      throw _error(403, 'DavCollectionOutsideHome');
+    }
     final target = resolveDavHref(
       href: row.requestUri,
-      responseRequestUri: c.home,
+      responseRequestUri: home,
       profile: c.profile,
       accountAuthority: c.authority,
     );
-    if (!target.path.startsWith(davCollectionUri(c.home).path) ||
-        target.path == c.home.path) {
+    final homePath = davCollectionUri(home).path;
+    if (!target.path.startsWith(homePath) ||
+        davCollectionUri(target).path == homePath) {
       throw _error(403, 'DavCollectionOutsideHome');
     }
-    return target;
+    return (uri: target, home: home);
   }
 
   void _requirePrivilege(DavMultistatusResponse entry, String name) {
@@ -679,7 +723,7 @@ final class DavCollectionAdministration {
       }
     }
     final c = await _open();
-    final target = await _target(c, id);
+    final target = (await _target(c, id)).uri;
     final before = await _read(c, target);
     if (before == null) throw _error(404, 'DavCollectionRemoved');
     _requirePrivilege(before, 'write-properties');
@@ -738,7 +782,8 @@ final class DavCollectionAdministration {
 
   Future<DavCollectionAdministrationOutcome> remove(String id) async {
     final c = await _open();
-    final target = await _target(c, id);
+    final resolved = await _target(c, id);
+    final target = resolved.uri;
     final pending =
         await (database.select(database.pendingOps)..where(
               (r) =>
@@ -749,7 +794,7 @@ final class DavCollectionAdministration {
             .get();
     if (pending.isNotEmpty) throw _error(409, 'DavCollectionHasPendingChanges');
     if (await _read(c, target) == null) return _refresh();
-    final parent = await _read(c, c.home);
+    final parent = await _read(c, resolved.home);
     if (parent == null) throw _error(404, 'DavCalendarHomeUnavailable');
     _requirePrivilege(parent, 'unbind');
     try {
@@ -786,12 +831,14 @@ final class _Context {
     this.transport,
     this.credential,
     this.generation,
+    this.identities,
   );
   final Uri authority, home;
   final DavProviderProfile profile;
   final DavHttpTransport transport;
   final DavBasicCredential credential;
   final int generation;
+  final List<({Uri home, String? principal})> identities;
 }
 
 const _namespaces =

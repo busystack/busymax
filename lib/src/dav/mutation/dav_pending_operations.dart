@@ -1173,7 +1173,7 @@ final class DavPendingOperationsReplayer {
 
   /// Call only after a complete authenticated discovery has committed. A
   /// previous authoritative denial requires newly advertised permission for
-  /// every blocked operation; missing/unknown privileges never clear it.
+  /// each blocked operation; missing/unknown privileges never clear its denial.
   Future<void> revalidatePermissionsAfterDiscovery() async {
     await _database.transaction(() async {
       final account = await (_database.select(
@@ -1193,12 +1193,13 @@ final class DavPendingOperationsReplayer {
       if (blocked.any((op) => !isDavPendingOperation(op))) {
         return;
       }
+      final restored = <PendingOp>[];
       for (final op in blocked) {
         try {
           final source = collectionCapabilitiesFromStored(
             await _requiredCollection(op),
           );
-          if (!source.permissionsKnown || !source.canRead) return;
+          if (!source.permissionsKnown || !source.canRead) continue;
           final event = switch (op.operationType) {
             'dav.create' =>
               _decodeCreate(op.requestJson).componentType == 'VEVENT',
@@ -1214,7 +1215,7 @@ final class DavPendingOperationsReplayer {
             'dav.move' => event ? source.canDeleteEvent : source.canDeleteTask,
             _ => false,
           };
-          if (!permitted) return;
+          if (!permitted) continue;
           if (op.operationType == 'dav.move') {
             final destination = collectionCapabilitiesFromStored(
               await _requiredDestinationCollection(op),
@@ -1225,15 +1226,16 @@ final class DavPendingOperationsReplayer {
                 !(event
                     ? destination.canCreateEvent
                     : destination.canCreateTask)) {
-              return;
+              continue;
             }
           }
+          restored.add(op);
         } on DavException {
-          return;
+          continue;
         }
       }
       final now = _nowUtc().toUtc().toIso8601String();
-      for (final op in blocked) {
+      for (final op in restored) {
         await (_database.update(_database.pendingOps)..where(
               (r) =>
                   r.id.equals(op.id) &
@@ -1251,7 +1253,9 @@ final class DavPendingOperationsReplayer {
               ),
             );
       }
-      await _setAccountState(AccountConnectionState.connected);
+      if (restored.length == blocked.length) {
+        await _setAccountState(AccountConnectionState.connected);
+      }
     });
   }
 
@@ -1291,9 +1295,25 @@ final class DavPendingOperationsReplayer {
     final changedObjects = <String>{};
     final changedCollections = <String>{};
 
+    // An authoritative denial scopes the replay barrier to its collections.
+    // Only authenticated discovery can release the rejected operation.
+    final blockedCollections = <String>{
+      for (final op
+          in await (_database.select(_database.pendingOps)..where(
+                (r) =>
+                    r.accountId.equals(_accountId) &
+                    r.state.equals('permission_blocked'),
+              ))
+              .get())
+        ...[op.davCollectionId, op.destinationCollectionId].whereType<String>(),
+    };
     for (final listed in operations) {
       final candidate = await _database.pendingOpsDao.getOp(listed.id);
       if (candidate == null || !isDavPendingOperation(candidate)) continue;
+      if (blockedCollections.contains(candidate.davCollectionId) ||
+          blockedCollections.contains(candidate.destinationCollectionId)) {
+        continue;
+      }
       if (candidate.dependsOnOpId != null &&
           await _opExists(candidate.dependsOnOpId!)) {
         continue;
@@ -1356,7 +1376,12 @@ final class DavPendingOperationsReplayer {
           case DavErrorCategory.davPermissionDenied ||
               DavErrorCategory.davReadOnly:
             await _pauseForPermission(op, error);
-            paused = true;
+            blockedCollections.addAll(
+              [
+                op.davCollectionId,
+                op.destinationCollectionId,
+              ].whereType<String>(),
+            );
           case DavErrorCategory.davResourceConflict ||
               DavErrorCategory.davUidConflict:
             await _recordExceptionConflict(op, error);
@@ -2421,6 +2446,7 @@ List<PendingOp> _dependencyOrder(List<PendingOp> source) {
 bool _mayReplay(String storageState) {
   final state = AccountConnectionStateCodec.parse(storageState);
   return state == AccountConnectionState.connected ||
+      state == AccountConnectionState.permissionChanged ||
       state == AccountConnectionState.temporarilyUnavailable;
 }
 

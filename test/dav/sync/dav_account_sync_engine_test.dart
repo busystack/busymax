@@ -14,6 +14,7 @@ import 'package:busymax/src/dav/dav_errors.dart';
 import 'package:busymax/src/dav/dav_provider_profile.dart';
 import 'package:busymax/src/dav/ical/ical_document.dart';
 import 'package:busymax/src/dav/mutation/dav_conflict_repository.dart';
+import 'package:busymax/src/dav/mutation/dav_conditional_mutation_service.dart';
 import 'package:busymax/src/dav/mutation/dav_mutation_patch.dart';
 import 'package:busymax/src/dav/mutation/dav_pending_operations.dart';
 import 'package:busymax/src/dav/storage/dav_object_repository.dart';
@@ -50,6 +51,163 @@ void main() {
     await database.close();
     await applicationDirectory?.delete(recursive: true);
     applicationDirectory = null;
+  });
+
+  test('blocked permission prompts ordinary discovery and preserves independent writes', () async {
+    await database
+        .update(database.accounts)
+        .write(
+          const AccountsCompanion(
+            provider: Value('caldav'),
+            credentialKind: Value('caldav_password'),
+          ),
+        );
+    await database
+        .update(database.calendarSources)
+        .write(const CalendarSourcesCompanion(provider: Value('caldav')));
+    await secrets.saveCredential(
+      'account',
+      CalDavSecretRecord(
+        serviceAuthority: Uri.parse('https://cloud.example.test/cloud'),
+        username: 'alex',
+        password: 'password',
+      ),
+    );
+    var restricted = false;
+    var discoveries = 0;
+    var writes = 0;
+    var token = 0;
+    String? remoteBody;
+    String? remoteHref;
+    final client = MockClient((request) async {
+      if (request.method == 'OPTIONS') {
+        return http.Response(
+          '',
+          200,
+          headers: {'dav': '1, calendar-access, sync-collection'},
+        );
+      }
+      if (request.method == 'PROPFIND') {
+        if (request.body.contains('<d:current-user-principal/>')) {
+          discoveries++;
+          return _discoveryMultistatus(_currentPrincipalResponse);
+        }
+        if (request.body.contains('<c:calendar-home-set/>')) {
+          return _discoveryMultistatus(_principalPropertiesResponse);
+        }
+        return _discoveryMultistatus(
+          restricted
+              ? _twoCollectionInventoryResponse.replaceFirst(
+                  '<d:privilege><d:write/></d:privilege>',
+                  '',
+                )
+              : _twoCollectionInventoryResponse,
+        );
+      }
+      if (request.method == 'REPORT' &&
+          request.body.contains('sync-collection')) {
+        return http.Response(
+          _syncMemberResponse(
+            token: 'urn:isolated:${++token}',
+            href: remoteHref ?? '${_destinationCollectionHref}empty.ics',
+            etag:
+                request.url.path == _destinationCollectionHref &&
+                    remoteBody != null
+                ? '"created"'
+                : null,
+          ),
+          207,
+        );
+      }
+      if (request.method == 'REPORT' &&
+          request.body.contains('calendar-multiget')) {
+        return http.Response(
+          _multigetMemberResponse(
+            href: remoteHref!,
+            body: remoteBody!,
+            etag: '"created"',
+          ),
+          207,
+        );
+      }
+      if (request.method == 'PUT') {
+        expect(request.url.path, startsWith(_destinationCollectionHref));
+        writes++;
+        remoteHref = request.url.path;
+        remoteBody = request.body;
+        return http.Response('', 201, headers: {'etag': '"created"'});
+      }
+      if (request.method == 'GET') {
+        return http.Response(
+          remoteBody!,
+          200,
+          headers: {'etag': '"created"', 'content-type': 'text/calendar'},
+        );
+      }
+      fail('Unexpected ${request.method} ${request.url}');
+    });
+    addTearDown(client.close);
+    final engine = DavAccountSyncEngine(
+      database: database,
+      secretStore: secrets,
+      httpClient: client,
+      accountId: 'account',
+      nowUtc: () => _now,
+    );
+    await engine.synchronize(full: true);
+    final collections = await database.select(database.davCollections).get();
+    final source = collections.singleWhere((c) => c.hrefKey == _collectionHref);
+    final destination = collections.singleWhere(
+      (c) => c.hrefKey == _destinationCollectionHref,
+    );
+    var sequence = 0;
+    final queue = DavPendingOperationQueue(
+      database: database,
+      idFactory: () => 'op-${++sequence}',
+      nowUtc: () => _now,
+    );
+    Future<String> create(String collection, String uid) => queue.enqueueCreate(
+      accountId: 'account',
+      collectionId: collection,
+      object: DavNewObject(
+        uid: uid,
+        initialMemberName: '$uid.ics',
+        rawIcs: _event(uid).replaceFirst('UID:event@example.test', 'UID:$uid'),
+        componentType: 'VEVENT',
+      ),
+    );
+    await create(source.id, 'denied');
+    await database
+        .update(database.pendingOps)
+        .write(
+          const PendingOpsCompanion(
+            state: Value('permission_blocked'),
+            retryClassification: Value('permission'),
+          ),
+        );
+    await database
+        .update(database.accounts)
+        .write(const AccountsCompanion(authState: Value('permission_changed')));
+    final blocked = await database.select(database.pendingOps).getSingle();
+    restricted = true;
+    await create(destination.id, 'allowed');
+    expect((await engine.synchronize()).pendingOperationsApplied, 1);
+    expect(writes, 1);
+    expect(await database.select(database.pendingOps).getSingle(), blocked);
+    expect(
+      (await database.select(database.accounts).getSingle()).authState,
+      'permission_changed',
+    );
+    final before = discoveries;
+    // Only the blocked operation remains and the cached inventory is fresh.
+    await engine.synchronize();
+    expect(discoveries, greaterThan(before));
+    expect(writes, 1);
+    expect(await database.select(database.pendingOps).getSingle(), blocked);
+    expect(
+      (await database.select(database.accounts).getSingle()).authState,
+      'permission_changed',
+    );
   });
 
   for (final failure in [

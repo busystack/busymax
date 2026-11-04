@@ -5,6 +5,7 @@ import 'dart:isolate';
 import 'package:busymax/src/core/auth/authorization_gate.dart';
 import 'package:busymax/src/core/secrets/secret_store.dart';
 import 'package:busymax/src/dav/dav_errors.dart';
+import 'package:busymax/src/dav/xml/dav_xml.dart';
 import 'package:busymax/src/dav/mutation/dav_calendar_collection_mutation_service.dart';
 import 'package:busymax/src/dav/mutation/dav_collection_administration.dart';
 import 'package:busymax/src/dav/mutation/dav_task_list_mutation_service.dart';
@@ -36,6 +37,132 @@ void main() {
         f = await _Fixture.open(component);
       });
       tearDown(() => f.close());
+
+      for (final scenario in [
+        'writable',
+        'readonly-parent',
+        'unverified',
+        'wrong-principal',
+        'outside-home',
+        'cross-origin',
+      ]) {
+        test('secondary home administration: $scenario', () async {
+          const secondary = 'https://example.test/secondary/';
+          const principal = 'https://example.test/principals/alice/';
+          final home = scenario == 'cross-origin'
+              ? 'https://untrusted.test/home/'
+              : secondary;
+          final target = scenario == 'outside-home'
+              ? 'https://example.test/elsewhere/work/'
+              : '${home}work/';
+          await f.database
+              .update(f.database.davAccountServices)
+              .write(
+                DavAccountServicesCompanion(
+                  principalHref: const Value(principal),
+                  capabilitiesJson: Value(
+                    jsonEncode({
+                      'principalContexts': [
+                        if (scenario != 'unverified' &&
+                            scenario != 'cross-origin')
+                          {
+                            'principalHref': principal,
+                            'calendarHomeHref': secondary,
+                          },
+                      ],
+                    }),
+                  ),
+                ),
+              );
+          await f.database
+              .into(f.database.davCollections)
+              .insert(
+                DavCollectionsCompanion.insert(
+                  id: 'secondary',
+                  accountId: 'qa',
+                  hrefKey: Uri.parse(target).path,
+                  requestUri: target,
+                  displayName: 'Work',
+                  safeDisplayMetadataJson: Value(
+                    jsonEncode({
+                      'calendarHomeHref': home,
+                      'principalHref': scenario == 'wrong-principal'
+                          ? 'https://example.test/principals/other/'
+                          : principal,
+                    }),
+                  ),
+                  createdAtUtc: 'now',
+                  updatedAtUtc: 'now',
+                ),
+              );
+          final requests = <http.Request>[];
+          final client = MockClient((request) async {
+            requests.add(request);
+            if (request.method == 'DELETE') return http.Response('', 204);
+            final props = request.method == 'PROPPATCH'
+                ? '<d:displayname>Renamed</d:displayname>'
+                : request.url.toString() == secondary
+                ? '<d:resourcetype><d:collection/></d:resourcetype><d:current-user-privilege-set><d:privilege><d:${scenario == 'readonly-parent' ? 'read' : 'unbind'}/></d:privilege></d:current-user-privilege-set>'
+                : f.collectionXml;
+            return http.Response(
+              '<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:response><d:href>${request.url}</d:href><d:propstat><d:prop>$props</d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>',
+              207,
+            );
+          });
+          addTearDown(client.close);
+          final admin = DavCollectionAdministration(
+            database: f.database,
+            secrets: f.secrets,
+            client: client,
+            accountId: 'qa',
+            refresh: () async {},
+            requireNetwork: () async {},
+          );
+          if ([
+            'unverified',
+            'wrong-principal',
+            'outside-home',
+            'cross-origin',
+          ].contains(scenario)) {
+            await expectLater(
+              admin.update('secondary', {
+                const DavPropertyName('DAV:', 'displayname'): 'Renamed',
+              }),
+              throwsA(isA<DavException>()),
+            );
+            await expectLater(
+              admin.remove('secondary'),
+              throwsA(isA<DavException>()),
+            );
+            expect(requests, isEmpty);
+            return;
+          }
+          expect(
+            await admin.update('secondary', {
+              const DavPropertyName('DAV:', 'displayname'): 'Renamed',
+            }),
+            DavCollectionAdministrationOutcome.committed,
+          );
+          if (scenario == 'readonly-parent') {
+            await expectLater(
+              admin.remove('secondary'),
+              throwsA(isA<DavException>()),
+            );
+            expect(requests.where((r) => r.method == 'DELETE'), isEmpty);
+          } else {
+            expect(
+              await admin.remove('secondary'),
+              DavCollectionAdministrationOutcome.committed,
+            );
+            expect(
+              requests.where((r) => r.method == 'DELETE').single.url.toString(),
+              target,
+            );
+          }
+          expect(requests.any((r) => r.url.toString() == secondary), isTrue);
+          expect(requests.any((r) => r.url.toString() == _home), isFalse);
+        });
+      }
 
       test(
         'fresh creation dispatches once and records a committed operation',

@@ -50,6 +50,36 @@ void main() {
     },
   );
 
+  test(
+    'generic CalDAV shared collections cannot offer unsupported removal',
+    () {
+      for (final shared in [false, true]) {
+        final source = CalendarSourceEntity(
+          id: 'caldav-calendar',
+          accountId: 'caldav',
+          provider: BusyProvider.caldav,
+          providerCalendarId: '/home/calendar/',
+          summary: 'Calendar',
+          selected: true,
+          hidden: false,
+          readOnly: false,
+          isDeleted: false,
+          davEffectivePermissions: {
+            'principalHref': '/principals/me/',
+            'ownerHref': shared ? '/principals/other/' : '/principals/me/',
+            'parentPrivileges': ['{DAV:}unbind'],
+          },
+        );
+        expect(
+          source.capabilities.removalMode,
+          shared ? CalendarRemovalMode.unavailable : CalendarRemovalMode.delete,
+        );
+        expect(source.capabilities.canDeleteCalendar, !shared);
+        expect(source.capabilities.canRemoveCalendar, !shared);
+      }
+    },
+  );
+
   test('primary cloud calendar cannot be deleted', () {
     const source = CalendarSourceEntity(
       id: 'primary-calendar',

@@ -208,6 +208,107 @@ void main() {
     );
   }
 
+  test('permission denial isolates collections across replays and partial recovery', () async {
+    await _seedDestination(database);
+    var sequence = 0;
+    final independentQueue = DavPendingOperationQueue(
+      database: database,
+      idFactory: () => 'isolated-${++sequence}',
+      nowUtc: () => _now,
+    );
+    Future<String> create(String collection, String uid) =>
+        independentQueue.enqueueCreate(
+          accountId: 'account',
+          collectionId: collection,
+          object: DavNewObject(
+            uid: uid,
+            initialMemberName: '$uid.ics',
+            rawIcs: _eventWithUid(uid, uid),
+            componentType: 'VEVENT',
+          ),
+        );
+    await create('collection', 'denied');
+    await create('collection', 'same-collection');
+    await create('destination', 'allowed');
+    var deniedWrites = 0;
+    var allowedWrites = 0;
+    var destinationDenied = false;
+    final bodies = <String, String>{};
+    final replayer = DavPendingOperationsReplayer(
+      database: database,
+      accountId: 'account',
+      objectRepository: objectRepository,
+      nowUtc: () => _now,
+      serviceFactory: ({required account, required collection}) async =>
+          DavConditionalMutationService(
+            remoteClient: _FakeMutationRemote(
+              put:
+                  ({
+                    required rawIcs,
+                    required ifMatch,
+                    required ifNoneMatch,
+                  }) async {
+                    if (collection.id == 'collection' || destinationDenied) {
+                      deniedWrites++;
+                      throw const DavException(
+                        kind: DavErrorKind.authorization,
+                        code: 'DavPermissionDenied',
+                        safeMessage: 'Denied',
+                        statusCode: 403,
+                      );
+                    }
+                    allowedWrites++;
+                    bodies[collection.id] = rawIcs;
+                    return _success;
+                  },
+              fetcher: (href) async =>
+                  _live(href, '"created"', bodies[collection.id]!),
+            ),
+          ),
+    );
+    final first = await replayer.replayDueOperations();
+    expect(first.appliedCount, 1);
+    expect(first.paused, isFalse);
+    expect(deniedWrites, 1);
+    expect(allowedWrites, 1);
+    await create('destination', 'later');
+    expect((await replayer.replayDueOperations()).appliedCount, 1);
+    expect(deniedWrites, 1);
+
+    // Give the second collection a denial too, then restore only its grant.
+    destinationDenied = true;
+    await create('destination', 'restore-me');
+    await replayer.replayDueOperations();
+    final original = (await database.select(database.pendingOps).get())
+        .singleWhere(
+          (op) =>
+              op.state == 'permission_blocked' &&
+              op.davCollectionId == 'collection',
+        );
+    await (database.update(
+      database.davCollections,
+    )..where((r) => r.id.equals('collection'))).write(
+      const DavCollectionsCompanion(
+        currentUserPrivilegesJson: Value('[]'),
+        safeDisplayMetadataJson: Value('{"privilegesKnown":"false"}'),
+      ),
+    );
+    await replayer.revalidatePermissionsAfterDiscovery();
+    final operations = await database.select(database.pendingOps).get();
+    expect(operations.singleWhere((op) => op.id == original.id), original);
+    expect(
+      operations.singleWhere((op) => op.davCollectionId == 'destination').state,
+      'retry',
+    );
+    expect(
+      (await database.select(database.accounts).getSingle()).authState,
+      'permission_changed',
+    );
+    destinationDenied = false;
+    expect((await replayer.replayDueOperations()).appliedCount, 1);
+    expect(deniedWrites, 2);
+  });
+
   test(
     'queue retains exact baseline and safely coalesces unsent patches',
     () async {
@@ -1102,7 +1203,7 @@ void main() {
       remote,
     ).replayDueOperations();
 
-    expect(result.paused, isTrue);
+    expect(result.paused, isFalse);
     expect(writes, 0);
     expect(
       (await database.select(database.accounts).getSingle()).authState,
