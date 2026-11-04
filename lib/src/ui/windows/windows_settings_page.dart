@@ -233,6 +233,9 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
         );
       } else {
         await onboarding.connectNextcloud(
+          reviewCanonicalServer: (entered, canonical) => mounted
+              ? showWindowsNextcloudCanonicalServer(context, entered, canonical)
+              : Future.value(false),
           reviewCertificate: (challenge, owner) => reviewNextcloudCertificate(
             challenge,
             owner,

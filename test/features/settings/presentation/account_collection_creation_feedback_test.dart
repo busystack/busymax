@@ -16,6 +16,75 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../../test_localized_app.dart';
 
 void main() {
+  testWidgets(
+    'stored rejection appears after restart while synchronization is offline',
+    (tester) async {
+      final db = AppDatabase.memoryForTests();
+      addTearDown(db.close);
+      await db
+          .into(db.accounts)
+          .insert(
+            AccountsCompanion.insert(
+              id: 'account',
+              provider: 'caldav',
+              providerAccountId: 'user',
+              authority: 'https://example.test/',
+              credentialKind: 'caldav_password',
+              createdAtUtc: 'now',
+              updatedAtUtc: 'now',
+            ),
+          );
+      final failure = _failure(taskList: false);
+      await db
+          .into(db.davCollectionCreations)
+          .insert(failure.operation.toCompanion(false));
+      final container = ProviderContainer(
+        overrides: [databaseProvider.overrideWithValue(db)],
+      );
+      addTearDown(container.dispose);
+      final activity = container.read(accountSyncActivityProvider);
+      await expectLater(
+        activity.run('account', 'dav', () async => throw StateError('offline')),
+        throwsStateError,
+      );
+      expect(activity.collectionCreationFailures('account'), isEmpty);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: localizedTestApp(
+            child: Scaffold(
+              body: AccountCollectionCreationFeedback(
+                accountId: 'account',
+                dismissButtonBuilder: (_, onPressed, label) =>
+                    TextButton(onPressed: onPressed, child: Text(label)),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.runAsync(() async {
+        await container.read(
+          storedDavCollectionCreationNoticesProvider('account').future,
+        );
+      });
+      await tester.pumpAndSettle();
+      expect(find.text('Requested collection'), findsOneWidget);
+      await tester.tap(
+        find.text(AppLocalizationsEn().notificationDismissAction),
+      );
+      await tester.runAsync(() async {
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+      });
+      await tester.pumpAndSettle();
+      expect(find.text('Requested collection'), findsNothing);
+      expect(
+        (await db.select(db.davCollectionCreations).getSingle()).state,
+        'rejected',
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   for (final platform in ['linux', 'windows', 'android']) {
     for (final taskList in [false, true]) {
       testWidgets(
@@ -26,6 +95,9 @@ void main() {
           var acknowledgments = 0;
           final container = ProviderContainer(
             overrides: [
+              storedDavCollectionCreationNoticesProvider.overrideWith(
+                (ref, id) => Stream.value([]),
+              ),
               accountSyncActivityProvider.overrideWith((ref) => activity),
               acknowledgeDavCollectionCreationNoticeProvider.overrideWithValue((
                 accountId,

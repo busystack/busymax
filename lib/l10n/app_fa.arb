@@ -1,4 +1,6 @@
 {
+  "caldavImportSchedulingWarning": "این فایل شامل شرکت‌کنندگان است. این واردکردن را مجاز می‌دانم؛ ممکن است سرور CalDAV دعوت‌نامه یا به‌روزرسانی جلسه ارسال کند.",
+  "nextcloudCanonicalServerReview": "Nextcloud نشانی ⁨{canonical}⁩ را برای سرور ⁨{entered}⁩ برگرداند. به BusyMax اجازه می‌دهید گذرواژهٔ جدید برنامه را به این نشانی ارسال کند؟",
   "contactsAccountsUnavailable": "حساب‌های مخاطبین بارگیری نشدند",
   "contactsTitle": "مخاطبان",
   "contactsLinkedDescription": "هنگام افزودن مهمانان رویداد از مخاطبان ذخیره‌شدهٔ این حساب استفاده شود.",

@@ -144,7 +144,7 @@ final class AuthorizationLeasedHttpClient extends http.BaseClient
                   request: response.request,
                   isRedirect: response.isRedirect,
                   reasonPhrase: response.reasonPhrase,
-                  persistentConnection: false,
+                  persistentConnection: response.persistentConnection,
                 ),
               );
               await drained.future;

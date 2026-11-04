@@ -14,6 +14,15 @@ class AppLocalizationsVi extends AppLocalizations {
   AppLocalizationsVi([String locale = 'vi']) : super(locale);
 
   @override
+  String get caldavImportSchedulingWarning =>
+      'Tệp này có người tham dự. Tôi cho phép nhập tệp, thao tác có thể khiến máy chủ CalDAV gửi lời mời hoặc cập nhật cuộc họp.';
+
+  @override
+  String nextcloudCanonicalServerReview(String entered, String canonical) {
+    return 'Nextcloud trả về $canonical cho máy chủ $entered. Cho phép BusyMax gửi mật khẩu ứng dụng mới đến địa chỉ này?';
+  }
+
+  @override
   String get contactsAccountsUnavailable =>
       'Không thể tải các tài khoản danh bạ';
 

@@ -58,8 +58,9 @@ final class _NextcloudConnectionNotDispatched extends dav.DavException
 /// or the application's global client. Every native attempt has the same
 /// immutable policy, including connection-establishment cancellation attempts.
 final class NextcloudHttpClientFactory {
-  NextcloudHttpClientFactory({required this.requireNetwork});
+  NextcloudHttpClientFactory({required this.requireNetwork, this.findProxy});
   final Future<void> Function() requireNetwork;
+  final String Function(Uri)? findProxy;
   final Map<String, Set<http.Client>> _clients = {};
 
   /// A management-only observation, never a substitute for validation on the
@@ -99,6 +100,7 @@ final class NextcloudHttpClientFactory {
     required String owner,
     required Uri authority,
     NextcloudTrustPolicy? policy,
+    bool reuseConnections = false,
   }) {
     try {
       policy?.requireScope(owner, authority);
@@ -109,13 +111,57 @@ final class NextcloudHttpClientFactory {
       );
     }
     final clients = _clients.putIfAbsent(owner, () => {});
+    final peers = <SecureSocket, NextcloudCertificate>{};
+    NextcloudCertificate? proxyRejected;
     late final _ScopedClient scoped;
     scoped = _ScopedClient(
       authority: authority,
+      validate: () {
+        proxyRejected = null;
+        if (policy == null) return;
+        try {
+          for (final certificate in policy.certificates) {
+            if (policy.mode == NextcloudTrustMode.privateCa) {
+              certificate.validateCa();
+            } else {
+              certificate.validateServer(authority.host, selfSigned: true);
+            }
+          }
+          for (final peer in peers.values) {
+            peer.validateServer(
+              authority.host,
+              selfSigned: policy.mode == NextcloudTrustMode.pinnedLeaf,
+            );
+          }
+        } on Object catch (error) {
+          throw _failure(error, authority, policy, null);
+        }
+      },
+      tlsFailure: (error) => _failure(error, authority, policy, proxyRejected),
       inner: ConnectivityAwareHttpClient(
         requireNetwork: requireNetwork,
         inner: NativeTerminatingHttpClient(
-          nativeClientFactory: () => _native(authority, policy),
+          reuseConnections: reuseConnections,
+          nativeClientFactory: () => _native(
+            authority,
+            policy,
+            onPeer: (socket, peer) {
+              peers[socket] = peer;
+              // Closed connections must not retain an obsolete leaf after a
+              // private CA renews it. Only live pooled sockets need checking.
+              unawaited(
+                socket.done.then<void>(
+                  (_) {
+                    peers.remove(socket);
+                  },
+                  onError: (Object _, StackTrace _) {
+                    peers.remove(socket);
+                  },
+                ),
+              );
+            },
+            onProxyRejected: (peer) => proxyRejected = peer,
+          ),
         ),
       ),
       onClose: () => clients.remove(scoped),
@@ -136,7 +182,12 @@ final class NextcloudHttpClientFactory {
     }
   }
 
-  HttpClient _native(Uri authority, NextcloudTrustPolicy? policy) {
+  HttpClient _native(
+    Uri authority,
+    NextcloudTrustPolicy? policy, {
+    required void Function(SecureSocket, NextcloudCertificate) onPeer,
+    required void Function(NextcloudCertificate) onProxyRejected,
+  }) {
     final context = SecurityContext(
       withTrustedRoots: policy?.mode != NextcloudTrustMode.pinnedLeaf,
     );
@@ -161,9 +212,29 @@ final class NextcloudHttpClientFactory {
       throw _failure(error, authority, policy, policy?.certificates.first);
     }
     final client = HttpClient(context: context)
-      ..connectionTimeout = const Duration(seconds: 15)
-      ..findProxy = (_) => 'DIRECT';
+      ..connectionTimeout = const Duration(seconds: 15);
+    if (findProxy != null) client.findProxy = findProxy;
+    client.badCertificateCallback = (certificate, host, port) {
+      try {
+        onProxyRejected(NextcloudCertificate.der(certificate.der));
+      } on Object {
+        // Native verification still rejects malformed certificates.
+      }
+      return false;
+    };
     client.connectionFactory = (uri, proxyHost, proxyPort) async {
+      if (proxyHost != null) {
+        // Dart performs CONNECT and platform TLS validation after connecting to
+        // the proxy. A pinned peer cannot be inspected before HTTP on this path.
+        if (policy != null) {
+          throw const dav.DavException(
+            kind: dav.DavErrorKind.network,
+            code: 'NextcloudPrivateTrustProxyUnsupported',
+            safeMessage: 'Private-certificate connections require a direct connection. Configure a proxy bypass for this server.',
+          );
+        }
+        return Socket.startConnect(proxyHost, proxyPort!);
+      }
       if (policy?.mode == NextcloudTrustMode.privateCa) {
         try {
           for (final certificate in policy!.certificates) {
@@ -212,6 +283,7 @@ final class NextcloudHttpClientFactory {
               uri.host,
               selfSigned: policy.mode == NextcloudTrustMode.pinnedLeaf,
             );
+            onPeer(socket, peer);
             return socket; // Only now can HttpClient construct/send HTTP bytes.
           } on Object catch (error) {
             socket.destroy();
@@ -294,10 +366,14 @@ final class _ScopedClient extends http.BaseClient
     required this.authority,
     required this.inner,
     required this.onClose,
+    required this.validate,
+    required this.tlsFailure,
   });
   final Uri authority;
   final TerminatingHttpClient inner;
   final void Function() onClose;
+  final void Function() validate;
+  final NextcloudCertificateException Function(Object) tlsFailure;
   bool _closed = false;
   void _check(http.BaseRequest request) {
     final uri = request.url;
@@ -314,15 +390,17 @@ final class _ScopedClient extends http.BaseClient
     }
     request.followRedirects =
         false; // Existing login/DAV policies own redirects.
-    // A completed operation leaves no idle socket authenticated under an old
-    // policy. Each request checks its peer's current identity and validity.
-    request.persistentConnection = false;
+    validate();
   }
 
   @override
-  Future<http.StreamedResponse> send(http.BaseRequest request) {
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
     _check(request);
-    return inner.send(request);
+    try {
+      return await inner.send(request);
+    } on HandshakeException catch (error) {
+      throw tlsFailure(error);
+    }
   }
 
   @override
@@ -330,13 +408,17 @@ final class _ScopedClient extends http.BaseClient
     http.BaseRequest request, {
     required Future<void> terminate,
     required Duration connectionTimeout,
-  }) {
+  }) async {
     _check(request);
-    return inner.sendTerminating(
-      request,
-      terminate: terminate,
-      connectionTimeout: connectionTimeout,
-    );
+    try {
+      return await inner.sendTerminating(
+        request,
+        terminate: terminate,
+        connectionTimeout: connectionTimeout,
+      );
+    } on HandshakeException catch (error) {
+      throw tlsFailure(error);
+    }
   }
 
   @override

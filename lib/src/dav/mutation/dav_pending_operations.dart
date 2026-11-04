@@ -1190,7 +1190,7 @@ final class DavPendingOperationsReplayer {
                     r.state.equals('permission_blocked'),
               ))
               .get();
-      if (blocked.isEmpty || blocked.any((op) => !isDavPendingOperation(op))) {
+      if (blocked.any((op) => !isDavPendingOperation(op))) {
         return;
       }
       for (final op in blocked) {

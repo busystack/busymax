@@ -13,6 +13,19 @@ final class DavCollectionCreationNotices {
   final AppDatabase database;
   final DateTime Function() _nowUtc;
 
+  Stream<List<DavCollectionCreationFailure>> watch(String accountId) =>
+      (database.select(database.davCollectionCreations).join(
+            [
+              leftOuterJoin(
+                database.davCollectionCreationAcknowledgments,
+                database.davCollectionCreationAcknowledgments.operationId
+                    .equalsExp(database.davCollectionCreations.id),
+              ),
+            ],
+          )..where(database.davCollectionCreations.accountId.equals(accountId)))
+          .watch()
+          .asyncMap((_) => load(accountId));
+
   Future<List<DavCollectionCreationFailure>> load(
     String accountId, {
     Map<String, DavException> currentErrors = const {},

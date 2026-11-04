@@ -297,14 +297,16 @@ final class CalDavFixture {
   }
 
   Future<List<NativeImportItemResult>> importResources(
-    NextcloudNativeImportPreview preview,
-  ) async {
+    NextcloudNativeImportPreview preview, {
+    bool allowScheduling = false,
+  }) async {
     final importer = DavNativeImportService(database);
     if (collectionId == eventCollectionId) {
       return importer.import(
         accountId: id,
         collectionId: collectionId!,
         preview: preview,
+        allowScheduling: allowScheduling,
       );
     }
     final results = <NativeImportItemResult>[];
@@ -316,6 +318,7 @@ final class CalDavFixture {
         await importer.import(
           accountId: id,
           collectionId: entry.key,
+          allowScheduling: allowScheduling,
           preview: NextcloudNativeImportPreview(
             preview.resources
                 .where((r) => r.componentType == entry.value)

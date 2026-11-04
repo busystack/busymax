@@ -1,4 +1,6 @@
 {
+  "caldavImportSchedulingWarning": "此文件包含与会者。我允许导入，并知悉 CalDAV 服务器可能会发送邀请或会议更新。",
+  "nextcloudCanonicalServerReview": "Nextcloud 为服务器 {entered} 返回了 {canonical}。是否允许 BusyMax 向此地址发送新的应用密码？",
   "contactsAccountsUnavailable": "无法加载联系人账户",
   "contactsTitle": "联系人",
   "contactsLinkedDescription": "添加日程参与者时使用此账号缓存的联系人。",

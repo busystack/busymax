@@ -14,6 +14,15 @@ class AppLocalizationsZh extends AppLocalizations {
   AppLocalizationsZh([String locale = 'zh']) : super(locale);
 
   @override
+  String get caldavImportSchedulingWarning =>
+      '此文件包含与会者。我允许导入，并知悉 CalDAV 服务器可能会发送邀请或会议更新。';
+
+  @override
+  String nextcloudCanonicalServerReview(String entered, String canonical) {
+    return 'Nextcloud 为服务器 $entered 返回了 $canonical。是否允许 BusyMax 向此地址发送新的应用密码？';
+  }
+
+  @override
   String get contactsAccountsUnavailable => '无法加载联系人账户';
 
   @override
@@ -3790,6 +3799,15 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   AppLocalizationsZhHans() : super('zh_Hans');
 
   @override
+  String get caldavImportSchedulingWarning =>
+      '此文件包含与会者。我允许导入，并知悉 CalDAV 服务器可能会发送邀请或会议更新。';
+
+  @override
+  String nextcloudCanonicalServerReview(String entered, String canonical) {
+    return 'Nextcloud 为服务器 $entered 返回了 $canonical。是否允许 BusyMax 向此地址发送新的应用密码？';
+  }
+
+  @override
   String get contactsAccountsUnavailable => '无法加载联系人账户';
 
   @override
@@ -7564,6 +7582,15 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 /// The translations for Chinese, using the Han script (`zh_Hant`).
 class AppLocalizationsZhHant extends AppLocalizationsZh {
   AppLocalizationsZhHant() : super('zh_Hant');
+
+  @override
+  String get caldavImportSchedulingWarning =>
+      '此檔案包含與會者。我允許匯入，並知悉 CalDAV 伺服器可能會傳送邀請或會議更新。';
+
+  @override
+  String nextcloudCanonicalServerReview(String entered, String canonical) {
+    return 'Nextcloud 為伺服器 $entered 傳回了 $canonical。是否允許 BusyMax 向此位址傳送新的應用程式密碼？';
+  }
 
   @override
   String get contactsAccountsUnavailable => '無法載入聯絡人帳號';

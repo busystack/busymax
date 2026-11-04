@@ -14,6 +14,15 @@ class AppLocalizationsKo extends AppLocalizations {
   AppLocalizationsKo([String locale = 'ko']) : super(locale);
 
   @override
+  String get caldavImportSchedulingWarning =>
+      '이 파일에는 참석자가 포함되어 있습니다. CalDAV 서버가 초대장이나 회의 업데이트를 보낼 수 있음을 이해하고 가져오기를 허용합니다.';
+
+  @override
+  String nextcloudCanonicalServerReview(String entered, String canonical) {
+    return 'Nextcloud가 서버 $entered에 대해 $canonical을 반환했습니다. BusyMax가 이 주소로 새 앱 비밀번호를 보내도록 허용할까요?';
+  }
+
+  @override
   String get contactsAccountsUnavailable => '연락처 계정을 불러올 수 없습니다';
 
   @override

@@ -135,6 +135,18 @@ abstract class AppLocalizations {
     Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant'),
   ];
 
+  /// No description provided for @caldavImportSchedulingWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'This file contains attendees. I allow this import, which may cause the CalDAV server to send invitations or meeting updates.'**
+  String get caldavImportSchedulingWarning;
+
+  /// No description provided for @nextcloudCanonicalServerReview.
+  ///
+  /// In en, this message translates to:
+  /// **'Nextcloud returned {canonical} for the server {entered}. Allow BusyMax to send the new app password to this address?'**
+  String nextcloudCanonicalServerReview(String entered, String canonical);
+
   /// No description provided for @contactsAccountsUnavailable.
   ///
   /// In en, this message translates to:

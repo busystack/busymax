@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 
 import '../../core/auth/authorization_persistence.dart';
@@ -30,6 +31,8 @@ final class DavAccountHttpClient extends http.BaseClient
   final AuthorizationPersistence persistence;
   final http.Client Function(SecretRecord) createClient;
   final _active = <http.Client>{};
+  final _idle = <_ReusableClient>[];
+  String? _binding;
   bool _closed = false;
 
   @override
@@ -51,7 +54,7 @@ final class DavAccountHttpClient extends http.BaseClient
     Future<void>? terminate,
     Duration? connectionTimeout,
   }) async {
-    http.Client? selected;
+    _ReusableClient? selected;
     late final AuthorizationLeasedHttpClient lease;
     // Selection and credential comparison happen under the same shared native
     // lease as transmission. No credential is cached outside that boundary.
@@ -117,11 +120,34 @@ final class DavAccountHttpClient extends http.BaseClient
             'The account authorization changed.',
           );
         }
-        selected = createClient(record!);
+        // A lane belongs to one response lease at a time. Aborting it cannot
+        // interrupt siblings. Reuse is allowed only within the current durable
+        // authorization generation and exact credential/trust configuration.
+        final binding =
+            '${await persistence.generation(accountId)}:'
+            '${sha256.convert(utf8.encode(jsonEncode(record!.toJson())))}';
+        if (_binding != binding) {
+          for (final client in _idle) {
+            client.close();
+          }
+          _idle.clear();
+          _binding = binding;
+        }
+        selected = _idle.isEmpty
+            ? _ReusableClient(createClient(record))
+            : _idle.removeLast();
         try {
           await work();
         } finally {
-          selected?.close();
+          final client = selected!;
+          if (!_closed &&
+              !client.closed &&
+              _binding == binding &&
+              _idle.length < 4) {
+            _idle.add(client);
+          } else {
+            client.close();
+          }
           _active.remove(lease);
         }
       }),
@@ -151,6 +177,39 @@ final class DavAccountHttpClient extends http.BaseClient
       client.close();
     }
     _active.clear();
+    for (final client in _idle) {
+      client.close();
+    }
+    _idle.clear();
+    _binding = null;
+  }
+}
+
+final class _ReusableClient extends http.BaseClient
+    implements TerminatingHttpClient {
+  _ReusableClient(this.inner);
+  final http.Client inner;
+  bool closed = false;
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) =>
+      inner.send(request);
+  @override
+  Future<http.StreamedResponse> sendTerminating(
+    http.BaseRequest request, {
+    required Future<void> terminate,
+    required Duration connectionTimeout,
+  }) => inner is TerminatingHttpClient
+      ? (inner as TerminatingHttpClient).sendTerminating(
+          request,
+          terminate: terminate,
+          connectionTimeout: connectionTimeout,
+        )
+      : inner.send(request);
+  @override
+  void close() {
+    if (closed) return;
+    closed = true;
+    inner.close();
   }
 }
 

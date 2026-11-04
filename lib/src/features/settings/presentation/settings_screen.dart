@@ -1297,6 +1297,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             final onboarding = ref.read(davAccountOnboardingServiceProvider);
             accountId = reconnecting == null
                 ? (await onboarding.connectNextcloud(
+                    reviewCanonicalServer: (entered, canonical) => mounted
+                        ? showLinuxNextcloudCanonicalServer(
+                            context,
+                            entered,
+                            canonical,
+                          )
+                        : Future.value(false),
                     reviewCertificate: (challenge, owner) =>
                         reviewNextcloudCertificate(
                           challenge,
@@ -1309,6 +1316,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     cancellationToken: cancellation,
                   )).accountId
                 : (await onboarding.reconnectNextcloud(
+                    reviewCanonicalServer: (entered, canonical) => mounted
+                        ? showLinuxNextcloudCanonicalServer(
+                            context,
+                            entered,
+                            canonical,
+                          )
+                        : Future.value(false),
                     reviewCertificate: (challenge, owner) =>
                         reviewNextcloudCertificate(
                           challenge,

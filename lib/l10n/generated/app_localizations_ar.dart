@@ -14,6 +14,15 @@ class AppLocalizationsAr extends AppLocalizations {
   AppLocalizationsAr([String locale = 'ar']) : super(locale);
 
   @override
+  String get caldavImportSchedulingWarning =>
+      'يحتوي هذا الملف على مشاركين. أسمح بهذا الاستيراد الذي قد يجعل خادم CalDAV يرسل دعوات أو تحديثات للاجتماعات.';
+
+  @override
+  String nextcloudCanonicalServerReview(String entered, String canonical) {
+    return 'أعاد Nextcloud العنوان ⁨$canonical⁩ للخادم ⁨$entered⁩. هل تسمح لـ BusyMax بإرسال كلمة مرور التطبيق الجديدة إلى هذا العنوان؟';
+  }
+
+  @override
   String get contactsAccountsUnavailable => 'تعذّر تحميل حسابات جهات الاتصال';
 
   @override

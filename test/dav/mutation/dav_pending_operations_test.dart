@@ -51,6 +51,74 @@ void main() {
 
   tearDown(() => database.close());
 
+  test(
+    'denial, discard and rediscovery allow a subsequent CalDAV update',
+    () async {
+      await database
+          .update(database.accounts)
+          .write(
+            const AccountsCompanion(
+              provider: Value('caldav'),
+              credentialKind: Value('caldav_password'),
+            ),
+          );
+      final object = await database.select(database.davObjects).getSingle();
+      var denied = true;
+      var remoteBody = object.rawIcsBody;
+      final remote = _FakeMutationRemote(
+        put: ({required rawIcs, required ifMatch, required ifNoneMatch}) async {
+          if (denied) {
+            throw const DavException(
+              kind: DavErrorKind.authorization,
+              code: 'DavPermissionDenied',
+              safeMessage: 'Denied',
+              statusCode: 403,
+            );
+          }
+          remoteBody = rawIcs;
+          return _success;
+        },
+        fetcher: (href) async => _live(href, '"v2"', remoteBody),
+      );
+      final replayer = _replayer(database, objectRepository, remote);
+      await queue.enqueueUpdate(
+        accountId: 'account',
+        collectionId: 'collection',
+        objectId: object.id,
+        patch: _patch('SUMMARY', 'Denied edit'),
+      );
+      await replayer.replayDueOperations();
+      final blocked = await database.select(database.pendingOps).getSingle();
+      expect(blocked.state, 'permission_blocked');
+      expect(
+        (await database.select(database.accounts).getSingle()).authState,
+        'permission_changed',
+      );
+      await PendingOpResolutionService(
+        database: database,
+        accountId: 'account',
+        syncTasks: () async {},
+        syncCalendar: () async {},
+        nowUtc: () => _now,
+      ).discard(blocked.id);
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+      await replayer.revalidatePermissionsAfterDiscovery();
+      expect(
+        (await database.select(database.accounts).getSingle()).authState,
+        'signed_in',
+      );
+      denied = false;
+      await queue.enqueueUpdate(
+        accountId: 'account',
+        collectionId: 'collection',
+        objectId: object.id,
+        patch: _patch('SUMMARY', 'Subsequent edit'),
+      );
+      expect((await replayer.replayDueOperations()).appliedCount, 1);
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+    },
+  );
+
   for (final scenario in [
     'restored',
     'readonly',

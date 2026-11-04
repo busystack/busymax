@@ -1,4 +1,6 @@
 {
+  "caldavImportSchedulingWarning": "يحتوي هذا الملف على مشاركين. أسمح بهذا الاستيراد الذي قد يجعل خادم CalDAV يرسل دعوات أو تحديثات للاجتماعات.",
+  "nextcloudCanonicalServerReview": "أعاد Nextcloud العنوان ⁨{canonical}⁩ للخادم ⁨{entered}⁩. هل تسمح لـ BusyMax بإرسال كلمة مرور التطبيق الجديدة إلى هذا العنوان؟",
   "contactsAccountsUnavailable": "تعذّر تحميل حسابات جهات الاتصال",
   "contactsTitle": "جهات الاتصال",
   "contactsLinkedDescription": "استخدم جهات الاتصال المخزنة مؤقتًا من هذا الحساب عند إضافة مدعوين إلى الأحداث.",

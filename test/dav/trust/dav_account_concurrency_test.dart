@@ -65,6 +65,7 @@ void main() {
           owner: id,
           authority: value.canonicalServer,
           policy: value.trustPolicy,
+          reuseConnections: true,
         );
       },
     );
@@ -110,6 +111,56 @@ void main() {
     await server.close(force: true);
     await db.close();
   });
+
+  test(
+    'completed responses reuse TLS connections within one generation',
+    () async {
+      final scoped = client('one');
+      for (var i = 0; i < 8; i++) {
+        expect((await scoped.get(endpoint)).body, 'ok');
+      }
+      expect(
+        requests.map((r) => r.connectionInfo!.remotePort).toSet(),
+        hasLength(1),
+      );
+      final firstPort = requests.first.connectionInfo!.remotePort;
+      await persistence.run('one', () => persistence.invalidate('one'));
+      expect((await scoped.get(endpoint)).body, 'ok');
+      expect(requests.last.connectionInfo!.remotePort, isNot(firstPort));
+    },
+  );
+
+  test(
+    'cancelling one pooled lane preserves a sibling and its connection',
+    () async {
+      final release = Completer<void>();
+      target = 2;
+      handle = (request) async {
+        await release.future;
+        request.response.write('ok');
+        await request.response.close();
+      };
+      final scoped = client('one');
+      final stop = Completer<void>();
+      final cancelled = expectLater(
+        scoped.send(
+          http.AbortableRequest('POST', endpoint, abortTrigger: stop.future),
+        ),
+        throwsA(isA<http.RequestAbortedException>()),
+      );
+      final sibling = scoped.get(endpoint);
+      await arrived.future;
+      stop.complete();
+      await cancelled;
+      release.complete();
+      expect((await sibling).body, 'ok');
+      expect((await scoped.get(endpoint)).body, 'ok');
+      expect(
+        requests[1].connectionInfo!.remotePort,
+        requests[2].connectionInfo!.remotePort,
+      );
+    },
+  );
 
   test(
     'four requests overlap for one account before any response is released',
@@ -223,53 +274,60 @@ void main() {
     },
   );
 
-  test(
-    'pin replacement cannot reuse a socket accepted by the old generation',
-    () async {
-      final scoped = client('one');
-      expect((await scoped.get(endpoint)).statusCode, 200);
-      final port = server.port;
-      await server.close(force: true);
-      server = await tls.serve('self-renewed', port: port);
-      var renewedRequests = 0;
-      server.listen((request) async {
-        renewedRequests++;
-        request.response.write('renewed');
-        await request.response.close();
-      });
-      // The previous leaf rejects the renewed server before any HTTP.
-      await expectLater(
-        scoped.get(endpoint),
-        throwsA(isA<NextcloudCertificateException>()),
-      );
-      expect(renewedRequests, 0);
-      await persistence.run('one', () async {
-        factory.invalidate('one');
-        await secrets.saveCredential(
-          'one',
-          NextcloudSecretRecord(
-            canonicalServer: endpoint,
-            loginName: 'fixture',
-            appPassword: 'synthetic',
-            trustPolicy: NextcloudTrustPolicy.approve(
-              owner: 'one',
-              installation: endpoint,
-              mode: NextcloudTrustMode.pinnedLeaf,
-              certificates: [
-                NextcloudCertificate.import(
-                  File(tls.path('self-renewed.pem')).readAsBytesSync(),
-                ).single,
-              ],
-              generation: 'renewed',
-            ),
+  test('pin replacement cannot reuse a socket accepted by the old generation', () async {
+    final scoped = client('one');
+    expect((await scoped.get(endpoint)).statusCode, 200);
+    final port = server.port;
+    await server.close(force: true);
+    server = await tls.serve('self-renewed', port: port);
+    var renewedRequests = 0;
+    server.listen((request) async {
+      renewedRequests++;
+      request.response.write('renewed');
+      await request.response.close();
+    });
+    // A stale pooled socket may fail before reconnection; it must be retired
+    // without automatic request replay. A fresh connection checks the old pin.
+    await expectLater(
+      scoped.get(endpoint),
+      throwsA(
+        anyOf(
+          isA<http.ClientException>(),
+          isA<NextcloudCertificateException>(),
+        ),
+      ),
+    );
+    await expectLater(
+      scoped.get(endpoint),
+      throwsA(isA<NextcloudCertificateException>()),
+    );
+    expect(renewedRequests, 0);
+    await persistence.run('one', () async {
+      factory.invalidate('one');
+      await secrets.saveCredential(
+        'one',
+        NextcloudSecretRecord(
+          canonicalServer: endpoint,
+          loginName: 'fixture',
+          appPassword: 'synthetic',
+          trustPolicy: NextcloudTrustPolicy.approve(
+            owner: 'one',
+            installation: endpoint,
+            mode: NextcloudTrustMode.pinnedLeaf,
+            certificates: [
+              NextcloudCertificate.import(
+                File(tls.path('self-renewed.pem')).readAsBytesSync(),
+              ).single,
+            ],
+            generation: 'renewed',
           ),
-        );
-        await persistence.invalidate('one');
-      });
-      expect((await scoped.get(endpoint)).body, 'renewed');
-      expect(renewedRequests, 1);
-    },
-  );
+        ),
+      );
+      await persistence.invalidate('one');
+    });
+    expect((await scoped.get(endpoint)).body, 'renewed');
+    expect(renewedRequests, 1);
+  });
 
   for (final mode in ['abandoned', 'cancelled', 'disposed', 'stalled']) {
     test('$mode response releases removal lease without replay', () async {

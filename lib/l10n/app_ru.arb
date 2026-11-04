@@ -1,4 +1,6 @@
 {
+  "caldavImportSchedulingWarning": "Этот файл содержит участников. Я разрешаю импорт, при котором сервер CalDAV может отправить приглашения или обновления встреч.",
+  "nextcloudCanonicalServerReview": "Nextcloud вернул {canonical} для сервера {entered}. Разрешить BusyMax отправить новый пароль приложения на этот адрес?",
   "contactsAccountsUnavailable": "Не удалось загрузить учётные записи контактов",
   "contactsTitle": "Контакты",
   "contactsLinkedDescription": "Использовать кэшированные контакты этой учётной записи при добавлении гостей события.",

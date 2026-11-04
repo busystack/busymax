@@ -62,6 +62,11 @@ Nextcloud login, sharing, trash, federation, attachment services, certificate
 exceptions or scheduling controls. Scheduling metadata is preserved. Use the
 dedicated Nextcloud account type for its supported extensions.
 
+When importing a file containing attendees, review the explicit consent checkbox.
+A server with implicit scheduling can send invitations or meeting updates as
+soon as imported events are uploaded, even if the file has no `METHOD` property.
+Leave the checkbox clear and cancel if you do not want those messages sent.
+
 ## Reconnect and troubleshooting
 
 - Use the account's reconnect action to replace the password. The verified

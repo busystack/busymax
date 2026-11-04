@@ -14,6 +14,15 @@ class AppLocalizationsEt extends AppLocalizations {
   AppLocalizationsEt([String locale = 'et']) : super(locale);
 
   @override
+  String get caldavImportSchedulingWarning =>
+      'See fail sisaldab osalejaid. Luban selle impordi, mille tõttu võib CalDAV-server saata kutseid või koosolekute uuendusi.';
+
+  @override
+  String nextcloudCanonicalServerReview(String entered, String canonical) {
+    return 'Nextcloud tagastas serveri $entered jaoks aadressi $canonical. Kas lubada BusyMaxil saata uus rakenduse parool sellele aadressile?';
+  }
+
+  @override
   String get contactsAccountsUnavailable =>
       'Kontaktikontosid ei õnnestunud laadida';
 

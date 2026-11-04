@@ -105,6 +105,93 @@ establish live acceptance. The native editor harnesses do not establish
 production secure storage; the separate process tests above have narrower,
 explicit server/platform scopes.
 
+## Review follow-up: working tree based on `cbebba7` (2026-11-03)
+
+The review's two functional findings were reproduced. Account transport now
+keeps at most four idle request lanes, with reuse bound to the exact credential,
+trust policy and durable authorization generation. Request cancellation remains
+isolated, and private TLS validity checks cover live sockets only. Permission
+recovery covers denial → discard → complete discovery → a subsequent successful
+write. Diagnostics permits that local discard while permissions need recovery;
+explicit account revalidation also evaluates retained blocked work before
+changing the account state.
+
+Public HTTPS proxy CONNECT succeeds with a trusted destination and rejects an
+untrusted destination before credential delivery. Private trust requires an
+explicit proxy bypass; see [the Nextcloud guide](nextcloud_setup.md). Canonical
+Nextcloud destinations require user review, and a new private installation needs
+its own certificate approval. Tests cover approving and declining that second
+approval, including zero HTTP requests to the rejected destination.
+
+Settings observes persisted creation notices without a network dependency.
+Generic attendee-bearing imports require consent in all three platform previews
+and in the import service, including files without `METHOD`. A live Baïkal probe
+also exposed and fixed a false conflict after successful import: generic servers
+advertising `calendar-auto-schedule` now use scheduling-aware canonical readback
+and Schedule-Tag validators. Unknown ACLs remain
+distinct from explicit grants; retained blocked operations still need advertised
+grants unless the user discards them.
+
+### Follow-up validation
+
+| Check | Result and scope |
+| --- | --- |
+| Complete deterministic Flutter suite | **4,683 passed; 98 gated/optional skips**, four workers, after the final code changes |
+| Real-server main harness | All **59 distinct cases** have passing results across the main run and focused follow-ups; one initial BusyStack secondary-account authentication failure was resolved by issuing a fresh disposable Bob credential through browser/MFA and rerunning all three account-isolation cases |
+| Affected Baïkal matrix | **21 passed** after the implicit-scheduling correction, including lifecycle, import, offline/conflict and subsequent event/task edits |
+| Baïkal implicit scheduling | **1 passed**: no `METHOD`, consent required before any queued mutation or attendee delivery, real local-inbox `REQUEST` after consent, no retained false conflict, database reopening and a subsequent synchronized meeting edit |
+| Linux native settings and editors | **3 passed**, one per server, with independent event/task readback |
+| Linux native TLS/concurrency | **51 passed**, including proxy verification, pooling, cancellation and generation/trust isolation |
+| Android native settings and editors | **3 passed on API 35**, one per server, in a fresh disposable emulator; independent event/task readback and production creation-failure feedback. The API 29 phone attempts were interrupted by ADB loss and owner lock; their recorded collection/forwarding was cleaned up and those attempts add no acceptance evidence |
+| Linux release build | `flutter build linux --release -t lib/main_linux.dart` passed for this working tree |
+| Android release builds | Normal-ID APK/AAB built with explicit **test signing**, not distribution keys; manifests/signatures, permissions and AAB `PAGE_ALIGNMENT_16K` metadata inspected |
+| Static and repository checks | Analysis clean; platform boundaries and repository hygiene passed; **75** release-tool tests passed; integrity verification covered **1,171** SDK files and **eight** reviewed upstream packages |
+
+The native tests use disposable fixture storage and CA material. They do not
+establish production secure-storage behavior or installed release-package
+acceptance. Skipped tests do not add live or native evidence.
+
+### Comparative transport and discovery measurements
+
+The transport workload uses 50 sequential synthetic DAV resources through a TCP
+relay with 20 ms delay per direction. These are transport measurements, **not a
+complete v0.3.2 application synchronization or battery benchmark**. The historical
+terminating request lifecycle is reproduced from v0.3.2 (`42f3f7b`); the shared
+IOClient reference is listed separately.
+
+| Transport | Elapsed | TLS connections |
+| --- | --- | --- |
+| Shared IOClient reference | 2,392 ms | 1 |
+| v0.3.2 terminating request lifecycle | 6,594 ms | 50 |
+| Reviewed per-request account lifecycle | 6,768 ms | 50 |
+| Pooled account lifecycle | 2,392 ms | 1 |
+
+The review correctly identifies missing reuse on its candidate, but attributing
+all missing DAV reuse to this branch overstates the regression: v0.3.2 already
+created isolated native clients for terminating DAV requests. The replacement
+improves both lifecycles in this workload. Repeat with
+`BUSYMAX_DAV_BENCHMARK=1 flutter test test/dav/trust/dav_connection_reuse_benchmark_test.dart`.
+
+For 100 collections at 40 ms simulated request latency, complete discovery took
+about 1.6 seconds initially and 0.3 seconds with persisted method hints; warm
+discovery sent zero collection method probes. Former sequential probes alone
+would require 4 seconds. Hints retain their original timestamps, expire after
+24 hours and never substitute for ACL grants. Cold probes use concurrency four;
+optional network/server failures do not abort readable inventory. The normal
+[discovery regression](../test/dav/discovery/caldav_discovery_test.dart) checks
+request counts, persistence and expiry without a timing-based assertion.
+
+### CI and acceptance scope
+
+The reviewed head `cbebba7facf552117a867001665225b3583f96f5` now has passing
+[Linux](https://github.com/busystack/busymax/actions/runs/41760333781),
+[Android](https://github.com/busystack/busymax/actions/runs/41760333876) and
+[Windows](https://github.com/busystack/busymax/actions/runs/41760333952) workflows.
+Those runs do **not** qualify these subsequent working-tree changes. Release
+still requires passing CI for the exact final committed revision. Native Windows,
+interactive installed 0.4.0 Snap and Android 17/API 37 local-network prompting
+remain acceptance gates; they are not silently accepted by this record.
+
 ## Known limitations and acceptance boundaries
 
 - **Baïkal duplicate UIDs:** independent conditional PUTs of the same UID at

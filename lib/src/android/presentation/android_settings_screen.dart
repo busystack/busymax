@@ -997,6 +997,13 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
             final service = ref.read(davAccountOnboardingServiceProvider);
             accountId = reconnecting == null
                 ? (await service.connectNextcloud(
+                    reviewCanonicalServer: (entered, canonical) => mounted
+                        ? showAndroidNextcloudCanonicalServer(
+                            context,
+                            entered,
+                            canonical,
+                          )
+                        : Future.value(false),
                     reviewCertificate: (challenge, owner) =>
                         reviewNextcloudCertificate(
                           challenge,
@@ -1009,6 +1016,13 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                     cancellationToken: davCancellation,
                   )).accountId
                 : (await service.reconnectNextcloud(
+                    reviewCanonicalServer: (entered, canonical) => mounted
+                        ? showAndroidNextcloudCanonicalServer(
+                            context,
+                            entered,
+                            canonical,
+                          )
+                        : Future.value(false),
                     reviewCertificate: (challenge, owner) =>
                         reviewNextcloudCertificate(
                           challenge,
@@ -2877,6 +2891,7 @@ Future<void> showAndroidIcsImport(
     if (!context.mounted) return;
     CalendarSourceEntity? destination = destinations.firstOrNull;
     var newCopies = false;
+    var allowScheduling = false;
     final selection = await showDialog<IcalImportSelection>(
       context: context,
       barrierDismissible: false,
@@ -2909,8 +2924,20 @@ Future<void> showAndroidIcsImport(
                           child: Text(source.summary),
                         ),
                     ],
+                    onChanged: (value) => setDialogState(() {
+                      destination = value;
+                      allowScheduling = false;
+                    }),
+                  ),
+                if (destination?.provider == BusyProvider.caldav &&
+                    preview.nativePreview.hasAttendees)
+                  CheckboxListTile(
+                    key: const ValueKey('caldav-import-scheduling-consent'),
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(context.l10n.caldavImportSchedulingWarning),
+                    value: allowScheduling,
                     onChanged: (value) =>
-                        setDialogState(() => destination = value),
+                        setDialogState(() => allowScheduling = value == true),
                   ),
                 if (destination?.provider == BusyProvider.nextcloud ||
                     destination?.provider == BusyProvider.caldav)
@@ -2930,11 +2957,19 @@ Future<void> showAndroidIcsImport(
               child: Text(context.l10n.cancel),
             ),
             FilledButton(
-              onPressed: destination == null
+              onPressed:
+                  destination == null ||
+                      (destination?.provider == BusyProvider.caldav &&
+                          preview.nativePreview.hasAttendees &&
+                          !allowScheduling)
                   ? null
                   : () => Navigator.pop(
                       dialogContext,
-                      IcalImportSelection(destination!, newCopies: newCopies),
+                      IcalImportSelection(
+                        destination!,
+                        newCopies: newCopies,
+                        allowScheduling: allowScheduling,
+                      ),
                     ),
               child: Text(context.l10n.importIcsConfirm),
             ),
@@ -2947,6 +2982,7 @@ Future<void> showAndroidIcsImport(
       preview: preview,
       destination: selection.destination,
       nativeDuplicates: selection.duplicatePolicy,
+      allowScheduling: selection.allowScheduling,
       normalizeNativeSchedulingMethod:
           selection.destination.provider == BusyProvider.nextcloud ||
           selection.destination.provider == BusyProvider.caldav,

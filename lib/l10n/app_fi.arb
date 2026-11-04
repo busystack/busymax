@@ -1,4 +1,6 @@
 {
+  "caldavImportSchedulingWarning": "Tämä tiedosto sisältää osallistujia. Sallin tämän tuonnin, joka voi saada CalDAV-palvelimen lähettämään kutsuja tai kokouspäivityksiä.",
+  "nextcloudCanonicalServerReview": "Nextcloud palautti osoitteen {canonical} palvelimelle {entered}. Saako BusyMax lähettää uuden sovellussalasanan tähän osoitteeseen?",
   "contactsAccountsUnavailable": "Yhteystietotilejä ei voitu ladata",
   "contactsTitle": "Yhteystiedot",
   "contactsLinkedDescription": "Käytä tämän tilin välimuistissa olevia yhteystietoja tapahtuman vieraita lisättäessä.",

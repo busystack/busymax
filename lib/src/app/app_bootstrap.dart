@@ -7,6 +7,7 @@ import '../core/http/request_dispatch_exception.dart';
 import '../features/sync/domain_sync_schedule.dart';
 import '../features/sync/account_sync_activity.dart';
 import '../dav/storage/dav_collection_creation_notices.dart';
+import '../dav/mutation/dav_collection_creation_failure.dart';
 import '../core/auth/authorization_persistence.dart';
 import '../core/auth/registration_staging.dart';
 import '../core/auth/oauth_registration.dart';
@@ -193,10 +194,11 @@ final davAccountHttpClientProvider = Provider.family<http.Client, String>((
               owner: id,
               authority: credential.canonicalServer,
               policy: credential.trustPolicy,
+              reuseConnections: true,
             ),
       AppleICloudSecretRecord() ||
       CalDavSecretRecord() => ConnectivityAwareHttpClient(
-        inner: NativeTerminatingHttpClient(),
+        inner: NativeTerminatingHttpClient(reuseConnections: true),
         requireNetwork: ref
             .read(networkConnectivityMonitorProvider)
             .requireNetwork,
@@ -1407,6 +1409,12 @@ final accountSyncActivityProvider = ChangeNotifierProvider<AccountSyncActivity>(
 final davCollectionCreationNoticesProvider =
     Provider<DavCollectionCreationNotices>(
       (ref) => DavCollectionCreationNotices(ref.watch(databaseProvider)),
+    );
+
+final storedDavCollectionCreationNoticesProvider = StreamProvider.autoDispose
+    .family<List<DavCollectionCreationFailure>, String>(
+      (ref, accountId) =>
+          ref.watch(davCollectionCreationNoticesProvider).watch(accountId),
     );
 
 typedef DavCollectionCreationNoticeAcknowledger = Future<bool> Function(

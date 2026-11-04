@@ -1,4 +1,6 @@
 {
+  "caldavImportSchedulingWarning": "이 파일에는 참석자가 포함되어 있습니다. CalDAV 서버가 초대장이나 회의 업데이트를 보낼 수 있음을 이해하고 가져오기를 허용합니다.",
+  "nextcloudCanonicalServerReview": "Nextcloud가 서버 {entered}에 대해 {canonical}을 반환했습니다. BusyMax가 이 주소로 새 앱 비밀번호를 보내도록 허용할까요?",
   "contactsAccountsUnavailable": "연락처 계정을 불러올 수 없습니다",
   "contactsTitle": "연락처",
   "contactsLinkedDescription": "이벤트 참석자를 추가할 때 이 계정에 캐시된 연락처를 사용합니다.",

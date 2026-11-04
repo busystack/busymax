@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:busymax/src/dav/trust/nextcloud_certificate.dart';
+import 'package:busymax/src/dav/trust/nextcloud_http_client_factory.dart';
 import 'package:busymax/src/dav/trust/nextcloud_trust_policy.dart';
 
 import '../../helpers/nextcloud_tls_fixture.dart';
@@ -13,6 +14,8 @@ import 'package:busymax/src/core/auth/authorization_persistence.dart';
 import 'package:busymax/src/dav/auth/dav_account_onboarding_service.dart';
 import 'package:busymax/src/dav/auth/nextcloud_login_flow_v2.dart';
 import 'package:busymax/src/dav/dav_errors.dart';
+import 'package:busymax/src/dav/mutation/dav_pending_operations.dart';
+import 'package:busymax/src/dav/mutation/dav_conditional_mutation_service.dart';
 import 'package:busymax/src/dav/http/dav_http_transport.dart';
 import 'package:busymax/src/dav/discovery/dav_discovery_models.dart';
 import 'package:busymax/src/db/app_database.dart';
@@ -590,6 +593,80 @@ void main() {
     expect(await secrets.readCredential(id), isNull);
     expect(await database.select(database.accounts).get(), isEmpty);
   });
+
+  for (final restored in [true, false]) {
+    test(
+      'explicit revalidation respects retained DAV permission denial: restored=$restored',
+      () async {
+        var changed = false;
+        final service = DavAccountOnboardingService(
+          database: database,
+          secretStore: secrets,
+          nextcloudLoginFlow: _successfulLoginFlow(),
+          idFactory: () => 'recover',
+          discover:
+              ({
+                required accountId,
+                required provider,
+                required accountAuthority,
+                required credential,
+                cancellationToken,
+              }) async => _discovery(
+                accountId,
+                provider,
+                accountAuthority,
+                collections: [
+                  _mixedCollection(
+                    accountAuthority,
+                    privileges: changed && !restored
+                        ? const {'{DAV:}read'}
+                        : null,
+                  ),
+                ],
+              ),
+        );
+        final id = (await service.connectNextcloud(
+          enteredServer: 'cloud.example.test',
+        )).accountId;
+        final collection = await database
+            .select(database.davCollections)
+            .getSingle();
+        await DavPendingOperationQueue(database: database).enqueueCreate(
+          accountId: id,
+          collectionId: collection.id,
+          object: const DavNewObject(
+            uid: 'permission-test',
+            initialMemberName: 'permission-test.ics',
+            componentType: 'VEVENT',
+            rawIcs: 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//BusyMax//QA//EN\r\nBEGIN:VEVENT\r\nUID:permission-test\r\nDTSTART:20261103T120000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n',
+          ),
+        );
+        await database
+            .update(database.accounts)
+            .write(
+              const AccountsCompanion(authState: Value('permission_changed')),
+            );
+        await database
+            .update(database.pendingOps)
+            .write(
+              const PendingOpsCompanion(
+                state: Value('permission_blocked'),
+                retryClassification: Value('permission'),
+              ),
+            );
+        changed = true;
+        await service.revalidateAccount(id);
+        expect(
+          (await database.select(database.accounts).getSingle()).authState,
+          restored ? 'signed_in' : 'permission_changed',
+        );
+        expect(
+          (await database.select(database.pendingOps).getSingle()).state,
+          restored ? 'retry' : 'permission_blocked',
+        );
+      },
+    );
+  }
 
   for (final state in ['permission_changed', 'unsupported_server_profile']) {
     test(
@@ -1676,6 +1753,142 @@ void main() {
           generation: name,
         );
 
+    for (final approveCanonical in [true, false]) {
+      test(
+        'canonical installation requires separate private trust approval: $approveCanonical',
+        () async {
+          final alias = await tls.serve('self');
+          final canonical = await tls.serve('self-renewed');
+          addTearDown(() => alias.close(force: true));
+          addTearDown(() => canonical.close(force: true));
+          final entered = Uri.parse('https://localhost:${alias.port}');
+          final returned = Uri.parse('https://localhost:${canonical.port}');
+          var canonicalRequests = 0;
+          alias.listen((request) async {
+            await request.drain<void>();
+            request.response.headers.contentType = ContentType.json;
+            request.response.write(
+              jsonEncode(
+                request.uri.path.endsWith('/index.php/login/v2')
+                    ? {
+                        'poll': {
+                          'token': 'synthetic',
+                          'endpoint': entered.resolve('/poll').toString(),
+                        },
+                        'login': entered.resolve('/browser').toString(),
+                      }
+                    : {
+                        'server': returned.toString(),
+                        'loginName': 'qa',
+                        'appPassword': 'synthetic',
+                      },
+              ),
+            );
+            await request.response.close();
+          });
+          canonical.listen((request) async {
+            canonicalRequests++;
+            expect(
+              request.headers.value('authorization'),
+              'Basic ${base64Encode(utf8.encode('qa:synthetic'))}',
+            );
+            await request.drain<void>();
+            request.response.write('ok');
+            await request.response.close();
+          });
+          final factory = NextcloudHttpClientFactory(
+            requireNetwork: () async {},
+          );
+          addTearDown(factory.close);
+          final service = DavAccountOnboardingService(
+            database: database,
+            secretStore: secrets,
+            nextcloudClients: factory,
+            nextcloudLoginFlow: NextcloudLoginFlowV2(
+              client: MockClient(
+                (_) async =>
+                    throw StateError('Session transport must be selected'),
+              ),
+              browserLauncher: (_) async => true,
+            ),
+            nextcloudDiscovery: (record, generation, requireExisting) =>
+                ({
+                  required accountId,
+                  required provider,
+                  required accountAuthority,
+                  required credential,
+                  cancellationToken,
+                }) async {
+                  final selected = factory.create(
+                    owner: accountId,
+                    authority: accountAuthority,
+                    policy: record.trustPolicy?.bind(accountId),
+                  );
+                  try {
+                    await selected.get(
+                      accountAuthority,
+                      headers: {
+                        'authorization':
+                            'Basic ${base64Encode(utf8.encode('${credential.username}:${credential.password}'))}',
+                      },
+                    );
+                  } finally {
+                    selected.close();
+                  }
+                  return _discovery(accountId, provider, accountAuthority);
+                },
+            discover: ({
+              required accountId,
+              required provider,
+              required accountAuthority,
+              required credential,
+              cancellationToken,
+            }) async => throw StateError('Nextcloud scoped discovery required'),
+          );
+          final reviewed = <Uri>[];
+          final connection = service.connectNextcloud(
+            enteredServer: entered.toString(),
+            reviewCanonicalServer: (original, destination) async {
+              expect(original, entered);
+              expect(destination, returned);
+              return true;
+            },
+            reviewCertificate: (challenge, owner) async {
+              reviewed.add(challenge.endpoint);
+              if (challenge.endpoint == returned && !approveCanonical) {
+                return null;
+              }
+              return NextcloudTrustPolicy.approve(
+                owner: owner,
+                installation: challenge.endpoint,
+                mode: NextcloudTrustMode.pinnedLeaf,
+                certificates: [challenge.observed!],
+                generation: owner,
+              );
+            },
+          );
+          if (approveCanonical) {
+            final result = await connection;
+            expect(
+              (await secrets.readCredential(
+                result.accountId,
+              ) as NextcloudSecretRecord).trustPolicy!.installation,
+              returned,
+            );
+            expect(canonicalRequests, 1);
+          } else {
+            await expectLater(
+              connection,
+              throwsA(isA<NextcloudCertificateException>()),
+            );
+            expect(await database.select(database.accounts).get(), isEmpty);
+            expect(canonicalRequests, 0);
+          }
+          expect(reviewed, [entered, returned]);
+        },
+      );
+    }
+
     for (final failure in ['discovery', 'database', 'secure-storage']) {
       test(
         '$failure preserves the previous policy, generation and cached data',
@@ -2027,48 +2240,48 @@ DavDiscoveryResult _discovery(
   collections: collections,
 );
 
-DavCollectionDiscovery _mixedCollection(Uri authority) =>
-    DavCollectionDiscovery(
-      hrefKey: '/calendars/user/mixed/',
-      requestUri: authority.resolve('/calendars/user/mixed/'),
-      displayName: 'Mixed QA',
-      description: null,
-      resourceTypes: const {
-        '{DAV:}collection',
-        '{urn:ietf:params:xml:ns:caldav}calendar',
-      },
-      supportedComponentMask: 3,
-      supportedCalendarData: const [],
-      supportedReports: const {},
-      currentUserPrivileges: const {
-        '{DAV:}read',
-        '{DAV:}write',
-        '{DAV:}write-properties',
-      },
-      ownerHref: null,
-      safeDisplayMetadata: const {},
-      color: null,
-      sortOrder: null,
-      calendarTimeZone: null,
-      calendarTimeZoneId: null,
-      scheduleTransparency: null,
-      maximumResourceSize: null,
-      maximumInstances: null,
-      syncToken: null,
-      ctag: null,
-      capabilities: const CollectionCapabilities(
-        canRead: true,
-        canWriteContent: true,
-        canWriteProperties: true,
-        canAddMembers: true,
-        canDeleteMembers: true,
-        supportsEvents: true,
-        supportsTasks: true,
-      ),
-      kind: DavCollectionKind.mixedCalendar,
-      eventProjectionEnabled: true,
-      taskProjectionEnabled: true,
-    );
+DavCollectionDiscovery _mixedCollection(
+  Uri authority, {
+  Set<String>? privileges,
+}) => DavCollectionDiscovery(
+  hrefKey: '/calendars/user/mixed/',
+  requestUri: authority.resolve('/calendars/user/mixed/'),
+  displayName: 'Mixed QA',
+  description: null,
+  resourceTypes: const {
+    '{DAV:}collection',
+    '{urn:ietf:params:xml:ns:caldav}calendar',
+  },
+  supportedComponentMask: 3,
+  supportedCalendarData: const [],
+  supportedReports: const {},
+  currentUserPrivileges:
+      privileges ??
+      const {'{DAV:}read', '{DAV:}write', '{DAV:}write-properties'},
+  ownerHref: null,
+  safeDisplayMetadata: const {},
+  color: null,
+  sortOrder: null,
+  calendarTimeZone: null,
+  calendarTimeZoneId: null,
+  scheduleTransparency: null,
+  maximumResourceSize: null,
+  maximumInstances: null,
+  syncToken: null,
+  ctag: null,
+  capabilities: const CollectionCapabilities(
+    canRead: true,
+    canWriteContent: true,
+    canWriteProperties: true,
+    canAddMembers: true,
+    canDeleteMembers: true,
+    supportsEvents: true,
+    supportsTasks: true,
+  ),
+  kind: DavCollectionKind.mixedCalendar,
+  eventProjectionEnabled: true,
+  taskProjectionEnabled: true,
+);
 
 class _CommitGate extends QueryInterceptor {
   _CommitGate(this.entered, this.release);

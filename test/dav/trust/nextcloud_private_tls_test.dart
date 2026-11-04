@@ -85,6 +85,96 @@ void main() {
     servers.clear();
   });
 
+  for (final trusted in [true, false]) {
+    test(
+      'public HTTPS uses CONNECT proxy and verifies the destination: trusted=$trusted',
+      () async {
+        await serve(trusted ? 'leaf' : 'self');
+        final proxy = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        final sockets = <Socket>[];
+        var connects = 0;
+        proxy.listen((request) async {
+          expect(request.method, 'CONNECT');
+          expect(request.headers.value('authorization'), isNull);
+          connects++;
+          final upstream = await Socket.connect('localhost', endpoint.port);
+          final tunnel = await request.response.detachSocket(
+            writeHeaders: false,
+          );
+          sockets.addAll([upstream, tunnel]);
+          tunnel.write('HTTP/1.1 200 Connection Established\r\n\r\n');
+          await tunnel.flush();
+          unawaited(upstream.addStream(tunnel).catchError((Object _) {}));
+          unawaited(tunnel.addStream(upstream).catchError((Object _) {}));
+        });
+        final proxied = NextcloudHttpClientFactory(
+          requireNetwork: () async {},
+          findProxy: (_) => 'PROXY 127.0.0.1:${proxy.port}',
+        );
+        try {
+          await HttpOverrides.runWithHttpOverrides(() async {
+            final selected = proxied.create(
+              owner: 'public',
+              authority: endpoint,
+            );
+            if (trusted) {
+              expect(
+                (await selected.get(
+                  endpoint,
+                  headers: {'authorization': 'synthetic'},
+                )).body,
+                'ok',
+              );
+              expect(received, 1);
+            } else {
+              await expectLater(
+                selected.get(endpoint, headers: {'authorization': 'synthetic'}),
+                throwsA(isA<NextcloudCertificateException>()),
+              );
+              expect(received, 0);
+            }
+          }, _FixtureTrustedRoots(fixture.path('ca.pem')));
+          expect(connects, 1);
+        } finally {
+          proxied.close();
+          for (final socket in sockets) {
+            socket.destroy();
+          }
+          await proxy.close(force: true);
+        }
+      },
+    );
+  }
+
+  test('private trust with a configured proxy fails before HTTP instead of bypassing proxy', () async {
+    await serve('self');
+    final proxied = NextcloudHttpClientFactory(
+      requireNetwork: () async {},
+      findProxy: (_) => 'PROXY 127.0.0.1:1',
+    );
+    try {
+      await expectLater(
+        proxied
+            .create(
+              owner: 'one',
+              authority: endpoint,
+              policy: policy(NextcloudTrustMode.pinnedLeaf, 'self'),
+            )
+            .get(endpoint),
+        throwsA(
+          isA<DavException>().having(
+            (e) => e.code,
+            'code',
+            'NextcloudPrivateTrustProxyUnsupported',
+          ),
+        ),
+      );
+      expect(received, 0);
+    } finally {
+      proxied.close();
+    }
+  });
+
   test(
     'no approval delivers no HTTP headers or body, challenge is eligible',
     () async {
@@ -816,4 +906,14 @@ void main() {
       expect(() => imported.single.validateCa(), returnsNormally);
     },
   );
+}
+
+final class _FixtureTrustedRoots extends HttpOverrides {
+  _FixtureTrustedRoots(this.caPath);
+  final String caPath;
+  @override
+  HttpClient createHttpClient(SecurityContext? context) =>
+      super.createHttpClient(
+        (context ?? SecurityContext())..setTrustedCertificates(caPath),
+      );
 }

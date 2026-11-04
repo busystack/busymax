@@ -40,3 +40,38 @@ Future<CertificateReviewAction?> showLinuxNextcloudCertificate(
     ),
   );
 }
+
+Future<bool> showLinuxNextcloudCanonicalServer(
+  BuildContext context,
+  Uri entered,
+  Uri canonical,
+) async {
+  final l10n = context.l10n;
+  return await showBusyMaxModalDialog<bool>(
+        context,
+        barrierDismissible: false,
+        builder: (context) => BusyMaxDialogShell(
+          title: l10n.nextcloudProvider,
+          actions: [
+            BusyMaxPushButton.standard(
+              autofocus: true,
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(l10n.cancel),
+            ),
+            BusyMaxPushButton.suggested(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(l10n.connectAccountAction),
+            ),
+          ],
+          children: [
+            Text(
+              l10n.nextcloudCanonicalServerReview(
+                entered.toString(),
+                canonical.toString(),
+              ),
+            ),
+          ],
+        ),
+      ) ??
+      false;
+}

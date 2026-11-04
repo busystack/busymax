@@ -14,6 +14,15 @@ class AppLocalizationsFr extends AppLocalizations {
   AppLocalizationsFr([String locale = 'fr']) : super(locale);
 
   @override
+  String get caldavImportSchedulingWarning =>
+      'Ce fichier contient des participants. J’autorise cette importation, qui peut amener le serveur CalDAV à envoyer des invitations ou des mises à jour de réunions.';
+
+  @override
+  String nextcloudCanonicalServerReview(String entered, String canonical) {
+    return 'Nextcloud a renvoyé $canonical pour le serveur $entered. Autoriser BusyMax à envoyer le nouveau mot de passe d’application à cette adresse ?';
+  }
+
+  @override
   String get contactsAccountsUnavailable =>
       'Impossible de charger les comptes de contacts';
 

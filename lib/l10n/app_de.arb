@@ -1,4 +1,6 @@
 {
+  "caldavImportSchedulingWarning": "Diese Datei enthält Teilnehmer. Ich erlaube diesen Import, bei dem der CalDAV-Server Einladungen oder Besprechungsaktualisierungen versenden kann.",
+  "nextcloudCanonicalServerReview": "Nextcloud hat {canonical} für den Server {entered} zurückgegeben. Darf BusyMax das neue App-Passwort an diese Adresse senden?",
   "contactsAccountsUnavailable": "Kontaktkonten konnten nicht geladen werden",
   "contactsTitle": "Kontakte",
   "contactsLinkedDescription": "Beim Hinzufügen von Veranstaltungsgästen zwischengespeicherte Kontakte dieses Kontos verwenden.",

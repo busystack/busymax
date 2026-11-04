@@ -14,6 +14,15 @@ class AppLocalizationsPt extends AppLocalizations {
   AppLocalizationsPt([String locale = 'pt']) : super(locale);
 
   @override
+  String get caldavImportSchedulingWarning =>
+      'This file contains attendees. I allow this import, which may cause the CalDAV server to send invitations or meeting updates.';
+
+  @override
+  String nextcloudCanonicalServerReview(String entered, String canonical) {
+    return 'Nextcloud returned $canonical for the server $entered. Allow BusyMax to send the new app password to this address?';
+  }
+
+  @override
   String get contactsAccountsUnavailable => 'Could not load contact accounts';
 
   @override
@@ -3989,6 +3998,15 @@ class AppLocalizationsPt extends AppLocalizations {
 /// The translations for Portuguese, as used in Portugal (`pt_PT`).
 class AppLocalizationsPtPt extends AppLocalizationsPt {
   AppLocalizationsPtPt() : super('pt_PT');
+
+  @override
+  String get caldavImportSchedulingWarning =>
+      'Este ficheiro contém participantes. Autorizo esta importação, que pode levar o servidor CalDAV a enviar convites ou atualizações de reuniões.';
+
+  @override
+  String nextcloudCanonicalServerReview(String entered, String canonical) {
+    return 'O Nextcloud devolveu $canonical para o servidor $entered. Permitir que o BusyMax envie a nova palavra-passe da aplicação para este endereço?';
+  }
 
   @override
   String get contactsAccountsUnavailable =>

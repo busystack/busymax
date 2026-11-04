@@ -34,6 +34,23 @@ not supported.
 BusyMax uses Nextcloud Login Flow v2. It never asks for the primary Nextcloud
 password; Nextcloud returns a dedicated app password for BusyMax.
 
+When Nextcloud returns a different canonical HTTPS address after login, BusyMax
+shows both addresses and asks before sending the new app password there. Reject
+an unexpected address. A private-certificate approval belongs to one installation;
+a different canonical installation needs its own certificate review. Login and
+poll redirects still stay within the entered installation. These rules follow
+[Nextcloud Login Flow v2](https://docs.nextcloud.com/server/stable/developer_manual/client_apis/LoginFlow/index.html#login-flow-v2)
+without silently forwarding credentials to a new destination.
+
+Publicly trusted HTTPS retains Dart's environment proxy configuration, including
+CONNECT tunneling and destination certificate verification. Private-certificate
+connections currently require a direct connection: configure the server in
+`no_proxy` (or the equivalent environment proxy bypass). BusyMax reports a
+configured proxy as unsupported for private trust instead of silently bypassing
+it or relaxing certificate checks. This restriction also applies to observing a
+private certificate during setup; the certificate-only observation connects
+directly.
+
 ## Private server certificates
 
 On Linux, Windows, and Android, an untrusted Nextcloud connection stops before

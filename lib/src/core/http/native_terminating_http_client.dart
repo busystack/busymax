@@ -13,6 +13,7 @@ final class NativeTerminatingHttpClient extends http.BaseClient
   NativeTerminatingHttpClient({
     http.Client? sharedClient,
     HttpClient Function()? nativeClientFactory,
+    this.reuseConnections = false,
   }) : _nativeClientFactory = nativeClientFactory ?? HttpClient.new,
        _sharedClient =
            sharedClient ??
@@ -21,6 +22,11 @@ final class NativeTerminatingHttpClient extends http.BaseClient
                : IOClient(nativeClientFactory()));
 
   final http.Client _sharedClient;
+
+  /// Only for a request-owned lane: termination may close this entire client.
+  /// The owner must not dispatch overlapping requests on a reusable lane.
+  final bool reuseConnections;
+  bool _busy = false;
   final HttpClient Function() _nativeClientFactory;
   final Set<HttpClient> _attempts = {};
   var _closed = false;
@@ -41,6 +47,47 @@ final class NativeTerminatingHttpClient extends http.BaseClient
   }) async {
     if (_closed) {
       throw http.ClientException('HTTP client is closed.', request.url);
+    }
+    if (reuseConnections) {
+      if (_busy) throw StateError('A reusable HTTP lane is already active.');
+      _busy = true;
+      var finished = false;
+      unawaited(
+        terminate.then(
+          (_) {
+            if (!finished) close();
+          },
+          onError: (Object _, StackTrace _) {
+            if (!finished) close();
+          },
+        ),
+      );
+      try {
+        final response = await _sharedClient.send(request);
+        if (_closed) throw http.RequestAbortedException(request.url);
+        return http.StreamedResponse(
+          response.stream.transform(
+            StreamTransformer.fromHandlers(
+              handleDone: (sink) {
+                finished = true;
+                _busy = false;
+                sink.close();
+              },
+            ),
+          ),
+          response.statusCode,
+          headers: response.headers,
+          contentLength: response.contentLength,
+          request: response.request,
+          isRedirect: response.isRedirect,
+          reasonPhrase: response.reasonPhrase,
+          persistentConnection: response.persistentConnection,
+        );
+      } on Object {
+        finished = true;
+        close();
+        rethrow;
+      }
     }
     final nativeClient = _nativeClientFactory()
       ..connectionTimeout = connectionTimeout;

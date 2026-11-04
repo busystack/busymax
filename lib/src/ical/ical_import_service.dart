@@ -18,9 +18,14 @@ import '../providers/busy_provider.dart';
 import 'ical_ingestion.dart';
 
 final class IcalImportSelection {
-  const IcalImportSelection(this.destination, {this.newCopies = false});
+  const IcalImportSelection(
+    this.destination, {
+    this.newCopies = false,
+    this.allowScheduling = false,
+  });
   final CalendarSourceEntity destination;
   final bool newCopies;
+  final bool allowScheduling;
   NativeImportDuplicates get duplicatePolicy => newCopies
       ? NativeImportDuplicates.newCopies
       : NativeImportDuplicates.skip;
@@ -197,6 +202,7 @@ final class IcalImportService {
     required CalendarSourceEntity destination,
     NativeImportDuplicates nativeDuplicates = NativeImportDuplicates.skip,
     bool normalizeNativeSchedulingMethod = false,
+    bool allowScheduling = false,
   }) async {
     if (const {
           BusyProvider.nextcloud,
@@ -209,6 +215,7 @@ final class IcalImportService {
         preview: preview.nativePreview,
         duplicates: nativeDuplicates,
         normalizeSchedulingMethod: normalizeNativeSchedulingMethod,
+        allowScheduling: allowScheduling,
       );
       var followUpPending = false;
       if (results.any((r) => r.status == NativeImportItemStatus.queued)) {

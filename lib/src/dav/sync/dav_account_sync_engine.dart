@@ -259,6 +259,8 @@ final class DavAccountSyncEngine {
               accountId: _accountId,
               credential: loaded.basic,
               nowUtc: _nowUtc,
+              collectionMethodCache: await discoveryRepository
+                  .collectionMethodCache(_accountId),
             ).discover(
               correlationId: _correlationIdFactory(),
               cancellationToken: cancellationToken,
@@ -309,6 +311,8 @@ final class DavAccountSyncEngine {
               accountId: _accountId,
               credential: loaded.basic,
               nowUtc: _nowUtc,
+              collectionMethodCache: await discoveryRepository
+                  .collectionMethodCache(_accountId),
             ).discover(
               correlationId: _correlationIdFactory(),
               cancellationToken: cancellationToken,
@@ -369,11 +373,15 @@ final class DavAccountSyncEngine {
             final policy = provider == BusyProvider.nextcloud
                 ? await NextcloudSchedulingPolicy.load(_database, collection)
                 : null;
+            final implicitScheduling =
+                provider == BusyProvider.nextcloud ||
+                (provider == BusyProvider.caldav &&
+                    transport.supportsImplicitScheduling);
             return DavConditionalMutationService(
-              implicitScheduling: provider == BusyProvider.nextcloud,
+              implicitScheduling: implicitScheduling,
               schedulingValidator: policy?.validateChange,
               remoteClient: DavMutationHttpClient(
-                useScheduleTags: provider == BusyProvider.nextcloud,
+                useScheduleTags: implicitScheduling,
                 transport: transport,
                 accountId: _accountId,
                 collectionId: collection.id,

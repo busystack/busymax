@@ -1,4 +1,6 @@
 {
+  "caldavImportSchedulingWarning": "See fail sisaldab osalejaid. Luban selle impordi, mille tõttu võib CalDAV-server saata kutseid või koosolekute uuendusi.",
+  "nextcloudCanonicalServerReview": "Nextcloud tagastas serveri {entered} jaoks aadressi {canonical}. Kas lubada BusyMaxil saata uus rakenduse parool sellele aadressile?",
   "contactsAccountsUnavailable": "Kontaktikontosid ei õnnestunud laadida",
   "contactsTitle": "Kontaktid",
   "contactsLinkedDescription": "Kasuta sündmuse külaliste lisamisel selle konto vahemällu salvestatud kontakte.",

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:xml/xml.dart';
 
 import '../../providers/provider_capabilities.dart';
@@ -18,6 +20,7 @@ final class DavDiscoveryService {
     required DavBasicCredential credential,
     DavXmlParser xmlParser = const DavXmlParser(),
     DateTime Function()? nowUtc,
+    this.collectionMethodCache = const {},
   }) : _transport = transport,
        _profile = profile,
        _accountAuthority = accountAuthority,
@@ -33,6 +36,8 @@ final class DavDiscoveryService {
   final DavBasicCredential _credential;
   final DavXmlParser _xmlParser;
   final DateTime Function() _nowUtc;
+  final Map<String, (DateTime, bool)> collectionMethodCache;
+  final _methodResults = <String, (DateTime, bool)>{};
 
   Future<DavDiscoveryResult> discover({
     required String correlationId,
@@ -51,6 +56,7 @@ final class DavDiscoveryService {
       Uri responseUri,
     ) async {
       if (_profile.provider != BusyProvider.caldav) return;
+      final probes = <Future<void> Function()>[];
       for (final entry in inventory.responses) {
         final type = entry.successfulProperty(davNamespace, 'resourcetype');
         if (type == null ||
@@ -72,25 +78,50 @@ final class DavDiscoveryService {
           accountAuthority: _accountAuthority,
           correlationId: correlationId,
         );
-        final response = await _transport.send(
-          DavRequest(
-            method: 'OPTIONS',
-            uri: target,
-            accountId: _accountId,
-            correlationId: correlationId,
-            retryClass: DavRetryClass.safeRead,
-          ),
-          credential: _credential,
-          cancellationToken: cancellationToken,
-        );
-        // Optional method discovery is separate from read authorization.
-        if (const {403, 405, 501}.contains(response.statusCode)) continue;
-        _requireSuccessfulOrDav(response);
-        if (_allowedMethods(response).contains('MOVE')) {
-          moveCapableCollectionHrefs.add(
-            normalizedDavHrefKey(_profile.provider, target),
-          );
+        final key = normalizedDavHrefKey(_profile.provider, target);
+        final cached = collectionMethodCache[key];
+        if (cached != null &&
+            !_nowUtc().isBefore(cached.$1) &&
+            _nowUtc().difference(cached.$1) < const Duration(hours: 24)) {
+          _methodResults[key] = cached;
+          if (cached.$2) moveCapableCollectionHrefs.add(key);
+          continue;
         }
+        probes.add(() async {
+          try {
+            final response = await _transport.send(
+              DavRequest(
+                method: 'OPTIONS',
+                uri: target,
+                accountId: _accountId,
+                correlationId: correlationId,
+                retryClass: DavRetryClass.safeRead,
+              ),
+              credential: _credential,
+              cancellationToken: cancellationToken,
+            );
+            if (!const {403, 405, 501}.contains(response.statusCode)) {
+              _requireSuccessfulOrDav(response);
+            }
+            final move =
+                response.statusCode >= 200 &&
+                response.statusCode < 300 &&
+                _allowedMethods(response).contains('MOVE');
+            _methodResults[key] = (_nowUtc(), move);
+            if (move) moveCapableCollectionHrefs.add(key);
+          } on DavException catch (error) {
+            if (error.kind == DavErrorKind.authentication ||
+                error.kind == DavErrorKind.tls ||
+                error.kind == DavErrorKind.cancelled) {
+              rethrow;
+            }
+            // Optional method detection must not prevent readable inventory.
+          }
+        });
+      }
+      // Bound optional probes to the DAV account concurrency budget.
+      for (var offset = 0; offset < probes.length; offset += 4) {
+        await Future.wait(probes.skip(offset).take(4).map((probe) => probe()));
       }
     }
 
@@ -999,6 +1030,12 @@ final class DavDiscoveryService {
             'privilegesKnown': '$privilegesKnown',
             'readAccessConfirmed': '${capabilities.canRead}',
             'supportsMove': '${capabilities.supportsMove}',
+            if (_methodResults[normalizedDavHrefKey(
+                  _profile.provider,
+                  requestUri,
+                )]
+                case final result?)
+              'methodProbeAtUtc': result.$1.toUtc().toIso8601String(),
             'parentPrivilegesKnown': '$homePrivilegesKnown',
           },
           color: _textProperty(

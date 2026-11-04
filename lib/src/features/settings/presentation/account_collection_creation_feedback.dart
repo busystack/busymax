@@ -67,9 +67,19 @@ class _AccountCollectionCreationFeedbackState
   Widget build(BuildContext context) {
     final accountId = widget.accountId;
     final l10n = AppLocalizations.of(context);
-    final failures = ref
+    final current = ref
         .watch(accountSyncActivityProvider)
         .collectionCreationFailures(accountId);
+    final stored = ref
+        .watch(storedDavCollectionCreationNoticesProvider(accountId))
+        .value;
+    final failures = {...current};
+    if (stored != null) {
+      for (final failure in stored) {
+        failures[failure.operation.id] =
+            current[failure.operation.id] ?? failure;
+      }
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

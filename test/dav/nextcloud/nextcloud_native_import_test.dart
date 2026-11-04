@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:busymax/src/dav/ical/ical_document.dart';
+import 'package:busymax/src/dav/dav_errors.dart';
 import 'package:busymax/src/dav/ical/ical_semantics.dart';
 import 'package:busymax/src/dav/http/dav_http_transport.dart';
 import 'package:busymax/src/dav/mutation/dav_conditional_mutation_service.dart';
@@ -94,6 +95,51 @@ void main() {
             ? NativeImportDuplicates.newCopies
             : NativeImportDuplicates.skip,
       );
+  test('generic attendee import without METHOD requires explicit consent before local or remote changes', () async {
+    final db = fixture.database;
+    await db
+        .update(db.accounts)
+        .write(
+          const AccountsCompanion(
+            provider: Value('caldav'),
+            credentialKind: Value('caldav_password'),
+          ),
+        );
+    final stored = NextcloudNativeImportPreview.parse(
+      IcalDocument.parse(_raw.replaceAll('METHOD:PUBLISH\n', '')),
+    );
+    expect(stored.schedulingMethod, isNull);
+    expect(stored.hasAttendees, isTrue);
+    await expectLater(
+      importer.import(
+        accountId: 'account',
+        collectionId: 'collection',
+        preview: stored,
+      ),
+      throwsA(
+        isA<DavException>().having(
+          (e) => e.code,
+          'code',
+          'IcalSchedulingConsentRequired',
+        ),
+      ),
+    );
+    expect(await db.select(db.pendingOps).get(), isEmpty);
+    expect(await db.select(db.davObjects).get(), isEmpty);
+    final result = await importer.import(
+      accountId: 'account',
+      collectionId: 'collection',
+      preview: stored,
+      allowScheduling: true,
+    );
+    expect(
+      result.any((r) => r.status == NativeImportItemStatus.queued),
+      isTrue,
+    );
+    final operations = await db.select(db.pendingOps).get();
+    expect(operations.any((op) => op.requestJson.contains('ATTENDEE')), isTrue);
+  });
+
   Future<List<http.Request>> permanentlyRejectPendingMutation() async {
     final requests = <http.Request>[];
     final client = MockClient((request) async {

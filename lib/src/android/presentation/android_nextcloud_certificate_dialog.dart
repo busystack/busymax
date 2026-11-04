@@ -36,3 +36,36 @@ Future<CertificateReviewAction?> showAndroidNextcloudCertificate(
     ),
   );
 }
+
+Future<bool> showAndroidNextcloudCanonicalServer(
+  BuildContext context,
+  Uri entered,
+  Uri canonical,
+) async {
+  final l10n = context.l10n;
+  return await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          title: Text(l10n.nextcloudProvider),
+          content: Text(
+            l10n.nextcloudCanonicalServerReview(
+              entered.toString(),
+              canonical.toString(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              autofocus: true,
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(l10n.cancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(l10n.connectAccountAction),
+            ),
+          ],
+        ),
+      ) ??
+      false;
+}

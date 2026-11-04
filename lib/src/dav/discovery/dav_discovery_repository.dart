@@ -19,6 +19,30 @@ final class DavDiscoveryRepository {
   final AppDatabase _database;
   final String Function() _idFactory;
 
+  /// Method hints are cached separately from ACL grants. Preserve their probe
+  /// time so repeated syncs cannot extend the 24-hour lifetime indefinitely.
+  Future<Map<String, (DateTime, bool)>> collectionMethodCache(
+    String accountId,
+  ) async {
+    final rows =
+        await (_database.select(_database.davCollections)..where(
+              (r) =>
+                  r.accountId.equals(accountId) & r.serverMissing.equals(false),
+            ))
+            .get();
+    final result = <String, (DateTime, bool)>{};
+    for (final row in rows) {
+      final metadata = jsonDecode(row.safeDisplayMetadataJson ?? '{}') as Map;
+      final time = DateTime.tryParse(
+        metadata['methodProbeAtUtc'] as String? ?? '',
+      );
+      if (time != null) {
+        result[row.hrefKey] = (time, metadata['supportsMove'] == 'true');
+      }
+    }
+    return result;
+  }
+
   /// Returns whether discovery changed a notification-enabled projection.
   Future<bool> commitSuccessfulInventory(DavDiscoveryResult result) {
     return _database.transaction(() async {

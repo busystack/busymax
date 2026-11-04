@@ -1,4 +1,6 @@
 {
+  "caldavImportSchedulingWarning": "इस फ़ाइल में प्रतिभागी हैं। मैं इस आयात की अनुमति देता हूँ, जिससे CalDAV सर्वर निमंत्रण या मीटिंग के अपडेट भेज सकता है।",
+  "nextcloudCanonicalServerReview": "Nextcloud ने सर्वर {entered} के लिए {canonical} लौटाया। क्या BusyMax को इस पते पर नया ऐप पासवर्ड भेजने की अनुमति दें?",
   "contactsAccountsUnavailable": "संपर्क खाते लोड नहीं किए जा सके",
   "contactsTitle": "संपर्क",
   "contactsLinkedDescription": "इवेंट में अतिथि जोड़ते समय इस खाते के कैश किए गए संपर्कों का उपयोग करें।",

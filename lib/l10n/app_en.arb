@@ -1,4 +1,16 @@
 {
+  "caldavImportSchedulingWarning": "This file contains attendees. I allow this import, which may cause the CalDAV server to send invitations or meeting updates.",
+  "nextcloudCanonicalServerReview": "Nextcloud returned {canonical} for the server {entered}. Allow BusyMax to send the new app password to this address?",
+  "@nextcloudCanonicalServerReview": {
+    "placeholders": {
+      "entered": {
+        "type": "String"
+      },
+      "canonical": {
+        "type": "String"
+      }
+    }
+  },
   "contactsAccountsUnavailable": "Could not load contact accounts",
   "launchAtLoginManagedExternally": "BusyMax was launched by your desktop's startup settings. Remove its entry there, then quit and reopen BusyMax to use this switch.",
   "timeFormat": "Time format",

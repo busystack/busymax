@@ -14,6 +14,15 @@ class AppLocalizationsFi extends AppLocalizations {
   AppLocalizationsFi([String locale = 'fi']) : super(locale);
 
   @override
+  String get caldavImportSchedulingWarning =>
+      'Tämä tiedosto sisältää osallistujia. Sallin tämän tuonnin, joka voi saada CalDAV-palvelimen lähettämään kutsuja tai kokouspäivityksiä.';
+
+  @override
+  String nextcloudCanonicalServerReview(String entered, String canonical) {
+    return 'Nextcloud palautti osoitteen $canonical palvelimelle $entered. Saako BusyMax lähettää uuden sovellussalasanan tähän osoitteeseen?';
+  }
+
+  @override
   String get contactsAccountsUnavailable => 'Yhteystietotilejä ei voitu ladata';
 
   @override

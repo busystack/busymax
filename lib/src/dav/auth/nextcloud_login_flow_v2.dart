@@ -37,6 +37,11 @@ final class NextcloudLoginFlowResult {
   String toString() => 'NextcloudLoginFlowResult(credentials: [REDACTED])';
 }
 
+typedef NextcloudCanonicalServerReviewer = Future<bool> Function(
+  Uri enteredServer,
+  Uri canonicalServer,
+);
+
 final class NextcloudLoginFlowV2 {
   NextcloudLoginFlowV2({
     required http.Client client,
@@ -89,6 +94,7 @@ final class NextcloudLoginFlowV2 {
   Future<NextcloudLoginFlowResult> start(
     String enteredServer, {
     DavCancellationToken? cancellationToken,
+    NextcloudCanonicalServerReviewer? reviewCanonicalServer,
   }) {
     if (_activeOperation != null) {
       throw const DavException(
@@ -104,10 +110,11 @@ final class NextcloudLoginFlowV2 {
     );
     _activeCancellation = cancellation;
     late final Future<NextcloudLoginFlowResult> operation;
-    operation = _run(enteredServer, cancellation).whenComplete(() async {
-      await subscription?.cancel();
-      _clear(operation);
-    });
+    operation = _run(enteredServer, cancellation, reviewCanonicalServer)
+        .whenComplete(() async {
+          await subscription?.cancel();
+          _clear(operation);
+        });
     _activeOperation = operation;
     unawaited(
       operation.then<void>(
@@ -123,6 +130,7 @@ final class NextcloudLoginFlowV2 {
   Future<NextcloudLoginFlowResult> _run(
     String enteredServer,
     DavCancellationToken cancellation,
+    NextcloudCanonicalServerReviewer? reviewCanonicalServer,
   ) async {
     final baseServer = normalizeNextcloudLoginServer(enteredServer);
     final startUri = _appendPath(baseServer, 'index.php/login/v2');
@@ -205,7 +213,14 @@ final class NextcloudLoginFlowV2 {
       );
       if (normalizedAuthority !=
           normalizeNextcloudServerAuthority(baseServer.toString())) {
-        throw _redirectError('NextcloudLoginCanonicalServerRejected');
+        if (reviewCanonicalServer == null ||
+            !await _wait(
+              reviewCanonicalServer(baseServer, Uri.parse(normalizedAuthority)),
+              cancellation,
+            )) {
+          throw _redirectError('NextcloudLoginCanonicalServerRejected');
+        }
+        cancellation.throwIfCancelled();
       }
       return NextcloudLoginFlowResult(
         canonicalServer: Uri.parse(normalizedAuthority),

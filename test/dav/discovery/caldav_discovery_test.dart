@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:busymax/src/dav/dav_errors.dart';
 import 'package:busymax/src/dav/dav_provider_profile.dart';
@@ -16,6 +17,104 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  test('100 collections probe with bounded concurrency and reuse durable method hints', () async {
+    final now = DateTime.utc(2026, 11, 3);
+    final requests = <http.Request>[];
+    final timer = Stopwatch()..start();
+    final cold = await _discover(
+      collectionCount: 100,
+      latency: const Duration(milliseconds: 40),
+      requests: requests,
+      now: now,
+    );
+    final coldMs = timer.elapsedMilliseconds;
+    expect(cold.collections, hasLength(100));
+    expect(
+      requests.where(
+        (r) =>
+            r.method == 'OPTIONS' &&
+            (r.url.path.startsWith('/home/') && r.url.path != '/home/'),
+      ),
+      hasLength(100),
+    );
+    final db = AppDatabase.memoryForTests();
+    addTearDown(db.close);
+    await db
+        .into(db.accounts)
+        .insert(
+          AccountsCompanion.insert(
+            id: 'caldav',
+            provider: 'caldav',
+            providerAccountId: 'user',
+            authority: 'https://example.test/',
+            credentialKind: 'caldav_password',
+            createdAtUtc: 'now',
+            updatedAtUtc: 'now',
+          ),
+        );
+    final repo = DavDiscoveryRepository(database: db);
+    await repo.commitSuccessfulInventory(cold);
+    final cache = await repo.collectionMethodCache('caldav');
+    expect(cache, hasLength(100));
+    requests.clear();
+    timer.reset();
+    final warm = await _discover(
+      collectionCount: 100,
+      latency: const Duration(milliseconds: 40),
+      methodCache: cache,
+      requests: requests,
+      now: now.add(const Duration(hours: 1)),
+    );
+    final warmMs = timer.elapsedMilliseconds;
+    expect(warm.collections.every((c) => c.capabilities.supportsMove), isTrue);
+    expect(
+      requests.where(
+        (r) =>
+            r.method == 'OPTIONS' &&
+            (r.url.path.startsWith('/home/') && r.url.path != '/home/'),
+      ),
+      isEmpty,
+    );
+    await repo.commitSuccessfulInventory(warm);
+    expect(
+      (await repo.collectionMethodCache('caldav')).values
+          .every((v) => v.$1 == now),
+      isTrue,
+    );
+    stdout.writeln(
+      'DAV discovery benchmark: 100 collections; 40 ms/request; cold=$coldMs ms (100 method probes), warm=$warmMs ms (0 method probes); former sequential probes alone=4000 ms',
+    );
+    requests.clear();
+    await _discover(
+      collectionCount: 100,
+      methodCache: cache,
+      requests: requests,
+      now: now.add(const Duration(hours: 25)),
+    );
+    expect(
+      requests.where(
+        (r) =>
+            r.method == 'OPTIONS' &&
+            (r.url.path.startsWith('/home/') && r.url.path != '/home/'),
+      ),
+      hasLength(100),
+    );
+  });
+
+  test(
+    'optional method-probe server failure preserves readable discovery',
+    () async {
+      expect(
+        (await _discover(collectionOptionsStatus: 503))
+            .collections
+            .single
+            .capabilities
+            .canRead,
+        isTrue,
+      );
+    },
+  );
+
   test(
     'collection OPTIONS advertises MOVE independently of its home',
     () async {
@@ -267,6 +366,10 @@ Future<DavDiscoveryResult> _discover({
   bool? collectionMove,
   int collectionOptionsStatus = 200,
   List<http.Request>? requests,
+  Map<String, (DateTime, bool)> methodCache = const {},
+  int collectionCount = 1,
+  Duration latency = Duration.zero,
+  DateTime? now,
 }) {
   final authority = Uri.parse(server);
   final profile = davProviderProfile(
@@ -275,11 +378,13 @@ Future<DavDiscoveryResult> _discover({
   );
   final client = MockClient((request) async {
     requests?.add(request);
+    if (latency > Duration.zero) await Future<void>.delayed(latency);
     if (request.url.path == '/.well-known/caldav') {
       return http.Response('<html>Server home</html>', wellKnownStatus);
     }
     if (request.method == 'OPTIONS') {
-      final collection = request.url.path == '/home/team%2Fwork/';
+      final collection =
+          request.url.path.startsWith('/home/') && request.url.path != '/home/';
       return http.Response(
         '',
         collection ? collectionOptionsStatus : 200,
@@ -302,12 +407,18 @@ Future<DavDiscoveryResult> _discover({
                 '/home/',
                 '<d:resourcetype><d:collection/></d:resourcetype>',
               ) +
-              response(
-                '/home/team%2Fwork/',
-                '<d:resourcetype><d:collection/><c:calendar/></d:resourcetype>$extra${aclStatus == 200 ? '<d:current-user-privilege-set/>' : ''}',
-                other:
-                    '${aclStatus == 200 ? '' : '<d:propstat><d:prop><d:current-user-privilege-set/></d:prop><d:status>HTTP/1.1 $aclStatus Unavailable</d:status></d:propstat>'}${deniedComponents ? '<d:propstat><d:prop><c:supported-calendar-component-set/></d:prop><d:status>HTTP/1.1 403 Forbidden</d:status></d:propstat>' : ''}',
-              )
+              List.generate(
+                collectionCount,
+                (i) => response(
+                  collectionCount == 1
+                      ? '/home/team%2Fwork/'
+                      : Uri(pathSegments: ['', 'home', 'collection-$i', ''])
+                            .path,
+                  '<d:resourcetype><d:collection/><c:calendar/></d:resourcetype>$extra${aclStatus == 200 ? '<d:current-user-privilege-set/>' : ''}',
+                  other:
+                      '${aclStatus == 200 ? '' : '<d:propstat><d:prop><d:current-user-privilege-set/></d:prop><d:status>HTTP/1.1 $aclStatus Unavailable</d:status></d:propstat>'}${deniedComponents ? '<d:propstat><d:prop><c:supported-calendar-component-set/></d:prop><d:status>HTTP/1.1 403 Forbidden</d:status></d:propstat>' : ''}',
+                ),
+              ).join()
         : response(
             request.url.path,
             missingPrincipal ? '' : '<d:current-user-principal><d:href>/principal/user/</d:href></d:current-user-principal>',
@@ -329,5 +440,7 @@ Future<DavDiscoveryResult> _discover({
     accountAuthority: authority,
     accountId: 'caldav',
     credential: DavBasicCredential(username: 'user', password: 'secret'),
+    collectionMethodCache: methodCache,
+    nowUtc: now == null ? null : () => now,
   ).discover(correlationId: 'generic-discovery');
 }

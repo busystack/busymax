@@ -1,4 +1,6 @@
 {
+  "caldavImportSchedulingWarning": "Tệp này có người tham dự. Tôi cho phép nhập tệp, thao tác có thể khiến máy chủ CalDAV gửi lời mời hoặc cập nhật cuộc họp.",
+  "nextcloudCanonicalServerReview": "Nextcloud trả về {canonical} cho máy chủ {entered}. Cho phép BusyMax gửi mật khẩu ứng dụng mới đến địa chỉ này?",
   "contactsAccountsUnavailable": "Không thể tải các tài khoản danh bạ",
   "contactsTitle": "Danh bạ",
   "contactsLinkedDescription": "Dùng các liên hệ đã lưu đệm của tài khoản này khi thêm khách vào sự kiện.",
