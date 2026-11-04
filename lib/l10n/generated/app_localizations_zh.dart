@@ -3805,6 +3805,13 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get davPermissionsUnknown => '服务器尚未提供权限信息。服务器将验证请求的更改。';
+
+  @override
+  String get localNetworkAccessRequired => '需要本地网络访问权限';
+
+  @override
+  String get localNetworkAccessRecovery =>
+      '要连接此服务器，请在 Android 设置中允许 BusyMax 访问附近的设备，然后重试。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -7603,6 +7610,13 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get davPermissionsUnknown => '服务器尚未提供权限信息。服务器将验证请求的更改。';
+
+  @override
+  String get localNetworkAccessRequired => '需要本地网络访问权限';
+
+  @override
+  String get localNetworkAccessRecovery =>
+      '要连接此服务器，请在 Android 设置中允许 BusyMax 访问附近的设备，然后重试。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -11402,4 +11416,11 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get davPermissionsUnknown => '伺服器尚未提供權限資訊。伺服器將驗證要求的變更。';
+
+  @override
+  String get localNetworkAccessRequired => '需要區域網路存取權限';
+
+  @override
+  String get localNetworkAccessRecovery =>
+      '若要連線至此伺服器，請在 Android 設定中允許 BusyMax 存取附近的裝置，然後再試一次。';
 }

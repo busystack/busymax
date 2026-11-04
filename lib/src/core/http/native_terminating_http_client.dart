@@ -6,8 +6,8 @@ import 'package:http/io_client.dart';
 
 import 'terminating_http_client.dart';
 
-/// Uses the shared client for ordinary requests and an isolated native client
-/// for requests that need connection-establishment termination.
+/// Uses request-owned native clients (or reusable lanes) for requests that
+/// need connection-establishment deadlines and termination.
 final class NativeTerminatingHttpClient extends http.BaseClient
     implements TerminatingHttpClient {
   NativeTerminatingHttpClient({
@@ -15,13 +15,11 @@ final class NativeTerminatingHttpClient extends http.BaseClient
     HttpClient Function()? nativeClientFactory,
     this.reuseConnections = false,
   }) : _nativeClientFactory = nativeClientFactory ?? HttpClient.new,
-       _sharedClient =
-           sharedClient ??
-           (nativeClientFactory == null
-               ? http.Client()
-               : IOClient(nativeClientFactory()));
+       _sharedClient = sharedClient;
 
-  final http.Client _sharedClient;
+  http.Client? _sharedClient;
+  HttpClient? _reusableNative;
+  IOClient? _reusableClient;
 
   /// Only for a request-owned lane: termination may close this entire client.
   /// The owner must not dispatch overlapping requests on a reusable lane.
@@ -36,7 +34,7 @@ final class NativeTerminatingHttpClient extends http.BaseClient
     if (_closed) {
       throw http.ClientException('HTTP client is closed.', request.url);
     }
-    return _sharedClient.send(request);
+    return (_sharedClient ??= IOClient(_nativeClientFactory())).send(request);
   }
 
   @override
@@ -51,6 +49,11 @@ final class NativeTerminatingHttpClient extends http.BaseClient
     if (reuseConnections) {
       if (_busy) throw StateError('A reusable HTTP lane is already active.');
       _busy = true;
+      // A lane has at most one active request. Configure the native connection
+      // deadline before opening a socket; existing idle sockets remain reusable.
+      final native = _reusableNative ??= _nativeClientFactory();
+      native.connectionTimeout = connectionTimeout;
+      final pooled = _reusableClient ??= IOClient(native);
       var finished = false;
       unawaited(
         terminate.then(
@@ -63,7 +66,7 @@ final class NativeTerminatingHttpClient extends http.BaseClient
         ),
       );
       try {
-        final response = await _sharedClient.send(request);
+        final response = await pooled.send(request);
         if (_closed) throw http.RequestAbortedException(request.url);
         return http.StreamedResponse(
           response.stream.transform(
@@ -120,7 +123,8 @@ final class NativeTerminatingHttpClient extends http.BaseClient
   void close() {
     if (_closed) return;
     _closed = true;
-    _sharedClient.close();
+    _sharedClient?.close();
+    _reusableClient?.close();
     for (final attempt in _attempts) {
       attempt.close(force: true);
     }

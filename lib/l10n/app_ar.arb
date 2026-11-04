@@ -1397,5 +1397,7 @@
   "caldavPassword": "كلمة المرور أو كلمة مرور التطبيق",
   "caldavInvalidServerUrl": "أدخل عنوان HTTPS دون بيانات اعتماد أو استعلام أو جزء.",
   "caldavHttpsHelp": "أدخل عنوان HTTPS للخادم أو عنوان CalDAV المباشر. تُحفظ كلمة المرور بأمان.",
-  "davPermissionsUnknown": "لم يعلن الخادم عن الأذونات. سيتحقق الخادم من التغييرات المطلوبة."
+  "davPermissionsUnknown": "لم يعلن الخادم عن الأذونات. سيتحقق الخادم من التغييرات المطلوبة.",
+  "localNetworkAccessRequired": "يلزم الوصول إلى الشبكة المحلية",
+  "localNetworkAccessRecovery": "للوصول إلى هذا الخادم، اسمح لتطبيق BusyMax بالوصول إلى الأجهزة القريبة في إعدادات Android، ثم حاول مرة أخرى."
 }

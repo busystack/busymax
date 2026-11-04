@@ -389,6 +389,14 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
             "launchExternalUri" -> launchExternalUri(call, result)
             "hasLocalNetworkAccess" -> result.success(hasLocalNetworkAccess())
             "requestLocalNetworkAccess" -> requestLocalNetworkAccess(result)
+            "openAppSettings" -> {
+                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = Uri.fromParts("package", context.packageName, null)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
+                result.success(null)
+            }
             "openNotificationSettings" -> {
                 val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
                     putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)

@@ -3880,4 +3880,11 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get davPermissionsUnknown => 'サーバーは権限を通知していません。要求された変更はサーバーで確認されます。';
+
+  @override
+  String get localNetworkAccessRequired => 'ローカルネットワークへのアクセスが必要です';
+
+  @override
+  String get localNetworkAccessRecovery =>
+      'このサーバーに接続するには、Android の設定で BusyMax に付近のデバイスへのアクセスを許可してから、もう一度お試しください。';
 }

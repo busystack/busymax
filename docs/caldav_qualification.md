@@ -216,6 +216,17 @@ remain acceptance gates; they are not silently accepted by this record.
 
 ## Known limitations and acceptance boundaries
 
+Deterministic transport regressions now cover a stalled connection on a reusable
+native lane, connection reuse with a slower response, and sibling cancellation
+isolation. Compact timezone continuation tests cover Cairo, Santiago, shifted
+transition clocks, leap/century boundaries, round trips, and an ordinary event
+edit sent to a simulated 16 KiB-limited DAV endpoint. For definitions starting in
+2025, measured Cairo output decreased from 149,133 to 3,466 bytes and Santiago
+from 295,006 to 3,286 bytes (unfolded CRLF-separated VTIMEZONE UTF-8). These are
+local deterministic results, not new live-server or native API-37 acceptance.
+See the [retained-account permission acceptance steps](android_setup.md) for
+denial, approval, revocation, permanent denial, and background synchronization.
+
 - **Baïkal duplicate UIDs:** independent conditional PUTs of the same UID at
   distinct member URLs both receive **201**, contrary to
   [RFC 4791 §5.3.2](https://www.rfc-editor.org/rfc/rfc4791.html#section-5.3.2).

@@ -3886,4 +3886,11 @@ class AppLocalizationsKo extends AppLocalizations {
   @override
   String get davPermissionsUnknown =>
       '서버가 권한을 알리지 않았습니다. 요청한 변경 사항은 서버에서 확인합니다.';
+
+  @override
+  String get localNetworkAccessRequired => '로컬 네트워크 접근 권한 필요';
+
+  @override
+  String get localNetworkAccessRecovery =>
+      '이 서버에 연결하려면 Android 설정에서 BusyMax에 근처 기기 접근 권한을 허용한 다음 다시 시도하세요.';
 }

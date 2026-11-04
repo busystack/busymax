@@ -1397,5 +1397,7 @@
   "caldavPassword": "Mật khẩu hoặc mật khẩu ứng dụng",
   "caldavInvalidServerUrl": "Nhập URL HTTPS không chứa thông tin đăng nhập, truy vấn hoặc đoạn định danh.",
   "caldavHttpsHelp": "Nhập URL HTTPS của máy chủ hoặc địa chỉ CalDAV trực tiếp. Mật khẩu được lưu trữ an toàn.",
-  "davPermissionsUnknown": "Máy chủ chưa thông báo quyền. Máy chủ sẽ kiểm tra các thay đổi được yêu cầu."
+  "davPermissionsUnknown": "Máy chủ chưa thông báo quyền. Máy chủ sẽ kiểm tra các thay đổi được yêu cầu.",
+  "localNetworkAccessRequired": "Cần quyền truy cập mạng cục bộ",
+  "localNetworkAccessRecovery": "Để kết nối với máy chủ này, hãy cho phép BusyMax truy cập các thiết bị ở gần trong phần Cài đặt Android, rồi thử lại."
 }

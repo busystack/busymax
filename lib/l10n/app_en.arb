@@ -2175,5 +2175,7 @@
   "caldavPassword": "Password or app password",
   "caldavInvalidServerUrl": "Enter an HTTPS URL without credentials, query, or fragment.",
   "caldavHttpsHelp": "Enter the HTTPS server URL or a direct CalDAV endpoint. Your password is stored securely.",
-  "davPermissionsUnknown": "The server has not advertised permissions. Requested changes will be checked by the server."
+  "davPermissionsUnknown": "The server has not advertised permissions. Requested changes will be checked by the server.",
+  "localNetworkAccessRequired": "Local network access required",
+  "localNetworkAccessRecovery": "To reach this server, allow BusyMax access to nearby devices in Android Settings, then try again."
 }

@@ -4021,4 +4021,11 @@ class AppLocalizationsFa extends AppLocalizations {
   @override
   String get davPermissionsUnknown =>
       'سرور مجوزها را اعلام نکرده است. تغییرات درخواستی توسط سرور بررسی می‌شوند.';
+
+  @override
+  String get localNetworkAccessRequired => 'دسترسی به شبکهٔ محلی لازم است';
+
+  @override
+  String get localNetworkAccessRecovery =>
+      'برای دسترسی به این سرور، در تنظیمات Android به BusyMax اجازهٔ دسترسی به دستگاه‌های اطراف را بدهید و دوباره تلاش کنید.';
 }

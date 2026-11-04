@@ -3967,4 +3967,12 @@ class AppLocalizationsEt extends AppLocalizations {
   @override
   String get davPermissionsUnknown =>
       'Server pole õigusi teatanud. Server kontrollib taotletud muudatusi.';
+
+  @override
+  String get localNetworkAccessRequired =>
+      'Vajalik on juurdepääs kohalikule võrgule';
+
+  @override
+  String get localNetworkAccessRecovery =>
+      'Selle serveriga ühenduse loomiseks luba BusyMaxile Androidi seadetes juurdepääs lähedalasuvatele seadmetele ja proovi uuesti.';
 }

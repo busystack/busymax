@@ -16,6 +16,75 @@ import 'package:http/testing.dart';
 import '../support/ical_observance_fixture.dart';
 
 void main() {
+  for (final zone in ['Africa/Cairo', 'America/Santiago']) {
+    test(
+      'an ordinary $zone event edit uploads a compact complete time zone',
+      () async {
+        final baseline = _event('Before')
+            .replaceFirst(
+              'DTSTART:20260808T090000Z',
+              'DTSTART;TZID=$zone:20260808T090000',
+            )
+            .replaceFirst(
+              'DTEND:20260808T100000Z',
+              'DTEND;TZID=$zone:20260808T100000',
+            );
+        expect(baseline, contains('TZID=$zone'));
+        var raw = baseline, puts = 0;
+        final client = MockClient((request) async {
+          if (request.method == 'GET') {
+            return http.Response(raw, 200, headers: {'etag': '"after"'});
+          }
+          expect(request.method, 'PUT');
+          expect(request.headers['if-match'], '"before"');
+          puts++;
+          // Model a server with a 16 KiB resource limit. A small summary edit
+          // must not upload hundreds of kilobytes of generated timezone dates.
+          if (request.bodyBytes.length > 16384) return http.Response('', 413);
+          raw = request.body;
+          expect(raw, contains('TZID:$zone'));
+          expect(raw, contains('SUMMARY:After'));
+          return http.Response('', 204);
+        });
+        addTearDown(client.close);
+        final authority = Uri.parse('https://example.test/');
+        final result =
+            await DavConditionalMutationService(
+              remoteClient: DavMutationHttpClient(
+                transport: DavHttpTransport(
+                  client: client,
+                  profile: davProviderProfile(
+                    BusyProvider.caldav,
+                    caldavServer: authority,
+                  ),
+                  accountAuthority: authority,
+                ),
+                accountId: 'account',
+                collectionId: 'collection',
+                credential: DavBasicCredential(
+                  username: 'alice',
+                  password: 'test',
+                ),
+              ),
+            ).update(
+              hrefKey: '/event.ics',
+              uri: authority.resolve('event.ics'),
+              baselineEtag: '"before"',
+              baselineRawIcs: baseline,
+              patch: DavMutationPatch(
+                target: _target,
+                scope: DavMutationScope.object,
+                operations: [DavPatchOperation.setText('SUMMARY', 'After')],
+              ),
+              capabilities: _writable,
+              correlationId: 'compact-timezone',
+            );
+        expect(result.outcome, DavMutationOutcome.succeeded);
+        expect(puts, 1);
+      },
+    );
+  }
+
   for (final variant in [
     'equivalent',
     'different-cutoff',

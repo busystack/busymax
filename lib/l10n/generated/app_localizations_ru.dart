@@ -4027,4 +4027,11 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get davPermissionsUnknown =>
       'Сервер не сообщил разрешения. Он проверит запрошенные изменения.';
+
+  @override
+  String get localNetworkAccessRequired => 'Требуется доступ к локальной сети';
+
+  @override
+  String get localNetworkAccessRecovery =>
+      'Чтобы подключиться к этому серверу, разрешите BusyMax доступ к устройствам поблизости в настройках Android и повторите попытку.';
 }

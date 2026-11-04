@@ -897,9 +897,6 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
     final davCancellation = DavCancellationToken();
     unawaited(ownedCancellation.signal.then((_) => davCancellation.cancel()));
     try {
-      final localNetworkDenied = provider == BusyProvider.caldav
-          ? context.l10n.oauthPermissionRefused
-          : context.l10n.nextcloudOperationDenied;
       String? email;
       String? password;
       String? server;
@@ -929,20 +926,7 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
         if (server == null || !mounted) return;
       }
       if (server != null) {
-        final uri = Uri.tryParse(server);
-        if (uri != null && await requiresAndroidLocalNetworkAccess(uri.host)) {
-          try {
-            final granted = await BusyMaxAndroidPlatform.instance
-                .requestLocalNetworkAccess();
-            if (!granted) {
-              _message(localNetworkDenied);
-              return;
-            }
-          } on PlatformException catch (error) {
-            _message(error.message ?? localNetworkDenied);
-            return;
-          }
-        }
+        if (!await _ensureLocalNetworkAccess(server)) return;
       }
       if (!mounted) return;
       AuthorizationRequest? request;
@@ -1170,6 +1154,16 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
     final l10n = context.l10n;
     setState(() => _syncing = true);
     try {
+      for (final account
+          in await ref
+              .read(accountsRepositoryProvider)
+              .listSyncEligibleAccounts()) {
+        if ((account.provider == BusyProvider.caldav ||
+                account.provider == BusyProvider.nextcloud) &&
+            !await _ensureLocalNetworkAccess(account.authority)) {
+          return;
+        }
+      }
       await ref.read(allAccountsSyncRunnerProvider)();
       await ref.read(notificationReconcilerProvider).reconcile();
       _message(l10n.syncComplete);
@@ -1199,6 +1193,11 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
         }
         return;
       }
+      if ((account!.provider == BusyProvider.caldav ||
+              account.provider == BusyProvider.nextcloud) &&
+          !await _ensureLocalNetworkAccess(account.authority)) {
+        return;
+      }
       await ref.read(signedInSyncRunnerProvider)(accountId, true);
       await ref.read(notificationReconcilerProvider).reconcile();
       _message(l10n.syncComplete);
@@ -1212,6 +1211,43 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
         ),
       );
     }
+  }
+
+  /// Foreground recovery for retained accounts, including permission revoked
+  /// after onboarding. Background synchronization never requests permission.
+  Future<bool> _ensureLocalNetworkAccess(String server) async {
+    final uri = Uri.tryParse(server);
+    if (uri == null || !await requiresAndroidLocalNetworkAccess(uri.host)) {
+      return true;
+    }
+    final platform = BusyMaxAndroidPlatform.instance;
+    try {
+      if (await platform.hasLocalNetworkAccess()) return true;
+      if (!mounted) return false;
+      if (await platform.requestLocalNetworkAccess()) return true;
+    } on PlatformException {
+      // A denied request or an unavailable prompt has the same recovery path.
+    }
+    if (!mounted) return false;
+    final openSettings = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(context.l10n.localNetworkAccessRequired),
+        content: Text(context.l10n.localNetworkAccessRecovery),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(context.l10n.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(context.l10n.settings),
+          ),
+        ],
+      ),
+    );
+    if (openSettings == true) await platform.openAppSettings();
+    return false;
   }
 
   Future<void> _openSharedCalendar(String accountId) async {

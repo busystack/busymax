@@ -1397,5 +1397,7 @@
   "caldavPassword": "Salasana tai sovellussalasana",
   "caldavInvalidServerUrl": "Anna HTTPS-osoite ilman tunnistetietoja, kyselyä tai fragmenttia.",
   "caldavHttpsHelp": "Anna palvelimen HTTPS-osoite tai suora CalDAV-osoite. Salasana tallennetaan turvallisesti.",
-  "davPermissionsUnknown": "Palvelin ei ole ilmoittanut oikeuksia. Palvelin tarkistaa pyydetyt muutokset."
+  "davPermissionsUnknown": "Palvelin ei ole ilmoittanut oikeuksia. Palvelin tarkistaa pyydetyt muutokset.",
+  "localNetworkAccessRequired": "Paikallisverkon käyttöoikeus tarvitaan",
+  "localNetworkAccessRecovery": "Salli BusyMaxin käyttää lähellä olevia laitteita Androidin asetuksissa, jotta tähän palvelimeen voidaan muodostaa yhteys, ja yritä uudelleen."
 }

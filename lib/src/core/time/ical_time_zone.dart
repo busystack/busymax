@@ -85,7 +85,6 @@ List<String> icalTimeZoneLines(String zone, {required int firstYear}) {
     tz.TimeZone to,
     DateTime wall, {
     String? rule,
-    List<DateTime> extraDates = const [],
   }) {
     lines.addAll([
       'BEGIN:${to.isDst ? 'DAYLIGHT' : 'STANDARD'}',
@@ -94,8 +93,6 @@ List<String> icalTimeZoneLines(String zone, {required int firstYear}) {
       'TZOFFSETTO:${_offset(to.offset)}',
       'TZNAME:${_text(to.abbreviation)}',
       if (rule != null) 'RRULE:$rule',
-      for (var i = 0; i < extraDates.length; i += 3)
-        'RDATE:${extraDates.skip(i).take(3).map(_wall).join(',')}',
       'END:${to.isDst ? 'DAYLIGHT' : 'STANDARD'}',
     ]);
   }
@@ -131,19 +128,37 @@ List<String> icalTimeZoneLines(String zone, {required int firstYear}) {
   ]) {
     if (group.isEmpty) continue;
     final first = group.first;
-    final rule = first.rule.icalRule;
-    if (rule != null) {
-      observance(first.from, first.to, first.wall, rule: rule);
+    final rules = first.rule.icalRules;
+    if (rules != null) {
+      for (final rule in rules) {
+        final start = group
+            .where((entry) => rule.matches(entry.wall))
+            .firstOrNull;
+        if (start == null) continue;
+        observance(start.from, start.to, start.wall, rule: rule.text);
+      }
     } else {
-      // POSIX permits transition clocks outside 00:00–23:59 and Julian
-      // day rules. Enumerating those exact dates through iCalendar's final
-      // representable year avoids fabricating an inexact yearly RRULE.
-      observance(
-        first.from,
-        first.to,
-        first.wall,
-        extraDates: [for (final entry in group.skip(1)) entry.wall],
+      // Every Gregorian date rule repeats after 400 years. Unusual Julian or
+      // boundary-crossing rules can use one recurring observance per phase,
+      // without enumerating the rest of iCalendar's representable lifetime.
+      final end = DateTime.utc(
+        first.wall.year + 400,
+        first.wall.month,
+        first.wall.day,
+        first.wall.hour,
+        first.wall.minute,
+        first.wall.second,
       );
+      for (final entry in group.where((entry) => entry.wall.isBefore(end))) {
+        observance(
+          entry.from,
+          entry.to,
+          entry.wall,
+          rule:
+              'FREQ=YEARLY;INTERVAL=400;BYMONTH=${entry.wall.month}'
+              ';BYMONTHDAY=${entry.wall.day}',
+        );
+      }
     }
   }
   lines.add('END:VTIMEZONE');
@@ -253,7 +268,10 @@ final class _PosixContinuation {
     if (daylight == null) return const [];
     if (allYearDaylight) return const [];
     final result = <_FutureTransition>[];
-    for (var year = lastAt.year; year <= 9999; year++) {
+    // One full Gregorian cycle includes every phase needed by compact rules,
+    // including rare transitions that move into an adjacent month.
+    final lastYear = (lastAt.year + 400).clamp(1, 9999);
+    for (var year = lastAt.year; year <= lastYear; year++) {
       for (final pair in [
         (start!, standard, daylight!),
         (end!, daylight!, standard),
@@ -341,22 +359,76 @@ final class _PosixDateRule {
     return day.add(Duration(seconds: seconds));
   }
 
-  String? get icalRule {
+  List<_IcalRulePart>? get icalRules {
     final match = RegExp(r'^M(\d{1,2})\.(\d)\.(\d)$').firstMatch(date);
-    if (match == null || seconds < 0 || seconds >= 86400) return null;
+    if (match == null) return null;
+    final month = int.parse(match.group(1)!);
     final week = int.parse(match.group(2)!);
-    final weekday = const [
-      'SU',
-      'MO',
-      'TU',
-      'WE',
-      'TH',
-      'FR',
-      'SA',
-    ][int.parse(match.group(3)!)];
-    return 'FREQ=YEARLY;BYMONTH=${match.group(1)};BYDAY=${week == 5 ? -1 : week}$weekday'
-        ';BYHOUR=${seconds ~/ 3600};BYMINUTE=${seconds ~/ 60 % 60};BYSECOND=${seconds % 60}';
+    final dayShift = (seconds / 86400).floor();
+    final clock = seconds % 86400;
+    final day = (int.parse(match.group(3)!) + dayShift) % 7;
+    final weekday = const ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'][day];
+    final time =
+        ';BYHOUR=${clock ~/ 3600};BYMINUTE=${clock ~/ 60 % 60};BYSECOND=${clock % 60}';
+    if (dayShift == 0) {
+      return [
+        _IcalRulePart(
+          'FREQ=YEARLY;BYMONTH=$month;BYDAY=${week == 5 ? -1 : week}$weekday$time',
+          month,
+          const [],
+        ),
+      ];
+    }
+    final minimumDays = DateTime.utc(2001, month + 1, 0).day;
+    final parts = <_IcalRulePart>[];
+    void part(int targetMonth, List<int> days) {
+      if (days.isEmpty) return;
+      parts.add(
+        _IcalRulePart(
+          'FREQ=YEARLY;BYMONTH=$targetMonth;BYMONTHDAY=${days.join(',')};BYDAY=$weekday$time',
+          targetMonth,
+          days,
+        ),
+      );
+    }
+
+    // Shift the seven-day window selecting the POSIX weekday, keeping a last
+    // weekday relative to month end. Split windows crossing a month boundary.
+    final low = (week == 5 ? -7 : 1 + (week - 1) * 7) + dayShift;
+    final high = low + 6;
+    if (week == 5) {
+      if (low < -minimumDays || high >= minimumDays) return null;
+      part(month, [for (var d = low; d <= high && d < 0; d++) d]);
+      part(month % 12 + 1, [
+        for (var d = low < 0 ? 0 : low; d <= high; d++) d + 1,
+      ]);
+    } else {
+      if (low < -minimumDays || high > minimumDays) return null;
+      part((month + 10) % 12 + 1, [
+        for (var d = low; d <= high && d <= 0; d++) d - 1,
+      ]);
+      part(month, [for (var d = low < 1 ? 1 : low; d <= high; d++) d]);
+    }
+    return parts;
   }
+}
+
+final class _IcalRulePart {
+  const _IcalRulePart(this.text, this.month, this.days);
+  final String text;
+  final int month;
+  final List<int> days;
+
+  bool matches(DateTime wall) =>
+      wall.month == month &&
+      (days.isEmpty ||
+          days.any(
+            (day) =>
+                wall.day ==
+                (day > 0
+                    ? day
+                    : DateTime.utc(wall.year, wall.month + 1, 0).day + day + 1),
+          ));
 }
 
 String _date(DateTime value) =>

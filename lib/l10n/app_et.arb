@@ -1575,5 +1575,7 @@
   "caldavPassword": "Parool või rakenduse parool",
   "caldavInvalidServerUrl": "Sisesta HTTPS-aadress ilma kasutajaandmete, päringu või fragmendita.",
   "caldavHttpsHelp": "Sisesta serveri HTTPS-aadress või otsene CalDAV-aadress. Parool salvestatakse turvaliselt.",
-  "davPermissionsUnknown": "Server pole õigusi teatanud. Server kontrollib taotletud muudatusi."
+  "davPermissionsUnknown": "Server pole õigusi teatanud. Server kontrollib taotletud muudatusi.",
+  "localNetworkAccessRequired": "Vajalik on juurdepääs kohalikule võrgule",
+  "localNetworkAccessRecovery": "Selle serveriga ühenduse loomiseks luba BusyMaxile Androidi seadetes juurdepääs lähedalasuvatele seadmetele ja proovi uuesti."
 }

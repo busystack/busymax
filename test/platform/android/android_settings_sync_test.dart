@@ -19,6 +19,136 @@ import '../../support/memory_settings_store.dart';
 import '../../test_localized_app.dart';
 
 void main() {
+  for (final provider in [BusyProvider.caldav, BusyProvider.nextcloud]) {
+    testWidgets(
+      '$provider retained local account recovers denial, approval and revocation from Sync',
+      (tester) async {
+        const platform = MethodChannel('io.busystack.busymax/android');
+        var granted = false, approveRequest = false;
+        final platformCalls = <String>[];
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(platform, (call) async {
+              platformCalls.add(call.method);
+              if (call.method == 'hasLocalNetworkAccess') return granted;
+              if (call.method == 'requestLocalNetworkAccess') {
+                granted = approveRequest;
+                return granted;
+              }
+              return null;
+            });
+        addTearDown(
+          () => TestDefaultBinaryMessengerBinding
+              .instance
+              .defaultBinaryMessenger
+              .setMockMethodCallHandler(platform, null),
+        );
+        final syncs = <String>[];
+        final harness = await _pumpAndroidSettings(
+          tester,
+          provider: provider,
+          authority: 'https://192.168.1.20/',
+          signedInSyncRunner: (id, _) async => syncs.add(id),
+        );
+        addTearDown(harness.dispose);
+        Future<void> sync() async {
+          await _openAccountMenu(tester);
+          await tester.tap(_popupEntry('sync'));
+          await tester.pumpAndSettle();
+        }
+
+        await sync();
+        expect(syncs, isEmpty);
+        expect(
+          find.text(AppLocalizationsEn().localNetworkAccessRecovery),
+          findsOneWidget,
+        );
+        await tester.tap(find.widgetWithText(TextButton, 'Cancel').last);
+        await tester.pumpAndSettle();
+        approveRequest = true;
+        await sync();
+        expect(syncs, ['google:g']);
+        // A later revocation must be rechecked, including a permanently denied
+        // runtime prompt. System settings supplies a recovery path in that case.
+        granted = false;
+        approveRequest = false;
+        await sync();
+        expect(syncs, ['google:g']);
+        await tester.tap(find.widgetWithText(FilledButton, 'Settings').last);
+        await tester.pumpAndSettle();
+        expect(
+          platformCalls.where((m) => m == 'requestLocalNetworkAccess'),
+          hasLength(3),
+        );
+        expect(platformCalls, contains('openAppSettings'));
+        granted = true;
+        await sync();
+        expect(syncs, ['google:g', 'google:g']);
+        final account = await harness.accounts.accountById('google:g');
+        expect(account!.isSyncEligible, isTrue);
+        expect(
+          account.authority,
+          provider == BusyProvider.nextcloud
+              ? 'https://192.168.1.20'
+              : 'https://192.168.1.20/',
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets(
+    'Sync all checks local-network permission for a retained account',
+    (tester) async {
+      const platform = MethodChannel('io.busystack.busymax/android');
+      var granted = false, syncs = 0;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            platform,
+            (call) async =>
+                call.method == 'hasLocalNetworkAccess' ||
+                    call.method == 'requestLocalNetworkAccess'
+                ? granted
+                : null,
+          );
+      addTearDown(
+        () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(platform, null),
+      );
+      final harness = await _pumpAndroidSettings(
+        tester,
+        provider: BusyProvider.caldav,
+        authority: 'https://192.168.1.20/',
+        allAccountsSyncRunner: () async {
+          syncs++;
+        },
+      );
+      addTearDown(harness.dispose);
+      final action = find.widgetWithText(ListTile, 'Sync');
+      await tester.scrollUntilVisible(
+        action,
+        500,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(action);
+      // Sync all remains busy while the permission recovery dialog is open.
+      for (
+        var i = 0;
+        i < 10 && find.byType(AlertDialog).evaluate().isEmpty;
+        i++
+      ) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(syncs, 0);
+      await tester.tap(find.widgetWithText(TextButton, 'Cancel').last);
+      await tester.pumpAndSettle();
+      granted = true;
+      await tester.tap(action);
+      await tester.pumpAndSettle();
+      expect(syncs, 1);
+    },
+  );
+
   testWidgets(
     'CalDAV calendar creation with a failed refresh is shown as saved without retry',
     (tester) async {
@@ -253,6 +383,7 @@ void main() {
 Future<_AndroidSettingsHarness> _pumpAndroidSettings(
   WidgetTester tester, {
   BusyProvider provider = BusyProvider.google,
+  String? authority,
   CalendarCollectionCreator? creator,
   bool reconnectRequired = false,
   SignedInSyncRunner? signedInSyncRunner,
@@ -267,7 +398,9 @@ Future<_AndroidSettingsHarness> _pumpAndroidSettings(
   await accounts.upsertSignedInAccount(
     id: 'google:g',
     provider: provider,
-    authority: provider == BusyProvider.caldav ? 'https://example.test/' : null,
+    authority:
+        authority ??
+        (provider == BusyProvider.caldav ? 'https://example.test/' : null),
     grantedScopes: 'tasks calendar',
     displayName: 'Google User',
   );

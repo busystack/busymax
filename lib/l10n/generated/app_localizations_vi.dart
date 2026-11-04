@@ -3977,4 +3977,11 @@ class AppLocalizationsVi extends AppLocalizations {
   @override
   String get davPermissionsUnknown =>
       'Máy chủ chưa thông báo quyền. Máy chủ sẽ kiểm tra các thay đổi được yêu cầu.';
+
+  @override
+  String get localNetworkAccessRequired => 'Cần quyền truy cập mạng cục bộ';
+
+  @override
+  String get localNetworkAccessRecovery =>
+      'Để kết nối với máy chủ này, hãy cho phép BusyMax truy cập các thiết bị ở gần trong phần Cài đặt Android, rồi thử lại.';
 }

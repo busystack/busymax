@@ -1397,5 +1397,7 @@
   "caldavPassword": "पासवर्ड या ऐप पासवर्ड",
   "caldavInvalidServerUrl": "बिना क्रेडेंशियल, क्वेरी या फ़्रैगमेंट वाला HTTPS URL दर्ज करें।",
   "caldavHttpsHelp": "HTTPS सर्वर URL या सीधा CalDAV पता दर्ज करें। आपका पासवर्ड सुरक्षित रूप से संग्रहीत होता है।",
-  "davPermissionsUnknown": "सर्वर ने अनुमतियाँ नहीं बताई हैं। अनुरोधित बदलावों की जाँच सर्वर करेगा।"
+  "davPermissionsUnknown": "सर्वर ने अनुमतियाँ नहीं बताई हैं। अनुरोधित बदलावों की जाँच सर्वर करेगा।",
+  "localNetworkAccessRequired": "स्थानीय नेटवर्क का ऐक्सेस ज़रूरी है",
+  "localNetworkAccessRecovery": "इस सर्वर तक पहुँचने के लिए, Android की सेटिंग में BusyMax को आस-पास के डिवाइस का ऐक्सेस दें, फिर दोबारा कोशिश करें।"
 }

@@ -3980,4 +3980,12 @@ class AppLocalizationsHi extends AppLocalizations {
   @override
   String get davPermissionsUnknown =>
       'सर्वर ने अनुमतियाँ नहीं बताई हैं। अनुरोधित बदलावों की जाँच सर्वर करेगा।';
+
+  @override
+  String get localNetworkAccessRequired =>
+      'स्थानीय नेटवर्क का ऐक्सेस ज़रूरी है';
+
+  @override
+  String get localNetworkAccessRecovery =>
+      'इस सर्वर तक पहुँचने के लिए, Android की सेटिंग में BusyMax को आस-पास के डिवाइस का ऐक्सेस दें, फिर दोबारा कोशिश करें।';
 }

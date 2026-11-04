@@ -44,6 +44,11 @@ void main() {
     expect(await platform.microsoftAuthorizationAvailable(), isTrue);
   });
 
+  test('permission recovery opens the application settings', () async {
+    await BusyMaxAndroidPlatform(methodChannel: channel).openAppSettings();
+    expect(calls.single.method, 'openAppSettings');
+  });
+
   test(
     'silent Microsoft authorization remains bound to the requested account',
     () async {

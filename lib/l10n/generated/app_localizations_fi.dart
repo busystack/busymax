@@ -4019,4 +4019,12 @@ class AppLocalizationsFi extends AppLocalizations {
   @override
   String get davPermissionsUnknown =>
       'Palvelin ei ole ilmoittanut oikeuksia. Palvelin tarkistaa pyydetyt muutokset.';
+
+  @override
+  String get localNetworkAccessRequired =>
+      'Paikallisverkon käyttöoikeus tarvitaan';
+
+  @override
+  String get localNetworkAccessRecovery =>
+      'Salli BusyMaxin käyttää lähellä olevia laitteita Androidin asetuksissa, jotta tähän palvelimeen voidaan muodostaa yhteys, ja yritä uudelleen.';
 }

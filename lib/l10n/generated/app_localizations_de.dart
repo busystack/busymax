@@ -3998,4 +3998,12 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get davPermissionsUnknown =>
       'Der Server hat keine Berechtigungen angegeben. Angeforderte Änderungen werden vom Server geprüft.';
+
+  @override
+  String get localNetworkAccessRequired =>
+      'Zugriff auf das lokale Netzwerk erforderlich';
+
+  @override
+  String get localNetworkAccessRecovery =>
+      'Erlaube BusyMax in den Android-Einstellungen den Zugriff auf Geräte in der Nähe, um diesen Server zu erreichen, und versuche es erneut.';
 }

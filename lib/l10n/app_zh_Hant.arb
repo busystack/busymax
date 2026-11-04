@@ -1397,5 +1397,7 @@
   "caldavPassword": "密碼或應用程式專用密碼",
   "caldavInvalidServerUrl": "請輸入不含憑證、查詢或片段的 HTTPS URL。",
   "caldavHttpsHelp": "輸入 HTTPS 伺服器 URL 或直接 CalDAV 位址。密碼會安全儲存。",
-  "davPermissionsUnknown": "伺服器尚未提供權限資訊。伺服器將驗證要求的變更。"
+  "davPermissionsUnknown": "伺服器尚未提供權限資訊。伺服器將驗證要求的變更。",
+  "localNetworkAccessRequired": "需要區域網路存取權限",
+  "localNetworkAccessRecovery": "若要連線至此伺服器，請在 Android 設定中允許 BusyMax 存取附近的裝置，然後再試一次。"
 }

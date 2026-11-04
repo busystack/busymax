@@ -4009,6 +4009,13 @@ class AppLocalizationsPt extends AppLocalizations {
   @override
   String get davPermissionsUnknown =>
       'The server has not advertised permissions. Requested changes will be checked by the server.';
+
+  @override
+  String get localNetworkAccessRequired => 'Local network access required';
+
+  @override
+  String get localNetworkAccessRecovery =>
+      'To reach this server, allow BusyMax access to nearby devices in Android Settings, then try again.';
 }
 
 /// The translations for Portuguese, as used in Portugal (`pt_PT`).
@@ -8021,4 +8028,11 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
   @override
   String get davPermissionsUnknown =>
       'O servidor não indicou as permissões. As alterações solicitadas serão verificadas pelo servidor.';
+
+  @override
+  String get localNetworkAccessRequired => 'É necessário acesso à rede local';
+
+  @override
+  String get localNetworkAccessRecovery =>
+      'Para aceder a este servidor, permita que o BusyMax aceda a dispositivos próximos nas definições do Android e tente novamente.';
 }

@@ -4009,4 +4009,11 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get davPermissionsUnknown =>
       'The server has not advertised permissions. Requested changes will be checked by the server.';
+
+  @override
+  String get localNetworkAccessRequired => 'Local network access required';
+
+  @override
+  String get localNetworkAccessRecovery =>
+      'To reach this server, allow BusyMax access to nearby devices in Android Settings, then try again.';
 }

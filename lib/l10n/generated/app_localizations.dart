@@ -6655,6 +6655,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The server has not advertised permissions. Requested changes will be checked by the server.'**
   String get davPermissionsUnknown;
+
+  /// No description provided for @localNetworkAccessRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Local network access required'**
+  String get localNetworkAccessRequired;
+
+  /// No description provided for @localNetworkAccessRecovery.
+  ///
+  /// In en, this message translates to:
+  /// **'To reach this server, allow BusyMax access to nearby devices in Android Settings, then try again.'**
+  String get localNetworkAccessRecovery;
 }
 
 class _AppLocalizationsDelegate

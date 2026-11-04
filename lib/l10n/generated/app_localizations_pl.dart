@@ -4167,4 +4167,11 @@ class AppLocalizationsPl extends AppLocalizations {
   @override
   String get davPermissionsUnknown =>
       'Serwer nie podał uprawnień. Sprawdzi żądane zmiany.';
+
+  @override
+  String get localNetworkAccessRequired => 'Wymagany dostęp do sieci lokalnej';
+
+  @override
+  String get localNetworkAccessRecovery =>
+      'Aby połączyć się z tym serwerem, zezwól aplikacji BusyMax na dostęp do urządzeń w pobliżu w ustawieniach Androida, a następnie spróbuj ponownie.';
 }

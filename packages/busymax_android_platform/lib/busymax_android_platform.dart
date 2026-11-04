@@ -239,6 +239,9 @@ final class BusyMaxAndroidPlatform {
       await _methodChannel.invokeMethod<bool>('requestLocalNetworkAccess') ??
       false;
 
+  Future<void> openAppSettings() =>
+      _methodChannel.invokeMethod<void>('openAppSettings');
+
   Future<void> openNotificationSettings() =>
       _methodChannel.invokeMethod<void>('openNotificationSettings');
 

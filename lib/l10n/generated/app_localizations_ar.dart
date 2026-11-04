@@ -4033,4 +4033,11 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get davPermissionsUnknown =>
       'لم يعلن الخادم عن الأذونات. سيتحقق الخادم من التغييرات المطلوبة.';
+
+  @override
+  String get localNetworkAccessRequired => 'يلزم الوصول إلى الشبكة المحلية';
+
+  @override
+  String get localNetworkAccessRecovery =>
+      'للوصول إلى هذا الخادم، اسمح لتطبيق BusyMax بالوصول إلى الأجهزة القريبة في إعدادات Android، ثم حاول مرة أخرى.';
 }

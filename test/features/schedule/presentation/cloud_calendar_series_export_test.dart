@@ -58,6 +58,34 @@ void main() {
     },
   });
 
+  for (final zone in ['Africa/Cairo', 'America/Santiago']) {
+    test('$zone open-ended series export stays compact and round trips', () {
+      final data = cloudSeriesToICalendar(
+        master: zonedMicrosoftSeries(
+          zone: zone,
+          startUtc: '2026-01-01T12:00:00',
+          range: {'type': 'noEnd', 'startDate': '2026-01-01'},
+        ),
+        exceptions: const [],
+        nowUtc: DateTime.utc(2026),
+      );
+      expect(utf8.encode(data).length, lessThan(16000));
+      expect(data, isNot(contains('RDATE:')));
+      for (final (wall, expected)
+          in zone == 'Africa/Cairo'
+              ? [
+                  (DateTime.utc(2040, 1, 15, 9), DateTime.utc(2040, 1, 15, 7)),
+                  (DateTime.utc(2040, 7, 15, 9), DateTime.utc(2040, 7, 15, 6)),
+                ]
+              : [
+                  (DateTime.utc(2040, 1, 15, 9), DateTime.utc(2040, 1, 15, 12)),
+                  (DateTime.utc(2040, 7, 15, 9), DateTime.utc(2040, 7, 15, 13)),
+                ]) {
+        expect(exportedInstant(data, zone, wall), expected);
+      }
+    });
+  }
+
   test('IANA 2025c Apia ending DST never invents later daylight', () {
     final data = cloudSeriesToICalendar(
       master: zonedMicrosoftSeries(

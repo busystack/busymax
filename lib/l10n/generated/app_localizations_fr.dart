@@ -4013,4 +4013,11 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get davPermissionsUnknown =>
       'Le serveur n’a pas indiqué les autorisations. Il vérifiera les modifications demandées.';
+
+  @override
+  String get localNetworkAccessRequired => 'Accès au réseau local requis';
+
+  @override
+  String get localNetworkAccessRecovery =>
+      'Pour accéder à ce serveur, autorisez BusyMax à accéder aux appareils à proximité dans les paramètres Android, puis réessayez.';
 }
