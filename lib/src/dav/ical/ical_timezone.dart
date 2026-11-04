@@ -1,4 +1,5 @@
-import 'package:timezone/data/latest_all.dart' as time_zone_data;
+import 'package:busymax/src/core/time/iana_time_zone_data.dart'
+    as time_zone_data;
 import 'package:timezone/timezone.dart' as time_zone;
 
 import '../dav_errors.dart';

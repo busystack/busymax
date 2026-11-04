@@ -2301,15 +2301,18 @@ class _AccountManagementSection extends ConsumerWidget {
                             : Future.value(null),
                       ),
                     ),
-                    BusyMaxActionRow(
-                      title:
-                          '${context.l10n.nextcloudFederationInvitations} (${ref.watch(nextcloudPendingInvitationCountProvider(account.id)).valueOrNull ?? 0})',
-                      leading: const Icon(Icons.mark_email_unread_outlined),
-                      onTap: () => showLinuxNextcloudFederationDialog(
-                        context,
-                        accountId: account.id,
+                    if (ref.watch(
+                      nextcloudFederationAvailableProvider(account.id),
+                    ))
+                      BusyMaxActionRow(
+                        title:
+                            '${context.l10n.nextcloudFederationInvitations} (${ref.watch(nextcloudPendingInvitationCountProvider(account.id)).valueOrNull ?? 0})',
+                        leading: const Icon(Icons.mark_email_unread_outlined),
+                        onTap: () => showLinuxNextcloudFederationDialog(
+                          context,
+                          accountId: account.id,
+                        ),
                       ),
-                    ),
                     BusyMaxActionRow(
                       title: context.l10n.nextcloudTrash,
                       leading: const Icon(YaruIcons.trash),

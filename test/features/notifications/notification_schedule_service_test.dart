@@ -55,6 +55,46 @@ void main() {
     await database.close();
   });
 
+  for (final (zone, offset) in [
+    ('America/Vancouver', -7),
+    ('America/Edmonton', -6),
+    ('America/Winnipeg', -5),
+    ('America/Inuvik', -6),
+    ('Africa/Casablanca', 0),
+    ('Africa/El_Aaiun', 0),
+    ('America/Havana', -4),
+  ]) {
+    test('$zone reminder uses the November 2026 IANA offset', () async {
+      await _upsertEvent(
+        database,
+        accountId: 'nextcloud:n',
+        provider: BusyProvider.nextcloud,
+        startDateTime: '2026-11-02T09:00:00',
+        endDateTime: '2026-11-02T10:00:00',
+        startTimeZone: zone,
+        remindersJson: {
+          'alarms': [_displayAlarm('-PT15M')],
+        },
+      );
+      await NotificationScheduleService(
+        database: database,
+        nowUtc: () => DateTime.utc(2026, 11, 2),
+      ).rebuildUpcomingEventNotifications('nextcloud:n');
+      final row = await database
+          .select(database.notificationSchedule)
+          .getSingle();
+      expect(
+        row.scheduledAtUtc,
+        DateTime.utc(
+          2026,
+          11,
+          2,
+          9 - offset,
+        ).subtract(const Duration(minutes: 15)).millisecondsSinceEpoch,
+      );
+    });
+  }
+
   test('Google HTML descriptions become plain notification previews', () async {
     final repository = CalendarRepository(database: database);
     await repository.upsertSource(
@@ -1060,6 +1100,7 @@ Future<void> _upsertEvent(
   required BusyProvider provider,
   required Object remindersJson,
   String startDateTime = '2026-06-08T09:00:00.000Z',
+  String endDateTime = '2026-06-08T10:00:00.000Z',
   String? startTimeZone,
   Map<String, Object?> sourceRawJson = const {},
 }) async {
@@ -1082,7 +1123,7 @@ Future<void> _upsertEvent(
       title: 'Standup',
       startDateTime: startDateTime,
       startTimeZone: startTimeZone,
-      endDateTime: '2026-06-08T10:00:00.000Z',
+      endDateTime: endDateTime,
       remindersJson: remindersJson,
       rawJson: {'id': 'event-1', 'subject': 'Standup'},
     ),

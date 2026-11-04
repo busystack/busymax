@@ -21,7 +21,8 @@ import '../nextcloud/nextcloud_scheduling_policy.dart';
 import 'dav_collection_capabilities.dart';
 
 const davRawObjectParserVersion = 1;
-const davProjectionVersion = 6;
+// Reproject cached resources after the IANA 2026f update, even with an unchanged ETag.
+const davProjectionVersion = 7;
 const davSyncStateSchemaVersion = 1;
 
 /// Shared temporal projection for synchronized and queued DAV task resources.

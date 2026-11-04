@@ -15,7 +15,16 @@ final class NativeTerminatingHttpClient extends http.BaseClient
     HttpClient Function()? nativeClientFactory,
     this.reuseConnections = false,
   }) : _nativeClientFactory = nativeClientFactory ?? HttpClient.new,
-       _sharedClient = sharedClient;
+       _sharedClient = sharedClient {
+    // Native factories can validate a stored trust policy. Preserve that
+    // validation at construction, before a caller accepts the client as usable.
+    if (reuseConnections) {
+      _reusableNative = _nativeClientFactory();
+      _reusableClient = IOClient(_reusableNative!);
+    } else {
+      _sharedClient ??= IOClient(_nativeClientFactory());
+    }
+  }
 
   http.Client? _sharedClient;
   HttpClient? _reusableNative;

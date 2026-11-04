@@ -20,7 +20,7 @@ import 'package:uuid/uuid.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:timezone/data/latest.dart' as tz_data;
+import 'package:busymax/src/core/time/iana_time_zone_data.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 
 import '../app/app_settings.dart';

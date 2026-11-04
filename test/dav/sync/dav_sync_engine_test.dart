@@ -754,7 +754,10 @@ void main() {
       expect(objectAfter.etag, '"weekly"');
       final cursor = await database.select(database.syncCursors).getSingle();
       expect(cursor.cursorValue, 'next-token');
-      expect(cursor.stateJson, contains('"projectionVersion":6'));
+      expect(
+        cursor.stateJson,
+        contains('"projectionVersion":$davProjectionVersion'),
+      );
     },
   );
 }

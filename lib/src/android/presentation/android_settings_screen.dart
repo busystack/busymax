@@ -393,7 +393,9 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                   ),
                 ),
               for (final account in accounts.where(
-                (account) => account.provider == BusyProvider.nextcloud,
+                (account) =>
+                    account.provider == BusyProvider.nextcloud &&
+                    ref.watch(nextcloudFederationAvailableProvider(account.id)),
               ))
                 ListTile(
                   leading: const Icon(Icons.mark_email_unread_outlined),

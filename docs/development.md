@@ -354,6 +354,12 @@ versions. Run this suite serially when accounts are shared between cases.
 The external-cancellation test compares BusyMax delivery with raw conditional
 CalDAV writes; a stored event or HTTP 204 is insufficient for that test.
 
+Federation controls appear only after OCS capability checks and successful
+read-only invitation discovery. Older servers, disabled incoming federation or
+OCM, and missing invitation routes remain unavailable rather than publishing a
+zero count. The cached count and availability belong to the authorization
+generation and are refreshed by normal account synchronization.
+
 For real federation, additionally set `BUSYMAX_NEXTCLOUD_FEDERATION_LIVE=1`, the
 peer's `BUSYMAX_NEXTCLOUD_FEDERATION_LIVE_URL`, `_USERNAME`, `_PASSWORD`,
 `_TRUST_MODE` and `_TLS_CERT`, plus `_CLOUD_ID` from the peer's canonical
@@ -415,3 +421,29 @@ flutter run -d linux -t lib/main_linux.dart \
 The configuration is defined in
 [`BuildConfig`](../lib/src/config/build_config.dart); submission behavior lives
 in the [feedback client](../lib/src/features/feedback/data/feedback_api_client.dart).
+
+## IANA time-zone data
+
+BusyMax uses the official, unmodified timezone 0.11.2 dependency. Its bundled
+2026e data predates IANA 2026f, so every application initializer loads the
+application-owned 2026f snapshot through the package's public database API.
+The transition snapshot and POSIX continuation table must always share the
+same release. `lib/src/core/time/iana_time_zone_data.dart` is the common entry
+point for calendars, native time-zone selection, recurrence, and reminders.
+Existing embedded server VTIMEZONE definitions remain authoritative.
+
+To reproduce both artifacts, use Python 3.12+, make, zic, and the Dart dependencies
+selected by `pubspec.lock`:
+
+```sh
+python3 tool/refresh_time_zone_data.py
+```
+
+The generator verifies the pinned official IANA archive's version and SHA-256,
+compiles `rearguard.zi` with `zic -b fat`, and invokes the unchanged upstream TZF
+encoder. An optional local archive argument supports offline reproduction.
+When updating the pinned release, regenerate both artifacts and advance cached
+DAV/WebCal projection versions so unchanged server ETags do not retain stale
+occurrences. The tests cover affected 2026 regions through event creation,
+conditional PUT/GET round trips, editing, recurrence, and reminder scheduling,
+plus historical offsets requiring seconds.

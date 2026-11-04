@@ -1,8 +1,13 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/dav/dav_errors.dart';
 import 'package:busymax/src/dav/nextcloud/nextcloud_dav_context.dart';
 import 'package:busymax/src/dav/nextcloud/nextcloud_federation_service.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'nextcloud_admin_fixture.dart';
 
@@ -24,6 +29,134 @@ void main() {
     });
   });
   tearDown(() => fixture.close());
+
+  for (final scenario in [
+    'old-server',
+    'incoming-disabled',
+    'ocm-disabled',
+    'missing-route',
+  ]) {
+    test(
+      '$scenario hides unsupported federation and never publishes a zero count',
+      () async {
+        await service.pending();
+        fixture.requests.clear();
+        fixture.serverMajor = scenario == 'old-server' ? 31 : 34;
+        fixture.incomingFederation = scenario != 'incoming-disabled';
+        fixture.ocmEnabled = scenario != 'ocm-disabled';
+        fixture.federationEndpointStatus = scenario == 'missing-route'
+            ? 404
+            : null;
+        await service.discoverPending(force: true);
+        final account = await fixture.database
+            .select(fixture.database.accounts)
+            .getSingle();
+        final summary = federationSummary(account.providerMetadataJson);
+        expect(summary['available'], isFalse);
+        expect(summary.containsKey('count'), isFalse);
+        expect(
+          fixture.requests.where(
+            (r) => r.url.path.contains('federated_calendars'),
+          ),
+          hasLength(scenario == 'missing-route' ? 1 : 0),
+        );
+        await expectLater(
+          service.pending(),
+          throwsA(
+            isA<DavException>().having(
+              (e) => e.code,
+              'code',
+              'NextcloudFederationUnsupported',
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  test(
+    'a capability discovery failure cannot invent successful empty discovery',
+    () async {
+      fixture.capabilitiesStatus = 503;
+      await expectLater(service.pending(), throwsA(isA<DavException>()));
+      final account = await fixture.database
+          .select(fixture.database.accounts)
+          .getSingle();
+      expect(federationSummary(account.providerMetadataJson), isEmpty);
+      expect(
+        fixture.requests.where(
+          (r) => r.url.path.contains('federated_calendars'),
+        ),
+        isEmpty,
+      );
+    },
+  );
+
+  test('availability distinguishes unknown, supported zero, unsupported and stale authorization', () async {
+    final container = ProviderContainer(
+      overrides: [databaseProvider.overrideWithValue(fixture.database)],
+    );
+    addTearDown(container.dispose);
+    final count = nextcloudPendingInvitationCountProvider('account');
+    final subscription = container.listen(count, (_, _) {});
+    addTearDown(subscription.close);
+    Future<void> waitForCount(int? expected) {
+      final ready = Completer<void>();
+      final listener = container.listen(count, (_, next) {
+        if (next is AsyncData<int?> &&
+            next.value == expected &&
+            !ready.isCompleted) {
+          ready.complete();
+        }
+      }, fireImmediately: true);
+      return ready.future
+          .timeout(const Duration(seconds: 5))
+          .whenComplete(listener.close);
+    }
+
+    expect(await container.read(count.future), isNull);
+    expect(
+      container.read(nextcloudFederationAvailableProvider('account')),
+      isFalse,
+    );
+    fixture.federationInvitations.clear();
+    await service.discoverPending(force: true);
+    await waitForCount(0);
+    expect(
+      container.read(nextcloudFederationAvailableProvider('account')),
+      isTrue,
+    );
+    fixture.incomingFederation = false;
+    await service.discoverPending(force: true);
+    await waitForCount(null);
+    expect(
+      container.read(nextcloudFederationAvailableProvider('account')),
+      isFalse,
+    );
+    fixture.incomingFederation = true;
+    await service.discoverPending(force: true);
+    await waitForCount(0);
+    await fixture.database
+        .into(fixture.database.authorizationGenerations)
+        .insert(
+          AuthorizationGenerationsCompanion.insert(
+            accountId: 'account',
+            generation: 9,
+          ),
+        );
+    await waitForCount(null);
+    expect(
+      container.read(nextcloudFederationAvailableProvider('account')),
+      isFalse,
+    );
+    expect(
+      jsonDecode(
+        (await fixture.database.select(fixture.database.accounts).getSingle())
+            .providerMetadataJson!,
+      )['federation']['count'],
+      0,
+    );
+  });
 
   test(
     'normal refresh persists a private count and coalesces passive discovery',
@@ -154,7 +287,12 @@ void main() {
       fixture.malformedOcs = false;
       fixture.ocsHttpStatus = 302;
       await expectLater(service.pending(), throwsA(isA<DavException>()));
-      expect(fixture.requests, hasLength(3));
+      expect(
+        fixture.requests.where(
+          (r) => r.url.path.contains('federated_calendars'),
+        ),
+        hasLength(3),
+      );
     },
   );
 

@@ -6,6 +6,37 @@ import 'package:busymax/src/dav/ical/ical_timezone.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  for (final (zone, text, offset) in [
+    ('Europe/Paris', '+000921', const Duration(minutes: 9, seconds: 21)),
+    ('Europe/Dublin', '-002521', -const Duration(minutes: 25, seconds: 21)),
+    ('Africa/Monrovia', '-004308', -const Duration(minutes: 43, seconds: 8)),
+  ]) {
+    test('$zone preserves historical offset seconds through serialization', () {
+      final raw =
+          'BEGIN:VCALENDAR\r\nVERSION:2.0\r\n'
+          '${icalTimeZoneLines(zone, firstYear: 1900).join('\r\n')}\r\n'
+          'BEGIN:VEVENT\r\nUID:historical\r\nDTSTART;TZID=$zone:19000615T120000\r\n'
+          'END:VEVENT\r\nEND:VCALENDAR\r\n';
+      expect(raw, contains('TZOFFSETTO:$text'));
+      final resolver = IcalTimeZoneResolver.fromDocument(
+        IcalSemanticDocument.parse(raw),
+      );
+      final wall = DateTime.utc(1900, 6, 15, 12);
+      expect(
+        resolver.toUtc(
+          IcalTemporalValue(
+            rawValue: '',
+            kind: IcalTemporalKind.tzidDateTime,
+            localValue: wall,
+            timeZoneId: zone,
+          ),
+        ),
+        wall.subtract(offset),
+      );
+      final roundTrip = resolver.fromUtc(wall.subtract(offset), zone);
+      expect([roundTrip.hour, roundTrip.minute, roundTrip.second], [12, 0, 0]);
+    });
+  }
   for (final zone in ['Africa/Cairo', 'America/Santiago']) {
     test(
       '$zone has a compact exact definition across Gregorian leap/century boundaries',

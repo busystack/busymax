@@ -1,7 +1,8 @@
 import 'package:busymax/src/platform/windows/windows_time_zone_source.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/services.dart';
-import 'package:timezone/data/latest_all.dart' as time_zone_data;
+import 'package:busymax/src/core/time/iana_time_zone_data.dart'
+    as time_zone_data;
 import 'package:timezone/timezone.dart' as time_zone;
 
 void main() {

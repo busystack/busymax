@@ -51,6 +51,10 @@ class NextcloudAdminFixture {
   bool loseTrashMutationResponse = false;
   String displayName = 'Work';
   final shares = <String, bool>{};
+  int serverMajor = 34;
+  bool incomingFederation = true, ocmEnabled = true;
+  int capabilitiesStatus = 200;
+  int? federationEndpointStatus;
   final federationInvitations = <Map<String, Object?>>[];
   int ocsStatus = 200, ocsHttpStatus = 200;
   bool malformedOcs = false;
@@ -162,9 +166,31 @@ class NextcloudAdminFixture {
   Future<http.Response> respond(http.Request request) async {
     requests.add(request);
     await beforeResponse?.call(request);
+    if (request.url.path == '/ocs/v2.php/cloud/capabilities') {
+      return http.Response(
+        jsonEncode({
+          'ocs': {
+            'meta': {'status': 'ok', 'statuscode': 200},
+            'data': {
+              'version': {'major': serverMajor},
+              'capabilities': {
+                'files_sharing': {
+                  'federation': {'incoming': incomingFederation},
+                },
+                'ocm': {'enabled': ocmEnabled},
+              },
+            },
+          },
+        }),
+        capabilitiesStatus,
+      );
+    }
     if (request.url.path.contains(
       '/ocs/v2.php/apps/dav/api/v1/federated_calendars/pending',
     )) {
+      if (federationEndpointStatus != null) {
+        return http.Response('', federationEndpointStatus!);
+      }
       if (ocsStatus == 200 && request.method != 'GET') {
         final id = int.parse(request.url.pathSegments.last);
         federationInvitations.removeWhere((i) => i['id'] == id);

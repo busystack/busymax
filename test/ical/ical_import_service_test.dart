@@ -22,7 +22,8 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:timezone/data/latest_all.dart' as time_zone_data;
+import 'package:busymax/src/core/time/iana_time_zone_data.dart'
+    as time_zone_data;
 
 void main() {
   late AppDatabase database;
@@ -52,12 +53,56 @@ void main() {
     BusyProvider.microsoft,
   ]) {
     for (final example in [
-      ('20260308T013000', 'PT2H', DateTime.utc(2026, 3, 8, 11, 30)),
-      ('20260308T013000', 'P1D', DateTime.utc(2026, 3, 9, 8, 30)),
-      ('20260308T013000', 'PT24H', DateTime.utc(2026, 3, 9, 9, 30)),
-      ('20261101T003000', 'PT2H', DateTime.utc(2026, 11, 1, 9, 30)),
-      ('20261101T003000', 'P1D', DateTime.utc(2026, 11, 2, 8, 30)),
-      ('20261101T003000', 'PT24H', DateTime.utc(2026, 11, 2, 7, 30)),
+      (
+        '20260308T013000',
+        'PT2H',
+        DateTime.utc(2026, 3, 8, 11, 30),
+        'America/Vancouver',
+      ),
+      (
+        '20260308T013000',
+        'P1D',
+        DateTime.utc(2026, 3, 9, 8, 30),
+        'America/Vancouver',
+      ),
+      (
+        '20260308T013000',
+        'PT24H',
+        DateTime.utc(2026, 3, 9, 9, 30),
+        'America/Vancouver',
+      ),
+      (
+        '20261101T003000',
+        'PT2H',
+        DateTime.utc(2026, 11, 1, 9, 30),
+        'America/Vancouver',
+      ),
+      // BC no longer falls back: both nominal and exact days retain UTC-07.
+      (
+        '20261101T003000',
+        'P1D',
+        DateTime.utc(2026, 11, 2, 7, 30),
+        'America/Vancouver',
+      ),
+      (
+        '20261101T003000',
+        'PT24H',
+        DateTime.utc(2026, 11, 2, 7, 30),
+        'America/Vancouver',
+      ),
+      // Retain fall-back duration coverage in a zone that still observes DST.
+      (
+        '20261101T003000',
+        'P1D',
+        DateTime.utc(2026, 11, 2, 8, 30),
+        'America/Los_Angeles',
+      ),
+      (
+        '20261101T003000',
+        'PT24H',
+        DateTime.utc(2026, 11, 2, 7, 30),
+        'America/Los_Angeles',
+      ),
     ]) {
       test(
         '$durationProvider conversion import resolves ${example.$1} + ${example.$2} in the event zone',
@@ -74,7 +119,7 @@ void main() {
                 'BEGIN:VEVENT',
                 'UID:dst-duration',
                 'SUMMARY:Duration',
-                'DTSTART;TZID=America/Vancouver:${example.$1}',
+                'DTSTART;TZID=${example.$4}:${example.$1}',
                 'DURATION:${example.$2}',
                 'END:VEVENT',
                 'END:VCALENDAR',
@@ -99,7 +144,7 @@ void main() {
             ),
             example.$3,
           );
-          expect(request['startTimeZone'], 'America/Vancouver');
+          expect(request['startTimeZone'], example.$4);
           if (durationProvider == BusyProvider.microsoft) {
             final payload = microsoftEventMutationToJson(
               CalendarEventMutation(
@@ -116,7 +161,7 @@ void main() {
               example.$3,
             );
           } else {
-            expect(request['endTimeZone'], 'America/Vancouver');
+            expect(request['endTimeZone'], example.$4);
             Map<String, Object?>? sent;
             final api = GoogleCalendarApiClient(
               baseUri: Uri.parse('https://www.googleapis.com'),
@@ -152,7 +197,7 @@ void main() {
             final end = sent!['end'] as Map;
             // Google permits a wall timestamp when timeZone is supplied;
             // an explicit numeric offset must still use RFC 3339 syntax.
-            expect(end['timeZone'], 'America/Vancouver');
+            expect(end['timeZone'], example.$4);
             expect(
               end['dateTime'],
               matches(

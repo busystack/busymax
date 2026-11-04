@@ -6,8 +6,9 @@ description: |
   BusyMax is a Linux desktop calendar and task manager.
 
   BusyMax connects directly to Google Calendar and Google Tasks, Microsoft
-  Calendar and Microsoft To Do, Apple iCloud Calendar, and Nextcloud Calendar
-  and Nextcloud Tasks. Apple iCloud Calendar requires an app-specific password;
+  Calendar and Microsoft To Do, Apple iCloud Calendar, Nextcloud Calendar
+  and Nextcloud Tasks, and compatible CalDAV servers for calendars and task lists.
+  Apple iCloud Calendar requires an app-specific password;
   Nextcloud authorization opens in the default browser.
 
   Apple Reminders is not supported.

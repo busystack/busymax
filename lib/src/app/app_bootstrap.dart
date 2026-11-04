@@ -2469,7 +2469,7 @@ final dueTodayNotificationProvider = Provider<DueTodayNotificationScheduler>((
 });
 
 final nextcloudPendingInvitationCountProvider =
-    StreamProvider.family<int, String>((ref, id) {
+    StreamProvider.family<int?, String>((ref, id) {
       final db = ref.watch(databaseProvider);
       final query = db.select(db.accounts).join([
         leftOuterJoin(
@@ -2478,17 +2478,26 @@ final nextcloudPendingInvitationCountProvider =
         ),
       ])..where(db.accounts.id.equals(id));
       return query.watch().map((rows) {
-        if (rows.isEmpty) return 0;
+        if (rows.isEmpty) return null;
         final account = rows.single.readTable(db.accounts);
-        if (account.provider != 'nextcloud') return 0;
+        if (account.provider != 'nextcloud') return null;
         final generation =
             rows.single
                 .readTableOrNull(db.authorizationGenerations)
                 ?.generation ??
             0;
         final summary = federationSummary(account.providerMetadataJson);
-        return summary['generation'] == generation && summary['count'] is int
+        return summary['available'] == true &&
+                summary['generation'] == generation &&
+                summary['count'] is int &&
+                (summary['count'] as int) >= 0
             ? summary['count'] as int
-            : 0;
+            : null;
       });
     });
+
+final nextcloudFederationAvailableProvider = Provider.family<bool, String>(
+  (ref, id) =>
+      ref.watch(nextcloudPendingInvitationCountProvider(id)).valueOrNull !=
+      null,
+);

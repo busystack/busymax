@@ -50,7 +50,18 @@ final class NextcloudFederationService {
             accountId: collections.accountId,
             requireNetwork: collections.requireNetwork,
           );
-    final data = await _request(context, 'GET');
+    if (!await _supportsInvitations(context)) {
+      await _storeDiscovery(context, available: false);
+      throw _unsupportedFederation();
+    }
+    Object? data;
+    try {
+      data = await _request(context, 'GET');
+    } on DavException catch (error) {
+      if (!const {404, 405, 501}.contains(error.statusCode)) rethrow;
+      await _storeDiscovery(context, available: false);
+      throw _unsupportedFederation();
+    }
     if (data is! List || data.length > 1000) {
       throw nextcloudOperationError(502, 'NextcloudFederationResponseInvalid');
     }
@@ -91,7 +102,7 @@ final class NextcloudFederationService {
         );
       }),
     );
-    await _storeCount(context, invitations.length);
+    await _storeDiscovery(context, available: true, count: invitations.length);
     return invitations;
   }
 
@@ -108,6 +119,7 @@ final class NextcloudFederationService {
               ..where((r) => r.accountId.equals(collections.accountId)))
             .getSingleOrNull();
     if (!force &&
+        metadata['available'] is bool &&
         metadata['generation'] == (generation?.generation ?? 0) &&
         checked != null &&
         DateTime.now().toUtc().difference(checked) <
@@ -115,10 +127,70 @@ final class NextcloudFederationService {
       return;
     }
     // Do not recursively start account synchronization when discovery is stale.
-    await pending(refreshDiscovery: false);
+    try {
+      await pending(refreshDiscovery: false);
+    } on DavException catch (error) {
+      if (error.code != 'NextcloudFederationUnsupported') rethrow;
+    }
   }
 
-  Future<void> _storeCount(NextcloudDavContext context, int count) async {
+  /// The OCS envelope advertises the server generation, OCM availability and
+  /// incoming federation policy. Calendar invitation routes also vary between
+  /// maintenance releases, so only a successful pending read confirms them.
+  Future<bool> _supportsInvitations(NextcloudDavContext context) async {
+    final base = context.authority.path.replaceFirst(RegExp(r'/+$'), '');
+    final response = await context.send(
+      'GET',
+      context.authority.replace(
+        path: '$base/ocs/v2.php/cloud/capabilities',
+        query: 'format=json',
+      ),
+      headers: const {'OCS-APIRequest': 'true', 'accept': 'application/json'},
+    );
+    if (const {404, 405, 501}.contains(response.statusCode)) return false;
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw nextcloudOperationError(
+        response.statusCode,
+        'NextcloudFederationCapabilitiesFailed',
+      );
+    }
+    Object? decoded;
+    try {
+      decoded = jsonDecode(response.bodyText);
+    } on FormatException {
+      /* invalid below */
+    }
+    final ocs = decoded is Map ? decoded['ocs'] : null;
+    final meta = ocs is Map ? ocs['meta'] : null;
+    final status = meta is Map ? int.tryParse('${meta['statuscode']}') : null;
+    if (meta is! Map ||
+        meta['status'] != 'ok' ||
+        !{100, 200}.contains(status)) {
+      throw nextcloudOperationError(
+        status != null && status >= 400 && status < 600 ? status : 502,
+        'NextcloudFederationCapabilitiesFailed',
+      );
+    }
+    final data = ocs is Map ? ocs['data'] : null;
+    final version = data is Map ? data['version'] : null;
+    final capabilities = data is Map ? data['capabilities'] : null;
+    final sharing = capabilities is Map ? capabilities['files_sharing'] : null;
+    final federation = sharing is Map ? sharing['federation'] : null;
+    final ocm = capabilities is Map ? capabilities['ocm'] : null;
+    return version is Map &&
+        version['major'] is int &&
+        version['major'] >= 32 &&
+        federation is Map &&
+        federation['incoming'] == true &&
+        ocm is Map &&
+        ocm['enabled'] == true;
+  }
+
+  Future<void> _storeDiscovery(
+    NextcloudDavContext context, {
+    required bool available,
+    int? count,
+  }) async {
     final db = collections.database;
     await db.transaction(() async {
       final account = await (db.select(
@@ -138,7 +210,8 @@ final class NextcloudFederationService {
           : (jsonDecode(account.providerMetadataJson!) as Map)
                 .cast<String, Object?>();
       metadata['federation'] = {
-        'count': count,
+        'available': available,
+        if (available && count != null) 'count': count,
         'generation': context.authorizationGeneration,
         'checkedAt': DateTime.now().toUtc().toIso8601String(),
       };
@@ -245,6 +318,13 @@ final class NextcloudFederationService {
     return (ocs as Map)['data'];
   }
 }
+
+DavException _unsupportedFederation() => const DavException(
+  kind: DavErrorKind.unsupportedComponent,
+  code: 'NextcloudFederationUnsupported',
+  safeMessage:
+      'This server does not advertise support for calendar invitations.',
+);
 
 /// Only a count and freshness marker are retained; remote details stay in the
 /// explicitly opened invitation screen. No system notification is generated.

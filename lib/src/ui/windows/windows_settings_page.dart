@@ -846,7 +846,12 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                               ),
                             ),
                           ),
-                        if (values[index].provider == BusyProvider.nextcloud)
+                        if (values[index].provider == BusyProvider.nextcloud &&
+                            ref.watch(
+                              nextcloudFederationAvailableProvider(
+                                values[index].id,
+                              ),
+                            ))
                           MenuFlyoutItem(
                             text: Text(
                               '${l10n.nextcloudFederationInvitations} (${ref.watch(nextcloudPendingInvitationCountProvider(values[index].id)).valueOrNull ?? 0})',

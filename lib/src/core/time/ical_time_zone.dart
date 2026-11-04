@@ -2,7 +2,7 @@ import 'package:timezone/timezone.dart' as tz;
 
 import 'provider_date_time.dart';
 import 'windows_time_zone_ids.dart';
-import 'tz_continuations_2025c.dart';
+import 'tz_continuations_2026f.dart';
 
 /// Shared, lossless IANA time-zone serialization for DAV writes and exports.
 DateTime ianaWallFromInstant(DateTime instant, String zone) {
@@ -64,10 +64,11 @@ DateTime ianaInstantFromWall(DateTime wall, String zone) {
 }
 
 String _offset(Duration value) {
-  final minutes = value.inMinutes;
-  final absolute = minutes.abs();
-  return '${minutes < 0 ? '-' : '+'}${(absolute ~/ 60).toString().padLeft(2, '0')}'
-      '${(absolute % 60).toString().padLeft(2, '0')}';
+  final seconds = value.inSeconds;
+  final absolute = seconds.abs();
+  return '${seconds < 0 ? '-' : '+'}${(absolute ~/ 3600).toString().padLeft(2, '0')}'
+      '${(absolute ~/ 60 % 60).toString().padLeft(2, '0')}'
+      '${absolute % 60 == 0 ? '' : (absolute % 60).toString().padLeft(2, '0')}';
 }
 
 List<String> icalTimeZoneLines(String zone, {required int firstYear}) {
@@ -177,7 +178,7 @@ final class _PosixContinuation {
   const _PosixContinuation(this.standard, this.daylight, this.start, this.end);
 
   factory _PosixContinuation.parse(String zone) {
-    final source = tzContinuations2025c[zone];
+    final source = tzContinuations2026f[zone];
     if (source == null) {
       throw FormatException('No IANA continuation for $zone.');
     }
