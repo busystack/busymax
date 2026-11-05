@@ -14,7 +14,10 @@ import 'package:http/testing.dart';
 import 'package:xml/xml.dart';
 
 class NextcloudAdminFixture {
-  final database = AppDatabase(NativeDatabase.memory());
+  NextcloudAdminFixture({AppDatabase? database})
+    : database = database ?? AppDatabase(NativeDatabase.memory());
+
+  final AppDatabase database;
   final secrets = InMemorySecretStore();
   final requests = <http.Request>[];
   Future<http.Response> Function(http.Request)? principalSearchResponse;

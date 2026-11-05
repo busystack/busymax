@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:drift/drift.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../db/app_database.dart';
 
@@ -38,6 +39,7 @@ final class NextcloudFederationService {
   NextcloudFederationService(this.collections);
   final NextcloudCollectionService collections;
   int _inventoryEpoch = 0;
+  static const _discoveryRequestKey = 'federationDiscoveryRequestId';
 
   Future<List<NextcloudFederationInvitation>> pending({
     bool refreshDiscovery = true,
@@ -52,8 +54,14 @@ final class NextcloudFederationService {
             accountId: collections.accountId,
             requireNetwork: collections.requireNetwork,
           );
+    final requestId = await _beginDiscovery(context, epoch: epoch);
     if (!await _supportsInvitations(context)) {
-      await _storeDiscovery(context, epoch: epoch, available: false);
+      await _storeDiscovery(
+        context,
+        epoch: epoch,
+        requestId: requestId,
+        available: false,
+      );
       throw _unsupportedFederation();
     }
     Object? data;
@@ -61,7 +69,12 @@ final class NextcloudFederationService {
       data = await _request(context, 'GET');
     } on DavException catch (error) {
       if (!const {404, 405, 501}.contains(error.statusCode)) rethrow;
-      await _storeDiscovery(context, epoch: epoch, available: false);
+      await _storeDiscovery(
+        context,
+        epoch: epoch,
+        requestId: requestId,
+        available: false,
+      );
       throw _unsupportedFederation();
     }
     if (data is! List || data.length > 1000) {
@@ -107,6 +120,7 @@ final class NextcloudFederationService {
     await _storeDiscovery(
       context,
       epoch: epoch,
+      requestId: requestId,
       available: true,
       count: invitations.length,
     );
@@ -212,12 +226,51 @@ final class NextcloudFederationService {
         ocm['enabled'] == true;
   }
 
+  /// Reserve freshness before HTTP, shared by foreground and worker instances.
+  /// SQLite serializes this short transaction; no lock spans a network request.
+  /// Keep the last completed summary intact if this request fails or is stopped.
+  Future<String?> _beginDiscovery(
+    NextcloudDavContext context, {
+    required int epoch,
+  }) async {
+    final db = collections.database;
+    return db.transaction(() async {
+      final account = await (db.select(
+        db.accounts,
+      )..where((r) => r.id.equals(context.accountId))).getSingleOrNull();
+      final generation = await (db.select(
+        db.authorizationGenerations,
+      )..where((r) => r.accountId.equals(context.accountId))).getSingleOrNull();
+      if (epoch != _inventoryEpoch ||
+          account == null ||
+          account.provider != 'nextcloud' ||
+          account.authority != context.authority.toString() ||
+          (generation?.generation ?? 0) != context.authorizationGeneration) {
+        return null;
+      }
+      final metadata = account.providerMetadataJson == null
+          ? <String, Object?>{}
+          : (jsonDecode(account.providerMetadataJson!) as Map)
+                .cast<String, Object?>();
+      final requestId = const Uuid().v4();
+      metadata[_discoveryRequestKey] = requestId;
+      await (db.update(
+        db.accounts,
+      )..where((r) => r.id.equals(context.accountId))).write(
+        AccountsCompanion(providerMetadataJson: Value(jsonEncode(metadata))),
+      );
+      return requestId;
+    });
+  }
+
   Future<void> _storeDiscovery(
     NextcloudDavContext context, {
     required bool available,
     required int epoch,
+    required String? requestId,
     int? count,
   }) async {
+    if (requestId == null) return;
     final db = collections.database;
     await db.transaction(() async {
       final account = await (db.select(
@@ -237,6 +290,10 @@ final class NextcloudFederationService {
           ? <String, Object?>{}
           : (jsonDecode(account.providerMetadataJson!) as Map)
                 .cast<String, Object?>();
+      // Compare inside the write transaction, including when another process
+      // started a newer request whose response has not arrived yet.
+      if (metadata[_discoveryRequestKey] != requestId) return;
+      metadata.remove(_discoveryRequestKey);
       metadata['federation'] = {
         'available': available,
         if (available && count != null) 'count': count,
