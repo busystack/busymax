@@ -1,3 +1,5 @@
+import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
+
 import '../../../support/desktop_registration_config.dart';
 import '../../../support/contacts_fixture.dart';
 import '../../../support/dav_contacts_fixture.dart' as carddav;
@@ -2074,6 +2076,60 @@ void main() {
     expect(scheduleHeading.style?.color, foreground);
   });
 
+  for (final provider in [BusyProvider.caldav, BusyProvider.nextcloud]) {
+    testWidgets(
+      '$provider default task destination excludes explicit denial and missing capabilities',
+      (tester) async {
+        final account = AccountEntity(
+          id: 'dav',
+          provider: provider,
+          providerAccountId: 'me',
+          grantedScopes: '',
+          authState: 'signed_in',
+          displayName: 'DAV',
+          authority: 'https://example.test/',
+        );
+        final lists = [
+          for (final id in ['allowed', 'denied', 'unavailable'])
+            TaskListEntity(
+              accountId: 'dav',
+              id: id,
+              title: id,
+              davCollectionId: id,
+              localDirty: false,
+              pendingDelete: false,
+              rawJson: '{}',
+            ),
+        ];
+        final container = _container(
+          selectedAccountId: 'dav',
+          authRepository: _FakeAuthRepository(),
+          accounts: [account],
+          taskLists: lists,
+          taskCapabilities: {
+            'allowed': caldavTaskCollectionCapabilities,
+            'denied': caldavTaskCollectionCapabilities.asReadOnly(),
+          },
+        );
+        addTearDown(container.dispose);
+        await _pumpSettings(
+          tester,
+          container,
+          initialPage: SettingsPage.schedule,
+          logicalSize: const Size(1000, 900),
+        );
+        final row = tester
+            .widgetList<BusyMaxComboRow<CreationDestination?>>(
+              find.byType(BusyMaxComboRow<CreationDestination?>),
+            )
+            .singleWhere((r) => r.title == 'Default task list');
+        expect(row.values.whereType<CreationDestination>().map((v) => v.id), [
+          'allowed',
+        ]);
+      },
+    );
+  }
+
   testWidgets('Schedule lets users choose a default or Last used destination', (
     tester,
   ) async {
@@ -3774,6 +3830,7 @@ ProviderContainer _container({
   List<CalendarSourceEntity> calendarSources = const [],
   GoogleCalendarApiClient? googleSharingClient,
   List<TaskListEntity> taskLists = const [],
+  Map<String, TaskCollectionCapabilities?> taskCapabilities = const {},
   DesktopAutostartService? autostartService,
   LocalSettingsStore? settingsStore,
   AccountsRepository? accountsRepository,
@@ -3803,6 +3860,10 @@ ProviderContainer _container({
   return ProviderContainer(
     overrides: [
       databaseProvider.overrideWithValue(database),
+      if (taskCapabilities.isNotEmpty)
+        davTaskCollectionCapabilitiesProvider.overrideWith(
+          (ref, key) => Stream.value(taskCapabilities[key.taskListId]),
+        ),
       if (davSettingsRepository != null)
         davSettingsRepositoryProvider.overrideWithValue(davSettingsRepository),
       if (operationResolution != null)

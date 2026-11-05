@@ -537,80 +537,101 @@ final class DavCollectionAdministration {
     final resourceType = method == 'MKCOL'
         ? '<d:resourcetype><d:collection/><c:calendar/></d:resourcetype>'
         : '';
-    final xml =
-        '<$tag $_namespaces><d:set><d:prop>$resourceType<b:operation-id>$operationId</b:operation-id><d:displayname>${escapeDavXmlText(title.trim())}</d:displayname><c:supported-calendar-component-set>${components.map((v) => '<c:comp name="$v"/>').join()}</c:supported-calendar-component-set></d:prop></d:set></$tag>';
+    String creationXml(bool includeMarker) =>
+        '<$tag $_namespaces><d:set><d:prop>$resourceType${includeMarker ? '<b:operation-id>$operationId</b:operation-id>' : ''}<d:displayname>${escapeDavXmlText(title.trim())}</d:displayname><c:supported-calendar-component-set>${components.map((v) => '<c:comp name="$v"/>').join()}</c:supported-calendar-component-set></d:prop></d:set></$tag>';
     var rejected = false;
+    var includeMarker = true;
     try {
-      final response = await _send(
-        c,
-        method,
-        target,
-        xml: xml,
-        cancellation: cancellation,
-      );
-      if (response.statusCode != 201) {
-        if (method == 'MKCALENDAR' && response.statusCode == 207) {
-          final error = _mkcalendarPropertyFailure(c, target, response);
-          // RFC 4791 section 5.3.1.1: a property failure rolls back the
-          // entire creation, including on a previously dispatched retry.
-          await _creationState(operationId, 'rejected', error: error);
-          rejected = true;
+      while (true) {
+        final response = await _send(
+          c,
+          method,
+          target,
+          xml: creationXml(includeMarker),
+          cancellation: cancellation,
+        );
+        if (includeMarker && _onlyMarkerRejected(c, target, response, method)) {
+          // Both creation methods roll back property failures. Confirm absence
+          // before changing the request, retaining this operation's unique URL.
+          if (await _read(c, target, cancellation: cancellation) != null) {
+            final error = _error(409, 'DavCollectionNameConflict');
+            await _creationState(operationId, 'rejected', error: error);
+            rejected = true;
+            throw error;
+          }
+          includeMarker = false;
+          continue;
+        }
+        if (response.statusCode != 201) {
+          if (method == 'MKCALENDAR' && response.statusCode == 207) {
+            final error = _mkcalendarPropertyFailure(c, target, response);
+            // RFC 4791 section 5.3.1.1: a property failure rolls back the
+            // entire creation, including on a previously dispatched retry.
+            await _creationState(operationId, 'rejected', error: error);
+            rejected = true;
+            throw error;
+          }
+          var error = _error(
+            response.statusCode,
+            'DavCollectionCreationFailed',
+          );
+          if (response.statusCode == 403 && response.bodyBytes.isNotEmpty) {
+            Set<DavPropertyName> conditions;
+            try {
+              conditions = const DavXmlParser().parseDavError(
+                response.bodyBytes,
+              );
+            } on DavException {
+              conditions = const {};
+            }
+            if (conditions.contains(
+              const DavPropertyName(
+                caldavNamespace,
+                'supported-calendar-component',
+              ),
+            )) {
+              error = const DavException(
+                kind: DavErrorKind.unsupportedComponent,
+                code: 'DavUnsupportedComponent',
+                statusCode: 403,
+                safeMessage: 'The server does not support the requested collection component set.',
+              );
+            }
+          }
+          // A retry's rejection describes this attempt, not the original lost
+          // response. Reconcile once more before resolving the durable intent.
+          // Fresh requests must never adopt a collection from a namespace race.
+          if (const {
+            400,
+            403,
+            404,
+            405,
+            410,
+            409,
+            412,
+            415,
+            422,
+            507,
+          }.contains(response.statusCode)) {
+            if (operation.state == 'dispatched') {
+              final observed = await _read(c, target);
+              if (observed != null && matches(observed)) {
+                await _creationState(operationId, 'committed');
+                return DavCollectionAdministrationOutcome.reconciled;
+              }
+              if (observed != null) {
+                error = _error(409, 'DavCollectionNameConflict');
+              }
+            }
+            await _creationState(operationId, 'rejected', error: error);
+            rejected = true;
+          } else if (response.statusCode == 401 &&
+              operation.state == 'prepared') {
+            await _creationState(operationId, 'prepared');
+          }
           throw error;
         }
-        var error = _error(response.statusCode, 'DavCollectionCreationFailed');
-        if (response.statusCode == 403 && response.bodyBytes.isNotEmpty) {
-          Set<DavPropertyName> conditions;
-          try {
-            conditions = const DavXmlParser().parseDavError(response.bodyBytes);
-          } on DavException {
-            conditions = const {};
-          }
-          if (conditions.contains(
-            const DavPropertyName(
-              caldavNamespace,
-              'supported-calendar-component',
-            ),
-          )) {
-            error = const DavException(
-              kind: DavErrorKind.unsupportedComponent,
-              code: 'DavUnsupportedComponent',
-              statusCode: 403,
-              safeMessage: 'The server does not support the requested collection component set.',
-            );
-          }
-        }
-        // A retry's rejection describes this attempt, not the original lost
-        // response. Reconcile once more before resolving the durable intent.
-        // Fresh requests must never adopt a collection from a namespace race.
-        if (const {
-          400,
-          403,
-          404,
-          405,
-          410,
-          409,
-          412,
-          415,
-          422,
-          507,
-        }.contains(response.statusCode)) {
-          if (operation.state == 'dispatched') {
-            final observed = await _read(c, target);
-            if (observed != null && matches(observed)) {
-              await _creationState(operationId, 'committed');
-              return DavCollectionAdministrationOutcome.reconciled;
-            }
-            if (observed != null) {
-              error = _error(409, 'DavCollectionNameConflict');
-            }
-          }
-          await _creationState(operationId, 'rejected', error: error);
-          rejected = true;
-        } else if (response.statusCode == 401 &&
-            operation.state == 'prepared') {
-          await _creationState(operationId, 'prepared');
-        }
-        throw error;
+        break;
       }
     } on DavException catch (error) {
       if (rejected) rethrow;
@@ -631,12 +652,74 @@ final class DavCollectionAdministration {
     return DavCollectionAdministrationOutcome.committed;
   }
 
-  DavException _mkcalendarPropertyFailure(
+  bool _onlyMarkerRejected(
     _Context c,
     Uri target,
     DavResponse response,
+    String method,
   ) {
-    final data = const DavXmlParser().parseMultistatus(response.bodyBytes);
+    if (!(method == 'MKCALENDAR' && response.statusCode == 207 ||
+        method == 'MKCOL' && response.statusCode == 403)) {
+      return false;
+    }
+    try {
+      final data = _creationPropertyData(c, target, response, method);
+      if (data.responses.length != 1 || data.errorConditions.isNotEmpty) {
+        return false;
+      }
+      final entry = data.responses.single;
+      if (entry.errorConditions.isNotEmpty) return false;
+      final primary = entry.propstats
+          .where((s) => s.statusCode >= 400 && s.statusCode != 424)
+          .toList();
+      const marker = DavPropertyName(_creationNamespace, 'operation-id');
+      return primary.isNotEmpty &&
+          primary.every(
+            (s) =>
+                const {403, 409}.contains(s.statusCode) &&
+                s.properties.length == 1 &&
+                s.properties.single.name == marker,
+          );
+    } on DavException {
+      // An unrecognized response cannot prove atomic marker rejection.
+      return false;
+    }
+  }
+
+  DavMultistatus _creationPropertyData(
+    _Context c,
+    Uri target,
+    DavResponse response,
+    String method,
+  ) {
+    final parser = const DavXmlParser();
+    final root = parser.parseDocument(response.bodyBytes).rootElement;
+    DavMultistatus data;
+    if (root.name.namespaceUri == davNamespace &&
+        root.name.local == 'multistatus') {
+      data = parser.parseMultistatus(response.bodyBytes);
+    } else if (root.name.namespaceUri ==
+            (method == 'MKCOL' ? davNamespace : caldavNamespace) &&
+        root.name.local ==
+            (method == 'MKCOL' ? 'mkcol-response' : 'mkcalendar-response')) {
+      // Standard method responses carry propstats directly on the root.
+      // Preserve namespace declarations while using the shared bounded parser.
+      var prefix = 'busymaxresponse';
+      while (root.attributes.any(
+        (a) => a.name.prefix == 'xmlns' && a.name.local == prefix,
+      )) {
+        prefix += 'x';
+      }
+      final attributes = root.attributes.map((a) => a.toXmlString()).join(' ');
+      final children = root.childElements.map((e) => e.toXmlString()).join();
+      data = parser.parseMultistatus(
+        utf8.encode(
+          '<$prefix:multistatus xmlns:$prefix="DAV:" $attributes><$prefix:response><$prefix:href>${escapeDavXmlText(target.toString())}</$prefix:href>$children</$prefix:response></$prefix:multistatus>',
+        ),
+      );
+    } else {
+      throw _error(502, 'DavCollectionCreationResponseIncomplete');
+    }
     if (data.responses.length != 1 ||
         resolveDavHref(
               href: data.responses.single.href,
@@ -647,6 +730,15 @@ final class DavCollectionAdministration {
             target) {
       throw _error(502, 'DavCollectionCreationResponseIncomplete');
     }
+    return data;
+  }
+
+  DavException _mkcalendarPropertyFailure(
+    _Context c,
+    Uri target,
+    DavResponse response,
+  ) {
+    final data = _creationPropertyData(c, target, response, 'MKCALENDAR');
     final entry = data.responses.single;
     final failures = entry.propstats
         .where((s) => s.statusCode >= 400 && s.properties.isNotEmpty)
@@ -799,8 +891,16 @@ final class DavCollectionAdministration {
     final service = await (database.select(
       database.davAccountServices,
     )..where((r) => r.accountId.equals(accountId))).getSingleOrNull();
-    if (collection != null && davCollectionIsShared(collection, service)) {
-      throw _error(403, 'DavSharedCollectionRemovalUnsupported');
+    if (collection != null) {
+      final ownership = davCollectionOwnership(collection, service);
+      if (ownership != DavCollectionOwnership.owned) {
+        throw _error(
+          403,
+          ownership == DavCollectionOwnership.shared
+              ? 'DavSharedCollectionRemovalUnsupported'
+              : 'DavCollectionOwnershipUnknown',
+        );
+      }
     }
     final c = await _open();
     final resolved = await _target(c, id);
@@ -814,7 +914,31 @@ final class DavCollectionAdministration {
             ))
             .get();
     if (pending.isNotEmpty) throw _error(409, 'DavCollectionHasPendingChanges');
-    if (await _read(c, target) == null) return _refresh();
+    final current = await _read(c, target);
+    if (current == null) return _refresh();
+    final owners =
+        current
+            .successfulProperty(davNamespace, 'owner')
+            ?.element
+            .childElements
+            .where(
+              (e) =>
+                  e.name.namespaceUri == davNamespace && e.name.local == 'href',
+            )
+            .toList() ??
+        const <XmlElement>[];
+    final liveOwnership = davCollectionOwnershipFromHrefs(
+      ownerHref: owners.length == 1 ? owners.single.innerText : null,
+      principalHref: service?.principalHref,
+    );
+    if (liveOwnership != DavCollectionOwnership.owned) {
+      throw _error(
+        403,
+        liveOwnership == DavCollectionOwnership.shared
+            ? 'DavSharedCollectionRemovalUnsupported'
+            : 'DavCollectionOwnershipUnknown',
+      );
+    }
     final parent = await _read(c, resolved.home);
     if (parent == null) throw _error(404, 'DavCalendarHomeUnavailable');
     _requirePrivilege(parent, 'unbind');
@@ -866,7 +990,7 @@ const _creationNamespace = 'https://busystack.com/ns/busymax';
 const _namespaces =
     'xmlns:b="$_creationNamespace" xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:a="http://apple.com/ns/ical/"';
 const _properties =
-    '<b:operation-id/><d:resourcetype/><d:displayname/><d:current-user-privilege-set/><c:supported-calendar-component-set/><c:calendar-description/><a:calendar-color/><a:calendar-order/>';
+    '<b:operation-id/><d:owner/><d:resourcetype/><d:displayname/><d:current-user-privilege-set/><c:supported-calendar-component-set/><c:calendar-description/><a:calendar-color/><a:calendar-order/>';
 final _writable = {
   const DavPropertyName(davNamespace, 'displayname'),
   const DavPropertyName(caldavNamespace, 'calendar-description'),

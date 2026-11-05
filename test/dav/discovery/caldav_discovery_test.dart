@@ -212,62 +212,69 @@ void main() {
     },
   );
   for (final aclStatus in [404, 403]) {
-    test(
-      'optional ACL $aclStatus is unknown and survives persistence',
-      () async {
-        final result = await _discover(aclStatus: aclStatus);
-        final c = result.collections.single;
-        expect(c.eventProjectionEnabled && c.taskProjectionEnabled, isTrue);
-        expect(c.capabilities.permissionsKnown, isFalse);
-        expect(c.capabilities.canWriteContent, isFalse);
-        expect(c.capabilities.canAttemptUpdateTask, isTrue);
-        expect(c.supportedCalendarData, [
-          {'contentType': 'text/calendar', 'version': '2.0'},
-        ]);
-        final db = AppDatabase.memoryForTests();
-        addTearDown(db.close);
-        await db
-            .into(db.accounts)
-            .insert(
-              AccountsCompanion.insert(
-                id: 'caldav',
-                provider: 'caldav',
-                authority: 'https://example.test/',
-                providerAccountId: 'user',
-                credentialKind: 'caldav_password',
-                createdAtUtc: 'now',
-                updatedAtUtc: 'now',
-              ),
-            );
-        await DavDiscoveryRepository(database: db)
-            .commitSuccessfulInventory(result);
-        final stored = await db.select(db.davCollections).getSingle();
-        final rehydrated = collectionCapabilitiesFromStored(stored);
-        expect(rehydrated.permissionsKnown, isFalse);
-        expect(rehydrated.canRead, isTrue);
-        expect(rehydrated.canWriteContent, isFalse);
-        expect(rehydrated.canAttemptUpdateEvent, isTrue);
-        expect(rehydrated.canAttemptUpdateTask, isTrue);
-        expect(rehydrated.canWriteProperties, isFalse);
-        final settings = (await DavSettingsRepository(database: db)
-            .collectionById(stored.id))!;
-        expect(settings.canRemoveCollection, isFalse);
-        expect(settings.collectionRemovalPermissionKnown, isFalse);
-        expect(settings.taskCapabilities.supportsListRename, isTrue);
-        expect(settings.taskCapabilities.supportsListDelete, isTrue);
-        final source = await db.select(db.calendarSources).getSingle();
-        final sourceCapabilities = CalendarSourceEntity.fromRow(
-          source,
-          davCollection: stored,
-        ).capabilities;
-        expect(sourceCapabilities.canRenameCalendar, isTrue);
-        expect(sourceCapabilities.canDeleteCalendar, isTrue);
-        expect(
-          jsonDecode(stored.safeDisplayMetadataJson!)['privilegesKnown'],
-          'false',
-        );
-      },
-    );
+    for (final ownerKnown in [false, true]) {
+      test(
+        'optional ACL $aclStatus survives persistence without assuming ownership; owner=$ownerKnown',
+        () async {
+          final result = await _discover(
+            aclStatus: aclStatus,
+            extra: ownerKnown
+                ? '<d:owner><d:href>/principal/user/</d:href></d:owner>'
+                : '',
+          );
+          final c = result.collections.single;
+          expect(c.eventProjectionEnabled && c.taskProjectionEnabled, isTrue);
+          expect(c.capabilities.permissionsKnown, isFalse);
+          expect(c.capabilities.canWriteContent, isFalse);
+          expect(c.capabilities.canAttemptUpdateTask, isTrue);
+          expect(c.supportedCalendarData, [
+            {'contentType': 'text/calendar', 'version': '2.0'},
+          ]);
+          final db = AppDatabase.memoryForTests();
+          addTearDown(db.close);
+          await db
+              .into(db.accounts)
+              .insert(
+                AccountsCompanion.insert(
+                  id: 'caldav',
+                  provider: 'caldav',
+                  authority: 'https://example.test/',
+                  providerAccountId: 'user',
+                  credentialKind: 'caldav_password',
+                  createdAtUtc: 'now',
+                  updatedAtUtc: 'now',
+                ),
+              );
+          await DavDiscoveryRepository(database: db)
+              .commitSuccessfulInventory(result);
+          final stored = await db.select(db.davCollections).getSingle();
+          final rehydrated = collectionCapabilitiesFromStored(stored);
+          expect(rehydrated.permissionsKnown, isFalse);
+          expect(rehydrated.canRead, isTrue);
+          expect(rehydrated.canWriteContent, isFalse);
+          expect(rehydrated.canAttemptUpdateEvent, isTrue);
+          expect(rehydrated.canAttemptUpdateTask, isTrue);
+          expect(rehydrated.canWriteProperties, isFalse);
+          final settings = (await DavSettingsRepository(database: db)
+              .collectionById(stored.id))!;
+          expect(settings.canRemoveCollection, isFalse);
+          expect(settings.collectionRemovalPermissionKnown, isFalse);
+          expect(settings.taskCapabilities.supportsListRename, isTrue);
+          expect(settings.taskCapabilities.supportsListDelete, ownerKnown);
+          final source = await db.select(db.calendarSources).getSingle();
+          final sourceCapabilities = CalendarSourceEntity.fromRow(
+            source,
+            davCollection: stored,
+          ).capabilities;
+          expect(sourceCapabilities.canRenameCalendar, isTrue);
+          expect(sourceCapabilities.canDeleteCalendar, ownerKnown);
+          expect(
+            jsonDecode(stored.safeDisplayMetadataJson!)['privilegesKnown'],
+            'false',
+          );
+        },
+      );
+    }
   }
   test('a successful empty ACL is explicit denial', () async {
     final c = (await _discover(aclStatus: 200)).collections.single;

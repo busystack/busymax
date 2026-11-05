@@ -80,6 +80,57 @@ void main() {
     },
   );
 
+  for (final owner in [
+    null,
+    '',
+    '  ',
+    '/principals/me/',
+    '/principals/other/',
+  ]) {
+    test('generic removal requires explicit owner: $owner', () {
+      final source = CalendarSourceEntity(
+        id: 'c',
+        accountId: 'a',
+        provider: BusyProvider.caldav,
+        providerCalendarId: '/home/c/',
+        summary: 'Calendar',
+        selected: true,
+        hidden: false,
+        readOnly: false,
+        isDeleted: false,
+        davEffectivePermissions: {
+          'ownerHref': owner,
+          'principalHref': '/principals/me/',
+          'shared': false,
+          'parentPrivileges': ['{DAV:}unbind'],
+        },
+      );
+      expect(source.capabilities.canDeleteCalendar, owner == '/principals/me/');
+    });
+  }
+
+  test('delegated generic access does not establish collection ownership', () {
+    const source = CalendarSourceEntity(
+      id: 'c',
+      accountId: 'a',
+      provider: BusyProvider.caldav,
+      providerCalendarId: '/home/c/',
+      summary: 'Calendar',
+      selected: true,
+      hidden: false,
+      readOnly: false,
+      isDeleted: false,
+      davEffectivePermissions: {
+        'ownerHref': '/principals/other/',
+        'principalHref': '/principals/other/',
+        'accountPrincipalHref': '/principals/me/',
+        'delegated': true,
+        'parentPrivileges': ['{DAV:}unbind'],
+      },
+    );
+    expect(source.capabilities.canRemoveCalendar, isFalse);
+  });
+
   test('primary cloud calendar cannot be deleted', () {
     const source = CalendarSourceEntity(
       id: 'primary-calendar',

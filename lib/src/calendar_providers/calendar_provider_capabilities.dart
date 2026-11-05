@@ -58,12 +58,14 @@ class CalendarManagementCapabilities {
     required this.supportsRename,
     required this.supportsDelete,
     required this.supportsColor,
+    this.supportsNativeExport = false,
   });
 
   final bool supportsCreate;
   final bool supportsRename;
   final bool supportsDelete;
   final bool supportsColor;
+  final bool supportsNativeExport;
 }
 
 const googleCalendarProviderCapabilities = CalendarProviderCapabilities(
@@ -109,6 +111,7 @@ CalendarManagementCapabilities calendarManagementCapabilities(
       supportsRename: true,
       supportsDelete: true,
       supportsColor: true,
+      supportsNativeExport: true,
     );
   }
   final cloudCapabilities = switch (provider) {

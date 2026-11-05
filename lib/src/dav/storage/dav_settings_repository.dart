@@ -29,6 +29,7 @@ final class DavCollectionSettingsEntity {
     required this.syncErrorCode,
     required this.capabilities,
     this.canRemoveCollection = false,
+    this.ownership = DavCollectionOwnership.unknown,
     this.collectionRemovalPermissionKnown = true,
   });
 
@@ -42,6 +43,7 @@ final class DavCollectionSettingsEntity {
   final String? color;
   final bool readOnly;
   final bool shared;
+  final DavCollectionOwnership ownership;
   final bool supportsEvents;
   final bool supportsTasks;
   final bool eventsSelected;
@@ -83,7 +85,8 @@ final class DavCollectionSettingsEntity {
                   !capabilities.permissionsKnown),
       supportsListDelete:
           base.supportsListDelete &&
-          !(provider == BusyProvider.caldav && shared) &&
+          (provider != BusyProvider.caldav ||
+              ownership == DavCollectionOwnership.owned) &&
           (canRemoveCollection ||
               provider == BusyProvider.caldav &&
                   !collectionRemovalPermissionKnown),
@@ -103,6 +106,7 @@ final class DavCollectionSettingsEntity {
       supportsSubtaskVisibility: base.supportsSubtaskVisibility,
       supportsDuplicate: base.supportsDuplicate,
       supportsNativeExport: base.supportsNativeExport,
+      supportsSharing: base.supportsSharing && capabilities.allowsItemMutations,
       canUpdateClassification: !shared,
     );
   }
@@ -307,6 +311,7 @@ DavCollectionSettingsEntity _fromRow(
   final capabilities = collectionCapabilitiesFromStored(collection);
   final provider = BusyProviderCodec.requireStorageValue(account.provider);
   final label = _accountLabel(account, provider);
+  final ownership = davCollectionOwnership(collection, service);
   return DavCollectionSettingsEntity(
     id: collection.id,
     accountId: account.id,
@@ -317,7 +322,10 @@ DavCollectionSettingsEntity _fromRow(
     name: collection.displayName,
     color: collection.color,
     readOnly: capabilities.isReadOnly,
-    shared: davCollectionIsShared(collection, service),
+    shared: provider == BusyProvider.caldav
+        ? ownership == DavCollectionOwnership.shared
+        : davCollectionIsShared(collection, service),
+    ownership: ownership,
     supportsEvents: collection.eventProjectionEnabled,
     supportsTasks: collection.taskProjectionEnabled,
     eventsSelected: collection.eventsSelected,
@@ -325,7 +333,10 @@ DavCollectionSettingsEntity _fromRow(
     lastSyncAtUtc: DateTime.tryParse(collection.lastSyncAtUtc ?? '')?.toUtc(),
     syncErrorCode: cursor?.lastFailureCode ?? service?.lastDiscoveryErrorCode,
     capabilities: capabilities,
-    canRemoveCollection: _parentAllowsRemoval(collection),
+    canRemoveCollection:
+        _parentAllowsRemoval(collection) &&
+        (provider != BusyProvider.caldav ||
+            ownership == DavCollectionOwnership.owned),
     collectionRemovalPermissionKnown:
         provider != BusyProvider.caldav ||
         (jsonDecode(collection.safeDisplayMetadataJson ?? '{}')

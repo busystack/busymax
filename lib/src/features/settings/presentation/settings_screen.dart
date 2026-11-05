@@ -1890,7 +1890,8 @@ bool _canCreateTasksInList(
 ) {
   for (final account in accounts) {
     if (account.id != list.accountId || !account.isTaskCapable) continue;
-    if (account.provider == BusyProvider.nextcloud) {
+    if (account.provider == BusyProvider.nextcloud ||
+        account.provider == BusyProvider.caldav) {
       return ref
               .watch(
                 davTaskCollectionCapabilitiesProvider((

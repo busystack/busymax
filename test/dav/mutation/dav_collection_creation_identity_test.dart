@@ -38,6 +38,149 @@ void main() {
       });
       tearDown(() => f.close());
 
+      for (final extended in [false, true]) {
+        for (final style in ['method', 'multistatus']) {
+          test(
+            'optional marker rejection safely retries same operation; MKCOL=$extended, style=$style',
+            () async {
+              f.extendedMkcol = extended;
+              f.rejectMarker = true;
+              f.markerResponseStyle = style;
+              f.loseResponse = true;
+              expect(
+                await f.admin.create('Work', {component}),
+                DavCollectionAdministrationOutcome.reconciled,
+              );
+              expect(f.creationMarkers, [true, false]);
+              await f.reopen();
+              expect(
+                await f.admin.resumeCreation(_id),
+                DavCollectionAdministrationOutcome.reconciled,
+              );
+              expect(f.writes, 2);
+            },
+          );
+        }
+        test(
+          'marker-free commit survives a process interruption; MKCOL=$extended',
+          () async {
+            f.extendedMkcol = extended;
+            f.rejectMarker = true;
+            f.interruptAfterFallback = true;
+            await expectLater(
+              f.admin.create('Work', {component}),
+              throwsA(isA<DavException>()),
+            );
+            expect(f.creationMarkers, [true, false]);
+            await f.reopen();
+            expect(
+              await f.admin.resumeCreation(_id),
+              DavCollectionAdministrationOutcome.reconciled,
+            );
+            expect(f.writes, 2);
+          },
+        );
+        for (final reason in [
+          'unrelated-property',
+          'occupied-target',
+          'unavailable-probe',
+        ]) {
+          test(
+            'marker retry requires a specific rejection and confirmed absence: $reason; MKCOL=$extended',
+            () async {
+              f.extendedMkcol = extended;
+              f.rejectMarker = true;
+              if (reason == 'unrelated-property') {
+                f.markerFailureProperty = 'c:supported-calendar-component-set';
+              }
+              if (reason == 'occupied-target') {
+                f.markerRejectionRemote = f.collectionXml;
+              }
+              if (reason == 'unavailable-probe') f.markerReadUnavailable = true;
+              await expectLater(
+                f.admin.create('Work', {component}),
+                throwsA(isA<DavException>()),
+              );
+              expect(f.creationMarkers, [true]);
+              expect(f.writes, 1);
+            },
+          );
+        }
+      }
+
+      for (final owner in [
+        null,
+        '',
+        '/principals/alice/',
+        '/principals/bob/',
+      ]) {
+        test(
+          'collection deletion requires confirmed ownership: $owner',
+          () async {
+            f.remote = f.collectionXml;
+            await f.database
+                .into(f.database.davCollections)
+                .insert(
+                  DavCollectionsCompanion.insert(
+                    id: 'collection',
+                    accountId: 'qa',
+                    hrefKey: Uri.parse(_target).path,
+                    requestUri: _target,
+                    displayName: 'Work',
+                    ownerHref: Value(owner),
+                    createdAtUtc: 'now',
+                    updatedAtUtc: 'now',
+                  ),
+                );
+            if (owner == '/principals/alice/') {
+              expect(
+                await f.admin.remove('collection'),
+                DavCollectionAdministrationOutcome.committed,
+              );
+              expect(f.metadataWrites, 1);
+            } else {
+              await expectLater(
+                f.admin.remove('collection'),
+                throwsA(isA<DavException>()),
+              );
+              expect(f.targetReads, 0);
+              expect(f.metadataWrites, 0);
+            }
+          },
+        );
+      }
+      for (final liveOwner in ['', '/principals/bob/']) {
+        test(
+          'live missing or changed ownership blocks a cached owned collection: $liveOwner',
+          () async {
+            await f.database
+                .into(f.database.davCollections)
+                .insert(
+                  DavCollectionsCompanion.insert(
+                    id: 'collection',
+                    accountId: 'qa',
+                    hrefKey: Uri.parse(_target).path,
+                    requestUri: _target,
+                    displayName: 'Work',
+                    ownerHref: const Value('/principals/alice/'),
+                    createdAtUtc: 'now',
+                    updatedAtUtc: 'now',
+                  ),
+                );
+            f.remote = f.collectionXml.replaceFirst(
+              '<d:href>/principals/alice/</d:href>',
+              liveOwner.isEmpty ? '' : '<d:href>$liveOwner</d:href>',
+            );
+            await expectLater(
+              f.admin.remove('collection'),
+              throwsA(isA<DavException>()),
+            );
+            expect(f.targetReads, 1);
+            expect(f.metadataWrites, 0);
+          },
+        );
+      }
+
       for (final marker in [_id, 'unrelated-operation', null]) {
         test(
           'normalized creation recovery requires its operation marker: $marker',
@@ -129,6 +272,7 @@ void main() {
               .insert(
                 DavCollectionsCompanion.insert(
                   id: 'secondary',
+                  ownerHref: const Value('/principals/alice/'),
                   accountId: 'qa',
                   hrefKey: Uri.parse(target).path,
                   requestUri: target,
@@ -1052,6 +1196,7 @@ void main() {
                 .insert(
                   DavCollectionsCompanion.insert(
                     id: 'collection',
+                    ownerHref: const Value('/principals/alice/'),
                     accountId: 'qa',
                     hrefKey: Uri.parse(_target).path,
                     requestUri: _target,
@@ -1059,7 +1204,7 @@ void main() {
                     createdAtUtc: 'now',
                     updatedAtUtc: 'now',
                     safeDisplayMetadataJson: const Value(
-                      '{"parentPrivilegesKnown":"false"}',
+                      '{"parentPrivilegesKnown":"false","principalHref":"/principals/alice/"}',
                     ),
                     supportedComponentMask: Value(
                       component == 'VEVENT' ? 1 : 2,
@@ -1201,8 +1346,14 @@ class _Fixture {
   bool preflightBeforeRetry = false;
   String? remote;
   String? normalizedResponse;
+  bool rejectMarker = false, interruptAfterFallback = false;
+  String markerFailureProperty = 'b:operation-id';
+  String markerResponseStyle = 'method';
+  String? markerRejectionRemote;
+  bool markerReadUnavailable = false;
+  final creationMarkers = <bool>[];
   String get collectionXml =>
-      '<d:resourcetype><d:collection/><c:calendar/></d:resourcetype><d:displayname>Work</d:displayname><c:supported-calendar-component-set><c:comp name="$component"/></c:supported-calendar-component-set>';
+      '<d:owner><d:href>/principals/alice/</d:href></d:owner><d:resourcetype><d:collection/><c:calendar/></d:resourcetype><d:displayname>Work</d:displayname><c:supported-calendar-component-set><c:comp name="$component"/></c:supported-calendar-component-set>';
   DavCollectionAdministration get admin => DavCollectionAdministration(
     database: database,
     secrets: secrets,
@@ -1244,6 +1395,7 @@ class _Fixture {
             canonicalServiceUri: 'https://example.test/',
             canonicalOrigin: 'https://example.test',
             calendarHomeHref: const Value(_home),
+            principalHref: const Value('/principals/alice/'),
             discoveredAtUtc: 'now',
           ),
         );
@@ -1261,6 +1413,12 @@ class _Fixture {
   Future<http.Response> handle(http.Request request) async {
     if (request.method == 'PROPFIND' && request.url.toString() == _target) {
       targetReads++;
+    }
+    if (markerReadUnavailable &&
+        writes == 1 &&
+        request.method == 'PROPFIND' &&
+        request.url.toString() == _target) {
+      return http.Response('', 503, headers: {'retry-after': '0'});
     }
     if (reconciliationUnavailable &&
         writes > 0 &&
@@ -1333,6 +1491,21 @@ class _Fixture {
       );
       expect(request.body.contains('<d:resourcetype>'), extendedMkcol);
       writes++;
+      final hasMarker = request.body.contains('<b:operation-id>');
+      creationMarkers.add(hasMarker);
+      if (rejectMarker && hasMarker) {
+        remote = markerRejectionRemote;
+        final props =
+            '<d:propstat><d:prop><$markerFailureProperty/></d:prop><d:status>HTTP/1.1 403 Forbidden</d:status></d:propstat>'
+            '<d:propstat><d:prop><d:displayname/></d:prop><d:status>HTTP/1.1 424 Failed Dependency</d:status></d:propstat>';
+        final root = extendedMkcol
+            ? 'd:mkcol-response'
+            : 'c:mkcalendar-response';
+        final body = markerResponseStyle == 'method'
+            ? '<$root xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:b="https://busystack.com/ns/busymax">$props</$root>'
+            : '<d:multistatus xmlns:d="DAV:" xmlns:b="https://busystack.com/ns/busymax"><d:response><d:href>$_target</d:href>$props</d:response></d:multistatus>';
+        return http.Response(body, extendedMkcol ? 403 : 207);
+      }
       if (rejectionStatus != null) {
         if (remoteAfterRejection != null) {
           remote = remoteAfterRejection;
@@ -1344,7 +1517,8 @@ class _Fixture {
       if (interrupt && !commitBeforeInterrupt) {
         throw StateError('interrupted before remote commit');
       }
-      expect(request.body, contains('<b:operation-id>'));
+      if (!rejectMarker) expect(request.body, contains('<b:operation-id>'));
+      if (interruptAfterFallback && !hasMarker) interrupt = true;
       remote = normalizedResponse ?? collectionXml;
       if (interrupt) throw StateError('interrupted after remote commit');
       if (loseResponse) throw http.ClientException('response lost');

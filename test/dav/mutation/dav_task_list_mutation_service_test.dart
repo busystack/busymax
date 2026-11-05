@@ -194,6 +194,47 @@ void main() {
     expect(refreshes, 0);
   });
 
+  for (final owner in [null, '']) {
+    test(
+      'generic task-list unknown ownership rejects before any request: $owner',
+      () async {
+        await database
+            .update(database.accounts)
+            .write(
+              const AccountsCompanion(
+                provider: Value('caldav'),
+                credentialKind: Value('caldav_password'),
+              ),
+            );
+        await _seedCollection(database, privileges: const ['{DAV:}all']);
+        await database
+            .update(database.davCollections)
+            .write(DavCollectionsCompanion(ownerHref: Value(owner)));
+        var requests = 0;
+        final service = _service(
+          database,
+          secrets,
+          MockClient((request) async {
+            requests++;
+            return http.Response('', 204);
+          }),
+          refresh: () async {},
+        );
+        await expectLater(
+          service.deleteTaskList('collection'),
+          throwsA(
+            isA<DavException>().having(
+              (e) => e.code,
+              'code',
+              'DavCollectionOwnershipUnknown',
+            ),
+          ),
+        );
+        expect(requests, 0);
+      },
+    );
+  }
+
   for (final readOnly in [true, false]) {
     test(
       'generic shared task list rejects removal before any request; readOnly=$readOnly',

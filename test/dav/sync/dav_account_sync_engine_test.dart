@@ -53,6 +53,151 @@ void main() {
     applicationDirectory = null;
   });
 
+  for (final provider in [BusyProvider.caldav, BusyProvider.nextcloud]) {
+    for (final status in [403, 401]) {
+      test(
+        '$provider collection read $status isolates permissions but stops rejected credentials',
+        () async {
+          if (provider == BusyProvider.caldav) {
+            await database
+                .update(database.accounts)
+                .write(
+                  const AccountsCompanion(
+                    provider: Value('caldav'),
+                    credentialKind: Value('caldav_password'),
+                  ),
+                );
+            await secrets.saveCredential(
+              'account',
+              CalDavSecretRecord(
+                serviceAuthority: Uri.parse('https://cloud.example.test/cloud'),
+                username: 'alex',
+                password: 'password',
+              ),
+            );
+          }
+          await _seedDestination(database);
+          var sequence = 0, writes = 0, token = 0;
+          final bodies = <String, String>{};
+          final queue = DavPendingOperationQueue(
+            database: database,
+            idFactory: () => 'scoped-${++sequence}',
+            nowUtc: () => _now,
+          );
+          Future<String> create(String collection, String uid) =>
+              queue.enqueueCreate(
+                accountId: 'account',
+                collectionId: collection,
+                object: DavNewObject(
+                  uid: uid,
+                  initialMemberName: '$uid.ics',
+                  rawIcs: _event(uid)
+                      .replaceFirst('UID:event@example.test', 'UID:$uid'),
+                  componentType: 'VEVENT',
+                ),
+              );
+          final denied = await create('collection', 'denied');
+          await create('destination', 'allowed');
+          final original = await database.pendingOpsDao.getOp(denied);
+          final client = MockClient((request) async {
+            if (request.method == 'OPTIONS') {
+              return http.Response(
+                '',
+                200,
+                headers: {'dav': 'calendar-access, sync-collection'},
+              );
+            }
+            if (request.method == 'PROPFIND') {
+              if (request.body.contains('<d:current-user-principal/>')) {
+                return _discoveryMultistatus(_currentPrincipalResponse);
+              }
+              if (request.body.contains('<c:calendar-home-set/>')) {
+                return _discoveryMultistatus(_principalPropertiesResponse);
+              }
+              return _discoveryMultistatus(_twoCollectionInventoryResponse);
+            }
+            if (request.method == 'REPORT' &&
+                request.body.contains('sync-collection')) {
+              if (request.url.path == _collectionHref) {
+                return http.Response('', status);
+              }
+              final href =
+                  bodies.keys.firstOrNull ??
+                  '${_destinationCollectionHref}empty.ics';
+              return http.Response(
+                _syncMemberResponse(
+                  token: 'urn:scoped:${++token}',
+                  href: href,
+                  etag: bodies.isEmpty ? null : '"created"',
+                ),
+                207,
+              );
+            }
+            if (request.method == 'REPORT' &&
+                request.body.contains('calendar-multiget')) {
+              final href = bodies.keys.single;
+              return http.Response(
+                _multigetMemberResponse(
+                  href: href,
+                  body: bodies[href]!,
+                  etag: '"created"',
+                ),
+                207,
+              );
+            }
+            if (request.method == 'PUT') {
+              expect(request.url.path, startsWith(_destinationCollectionHref));
+              writes++;
+              bodies[request.url.path] = request.body;
+              return http.Response('', 201, headers: {'etag': '"created"'});
+            }
+            if (request.method == 'GET') {
+              return http.Response(
+                bodies[request.url.path]!,
+                200,
+                headers: {'etag': '"created"'},
+              );
+            }
+            throw StateError('Unexpected ${request.method} ${request.url}');
+          });
+          addTearDown(client.close);
+          await expectLater(
+            DavAccountSyncEngine(
+              database: database,
+              secretStore: secrets,
+              httpClient: client,
+              accountId: 'account',
+              nowUtc: () => _now,
+            ).synchronize(full: true),
+            throwsA(isA<DavAccountSyncException>()),
+          );
+          expect(writes, status == 403 ? 1 : 0);
+          expect(await database.pendingOpsDao.getOp(denied), original);
+          expect(
+            await database.select(database.pendingOps).get(),
+            hasLength(status == 403 ? 1 : 2),
+          );
+          final cursor = await DavObjectRepository(database: database)
+              .cursor('collection');
+          expect(cursor!.lastFailureCode, isNotNull);
+          if (status == 403) {
+            expect(
+              (await database.select(database.davAccountServices).getSingle())
+                  .lastDiscoveryErrorCode,
+              isNull,
+            );
+            expect(
+              (await DavObjectRepository(database: database)
+                      .cursor('destination'))!
+                  .lastFailureCode,
+              isNull,
+            );
+          }
+        },
+      );
+    }
+  }
+
   test('blocked permission prompts ordinary discovery and preserves independent writes', () async {
     await database
         .update(database.accounts)

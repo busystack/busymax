@@ -1174,7 +1174,9 @@ final class DavPendingOperationsReplayer {
   /// Call only after a complete authenticated discovery has committed. A
   /// previous authoritative denial requires newly advertised permission for
   /// each blocked operation; missing/unknown privileges never clear its denial.
-  Future<void> revalidatePermissionsAfterDiscovery() async {
+  Future<void> revalidatePermissionsAfterDiscovery({
+    Set<String> blockedCollectionIds = const {},
+  }) async {
     await _database.transaction(() async {
       final account = await (_database.select(
         _database.accounts,
@@ -1195,6 +1197,10 @@ final class DavPendingOperationsReplayer {
       }
       final restored = <PendingOp>[];
       for (final op in blocked) {
+        if (blockedCollectionIds.contains(op.davCollectionId) ||
+            blockedCollectionIds.contains(op.destinationCollectionId)) {
+          continue;
+        }
         try {
           final source = collectionCapabilitiesFromStored(
             await _requiredCollection(op),
@@ -1259,7 +1265,9 @@ final class DavPendingOperationsReplayer {
     });
   }
 
-  Future<DavReplaySummary> replayDueOperations() async {
+  Future<DavReplaySummary> replayDueOperations({
+    Set<String> blockedCollectionIds = const {},
+  }) async {
     final account = await (_database.select(
       _database.accounts,
     )..where((row) => row.id.equals(_accountId))).getSingleOrNull();
@@ -1298,6 +1306,7 @@ final class DavPendingOperationsReplayer {
     // An authoritative denial scopes the replay barrier to its collections.
     // Only authenticated discovery can release the rejected operation.
     final blockedCollections = <String>{
+      ...blockedCollectionIds,
       for (final op
           in await (_database.select(_database.pendingOps)..where(
                 (r) =>

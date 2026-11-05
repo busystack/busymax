@@ -201,6 +201,7 @@ class CalendarSourceCapabilities {
     required this.canDeleteCalendar,
     required this.canChangeCalendarColor,
     required this.canChangeProviderVisibility,
+    this.canExportCalendar = false,
     required this.renameMode,
     required this.removalMode,
   });
@@ -253,7 +254,17 @@ class CalendarSourceCapabilities {
     };
     final removalMode = switch (source.provider) {
       // Generic CalDAV has no standard shared-calendar unsubscribe operation.
-      BusyProvider.caldav when receivedShare => CalendarRemovalMode.unavailable,
+      BusyProvider.caldav
+          when davCollectionOwnershipFromHrefs(
+                ownerHref: dav['ownerHref'] as String?,
+                principalHref:
+                    (dav['accountPrincipalHref'] ?? dav['principalHref'])
+                        as String?,
+                shared: dav['shared'] == true,
+                delegated: dav['delegated'] == true,
+              ) !=
+              DavCollectionOwnership.owned =>
+        CalendarRemovalMode.unavailable,
       BusyProvider.nextcloud || BusyProvider.caldav when davRemovable =>
         receivedShare
             ? CalendarRemovalMode.removeFromList
@@ -282,6 +293,10 @@ class CalendarSourceCapabilities {
       _ => CalendarRemovalMode.unavailable,
     };
     return CalendarSourceCapabilities(
+      canExportCalendar:
+          available &&
+          source.davCollectionId != null &&
+          management.supportsNativeExport,
       canCreateEvents: source.provider.isDav
           ? available &&
                 (source.davEffectivePermissions['canAttemptCreateEvents'] ??
@@ -342,6 +357,7 @@ class CalendarSourceCapabilities {
   final bool canDeleteCalendar;
   final bool canChangeCalendarColor;
   final bool canChangeProviderVisibility;
+  final bool canExportCalendar;
   final CalendarRenameMode renameMode;
   final CalendarRemovalMode removalMode;
 

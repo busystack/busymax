@@ -1427,8 +1427,7 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                 title: Text(context.l10n.nextcloudSharing),
                 onTap: () => Navigator.pop(context, 'sharing'),
               ),
-            if (source.provider == BusyProvider.nextcloud &&
-                source.davCollectionId != null)
+            if (source.capabilities.canExportCalendar)
               ListTile(
                 leading: const Icon(Icons.file_download_outlined),
                 title: Text(context.l10n.export),
@@ -1492,7 +1491,7 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
       } else if (action == 'export') {
         await _exportCollection(source.accountId, source.davCollectionId!);
       } else if (action == 'sharing') {
-        if (!mounted) return;
+        if (!mounted || source.provider != BusyProvider.nextcloud) return;
         await Navigator.of(context).push<void>(
           MaterialPageRoute(
             builder: (_) => AndroidNextcloudSharingScreen(
@@ -1580,7 +1579,10 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
     final canRename = account?.provider == BusyProvider.microsoft
         ? list.canRenameOrDeleteForMicrosoft
         : capabilities.supportsListRename;
-    final canDelete = account?.provider == BusyProvider.microsoft
+    final canDelete =
+        account?.provider == BusyProvider.caldav && list.davCollectionId == null
+        ? false
+        : account?.provider == BusyProvider.microsoft
         ? list.canRenameOrDeleteForMicrosoft
         : capabilities.supportsListDelete;
     final action = await showModalBottomSheet<String>(
@@ -1602,8 +1604,9 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
               title: Text(context.l10n.reminders),
               onTap: () => Navigator.pop(context, 'reminders'),
             ),
-            if (list.davCollectionId != null &&
-                capabilities.supportsNativeExport)
+            if (account?.provider == BusyProvider.nextcloud &&
+                list.davCollectionId != null &&
+                capabilities.supportsSharing)
               ListTile(
                 leading: const Icon(Icons.people_outline),
                 title: Text(context.l10n.nextcloudSharing),
@@ -1653,7 +1656,11 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
       } else if (action == 'export') {
         await _exportCollection(list.accountId, list.davCollectionId!);
       } else if (action == 'sharing') {
-        if (!mounted) return;
+        if (!mounted ||
+            account?.provider != BusyProvider.nextcloud ||
+            !capabilities.supportsSharing) {
+          return;
+        }
         await Navigator.of(context).push<void>(
           MaterialPageRoute(
             builder: (_) => AndroidNextcloudSharingScreen(

@@ -1,3 +1,6 @@
+import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
+import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
+import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 import 'package:busymax/src/features/calendar/data/calendar_collection_creation_service.dart';
 import 'package:busymax/l10n/generated/app_localizations_en.dart';
 import 'package:busymax/src/android/presentation/android_settings_screen.dart';
@@ -19,6 +22,96 @@ import '../../support/memory_settings_store.dart';
 import '../../test_localized_app.dart';
 
 void main() {
+  for (final (provider, caps, sharing) in [
+    (BusyProvider.caldav, caldavTaskCollectionCapabilities, false),
+    (BusyProvider.caldav, nextcloudTaskCollectionCapabilities, false),
+    (BusyProvider.nextcloud, nextcloudTaskCollectionCapabilities, true),
+    (BusyProvider.nextcloud, caldavTaskCollectionCapabilities, false),
+  ]) {
+    testWidgets(
+      '$provider task settings separate sharing from export; sharing=$sharing, support=${caps.supportsSharing}',
+      (tester) async {
+        final harness = await _pumpAndroidSettings(
+          tester,
+          provider: provider,
+          authority: 'https://cloud.example.test/',
+          taskCapabilities: caps,
+          lists: const [
+            TaskListEntity(
+              accountId: 'google:g',
+              id: 'tasks',
+              title: 'Review tasks',
+              davCollectionId: 'tasks',
+              localDirty: false,
+              pendingDelete: false,
+              rawJson: '{}',
+            ),
+          ],
+        );
+        addTearDown(harness.dispose);
+        final row = find.widgetWithText(ListTile, 'Review tasks');
+        await tester.scrollUntilVisible(
+          row,
+          400,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await tester.tap(row);
+        await tester.pumpAndSettle();
+        expect(find.widgetWithText(ListTile, 'Export'), findsOneWidget);
+        expect(
+          find.widgetWithText(ListTile, 'Sharing'),
+          sharing ? findsOneWidget : findsNothing,
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+  for (final provider in [BusyProvider.caldav, BusyProvider.nextcloud]) {
+    testWidgets(
+      '$provider calendar settings expose native export with provider-specific sharing and scheduling',
+      (tester) async {
+        final harness = await _pumpAndroidSettings(
+          tester,
+          provider: provider,
+          authority: 'https://cloud.example.test/',
+          sources: [
+            CalendarSourceEntity(
+              id: 'calendar',
+              accountId: 'google:g',
+              provider: provider,
+              providerCalendarId: '/calendar/',
+              davCollectionId: 'calendar',
+              summary: 'Review calendar',
+              selected: true,
+              hidden: false,
+              readOnly: true,
+              isDeleted: false,
+            ),
+          ],
+        );
+        addTearDown(harness.dispose);
+        final row = find.widgetWithText(ListTile, 'Review calendar');
+        await tester.scrollUntilVisible(
+          row,
+          400,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await tester.tap(row);
+        await tester.pumpAndSettle();
+        expect(find.widgetWithText(ListTile, 'Export'), findsOneWidget);
+        expect(
+          find.widgetWithText(ListTile, 'Sharing'),
+          provider == BusyProvider.nextcloud ? findsOneWidget : findsNothing,
+        );
+        expect(
+          find.byIcon(Icons.inbox_outlined),
+          provider == BusyProvider.nextcloud ? findsOneWidget : findsNothing,
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   for (final provider in [BusyProvider.caldav, BusyProvider.nextcloud]) {
     testWidgets(
       '$provider retained local account recovers denial, approval and revocation from Sync',
@@ -385,6 +478,9 @@ Future<_AndroidSettingsHarness> _pumpAndroidSettings(
   BusyProvider provider = BusyProvider.google,
   String? authority,
   CalendarCollectionCreator? creator,
+  List<CalendarSourceEntity> sources = const [],
+  List<TaskListEntity> lists = const [],
+  TaskCollectionCapabilities? taskCapabilities,
   bool reconnectRequired = false,
   SignedInSyncRunner? signedInSyncRunner,
   AllAccountsSyncRunner? allAccountsSyncRunner,
@@ -416,9 +512,13 @@ Future<_AndroidSettingsHarness> _pumpAndroidSettings(
       initialAppSettingsProvider.overrideWithValue(AppSettings.defaults()),
       localSettingsStoreProvider.overrideWithValue(MemorySettingsStore()),
       calendarSourcesStreamProvider.overrideWith(
-        (ref) => Stream.value(const []),
+        (ref) => Stream.value(sources),
       ),
-      scheduleTaskListsProvider.overrideWith((ref) async => const []),
+      scheduleTaskListsProvider.overrideWith((ref) async => lists),
+      if (taskCapabilities != null)
+        davTaskCollectionCapabilitiesProvider.overrideWith(
+          (ref, key) => Stream.value(taskCapabilities),
+        ),
       webCalSubscriptionsProvider.overrideWith((ref) => Stream.value(const [])),
       davConflictsStreamProvider.overrideWith((ref) => Stream.value(const [])),
       signedInSyncRunnerProvider.overrideWithValue(

@@ -186,6 +186,7 @@ final class DavDiscoveryRepository {
                   jsonEncode({
                     ...discovered.safeDisplayMetadata,
                     'principalHref': discovered.principalHref?.toString(),
+                    'accountPrincipalHref': service.principalHref.toString(),
                     'calendarHomeHref': discovered.calendarHomeHref?.toString(),
                     'delegated': discovered.delegated,
                     'parentPrivileges': discovered.parentPrivileges.toList()

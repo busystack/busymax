@@ -204,6 +204,71 @@ void main() {
   });
 
   test(
+    'generic delegated ownership is compared with the authenticated account',
+    () async {
+      await (database.update(
+        database.accounts,
+      )..where((r) => r.id.equals(list.accountId))).write(
+        const AccountsCompanion(
+          provider: Value('caldav'),
+          credentialKind: Value('caldav_password'),
+        ),
+      );
+      await updateCollection(
+        const DavCollectionsCompanion(
+          ownerHref: Value('/principals/other/'),
+          safeDisplayMetadataJson: Value(
+            '{"principalHref":"/principals/other/","delegated":true,"shared":false,"parentPrivilegesKnown":"true","parentPrivileges":["{DAV:}unbind"]}',
+          ),
+        ),
+      );
+      final entity = await repository.collectionByTaskListId(
+        list.accountId,
+        list.id,
+      );
+      expect(entity!.shared, isTrue);
+      expect(entity.canRemoveCollection, isFalse);
+      expect(entity.taskCapabilities.supportsListDelete, isFalse);
+    },
+  );
+
+  for (final owner in [
+    null,
+    '',
+    '/principals/fixture/',
+    '/principals/other/',
+  ]) {
+    test('generic task deletion requires explicit ownership: $owner', () async {
+      await (database.update(
+        database.accounts,
+      )..where((r) => r.id.equals(list.accountId))).write(
+        const AccountsCompanion(
+          provider: Value('caldav'),
+          credentialKind: Value('caldav_password'),
+        ),
+      );
+      await updateCollection(
+        DavCollectionsCompanion(
+          ownerHref: Value(owner),
+          safeDisplayMetadataJson: const Value(
+            '{"parentPrivilegesKnown":"false","parentPrivileges":["{DAV:}unbind"],"shared":false}',
+          ),
+        ),
+      );
+      final entity = await repository.collectionByTaskListId(
+        list.accountId,
+        list.id,
+      );
+      expect(
+        entity!.taskCapabilities.supportsListDelete,
+        owner == '/principals/fixture/',
+      );
+      expect(entity.taskCapabilities.supportsNativeExport, isTrue);
+      expect(entity.taskCapabilities.supportsSharing, isFalse);
+    });
+  }
+
+  test(
     'generic shares never expose collection removal even with parent unbind',
     () async {
       await (database.update(

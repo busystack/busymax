@@ -346,17 +346,7 @@ final class DavAccountSyncEngine {
       }
       failures.addAll(initialResults.failures);
 
-      final hasBlockingFailure = failures.any(
-        (failure) =>
-            failure.code.startsWith('NextcloudCertificate') ||
-            switch (failure.category) {
-              DavErrorCategory.davAuthRejected ||
-              DavErrorCategory.davCredentialsRevoked ||
-              DavErrorCategory.davPermissionDenied ||
-              DavErrorCategory.davReadOnly => true,
-              _ => false,
-            },
-      );
+      final hasBlockingFailure = failures.any(_blocksAccountReplay);
       DavReplaySummary replay = const DavReplaySummary(
         appliedCount: 0,
         conflictCount: 0,
@@ -400,9 +390,13 @@ final class DavAccountSyncEngine {
         if ((provider == BusyProvider.caldav ||
                 provider == BusyProvider.nextcloud) &&
             discoveryRefreshed) {
-          await replayer.revalidatePermissionsAfterDiscovery();
+          await replayer.revalidatePermissionsAfterDiscovery(
+            blockedCollectionIds: initialResults.failedCollectionIds,
+          );
         }
-        replay = await replayer.replayDueOperations();
+        replay = await replayer.replayDueOperations(
+          blockedCollectionIds: initialResults.failedCollectionIds,
+        );
         affected.addAll(replay.affectedObjectIds);
       }
 
@@ -475,7 +469,20 @@ final class DavAccountSyncEngine {
         if (affected.isNotEmpty || notificationProjectionsChanged) {
           await _rebuildNotifications?.call(_accountId, affected);
         }
-        await _recordFailureState(failures.first, discoveryRepository);
+        final accountFailure = failures.where(_blocksAccountReplay).firstOrNull;
+        if (accountFailure != null) {
+          await _recordFailureState(accountFailure, discoveryRepository);
+        } else {
+          await _setConnectionState(
+            failures.any(
+                  (e) =>
+                      e.category == DavErrorCategory.davPermissionDenied ||
+                      e.category == DavErrorCategory.davReadOnly,
+                )
+                ? AccountConnectionState.permissionChanged
+                : AccountConnectionState.temporarilyUnavailable,
+          );
+        }
         throw DavAccountSyncException(failures);
       }
       if (!replay.paused) {
@@ -672,6 +679,7 @@ final class DavAccountSyncEngine {
     var nextIndex = 0;
     final results = <DavCollectionSyncResult>[];
     final failures = <DavException>[];
+    final failedCollectionIds = <String>{};
 
     Future<void> worker() async {
       while (true) {
@@ -707,6 +715,7 @@ final class DavAccountSyncEngine {
           results.add(result);
         } on DavException catch (error) {
           failures.add(error);
+          failedCollectionIds.add(collection.id);
         }
       }
     }
@@ -716,7 +725,11 @@ final class DavAccountSyncEngine {
         ? collections.length
         : _policy.maximumConcurrentCollections;
     await Future.wait([for (var i = 0; i < workerCount; i += 1) worker()]);
-    return _CollectionBatchResult(results: results, failures: failures);
+    return _CollectionBatchResult(
+      results: results,
+      failures: failures,
+      failedCollectionIds: failedCollectionIds,
+    );
   }
 
   Future<void> _recordFailureState(
@@ -799,8 +812,15 @@ final class _CollectionBatchResult {
   const _CollectionBatchResult({
     this.results = const [],
     this.failures = const [],
+    this.failedCollectionIds = const {},
   });
 
+  final Set<String> failedCollectionIds;
   final List<DavCollectionSyncResult> results;
   final List<DavException> failures;
 }
+
+bool _blocksAccountReplay(DavException failure) =>
+    _requiresReconnect(failure) ||
+    failure.kind == DavErrorKind.tls ||
+    failure.kind == DavErrorKind.cancelled;

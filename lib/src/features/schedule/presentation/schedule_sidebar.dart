@@ -1413,7 +1413,8 @@ bool _canDeleteTaskList(
   TaskListEntity list,
   TaskCollectionCapabilities? davCapabilities,
 ) {
-  if (account.provider == BusyProvider.caldav && list.isShared == true) {
+  if (account.provider == BusyProvider.caldav &&
+      (list.isShared == true || list.davCollectionId == null)) {
     return false;
   }
   if (account.provider == BusyProvider.microsoft) {

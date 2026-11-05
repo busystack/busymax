@@ -208,6 +208,75 @@ void main() {
     );
   }
 
+  for (final blocked in ['collection', 'destination']) {
+    test(
+      'sync read barrier for $blocked preserves cross-collection MOVE unchanged',
+      () async {
+        await _seedDestination(database);
+        final object = await database.select(database.davObjects).getSingle();
+        final id = await queue.enqueueMove(
+          accountId: 'account',
+          sourceCollectionId: 'collection',
+          destinationCollectionId: 'destination',
+          objectId: object.id,
+          target: _target,
+        );
+        final original = await database.pendingOpsDao.getOp(id);
+        var dispatches = 0;
+        final replayer = DavPendingOperationsReplayer(
+          database: database,
+          accountId: 'account',
+          nowUtc: () => _now,
+          serviceFactory: ({required account, required collection}) async {
+            dispatches++;
+            throw StateError('Blocked operation must not dispatch');
+          },
+        );
+        final result = await replayer.replayDueOperations(
+          blockedCollectionIds: {blocked},
+        );
+        expect(result.paused, isFalse);
+        expect(dispatches, 0);
+        expect(await database.pendingOpsDao.getOp(id), original);
+      },
+    );
+  }
+
+  test(
+    'failed collection reads cannot release a durable permission barrier',
+    () async {
+      await _seedDestination(database);
+      final source = await database.select(database.davObjects).getSingle();
+      final id = await queue.enqueueMove(
+        accountId: 'account',
+        sourceCollectionId: 'collection',
+        destinationCollectionId: 'destination',
+        objectId: source.id,
+        target: _target,
+      );
+      await database
+          .update(database.pendingOps)
+          .write(const PendingOpsCompanion(state: Value('permission_blocked')));
+      await database
+          .update(database.accounts)
+          .write(
+            const AccountsCompanion(authState: Value('permission_changed')),
+          );
+      final original = await database.pendingOpsDao.getOp(id);
+      final replayer = DavPendingOperationsReplayer(
+        database: database,
+        accountId: 'account',
+        nowUtc: () => _now,
+        serviceFactory: ({required account, required collection}) async =>
+            throw StateError('No replay'),
+      );
+      await replayer.revalidatePermissionsAfterDiscovery(
+        blockedCollectionIds: {'destination'},
+      );
+      expect(await database.pendingOpsDao.getOp(id), original);
+    },
+  );
+
   test('permission denial isolates collections across replays and partial recovery', () async {
     await _seedDestination(database);
     var sequence = 0;

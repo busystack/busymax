@@ -34,6 +34,7 @@ class TaskCollectionCapabilities {
     this.supportsSubtaskVisibility = false,
     this.supportsDuplicate = false,
     this.supportsNativeExport = false,
+    this.supportsSharing = false,
     this.supportsTaskReparenting = false,
     this.canUpdateClassification = true,
   });
@@ -69,6 +70,7 @@ class TaskCollectionCapabilities {
   final bool supportsSubtaskVisibility;
   final bool supportsDuplicate;
   final bool supportsNativeExport;
+  final bool supportsSharing;
   final bool supportsTaskReparenting;
   final bool canUpdateClassification;
 
@@ -118,6 +120,7 @@ class TaskCollectionCapabilities {
     supportsSubtaskVisibility: supportsSubtaskVisibility,
     supportsDuplicate: supportsDuplicate,
     supportsNativeExport: supportsNativeExport,
+    supportsSharing: supportsSharing,
     supportsTaskReparenting: supportsTaskReparenting,
     canUpdateClassification: false,
   );
@@ -156,6 +159,7 @@ class TaskCollectionCapabilities {
         supportsSubtaskVisibility: supportsSubtaskVisibility,
         supportsDuplicate: supportsDuplicate,
         supportsNativeExport: supportsNativeExport,
+        supportsSharing: supportsSharing,
         supportsTaskReparenting: supportsTaskReparenting,
         canUpdateClassification: false,
       );
@@ -224,6 +228,7 @@ const nextcloudTaskCollectionCapabilities = TaskCollectionCapabilities(
   supportsSubtaskVisibility: true,
   supportsDuplicate: true,
   supportsNativeExport: true,
+  supportsSharing: true,
   supportsTaskReparenting: true,
 );
 

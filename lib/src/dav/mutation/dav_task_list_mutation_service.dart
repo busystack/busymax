@@ -240,11 +240,15 @@ final class DavTaskListMutationService implements DavTaskListMutationClient {
       final service = await (_database.select(
         _database.davAccountServices,
       )..where((r) => r.accountId.equals(_accountId))).getSingleOrNull();
-      if (davCollectionIsShared(collection, service)) {
-        throw const DavException(
+      final ownership = davCollectionOwnership(collection, service);
+      if (ownership != DavCollectionOwnership.owned) {
+        throw DavException(
           kind: DavErrorKind.authorization,
-          code: 'DavSharedCollectionRemovalUnsupported',
-          safeMessage: 'This CalDAV server has no supported unshare operation.',
+          code: ownership == DavCollectionOwnership.shared
+              ? 'DavSharedCollectionRemovalUnsupported'
+              : 'DavCollectionOwnershipUnknown',
+          safeMessage:
+              'Only confirmed owned CalDAV collections can be deleted.',
         );
       }
       final result = await _genericAdministration.remove(collectionId);
