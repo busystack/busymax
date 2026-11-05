@@ -442,7 +442,10 @@ class _WindowsNextcloudTrashState
   int _listingEpoch = 0;
   final _loadingDetails = <Uri>{};
 
-  Future<void> _details(NextcloudTrashItem item) async {
+  Future<void> _details(
+    NextcloudTrashItem item, {
+    bool automatic = false,
+  }) async {
     if (!_loadingDetails.add(item.href)) return;
     final epoch = _listingEpoch;
     setState(() {});
@@ -463,7 +466,7 @@ class _WindowsNextcloudTrashState
         );
       }
     } on Object catch (caught) {
-      if (mounted && _listingEpoch == epoch) {
+      if (!automatic && mounted && _listingEpoch == epoch) {
         setState(() {
           failed = true;
           error = caught;
@@ -499,7 +502,18 @@ class _WindowsNextcloudTrashState
         });
       }
     }
-    if (mounted && _listingEpoch == epoch) setState(() => busy = false);
+    if (mounted && _listingEpoch == epoch) {
+      setState(() => busy = false);
+      // Metadata is visible before these optional, bounded identity previews.
+      if (failed) return;
+      final previews =
+          listing?.items.where((item) => item.canPreview).take(5).toList() ??
+          const <NextcloudTrashItem>[];
+      for (final item in previews) {
+        if (!mounted || _listingEpoch != epoch || busy) break;
+        await _details(item, automatic: true);
+      }
+    }
   }
 
   Future<void> _mutate(NextcloudTrashItem item, bool permanent) async {

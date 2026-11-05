@@ -562,10 +562,10 @@ final class DavDiscoveryService {
     // endpoint remains usable when that optional redirect is not configured.
     final bootstrap = _profile.bootstrapUri;
     // A supplied path can identify a separately configured service on this
-    // origin. Verify it first, so a root well-known redirect cannot substitute
-    // a different installation for an explicitly selected endpoint.
+    // origin. Keep failures attached to that selection: origin well-known
+    // must never substitute another installation as a fallback.
     final candidates = bootstrap.path.isNotEmpty && bootstrap.path != '/'
-        ? {bootstrap, davWellKnownUri(_profile)}
+        ? {bootstrap}
         : {davWellKnownUri(_profile), bootstrap};
     for (final uri in candidates) {
       final response = await _transport.send(
@@ -746,6 +746,7 @@ final class DavDiscoveryService {
       homePrivilegesKnown: privileges(home, inventory, responseUri) != null,
       outboxPrivileges: outboxPrivileges ?? const {},
       inboxPrivileges: privileges(inbox, inventory, responseUri) ?? const {},
+      inboxPrivilegesKnown: privileges(inbox, inventory, responseUri) != null,
       endpointCapabilities: endpointCapabilities,
       delegated: delegated,
     );

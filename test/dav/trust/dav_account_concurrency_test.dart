@@ -28,6 +28,7 @@ void main() {
   late Uri endpoint;
   final clients = <DavAccountHttpClient>[];
   final requests = <HttpRequest>[];
+  final remotePorts = <HttpRequest, int>{};
   late Future<void> Function(HttpRequest) handle;
   late Completer<void> arrived;
   var target = 1;
@@ -83,6 +84,7 @@ void main() {
     server = await tls.serve('self');
     endpoint = Uri.parse('https://localhost:${server.port}/nextcloud');
     requests.clear();
+    remotePorts.clear();
     target = 1;
     arrived = Completer<void>();
     handle = (request) async {
@@ -90,6 +92,8 @@ void main() {
       await request.response.close();
     };
     server.listen((request) async {
+      // Connection metadata can disappear after abort; capture it on arrival.
+      remotePorts[request] = request.connectionInfo!.remotePort;
       requests.add(request);
       if (requests.length == target && !arrived.isCompleted) arrived.complete();
       try {
@@ -150,15 +154,15 @@ void main() {
       );
       final sibling = scoped.get(endpoint);
       await arrived.future;
+      // Concurrent authorization does not guarantee HTTP arrival order.
+      final siblingPort =
+          remotePorts[requests.singleWhere((r) => r.method == 'GET')];
       stop.complete();
       await cancelled;
       release.complete();
       expect((await sibling).body, 'ok');
       expect((await scoped.get(endpoint)).body, 'ok');
-      expect(
-        requests[1].connectionInfo!.remotePort,
-        requests[2].connectionInfo!.remotePort,
-      );
+      expect(remotePorts[requests.last], siblingPort);
     },
   );
 

@@ -139,6 +139,75 @@ void main() {
     expect((await NextcloudSchedulingPolicy.load(db, stored)).canReply, isTrue);
   });
 
+  test('initial-endpoint scheduling features retain v0.3.2 behavior with principal ACLs', () async {
+    final db = AppDatabase.memoryForTests();
+    addTearDown(db.close);
+    await db
+        .into(db.accounts)
+        .insert(
+          AccountsCompanion.insert(
+            id: 'account',
+            provider: 'nextcloud',
+            providerAccountId: 'alex',
+            authority: 'https://cloud.example.test/nextcloud',
+            credentialKind: 'nextcloud_app_password',
+            createdAtUtc: 'now',
+            updatedAtUtc: 'now',
+          ),
+        );
+    final repository = DavDiscoveryRepository(database: db);
+    for (final privilege in ['schedule-send', 'schedule-send-reply']) {
+      final discovered = await _discoverFixture(
+        features: 'calendar-access, calendar-auto-schedule',
+        endpointFeatures: 'calendar-access',
+        outboxPrivilege: '{urn:ietf:params:xml:ns:caldav}$privilege',
+      );
+      expect(
+        discovered.service.principalContexts.single.serverFeatures,
+        isNot(contains('calendar-auto-schedule')),
+      );
+      // v0.3.2 checked this union before checking the same outbox ACL.
+      expect(
+        discovered.service.capabilities.serverFeatures,
+        contains('calendar-auto-schedule'),
+      );
+      await repository.commitSuccessfulInventory(discovered);
+      final collection = (await db.select(db.davCollections).get()).firstWhere(
+        (c) => c.eventProjectionEnabled,
+      );
+      final policy = await NextcloudSchedulingPolicy.load(db, collection);
+      expect(policy.canReply, isTrue);
+      expect(policy.canInvite, privilege == 'schedule-send');
+      expect(policy.canQueryFreeBusy, privilege == 'schedule-send');
+      expect(policy.canReadInbox, isTrue); // Inbox ACL property was omitted.
+      expect(policy.canAcknowledgeInbox, isFalse);
+    }
+  });
+
+  test(
+    'discovery persists unknown and explicitly denied inbox ACLs separately',
+    () async {
+      final unknown =
+          (await _discoverFixture()).service.principalContexts.single;
+      final denied = (await _discoverFixture(
+        inventory: _inventoryResponse.replaceFirst(
+          '<d:displayname>Inbox</d:displayname>',
+          '<d:displayname>Inbox</d:displayname><d:current-user-privilege-set/>',
+        ),
+      )).service.principalContexts.single;
+      expect(
+        DavPrincipalContext.fromJson(unknown.toJson()).inboxPrivilegesKnown,
+        isFalse,
+      );
+      expect(
+        DavPrincipalContext.fromJson(denied.toJson()).inboxPrivilegesKnown,
+        isTrue,
+      );
+      expect(unknown.inboxPrivileges, isEmpty);
+      expect(denied.inboxPrivileges, isEmpty);
+    },
+  );
+
   test(
     'subscribed-only resources use advertised cache without content writes',
     () async {

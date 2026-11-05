@@ -32,7 +32,7 @@ abstract interface class DavTaskListMutationClient {
   Future<void> deleteTaskList(String collectionId);
 }
 
-/// Applies Nextcloud Tasks list mutations to their backing CalDAV calendar
+/// Applies task-list mutations to their backing CalDAV calendar
 /// collections, then refreshes discovery so local projections remain
 /// authoritative to the server.
 final class DavTaskListMutationService implements DavTaskListMutationClient {
@@ -235,8 +235,18 @@ final class DavTaskListMutationService implements DavTaskListMutationClient {
 
   @override
   Future<void> deleteTaskList(String collectionId) async {
-    await _requiredTaskCollection(collectionId);
+    final collection = await _requiredTaskCollection(collectionId);
     if (await _generic) {
+      final service = await (_database.select(
+        _database.davAccountServices,
+      )..where((r) => r.accountId.equals(_accountId))).getSingleOrNull();
+      if (davCollectionIsShared(collection, service)) {
+        throw const DavException(
+          kind: DavErrorKind.authorization,
+          code: 'DavSharedCollectionRemovalUnsupported',
+          safeMessage: 'This CalDAV server has no supported unshare operation.',
+        );
+      }
       final result = await _genericAdministration.remove(collectionId);
       if (result == DavCollectionAdministrationOutcome.refreshPending) {
         throw const DavRefreshPending();

@@ -73,6 +73,7 @@ final class DavPrincipalContext {
     this.homePrivilegesKnown = false,
     this.outboxPrivileges = const {},
     this.inboxPrivileges = const {},
+    this.inboxPrivilegesKnown = false,
     this.endpointCapabilities = const [],
     this.delegated = false,
   });
@@ -86,6 +87,7 @@ final class DavPrincipalContext {
   final bool homePrivilegesKnown;
   final Set<String> outboxPrivileges;
   final Set<String> inboxPrivileges;
+  final bool inboxPrivilegesKnown;
   final List<DavEndpointCapabilities> endpointCapabilities;
   Set<String> get serverFeatures => {
     for (final endpoint in endpointCapabilities) ...endpoint.serverFeatures,
@@ -104,6 +106,7 @@ final class DavPrincipalContext {
     'homePrivilegesKnown': homePrivilegesKnown,
     'outboxPrivileges': outboxPrivileges.toList()..sort(),
     'inboxPrivileges': inboxPrivileges.toList()..sort(),
+    'inboxPrivilegesKnown': inboxPrivilegesKnown || inboxPrivileges.isNotEmpty,
     'endpointCapabilities': endpointCapabilities
         .map((e) => e.toJson())
         .toList(),
@@ -137,6 +140,9 @@ final class DavPrincipalContext {
         inboxPrivileges: (value['inboxPrivileges'] as List? ?? [])
             .cast<String>()
             .toSet(),
+        inboxPrivilegesKnown:
+            value['inboxPrivilegesKnown'] == true ||
+            (value['inboxPrivileges'] as List? ?? []).isNotEmpty,
         endpointCapabilities: [
           for (final endpoint in value['endpointCapabilities'] as List? ?? [])
             DavEndpointCapabilities.fromJson(

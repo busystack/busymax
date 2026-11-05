@@ -58,6 +58,9 @@ class _WindowsContactsSettingsState
       final id = const Uuid().v7();
       if (nextcloud) {
         await controller.addNextcloudContactsOnly(
+          reviewCanonicalServer: (entered, canonical) => mounted
+              ? showWindowsNextcloudCanonicalServer(context, entered, canonical)
+              : Future.value(false),
           reviewCertificate: (challenge, owner) => reviewNextcloudCertificate(
             challenge,
             owner,

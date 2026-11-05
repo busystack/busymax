@@ -39,6 +39,7 @@ END:VCALENDAR
       '{urn:ietf:params:xml:ns:caldav}schedule-send',
     ],
     Set<String> inboxPrivileges = const {'{DAV:}read', '{DAV:}unbind'},
+    bool inboxPrivilegesKnown = true,
   }) async {
     final home = Uri.parse(
       '${NextcloudAdminFixture.origin}${NextcloudAdminFixture.home}',
@@ -60,6 +61,7 @@ END:VCALENDAR
                 scheduleOutboxHref: home.resolve('outbox/'),
                 scheduleInboxHref: home.resolve('inbox/'),
                 inboxPrivileges: inboxPrivileges,
+                inboxPrivilegesKnown: inboxPrivilegesKnown,
                 outboxPrivileges: privileges.toSet(),
                 endpointCapabilities: [
                   DavEndpointCapabilities(

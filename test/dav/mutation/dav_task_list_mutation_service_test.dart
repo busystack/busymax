@@ -1,3 +1,5 @@
+import 'package:busymax/src/dav/mutation/dav_collection_administration.dart';
+
 import 'dart:io';
 
 import 'package:busymax/src/core/secrets/secret_store.dart';
@@ -191,6 +193,71 @@ void main() {
     );
     expect(refreshes, 0);
   });
+
+  for (final readOnly in [true, false]) {
+    test(
+      'generic shared task list rejects removal before any request; readOnly=$readOnly',
+      () async {
+        await (database.update(
+          database.accounts,
+        )..where((r) => r.id.equals('account'))).write(
+          const AccountsCompanion(
+            provider: Value('caldav'),
+            credentialKind: Value('caldav_password'),
+          ),
+        );
+        await _seedCollection(
+          database,
+          ownerHref: '/remote.php/dav/principals/users/bob/',
+          privileges: const ['{DAV:}all'],
+          readOnly: readOnly,
+        );
+        final requests = <http.Request>[];
+        var refreshes = 0;
+        final service = _service(
+          database,
+          secrets,
+          MockClient((request) async {
+            requests.add(request);
+            return http.Response('', 204);
+          }),
+          refresh: () async => refreshes++,
+        );
+        await expectLater(
+          service.deleteTaskList('collection'),
+          throwsA(
+            isA<DavException>().having(
+              (e) => e.code,
+              'code',
+              'DavSharedCollectionRemovalUnsupported',
+            ),
+          ),
+        );
+        await expectLater(
+          DavCollectionAdministration(
+            database: database,
+            secrets: secrets,
+            client: MockClient((request) async {
+              requests.add(request);
+              return http.Response('', 204);
+            }),
+            accountId: 'account',
+            refresh: () async => refreshes++,
+            requireNetwork: () async {},
+          ).remove('collection'),
+          throwsA(
+            isA<DavException>().having(
+              (e) => e.code,
+              'code',
+              'DavSharedCollectionRemovalUnsupported',
+            ),
+          ),
+        );
+        expect(requests, isEmpty);
+        expect(refreshes, 0);
+      },
+    );
+  }
 
   test('read-only shared collection can be unshared with DELETE', () async {
     await _seedCollection(

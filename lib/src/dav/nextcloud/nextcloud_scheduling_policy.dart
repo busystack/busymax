@@ -86,7 +86,13 @@ final class NextcloudSchedulingPolicy {
     final federated =
         metadata['federated'] == true ||
         owner.split('/').contains('remote-users');
-    final features = context?.serverFeatures ?? const <String>{};
+    // Feature negotiation is service-wide; permission to send still comes
+    // exclusively from the selected principal's discovered outbox below.
+    final features = {
+      ...?context?.serverFeatures,
+      ...(capabilities['serverFeatures'] as List? ?? const [])
+          .whereType<String>(),
+    };
     final types = (jsonDecode(collection.resourceTypesJson) as List)
         .whereType<String>()
         .toSet();
@@ -128,7 +134,9 @@ final class NextcloudSchedulingPolicy {
       canReply: send('schedule-send-reply'),
       canQueryFreeBusy: send('schedule-send-freebusy'),
       federated: federated,
-      canReadInbox: inboxPrivilege('read'),
+      canReadInbox:
+          inboxAvailable &&
+          (context?.inboxPrivilegesKnown != true || inboxPrivilege('read')),
       canAcknowledgeInbox: inboxPrivilege('read') && inboxPrivilege('unbind'),
     );
   }

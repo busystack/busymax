@@ -2628,7 +2628,10 @@ class _AndroidNextcloudTrashScreenState
   int _listingEpoch = 0;
   final _loadingDetails = <Uri>{};
 
-  Future<void> _details(NextcloudTrashItem item) async {
+  Future<void> _details(
+    NextcloudTrashItem item, {
+    bool automatic = false,
+  }) async {
     if (!_loadingDetails.add(item.href)) return;
     final epoch = _listingEpoch;
     setState(() {});
@@ -2649,7 +2652,9 @@ class _AndroidNextcloudTrashScreenState
         );
       }
     } on Object catch (caught) {
-      if (mounted && _listingEpoch == epoch) setState(() => _error = caught);
+      if (!automatic && mounted && _listingEpoch == epoch) {
+        setState(() => _error = caught);
+      }
     } finally {
       _loadingDetails.remove(item.href);
       if (mounted) setState(() {});
@@ -2669,6 +2674,15 @@ class _AndroidNextcloudTrashScreenState
       if (mounted && _listingEpoch == epoch) setState(() => _error = error);
     } finally {
       if (mounted && _listingEpoch == epoch) setState(() => _busy = false);
+    }
+    if (mounted && _listingEpoch == epoch) {
+      final previews =
+          _listing?.items.where((item) => item.canPreview).take(5).toList() ??
+          const <NextcloudTrashItem>[];
+      for (final item in previews) {
+        if (!mounted || _listingEpoch != epoch || _busy) break;
+        await _details(item, automatic: true);
+      }
     }
   }
 

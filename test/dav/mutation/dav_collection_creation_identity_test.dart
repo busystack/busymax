@@ -38,6 +38,56 @@ void main() {
       });
       tearDown(() => f.close());
 
+      for (final marker in [_id, 'unrelated-operation', null]) {
+        test(
+          'normalized creation recovery requires its operation marker: $marker',
+          () async {
+            f.loseResponse = true;
+            f.normalizedResponse =
+                '<d:resourcetype><d:collection/><c:calendar/></d:resourcetype>'
+                '<d:displayname>WORK</d:displayname>'
+                '<c:supported-calendar-component-set><c:comp name="VEVENT"/><c:comp name="VTODO"/></c:supported-calendar-component-set>'
+                '${marker == null ? '' : '<b:operation-id xmlns:b="https://busystack.com/ns/busymax">$marker</b:operation-id>'}';
+            if (marker == _id) {
+              expect(
+                await f.admin.create('Work', {component}),
+                DavCollectionAdministrationOutcome.reconciled,
+              );
+              await f.reopen();
+              expect(
+                await f.admin.resumeCreation(_id),
+                DavCollectionAdministrationOutcome.reconciled,
+              );
+            } else {
+              await expectLater(
+                f.admin.create('Work', {component}),
+                throwsA(isA<DavException>()),
+              );
+              await f.reopen();
+              await expectLater(
+                f.admin.resumeCreation(_id),
+                throwsA(isA<DavException>()),
+              );
+            }
+            expect(f.writes, 1);
+          },
+        );
+      }
+
+      test('matching marker cannot adopt a calendar missing the requested component', () async {
+        f.loseResponse = true;
+        f.normalizedResponse =
+            '<d:resourcetype><d:collection/><c:calendar/></d:resourcetype>'
+            '<d:displayname>WORK</d:displayname>'
+            '<c:supported-calendar-component-set><c:comp name="VJOURNAL"/></c:supported-calendar-component-set>'
+            '<b:operation-id xmlns:b="https://busystack.com/ns/busymax">$_id</b:operation-id>';
+        await expectLater(
+          f.admin.create('Work', {component}),
+          throwsA(isA<DavException>()),
+        );
+        expect(f.writes, 1);
+      });
+
       for (final scenario in [
         'writable',
         'readonly-parent',
@@ -1150,6 +1200,7 @@ class _Fixture {
       extendedMkcol = false;
   bool preflightBeforeRetry = false;
   String? remote;
+  String? normalizedResponse;
   String get collectionXml =>
       '<d:resourcetype><d:collection/><c:calendar/></d:resourcetype><d:displayname>Work</d:displayname><c:supported-calendar-component-set><c:comp name="$component"/></c:supported-calendar-component-set>';
   DavCollectionAdministration get admin => DavCollectionAdministration(
@@ -1293,7 +1344,8 @@ class _Fixture {
       if (interrupt && !commitBeforeInterrupt) {
         throw StateError('interrupted before remote commit');
       }
-      remote = collectionXml;
+      expect(request.body, contains('<b:operation-id>'));
+      remote = normalizedResponse ?? collectionXml;
       if (interrupt) throw StateError('interrupted after remote commit');
       if (loseResponse) throw http.ClientException('response lost');
       return http.Response('', 201);

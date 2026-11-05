@@ -1166,7 +1166,7 @@ class _TaskListScheduleRow extends ConsumerWidget {
               case 'toggle-reminders':
                 unawaited(_setTaskListRemindersEnabled(context, ref, list));
               case 'rename':
-                unawaited(_renameTaskList(context, ref, list));
+                if (canRename) unawaited(_renameTaskList(context, ref, list));
               case 'collection-settings':
                 unawaited(
                   showLinuxNextcloudCollectionDialog(
@@ -1176,7 +1176,7 @@ class _TaskListScheduleRow extends ConsumerWidget {
                   ),
                 );
               case 'delete':
-                unawaited(_deleteTaskList(context, ref, list));
+                if (canDelete) unawaited(_deleteTaskList(context, ref, list));
             }
           },
           entries: [
@@ -1413,6 +1413,9 @@ bool _canDeleteTaskList(
   TaskListEntity list,
   TaskCollectionCapabilities? davCapabilities,
 ) {
+  if (account.provider == BusyProvider.caldav && list.isShared == true) {
+    return false;
+  }
   if (account.provider == BusyProvider.microsoft) {
     return list.canRenameOrDeleteForMicrosoft;
   }

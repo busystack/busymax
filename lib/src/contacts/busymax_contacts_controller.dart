@@ -1,3 +1,4 @@
+import '../dav/auth/nextcloud_login_flow_v2.dart' as busymax_login;
 import '../core/http/authorization_leased_http_client.dart';
 import '../features/sync/account_sync_operations.dart';
 import '../dav/trust/nextcloud_http_client_factory.dart';
@@ -635,6 +636,7 @@ final class BusyMaxContactsController {
     required String label,
     required Uri server,
     NextcloudTrustReviewer? reviewCertificate,
+    busymax_login.NextcloudCanonicalServerReviewer? reviewCanonicalServer,
   }) => _enroll(id, (attempt) async {
     final cancellation = DavCancellationToken();
     final owner =
@@ -646,20 +648,28 @@ final class BusyMaxContactsController {
         authority: server,
         policy: policy,
       );
-      final flow = NextcloudLoginFlowV2(
-        server: server,
-        launchBrowser: launchBrowser,
+      final flow = busymax_login.NextcloudLoginFlowV2(
+        browserLauncher: launchBrowser,
         client: scoped ?? httpClient,
       );
       attempt.onCancel = () {
         cancellation.cancel();
-        flow.close();
+        flow.cancel();
         scoped?.close();
       };
       try {
-        return await flow.authenticate(cancellation);
+        final result = await flow.start(
+          server.toString(),
+          cancellationToken: cancellation,
+          reviewCanonicalServer: reviewCanonicalServer,
+        );
+        return NextcloudLoginCredential(
+          server: result.canonicalServer,
+          loginName: result.loginName,
+          appPassword: result.appPassword,
+        );
       } finally {
-        flow.close();
+        flow.cancel();
         scoped?.close();
       }
     }
@@ -680,9 +690,9 @@ final class BusyMaxContactsController {
       _checkEnrollment(attempt);
       if (normalizeNextcloudServerAuthority(server.toString()) !=
           normalizeNextcloudServerAuthority(credential.server.toString())) {
-        throw const FormatException(
-          'Untrusted Nextcloud canonical installation.',
-        );
+        // Certificate exceptions are scoped to the entered installation.
+        // Approval of a canonical URL must never transfer that exception.
+        policy = null;
       }
       return await _addCardDav(
         attempt,

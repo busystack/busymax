@@ -141,3 +141,35 @@ DavException _invalidCapabilities() => const DavException(
   code: 'DavStoredCapabilitiesInvalid',
   safeMessage: 'Stored DAV collection capabilities were invalid.',
 );
+
+bool davCollectionIsShared(
+  DavCollection collection,
+  DavAccountService? service,
+) {
+  String? effectivePrincipal = service?.principalHref;
+  try {
+    final metadata = jsonDecode(collection.safeDisplayMetadataJson ?? '{}');
+    if (metadata is Map && metadata['principalHref'] is String) {
+      effectivePrincipal = metadata['principalHref'] as String;
+    }
+    if (metadata is Map && metadata['shared'] is bool) {
+      return metadata['shared']! as bool;
+    }
+  } on FormatException {
+    // Owner/principal comparison below remains a safe fallback.
+  }
+  final owner = _hrefPath(collection.ownerHref);
+  final principal = _hrefPath(effectivePrincipal);
+  return owner != null && principal != null && owner != principal;
+}
+
+String? _hrefPath(String? source) {
+  if (source == null || source.trim().isEmpty) return null;
+  final uri = Uri.tryParse(source.trim());
+  if (uri == null) return null;
+  var path = uri.path;
+  while (path.length > 1 && path.endsWith('/')) {
+    path = path.substring(0, path.length - 1);
+  }
+  return path;
+}

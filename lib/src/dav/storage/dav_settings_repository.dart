@@ -83,6 +83,7 @@ final class DavCollectionSettingsEntity {
                   !capabilities.permissionsKnown),
       supportsListDelete:
           base.supportsListDelete &&
+          !(provider == BusyProvider.caldav && shared) &&
           (canRemoveCollection ||
               provider == BusyProvider.caldav &&
                   !collectionRemovalPermissionKnown),
@@ -316,7 +317,7 @@ DavCollectionSettingsEntity _fromRow(
     name: collection.displayName,
     color: collection.color,
     readOnly: capabilities.isReadOnly,
-    shared: _isShared(collection, service),
+    shared: davCollectionIsShared(collection, service),
     supportsEvents: collection.eventProjectionEnabled,
     supportsTasks: collection.taskProjectionEnabled,
     eventsSelected: collection.eventsSelected,
@@ -355,33 +356,4 @@ String _accountLabel(Account account, BusyProvider provider) {
   final email = account.email?.trim();
   if (email != null && email.isNotEmpty) return email;
   return provider.displayName;
-}
-
-bool _isShared(DavCollection collection, DavAccountService? service) {
-  String? effectivePrincipal = service?.principalHref;
-  try {
-    final metadata = jsonDecode(collection.safeDisplayMetadataJson ?? '{}');
-    if (metadata is Map && metadata['principalHref'] is String) {
-      effectivePrincipal = metadata['principalHref'] as String;
-    }
-    if (metadata is Map && metadata['shared'] is bool) {
-      return metadata['shared']! as bool;
-    }
-  } on FormatException {
-    // Owner/principal comparison below remains a safe fallback.
-  }
-  final owner = _hrefPath(collection.ownerHref);
-  final principal = _hrefPath(effectivePrincipal);
-  return owner != null && principal != null && owner != principal;
-}
-
-String? _hrefPath(String? source) {
-  if (source == null || source.trim().isEmpty) return null;
-  final uri = Uri.tryParse(source.trim());
-  if (uri == null) return null;
-  var path = uri.path;
-  while (path.length > 1 && path.endsWith('/')) {
-    path = path.substring(0, path.length - 1);
-  }
-  return path;
 }

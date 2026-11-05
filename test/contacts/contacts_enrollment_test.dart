@@ -1,3 +1,8 @@
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
+
+import '../support/dav_contacts_fixture.dart';
 import '../support/persistence_test_directory.dart';
 
 import 'dart:async';
@@ -15,6 +20,78 @@ import 'package:logging/logging.dart';
 import '../support/contacts_fixture.dart';
 
 void main() {
+  for (final consent in [null, false, true]) {
+    test(
+      'contacts-only canonical server requires explicit review: $consent',
+      () async {
+        final f = ContactsFixture(AppDatabase.memoryForTests(), realDav: true);
+        addTearDown(f.close);
+        final dav = DavFixture();
+        var reviewed = false;
+        f.respondDav = (request) async {
+          if (request.url.path.endsWith('/index.php/login/v2')) {
+            return http.Response(
+              jsonEncode({
+                'login': 'https://alias.example.test/browser',
+                'poll': {
+                  'token': 'synthetic',
+                  'endpoint': 'https://alias.example.test/poll',
+                },
+              }),
+              200,
+            );
+          }
+          if (request.url.path == '/poll') {
+            return http.Response(
+              jsonEncode({
+                'server': server.toString(),
+                'loginName': 'u',
+                'appPassword': 'synthetic',
+              }),
+              200,
+            );
+          }
+          expect(consent, isTrue);
+          expect(reviewed, isTrue);
+          expect(request.url.host, server.host);
+          return dav.respond(request);
+        };
+        final result = f.controller.addNextcloudContactsOnly(
+          id: 'alias',
+          label: 'Contacts',
+          server: Uri.parse('https://alias.example.test/'),
+          reviewCanonicalServer: consent == null
+              ? null
+              : (entered, canonical) async {
+                  expect(entered.host, 'alias.example.test');
+                  expect(canonical.host, server.host);
+                  expect(
+                    f.requests.every(
+                      (r) => !r.headers.containsKey('authorization'),
+                    ),
+                    isTrue,
+                  );
+                  reviewed = true;
+                  return consent;
+                },
+        );
+        if (consent == true) {
+          expect((await result).enabled, isTrue);
+          expect(
+            jsonDecode(f.davSecrets['alias']!)['server'],
+            server.replace(path: '/nextcloud').toString(),
+          );
+        } else {
+          await expectLater(result, throwsException);
+          expect(f.davSecrets, isEmpty);
+          expect(dav.requests, isEmpty);
+          expect(await f.store.read((tx) => tx.account('alias')), isNull);
+        }
+        expect(reviewed, consent != null);
+      },
+    );
+  }
+
   for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
     test(
       '$provider first enrollment, enabled read-only reconnect and reconnect synchronize',

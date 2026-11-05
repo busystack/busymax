@@ -570,6 +570,28 @@ void main() {
       expect((await fixture.sharing.load('collection')).publishUrl, isNull);
     },
   );
+  test('automatic preview eligibility excludes useful names, large objects and weak ETags', () async {
+    var listing = await fixture.trash.list();
+    expect(listing.items.every((i) => i.canPreview), isTrue);
+    fixture.trashDisplayName = 'Planning';
+    listing = await fixture.trash.list();
+    expect(listing.items.every((i) => !i.canPreview), isTrue);
+    fixture.trashDisplayName = null;
+    fixture.trashDescriptionBytes = 65 * 1024;
+    listing = await fixture.trash.list();
+    expect(listing.items.every((i) => !i.canPreview), isTrue);
+    fixture.trashDescriptionBytes = 0;
+    fixture.trashEtag = 'W/"weak"';
+    listing = await fixture.trash.list();
+    expect(listing.items.every((i) => !i.canPreview), isTrue);
+    expect(
+      fixture.requests.where(
+        (r) => r.method == 'GET' || r.body.contains('calendar-data'),
+      ),
+      isEmpty,
+    );
+  });
+
   test('default large trash listing returns all metadata without downloading bodies', () async {
     fixture.trashObjectCount = 300;
     fixture.trashDescriptionBytes = 128 * 1024;

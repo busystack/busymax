@@ -299,6 +299,36 @@ void main() {
     },
   );
   test(
+    'origin discovery can independently select the other installation',
+    () async {
+      final other = await _discover(wellKnownStatus: 207);
+      expect(other.service.principalHref.path, '/other/principal/');
+      expect(other.service.calendarHomeHref.path, '/other/home/');
+      expect(other.collections.single.requestUri.path, '/other/home/calendar/');
+    },
+  );
+
+  for (final status in [200, 403, 404, 405, 410, 501]) {
+    test(
+      'explicit installation failure $status never selects another installation',
+      () async {
+        final requests = <http.Request>[];
+        await expectLater(
+          _discover(
+            server: 'https://example.test/team/',
+            explicitStatus: status,
+            wellKnownStatus: 207,
+            requests: requests,
+          ),
+          throwsA(isA<DavException>()),
+        );
+        expect(requests, hasLength(1));
+        expect(requests.single.url.path, '/team/');
+      },
+    );
+  }
+
+  test(
     'an HTML well-known response falls back to the explicit endpoint',
     () async {
       final requests = <http.Request>[];
@@ -403,6 +433,7 @@ Future<DavDiscoveryResult> _discover({
   String server = 'https://example.test/',
   bool missingPrincipal = false,
   int wellKnownStatus = 404,
+  int? explicitStatus,
   String creationMethods = 'OPTIONS, PROPFIND, REPORT, MKCALENDAR',
   String serverFeatures = 'calendar-access',
   bool homeMove = true,
@@ -422,7 +453,19 @@ Future<DavDiscoveryResult> _discover({
   final client = MockClient((request) async {
     requests?.add(request);
     if (latency > Duration.zero) await Future<void>.delayed(latency);
+    if (request.url.path == '/team/' && explicitStatus != null) {
+      return http.Response(
+        '<html>Team installation unavailable</html>',
+        explicitStatus,
+      );
+    }
     if (request.url.path == '/.well-known/caldav') {
+      if (wellKnownStatus == 207) {
+        return http.Response(
+          '<d:multistatus xmlns:d="DAV:"><d:response><d:href>/.well-known/caldav</d:href><d:propstat><d:prop><d:current-user-principal><d:href>/other/principal/</d:href></d:current-user-principal></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>',
+          207,
+        );
+      }
       return http.Response('<html>Server home</html>', wellKnownStatus);
     }
     if (request.method == 'OPTIONS') {
@@ -440,6 +483,25 @@ Future<DavDiscoveryResult> _discover({
     }
     String response(String path, String props, {String other = ''}) =>
         '<d:response><d:href>$path</d:href><d:propstat><d:prop>$props</d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat>$other</d:response>';
+    if (request.url.path.startsWith('/other/')) {
+      final props = request.url.path == '/other/principal/'
+          ? response(
+              request.url.path,
+              '<c:calendar-home-set><d:href>/other/home/</d:href></c:calendar-home-set>',
+            )
+          : response(
+                  '/other/home/',
+                  '<d:resourcetype><d:collection/></d:resourcetype>',
+                ) +
+                response(
+                  '/other/home/calendar/',
+                  '<d:resourcetype><d:collection/><c:calendar/></d:resourcetype><d:displayname>Other installation</d:displayname>',
+                );
+      return http.Response(
+        '<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">$props</d:multistatus>',
+        207,
+      );
+    }
     final body = request.url.path == '/principal/user/'
         ? response(
             request.url.path,

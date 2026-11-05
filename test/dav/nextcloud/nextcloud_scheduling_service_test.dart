@@ -115,6 +115,34 @@ void main() {
       expect(fixture.requests.where((r) => r.method == 'DELETE'), isEmpty);
     },
   );
+  test('unknown inbox permissions allow server-validated reads but no acknowledgement', () async {
+    await fixture.seedPolicy(
+      inboxPrivileges: const {},
+      inboxPrivilegesKnown: false,
+    );
+    final message = (await service.inbox('collection')).single;
+    expect(message.canAcknowledge, isFalse);
+    await expectLater(
+      service.acknowledge('collection', message),
+      throwsException,
+    );
+    expect(fixture.requests.where((r) => r.method == 'DELETE'), isEmpty);
+    fixture.failInbox = true;
+    await expectLater(service.inbox('collection'), throwsException);
+  });
+
+  test(
+    'explicitly denied inbox read is rejected before network access',
+    () async {
+      await fixture.seedPolicy(
+        inboxPrivileges: const {},
+        inboxPrivilegesKnown: true,
+      );
+      await expectLater(service.inbox('collection'), throwsException);
+      expect(fixture.requests, isEmpty);
+    },
+  );
+
   test('authorization replacement during inbox refresh invalidates acknowledgement', () async {
     final message = (await service.inbox('collection')).single;
     fixture.beforeResponse = (_) async {

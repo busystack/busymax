@@ -827,6 +827,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       await ref
           .read(busyMaxContactsControllerProvider)
           .addNextcloudContactsOnly(
+            reviewCanonicalServer: (entered, canonical) => mounted
+                ? showLinuxNextcloudCanonicalServer(context, entered, canonical)
+                : Future.value(false),
             reviewCertificate: (challenge, owner) => reviewNextcloudCertificate(
               challenge,
               owner,

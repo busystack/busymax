@@ -15,6 +15,7 @@ import '../dav_provider_profile.dart';
 import '../http/dav_account_http_client.dart';
 import '../http/dav_http_transport.dart';
 import '../xml/dav_xml.dart';
+import '../storage/dav_collection_capabilities.dart';
 import 'dav_collection_mutation_helpers.dart';
 
 enum DavCollectionAdministrationOutcome {
@@ -449,10 +450,20 @@ final class DavCollectionAdministration {
           )
           .map((e) => e.getAttribute('name'))
           .toSet();
-      return entry.successfulProperty(davNamespace, 'displayname')?.text ==
-              title.trim() &&
+      // A retained marker identifies our dispatched operation independently
+      // of normalized display properties. Without it, keep legacy exact intent
+      // matching; the target, account, home and state checks still apply.
+      final marker = entry
+          .successfulProperty(_creationNamespace, 'operation-id')
+          ?.text
+          .trim();
+      if (marker != null && marker != operationId) return false;
+      final marked = marker == operationId;
+      return (marked ||
+              entry.successfulProperty(davNamespace, 'displayname')?.text ==
+                  title.trim()) &&
           (actual != null &&
-              actual.length == components.length &&
+              (marked || actual.length == components.length) &&
               actual.containsAll(components)) &&
           entry
               .successfulProperty(davNamespace, 'resourcetype')!
@@ -527,7 +538,7 @@ final class DavCollectionAdministration {
         ? '<d:resourcetype><d:collection/><c:calendar/></d:resourcetype>'
         : '';
     final xml =
-        '<$tag $_namespaces><d:set><d:prop>$resourceType<d:displayname>${escapeDavXmlText(title.trim())}</d:displayname><c:supported-calendar-component-set>${components.map((v) => '<c:comp name="$v"/>').join()}</c:supported-calendar-component-set></d:prop></d:set></$tag>';
+        '<$tag $_namespaces><d:set><d:prop>$resourceType<b:operation-id>$operationId</b:operation-id><d:displayname>${escapeDavXmlText(title.trim())}</d:displayname><c:supported-calendar-component-set>${components.map((v) => '<c:comp name="$v"/>').join()}</c:supported-calendar-component-set></d:prop></d:set></$tag>';
     var rejected = false;
     try {
       final response = await _send(
@@ -781,6 +792,16 @@ final class DavCollectionAdministration {
   }
 
   Future<DavCollectionAdministrationOutcome> remove(String id) async {
+    final collection =
+        await (database.select(database.davCollections)
+              ..where((r) => r.id.equals(id) & r.accountId.equals(accountId)))
+            .getSingleOrNull();
+    final service = await (database.select(
+      database.davAccountServices,
+    )..where((r) => r.accountId.equals(accountId))).getSingleOrNull();
+    if (collection != null && davCollectionIsShared(collection, service)) {
+      throw _error(403, 'DavSharedCollectionRemovalUnsupported');
+    }
     final c = await _open();
     final resolved = await _target(c, id);
     final target = resolved.uri;
@@ -841,10 +862,11 @@ final class _Context {
   final List<({Uri home, String? principal})> identities;
 }
 
+const _creationNamespace = 'https://busystack.com/ns/busymax';
 const _namespaces =
-    'xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:a="http://apple.com/ns/ical/"';
+    'xmlns:b="$_creationNamespace" xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:a="http://apple.com/ns/ical/"';
 const _properties =
-    '<d:resourcetype/><d:displayname/><d:current-user-privilege-set/><c:supported-calendar-component-set/><c:calendar-description/><a:calendar-color/><a:calendar-order/>';
+    '<b:operation-id/><d:resourcetype/><d:displayname/><d:current-user-privilege-set/><c:supported-calendar-component-set/><c:calendar-description/><a:calendar-color/><a:calendar-order/>';
 final _writable = {
   const DavPropertyName(davNamespace, 'displayname'),
   const DavPropertyName(caldavNamespace, 'calendar-description'),

@@ -203,6 +203,38 @@ void main() {
     }
   });
 
+  test(
+    'generic shares never expose collection removal even with parent unbind',
+    () async {
+      await (database.update(
+        database.accounts,
+      )..where((r) => r.id.equals(list.accountId))).write(
+        const AccountsCompanion(
+          provider: Value('caldav'),
+          credentialKind: Value('caldav_password'),
+        ),
+      );
+      for (final parentKnown in [true, false]) {
+        await updateCollection(
+          DavCollectionsCompanion(
+            safeDisplayMetadataJson: Value(
+              jsonEncode({
+                'shared': true,
+                'parentPrivilegesKnown': '$parentKnown',
+                'parentPrivileges': ['{DAV:}unbind'],
+              }),
+            ),
+          ),
+        );
+        final entity = await repository.collectionByTaskListId(
+          list.accountId,
+          list.id,
+        );
+        expect(entity!.taskCapabilities.supportsListDelete, isFalse);
+      }
+    },
+  );
+
   test('provider uses current metadata, owner and joined service principal for task capabilities', () async {
     final values = probe();
     final initial = (await values.next())!;

@@ -25,6 +25,21 @@ String? _displayName(DavMultistatusResponse row) {
   return name == null || name.isEmpty ? null : name;
 }
 
+// Never preview unknown-size or large objects automatically. The initial UI
+// enriches at most five candidates, one at a time (<=320 KiB advertised total).
+bool _smallPreview(DavMultistatusResponse row) {
+  final size = int.tryParse(
+    row.successfulProperty(davNamespace, 'getcontentlength')?.text ?? '',
+  );
+  final etag = row.successfulProperty(davNamespace, 'getetag')?.text;
+  return size != null &&
+      size >= 0 &&
+      size <= 64 * 1024 &&
+      etag != null &&
+      etag.isNotEmpty &&
+      !etag.startsWith('W/');
+}
+
 final class NextcloudTrashItem {
   const NextcloudTrashItem._({
     required this.accountId,
@@ -42,6 +57,7 @@ final class NextcloudTrashItem {
     this.calendarUri,
     this.sourceCalendarUri,
     this.contentLoaded = false,
+    this.canPreview = false,
   });
   final String accountId;
   final Uri href;
@@ -58,6 +74,9 @@ final class NextcloudTrashItem {
   final String? calendarUri;
   final String? sourceCalendarUri;
   final bool contentLoaded;
+
+  /// Missing useful metadata and small enough for a bounded initial preview.
+  final bool canPreview;
 
   bool get isObject => switch (kind) {
     NextcloudTrashKind.event ||
@@ -304,6 +323,11 @@ final class NextcloudTrashService {
           calendarHomeHref: home,
           uid: content?.uid,
           contentLoaded: raw != null,
+          canPreview:
+              raw == null &&
+              (_displayName(row) == null ||
+                  _displayName(row) == href.pathSegments.last) &&
+              _smallPreview(row),
           href: href,
           trashBinHref: binUri,
           kind:

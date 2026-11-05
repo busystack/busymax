@@ -58,6 +58,9 @@ class _AndroidContactsSettingsState
       final id = const Uuid().v7();
       if (nextcloud) {
         await controller.addNextcloudContactsOnly(
+          reviewCanonicalServer: (entered, canonical) => mounted
+              ? showAndroidNextcloudCanonicalServer(context, entered, canonical)
+              : Future.value(false),
           reviewCertificate: (challenge, owner) => reviewNextcloudCertificate(
             challenge,
             owner,

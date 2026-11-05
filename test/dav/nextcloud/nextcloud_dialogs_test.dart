@@ -436,9 +436,31 @@ void main() {
 
   for (final platform in ['Linux', 'Windows', 'Android']) {
     testWidgets(
+      '$platform bounds automatic identification of small unnamed trash items',
+      (tester) async {
+        final fixture = NextcloudAdminFixture()..trashObjectCount = 20;
+        await tester.runAsync(fixture.seed);
+        addTearDown(fixture.close);
+        await _pumpTrash(tester, fixture, platform: platform);
+        await _settle(tester);
+        expect(fixture.requests.where((r) => r.method == 'GET'), hasLength(5));
+        expect(
+          fixture.requests.where((r) => r.body.contains('calendar-data')),
+          isEmpty,
+        );
+        expect(find.text('Deleted event'), findsWidgets);
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+  }
+
+  for (final platform in ['Linux', 'Windows', 'Android']) {
+    testWidgets(
       '$platform shows trash metadata before an on-demand detail read completes',
       (tester) async {
-        final fixture = NextcloudAdminFixture();
+        final fixture = NextcloudAdminFixture()
+          ..trashDescriptionBytes = 65 * 1024;
         await tester.runAsync(fixture.seed);
         addTearDown(fixture.close);
         await _pumpTrash(tester, fixture, platform: platform);
@@ -498,7 +520,8 @@ void main() {
   testWidgets(
     'trash keeps the newest listing when refreshes finish in reverse order',
     (tester) async {
-      final fixture = NextcloudAdminFixture();
+      final fixture = NextcloudAdminFixture()
+        ..trashDescriptionBytes = 65 * 1024;
       await tester.runAsync(fixture.seed);
       addTearDown(fixture.close);
       await _pumpTrash(tester, fixture, platform: 'Android');
@@ -556,7 +579,7 @@ void main() {
   testWidgets('trash uses shared rows and confirms permanent deletion', (
     tester,
   ) async {
-    final fixture = NextcloudAdminFixture();
+    final fixture = NextcloudAdminFixture()..trashDescriptionBytes = 65 * 1024;
     await tester.runAsync(fixture.seed);
     addTearDown(fixture.close);
     await _pumpTrash(tester, fixture);
@@ -693,7 +716,7 @@ void main() {
 }
 
 Future<void> _settle(WidgetTester tester) async {
-  for (var i = 0; i < 5; i++) {
+  for (var i = 0; i < 20; i++) {
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 20)),
     );

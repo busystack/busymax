@@ -48,6 +48,38 @@ void main() {
         .setMockMethodCallHandler(_nativeMenuChannel, null);
   });
 
+  testWidgets(
+    'generic shared task list removal is disabled even without a DAV binding',
+    (tester) async {
+      final account = _account(BusyProvider.caldav, id: 'account');
+      await _pumpSidebar(
+        tester,
+        [account],
+        taskLists: [
+          TaskListEntity(
+            accountId: account.id,
+            id: 'tasks',
+            title: 'Shared',
+            isShared: true,
+            localDirty: false,
+            pendingDelete: false,
+            rawJson: '{}',
+          ),
+        ],
+      );
+      final menu = tester.widget<BusyMaxMenuButton<String>>(
+        find.byKey(const ValueKey(('task-list-options', 'account', 'tasks'))),
+      );
+      expect(
+        menu.entries.singleWhere((e) => e.value == 'delete').enabled,
+        isFalse,
+      );
+      menu.onSelected('delete');
+      await tester.pumpAndSettle();
+      expect(find.text('Unshare'), findsNothing);
+    },
+  );
+
   for (final nextcloud in [false, true]) {
     testWidgets(
       'calendar rename refresh message retains the correct provider; Nextcloud=$nextcloud',
