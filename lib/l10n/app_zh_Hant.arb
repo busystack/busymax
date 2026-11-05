@@ -1,4 +1,5 @@
 {
+  "caldavSchedulingWarning": "此行程有參與者。儲存或刪除行程後，CalDAV 伺服器可能會在同步變更時通知參與者。",
   "caldavNativeImport": "匯入完整的行程和工作資源。對於有參與者的項目，CalDAV 伺服器可能會傳送邀請或會議更新。除非選擇建立新副本，否則將略過現有的 UID。不支援的資源將個別回報。",
   "davInsufficientStorage": "伺服器儲存空間不足，無法建立此集合。",
   "davCollectionPropertyRejected": "伺服器拒絕了要求設定的集合屬性。",

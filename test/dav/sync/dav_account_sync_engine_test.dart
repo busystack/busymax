@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:busymax/src/dav/mutation/dav_collection_administration.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/features/connectivity/network_connectivity_service.dart';
@@ -51,6 +53,77 @@ void main() {
     await database.close();
     await applicationDirectory?.delete(recursive: true);
     applicationDirectory = null;
+  });
+
+  test('optional federation cannot hold ordinary DAV completion or its busy indicator', () async {
+    final started = Completer<void>(), release = Completer<void>();
+    var optionalCalls = 0;
+    final client = MockClient((request) async {
+      if (request.url.path.contains('/ocs/')) {
+        optionalCalls++;
+        if (!started.isCompleted) started.complete();
+        await release.future;
+        return http.Response('', 503, headers: {'retry-after': '0'});
+      }
+      if (request.method == 'OPTIONS') {
+        return http.Response('', 200, headers: {'dav': 'calendar-access'});
+      }
+      if (request.method == 'PROPFIND') {
+        if (request.body.contains('<d:current-user-principal/>')) {
+          return _discoveryMultistatus(_currentPrincipalResponse);
+        }
+        if (request.body.contains('<c:calendar-home-set/>')) {
+          return _discoveryMultistatus(_principalPropertiesResponse);
+        }
+        return _discoveryMultistatus(_singleCollectionInventoryResponse);
+      }
+      if (request.method == 'REPORT') {
+        return http.Response(_syncResponse(token: 'urn:optional:empty'), 207);
+      }
+      throw StateError('Unexpected ${request.method} ${request.url}');
+    });
+    final container = ProviderContainer(
+      overrides: [
+        databaseProvider.overrideWithValue(database),
+        secretStoreProvider.overrideWithValue(secrets),
+        baseHttpClientProvider.overrideWithValue(client),
+        davAccountHttpClientProvider('account').overrideWithValue(client),
+        networkConnectivityMonitorProvider.overrideWith((ref) {
+          final monitor =
+              NetworkConnectivityMonitor.withoutPlatformObservation();
+          ref.onDispose(monitor.dispose);
+          return monitor;
+        }),
+        notificationReconcilerProvider.overrideWithValue(
+          CallbackNotificationReconciler(() async {}),
+        ),
+      ],
+    );
+    addTearDown(() async {
+      release.complete();
+      try {
+        await container
+            .read(nextcloudFederationServiceProvider('account'))
+            .discoverPending();
+      } on Object {
+        /* optional failure drained */
+      }
+      container.dispose();
+      client.close();
+    });
+    final operations = container.read(accountSyncOperationsProvider);
+    final sync = operations.syncAccount('account', full: true);
+    await started.future.timeout(const Duration(seconds: 5));
+    await sync.timeout(const Duration(seconds: 5));
+    expect(release.isCompleted, isFalse);
+    expect(
+      container.read(accountSyncActivityProvider).isRunning('account', 'dav'),
+      isFalse,
+    );
+    await operations
+        .syncAccount('account', full: false)
+        .timeout(const Duration(seconds: 5));
+    expect(optionalCalls, 1); // The stalled check is shared across refreshes.
   });
 
   for (final provider in [BusyProvider.caldav, BusyProvider.nextcloud]) {

@@ -305,6 +305,18 @@ Future<bool> showWindowsEventEditorDialog(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  if ((attendees.isNotEmpty ||
+                          (originalDraft?.attendees.isNotEmpty ?? false)) &&
+                      (selectedSource.usesImplicitScheduling ||
+                          sources.any(
+                            (s) =>
+                                s.id == originalDraft?.sourceId &&
+                                s.usesImplicitScheduling,
+                          )))
+                    Text(
+                      l10n.caldavSchedulingWarning,
+                      key: const ValueKey('caldav-scheduling-warning'),
+                    ),
                   InfoLabel(
                     label: l10n.title,
                     child: TextBox(

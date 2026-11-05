@@ -922,6 +922,12 @@ final class BusyMaxContactsController {
           ),
           accountGeneration: account.generation,
         );
+        if (parentId == null && encoded != null) {
+          await accountGate.run(
+            'contacts:${account.id}',
+            () => _compactCommittedDavSecret(account, encoded),
+          );
+        }
     }
     _boundGenerations[account.id] = account.generation;
   }
@@ -1361,7 +1367,45 @@ final class BusyMaxContactsController {
       }
       rethrow;
     }
+    // SQL and secure storage now select the replacement. Cleanup must never
+    // roll the credential back after this durable commit.
+    await _compactCommittedDavSecret(account, next);
   });
+
+  /// Runs under the independent account's exclusive authorization gate.
+  /// A staged envelope for a future generation must retain its recovery copy.
+  Future<void> _compactCommittedDavSecret(
+    ContactAccount account,
+    String encoded,
+  ) async {
+    try {
+      final config = (jsonDecode(encoded) as Map).cast<String, dynamic>();
+      if (config['nextcloud'] != true ||
+          !config.containsKey('_previous') ||
+          config['authorizationGeneration'] != account.generation) {
+        return;
+      }
+      final current = await store.read((tx) => tx.account(account.id));
+      if (current?.generation != account.generation ||
+          await store.hasAccountLink(account.id) ||
+          await readDavSecret(account.id) != encoded) {
+        return;
+      }
+      final compact = jsonEncode(Map.of(config)..remove('_previous'));
+      await writeDavSecret(account.id, compact);
+      if (await readDavSecret(account.id) != compact) {
+        throw const FormatException('Contacts credential cleanup failed.');
+      }
+    } on Object catch (error, stack) {
+      // The staged and compact forms both select the newly committed secret.
+      // Binding (including after restart) retries cleanup without reverting it.
+      _log.warning(
+        'Obsolete contacts credential cleanup will be retried',
+        error,
+        stack,
+      );
+    }
+  }
 
   Future<(Uri, NextcloudTrustPolicy?, int)> privateTrustSnapshot(
     String id,

@@ -14,6 +14,10 @@ class AppLocalizationsPl extends AppLocalizations {
   AppLocalizationsPl([String locale = 'pl']) : super(locale);
 
   @override
+  String get caldavSchedulingWarning =>
+      'To wydarzenie ma uczestników. Po zapisaniu lub usunięciu serwer CalDAV może ich powiadomić podczas synchronizacji zmiany.';
+
+  @override
   String get caldavNativeImport =>
       'Importuj pełne zasoby wydarzeń i zadań. W przypadku elementów z uczestnikami serwer CalDAV może wysyłać zaproszenia lub aktualizacje spotkań. Istniejące identyfikatory UID są pomijane, chyba że wybierzesz nowe kopie. Nieobsługiwane zasoby są zgłaszane osobno.';
 

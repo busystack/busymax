@@ -1,4 +1,5 @@
 {
+  "caldavSchedulingWarning": "Tässä tapahtumassa on osallistujia. Tallentaminen tai poistaminen voi saada CalDAV-palvelimen ilmoittamaan osallistujille, kun muutos synkronoidaan.",
   "caldavNativeImport": "Tuo tapahtumien ja tehtävien täydelliset resurssit. CalDAV-palvelin saattaa lähettää kutsuja tai kokouspäivityksiä kohteille, joissa on osallistujia. Olemassa olevat UID-tunnisteet ohitetaan, ellet valitse uusia kopioita. Resursseista, joita ei tueta, ilmoitetaan erikseen.",
   "davInsufficientStorage": "Palvelimella ei ole tarpeeksi tallennustilaa tämän kokoelman luomiseen.",
   "davCollectionPropertyRejected": "Palvelin hylkäsi kokoelmalle pyydetyn ominaisuuden.",

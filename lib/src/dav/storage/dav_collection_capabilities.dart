@@ -82,11 +82,25 @@ CollectionCapabilities collectionCapabilitiesFromStored(
   );
 }
 
-Map<String, Object?> davSourcePermissionProjection(DavCollection collection) {
+bool davUsesImplicitScheduling(DavAccountService? service) {
+  try {
+    final metadata = jsonDecode(service?.capabilitiesJson ?? '{}');
+    final features = metadata is Map ? metadata['serverFeatures'] : null;
+    return features is List && features.contains('calendar-auto-schedule');
+  } on FormatException {
+    return false;
+  }
+}
+
+Map<String, Object?> davSourcePermissionProjection(
+  DavCollection collection, {
+  DavAccountService? service,
+}) {
   final capabilities = collectionCapabilitiesFromStored(collection);
   final metadata = jsonDecode(collection.safeDisplayMetadataJson ?? '{}');
   return {
     if (metadata is Map) ...metadata.cast<String, Object?>(),
+    'implicitScheduling': davUsesImplicitScheduling(service),
     'canRead': capabilities.canRead,
     'permissionsKnown': capabilities.permissionsKnown,
     'canAttemptCreateEvents': capabilities.canAttemptCreateEvent,

@@ -2081,8 +2081,10 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     var guestUpdatePolicy = CalendarGuestUpdatePolicy.send;
     final hasGuestDeliveryChoice =
         item is CalendarScheduleItem &&
-        item.isOrganizer == true &&
-        _calendarItemHasExternalGuests(item);
+        (item.mayNotifyParticipants ||
+            (item.provider != BusyProvider.caldav &&
+                item.isOrganizer == true &&
+                _calendarItemHasExternalGuests(item)));
     if (hasGuestDeliveryChoice) {
       if (!mounted) return;
       final choice = await showWindowsGuestUpdateDialog(

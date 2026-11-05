@@ -14,6 +14,10 @@ class AppLocalizationsAr extends AppLocalizations {
   AppLocalizationsAr([String locale = 'ar']) : super(locale);
 
   @override
+  String get caldavSchedulingWarning =>
+      'لهذا الحدث مشاركون. قد يؤدي حفظه أو حذفه إلى إرسال خادم CalDAV إشعارًا إليهم عند مزامنة التغيير.';
+
+  @override
   String get caldavNativeImport =>
       'استيراد موارد الأحداث والمهام كاملة. بالنسبة للعناصر التي تضم حاضرين، قد يرسل خادم CalDAV دعوات أو تحديثات للاجتماعات. يتم تخطي معرّفات UID الموجودة ما لم تختر نسخًا جديدة. يُبلّغ عن الموارد غير المدعومة كلٌّ على حدة.';
 

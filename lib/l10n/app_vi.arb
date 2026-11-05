@@ -1,4 +1,5 @@
 {
+  "caldavSchedulingWarning": "Sự kiện này có người tham dự. Khi lưu hoặc xóa, máy chủ CalDAV có thể thông báo cho họ lúc thay đổi được đồng bộ.",
   "caldavNativeImport": "Nhập tài nguyên đầy đủ của sự kiện và công việc. Với các mục có người tham dự, máy chủ CalDAV có thể gửi lời mời hoặc cập nhật cuộc họp. Các UID hiện có sẽ bị bỏ qua trừ khi bạn chọn tạo bản sao mới. Tài nguyên không được hỗ trợ sẽ được báo cáo riêng.",
   "davInsufficientStorage": "Máy chủ không đủ dung lượng lưu trữ để tạo bộ sưu tập này.",
   "davCollectionPropertyRejected": "Máy chủ đã từ chối một thuộc tính được yêu cầu của bộ sưu tập.",

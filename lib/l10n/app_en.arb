@@ -1,4 +1,5 @@
 {
+  "caldavSchedulingWarning": "This event has attendees. Saving or deleting it may cause your CalDAV server to notify participants when the change synchronizes.",
   "caldavNativeImport": "Import complete event and task resources. For items with attendees, the CalDAV server may send invitations or meeting updates. Existing UIDs are skipped unless you choose new copies. Unsupported resources are reported individually.",
   "davInsufficientStorage": "The server has insufficient storage to create this collection.",
   "davCollectionPropertyRejected": "The server rejected a requested collection property.",

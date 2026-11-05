@@ -1548,14 +1548,17 @@ final accountSyncOperationsProvider = Provider<AccountSyncOperations>((ref) {
               ),
         );
         if (await providerForAccount(accountId) == BusyProvider.nextcloud) {
-          try {
-            await ref
-                .read(nextcloudFederationServiceProvider(accountId))
-                .discoverPending(force: full);
-          } on Object {
-            // Optional invitation discovery keeps its last known count while
-            // offline; the normal sync's successful data remains usable.
-          }
+          // Piggyback on this refresh without extending DAV sync completion.
+          // The service coalesces overlapping checks and retains its cache.
+          unawaited(
+            Future<void>.sync(
+              () => ref
+                  .read(nextcloudFederationServiceProvider(accountId))
+                  .discoverPending(force: full),
+            ).catchError((Object error, StackTrace stack) {
+              // Optional discovery retains its last known count on failure.
+            }),
+          );
         }
       }),
     ),

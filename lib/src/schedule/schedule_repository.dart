@@ -91,6 +91,7 @@ class ScheduleRepository {
             _database.calendarEventReminders,
             _database.calendarColors,
             _database.davCollections,
+            _database.davAccountServices,
             _database.scheduleItemOverrides,
           ]),
         )
@@ -508,6 +509,12 @@ class ScheduleRepository {
               ),
             ),
             leftOuterJoin(
+              _database.davAccountServices,
+              _database.davAccountServices.accountId.equalsExp(
+                _database.calendarEvents.accountId,
+              ),
+            ),
+            leftOuterJoin(
               _database.calendarSources,
               _database.calendarSources.id.equalsExp(
                 _database.calendarEvents.calendarSourceId,
@@ -597,6 +604,9 @@ class ScheduleRepository {
               : descriptionBody.contentType,
           descriptionHtml: restrictedPrivate ? null : descriptionBody.html,
           attendees: restrictedPrivate ? const [] : attendees,
+          implicitScheduling: davUsesImplicitScheduling(
+            row.readTableOrNull(_database.davAccountServices),
+          ),
           organizer: restrictedPrivate ? null : organizer,
           joinMeetingUrl: restrictedPrivate
               ? null

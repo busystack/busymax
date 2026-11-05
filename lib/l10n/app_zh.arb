@@ -1,4 +1,5 @@
 {
+  "caldavSchedulingWarning": "此日程有参与者。保存或删除日程后，CalDAV 服务器可能会在同步更改时通知参与者。",
   "caldavNativeImport": "导入完整的日程和任务资源。对于有参与者的项目，CalDAV 服务器可能会发送邀请或会议更新。除非选择创建新副本，否则将跳过已有的 UID。不支持的资源将单独报告。",
   "davInsufficientStorage": "服务器存储空间不足，无法创建此集合。",
   "davCollectionPropertyRejected": "服务器拒绝了请求设置的集合属性。",

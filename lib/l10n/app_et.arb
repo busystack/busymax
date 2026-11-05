@@ -1,4 +1,5 @@
 {
+  "caldavSchedulingWarning": "Sellel sündmusel on osalejaid. Salvestamisel või kustutamisel võib CalDAV-server neile muudatuse sünkroonimisel teavituse saata.",
   "caldavNativeImport": "Impordi sündmuste ja ülesannete täielikud ressursid. Osalejatega kirjete puhul võib CalDAV-server saata kutseid või koosoleku uuendusi. Olemasolevad UID-d jäetakse vahele, kui sa ei vali uusi koopiaid. Toetamata ressurssidest teatatakse eraldi.",
   "davInsufficientStorage": "Serveris pole selle kogu loomiseks piisavalt salvestusruumi.",
   "davCollectionPropertyRejected": "Server lükkas kogu taotletud omaduse tagasi.",

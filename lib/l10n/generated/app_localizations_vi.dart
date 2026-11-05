@@ -14,6 +14,10 @@ class AppLocalizationsVi extends AppLocalizations {
   AppLocalizationsVi([String locale = 'vi']) : super(locale);
 
   @override
+  String get caldavSchedulingWarning =>
+      'Sự kiện này có người tham dự. Khi lưu hoặc xóa, máy chủ CalDAV có thể thông báo cho họ lúc thay đổi được đồng bộ.';
+
+  @override
   String get caldavNativeImport =>
       'Nhập tài nguyên đầy đủ của sự kiện và công việc. Với các mục có người tham dự, máy chủ CalDAV có thể gửi lời mời hoặc cập nhật cuộc họp. Các UID hiện có sẽ bị bỏ qua trừ khi bạn chọn tạo bản sao mới. Tài nguyên không được hỗ trợ sẽ được báo cáo riêng.';
 

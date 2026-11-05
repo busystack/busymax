@@ -14,6 +14,10 @@ class AppLocalizationsEt extends AppLocalizations {
   AppLocalizationsEt([String locale = 'et']) : super(locale);
 
   @override
+  String get caldavSchedulingWarning =>
+      'Sellel sündmusel on osalejaid. Salvestamisel või kustutamisel võib CalDAV-server neile muudatuse sünkroonimisel teavituse saata.';
+
+  @override
   String get caldavNativeImport =>
       'Impordi sündmuste ja ülesannete täielikud ressursid. Osalejatega kirjete puhul võib CalDAV-server saata kutseid või koosoleku uuendusi. Olemasolevad UID-d jäetakse vahele, kui sa ei vali uusi koopiaid. Toetamata ressurssidest teatatakse eraldi.';
 

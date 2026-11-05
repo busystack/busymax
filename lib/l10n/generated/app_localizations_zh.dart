@@ -14,6 +14,10 @@ class AppLocalizationsZh extends AppLocalizations {
   AppLocalizationsZh([String locale = 'zh']) : super(locale);
 
   @override
+  String get caldavSchedulingWarning =>
+      '此日程有参与者。保存或删除日程后，CalDAV 服务器可能会在同步更改时通知参与者。';
+
+  @override
   String get caldavNativeImport =>
       '导入完整的日程和任务资源。对于有参与者的项目，CalDAV 服务器可能会发送邀请或会议更新。除非选择创建新副本，否则将跳过已有的 UID。不支持的资源将单独报告。';
 
@@ -3819,6 +3823,10 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   AppLocalizationsZhHans() : super('zh_Hans');
 
   @override
+  String get caldavSchedulingWarning =>
+      '此日程有参与者。保存或删除日程后，CalDAV 服务器可能会在同步更改时通知参与者。';
+
+  @override
   String get caldavNativeImport =>
       '导入完整的日程和任务资源。对于有参与者的项目，CalDAV 服务器可能会发送邀请或会议更新。除非选择创建新副本，否则将跳过已有的 UID。不支持的资源将单独报告。';
 
@@ -7622,6 +7630,10 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 /// The translations for Chinese, using the Han script (`zh_Hant`).
 class AppLocalizationsZhHant extends AppLocalizationsZh {
   AppLocalizationsZhHant() : super('zh_Hant');
+
+  @override
+  String get caldavSchedulingWarning =>
+      '此行程有參與者。儲存或刪除行程後，CalDAV 伺服器可能會在同步變更時通知參與者。';
 
   @override
   String get caldavNativeImport =>

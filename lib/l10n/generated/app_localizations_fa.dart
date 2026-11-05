@@ -14,6 +14,10 @@ class AppLocalizationsFa extends AppLocalizations {
   AppLocalizationsFa([String locale = 'fa']) : super(locale);
 
   @override
+  String get caldavSchedulingWarning =>
+      'این رویداد شرکت‌کننده دارد. با ذخیره یا حذف آن، سرور CalDAV ممکن است هنگام همگام‌سازی تغییر به شرکت‌کنندگان اطلاع دهد.';
+
+  @override
   String get caldavNativeImport =>
       'منابع کامل رویدادها و کارها را وارد کنید. برای موارد دارای شرکت‌کننده، سرور CalDAV ممکن است دعوت‌نامه یا به‌روزرسانی جلسه ارسال کند. شناسه‌های UID موجود نادیده گرفته می‌شوند، مگر اینکه نسخه‌های جدید را انتخاب کنید. منابع پشتیبانی‌نشده به‌صورت جداگانه گزارش می‌شوند.';
 

@@ -2458,8 +2458,10 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     }
     var guestUpdatePolicy = CalendarGuestUpdatePolicy.send;
     if (item is CalendarScheduleItem &&
-        item.isOrganizer == true &&
-        _calendarItemHasExternalGuests(item)) {
+        (item.mayNotifyParticipants ||
+            (item.provider != BusyProvider.caldav &&
+                item.isOrganizer == true &&
+                _calendarItemHasExternalGuests(item)))) {
       final choice = await showCalendarGuestDeliveryDialog(
         context,
         provider: item.provider,

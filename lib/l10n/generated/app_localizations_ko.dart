@@ -14,6 +14,10 @@ class AppLocalizationsKo extends AppLocalizations {
   AppLocalizationsKo([String locale = 'ko']) : super(locale);
 
   @override
+  String get caldavSchedulingWarning =>
+      '이 일정에는 참석자가 있습니다. 저장하거나 삭제하면 변경 사항이 동기화될 때 CalDAV 서버가 참석자에게 알림을 보낼 수 있습니다.';
+
+  @override
   String get caldavNativeImport =>
       '일정과 작업의 전체 리소스를 가져옵니다. 참석자가 있는 항목의 경우 CalDAV 서버가 초대 또는 회의 업데이트를 보낼 수 있습니다. 새 사본을 선택하지 않으면 기존 UID는 건너뜁니다. 지원되지 않는 리소스는 개별적으로 보고됩니다.';
 

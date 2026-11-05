@@ -37,6 +37,7 @@ final class ContactsFixture implements ContactsAuthorizationBroker {
       httpClient: MockClient(respond),
       readDavSecret: readDavSecret ?? (id) async => davSecrets[id],
       writeDavSecret: (id, value) async {
+        await beforeDavSecretWrite?.call(id, value);
         davSecrets[id] = value;
       },
       deleteDavSecret: (id) async {
@@ -58,6 +59,7 @@ final class ContactsFixture implements ContactsAuthorizationBroker {
   late final BusyMaxContactsController controller;
   final requests = <http.Request>[];
   final davSecrets = <String, String>{};
+  Future<void> Function(String id, String value)? beforeDavSecretWrite;
   Future<http.Response> Function(http.Request)? respondDav;
   Object? authorizationFailure;
   bool offline = false;

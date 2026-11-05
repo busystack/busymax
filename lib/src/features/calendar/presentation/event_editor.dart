@@ -309,12 +309,19 @@ Future<void> _completeEventEditorDelete(
 }) async {
   var guestUpdatePolicy = CalendarGuestUpdatePolicy.send;
   final provider = _providerForDraft(initialDraft, sources);
-  if (provider != null &&
-      initialDraft.isOrganizer == true &&
-      _hasExternalGuests(initialDraft.attendees)) {
+  final implicitMeeting =
+      sources.any(
+        (s) => s.id == initialDraft.sourceId && s.usesImplicitScheduling,
+      ) &&
+      initialDraft.attendees.isNotEmpty;
+  if (implicitMeeting ||
+      (provider != null &&
+          provider != BusyProvider.caldav &&
+          initialDraft.isOrganizer == true &&
+          _hasExternalGuests(initialDraft.attendees))) {
     final choice = await showCalendarGuestDeliveryDialog(
       context,
-      provider: provider,
+      provider: provider!,
       action: CalendarGuestDeliveryAction.delete,
     );
     if (choice == null) return;
@@ -503,6 +510,18 @@ class _EventEditorState extends ConsumerState<EventEditor> {
           onCancel: () => unawaited(_cancel()),
           onSave: canSave ? () => widget.onSave(_draft) : null,
           children: [
+            if ((_draft.attendees.isNotEmpty ||
+                    widget.initialDraft.attendees.isNotEmpty) &&
+                (currentSource.usesImplicitScheduling ||
+                    widget.sources.any(
+                      (s) =>
+                          s.id == widget.initialDraft.sourceId &&
+                          s.usesImplicitScheduling,
+                    )))
+              Text(
+                l10n.caldavSchedulingWarning,
+                key: const ValueKey('caldav-scheduling-warning'),
+              ),
             BusyMaxGroupedList(
               filled: true,
               children: [

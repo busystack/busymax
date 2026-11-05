@@ -1,4 +1,5 @@
 {
+  "caldavSchedulingWarning": "Dieser Termin hat Teilnehmer. Beim Speichern oder Löschen kann Ihr CalDAV-Server die Teilnehmer benachrichtigen, sobald die Änderung synchronisiert wird.",
   "caldavNativeImport": "Vollständige Ereignis- und Aufgabenressourcen importieren. Bei Einträgen mit Teilnehmenden kann der CalDAV-Server Einladungen oder Besprechungsaktualisierungen senden. Vorhandene UIDs werden übersprungen, sofern Sie keine neuen Kopien wählen. Nicht unterstützte Ressourcen werden einzeln gemeldet.",
   "davInsufficientStorage": "Der Server hat nicht genügend Speicherplatz, um diese Sammlung zu erstellen.",
   "davCollectionPropertyRejected": "Der Server hat eine angeforderte Sammlungseigenschaft abgelehnt.",

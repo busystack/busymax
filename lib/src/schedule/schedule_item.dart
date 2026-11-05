@@ -79,6 +79,7 @@ class CalendarScheduleItem implements ScheduleItem {
     this.locked = false,
     this.currentUserResponse,
     this.canSendReply = false,
+    this.implicitScheduling = false,
     this.timingEditable = true,
     this.isFederated = false,
     this.colorHex,
@@ -142,6 +143,11 @@ class CalendarScheduleItem implements ScheduleItem {
   final bool attachmentsMayExist;
   final String? startTimeZone;
   final String? endTimeZone;
+  final bool implicitScheduling;
+  bool get mayNotifyParticipants =>
+      provider == BusyProvider.caldav &&
+      implicitScheduling &&
+      attendees.isNotEmpty;
   final bool? isOrganizer;
   final bool? guestsCanModify;
   final bool locked;

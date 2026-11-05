@@ -135,6 +135,12 @@ abstract class AppLocalizations {
     Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant'),
   ];
 
+  /// No description provided for @caldavSchedulingWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'This event has attendees. Saving or deleting it may cause your CalDAV server to notify participants when the change synchronizes.'**
+  String get caldavSchedulingWarning;
+
   /// No description provided for @caldavNativeImport.
   ///
   /// In en, this message translates to:

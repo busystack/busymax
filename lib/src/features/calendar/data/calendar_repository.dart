@@ -98,6 +98,7 @@ class CalendarSourceEntity {
   factory CalendarSourceEntity.fromRow(
     CalendarSource row, {
     DavCollection? davCollection,
+    DavAccountService? davService,
     String? authenticatedAccountEmail,
     bool pendingCreate = false,
   }) {
@@ -129,7 +130,10 @@ class CalendarSourceEntity {
           const {'nextcloud', 'apple_icloud', 'caldav'}.contains(row.provider)
           ? (davCollection == null
                 ? _jsonMap(row.rawJson)
-                : davSourcePermissionProjection(davCollection))
+                : davSourcePermissionProjection(
+                    davCollection,
+                    service: davService,
+                  ))
           : const {},
     );
   }
@@ -162,6 +166,10 @@ class CalendarSourceEntity {
   final String? davCollectionId;
   final List<String> allowedConferenceSolutions;
   final Map<String, Object?> davEffectivePermissions;
+
+  bool get usesImplicitScheduling =>
+      provider == BusyProvider.caldav &&
+      davEffectivePermissions['implicitScheduling'] == true;
 
   CalendarSourceCapabilities get capabilities =>
       CalendarSourceCapabilities.fromSource(this);
@@ -447,6 +455,12 @@ class CalendarRepository {
           _database.calendarSources.davCollectionId,
         ),
       ),
+      leftOuterJoin(
+        _database.davAccountServices,
+        _database.davAccountServices.accountId.equalsExp(
+          _database.calendarSources.accountId,
+        ),
+      ),
       innerJoin(
         _database.accounts,
         _database.accounts.id.equalsExp(_database.calendarSources.accountId),
@@ -473,6 +487,7 @@ class CalendarRepository {
           CalendarSourceEntity.fromRow(
             result.readTable(_database.calendarSources),
             davCollection: result.readTableOrNull(_database.davCollections),
+            davService: result.readTableOrNull(_database.davAccountServices),
             authenticatedAccountEmail: result
                 .readTable(_database.accounts)
                 .email,
@@ -493,6 +508,12 @@ class CalendarRepository {
         _database.davCollections,
         _database.davCollections.id.equalsExp(
           _database.calendarSources.davCollectionId,
+        ),
+      ),
+      leftOuterJoin(
+        _database.davAccountServices,
+        _database.davAccountServices.accountId.equalsExp(
+          _database.calendarSources.accountId,
         ),
       ),
       innerJoin(
@@ -520,6 +541,7 @@ class CalendarRepository {
         CalendarSourceEntity.fromRow(
           result.readTable(_database.calendarSources),
           davCollection: result.readTableOrNull(_database.davCollections),
+          davService: result.readTableOrNull(_database.davAccountServices),
           authenticatedAccountEmail: result.readTable(_database.accounts).email,
           pendingCreate: result.readTableOrNull(_database.pendingOps) != null,
         ),
@@ -583,6 +605,9 @@ class CalendarRepository {
           : await (_database.select(_database.davCollections)
                   ..where((r) => r.id.equals(source.davCollectionId!)))
                 .getSingleOrNull(),
+      davService: await (_database.select(
+        _database.davAccountServices,
+      )..where((r) => r.accountId.equals(source.accountId))).getSingleOrNull(),
       authenticatedAccountEmail: account.email,
       pendingCreate: await _pendingCalendarCreate(source.id) != null,
     );

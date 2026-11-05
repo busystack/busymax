@@ -12,7 +12,7 @@ import '../support/dav_contacts_fixture.dart';
 import 'read_only_contacts_provider_test.dart' show effective;
 
 void main() {
-  test('Nextcloud contact snapshots preserve existing generations and bound recovery history', () async {
+  test('Nextcloud contact snapshots discard committed recovery history and preserve interrupted generations', () async {
     final f = ContactsFixture(AppDatabase.memoryForTests(), realDav: true);
     addTearDown(f.close);
     final dav = DavFixture();
@@ -31,22 +31,120 @@ void main() {
     f.davSecrets[account.id] = jsonEncode(original);
     await f.store.write((tx) => tx.putAccount(account.copy(generation: 7)));
 
+    final staged = <Map>[];
+    f.beforeDavSecretWrite = (id, value) async {
+      final config = jsonDecode(value) as Map;
+      final current = await f.store.read((tx) => tx.account(id));
+      if (config.containsKey('_previous')) {
+        expect(config['authorizationGeneration'], current!.generation + 1);
+        staged.add(config);
+      } else {
+        expect(config['authorizationGeneration'], current!.generation);
+      }
+    };
     await f.controller.replacePrivateTrust(account.id, 7, null);
-    var staged = (jsonDecode(f.davSecrets[account.id]!) as Map);
-    expect((staged['_previous'] as Map)['authorizationGeneration'], 7);
+    expect((staged.last['_previous'] as Map)['authorizationGeneration'], 7);
+    expect(
+      (jsonDecode(f.davSecrets[account.id]!) as Map).containsKey('_previous'),
+      isFalse,
+    );
     await f.controller.replacePrivateTrust(account.id, 8, null);
-    staged = jsonDecode(f.davSecrets[account.id]!) as Map;
-    expect((staged['_previous'] as Map)['authorizationGeneration'], 8);
-    expect((staged['_previous'] as Map).containsKey('_previous'), isFalse);
+    expect((staged.last['_previous'] as Map)['authorizationGeneration'], 8);
+    expect((staged.last['_previous'] as Map).containsKey('_previous'), isFalse);
+    expect(
+      (jsonDecode(f.davSecrets[account.id]!) as Map).containsKey('_previous'),
+      isFalse,
+    );
 
     // Reconstruct the interrupted state: staged secure write exists but the
     // durable account generation still selects its previous accepted snapshot.
     await f.store.write((tx) => tx.putAccount(account.copy(generation: 8)));
+    f.davSecrets[account.id] = jsonEncode(staged.last);
     final recovered = await f.controller.privateTrustSnapshot(account.id);
     expect(recovered.$1, server);
     expect(recovered.$2, isNull); // Existing account keeps standard HTTPS.
     expect(recovered.$3, 8);
   });
+  test('obsolete password cleanup failure preserves the committed credential and retries after restart', () async {
+    final f = ContactsFixture(AppDatabase.memoryForTests(), realDav: true);
+    addTearDown(f.close);
+    final dav = DavFixture();
+    f.respondDav = dav.respond;
+    final account = await f.controller.addCardDavContactsOnly(
+      id: 'independent',
+      label: 'Nextcloud',
+      server: server,
+      username: 'actual-user',
+      password: 'obsolete-password',
+    );
+    final original =
+        (jsonDecode(f.davSecrets[account.id]!) as Map).cast<String, dynamic>()
+          ..['nextcloud'] = true
+          ..['authorizationGeneration'] = account.generation;
+    f.davSecrets[account.id] = jsonEncode(original);
+    f.beforeDavSecretWrite = (id, value) async {
+      final config = jsonDecode(value) as Map;
+      if (!config.containsKey('_previous')) {
+        throw StateError('Cleanup storage unavailable');
+      }
+    };
+    await f.controller.reconnectDavContactsOnly(
+      account.id,
+      password: 'new-password',
+    );
+    final committed = await f.store.read((tx) => tx.account(account.id));
+    expect(committed!.generation, account.generation + 1);
+    final staged = jsonDecode(f.davSecrets[account.id]!) as Map;
+    expect(staged['password'], 'new-password');
+    expect(staged['authorizationGeneration'], committed.generation);
+    expect((staged['_previous'] as Map)['password'], 'obsolete-password');
+    await f.controller.close();
+    final restarted = ContactsFixture(f.database, realDav: true);
+    addTearDown(restarted.controller.close);
+    restarted.davSecrets.addAll(f.davSecrets);
+    restarted.respondDav = dav.respond;
+    await restarted.controller.start();
+    final compact = jsonDecode(restarted.davSecrets[account.id]!) as Map;
+    expect(compact.containsKey('_previous'), isFalse);
+    expect(compact['password'], 'new-password');
+    expect(compact['authorizationGeneration'], committed.generation);
+  });
+
+  test(
+    'successful password replacement stores only the new credential',
+    () async {
+      final f = ContactsFixture(AppDatabase.memoryForTests(), realDav: true);
+      addTearDown(f.close);
+      final dav = DavFixture();
+      f.respondDav = dav.respond;
+      final account = await f.controller.addCardDavContactsOnly(
+        id: 'password',
+        label: 'Nextcloud',
+        server: server,
+        username: 'actual-user',
+        password: 'obsolete-password',
+      );
+      final config =
+          (jsonDecode(f.davSecrets[account.id]!) as Map).cast<String, dynamic>()
+            ..['nextcloud'] = true
+            ..['authorizationGeneration'] = account.generation;
+      f.davSecrets[account.id] = jsonEncode(config);
+      await f.controller.reconnectDavContactsOnly(
+        account.id,
+        password: 'new-password',
+      );
+      expect(f.davSecrets[account.id], isNot(contains('obsolete-password')));
+      expect(
+        (jsonDecode(f.davSecrets[account.id]!) as Map).containsKey('_previous'),
+        isFalse,
+      );
+      expect(
+        (jsonDecode(f.davSecrets[account.id]!) as Map)['password'],
+        'new-password',
+      );
+    },
+  );
+
   test('reenabling linked Nextcloud suggestions preserves legacy markers and the parent app password', () async {
     final db = AppDatabase.memoryForTests();
     final credential = BusyMaxLinkedDavCredential(

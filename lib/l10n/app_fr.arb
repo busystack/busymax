@@ -1,4 +1,5 @@
 {
+  "caldavSchedulingWarning": "Cet événement a des participants. Son enregistrement ou sa suppression peut amener votre serveur CalDAV à les avertir lors de la synchronisation de la modification.",
   "caldavNativeImport": "Importer les ressources complètes des événements et des tâches. Pour les éléments avec des participants, le serveur CalDAV peut envoyer des invitations ou des mises à jour de réunion. Les UID existants sont ignorés, sauf si vous choisissez de nouvelles copies. Les ressources non prises en charge sont signalées individuellement.",
   "davInsufficientStorage": "Le serveur ne dispose pas de suffisamment d’espace de stockage pour créer cette collection.",
   "davCollectionPropertyRejected": "Le serveur a refusé une propriété demandée pour la collection.",

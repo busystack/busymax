@@ -37,10 +37,12 @@ final class NextcloudFederationInvitation {
 final class NextcloudFederationService {
   NextcloudFederationService(this.collections);
   final NextcloudCollectionService collections;
+  int _inventoryEpoch = 0;
 
   Future<List<NextcloudFederationInvitation>> pending({
     bool refreshDiscovery = true,
   }) async {
+    final epoch = ++_inventoryEpoch;
     final context = refreshDiscovery
         ? await collections.openContext()
         : await NextcloudDavContext.open(
@@ -51,7 +53,7 @@ final class NextcloudFederationService {
             requireNetwork: collections.requireNetwork,
           );
     if (!await _supportsInvitations(context)) {
-      await _storeDiscovery(context, available: false);
+      await _storeDiscovery(context, epoch: epoch, available: false);
       throw _unsupportedFederation();
     }
     Object? data;
@@ -59,7 +61,7 @@ final class NextcloudFederationService {
       data = await _request(context, 'GET');
     } on DavException catch (error) {
       if (!const {404, 405, 501}.contains(error.statusCode)) rethrow;
-      await _storeDiscovery(context, available: false);
+      await _storeDiscovery(context, epoch: epoch, available: false);
       throw _unsupportedFederation();
     }
     if (data is! List || data.length > 1000) {
@@ -102,12 +104,36 @@ final class NextcloudFederationService {
         );
       }),
     );
-    await _storeDiscovery(context, available: true, count: invitations.length);
+    await _storeDiscovery(
+      context,
+      epoch: epoch,
+      available: true,
+      count: invitations.length,
+    );
     return invitations;
   }
 
+  Future<void>? _discovery;
+  bool _forceDiscovery = false;
+
   /// Called only by the existing account refresh; never schedules a wakeup.
-  Future<void> discoverPending({bool force = false}) async {
+  /// Overlapping refreshes share one request rather than queueing OCS reads.
+  Future<void> discoverPending({bool force = false}) {
+    _forceDiscovery |= force;
+    final active = _discovery;
+    if (active != null) return active;
+    late final Future<void> work;
+    work = _discoverPending().whenComplete(() {
+      if (identical(_discovery, work)) {
+        _discovery = null;
+        _forceDiscovery = false;
+      }
+    });
+    _discovery = work;
+    return work;
+  }
+
+  Future<void> _discoverPending() async {
     final db = collections.database;
     final account = await (db.select(
       db.accounts,
@@ -118,7 +144,7 @@ final class NextcloudFederationService {
         await (db.select(db.authorizationGenerations)
               ..where((r) => r.accountId.equals(collections.accountId)))
             .getSingleOrNull();
-    if (!force &&
+    if (!_forceDiscovery &&
         metadata['available'] is bool &&
         metadata['generation'] == (generation?.generation ?? 0) &&
         checked != null &&
@@ -189,6 +215,7 @@ final class NextcloudFederationService {
   Future<void> _storeDiscovery(
     NextcloudDavContext context, {
     required bool available,
+    required int epoch,
     int? count,
   }) async {
     final db = collections.database;
@@ -199,7 +226,8 @@ final class NextcloudFederationService {
       final generation = await (db.select(
         db.authorizationGenerations,
       )..where((r) => r.accountId.equals(context.accountId))).getSingleOrNull();
-      if (account == null ||
+      if (epoch != _inventoryEpoch ||
+          account == null ||
           account.provider != 'nextcloud' ||
           account.authority != context.authority.toString() ||
           (generation?.generation ?? 0) != context.authorizationGeneration) {

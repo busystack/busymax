@@ -30,6 +30,66 @@ void main() {
   });
   tearDown(() => fixture.close());
 
+  test(
+    'overlapping optional discovery coalesces and retains its cache',
+    () async {
+      final started = Completer<void>(), release = Completer<void>();
+      addTearDown(() {
+        if (!release.isCompleted) release.complete();
+      });
+      fixture.beforeResponse = (request) async {
+        if (request.url.path.endsWith('/cloud/capabilities')) {
+          if (!started.isCompleted) started.complete();
+          await release.future;
+        }
+      };
+      final first = service.discoverPending();
+      await started.future;
+      final second = service.discoverPending(force: true);
+      expect(identical(first, second), isTrue);
+      release.complete();
+      await Future.wait([first, second]);
+      final requests = fixture.requests.length;
+      await service.discoverPending();
+      expect(fixture.requests.length, requests);
+      await service.discoverPending(force: true);
+      expect(fixture.requests.length, greaterThan(requests));
+    },
+  );
+
+  test(
+    'a slow optional inventory cannot overwrite a newer invitation count',
+    () async {
+      final started = Completer<void>(), release = Completer<void>();
+      addTearDown(() {
+        if (!release.isCompleted) release.complete();
+      });
+      final invitation = Map<String, Object?>.from(
+        fixture.federationInvitations.single,
+      );
+      var first = true;
+      fixture.beforeResponse = (request) async {
+        if (request.url.path.contains('federated_calendars') && first) {
+          first = false;
+          started.complete();
+          await release.future;
+          // Return the older request's captured server snapshot after the fresh read.
+          fixture.federationInvitations.add(invitation);
+        }
+      };
+      final old = service.pending(refreshDiscovery: false);
+      await started.future;
+      fixture.federationInvitations.clear();
+      expect(await service.pending(refreshDiscovery: false), isEmpty);
+      release.complete();
+      expect(await old, hasLength(1));
+      final account = await fixture.database
+          .select(fixture.database.accounts)
+          .getSingle();
+      expect(federationSummary(account.providerMetadataJson)['count'], 0);
+    },
+  );
+
   for (final scenario in [
     'old-server',
     'incoming-disabled',

@@ -14,6 +14,10 @@ class AppLocalizationsFi extends AppLocalizations {
   AppLocalizationsFi([String locale = 'fi']) : super(locale);
 
   @override
+  String get caldavSchedulingWarning =>
+      'Tässä tapahtumassa on osallistujia. Tallentaminen tai poistaminen voi saada CalDAV-palvelimen ilmoittamaan osallistujille, kun muutos synkronoidaan.';
+
+  @override
   String get caldavNativeImport =>
       'Tuo tapahtumien ja tehtävien täydelliset resurssit. CalDAV-palvelin saattaa lähettää kutsuja tai kokouspäivityksiä kohteille, joissa on osallistujia. Olemassa olevat UID-tunnisteet ohitetaan, ellet valitse uusia kopioita. Resursseista, joita ei tueta, ilmoitetaan erikseen.';
 

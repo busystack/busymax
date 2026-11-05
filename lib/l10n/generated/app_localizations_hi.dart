@@ -14,6 +14,10 @@ class AppLocalizationsHi extends AppLocalizations {
   AppLocalizationsHi([String locale = 'hi']) : super(locale);
 
   @override
+  String get caldavSchedulingWarning =>
+      'इस इवेंट में प्रतिभागी हैं। इसे सहेजने या मिटाने पर, बदलाव सिंक होने के समय आपका CalDAV सर्वर प्रतिभागियों को सूचना भेज सकता है।';
+
+  @override
   String get caldavNativeImport =>
       'इवेंट और कार्यों के पूरे संसाधन आयात करें। उपस्थित लोगों वाले आइटम के लिए CalDAV सर्वर आमंत्रण या मीटिंग अपडेट भेज सकता है। जब तक आप नई प्रतियाँ नहीं चुनते, मौजूदा UID छोड़ दिए जाते हैं। असमर्थित संसाधनों की सूचना अलग-अलग दी जाती है।';
 

@@ -723,6 +723,8 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
                     ),
                   ),
                 if (item is CalendarScheduleItem) ...[
+                  if (item.mayNotifyParticipants)
+                    Text(context.l10n.caldavSchedulingWarning),
                   for (final line in googleStatusDetailLines(
                     context.l10n,
                     item.eventType,
@@ -2496,6 +2498,18 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
+              if ((_draft.attendees.isNotEmpty ||
+                      widget.draft.attendees.isNotEmpty) &&
+                  (_source?.usesImplicitScheduling == true ||
+                      widget.sources.any(
+                        (s) =>
+                            s.id == widget.draft.sourceId &&
+                            s.usesImplicitScheduling,
+                      )))
+                Text(
+                  context.l10n.caldavSchedulingWarning,
+                  key: const ValueKey('caldav-scheduling-warning'),
+                ),
               TextFormField(
                 controller: _title,
                 enabled: _canEdit,
@@ -3754,7 +3768,11 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text(context.l10n.deleteEvent),
-        content: Text(draft.title),
+        content: Text(
+          _source?.usesImplicitScheduling == true && draft.attendees.isNotEmpty
+              ? '${draft.title}\n\n${context.l10n.caldavSchedulingWarning}'
+              : draft.title,
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
