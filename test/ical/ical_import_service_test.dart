@@ -1,5 +1,9 @@
 import 'dart:convert';
 
+import '../support/dav_task_inventory_fixture.dart';
+
+import 'package:busymax/src/schedule/schedule_repository.dart';
+
 import 'package:busymax/src/core/time/provider_date_time.dart';
 
 import 'package:busymax/src/calendar_providers/calendar_mutation.dart';
@@ -22,7 +26,8 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:timezone/data/latest_all.dart' as time_zone_data;
+import 'package:busymax/src/core/time/iana_time_zone_data.dart'
+    as time_zone_data;
 
 void main() {
   late AppDatabase database;
@@ -47,17 +52,153 @@ void main() {
 
   tearDown(() async => database.close());
 
+  for (final mappedSource in [false, true]) {
+    test(
+      'unknown CalDAV VTODO privileges allow import and schedule mutations; mapped=$mappedSource',
+      () async {
+        final inventory = DavTaskInventoryFixture(database);
+        await inventory.seedAccount();
+        await inventory.commit(writable: true);
+        await (database.update(
+          database.accounts,
+        )..where((r) => r.id.equals(DavTaskInventoryFixture.accountId))).write(
+          const AccountsCompanion(
+            provider: Value('caldav'),
+            credentialKind: Value('caldav_password'),
+          ),
+        );
+        final collection = await database
+            .select(database.davCollections)
+            .getSingle();
+        await database
+            .update(database.davCollections)
+            .write(
+              const DavCollectionsCompanion(
+                currentUserPrivilegesJson: Value('[]'),
+                safeDisplayMetadataJson: Value(
+                  '{"privilegesKnown":"false","readAccessConfirmed":"true"}',
+                ),
+                readOnly: Value(true),
+              ),
+            );
+        if (mappedSource) {
+          await database
+              .into(database.calendarSources)
+              .insert(
+                CalendarSourcesCompanion.insert(
+                  id: 'mapped-dav-tasks',
+                  accountId: collection.accountId,
+                  provider: 'caldav',
+                  providerCalendarId: collection.hrefKey,
+                  davCollectionId: Value(collection.id),
+                  summary: 'Tasks',
+                  readOnly: const Value(true),
+                  createdAtLocal: 1,
+                  updatedAtLocal: 1,
+                ),
+              );
+        }
+        final destination = (await importService.writableDestinations())
+            .singleWhere((s) => s.davCollectionId == collection.id);
+        final preview = importService.parsePreview(
+          utf8.encode(
+            _calendar('''
+BEGIN:VTODO
+UID:unknown-permissions-task
+DTSTAMP:20260829T000000Z
+SUMMARY:Imported task
+DUE:20260830T090000Z
+END:VTODO
+'''),
+          ),
+        );
+        final report = await importService.importPreview(
+          preview: preview,
+          destination: destination,
+        );
+        expect(report.queued, 1);
+        final task = (await ScheduleRepository(database).listAllTasks()).single;
+        expect(task.capabilities.canEdit, isTrue);
+        expect(task.capabilities.canDelete, isTrue);
+
+        await database
+            .update(database.davCollections)
+            .write(
+              const DavCollectionsCompanion(
+                currentUserPrivilegesJson: Value('["{DAV:}read"]'),
+                safeDisplayMetadataJson: Value('{"privilegesKnown":"true"}'),
+              ),
+            );
+        expect(
+          (await importService.writableDestinations()).where(
+            (s) => s.davCollectionId == collection.id,
+          ),
+          isEmpty,
+        );
+        final restricted = (await ScheduleRepository(
+          database,
+        ).listAllTasks()).single;
+        expect(restricted.capabilities.canEdit, isFalse);
+        expect(restricted.capabilities.canDelete, isFalse);
+      },
+    );
+  }
+
   for (final durationProvider in [
     BusyProvider.google,
     BusyProvider.microsoft,
   ]) {
     for (final example in [
-      ('20260308T013000', 'PT2H', DateTime.utc(2026, 3, 8, 11, 30)),
-      ('20260308T013000', 'P1D', DateTime.utc(2026, 3, 9, 8, 30)),
-      ('20260308T013000', 'PT24H', DateTime.utc(2026, 3, 9, 9, 30)),
-      ('20261101T003000', 'PT2H', DateTime.utc(2026, 11, 1, 9, 30)),
-      ('20261101T003000', 'P1D', DateTime.utc(2026, 11, 2, 8, 30)),
-      ('20261101T003000', 'PT24H', DateTime.utc(2026, 11, 2, 7, 30)),
+      (
+        '20260308T013000',
+        'PT2H',
+        DateTime.utc(2026, 3, 8, 11, 30),
+        'America/Vancouver',
+      ),
+      (
+        '20260308T013000',
+        'P1D',
+        DateTime.utc(2026, 3, 9, 8, 30),
+        'America/Vancouver',
+      ),
+      (
+        '20260308T013000',
+        'PT24H',
+        DateTime.utc(2026, 3, 9, 9, 30),
+        'America/Vancouver',
+      ),
+      (
+        '20261101T003000',
+        'PT2H',
+        DateTime.utc(2026, 11, 1, 9, 30),
+        'America/Vancouver',
+      ),
+      // BC no longer falls back: both nominal and exact days retain UTC-07.
+      (
+        '20261101T003000',
+        'P1D',
+        DateTime.utc(2026, 11, 2, 7, 30),
+        'America/Vancouver',
+      ),
+      (
+        '20261101T003000',
+        'PT24H',
+        DateTime.utc(2026, 11, 2, 7, 30),
+        'America/Vancouver',
+      ),
+      // Retain fall-back duration coverage in a zone that still observes DST.
+      (
+        '20261101T003000',
+        'P1D',
+        DateTime.utc(2026, 11, 2, 8, 30),
+        'America/Los_Angeles',
+      ),
+      (
+        '20261101T003000',
+        'PT24H',
+        DateTime.utc(2026, 11, 2, 7, 30),
+        'America/Los_Angeles',
+      ),
     ]) {
       test(
         '$durationProvider conversion import resolves ${example.$1} + ${example.$2} in the event zone',
@@ -74,7 +215,7 @@ void main() {
                 'BEGIN:VEVENT',
                 'UID:dst-duration',
                 'SUMMARY:Duration',
-                'DTSTART;TZID=America/Vancouver:${example.$1}',
+                'DTSTART;TZID=${example.$4}:${example.$1}',
                 'DURATION:${example.$2}',
                 'END:VEVENT',
                 'END:VCALENDAR',
@@ -99,7 +240,7 @@ void main() {
             ),
             example.$3,
           );
-          expect(request['startTimeZone'], 'America/Vancouver');
+          expect(request['startTimeZone'], example.$4);
           if (durationProvider == BusyProvider.microsoft) {
             final payload = microsoftEventMutationToJson(
               CalendarEventMutation(
@@ -116,7 +257,7 @@ void main() {
               example.$3,
             );
           } else {
-            expect(request['endTimeZone'], 'America/Vancouver');
+            expect(request['endTimeZone'], example.$4);
             Map<String, Object?>? sent;
             final api = GoogleCalendarApiClient(
               baseUri: Uri.parse('https://www.googleapis.com'),
@@ -152,7 +293,7 @@ void main() {
             final end = sent!['end'] as Map;
             // Google permits a wall timestamp when timeZone is supplied;
             // an explicit numeric offset must still use RFC 3339 syntax.
-            expect(end['timeZone'], 'America/Vancouver');
+            expect(end['timeZone'], example.$4);
             expect(
               end['dateTime'],
               matches(

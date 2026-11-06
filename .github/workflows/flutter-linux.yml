@@ -26,6 +26,15 @@ jobs:
           RELEASE_PR_TITLE: ${{ github.event.pull_request.title }}
         run: python3 tool/check_release_pull_request.py
 
+      - name: Check tracked repository hygiene
+        run: python3 tool/check_repository_hygiene.py
+
+      - name: Scan reachable history for secrets
+        run: |
+          docker run --rm -v "$PWD:/repo:ro" -w /repo \
+            ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:b109bc5f8f76a38196a3e413704fc5b9e3c32360bce4e4b603bd6f45b3721dbb \
+            git --log-opts=--all --redact --config .gitleaks.toml
+
       - name: Materialize pinned shared dependencies
         run: python3 tool/checkout_shared_dependencies.py
 

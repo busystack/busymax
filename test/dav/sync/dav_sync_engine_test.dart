@@ -1,5 +1,9 @@
 import 'dart:convert';
 
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:busymax/src/dav/dav_provider_profile.dart';
+
 import 'package:busymax/src/dav/dav_errors.dart';
 import 'package:busymax/src/dav/http/dav_http_transport.dart';
 import 'package:busymax/src/dav/ical/ical_document.dart';
@@ -30,6 +34,226 @@ void main() {
 
   tearDown(() => database.close());
 
+  for (final mode in ['initial', 'incremental', 'invalid-token rebaseline']) {
+    for (final failure in [
+      'member507',
+      'missing-token',
+      'repeated-token',
+      'cycle',
+      'interrupted',
+      'page-limit',
+      'none',
+    ]) {
+      test(
+        'wire pagination $mode / $failure preserves membership, content, ETags and cursor',
+        () async {
+          await _seedCollection(database, syncCollection: true);
+          await _runInitial(database, repository, {
+            'a.ics': ('"a1"', _event('a', 'A old')),
+            'b.ics': ('"b1"', _event('b', 'B old')),
+          }, token: 'urn:test:old');
+          if (mode == 'initial') {
+            await database.delete(database.syncCursors).go();
+          }
+          await database
+              .update(database.davCollections)
+              .write(
+                DavCollectionsCompanion(
+                  supportedReportsJson: Value(
+                    jsonEncode(['{DAV:}sync-collection']),
+                  ),
+                ),
+              );
+          final before = await repository.liveObjects('collection');
+          final expectedCursor = mode == 'initial' ? '0' : 'urn:test:old';
+          final requestedTokens = <String>[];
+          final client = MockClient((request) async {
+            if (request.method == 'GET') {
+              final name = _name(request.url.path);
+              expect(name, isNot('b.ics'));
+              return http.Response(
+                _event(
+                  name == 'a.ics' ? 'a' : 'c',
+                  name == 'a.ics' ? 'A newest' : 'C',
+                ),
+                200,
+                headers: {
+                  'etag': name == 'a.ics' ? '"a3"' : '"c1"',
+                  'content-type': 'text/calendar',
+                },
+              );
+            }
+            expect(request.method, 'REPORT');
+            expect(request.headers['depth'], '0');
+            final token = RegExp(r'<d:sync-token>(.*?)</d:sync-token>')
+                .firstMatch(request.body)!
+                .group(1)!;
+            requestedTokens.add(token);
+            if (mode == 'invalid-token rebaseline' && token == 'urn:test:old') {
+              return http.Response(
+                '<d:error xmlns:d="DAV:"><d:valid-sync-token/></d:error>',
+                403,
+              );
+            }
+            if (token == expectedCursor || token.isEmpty) {
+              return http.Response(
+                _wireSync(
+                  _wireChanged('a.ics', '"a2"') + _wireLimit(),
+                  'urn:test:page1',
+                ),
+                207,
+              );
+            }
+            // No partial page, continuation token, or tombstone may have reached
+            // the durable object baseline while a subsequent page is pending.
+            expect(
+              (await repository.cursor('collection'))?.cursorValue,
+              expectedCursor,
+            );
+            expect(
+              (await repository.liveObjects('collection'))
+                  .map((o) => (o.hrefKey, o.etag, o.rawIcsBody)),
+              before.map((o) => (o.hrefKey, o.etag, o.rawIcsBody)),
+            );
+            if (failure == 'interrupted') {
+              throw http.ClientException('page interrupted');
+            }
+            if (failure == 'member507') {
+              return http.Response(
+                _wireSync(
+                  '<d:response><d:href>${_href('b.ics')}</d:href><d:status>HTTP/1.1 507 Insufficient Storage</d:status></d:response>',
+                  'urn:test:final',
+                ),
+                207,
+              );
+            }
+            if (failure == 'missing-token') {
+              return http.Response(_wireSync(_wireLimit(), null), 207);
+            }
+            if (failure == 'repeated-token') {
+              return http.Response(
+                _wireSync(_wireLimit(), 'urn:test:page1'),
+                207,
+              );
+            }
+            if (failure == 'cycle') {
+              return http.Response(
+                _wireSync(
+                  _wireLimit(),
+                  token == 'urn:test:page1'
+                      ? 'urn:test:page2'
+                      : 'urn:test:page1',
+                ),
+                207,
+              );
+            }
+            expect(token, 'urn:test:page1');
+            return http.Response(
+              _wireSync(
+                '${_wireChanged('a.ics', '"a3"')}${_wireChanged('c.ics', '"c1"')}<d:response><d:href>${_href('b.ics')}</d:href><d:status>HTTP/1.1 404 Not Found</d:status></d:response>',
+                'urn:test:final',
+              ),
+              207,
+            );
+          });
+          addTearDown(client.close);
+          final authority = Uri.parse('https://cloud.example.test/');
+          final profile = davProviderProfile(
+            BusyProvider.nextcloud,
+            nextcloudServer: authority,
+          );
+          final remote = DavCollectionHttpClient(
+            transport: DavHttpTransport(
+              client: client,
+              profile: profile,
+              accountAuthority: authority,
+              limits: const DavTransportLimits(maximumReadAttempts: 1),
+            ),
+            profile: profile,
+            accountAuthority: authority,
+            accountId: 'account',
+            collectionId: 'collection',
+            collectionUri: authority.resolve(_href('')),
+            credential: DavBasicCredential(
+              username: 'alex',
+              password: 'synthetic',
+            ),
+          );
+          final engine = _engine(
+            database,
+            repository,
+            remote,
+            limits: DavSyncLimits(
+              maximumSyncPages: failure == 'page-limit' ? 1 : 1000,
+            ),
+          );
+          if (failure == 'none') {
+            final result = await engine.synchronize(
+              correlationId: 'wire-pages',
+            );
+            expect(result.pages, 2);
+            expect(result.initialOrRebaseline, mode != 'incremental');
+            final live = await repository.liveObjects('collection');
+            expect(live.map((o) => _name(o.hrefKey)).toSet(), {
+              'a.ics',
+              'c.ics',
+            });
+            expect(
+              live.singleWhere((o) => o.hrefKey.endsWith('/a.ics')).etag,
+              '"a3"',
+            );
+            expect(
+              live.singleWhere((o) => o.hrefKey.endsWith('/a.ics')).rawIcsBody,
+              contains('SUMMARY:A newest'),
+            );
+            expect(
+              (await repository.objectByHref(
+                'collection',
+                _href('b.ics'),
+              ))!.serverDeleted,
+              isTrue,
+            );
+            expect(
+              (await repository.cursor('collection'))!.cursorValue,
+              'urn:test:final',
+            );
+            expect(
+              (await repository.cursor('collection'))!.inProgressCursor,
+              isNull,
+            );
+          } else {
+            await expectLater(
+              engine.synchronize(correlationId: 'wire-pages'),
+              throwsA(isA<DavException>()),
+            );
+            final after = await repository.liveObjects('collection');
+            expect(
+              after.map((o) => (o.hrefKey, o.etag, o.rawIcsBody)),
+              before.map((o) => (o.hrefKey, o.etag, o.rawIcsBody)),
+            );
+            expect(after.every((o) => !o.serverDeleted), isTrue);
+            expect(
+              (await repository.cursor('collection'))?.cursorValue,
+              expectedCursor,
+            );
+            expect(
+              (await repository.cursor('collection'))?.inProgressCursor,
+              isNot('urn:test:page1'),
+            );
+            expect(
+              (await database.select(database.calendarEvents).get())
+                  .map((e) => e.title)
+                  .toSet(),
+              {'A old', 'B old'},
+            );
+          }
+          if (mode == 'invalid-token rebaseline') {
+            expect(requestedTokens.take(2), ['urn:test:old', '']);
+          }
+        },
+      );
+    }
+  }
   test(
     'initial empty-token sync follows 507 pages and persists only final token',
     () async {
@@ -530,7 +754,10 @@ void main() {
       expect(objectAfter.etag, '"weekly"');
       final cursor = await database.select(database.syncCursors).getSingle();
       expect(cursor.cursorValue, 'next-token');
-      expect(cursor.stateJson, contains('"projectionVersion":6'));
+      expect(
+        cursor.stateJson,
+        contains('"projectionVersion":$davProjectionVersion'),
+      );
     },
   );
 }
@@ -735,3 +962,10 @@ Future<void> _seedCollection(
         ),
       );
 }
+
+String _wireSync(String responses, String? token) =>
+    '<d:multistatus xmlns:d="DAV:">$responses${token == null ? '' : '<d:sync-token>$token</d:sync-token>'}</d:multistatus>';
+String _wireChanged(String name, String etag) =>
+    '<d:response><d:href>${_href(name)}</d:href><d:propstat><d:prop><d:getetag>$etag</d:getetag></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>';
+String _wireLimit() =>
+    '<d:response><d:href>${_href('')}</d:href><d:status>HTTP/1.1 507 Insufficient Storage</d:status></d:response>';

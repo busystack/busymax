@@ -65,6 +65,104 @@ void main() {
       expect(fixture.requests, isEmpty);
     },
   );
+  test(
+    'a genuine free interval is known while a denied recipient remains unknown',
+    () async {
+      fixture.busyData = fixture.busyData.replaceFirst(
+        'FREEBUSY;FBTYPE=BUSY:20260906T100000Z/20260906T110000Z\n',
+        '',
+      );
+      fixture.additionalFreeBusyResponses = '<c:response><c:recipient><d:href>mailto:unknown@example.test</d:href></c:recipient><c:request-status>3.8;Denied</c:request-status></c:response>';
+      final results = await query();
+      expect(results.first.availability, NextcloudAvailability.known);
+      expect(results.first.intervals, isEmpty);
+      expect(results.last.availability, NextcloudAvailability.unknown);
+      expect(results.last.status, '3.8;Denied');
+      fixture.duplicateFreeBusyStatus = true;
+      expect((await query()).first.availability, NextcloudAvailability.unknown);
+      fixture.duplicateFreeBusyStatus = false;
+      fixture.ambiguousFreeBusyRecipient = true;
+      expect(
+        (await query()).every(
+          (r) => r.availability == NextcloudAvailability.unknown,
+        ),
+        isTrue,
+      );
+    },
+  );
+  test(
+    'malformed busy periods and a disabled outbox never become free',
+    () async {
+      fixture.busyData = fixture.busyData.replaceFirst(
+        '/20260906T110000Z',
+        '/20260906T110000',
+      );
+      expect((await query()).first.availability, NextcloudAvailability.unknown);
+      fixture.freeBusyHttpStatus = 403;
+      await expectLater(query(), throwsException);
+    },
+  );
+  test(
+    'a readable inbox does not grant permission to acknowledge messages',
+    () async {
+      await fixture.seedPolicy(inboxPrivileges: const {'{DAV:}read'});
+      final message = (await service.inbox('collection')).single;
+      expect(message.canAcknowledge, isFalse);
+      await expectLater(
+        service.acknowledge('collection', message),
+        throwsException,
+      );
+      expect(fixture.requests.where((r) => r.method == 'DELETE'), isEmpty);
+    },
+  );
+  test('unknown inbox permissions allow server-validated reads but no acknowledgement', () async {
+    await fixture.seedPolicy(
+      inboxPrivileges: const {},
+      inboxPrivilegesKnown: false,
+    );
+    final message = (await service.inbox('collection')).single;
+    expect(message.canAcknowledge, isFalse);
+    await expectLater(
+      service.acknowledge('collection', message),
+      throwsException,
+    );
+    expect(fixture.requests.where((r) => r.method == 'DELETE'), isEmpty);
+    fixture.failInbox = true;
+    await expectLater(service.inbox('collection'), throwsException);
+  });
+
+  test(
+    'explicitly denied inbox read is rejected before network access',
+    () async {
+      await fixture.seedPolicy(
+        inboxPrivileges: const {},
+        inboxPrivilegesKnown: true,
+      );
+      await expectLater(service.inbox('collection'), throwsException);
+      expect(fixture.requests, isEmpty);
+    },
+  );
+
+  test('authorization replacement during inbox refresh invalidates acknowledgement', () async {
+    final message = (await service.inbox('collection')).single;
+    fixture.beforeResponse = (_) async {
+      fixture.beforeResponse = null;
+      await fixture.database
+          .into(fixture.database.authorizationGenerations)
+          .insert(
+            AuthorizationGenerationsCompanion.insert(
+              accountId: 'account',
+              generation: 1,
+            ),
+          );
+    };
+    await expectLater(
+      service.acknowledge('collection', message),
+      throwsException,
+    );
+    expect(fixture.acknowledged, isFalse);
+    expect(fixture.requests.where((r) => r.method == 'DELETE'), isEmpty);
+  });
   test('inbox acknowledgement deletes only the returned inbox href with its exact ETag', () async {
     await fixture.database
         .into(fixture.database.calendarSources)

@@ -51,6 +51,31 @@ and [provider prerequisites](desktop_oauth_release_checklist.md).
 
 ## Linux development
 
+Generic CalDAV development uses maintained, isolated Docker fixtures for
+unmodified Radicale, Baïkal and BusyStack CalDAV Server, including root/non-root HTTPS, authenticated
+readiness and independent readback. Follow the [fixture commands](../test/interop/caldav/README.md)
+for setup, start, provisioning, test execution, reset and teardown. Normal
+`flutter test` runs do not need Docker; real-server tests require the explicit
+`BUSYMAX_CALDAV_LIVE=1` opt-in. Linux and Android native editor tests are separate
+from protocol tests. The [qualification record](caldav_qualification.md) records
+exact server versions and distinguishes native acceptance from unit coverage.
+
+Schema 22 extends account CHECK constraints for `caldav`/`caldav_password` in a
+transactional forward migration. The actual v0.4.0 schema-21 SQL fixture is in
+`test/fixtures/schema_v21_v040.sql`; migration tests compare all seeded rows,
+foreign keys, generations, sync state and queued work, and inject failure before
+the version commit. Do not reset a user's database or downgrade a schema-22
+database into an older application. Schema 23 adds the account-owned collection
+creation journal. A random operation UUID and reserved remote URL are persisted
+before dispatch; recovery uses that ID rather than a matching title. The
+schema-22 additive migration and rollback are also tested. Never downgrade a
+schema-23 database into an older application. Schema 24 adds safe rejection
+diagnostics. Schema 25 stores terminal-notice acknowledgments separately from
+the journal; dismissal preserves operation identity, execution state and
+diagnostics. The schema-24 acknowledgment upgrade and interrupted-upgrade
+rollback preserve all journal states and the active-name constraint. Do not
+open a schema-25 database with an older application.
+
 The Linux CI build runs on Ubuntu 24.04 and installs the following packages:
 
 ```bash
@@ -164,6 +189,62 @@ dispatch, OAuth credentials or artifact uploads. Windows and Android CI remain
 independent. The official Linux build is `tool/release/build_snap_local.sh`;
 `tool/build_install_snap_local.sh` only repacks a development scaffold.
 
+### Android authorization engine coordination
+
+`integration_test/android_authorization_leases_test.dart` runs a foreground
+reader and a real WorkManager engine against the same native authorization gate.
+It verifies overlapping readers, exclusive replacement, account independence and
+lease cleanup with filesystem barriers. Use the isolated `busymaxNextcloudQa`
+package and explicit test signer described below, with
+`--dart-define=BUSYMAX_AUTHORIZATION_LEASE_QA=true`. It schedules and cancels only
+its unique fixture job; the normal application and its work are untouched.
+The retained-startup host tool also supports
+`--package io.busystack.busymax.nextcloudqa`, verifies the APK and launcher, and
+refuses to replace an existing target installation. Build
+`integration_test/android_retained_startup_test.dart` with both
+`--dart-define=BUSYMAX_RETAINED_STARTUP_QA=true` and
+`--dart-define=BUSYMAX_SQLITE_TRACE=true`; the host requires the trace to prove
+real database overlap. Traces record operation timing, never SQL text, parameters
+or credentials. The same APK and original periodic jobs must survive restart.
+
+### DAV transport regression comparison
+
+Run `BUSYMAX_DAV_BENCHMARK=1 flutter test test/dav/trust/dav_transport_benchmark_test.dart`
+for the maintained real-loopback TLS comparison of direct transport, exclusive
+leases and shared leases under concurrent reads and mutations. Its synthetic
+5,000-event payloads, eight task-list paths and controlled server delay isolate
+transport overhead; results do not establish live Nextcloud synchronization
+performance or native-platform acceptance.
+The trash regression discovers all 300 objects representing 37.5 MiB of full
+content through size-budgeted batches, and verifies that the old single full-body
+response exceeds the unchanged limit. Run it with
+`flutter test test/dav/nextcloud/nextcloud_administration_test.dart`.
+For the real 300-object fixture, also enable `BUSYMAX_NEXTCLOUD_EXTENDED_LIVE=1`
+and `BUSYMAX_NEXTCLOUD_TRASH_SCALE_LIVE=1`, and set
+`BUSYMAX_NEXTCLOUD_LIVE_CONTAINER` to the explicitly disposable `busymax-qa-*`
+server. Fixture preparation calls official backend APIs; BusyMax listing,
+restoration and deletion use the configured account's pinned HTTPS transport.
+The live fixture measures metadata listing separately from explicitly selected
+full-detail reads and verifies restore/permanent-delete readback. These checks
+remain separate from native Windows and Android acceptance.
+
+Authorization acquisition and active HTTP ownership each have a separate
+two-minute bound; the DAV operation deadline can cancel either sooner.
+`test/core/http/authorization_leased_http_client_test.dart` checks the real
+default durations with a fake clock; the real TLS concurrency regression also
+queues longer than its scaled active budget before completing a slow response.
+Native Linux qualification uses
+`flutter test integration_test/nextcloud_private_tls_linux_test.dart -d linux`.
+On a prepared Windows host with OpenSSL available in PATH:
+
+```powershell
+flutter test integration_test/nextcloud_private_tls_windows_test.dart -d windows
+```
+
+This Windows target exercises real loopback TLS, authorization replacement,
+concurrency, abandonment and ordinary iCloud HTTPS. It does not use a user profile
+or install fixture certificates into a platform trust store.
+
 ### Linux task lifecycle integration
 
 Run [the native task lifecycle test](../integration_test/task_lifecycle_linux_test.dart)
@@ -209,9 +290,9 @@ their regression coverage.
 
 ## Release branches
 
-Start `release/v0.3.2` from current `main`, commit reviewed changes, and open it
-into `main` with title `release/v0.3.2`. Fetch before final review and incorporate
-later `origin/main` commits with a normal merge. The existing
+Continue reviewed v0.4.0 work on the existing `release/v0.4.0` branch and its
+release PR into `main`, with matching title `release/v0.4.0`. Fetch before final
+review and incorporate later `origin/main` commits with a normal merge. The existing
 `tool/check_release_pull_request.py` validates the actual PR head, release
 metadata and current-main ancestry. A synthetic PR merge does not establish
 that ancestry. Preserve worktrees and uncommitted work; do not rewrite history
@@ -235,19 +316,82 @@ Run `flutter test <path>` for the selected entry point:
 | Test path | Required environment variables |
 |---|---|
 | [test/dav/nextcloud_live_integration_test.dart](../test/dav/nextcloud_live_integration_test.dart) | `BUSYMAX_NEXTCLOUD_LIVE=1`, `BUSYMAX_NEXTCLOUD_LIVE_URL`, `BUSYMAX_NEXTCLOUD_LIVE_USERNAME`, `BUSYMAX_NEXTCLOUD_LIVE_PASSWORD` (QA app password) |
-| [test/dav/nextcloud_login_flow_live_test.dart](../test/dav/nextcloud_login_flow_live_test.dart) | `BUSYMAX_NEXTCLOUD_LOGIN_LIVE=1`, `BUSYMAX_NEXTCLOUD_LOGIN_LIVE_URL`, `BUSYMAX_NEXTCLOUD_LOGIN_LIVE_USERNAME`, `BUSYMAX_NEXTCLOUD_LOGIN_LIVE_APP_PASSWORD` (disposable bootstrap password), `BUSYMAX_NEXTCLOUD_LOGIN_LIVE_TLS_CERT` (test CA PEM) |
+| [test/dav/nextcloud_contacts_live_test.dart](../test/dav/nextcloud_contacts_live_test.dart) | Same `BUSYMAX_NEXTCLOUD_LIVE_*` HTTPS fixture; reads through linked/independent resource and streaming transports and removes its disposable contact |
+| [test/dav/nextcloud_login_flow_live_test.dart](../test/dav/nextcloud_login_flow_live_test.dart) | `BUSYMAX_NEXTCLOUD_LOGIN_LIVE=1`, `BUSYMAX_NEXTCLOUD_LOGIN_LIVE_URL`, `BUSYMAX_NEXTCLOUD_LOGIN_LIVE_USERNAME`, `BUSYMAX_NEXTCLOUD_LOGIN_LIVE_APP_PASSWORD` (disposable bootstrap password), `BUSYMAX_NEXTCLOUD_LOGIN_LIVE_TRUST_MODE` and, for private modes, `BUSYMAX_NEXTCLOUD_LOGIN_LIVE_TLS_CERT` |
 | [test/dav/nextcloud_sharing_live_test.dart](../test/dav/nextcloud_sharing_live_test.dart) | `BUSYMAX_NEXTCLOUD_SHARING_LIVE=1`, `BUSYMAX_NEXTCLOUD_SHARING_LIVE_URL`, `BUSYMAX_NEXTCLOUD_SHARING_LIVE_GROUP`, and `BUSYMAX_NEXTCLOUD_SHARING_LIVE_<ROLE>_USERNAME` / `BUSYMAX_NEXTCLOUD_SHARING_LIVE_<ROLE>_PASSWORD` for each of `OWNER`, `WRITER`, `READER`, `GROUP_MEMBER` |
+| [test/dav/nextcloud_extended_live_test.dart](../test/dav/nextcloud_extended_live_test.dart) | `BUSYMAX_NEXTCLOUD_EXTENDED_LIVE=1`, the HTTPS `BUSYMAX_NEXTCLOUD_LIVE_*` fixture, `BUSYMAX_NEXTCLOUD_EXTENDED_LIVE_ATTENDEE_USERNAME`, and `BUSYMAX_NEXTCLOUD_MAIL_CAPTURE_DIR` |
 | [test/dav/apple_icloud_live_integration_test.dart](../test/dav/apple_icloud_live_integration_test.dart) | `BUSYMAX_ICLOUD_LIVE=1`, `BUSYMAX_ICLOUD_LIVE_USERNAME` (QA Apple Account email), `BUSYMAX_ICLOUD_LIVE_PASSWORD` (BusyMax-only app-specific password) |
 
-Every Nextcloud suite also requires `BUSYMAX_NEXTCLOUD_QA_CALENDAR_VERSION`
+The calendar/task, Login Flow and sharing suites also require `BUSYMAX_NEXTCLOUD_QA_CALENDAR_VERSION`
 and `BUSYMAX_NEXTCLOUD_QA_TASKS_VERSION` with the versions actually installed;
 Server version is read from `status.php`. Supply the installation root,
 including any path prefix. DAV and sharing fixtures allow HTTP only on isolated
-loopback hosts. Login Flow requires HTTPS with its test CA; optionally set
+loopback hosts. Login Flow requires HTTPS. Each Nextcloud suite uses its prefix
+with `_TRUST_MODE=standard`, `private_ca`, or `pinned_leaf`; private modes require
+`_TLS_CERT` with the explicitly approved disposable CA or self-signed leaf.
+The suites use the production account-scoped factory. Run both private modes;
+see [private-certificate verification](nextcloud_private_certificates.md).
+Optionally set
 `BUSYMAX_NEXTCLOUD_LOGIN_LIVE_BROWSER` to a Chrome-compatible executable. Run
 Login Flow at both the server root and a path-prefixed installation; it revokes
 the returned app password. Production connections always require HTTPS and
-normal platform certificate validation.
+the accepted account TLS policy. Browser trust must be provisioned separately
+in the isolated browser environment; the fixture does not bypass browser
+certificate validation.
+
+The separate captured-revocation case additionally needs
+`BUSYMAX_NEXTCLOUD_LOGIN_LIVE_REVOCATION_APP_PASSWORD`. Use a different disposable
+app password from the DAV/contacts fixture: this case revokes it. Run live files
+with `--concurrency=1` against an SQLite QA server. Repeated collection creation
+can exhaust Nextcloud's default hourly quota; configure only the disposable
+server's documented `dav/rateLimitCalendarCreation` setting for repeated runs.
+
+The extended suite uses production discovery, queued mutations and synchronization.
+Provision distinct organizer/attendee QA users with valid `.invalid` email addresses,
+default calendars, enabled invitations and a local SMTP capture service. Use
+Nextcloud 35.0.2 with a supported database, and record installed Calendar/Tasks
+versions. Run this suite serially when accounts are shared between cases.
+The external-cancellation test compares BusyMax delivery with raw conditional
+CalDAV writes; a stored event or HTTP 204 is insufficient for that test.
+
+Federation controls appear only after OCS capability checks and successful
+read-only invitation discovery. Older servers, disabled incoming federation or
+OCM, and missing invitation routes remain unavailable rather than publishing a
+zero count. The cached count and availability belong to the authorization
+generation and are refreshed by normal account synchronization.
+
+For real federation, additionally set `BUSYMAX_NEXTCLOUD_FEDERATION_LIVE=1`, the
+peer's `BUSYMAX_NEXTCLOUD_FEDERATION_LIVE_URL`, `_USERNAME`, `_PASSWORD`,
+`_TRUST_MODE` and `_TLS_CERT`, plus `_CLOUD_ID` from the peer's canonical
+`occ user:info --output=json` result. Include ports and installation paths.
+`_CONTAINER` must name the explicitly disposable `busymax-qa-*` peer on which
+the test executes the official `occ federation:sync-calendars` command. The
+servers must validate each other's HTTPS, and trusted-peer auto-accept must be
+disabled to exercise pending invitation acceptance. Do not disable TLS checks.
+
+The disabled-feature cases require a separately configured disposable server
+and `BUSYMAX_NEXTCLOUD_DISABLED_FREEBUSY_LIVE=1` or
+`BUSYMAX_NEXTCLOUD_DISABLED_RETENTION_LIVE=1`. Restore its previous settings
+after testing. These cases distinguish unavailable privileges and zero retention
+from connection failures.
+
+[integration_test/nextcloud_workflows_test.dart](../integration_test/nextcloud_workflows_test.dart)
+runs real platform controls against these HTTPS fixtures. Supply
+`BUSYMAX_NEXTCLOUD_UI_FIXTURE` as base64 JSON containing the same environment
+values, using `--dart-define-from-file` with a temporary file outside source.
+Public certificate PEM can be supplied as `_TLS_CERT_PEM` for device builds.
+Build the test target in release mode for Linux, Windows and Android; observe
+`BUSYMAX_NEXTCLOUD_UI_RESULT PASS` from the native process. Keep the official
+server federation job running during the native tests, which observe bounded
+cache convergence. Use separate QA users per platform for concurrent runs.
+Desktop runs can set `BUSYMAX_NEXTCLOUD_UI_RESULT_FILE` to a temporary absolute
+path for progress and a structured final result when a GUI runner has no console.
+Require `passed: true`, a configured fixture and all four named workflows.
+The release driver registers its text-input client before editing; Flutter's
+debug-only text-input client ID is ignored in release mode.
+The Android QA build requires both `busymaxTestSigning=true` and
+`busymaxNextcloudQa=true` Gradle properties and installs as
+`io.busystack.busymax.nextcloudqa`, leaving the normal package untouched.
 
 For the DAV suite's large-collection case, also set
 `BUSYMAX_NEXTCLOUD_LIVE_LARGE=1`. To test restart persistence, set a unique
@@ -277,3 +421,29 @@ flutter run -d linux -t lib/main_linux.dart \
 The configuration is defined in
 [`BuildConfig`](../lib/src/config/build_config.dart); submission behavior lives
 in the [feedback client](../lib/src/features/feedback/data/feedback_api_client.dart).
+
+## IANA time-zone data
+
+BusyMax uses the official, unmodified timezone 0.11.2 dependency. Its bundled
+2026e data predates IANA 2026f, so every application initializer loads the
+application-owned 2026f snapshot through the package's public database API.
+The transition snapshot and POSIX continuation table must always share the
+same release. `lib/src/core/time/iana_time_zone_data.dart` is the common entry
+point for calendars, native time-zone selection, recurrence, and reminders.
+Existing embedded server VTIMEZONE definitions remain authoritative.
+
+To reproduce both artifacts, use Python 3.12+, make, zic, and the Dart dependencies
+selected by `pubspec.lock`:
+
+```sh
+python3 tool/refresh_time_zone_data.py
+```
+
+The generator verifies the pinned official IANA archive's version and SHA-256,
+compiles `rearguard.zi` with `zic -b fat`, and invokes the unchanged upstream TZF
+encoder. An optional local archive argument supports offline reproduction.
+When updating the pinned release, regenerate both artifacts and advance cached
+DAV/WebCal projection versions so unchanged server ETags do not retain stale
+occurrences. The tests cover affected 2026 regions through event creation,
+conditional PUT/GET round trips, editing, recurrence, and reminder scheduling,
+plus historical offsets requiring seconds.

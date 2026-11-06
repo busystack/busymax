@@ -9,3 +9,11 @@ export 'package:busystack_dav/busystack_dav.dart'
         isDavCollectionPendingChangesError,
         classifyDavError,
         parseDavRetryAfter;
+
+/// The remote CalDAV mutation committed; only refreshing local projections failed.
+/// Callers must not present this as a failed mutation or invite blind replay.
+final class DavRefreshPending implements Exception {
+  const DavRefreshPending();
+  @override
+  String toString() => 'CalDAV change committed; refresh pending';
+}

@@ -14,6 +14,35 @@ class AppLocalizationsRu extends AppLocalizations {
   AppLocalizationsRu([String locale = 'ru']) : super(locale);
 
   @override
+  String get caldavSchedulingWarning =>
+      'У этого события есть участники. При сохранении или удалении сервер CalDAV может уведомить их, когда изменение будет синхронизировано.';
+
+  @override
+  String get caldavNativeImport =>
+      'Импорт полных ресурсов событий и задач. Для элементов с участниками сервер CalDAV может отправлять приглашения или обновления встреч. Существующие UID пропускаются, если не выбрано создание новых копий. О неподдерживаемых ресурсах сообщается отдельно.';
+
+  @override
+  String get davInsufficientStorage =>
+      'На сервере недостаточно места для создания этой коллекции.';
+
+  @override
+  String get davCollectionPropertyRejected =>
+      'Сервер отклонил запрошенное свойство коллекции.';
+
+  @override
+  String get davCollectionDiscoveryRequired =>
+      'Обновите эту учётную запись, чтобы обновить сведения о возможностях и разрешениях сервера.';
+
+  @override
+  String get caldavImportSchedulingWarning =>
+      'Этот файл содержит участников. Я разрешаю импорт, при котором сервер CalDAV может отправить приглашения или обновления встреч.';
+
+  @override
+  String nextcloudCanonicalServerReview(String entered, String canonical) {
+    return 'Nextcloud вернул $canonical для сервера $entered. Разрешить BusyMax отправить новый пароль приложения на этот адрес?';
+  }
+
+  @override
   String get contactsAccountsUnavailable =>
       'Не удалось загрузить учётные записи контактов';
 
@@ -192,6 +221,18 @@ class AppLocalizationsRu extends AppLocalizations {
       'Изменение сохранено в Nextcloud. Обновление ожидается; не повторяйте изменение.';
 
   @override
+  String get davRefreshPending =>
+      'Изменение сохранено на сервере CalDAV. Обновление ожидается; не повторяйте изменение.';
+
+  @override
+  String get davCollectionCreationPending =>
+      'Создание коллекции ожидается. Синхронизируйте эту учётную запись перед новой попыткой; не повторяйте операцию.';
+
+  @override
+  String get davCollectionCreationDenied =>
+      'Сервер не разрешил создание коллекции.';
+
+  @override
   String get nextcloudOutcomeUnknown =>
       'Результат на сервере не подтверждён. Обновите данные перед повторной попыткой.';
 
@@ -242,6 +283,33 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get nextcloudPermanentDeleteWarning =>
       'Удалить элемент навсегда? Его нельзя будет восстановить из корзины календарей Nextcloud.';
+
+  @override
+  String get nextcloudDiscoveryRequired =>
+      'Обновите эту учётную запись, чтобы обновить возможности и права Nextcloud.';
+
+  @override
+  String get nextcloudConflict =>
+      'Элемент или его права изменились. Обновите данные и проверьте их перед повторной попыткой.';
+
+  @override
+  String get nextcloudItemUnavailable =>
+      'Этот элемент больше недоступен. Обновите данные, чтобы проверить его состояние.';
+
+  @override
+  String get nextcloudFederationInvitations => 'Приглашения в общие календари';
+
+  @override
+  String get nextcloudFederationEmpty =>
+      'Нет ожидающих приглашений в общие календари.';
+
+  @override
+  String get nextcloudFederationGrant =>
+      'Общий доступ создан на этом сервере. Принятие приглашения и синхронизация на другом сервере не подтверждены.';
+
+  @override
+  String get nextcloudTrashDisabled =>
+      'Хранение удалённых элементов календаря на этом сервере отключено.';
 
   @override
   String get nextcloudOperationDenied => 'Nextcloud не разрешил эту операцию.';
@@ -3863,4 +3931,111 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get taskDurationRequiresStart =>
       'Укажите срок выполнения перед удалением начала задачи с длительностью.';
+
+  @override
+  String get privateServerCertificates => 'Сертификаты частных серверов';
+
+  @override
+  String get reviewServerCertificate => 'Проверить сертификат сервера';
+
+  @override
+  String get certificateStandard => 'Стандартный HTTPS';
+
+  @override
+  String get certificatePrivateCa => 'Частный центр сертификации';
+
+  @override
+  String get certificatePinnedLeaf => 'Закреплённый самоподписанный сертификат';
+
+  @override
+  String get certificateImportCa => 'Импортировать частный УЦ';
+
+  @override
+  String get certificateReplacePin => 'Проверить замену сертификата';
+
+  @override
+  String get certificateUseStandard => 'Вернуться к стандартному HTTPS';
+
+  @override
+  String get certificateApprove => 'Одобрить эту политику сертификатов';
+
+  @override
+  String get certificateReject => 'Отклонить';
+
+  @override
+  String get certificatePrevious => 'Ранее одобренные сертификаты';
+
+  @override
+  String get certificateInvalid =>
+      'Недопустимый сертификат или настройка частного УЦ';
+
+  @override
+  String get certificateFirstUseWarning =>
+      'Шифрование само по себе не подтверждает личность сервера при первом подключении. До одобрения сравните отпечаток SHA-256 с администратором по независимому доверенному каналу.';
+
+  @override
+  String get certificateRenewalHelp =>
+      'Предпочтителен частный УЦ: сертификаты сервера могут обновляться под его управлением. Любая замена закреплённого сертификата требует проверки, даже с тем же ключом. Публичные сертификаты обновляются обычно.';
+
+  @override
+  String get certificateBrowserBoundary =>
+      'Авторизация проходит во внешнем браузере. Одобрение в BusyMax не меняет его доверие; браузер должен доверять серверу отдельно.';
+
+  @override
+  String certificateDetails(
+    String subject,
+    String issuer,
+    String notBefore,
+    String notAfter,
+    String fingerprint,
+  ) {
+    return 'Субъект: $subject\nИздатель: $issuer\nДействует с: $notBefore\nДействует до: $notAfter\nОтпечаток SHA-256: $fingerprint';
+  }
+
+  @override
+  String certificateFailure(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'approvalRequired': 'Требуется одобрение',
+      'pinMismatch': 'Закреплённый сертификат изменился',
+      'expired': 'Сертификат истёк',
+      'notYetValid': 'Сертификат ещё не действует',
+      'hostnameMismatch': 'Имя сервера не совпадает',
+      'invalidPolicy': 'Недопустимая настройка частного УЦ',
+      'ineligible': 'Сертификат не подходит',
+      'verificationFailed': 'Проверка TLS не выполнена',
+      'other': 'Проверка TLS не выполнена',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get addCalDavAccount => 'Добавить учётную запись CalDAV';
+
+  @override
+  String get caldavServerUrl => 'URL сервера';
+
+  @override
+  String get caldavUsername => 'Имя пользователя';
+
+  @override
+  String get caldavPassword => 'Пароль или пароль приложения';
+
+  @override
+  String get caldavInvalidServerUrl =>
+      'Введите HTTPS-адрес без учётных данных, параметров запроса и фрагмента.';
+
+  @override
+  String get caldavHttpsHelp =>
+      'Введите HTTPS-адрес сервера или прямой адрес CalDAV. Пароль хранится безопасно.';
+
+  @override
+  String get davPermissionsUnknown =>
+      'Сервер не сообщил разрешения. Он проверит запрошенные изменения.';
+
+  @override
+  String get localNetworkAccessRequired => 'Требуется доступ к локальной сети';
+
+  @override
+  String get localNetworkAccessRecovery =>
+      'Чтобы подключиться к этому серверу, разрешите BusyMax доступ к устройствам поблизости в настройках Android и повторите попытку.';
 }

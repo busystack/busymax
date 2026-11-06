@@ -5,7 +5,7 @@ Production key material is never tracked. Copy
 `storeFile` at the owner-controlled keystore, and fill its passwords and alias
 outside logs and shell history. Do not replace an established upload identity.
 
-The v0.3.2 package uses version code `7` in `android/app/build.gradle.kts`.
+The v0.4.0 package uses version code `8` in `android/app/build.gradle.kts`.
 Before choosing a subsequent code, check the distribution ledger and ensure it
 exceeds every previously distributed code, including ABI offsets from split
 APKs. Keep the public version in `pubspec.yaml` consistent with the release.

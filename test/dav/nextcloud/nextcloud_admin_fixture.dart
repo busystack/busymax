@@ -5,6 +5,7 @@ import 'package:busymax/src/dav/nextcloud/nextcloud_collection_service.dart';
 import 'package:busymax/src/dav/nextcloud/nextcloud_dav_context.dart';
 import 'package:busymax/src/dav/nextcloud/nextcloud_sharing_service.dart';
 import 'package:busymax/src/dav/nextcloud/nextcloud_trash_service.dart';
+import 'package:busymax/src/dav/discovery/dav_discovery_models.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
@@ -13,10 +14,14 @@ import 'package:http/testing.dart';
 import 'package:xml/xml.dart';
 
 class NextcloudAdminFixture {
-  final database = AppDatabase(NativeDatabase.memory());
+  NextcloudAdminFixture({AppDatabase? database})
+    : database = database ?? AppDatabase(NativeDatabase.memory());
+
+  final AppDatabase database;
   final secrets = InMemorySecretStore();
   final requests = <http.Request>[];
   Future<http.Response> Function(http.Request)? principalSearchResponse;
+  Future<void> Function(http.Request)? beforeResponse;
   late final client = MockClient(respond);
   late final collections = NextcloudCollectionService(
     database: database,
@@ -32,6 +37,10 @@ class NextcloudAdminFixture {
   late final sharing = NextcloudSharingService(collections);
   late final trash = NextcloudTrashService(collections);
   int refreshes = 0;
+  int trashObjectCount = 2;
+  int trashDescriptionBytes = 0;
+  String? trashDisplayName;
+  String trashEtag = '"exact-trash-etag"';
   bool failRefresh = false,
       denyMetadata = false,
       denyParent = false,
@@ -42,8 +51,16 @@ class NextcloudAdminFixture {
   bool denyTrashObject = false, denySharing = false, ignoreSharing = false;
   String? deletedCollectionType;
   bool unexpectedTrashHref = false;
+  bool loseTrashMutationResponse = false;
   String displayName = 'Work';
   final shares = <String, bool>{};
+  int serverMajor = 34;
+  bool incomingFederation = true, ocmEnabled = true;
+  int capabilitiesStatus = 200;
+  int? federationEndpointStatus;
+  final federationInvitations = <Map<String, Object?>>[];
+  int ocsStatus = 200, ocsHttpStatus = 200;
+  bool malformedOcs = false;
   final restored = <String>{};
   static const origin = 'https://cloud.example.test';
   static const home = '/remote.php/dav/calendars/alex/';
@@ -94,6 +111,9 @@ class NextcloudAdminFixture {
               }),
             ),
             discoveredAtUtc: now,
+            capabilitiesSchemaVersion: const Value(
+              davCapabilitiesSchemaVersion,
+            ),
           ),
         );
     for (final (id, path, types, mask) in [
@@ -148,6 +168,53 @@ class NextcloudAdminFixture {
 
   Future<http.Response> respond(http.Request request) async {
     requests.add(request);
+    await beforeResponse?.call(request);
+    if (request.url.path == '/ocs/v2.php/cloud/capabilities') {
+      return http.Response(
+        jsonEncode({
+          'ocs': {
+            'meta': {'status': 'ok', 'statuscode': 200},
+            'data': {
+              'version': {'major': serverMajor},
+              'capabilities': {
+                'files_sharing': {
+                  'federation': {'incoming': incomingFederation},
+                },
+                'ocm': {'enabled': ocmEnabled},
+              },
+            },
+          },
+        }),
+        capabilitiesStatus,
+      );
+    }
+    if (request.url.path.contains(
+      '/ocs/v2.php/apps/dav/api/v1/federated_calendars/pending',
+    )) {
+      if (federationEndpointStatus != null) {
+        return http.Response('', federationEndpointStatus!);
+      }
+      if (ocsStatus == 200 && request.method != 'GET') {
+        final id = int.parse(request.url.pathSegments.last);
+        federationInvitations.removeWhere((i) => i['id'] == id);
+      }
+      return http.Response(
+        malformedOcs
+            ? 'invalid'
+            : jsonEncode({
+                'ocs': {
+                  'meta': {
+                    'status': ocsStatus == 200 ? 'ok' : 'failure',
+                    'statuscode': ocsStatus,
+                  },
+                  'data': request.method == 'GET'
+                      ? federationInvitations
+                      : null,
+                },
+              }),
+        ocsHttpStatus,
+      );
+    }
     if (request.method == 'PROPFIND') {
       if (request.body.contains('principal-collection-set')) {
         return multi(
@@ -186,6 +253,29 @@ class NextcloudAdminFixture {
         '<d:resourcetype><d:collection/><c:calendar/></d:resourcetype><d:displayname>$displayName</d:displayname><d:owner><d:href>/remote.php/dav/principals/users/alex/</d:href></d:owner><d:current-user-privilege-set><d:privilege><d:read/></d:privilege>${denyMetadata ? '' : '<d:privilege><d:write-properties/></d:privilege>'}</d:current-user-privilege-set><a:calendar-color>#3584e4</a:calendar-color><a:calendar-order>2</a:calendar-order><oc:calendar-enabled>1</oc:calendar-enabled><c:schedule-calendar-transp><c:opaque/></c:schedule-calendar-transp><cs:allowed-sharing-modes><cs:can-be-shared/><cs:can-be-published/></cs:allowed-sharing-modes><oc:invite>${shares.entries.map((s) => '<oc:user><d:href>${s.key}</d:href><oc:common-name>Bob</oc:common-name><oc:access><oc:${s.value ? 'read-write' : 'read'}/></oc:access><oc:invite-accepted/></oc:user>').join()}</oc:invite>${published ? '<cs:publish-url><d:href>https://cloud.example.test/published/server-selected</d:href></cs:publish-url>' : ''}',
       );
     }
+    if (request.method == 'GET' &&
+        request.url.path.startsWith('${bin}objects/')) {
+      final id = int.tryParse(
+        request.url.pathSegments.last.replaceAll('.ics', ''),
+      );
+      if (id == null ||
+          id < 41 ||
+          id >= 41 + trashObjectCount ||
+          restored.contains(request.url.path)) {
+        return http.Response('', 404);
+      }
+      if (request.headers['if-match'] != trashEtag) {
+        return http.Response('', 412);
+      }
+      final i = id - 41;
+      final task = i.isOdd;
+      final component = task ? 'VTODO' : 'VEVENT';
+      return http.Response(
+        'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:$component\r\nUID:trash-$i\r\nDTSTAMP:20260905T120000Z\r\nDTSTART:20260905T120000Z\r\n${task ? 'DUE' : 'DTEND'}:20260905T130000Z\r\nSUMMARY:Deleted ${task ? 'task' : 'event'}\r\n${trashDescriptionBytes > 0 ? 'DESCRIPTION:${'x' * trashDescriptionBytes}\r\n' : ''}END:$component\r\nEND:VCALENDAR\r\n',
+        200,
+        headers: {'etag': trashEtag},
+      );
+    }
     if (request.method == 'PROPPATCH') {
       final document = XmlDocument.parse(request.body);
       final properties = document.descendantElements
@@ -219,18 +309,42 @@ class NextcloudAdminFixture {
         '<d:displayname>${group ? 'Team' : 'Bob'}</d:displayname><d:principal-URL><d:href>$path</d:href></d:principal-URL><c:calendar-user-type>${group ? 'GROUP' : 'INDIVIDUAL'}</c:calendar-user-type>',
       );
     }
-    if (request.method == 'REPORT' && request.body.contains('calendar-query')) {
-      final task = request.body.contains('VTODO');
-      final path = '${bin}objects/${task ? 42 : 41}.ics';
-      if (restored.contains(path)) {
-        return http.Response('<d:multistatus $nextcloudXmlNamespaces/>', 207);
+    if (request.method == 'REPORT' &&
+        (request.body.contains('calendar-query') ||
+            request.body.contains('calendar-multiget'))) {
+      final multiget = request.body.contains('calendar-multiget');
+      final requested = multiget
+          ? XmlDocument.parse(request.body).descendantElements
+                .where((e) => e.name.local == 'href')
+                .map((e) => e.innerText)
+                .toSet()
+          : <String>{};
+      final responses = <String>[];
+      for (var i = 0; i < trashObjectCount; i++) {
+        final task = i.isOdd;
+        if (!multiget &&
+            (request.body.contains('name="VEVENT"') ||
+                request.body.contains('name="VTODO"')) &&
+            task != request.body.contains('name="VTODO"')) {
+          continue;
+        }
+        final path = '${bin}objects/${41 + i}.ics';
+        if (restored.contains(path)) {
+          continue;
+        }
+        if (multiget && !requested.contains(path)) continue;
+        final component = task ? 'VTODO' : 'VEVENT';
+        final raw =
+            'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:$component\r\nUID:trash-$i\r\nDTSTAMP:20260905T120000Z\r\nDTSTART:20260905T120000Z\r\n${task ? 'DUE' : 'DTEND'}:20260905T130000Z\r\nSUMMARY:Deleted ${task ? 'task' : 'event'}\r\n${request.body.contains('calendar-data') && trashDescriptionBytes > 0 ? 'DESCRIPTION:${'x' * trashDescriptionBytes}\r\n' : ''}END:$component\r\nEND:VCALENDAR\r\n';
+        final response = multi(
+          unexpectedTrashHref ? '${collection}active.ics' : path,
+          '${trashDisplayName != null && request.body.contains('<d:displayname/>') ? '<d:displayname>${XmlText(trashDisplayName!).toXmlString()}</d:displayname>' : ''}<d:current-user-privilege-set><d:privilege><d:${denyTrashObject ? 'read' : 'unbind'}/></d:privilege></d:current-user-privilege-set><d:getetag>$trashEtag</d:getetag><d:getcontentlength>${raw.length + (request.body.contains('calendar-data') ? 0 : trashDescriptionBytes)}</d:getcontentlength><d:getcontenttype>text/calendar; charset=utf-8</d:getcontenttype>${request.body.contains('calendar-data') ? '<c:calendar-data>${raw.replaceAll('&', '&amp;').replaceAll('<', '&lt;')}</c:calendar-data>' : ''}<nc:deleted-at>2026-09-05T14:00:00Z</nc:deleted-at><nc:calendar-uri>work</nc:calendar-uri>',
+        );
+        responses.add(XmlDocument.parse(response.body).rootElement.innerXml);
       }
-      final component = task ? 'VTODO' : 'VEVENT';
-      final raw =
-          'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:$component\r\nUID:trash-${task ? 'task' : 'event'}\r\nDTSTAMP:20260905T120000Z\r\nDTSTART:20260905T120000Z\r\n${task ? 'DUE' : 'DTEND'}:20260905T130000Z\r\nSUMMARY:Deleted ${task ? 'task' : 'event'}\r\nEND:$component\r\nEND:VCALENDAR\r\n';
-      return multi(
-        unexpectedTrashHref ? '${collection}active.ics' : path,
-        '<d:current-user-privilege-set><d:privilege><d:${denyTrashObject ? 'read' : 'unbind'}/></d:privilege></d:current-user-privilege-set><d:getetag>"exact-trash-etag"</d:getetag><c:calendar-data>${raw.replaceAll('&', '&amp;').replaceAll('<', '&lt;')}</c:calendar-data><nc:deleted-at>2026-09-05T14:00:00Z</nc:deleted-at><nc:calendar-uri>work</nc:calendar-uri>',
+      return http.Response(
+        '<d:multistatus $nextcloudXmlNamespaces>${responses.join()}</d:multistatus>',
+        207,
       );
     }
     if (request.method == 'POST') {
@@ -258,6 +372,9 @@ class NextcloudAdminFixture {
     }
     if (request.method == 'MOVE' || request.method == 'DELETE') {
       restored.add(request.url.path);
+      if (loseTrashMutationResponse) {
+        throw http.ClientException('The response was interrupted', request.url);
+      }
       return http.Response('', 204);
     }
     return http.Response('', 404);

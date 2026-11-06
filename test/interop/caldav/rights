@@ -1,0 +1,39 @@
+[root]
+user = .+
+collection =
+permissions = R
+
+[principal]
+user = .+
+collection = {user}
+permissions = RW
+
+[restricted-fixture-owner]
+user = bob
+collection = alice/restricted
+permissions = rw
+
+[readonly]
+user = .+
+collection = {user}/restricted
+permissions = r
+
+[locked-fixture-owner]
+user = bob
+collection = alice/(property-locked|delete-protected)
+permissions = rw
+
+[property-locked]
+user = alice
+collection = alice/property-locked
+permissions = rwl
+
+[delete-protected]
+user = alice
+collection = alice/delete-protected
+permissions = rwd
+
+[owner]
+user = .+
+collection = {user}/(?!restricted$)[^/]+
+permissions = rw

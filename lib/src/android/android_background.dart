@@ -5,6 +5,10 @@ import '../features/sync/domain_sync_schedule.dart';
 import '../core/auth/registration_staging.dart';
 
 import 'dart:async';
+import 'dart:convert';
+import 'dart:developer' as developer;
+import 'dart:io';
+import 'dart:isolate';
 import 'dart:ui';
 
 import 'package:busymax_android_platform/busymax_android_platform.dart';
@@ -19,10 +23,24 @@ import '../config/build_config.dart';
 import '../core/secrets/secret_store.dart';
 import '../db/app_database.dart';
 import 'android_account_gate.dart';
+import 'android_notification_gate.dart';
+import 'android_runtime_resources.dart';
 import 'android_authorization.dart';
 import 'android_notifications.dart';
 import 'android_settings_store.dart';
 import 'android_time_zone.dart';
+
+void _startupTrace(String stage) {
+  if (!const bool.fromEnvironment('BUSYMAX_SQLITE_TRACE')) return;
+  try {
+    // ignore: avoid_print
+    print(
+      'BUSYMAX_RUNTIME ${jsonEncode({'pid': pid, 'isolate': developer.Service.getIsolateId(Isolate.current), 'stage': stage, 'utcMicros': DateTime.now().toUtc().microsecondsSinceEpoch})}',
+    );
+  } catch (_) {
+    // Diagnostic output must not affect initialization or cleanup.
+  }
+}
 
 const busyMaxPeriodicSyncUniqueName = 'busymax.periodic-sync.v1';
 const busyMaxPeriodicSyncTaskName = 'busymax.sync-and-reconcile';
@@ -40,8 +58,11 @@ void busyMaxWorkmanagerDispatcher() {
       }
       WidgetsFlutterBinding.ensureInitialized();
       DartPluginRegistrant.ensureInitialized();
+      _startupTrace('worker-entry:$taskName');
       final runtime = await AndroidHeadlessRuntime.create();
+      _startupTrace('worker-created:$taskName');
       var succeeded = true;
+      Object? failure;
       try {
         if (taskName == busyMaxPeriodicSyncTaskName) {
           try {
@@ -63,8 +84,11 @@ void busyMaxWorkmanagerDispatcher() {
           succeeded = false;
         }
         return succeeded;
+      } catch (error) {
+        failure = error;
+        rethrow;
       } finally {
-        await runtime.dispose();
+        await runtime.dispose(preserveFailure: failure != null);
       }
     },
     onTaskStopped: (taskName, stopReason) async {
@@ -124,110 +148,156 @@ final class AndroidHeadlessRuntime {
     required this.container,
     required this.database,
     required this.notifications,
-    required http.Client httpClient,
-  }) : _httpClient = httpClient;
+    required AndroidRuntimeResources resources,
+  }) : _resources = resources;
 
   static Future<AndroidHeadlessRuntime> create({
     // Native acceptance needs root-scoped transport overrides: a nested scope
     // cannot safely replace dependencies of existing database-backed providers.
     List<Override> Function(AppDatabase database)? overridesForTesting,
+    AppDatabase Function()? databaseForTesting,
+    http.Client Function()? httpClientForTesting,
+    AndroidNotificationBackend? notificationBackendForTesting,
+    LocalSettingsStore? settingsForTesting,
+    Future<void> Function(ProviderContainer)? afterObservationForTesting,
   }) async {
     final platform = BusyMaxAndroidPlatform.instance;
     const storage = FlutterSecureStorage(
       aOptions: AndroidOptions(resetOnError: false),
     );
-    final settingsStore = AndroidSettingsStore(platform: platform);
+    final settingsStore = AndroidSettingsStore(
+      platform: platform,
+      store: settingsForTesting,
+    );
+    _startupTrace('settings');
     final settings = AppSettings.fromJson(await settingsStore.load());
     final timeZoneId = await platform.currentTimeZoneId();
     final uses24Hour = await platform.uses24HourFormat();
-    final database = AppDatabase.open();
-    final client = http.Client();
-    final registrations = RegistrationStaging(BuildConfig.forAndroid());
-    final broker = AndroidAuthorizationBroker(
-      platform: platform,
-      httpClient: client,
-      secretStore: SecureSecretStore(storage),
-      config: BuildConfig.forAndroid(),
-      database: database,
-      registrations: registrations,
-    );
-    await broker.persistence!.recover();
-    late ProviderContainer container;
-    final notifications = AndroidNotificationService(
-      database: database,
-      settings: () => container.read(appSettingsControllerProvider),
-      policyStore: settingsStore,
-      platform: platform,
-    );
-    await notifications.initialize(timeZoneId: timeZoneId);
-    container = ProviderContainer(
-      overrides: [
-        buildConfigProvider.overrideWithValue(BuildConfig.forAndroid()),
-        databaseProvider.overrideWithValue(database),
-        secureStorageProvider.overrideWithValue(storage),
-        initialAppSettingsProvider.overrideWithValue(settings),
-        localSettingsStoreProvider.overrideWithValue(settingsStore),
-        localTimeZoneSourceProvider.overrideWithValue(
-          AndroidLocalTimeZoneSource(platform),
+    final resources = AndroidRuntimeResources();
+    try {
+      final notificationGate = AndroidNotificationGate(platform);
+      final database = resources.own(
+        databaseForTesting?.call() ??
+            AppDatabase.open(notificationSynchronization: notificationGate.run),
+        (database) => database.close(),
+      );
+      final client = resources.own(
+        httpClientForTesting?.call() ?? http.Client(),
+        (client) => client.close(),
+      );
+      final registrations = resources.own(
+        RegistrationStaging(BuildConfig.forAndroid()),
+        (registrations) => registrations.dispose(),
+      );
+      final broker = AndroidAuthorizationBroker(
+        platform: platform,
+        httpClient: client,
+        secretStore: SecureSecretStore(storage),
+        config: BuildConfig.forAndroid(),
+        database: database,
+        registrations: registrations,
+      );
+      _startupTrace('recovery');
+      await broker.persistence!.recover();
+      _startupTrace('recovered');
+      late ProviderContainer container;
+      final notifications = resources.own(
+        AndroidNotificationService(
+          database: database,
+          settings: () => container.read(appSettingsControllerProvider),
+          policyStore: settingsStore,
+          platform: platform,
+          backend: notificationBackendForTesting,
+          gate: notificationGate,
         ),
-        androidLocalTimeZoneStateProvider.overrideWith((ref) => timeZoneId),
-        androidSystemUses24HourProvider.overrideWith((ref) => uses24Hour),
-        applicationOAuthGatewayProvider.overrideWithValue(broker),
-        applicationMicrosoftOAuthServiceProvider.overrideWithValue(broker),
-        accountTokenBrokerProvider.overrideWithValue(broker),
-        authorizationPersistenceProvider.overrideWithValue(broker.persistence!),
-        registrationStagingProvider.overrideWithValue(registrations),
-        crossEngineAccountGateProvider.overrideWithValue(
-          AndroidCrossEngineAccountGate(platform),
+        (notifications) => notifications.dispose(),
+      );
+      _startupTrace('native-initialize');
+      await notifications.initialize(timeZoneId: timeZoneId);
+      _startupTrace('native-initialized');
+      container = resources.own(
+        ProviderContainer(
+          overrides: [
+            buildConfigProvider.overrideWithValue(BuildConfig.forAndroid()),
+            databaseProvider.overrideWithValue(database),
+            secureStorageProvider.overrideWithValue(storage),
+            initialAppSettingsProvider.overrideWithValue(settings),
+            localSettingsStoreProvider.overrideWithValue(settingsStore),
+            localTimeZoneSourceProvider.overrideWithValue(
+              AndroidLocalTimeZoneSource(platform),
+            ),
+            androidLocalTimeZoneStateProvider.overrideWith((ref) => timeZoneId),
+            androidSystemUses24HourProvider.overrideWith((ref) => uses24Hour),
+            applicationOAuthGatewayProvider.overrideWithValue(broker),
+            applicationMicrosoftOAuthServiceProvider.overrideWithValue(broker),
+            accountTokenBrokerProvider.overrideWithValue(broker),
+            authorizationPersistenceProvider.overrideWithValue(
+              broker.persistence!,
+            ),
+            registrationStagingProvider.overrideWithValue(registrations),
+            crossEngineAccountGateProvider.overrideWithValue(
+              AndroidCrossEngineAccountGate(platform),
+            ),
+            notificationReconcilerProvider.overrideWithValue(
+              CallbackNotificationReconciler(() async {
+                await notifications.reconcile();
+                await container
+                    .read(operationalNotificationCoordinatorProvider)
+                    .reconcile();
+              }),
+            ),
+            androidNotificationServiceProvider.overrideWithValue(notifications),
+            operationalNotificationTransportProvider.overrideWithValue(
+              OperationalNotificationTransport(
+                deliver: notifications.deliverOperationalIssue,
+                cancel: notifications.cancelOperationalIssue,
+                synchronize: notifications.synchronize,
+                readSettings: notifications.currentSettings,
+              ),
+            ),
+            ...?overridesForTesting?.call(database),
+          ],
         ),
-        notificationReconcilerProvider.overrideWithValue(
-          CallbackNotificationReconciler(() async {
-            await notifications.reconcile();
-            await container
-                .read(operationalNotificationCoordinatorProvider)
-                .reconcile();
-          }),
-        ),
-        androidNotificationServiceProvider.overrideWithValue(notifications),
-        operationalNotificationTransportProvider.overrideWithValue(
-          OperationalNotificationTransport(
-            deliver: notifications.deliverOperationalIssue,
-            cancel: notifications.cancelOperationalIssue,
-            synchronize: notifications.synchronize,
-            readSettings: notifications.currentSettings,
-          ),
-        ),
-        ...?overridesForTesting?.call(database),
-      ],
-    );
-    // First observe native posts from the previous process. Rebuilding an
-    // unsent database row before that observation could expire an alarm Android
-    // already delivered while BusyMax was stopped, invalidating its actions.
-    await notifications.reconcile();
-    final schedules = NotificationScheduleService(
-      database: database,
-      preserveLifecycle: true,
-    );
-    for (final account in await database.select(database.accounts).get()) {
-      await schedules.rebuildUpcomingNotifications(account.id);
+        (container) => container.dispose(),
+      );
+      // First observe native posts from the previous process. Rebuilding an
+      // unsent database row before that observation could expire an alarm Android
+      // already delivered while BusyMax was stopped, invalidating its actions.
+      _startupTrace('notification-gate-wait');
+      await notifications.synchronize(() async {
+        _startupTrace('native-observation');
+        await notifications.reconcile();
+        _startupTrace('native-observed');
+        await afterObservationForTesting?.call(container);
+        final schedules = NotificationScheduleService(
+          database: database,
+          preserveLifecycle: true,
+        );
+        _startupTrace('schedule-rebuild');
+        for (final account in await database.select(database.accounts).get()) {
+          await schedules.rebuildUpcomingNotifications(account.id);
+        }
+      });
+      _startupTrace('schedule-rebuilt');
+      container.read(operationalNotificationCoordinatorProvider).start();
+      return AndroidHeadlessRuntime._(
+        container: container,
+        database: database,
+        notifications: notifications,
+        resources: resources,
+      );
+    } catch (error) {
+      _startupTrace('failed:${error.runtimeType}');
+      await resources.close(preserveFailure: true);
+      rethrow;
     }
-    container.read(operationalNotificationCoordinatorProvider).start();
-    return AndroidHeadlessRuntime._(
-      container: container,
-      database: database,
-      notifications: notifications,
-      httpClient: client,
-    );
   }
 
   final ProviderContainer container;
   final AppDatabase database;
   final AndroidNotificationService notifications;
-  final http.Client _httpClient;
+  final AndroidRuntimeResources _resources;
 
-  Future<void> dispose() async {
-    container.dispose();
-    _httpClient.close();
-    await database.close();
-  }
+  Future<void> dispose({bool preserveFailure = false}) =>
+      _resources.close(preserveFailure: preserveFailure);
 }

@@ -50,8 +50,11 @@ Future<void> showWindowsIcsImportFlow(
       preview: preview,
       destination: selection.destination,
       nativeDuplicates: selection.duplicatePolicy,
-      normalizeNativeSchedulingMethod:
-          selection.destination.provider == BusyProvider.nextcloud,
+      allowScheduling: selection.allowScheduling,
+      normalizeNativeSchedulingMethod: const {
+        BusyProvider.nextcloud,
+        BusyProvider.caldav,
+      }.contains(selection.destination.provider),
     );
     if (!context.mounted) return;
     await showDialog<void>(
@@ -102,6 +105,7 @@ class _WindowsIcsPreviewDialog extends StatefulWidget {
 class _WindowsIcsPreviewDialogState extends State<_WindowsIcsPreviewDialog> {
   CalendarSourceEntity? _destination;
   bool _newCopies = false;
+  bool _allowScheduling = false;
 
   @override
   void initState() {
@@ -112,7 +116,13 @@ class _WindowsIcsPreviewDialogState extends State<_WindowsIcsPreviewDialog> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final native = _destination?.provider == BusyProvider.nextcloud;
+    final native = const {
+      BusyProvider.nextcloud,
+      BusyProvider.caldav,
+    }.contains(_destination?.provider);
+    final schedulingConsentRequired =
+        _destination?.provider == BusyProvider.caldav &&
+        widget.preview.nativePreview.hasAttendees;
     final omitted = native
         ? <String>[]
         : (widget.preview.fieldsThatWillBeOmitted.toList()..sort());
@@ -145,6 +155,19 @@ class _WindowsIcsPreviewDialogState extends State<_WindowsIcsPreviewDialog> {
               ),
             ),
           ],
+          if (schedulingConsentRequired)
+            LayoutBuilder(
+              builder: (context, constraints) => Checkbox(
+                key: const ValueKey('caldav-import-scheduling-consent'),
+                content: SizedBox(
+                  width: constraints.maxWidth - 36,
+                  child: Text(l10n.caldavImportSchedulingWarning),
+                ),
+                checked: _allowScheduling,
+                onChanged: (value) =>
+                    setState(() => _allowScheduling = value == true),
+              ),
+            ),
           if (widget.preview.invalidEventCount > 0)
             Text(l10n.importInvalidEvents(widget.preview.invalidEventCount)),
           if (omitted.isNotEmpty)
@@ -165,7 +188,10 @@ class _WindowsIcsPreviewDialogState extends State<_WindowsIcsPreviewDialog> {
                   for (final source in widget.destinations)
                     ComboBoxItem(value: source, child: Text(source.summary)),
                 ],
-                onChanged: (value) => setState(() => _destination = value),
+                onChanged: (value) => setState(() {
+                  _destination = value;
+                  _allowScheduling = false;
+                }),
               ),
             ),
         ],
@@ -176,11 +202,17 @@ class _WindowsIcsPreviewDialogState extends State<_WindowsIcsPreviewDialog> {
           child: Text(l10n.cancel),
         ),
         FilledButton(
-          onPressed: _destination == null
+          onPressed:
+              _destination == null ||
+                  (schedulingConsentRequired && !_allowScheduling)
               ? null
               : () => Navigator.pop(
                   context,
-                  IcalImportSelection(_destination!, newCopies: _newCopies),
+                  IcalImportSelection(
+                    _destination!,
+                    newCopies: _newCopies,
+                    allowScheduling: _allowScheduling,
+                  ),
                 ),
           child: Text(l10n.importIcsConfirm),
         ),

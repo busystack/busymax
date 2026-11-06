@@ -21,7 +21,8 @@ import 'webcal_http_client.dart';
 import 'webcal_uri.dart';
 
 const webCalParserVersion = 1;
-const webCalProjectionVersion = 3;
+// Refresh cached temporal projections after the IANA 2026f update.
+const webCalProjectionVersion = 4;
 
 enum WebCalRefreshMode { automatic, hourly, sixHours, daily }
 

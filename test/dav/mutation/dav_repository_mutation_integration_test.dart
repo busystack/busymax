@@ -4180,6 +4180,7 @@ Future<void> _seedScheduling(AppDatabase database, String email) async {
       .into(database.davAccountServices)
       .insertOnConflictUpdate(
         DavAccountServicesCompanion.insert(
+          capabilitiesSchemaVersion: const Value(davCapabilitiesSchemaVersion),
           accountId: _accountId,
           canonicalServiceUri: 'https://cloud.example.test/remote.php/dav/',
           canonicalOrigin: 'https://cloud.example.test',
@@ -4192,9 +4193,16 @@ Future<void> _seedScheduling(AppDatabase database, String email) async {
                 DavPrincipalContext(
                   principalHref: principal,
                   calendarHomeHref: home,
+                  endpointCapabilities: [
+                    DavEndpointCapabilities(
+                      href: home,
+                      serverFeatures: const {'calendar-auto-schedule'},
+                    ),
+                  ],
                   calendarUserAddresses: [Uri.parse('mailto:$email')],
                   scheduleOutboxHref: home.resolve('outbox/'),
                   scheduleInboxHref: home.resolve('inbox/'),
+                  inboxPrivileges: const {'{DAV:}read', '{DAV:}unbind'},
                   outboxPrivileges: {
                     '{urn:ietf:params:xml:ns:caldav}schedule-send',
                   },

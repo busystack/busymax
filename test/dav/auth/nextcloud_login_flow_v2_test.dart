@@ -87,6 +87,79 @@ void main() {
       },
     );
   }
+  for (final consent in [null, false, true]) {
+    test(
+      'alias to canonical server requires destination consent: $consent',
+      () async {
+        final requests = <http.Request>[];
+        final flow = NextcloudLoginFlowV2(
+          client: MockClient((request) async {
+            requests.add(request);
+            if (request.url.path.endsWith('/index.php/login/v2')) {
+              return http.Response(
+                jsonEncode({
+                  'poll': {
+                    'token': 'synthetic',
+                    'endpoint': 'https://alias.example.test/poll',
+                  },
+                  'login': 'https://alias.example.test/browser',
+                }),
+                200,
+              );
+            }
+            return http.Response(
+              jsonEncode({
+                'server': 'https://canonical.example.test/cloud/',
+                'loginName': 'qa',
+                'appPassword': 'synthetic',
+              }),
+              200,
+            );
+          }),
+          browserLauncher: (_) async => true,
+        );
+        final result = flow.start(
+          'https://alias.example.test',
+          reviewCanonicalServer: consent == null
+              ? null
+              : (entered, canonical) async {
+                  expect(entered, Uri.parse('https://alias.example.test'));
+                  expect(
+                    canonical,
+                    Uri.parse('https://canonical.example.test/cloud'),
+                  );
+                  return consent;
+                },
+        );
+        if (consent == true) {
+          expect(
+            (await result).canonicalServer,
+            Uri.parse('https://canonical.example.test/cloud'),
+          );
+        } else {
+          await expectLater(
+            result,
+            throwsA(
+              isA<DavException>().having(
+                (e) => e.code,
+                'code',
+                'NextcloudLoginCanonicalServerRejected',
+              ),
+            ),
+          );
+        }
+        expect(
+          requests.every(
+            (r) =>
+                r.url.host == 'alias.example.test' &&
+                !r.headers.containsKey('authorization'),
+          ),
+          isTrue,
+        );
+      },
+    );
+  }
+
   test('normalizes HTTPS while preserving an installation path', () {
     expect(
       normalizeNextcloudLoginServer(' cloud.example.test/nextcloud/ '),
@@ -126,7 +199,7 @@ void main() {
   });
 
   test(
-    'success treats 404 as pending and uses canonical returned identity',
+    'success treats 404 as pending and uses normalized canonical identity',
     () async {
       final requests = <http.Request>[];
       var polls = 0;
@@ -150,7 +223,7 @@ void main() {
         if (polls < 3) return http.Response('', 404);
         return http.Response(
           jsonEncode({
-            'server': 'https://CANONICAL.example.test/nextcloud/',
+            'server': 'https://CLOUD.example.test/nextcloud/',
             'loginName': ' server-login ',
             'appPassword': ' app-secret ',
           }),
@@ -178,7 +251,7 @@ void main() {
       expect(requests.last.url.query, isEmpty);
       expect(
         result.canonicalServer,
-        Uri.parse('https://canonical.example.test/nextcloud'),
+        Uri.parse('https://cloud.example.test/nextcloud'),
       );
       expect(result.loginName, 'server-login');
       expect(result.appPassword, 'app-secret');

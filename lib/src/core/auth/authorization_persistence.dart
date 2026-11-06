@@ -8,6 +8,7 @@ import '../../providers/busy_provider.dart';
 import '../secrets/secret_store.dart';
 import 'oauth_models.dart';
 import 'oauth_registration.dart';
+import 'authorization_gate.dart';
 
 /// Serialized, recoverable boundary for secure storage and account metadata.
 /// A normal token refresh leaves authorization generation unchanged.
@@ -31,8 +32,42 @@ final class AuthorizationPersistence {
   final AppDatabase database;
   final SecretStore secrets;
   final CrossEngineAccountGate gate;
-  final AccountSyncCoordinator _coordinator = AccountSyncCoordinator();
+  final AuthorizationGate _coordinator = AuthorizationGate();
   final AccountSyncCoordinator _removals = AccountSyncCoordinator();
+
+  final Set<void Function(String)> _nextcloudInvalidators = {};
+  void Function() observeNextcloudInvalidation(
+    void Function(String) invalidate,
+  ) {
+    _nextcloudInvalidators.add(invalidate);
+    return () => _nextcloudInvalidators.remove(invalidate);
+  }
+
+  void _invalidateNextcloud(String id) {
+    for (final invalidate in _nextcloudInvalidators.toList()) {
+      invalidate(id);
+    }
+  }
+
+  Future<(SecretRecord?, int)> readCurrentSnapshot(String id) => run(
+    id,
+    () async => (await _readCurrentCredential(id), await generation(id)),
+  );
+  Future<T> withCurrentCredential<T>(
+    String id,
+    Future<T> Function(SecretRecord? credential) operation,
+  ) => runShared(id, () async => operation(await _readCurrentCredential(id)));
+
+  /// The shared lease covers validation and transmission, including response
+  /// ownership. Writers use the same durable cross-engine boundary. Unknown
+  /// gates conservatively retain exclusive behavior.
+  Future<T> runShared<T>(String id, Future<T> Function() operation) =>
+      _coordinator.run(id, () {
+        final native = gate;
+        return native is SharedCrossEngineAccountGate
+            ? native.runShared('authorization:$id', operation)
+            : native.run('authorization:$id', operation);
+      }, shared: true);
 
   Future<T> run<T>(String id, Future<T> Function() operation) =>
       _coordinator.run(id, () => gate.run('authorization:$id', operation));
@@ -66,7 +101,9 @@ final class AuthorizationPersistence {
         'Authorization recovery must complete before this account can be used.',
       );
     }
-    if (record is NextcloudSecretRecord || record is AppleICloudSecretRecord) {
+    if (record is NextcloudSecretRecord ||
+        record is AppleICloudSecretRecord ||
+        record is CalDavSecretRecord) {
       final journal = await (database.select(
         database.authorizationCommits,
       )..where((r) => r.accountId.equals(id))).getSingleOrNull();
@@ -240,7 +277,8 @@ final class AuthorizationPersistence {
     var credential = candidate;
     final davCredential =
         candidate is NextcloudSecretRecord ||
-        candidate is AppleICloudSecretRecord;
+        candidate is AppleICloudSecretRecord ||
+        candidate is CalDavSecretRecord;
     final candidateGeneration = davCredential
         ? expectedGeneration + 1
         : _generation(candidate);
@@ -288,6 +326,7 @@ final class AuthorizationPersistence {
             ),
           ),
         );
+    if (credential is NextcloudSecretRecord) _invalidateNextcloud(accountId);
     try {
       await secrets.saveCredential(accountId, credential);
       final verified = await secrets.readCredential(accountId);
@@ -513,6 +552,7 @@ final class AuthorizationPersistence {
             ),
           ),
         );
+    if (previous is NextcloudSecretRecord) _invalidateNextcloud(id);
     try {
       await secrets.deleteCredential(id);
       if (active == id) await secrets.clearActiveAccount();

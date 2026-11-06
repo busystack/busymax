@@ -234,7 +234,9 @@ class EventEditorDraft {
       BusyProvider.google => _jsonBool(organizer?['self']),
       BusyProvider.microsoft => _jsonBool(raw['isOrganizer']),
       BusyProvider.nextcloud => _jsonBool(raw['isOrganizer']),
-      BusyProvider.appleICloud || BusyProvider.webCal => null,
+      BusyProvider.appleICloud ||
+      BusyProvider.caldav ||
+      BusyProvider.webCal => null,
     };
     final hideAttendees = switch (detail.provider) {
       BusyProvider.google =>
@@ -244,6 +246,7 @@ class EventEditorDraft {
       BusyProvider.microsoft => _jsonBool(raw['hideAttendees']),
       BusyProvider.appleICloud ||
       BusyProvider.nextcloud ||
+      BusyProvider.caldav ||
       BusyProvider.webCal => null,
     };
 
@@ -298,7 +301,9 @@ class EventEditorDraft {
       hideAttendees: hideAttendees,
       allowNewTimeProposals: _jsonBool(raw['allowNewTimeProposals']),
       isOrganizer: isOrganizer,
-      canManageAttendees: detail.provider == BusyProvider.nextcloud
+      canManageAttendees: detail.provider == BusyProvider.caldav
+          ? false
+          : detail.provider == BusyProvider.nextcloud
           ? raw['canManageAttendees'] == true
           : detail.provider != BusyProvider.google ||
                 isOrganizer == true ||

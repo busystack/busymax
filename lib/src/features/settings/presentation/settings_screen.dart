@@ -1,5 +1,8 @@
+import '../../../ui/linux/nextcloud_certificate_dialog.dart';
+import '../../../ui/common/nextcloud_certificate_review.dart';
 import '../../../l10n/oauth_error_description.dart';
 import '../../../l10n/contacts_error_description.dart';
+import 'account_collection_creation_feedback.dart';
 
 import 'package:busymax/src/core/auth/authorization_attempt.dart';
 
@@ -39,6 +42,7 @@ import '../../../app/linux/linux_header_style.dart';
 import '../../../core/logging/redacting_logger.dart';
 import '../../../contacts/busymax_contacts_controller.dart';
 import '../../../dav/auth/dav_account_dialogs.dart';
+import '../../../dav/auth/caldav_credential_input.dart';
 import '../../../dav/presentation/nextcloud_collection_dialog.dart';
 import '../../../dav/dav_errors.dart';
 import '../../../dav/http/dav_http_transport.dart';
@@ -303,6 +307,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         onManageCalendarSharing: (account) =>
             unawaited(_manageCalendarSharing(account, calendarSources)),
         onAddApple: () => unawaited(_connectAccount(BusyProvider.appleICloud)),
+        onAddCalDav: () => unawaited(_connectAccount(BusyProvider.caldav)),
         onAddNextcloud: () =>
             unawaited(_connectAccount(BusyProvider.nextcloud)),
         onCancelConnection: _cancelAccountConnection,
@@ -822,6 +827,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       await ref
           .read(busyMaxContactsControllerProvider)
           .addNextcloudContactsOnly(
+            reviewCanonicalServer: (entered, canonical) => mounted
+                ? showLinuxNextcloudCanonicalServer(context, entered, canonical)
+                : Future.value(false),
+            reviewCertificate: (challenge, owner) => reviewNextcloudCertificate(
+              challenge,
+              owner,
+              (data) => mounted
+                  ? showLinuxNextcloudCertificate(context, data)
+                  : Future.value(null),
+            ),
             id: id,
             label: context.l10n.nextcloudProvider,
             server: Uri.parse(server),
@@ -1190,8 +1205,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _authorizationCancellation = ownedCancellation;
     try {
       AppleICloudCredentialInput? appleInput;
+      CalDavCredentialInput? caldavInput;
       String? nextcloudServer;
-      if (provider == BusyProvider.appleICloud) {
+      if (provider == BusyProvider.caldav) {
+        caldavInput = await showCalDavCredentialDialog(
+          context,
+          fixedServer: reconnecting?.authority,
+          fixedUsername: reconnecting?.providerAccountId,
+        );
+        if (caldavInput == null || !mounted || ownedCancellation.isCancelled) {
+          return false;
+        }
+      } else if (provider == BusyProvider.appleICloud) {
         appleInput = await showAppleICloudCredentialDialog(
           context,
           fixedEmail: reconnecting?.email ?? reconnecting?.providerAccountId,
@@ -1275,12 +1300,58 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             final onboarding = ref.read(davAccountOnboardingServiceProvider);
             accountId = reconnecting == null
                 ? (await onboarding.connectNextcloud(
+                    reviewCanonicalServer: (entered, canonical) => mounted
+                        ? showLinuxNextcloudCanonicalServer(
+                            context,
+                            entered,
+                            canonical,
+                          )
+                        : Future.value(false),
+                    reviewCertificate: (challenge, owner) =>
+                        reviewNextcloudCertificate(
+                          challenge,
+                          owner,
+                          (data) => mounted
+                              ? showLinuxNextcloudCertificate(context, data)
+                              : Future.value(null),
+                        ),
                     enteredServer: nextcloudServer!,
                     cancellationToken: cancellation,
                   )).accountId
                 : (await onboarding.reconnectNextcloud(
+                    reviewCanonicalServer: (entered, canonical) => mounted
+                        ? showLinuxNextcloudCanonicalServer(
+                            context,
+                            entered,
+                            canonical,
+                          )
+                        : Future.value(false),
+                    reviewCertificate: (challenge, owner) =>
+                        reviewNextcloudCertificate(
+                          challenge,
+                          owner,
+                          (data) => mounted
+                              ? showLinuxNextcloudCertificate(context, data)
+                              : Future.value(null),
+                        ),
                     accountId: reconnecting.id,
                     enteredServer: nextcloudServer!,
+                    cancellationToken: cancellation,
+                  )).accountId;
+          case BusyProvider.caldav:
+            final cancellation = DavCancellationToken();
+            _davCancellation = cancellation;
+            final onboarding = ref.read(davAccountOnboardingServiceProvider);
+            accountId = reconnecting == null
+                ? (await onboarding.connectCalDav(
+                    serverUrl: caldavInput!.serverUrl,
+                    username: caldavInput.username,
+                    password: caldavInput.password,
+                    cancellationToken: cancellation,
+                  )).accountId
+                : (await onboarding.replaceCalDavPassword(
+                    accountId: reconnecting.id,
+                    password: caldavInput!.password,
                     cancellationToken: cancellation,
                   )).accountId;
           case BusyProvider.webCal:
@@ -1419,9 +1490,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     setState(() => _removingAccountIds.add(account.id));
     try {
-      final dav =
-          account.provider == BusyProvider.appleICloud ||
-          account.provider == BusyProvider.nextcloud;
+      final dav = account.provider.isDav;
       final result = dav
           ? null
           : await ref
@@ -1511,7 +1580,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       var current = await ref
           .read(accountsRepositoryProvider)
           .accountById(account.id);
-      if (current?.provider == BusyProvider.nextcloud &&
+      if ((current?.provider == BusyProvider.nextcloud ||
+              current?.provider == BusyProvider.caldav) &&
           (current?.connectionState ==
                   AccountConnectionState.permissionChanged ||
               current?.connectionState ==
@@ -1820,7 +1890,8 @@ bool _canCreateTasksInList(
 ) {
   for (final account in accounts) {
     if (account.id != list.accountId || !account.isTaskCapable) continue;
-    if (account.provider == BusyProvider.nextcloud) {
+    if (account.provider == BusyProvider.nextcloud ||
+        account.provider == BusyProvider.caldav) {
       return ref
               .watch(
                 davTaskCollectionCapabilitiesProvider((
@@ -1930,6 +2001,7 @@ class _AccountManagementSection extends ConsumerWidget {
     required this.onOpenSharedCalendar,
     required this.onManageCalendarSharing,
     required this.onAddApple,
+    required this.onAddCalDav,
     required this.onAddNextcloud,
     required this.onCancelConnection,
     required this.onReconnect,
@@ -1980,6 +2052,7 @@ class _AccountManagementSection extends ConsumerWidget {
   final void Function(AccountEntity account) onOpenSharedCalendar;
   final void Function(AccountEntity account) onManageCalendarSharing;
   final VoidCallback onAddApple;
+  final VoidCallback onAddCalDav;
   final VoidCallback onAddNextcloud;
   final VoidCallback onCancelConnection;
   final void Function(AccountEntity account) onReconnect;
@@ -2091,6 +2164,12 @@ class _AccountManagementSection extends ConsumerWidget {
                 onTap: connecting ? null : onAddNextcloud,
               ),
               BusyMaxActionRow(
+                key: const ValueKey('add-account-caldav'),
+                title: l10n.addCalDavAccount,
+                leading: const Icon(YaruIcons.plus),
+                onTap: connecting ? null : onAddCalDav,
+              ),
+              BusyMaxActionRow(
                 title: connectingProvider == BusyProvider.google
                     ? l10n.waitingForGoogleSignIn
                     : l10n.addGoogleAccount,
@@ -2188,8 +2267,7 @@ class _AccountManagementSection extends ConsumerWidget {
                   onProviderVisibilityChanged:
                       onCalendarProviderVisibilityChanged,
                 ),
-              if (account.provider == BusyProvider.appleICloud ||
-                  account.provider == BusyProvider.nextcloud)
+              if (account.provider.isDav)
                 _DavCollectionsCard(
                   account: account,
                   collections: [
@@ -2216,6 +2294,29 @@ class _AccountManagementSection extends ConsumerWidget {
                 BusyMaxGroupedList(
                   filled: true,
                   children: [
+                    BusyMaxActionRow(
+                      title: context.l10n.privateServerCertificates,
+                      leading: const Icon(Icons.verified_user_outlined),
+                      onTap: () => manageNextcloudCertificates(
+                        ref,
+                        account.id,
+                        (data) => context.mounted
+                            ? showLinuxNextcloudCertificate(context, data)
+                            : Future.value(null),
+                      ),
+                    ),
+                    if (ref.watch(
+                      nextcloudFederationAvailableProvider(account.id),
+                    ))
+                      BusyMaxActionRow(
+                        title:
+                            '${context.l10n.nextcloudFederationInvitations} (${ref.watch(nextcloudPendingInvitationCountProvider(account.id)).valueOrNull ?? 0})',
+                        leading: const Icon(Icons.mark_email_unread_outlined),
+                        onTap: () => showLinuxNextcloudFederationDialog(
+                          context,
+                          accountId: account.id,
+                        ),
+                      ),
                     BusyMaxActionRow(
                       title: context.l10n.nextcloudTrash,
                       leading: const Icon(YaruIcons.trash),
@@ -2313,8 +2414,7 @@ class _AccountManagementSection extends ConsumerWidget {
                   onMigrate: () => onMigrate(account),
                   additionalRows: _contactConnectionOptions(context, account),
                 ),
-              if (account.provider == BusyProvider.nextcloud ||
-                  account.provider == BusyProvider.appleICloud)
+              if (account.provider.isDav)
                 Padding(
                   padding: const EdgeInsets.only(top: BusyMaxSpacing.lg),
                   child: YaruExpandable(
@@ -2446,8 +2546,7 @@ AccountSettingsFeedback? _primaryAccountFeedback(
       AccountSettingsRecovery.revalidate,
     );
   }
-  if (account.provider == BusyProvider.nextcloud ||
-      account.provider == BusyProvider.appleICloud) {
+  if (account.provider.isDav) {
     final failure = ref
         .watch(accountSyncActivityProvider)
         .failure(account.id, 'dav');
@@ -2502,9 +2601,7 @@ class _AccountOverviewRow extends ConsumerWidget {
     final l10n = context.l10n;
     final feedback = _primaryAccountFeedback(context, ref, account);
     final activity = ref.watch(accountSyncActivityProvider);
-    final dav =
-        account.provider == BusyProvider.nextcloud ||
-        account.provider == BusyProvider.appleICloud;
+    final dav = account.provider.isDav;
     final running = [
       'dav',
       'calendar',
@@ -2581,7 +2678,16 @@ class _AccountOverviewRow extends ConsumerWidget {
         '${_accountProviderLabel(context, account.provider)} · $status',
       ),
       leading: Icon(
-        feedback != null || domainFailure || inventoryFailed || visibilityFailed
+        feedback != null ||
+                domainFailure ||
+                inventoryFailed ||
+                visibilityFailed ||
+                (account.provider.isDav &&
+                    ref
+                        .watch(
+                          accountCollectionCreationFailuresProvider(account.id),
+                        )
+                        .isNotEmpty)
             ? YaruIcons.warning
             : YaruIcons.user,
       ),
@@ -2666,9 +2772,7 @@ class _AccountSyncStatusCard extends ConsumerWidget {
     final l10n = context.l10n;
     final activity = ref.watch(accountSyncActivityProvider);
     final times = ref.watch(accountDomainSyncTimesProvider(account.id));
-    final dav =
-        account.provider == BusyProvider.nextcloud ||
-        account.provider == BusyProvider.appleICloud;
+    final dav = account.provider.isDav;
     final collections = ref.watch(davCollectionsStreamProvider);
     final discoveryFailed =
         dav &&
@@ -3084,6 +3188,30 @@ class _ContactsOnlySettingsCard extends ConsumerWidget {
             description: l10n.contactsOnlyDescription,
             filled: true,
             children: [
+              FutureBuilder<bool>(
+                future: ref
+                    .read(busyMaxContactsControllerProvider)
+                    .isIndependentNextcloud(account.id),
+                builder: (context, snapshot) => snapshot.data == true
+                    ? BusyMaxActionRow(
+                        title: l10n.privateServerCertificates,
+                        leading: const Icon(Icons.verified_user_outlined),
+                        onTap: busy
+                            ? null
+                            : () => manageNextcloudCertificates(
+                                ref,
+                                account.id,
+                                (data) => context.mounted
+                                    ? showLinuxNextcloudCertificate(
+                                        context,
+                                        data,
+                                      )
+                                    : Future.value(null),
+                                contactsOnly: true,
+                              ),
+                      )
+                    : const SizedBox.shrink(),
+              ),
               if (busy)
                 BusyMaxActionRow(
                   title: l10n.traySyncing,
@@ -4186,6 +4314,15 @@ class _AccountManagementCard extends ConsumerWidget {
     final activity = ref.watch(accountSyncActivityProvider);
     VoidCallback? recovery(AccountSettingsRecovery action, {String? domain}) =>
         switch (action) {
+          AccountSettingsRecovery.reviewCertificate => () => unawaited(
+            manageNextcloudCertificates(
+              ref,
+              account.id,
+              (data) => context.mounted
+                  ? showLinuxNextcloudCertificate(context, data)
+                  : Future.value(null),
+            ),
+          ),
           AccountSettingsRecovery.reconnect => onReconnect,
           AccountSettingsRecovery.replaceRegistration => onReplaceRegistration,
           AccountSettingsRecovery.revalidate =>
@@ -4222,6 +4359,7 @@ class _AccountManagementCard extends ConsumerWidget {
                   },
         };
     String recoveryLabel(AccountSettingsRecovery action) => switch (action) {
+      AccountSettingsRecovery.reviewCertificate => l10n.reviewServerCertificate,
       AccountSettingsRecovery.reconnect => l10n.reconnectAccount,
       AccountSettingsRecovery.replaceRegistration => l10n.registrationReplace,
       AccountSettingsRecovery.revalidate =>
@@ -4268,6 +4406,18 @@ class _AccountManagementCard extends ConsumerWidget {
     return BusyMaxGroupedList(
       filled: true,
       children: [
+        if (account.provider.isDav &&
+            ref
+                .watch(accountCollectionCreationFailuresProvider(account.id))
+                .isNotEmpty)
+          AccountCollectionCreationFeedback(
+            accountId: account.id,
+            dismissButtonBuilder: (_, onPressed, label) =>
+                BusyMaxPushButton.standard(
+                  onPressed: onPressed,
+                  child: Text(label),
+                ),
+          ),
         if (primary != null)
           failureRow(primary)
         else ...[
@@ -4301,9 +4451,7 @@ String _collectionEmptyMessage(
   required bool failed,
 }) {
   final activity = ref.watch(accountSyncActivityProvider);
-  final dav =
-      account.provider == BusyProvider.nextcloud ||
-      account.provider == BusyProvider.appleICloud;
+  final dav = account.provider.isDav;
   if (failed) return context.l10n.collectionsLoadFailed;
   if (loading || activity.isRunning(account.id, dav ? 'dav' : 'calendar')) {
     return context.l10n.collectionsLoading;
@@ -4682,6 +4830,7 @@ String _accountProviderLabel(BuildContext context, BusyProvider provider) {
     BusyProvider.appleICloud => context.l10n.appleICloudProvider,
     BusyProvider.nextcloud => context.l10n.nextcloudProvider,
     BusyProvider.webCal => 'WebCal',
+    BusyProvider.caldav => 'CalDAV',
   };
 }
 
@@ -4734,6 +4883,9 @@ String _davCollectionDetails(
     _ => l10n.collectionSettings,
   };
   final details = <String>[support];
+  if (!collection.capabilities.permissionsKnown) {
+    details.add(l10n.davPermissionsUnknown);
+  }
   if (collection.readOnly) {
     details.add(l10n.readOnlySharedCollection);
   }

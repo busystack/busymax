@@ -8,7 +8,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
-import 'package:busymax/src/dav/dav_errors.dart';
+
+import '../../l10n/nextcloud_collection_error_description.dart';
+
 import 'package:busymax/src/dav/nextcloud/nextcloud_scheduling_controller.dart';
 import 'package:busymax/src/dav/nextcloud/nextcloud_scheduling_service.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
@@ -125,12 +127,7 @@ class _WindowsNextcloudSchedulingDialogState
               if (error != null)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 12),
-                  child: Text(
-                    error is DavException &&
-                            error.kind == DavErrorKind.authorization
-                        ? l10n.nextcloudOperationDenied
-                        : l10n.nextcloudServerUnavailable,
-                  ),
+                  child: Text(localizedNextcloudCollectionError(l10n, error)),
                 ),
               if (model.loaded &&
                   !model.busy &&
@@ -147,7 +144,11 @@ class _WindowsNextcloudSchedulingDialogState
                       SelectableText(message.title),
                       Text(message.method ?? ''),
                       Button(
-                        onPressed: model.busy
+                        key: ValueKey((
+                          'nextcloud-inbox-acknowledge',
+                          message.href.toString(),
+                        )),
+                        onPressed: model.busy || !message.canAcknowledge
                             ? null
                             : () => _acknowledge(message),
                         child: Text(l10n.nextcloudAcknowledge),

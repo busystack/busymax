@@ -1,3 +1,5 @@
+import 'dav_event_reminders.dart';
+
 import 'package:busymax/src/core/auth/authorization_attempt.dart';
 
 import '../domain/event_property_policy.dart';
@@ -259,11 +261,13 @@ _EventMoveContext? _eventMoveContext({
     sourceProviderCalendarId: source.providerCalendarId,
     sourceProvider: source.provider,
     sourceDavCollectionId: source.davCollectionId,
+    sourceDavSchedulingPrincipal: source.davSchedulingPrincipal,
     destinationAccountId: destination.accountId,
     destinationId: destination.id,
     destinationProviderCalendarId: destination.providerCalendarId,
     destinationProvider: destination.provider,
     destinationDavCollectionId: destination.davCollectionId,
+    destinationDavSchedulingPrincipal: destination.davSchedulingPrincipal,
     eventType: initialDraft.eventType,
     recurring: initialDraft.providerRecurringEventId != null,
     recurringScope: draft.recurringMutationScope,
@@ -309,12 +313,19 @@ Future<void> _completeEventEditorDelete(
 }) async {
   var guestUpdatePolicy = CalendarGuestUpdatePolicy.send;
   final provider = _providerForDraft(initialDraft, sources);
-  if (provider != null &&
-      initialDraft.isOrganizer == true &&
-      _hasExternalGuests(initialDraft.attendees)) {
+  final implicitMeeting =
+      sources.any(
+        (s) => s.id == initialDraft.sourceId && s.usesImplicitScheduling,
+      ) &&
+      initialDraft.attendees.isNotEmpty;
+  if (implicitMeeting ||
+      (provider != null &&
+          provider != BusyProvider.caldav &&
+          initialDraft.isOrganizer == true &&
+          _hasExternalGuests(initialDraft.attendees))) {
     final choice = await showCalendarGuestDeliveryDialog(
       context,
-      provider: provider,
+      provider: provider!,
       action: CalendarGuestDeliveryAction.delete,
     );
     if (choice == null) return;
@@ -468,6 +479,7 @@ class _EventEditorState extends ConsumerState<EventEditor> {
     final provider = currentSource.provider;
     final schedulingReadOnly =
         provider == BusyProvider.appleICloud ||
+        provider == BusyProvider.caldav ||
         (provider == BusyProvider.nextcloud &&
             currentSource.davEffectivePermissions['canInvite'] != true);
     final recurringOccurrence = _draft.providerRecurringEventId != null;
@@ -502,11 +514,24 @@ class _EventEditorState extends ConsumerState<EventEditor> {
           onCancel: () => unawaited(_cancel()),
           onSave: canSave ? () => widget.onSave(_draft) : null,
           children: [
+            if ((_draft.attendees.isNotEmpty ||
+                    widget.initialDraft.attendees.isNotEmpty) &&
+                (currentSource.usesImplicitScheduling ||
+                    widget.sources.any(
+                      (s) =>
+                          s.id == widget.initialDraft.sourceId &&
+                          s.usesImplicitScheduling,
+                    )))
+              Text(
+                l10n.caldavSchedulingWarning,
+                key: const ValueKey('caldav-scheduling-warning'),
+              ),
             BusyMaxGroupedList(
               filled: true,
               children: [
                 YaruListTile.square(
                   title: TextFormField(
+                    key: const Key('event-title-field'),
                     initialValue: _draft.title,
                     autofocus: true,
                     decoration: busyMaxGroupedTextFieldDecoration(
@@ -1265,7 +1290,23 @@ class _EventEditorState extends ConsumerState<EventEditor> {
   List<Widget> _reminderRows(BusyProvider provider) {
     final l10n = context.l10n;
     final colorScheme = Theme.of(context).colorScheme;
-    final minutes = _reminderMinutesList(_draft.reminders);
+    final davRows =
+        provider.isDav && davEventRemindersHaveIdentities(_draft.reminders)
+        ? davEventEditableReminderRows(_draft.reminders) ??
+              <DavEventReminderRow>[]
+        : null;
+    final minutes = davRows == null
+        ? _reminderMinutesList(_draft.reminders)
+        : [for (final row in davRows) row.minutes];
+    void setDavRows(List<DavEventReminderRow> rows) {
+      setState(() {
+        _draft = _draft.copyWith(
+          reminders: davEventReminderPayload(rows),
+          remindersChanged: true,
+        );
+      });
+    }
+
     final supportsMultiple = provider != BusyProvider.microsoft;
     final canAddReminder =
         minutes.isEmpty ||
@@ -1280,6 +1321,14 @@ class _EventEditorState extends ConsumerState<EventEditor> {
           selected: minutes[index],
           labelFor: (value) => _reminderLabel(context, value),
           onSelected: (value) {
+            if (davRows != null) {
+              setDavRows([
+                ...davRows.take(index),
+                davRows[index].copyWith(minutes: value),
+                ...davRows.skip(index + 1),
+              ]);
+              return;
+            }
             _setReminderMinutes(provider, [
               ...minutes.take(index),
               value,
@@ -1291,6 +1340,13 @@ class _EventEditorState extends ConsumerState<EventEditor> {
             iconSize: BusyMaxSizes.headerIcon,
             icon: const Icon(YaruIcons.window_close),
             onPressed: () {
+              if (davRows != null) {
+                setDavRows([
+                  ...davRows.take(index),
+                  ...davRows.skip(index + 1),
+                ]);
+                return;
+              }
               _setReminderMinutes(provider, [
                 ...minutes.take(index),
                 ...minutes.skip(index + 1),
@@ -1318,6 +1374,13 @@ class _EventEditorState extends ConsumerState<EventEditor> {
             ),
           ),
           onTap: () {
+            if (davRows != null) {
+              setDavRows([
+                ...davRows,
+                DavEventReminderRow(minutes: _nextReminderMinute(minutes)),
+              ]);
+              return;
+            }
             _setReminderMinutes(provider, [
               ...minutes,
               _nextReminderMinute(minutes),
@@ -1433,6 +1496,7 @@ class _EventEditorState extends ConsumerState<EventEditor> {
       ),
       BusyProvider.appleICloud ||
       BusyProvider.nextcloud ||
+      BusyProvider.caldav ||
       BusyProvider.webCal => false,
     };
     if (hasConference || canCreateConference) {
@@ -2270,13 +2334,20 @@ DateTime _calendarDate(DateTime value) {
   return DateTime.utc(value.year, value.month, value.day);
 }
 
-const _eventReminderMinuteOptions = [5, 10, 30, 60, 1440];
+const _eventReminderMinuteOptions = [5, 10, 30, 60, 1440, 0];
 
 List<int> _reminderMinutesList(Object? reminders) {
   if (reminders is! Map) {
     return const [];
   }
   final map = reminders.cast<String, Object?>();
+  if (map.containsKey('davEditableRows') || map.containsKey('alarms')) {
+    return [
+      for (final row
+          in davEventEditableReminderRows(map) ?? <DavEventReminderRow>[])
+        row.minutes,
+    ];
+  }
   final minutes = map['reminderMinutesBeforeStart'];
   if (minutes is int) {
     return _normalizedReminderMinutes([minutes]);
@@ -2325,7 +2396,7 @@ Object _disabledRemindersFor(BusyProvider provider) {
 List<int> _normalizedReminderMinutes(Iterable<int> minutes) {
   final result = <int>[];
   for (final value in minutes) {
-    if (value <= 0 || result.contains(value)) {
+    if (value < 0 || result.contains(value)) {
       continue;
     }
     result.add(value);
@@ -2395,10 +2466,7 @@ bool _isFloatingDavTime(
   required bool allDay,
   required String? timeZone,
 }) {
-  return !allDay &&
-      (timeZone?.trim().isEmpty ?? true) &&
-      (provider == BusyProvider.appleICloud ||
-          provider == BusyProvider.nextcloud);
+  return !allDay && (timeZone?.trim().isEmpty ?? true) && (provider.isDav);
 }
 
 class _CalendarSourceDot extends StatelessWidget {

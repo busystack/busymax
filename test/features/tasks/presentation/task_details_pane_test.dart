@@ -70,6 +70,7 @@ String _testAuthority(BusyProvider provider) => switch (provider) {
   BusyProvider.appleICloud => 'https://caldav.icloud.com',
   BusyProvider.nextcloud => 'https://cloud.example.test',
   BusyProvider.webCal => 'https://calendar.example.test',
+  BusyProvider.caldav => 'https://dav.example.test/',
 };
 
 class _AttachmentTestFileSelector extends FileSelectorPlatform {

@@ -34,6 +34,7 @@ class TaskCollectionCapabilities {
     this.supportsSubtaskVisibility = false,
     this.supportsDuplicate = false,
     this.supportsNativeExport = false,
+    this.supportsSharing = false,
     this.supportsTaskReparenting = false,
     this.canUpdateClassification = true,
   });
@@ -69,6 +70,7 @@ class TaskCollectionCapabilities {
   final bool supportsSubtaskVisibility;
   final bool supportsDuplicate;
   final bool supportsNativeExport;
+  final bool supportsSharing;
   final bool supportsTaskReparenting;
   final bool canUpdateClassification;
 
@@ -118,6 +120,7 @@ class TaskCollectionCapabilities {
     supportsSubtaskVisibility: supportsSubtaskVisibility,
     supportsDuplicate: supportsDuplicate,
     supportsNativeExport: supportsNativeExport,
+    supportsSharing: supportsSharing,
     supportsTaskReparenting: supportsTaskReparenting,
     canUpdateClassification: false,
   );
@@ -156,6 +159,7 @@ class TaskCollectionCapabilities {
         supportsSubtaskVisibility: supportsSubtaskVisibility,
         supportsDuplicate: supportsDuplicate,
         supportsNativeExport: supportsNativeExport,
+        supportsSharing: supportsSharing,
         supportsTaskReparenting: supportsTaskReparenting,
         canUpdateClassification: false,
       );
@@ -224,6 +228,39 @@ const nextcloudTaskCollectionCapabilities = TaskCollectionCapabilities(
   supportsSubtaskVisibility: true,
   supportsDuplicate: true,
   supportsNativeExport: true,
+  supportsSharing: true,
+  supportsTaskReparenting: true,
+);
+
+/// Standard VTODO fields; Nextcloud sorting/pinning extensions stay disabled.
+const caldavTaskCollectionCapabilities = TaskCollectionCapabilities(
+  supportsDueDate: true,
+  supportsDueTime: true,
+  supportsStartDateTime: true,
+  supportsReminderDateTime: true,
+  supportsRecurrence: true,
+  supportsImportance: true,
+  supportsCategories: true,
+  supportsTaskHierarchy: true,
+  supportsCrossListMove: true,
+  supportsClearCompleted: true,
+  supportsHiddenTasks: false,
+  supportsAssignedTasks: false,
+  supportsListRename: true,
+  supportsListDelete: true,
+  supportsIcalPriority: true,
+  supportsPercentComplete: true,
+  supportsTaskStatus: true,
+  supportsCompletedDateTime: true,
+  supportsLocation: true,
+  supportsUrl: true,
+  supportsClassification: true,
+  supportsMultipleReminders: true,
+  supportsAdvancedRecurrence: true,
+  supportsPinning: false,
+  supportsSubtaskVisibility: false,
+  supportsDuplicate: true,
+  supportsNativeExport: true,
   supportsTaskReparenting: true,
 );
 
@@ -255,5 +292,6 @@ TaskCollectionCapabilities adapterDefaultTaskCapabilities(
   BusyProvider.microsoft => microsoftTaskCollectionCapabilities,
   BusyProvider.appleICloud => noTaskCollectionCapabilities,
   BusyProvider.nextcloud => nextcloudTaskCollectionCapabilities,
+  BusyProvider.caldav => caldavTaskCollectionCapabilities,
   BusyProvider.webCal => noTaskCollectionCapabilities,
 };

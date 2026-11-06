@@ -8,7 +8,7 @@ import '../../maps/domain/location_result.dart';
 
 bool scheduleItemSupportsLocationOpening(ScheduleItem item) =>
     item is CalendarScheduleItem ||
-    (item is TaskScheduleItem && item.provider == BusyProvider.nextcloud);
+    (item is TaskScheduleItem && item.provider.isDav);
 
 String scheduleItemLocationText(ScheduleItem item) => switch (item) {
   CalendarScheduleItem(:final location) => location ?? '',

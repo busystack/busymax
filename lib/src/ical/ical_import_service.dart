@@ -8,7 +8,7 @@ import '../dav/ical/ical_document.dart';
 import '../dav/ical/ical_recurrence.dart';
 import '../dav/ical/ical_semantics.dart';
 import '../dav/ical/ical_timezone.dart';
-import '../dav/nextcloud/nextcloud_native_import.dart';
+import '../dav/ical/dav_native_import.dart';
 import '../dav/storage/dav_collection_capabilities.dart';
 import '../db/app_database.dart';
 import '../features/calendar/data/calendar_repository.dart';
@@ -18,9 +18,14 @@ import '../providers/busy_provider.dart';
 import 'ical_ingestion.dart';
 
 final class IcalImportSelection {
-  const IcalImportSelection(this.destination, {this.newCopies = false});
+  const IcalImportSelection(
+    this.destination, {
+    this.newCopies = false,
+    this.allowScheduling = false,
+  });
   final CalendarSourceEntity destination;
   final bool newCopies;
+  final bool allowScheduling;
   NativeImportDuplicates get duplicatePolicy => newCopies
       ? NativeImportDuplicates.newCopies
       : NativeImportDuplicates.skip;
@@ -127,7 +132,7 @@ final class IcalImportService {
         await (_database.select(_database.calendarSources)..where(
               (row) =>
                   (row.readOnly.equals(false) |
-                      row.provider.equals('nextcloud')) &
+                      row.provider.isIn(const ['nextcloud', 'caldav'])) &
                   row.isDeleted.equals(false) &
                   row.provider.equals(BusyProvider.webCal.storageValue).not(),
             ))
@@ -158,7 +163,7 @@ final class IcalImportService {
     ];
     final accounts = await (_database.select(
       _database.accounts,
-    )..where((r) => r.provider.equals('nextcloud'))).get();
+    )..where((r) => r.provider.isIn(const ['nextcloud', 'caldav']))).get();
     return [
       ...sources.where(
         (s) =>
@@ -166,16 +171,20 @@ final class IcalImportService {
             (s.davCollectionId != null &&
                 native[s.davCollectionId] != null &&
                 collectionCapabilitiesFromStored(native[s.davCollectionId]!)
-                    .canCreateTask),
+                    .canAttemptCreateTask),
       ),
       for (final collection in collections)
         if (accounts.any((a) => a.id == collection.accountId) &&
             !sources.any((s) => s.davCollectionId == collection.id) &&
-            collectionCapabilitiesFromStored(collection).canCreateTask)
+            collectionCapabilitiesFromStored(collection).canAttemptCreateTask)
           CalendarSourceEntity(
             id: 'dav-import-${collection.id}',
             accountId: collection.accountId,
-            provider: BusyProvider.nextcloud,
+            provider: BusyProviderCodec.requireStorageValue(
+              accounts
+                  .singleWhere((a) => a.id == collection.accountId)
+                  .provider,
+            ),
             providerCalendarId: collection.hrefKey,
             summary: collection.displayName,
             selected: true,
@@ -193,15 +202,20 @@ final class IcalImportService {
     required CalendarSourceEntity destination,
     NativeImportDuplicates nativeDuplicates = NativeImportDuplicates.skip,
     bool normalizeNativeSchedulingMethod = false,
+    bool allowScheduling = false,
   }) async {
-    if (destination.provider == BusyProvider.nextcloud &&
+    if (const {
+          BusyProvider.nextcloud,
+          BusyProvider.caldav,
+        }.contains(destination.provider) &&
         destination.davCollectionId != null) {
-      final results = await NextcloudNativeImportService(_database).import(
+      final results = await DavNativeImportService(_database).import(
         accountId: destination.accountId,
         collectionId: destination.davCollectionId!,
         preview: preview.nativePreview,
         duplicates: nativeDuplicates,
         normalizeSchedulingMethod: normalizeNativeSchedulingMethod,
+        allowScheduling: allowScheduling,
       );
       var followUpPending = false;
       if (results.any((r) => r.status == NativeImportItemStatus.queued)) {
@@ -456,7 +470,8 @@ _PreparedImportDraft _prepareDraft(
     },
     BusyProvider.google ||
     BusyProvider.appleICloud ||
-    BusyProvider.nextcloud when reminderMinutes.isNotEmpty => {
+    BusyProvider.nextcloud ||
+    BusyProvider.caldav when reminderMinutes.isNotEmpty => {
       'useDefault': false,
       'overrides': [
         for (final minutes in reminderMinutes)

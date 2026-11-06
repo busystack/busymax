@@ -19,12 +19,84 @@ final class DavDiscoveryRepository {
   final AppDatabase _database;
   final String Function() _idFactory;
 
+  /// Method hints are cached separately from ACL grants. Preserve their probe
+  /// time so repeated syncs cannot extend the 24-hour lifetime indefinitely.
+  Future<Map<String, (DateTime, bool)>> collectionMethodCache(
+    String accountId,
+  ) async {
+    final rows =
+        await (_database.select(_database.davCollections)..where(
+              (r) =>
+                  r.accountId.equals(accountId) & r.serverMissing.equals(false),
+            ))
+            .get();
+    final result = <String, (DateTime, bool)>{};
+    for (final row in rows) {
+      final metadata = jsonDecode(row.safeDisplayMetadataJson ?? '{}') as Map;
+      final time = DateTime.tryParse(
+        metadata['methodProbeAtUtc'] as String? ?? '',
+      );
+      if (time != null) {
+        result[row.hrefKey] = (time, metadata['supportsMove'] == 'true');
+      }
+    }
+    return result;
+  }
+
   /// Returns whether discovery changed a notification-enabled projection.
   Future<bool> commitSuccessfulInventory(DavDiscoveryResult result) {
     return _database.transaction(() async {
       final notificationProjectionsBefore =
           await _notificationEnabledProjectionKeys(result.accountId);
       final service = result.service;
+      if (result.provider == BusyProvider.caldav) {
+        final account = await (_database.select(
+          _database.accounts,
+        )..where((r) => r.id.equals(result.accountId))).getSingle();
+        final home = service.principalContexts
+            .where(
+              (c) =>
+                  !c.delegated &&
+                  c.calendarHomeHref == service.calendarHomeHref,
+            )
+            .firstOrNull;
+        final existingMetadata = jsonDecode(
+          account.providerMetadataJson ?? '{}',
+        );
+        final permitted =
+            home?.homePrivileges.any(
+              (p) =>
+                  const {'{DAV:}all', '{DAV:}write', '{DAV:}bind'}.contains(p),
+            ) ==
+            true;
+        final supported =
+            home?.endpointCapabilities.any(
+              (e) =>
+                  e.href == service.calendarHomeHref &&
+                  (e.allowedMethods.contains('MKCALENDAR') ||
+                      e.serverFeatures.contains('extended-mkcol') &&
+                          e.allowedMethods.contains('MKCOL')),
+            ) ==
+            true;
+        await (_database.update(
+          _database.accounts,
+        )..where((r) => r.id.equals(result.accountId))).write(
+          AccountsCompanion(
+            providerMetadataJson: Value(
+              jsonEncode({
+                if (existingMetadata is Map)
+                  ...existingMetadata.cast<String, Object?>(),
+                'caldavCollectionCreationSupported': supported,
+                'caldavCollectionCreationPermission': permitted
+                    ? 'allowed'
+                    : home?.homePrivilegesKnown == true
+                    ? 'denied'
+                    : 'unknown',
+              }),
+            ),
+          ),
+        );
+      }
       await _database
           .into(_database.davAccountServices)
           .insertOnConflictUpdate(
@@ -57,6 +129,7 @@ final class DavDiscoveryRepository {
                       service.capabilities.supportedReports.toList()..sort(),
                   'serverFeatures': service.capabilities.serverFeatures.toList()
                     ..sort(),
+                  'allowedMethods': service.allowedMethods.toList()..sort(),
                 }),
               ),
               capabilitiesSchemaVersion: const Value(
@@ -113,6 +186,7 @@ final class DavDiscoveryRepository {
                   jsonEncode({
                     ...discovered.safeDisplayMetadata,
                     'principalHref': discovered.principalHref?.toString(),
+                    'accountPrincipalHref': service.principalHref.toString(),
                     'calendarHomeHref': discovered.calendarHomeHref?.toString(),
                     'delegated': discovered.delegated,
                     'parentPrivileges': discovered.parentPrivileges.toList()
@@ -374,6 +448,10 @@ String _projectionMetadata(DavCollectionDiscovery collection) => jsonEncode({
   'supportedComponentMask': collection.supportedComponentMask,
   'readOnly': collection.capabilities.isReadOnly,
   'canRead': collection.capabilities.canRead,
+  'permissionsKnown': collection.capabilities.permissionsKnown,
+  'canAttemptCreateEvents': collection.capabilities.canAttemptCreateEvent,
+  'canAttemptEditEvents': collection.capabilities.canAttemptUpdateEvent,
+  'canAttemptDeleteEvents': collection.capabilities.canAttemptDeleteEvent,
   'canCreateEvents': collection.capabilities.canCreateEvent,
   'canEditEvents': collection.capabilities.canUpdateEvent,
   'canDeleteEvents': collection.capabilities.canDeleteEvent,

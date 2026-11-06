@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import '../../dav/trust/nextcloud_trust_policy.dart';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:logging/logging.dart';
@@ -17,6 +19,7 @@ enum CredentialKind {
   appleAppSpecificPassword,
   nextcloudAppPassword,
   webCalSubscription,
+  caldavPassword,
 }
 
 extension CredentialKindValue on CredentialKind {
@@ -25,6 +28,7 @@ extension CredentialKindValue on CredentialKind {
     CredentialKind.appleAppSpecificPassword => 'apple_app_specific_password',
     CredentialKind.nextcloudAppPassword => 'nextcloud_app_password',
     CredentialKind.webCalSubscription => 'webcal_subscription',
+    CredentialKind.caldavPassword => 'caldav_password',
   };
 }
 
@@ -34,6 +38,7 @@ CredentialKind credentialKindForProvider(BusyProvider provider) =>
       BusyProvider.appleICloud => CredentialKind.appleAppSpecificPassword,
       BusyProvider.nextcloud => CredentialKind.nextcloudAppPassword,
       BusyProvider.webCal => CredentialKind.webCalSubscription,
+      BusyProvider.caldav => CredentialKind.caldavPassword,
     };
 
 bool credentialKindMatchesProvider(
@@ -47,6 +52,7 @@ CredentialKind _credentialKindFromSecretStorage(Object? value) =>
       'apple_app_specific_password' => CredentialKind.appleAppSpecificPassword,
       'nextcloud_app_password' => CredentialKind.nextcloudAppPassword,
       'webcal_subscription' => CredentialKind.webCalSubscription,
+      'caldav_password' => CredentialKind.caldavPassword,
       _ => throw SecretStoreCorruptException('Unsupported credential kind.'),
     };
 
@@ -107,12 +113,16 @@ sealed class SecretRecord {
         appSpecificPassword: _requiredSecretString(json, 'appSpecificPassword'),
       ),
       CredentialKind.nextcloudAppPassword => NextcloudSecretRecord(
+        trustPolicy: json.containsKey('trustPolicy')
+            ? NextcloudTrustPolicy.fromJson(json['trustPolicy'])
+            : null,
         canonicalServer: Uri.parse(
           _requiredSecretString(json, 'canonicalServer'),
         ),
         loginName: _requiredSecretString(json, 'loginName'),
         appPassword: _requiredSecretString(json, 'appPassword'),
       ),
+      CredentialKind.caldavPassword => _decodeCalDavSecret(json),
       CredentialKind.webCalSubscription => WebCalSecretRecord(
         normalizedSubscriptionUri: _requiredSecretString(
           json,
@@ -526,6 +536,7 @@ final class NextcloudSecretRecord extends SecretRecord {
     required Uri canonicalServer,
     required String loginName,
     required String appPassword,
+    this.trustPolicy,
   }) : canonicalServer = Uri.parse(
          normalizeNextcloudServerAuthority(canonicalServer.toString()),
        ),
@@ -549,6 +560,7 @@ final class NextcloudSecretRecord extends SecretRecord {
   final Uri canonicalServer;
   final String loginName;
   final String appPassword;
+  final NextcloudTrustPolicy? trustPolicy;
 
   @override
   Map<String, Object?> toJson() => {
@@ -558,6 +570,68 @@ final class NextcloudSecretRecord extends SecretRecord {
     'canonicalServer': canonicalServer.toString(),
     'loginName': loginName,
     'appPassword': appPassword,
+    if (trustPolicy != null) 'trustPolicy': trustPolicy!.toJson(),
+  };
+}
+
+String _requiredCalDavString(Map<String, Object?> json, String key) {
+  final value = json[key];
+  if (value is! String || value.isEmpty) {
+    throw const SecretStoreCorruptException(
+      'Invalid CalDAV credential record.',
+    );
+  }
+  return value;
+}
+
+CalDavSecretRecord _decodeCalDavSecret(Map<String, Object?> json) {
+  try {
+    return CalDavSecretRecord(
+      serviceAuthority: Uri.parse(
+        _requiredCalDavString(json, 'serviceAuthority'),
+      ),
+      username: _requiredCalDavString(json, 'username'),
+      password: _requiredCalDavString(json, 'password'),
+    );
+  } on Object {
+    throw const SecretStoreCorruptException(
+      'Invalid CalDAV credential record.',
+    );
+  }
+}
+
+final class CalDavSecretRecord extends SecretRecord {
+  CalDavSecretRecord({
+    required Uri serviceAuthority,
+    required this.username,
+    required this.password,
+  }) : serviceAuthority = Uri.parse(
+         normalizeCalDavAuthority(serviceAuthority.toString()),
+       ),
+       super(
+         provider: BusyProvider.caldav,
+         kind: CredentialKind.caldavPassword,
+       ) {
+    if (username.trim().isEmpty ||
+        password.isEmpty ||
+        username.contains(':') ||
+        RegExp(r'[\x00-\x1f\x7f]').hasMatch('$username$password')) {
+      throw const SecretStoreCorruptException('Invalid CalDAV credentials.');
+    }
+  }
+
+  final Uri serviceAuthority;
+  final String username;
+  final String password;
+
+  @override
+  Map<String, Object?> toJson() => {
+    'schemaVersion': secretRecordSchemaVersion,
+    'kind': kind.storageValue,
+    'provider': provider.storageValue,
+    'serviceAuthority': serviceAuthority.toString(),
+    'username': username,
+    'password': password,
   };
 }
 

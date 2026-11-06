@@ -7,13 +7,13 @@ import '../ical/ical_semantics.dart';
 import '../mutation/dav_pending_operation_selection.dart';
 import '../mutation/dav_pending_operations.dart';
 import '../storage/dav_collection_capabilities.dart';
-import 'nextcloud_native_import.dart';
+import 'dav_native_import.dart';
 
 /// A consistent, account-scoped snapshot of effective local resources. Each
 /// resource is exported separately, so different embedded definitions using the
 /// same TZID and unrelated calendar-level extensions are never flattened.
-final class NextcloudNativeExportService {
-  const NextcloudNativeExportService(this.database);
+final class DavNativeExportService {
+  const DavNativeExportService(this.database);
   final AppDatabase database;
 
   Future<List<NativeImportResource>> collection(
@@ -28,7 +28,7 @@ final class NextcloudNativeExportService {
               (r) => r.id.equals(collectionId) & r.accountId.equals(accountId),
             ))
             .getSingle();
-    if (account.provider != 'nextcloud' ||
+    if (!const {'nextcloud', 'caldav'}.contains(account.provider) ||
         !collectionCapabilitiesFromStored(source).canRead) {
       throw StateError('This calendar is not available for native export.');
     }

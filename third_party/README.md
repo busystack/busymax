@@ -10,6 +10,15 @@ not supported.
 | fluent_ui | 4.16.1 | https://pub.dev/packages/fluent_ui/versions/4.16.1 | BSD-3-Clause |
 | yaru_window | 0.2.2 | https://pub.dev/packages/yaru_window/versions/0.2.2 | MPL-2.0 |
 | xdg_status_notifier_item | 0.0.1 | https://pub.dev/packages/xdg_status_notifier_item/versions/0.0.1 | MPL-2.0 |
+| timezone | 0.11.2 | https://pub.dev/packages/timezone/versions/0.11.2 | BSD-2-Clause |
+
+The official timezone 0.11.2 package bundles IANA 2026e. BusyMax loads official
+IANA 2026f through its public `initializeDatabase` API, using an application-owned
+snapshot and matching POSIX continuation table. Both artifacts are generated
+from the same checksum-pinned IANA release by `tool/refresh_time_zone_data.py`
+with the package's unchanged encoder. No dependency source or bundled package
+data is patched. All runtime initialization goes through
+`lib/src/core/time/iana_time_zone_data.dart`.
 
 Linux tray presentation is owned by `lib/src/platform/application_tray.dart`.
 It composes the upstream client's public registration and menu serialization

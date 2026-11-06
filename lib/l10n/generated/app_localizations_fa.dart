@@ -14,6 +14,35 @@ class AppLocalizationsFa extends AppLocalizations {
   AppLocalizationsFa([String locale = 'fa']) : super(locale);
 
   @override
+  String get caldavSchedulingWarning =>
+      'این رویداد شرکت‌کننده دارد. با ذخیره یا حذف آن، سرور CalDAV ممکن است هنگام همگام‌سازی تغییر به شرکت‌کنندگان اطلاع دهد.';
+
+  @override
+  String get caldavNativeImport =>
+      'منابع کامل رویدادها و کارها را وارد کنید. برای موارد دارای شرکت‌کننده، سرور CalDAV ممکن است دعوت‌نامه یا به‌روزرسانی جلسه ارسال کند. شناسه‌های UID موجود نادیده گرفته می‌شوند، مگر اینکه نسخه‌های جدید را انتخاب کنید. منابع پشتیبانی‌نشده به‌صورت جداگانه گزارش می‌شوند.';
+
+  @override
+  String get davInsufficientStorage =>
+      'سرور فضای ذخیره‌سازی کافی برای ایجاد این مجموعه ندارد.';
+
+  @override
+  String get davCollectionPropertyRejected =>
+      'سرور یکی از ویژگی‌های درخواستی مجموعه را رد کرد.';
+
+  @override
+  String get davCollectionDiscoveryRequired =>
+      'برای به‌روزرسانی قابلیت‌ها و مجوزهای سرور، این حساب را تازه‌سازی کنید.';
+
+  @override
+  String get caldavImportSchedulingWarning =>
+      'این فایل شامل شرکت‌کنندگان است. این واردکردن را مجاز می‌دانم؛ ممکن است سرور CalDAV دعوت‌نامه یا به‌روزرسانی جلسه ارسال کند.';
+
+  @override
+  String nextcloudCanonicalServerReview(String entered, String canonical) {
+    return 'Nextcloud نشانی ⁨$canonical⁩ را برای سرور ⁨$entered⁩ برگرداند. به BusyMax اجازه می‌دهید گذرواژهٔ جدید برنامه را به این نشانی ارسال کند؟';
+  }
+
+  @override
   String get contactsAccountsUnavailable => 'حساب‌های مخاطبین بارگیری نشدند';
 
   @override
@@ -188,6 +217,17 @@ class AppLocalizationsFa extends AppLocalizations {
       'تغییر در Nextcloud ذخیره شد. تازه‌سازی در انتظار است؛ تغییر را تکرار نکنید.';
 
   @override
+  String get davRefreshPending =>
+      'تغییر در سرور CalDAV ذخیره شد. تازه‌سازی در انتظار است؛ تغییر را تکرار نکنید.';
+
+  @override
+  String get davCollectionCreationPending =>
+      'ایجاد مجموعه در انتظار است. پیش از تلاش دوباره، این حساب را همگام‌سازی کنید؛ عملیات را تکرار نکنید.';
+
+  @override
+  String get davCollectionCreationDenied => 'سرور اجازهٔ ایجاد مجموعه را نداد.';
+
+  @override
   String get nextcloudOutcomeUnknown =>
       'نتیجهٔ سرور تأیید نشد. پیش از تلاش دوباره تازه‌سازی کنید.';
 
@@ -238,6 +278,33 @@ class AppLocalizationsFa extends AppLocalizations {
   @override
   String get nextcloudPermanentDeleteWarning =>
       'این مورد برای همیشه حذف شود؟ دیگر از زباله‌دان تقویم Nextcloud بازیابی نمی‌شود.';
+
+  @override
+  String get nextcloudDiscoveryRequired =>
+      'این حساب را تازه‌سازی کنید تا قابلیت‌ها و مجوزهای Nextcloud به‌روز شوند.';
+
+  @override
+  String get nextcloudConflict =>
+      'مورد یا مجوزهای آن تغییر کرده است. پیش از تلاش دوباره تازه‌سازی و بررسی کنید.';
+
+  @override
+  String get nextcloudItemUnavailable =>
+      'این مورد دیگر در دسترس نیست. برای بررسی وضعیت کنونی تازه‌سازی کنید.';
+
+  @override
+  String get nextcloudFederationInvitations => 'دعوت‌های تقویم‌های اشتراکی';
+
+  @override
+  String get nextcloudFederationEmpty =>
+      'دعوتی برای تقویم اشتراکی در انتظار نیست.';
+
+  @override
+  String get nextcloudFederationGrant =>
+      'اشتراک‌گذاری در این سرور ایجاد شد. پذیرش و همگام‌سازی از راه دور تأیید نشده است.';
+
+  @override
+  String get nextcloudTrashDisabled =>
+      'نگهداری موارد حذف‌شدهٔ تقویم در این سرور غیرفعال است.';
 
   @override
   String get nextcloudOperationDenied => 'Nextcloud این عملیات را مجاز ندانست.';
@@ -3859,4 +3926,110 @@ class AppLocalizationsFa extends AppLocalizations {
   @override
   String get taskDurationRequiresStart =>
       'پیش از حذف زمان آغاز کار دارای مدت، یک مهلت تعیین کنید.';
+
+  @override
+  String get privateServerCertificates => 'گواهی‌های سرور خصوصی';
+
+  @override
+  String get reviewServerCertificate => 'بررسی گواهی سرور';
+
+  @override
+  String get certificateStandard => 'HTTPS استاندارد';
+
+  @override
+  String get certificatePrivateCa => 'مرجع صدور گواهی خصوصی';
+
+  @override
+  String get certificatePinnedLeaf => 'گواهی خودامضای سنجاق‌شده';
+
+  @override
+  String get certificateImportCa => 'وارد کردن مرجع خصوصی';
+
+  @override
+  String get certificateReplacePin => 'بررسی گواهی جایگزین';
+
+  @override
+  String get certificateUseStandard => 'بازگشت به HTTPS استاندارد';
+
+  @override
+  String get certificateApprove => 'تأیید این سیاست گواهی';
+
+  @override
+  String get certificateReject => 'رد کردن';
+
+  @override
+  String get certificatePrevious => 'گواهی‌های تأییدشده پیشین';
+
+  @override
+  String get certificateInvalid => 'گواهی یا پیکربندی مرجع خصوصی نامعتبر است';
+
+  @override
+  String get certificateFirstUseWarning =>
+      'رمزگذاری به‌تنهایی هویت سرور را در اولین استفاده ثابت نمی‌کند. پیش از تأیید، اثر انگشت SHA-256 را از راه ارتباطی مستقل و مورد اعتماد با مدیر مقایسه کنید.';
+
+  @override
+  String get certificateRenewalHelp =>
+      'مرجع خصوصی ترجیح دارد: گواهی سرور می‌تواند زیر نظر آن تمدید شود. هر تغییر گواهی سنجاق‌شده، حتی با همان کلید، نیاز به بررسی صریح دارد. گواهی‌های عمومی به‌طور عادی تمدید می‌شوند.';
+
+  @override
+  String get certificateBrowserBoundary =>
+      'مجوز در مرورگر خارجی انجام می‌شود. تأیید BusyMax اعتماد مرورگر را تنظیم نمی‌کند؛ مرورگر باید جداگانه به سرور اعتماد کند.';
+
+  @override
+  String certificateDetails(
+    String subject,
+    String issuer,
+    String notBefore,
+    String notAfter,
+    String fingerprint,
+  ) {
+    return 'موضوع: ⁨$subject⁩\nصادرکننده: ⁨$issuer⁩\nمعتبر از: ⁨$notBefore⁩\nمعتبر تا: ⁨$notAfter⁩\nاثر انگشت SHA-256: ⁨$fingerprint⁩';
+  }
+
+  @override
+  String certificateFailure(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'approvalRequired': 'تأیید لازم است',
+      'pinMismatch': 'گواهی سنجاق‌شده تغییر کرده است',
+      'expired': 'گواهی منقضی شده است',
+      'notYetValid': 'گواهی هنوز معتبر نیست',
+      'hostnameMismatch': 'نام میزبان با گواهی یکسان نیست',
+      'invalidPolicy': 'پیکربندی مرجع خصوصی نامعتبر است',
+      'ineligible': 'گواهی واجد شرایط نیست',
+      'verificationFailed': 'بررسی TLS ناموفق بود',
+      'other': 'بررسی TLS ناموفق بود',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get addCalDavAccount => 'افزودن حساب CalDAV';
+
+  @override
+  String get caldavServerUrl => 'نشانی سرور';
+
+  @override
+  String get caldavUsername => 'نام کاربری';
+
+  @override
+  String get caldavPassword => 'گذرواژه یا گذرواژهٔ برنامه';
+
+  @override
+  String get caldavInvalidServerUrl =>
+      'یک نشانی HTTPS بدون اطلاعات ورود، پرس‌وجو یا بخش پایانی وارد کنید.';
+
+  @override
+  String get caldavHttpsHelp =>
+      'نشانی HTTPS سرور یا نشانی مستقیم CalDAV را وارد کنید. گذرواژه به‌صورت امن ذخیره می‌شود.';
+
+  @override
+  String get davPermissionsUnknown =>
+      'سرور مجوزها را اعلام نکرده است. تغییرات درخواستی توسط سرور بررسی می‌شوند.';
+
+  @override
+  String get localNetworkAccessRequired => 'دسترسی به شبکهٔ محلی لازم است';
+
+  @override
+  String get localNetworkAccessRecovery =>
+      'برای دسترسی به این سرور، در تنظیمات Android به BusyMax اجازهٔ دسترسی به دستگاه‌های اطراف را بدهید و دوباره تلاش کنید.';
 }

@@ -2,6 +2,7 @@ import '../../l10n/generated/app_localizations.dart';
 import '../core/secrets/secret_store.dart';
 import '../dav/dav_errors.dart';
 import '../dav/nextcloud/nextcloud_collection_service.dart';
+import '../dav/nextcloud/nextcloud_dav_context.dart';
 
 String? localizedNextcloudFieldError(
   AppLocalizations l10n,
@@ -21,19 +22,57 @@ String localizedNextcloudCollectionError(
 ) => switch (error) {
   NextcloudCollectionValidationException() => l10n.invalidCollectionValue,
   SecretStoreException() => l10n.oauthSecureStorageUnavailable,
+  NextcloudRefreshPending() => l10n.nextcloudRefreshPending,
+  DavRefreshPending() => l10n.davRefreshPending,
+  DavException(statusCode: 507) => l10n.davInsufficientStorage,
+  DavException(code: 'DavCollectionCreationPending') =>
+    l10n.davCollectionCreationPending,
+  DavException(code: 'DavCollectionOutcomeUnknown') =>
+    l10n.nextcloudOutcomeUnknown,
+  DavException(code: 'DavCollectionCreationUnsupported') ||
+  DavException(
+    code: 'DavCollectionCreationFailed',
+    statusCode: 405,
+  ) => l10n.nextcloudUnsupported,
+  DavException(code: 'DavCollectionCreationInvalid') =>
+    l10n.invalidCollectionValue,
+  DavException(
+    code: 'DavMeetingCopyDeleteUnsupported' || 'DavMeetingMoveIdentityChanged',
+  ) =>
+    l10n.nextcloudMeetingMoveUnsupported,
+  DavException(
+    code: 'DavDiscoveryRequired' ||
+        'DavIncompleteInventory' ||
+        'DavTrashNotDiscovered',
+  ) =>
+    l10n.nextcloudDiscoveryRequired,
+  DavException(
+    code: 'DavTrashUnsupported' ||
+        'DavFederatedSchedulingUnsupported' ||
+        'DavUnsupportedServer',
+  ) =>
+    l10n.nextcloudUnsupported,
+  DavException(kind: DavErrorKind.tls, :final code) =>
+    code.startsWith('NextcloudCertificate')
+        ? l10n.certificateFailure(code.substring('NextcloudCertificate'.length))
+        : l10n.reviewServerCertificate,
   DavException(kind: DavErrorKind.authentication) =>
     l10n.accountReconnectRequired,
   DavException(kind: DavErrorKind.authorization) =>
     l10n.nextcloudOperationDenied,
   DavException(
-    kind: DavErrorKind.network ||
-        DavErrorKind.timeout ||
-        DavErrorKind.server ||
-        DavErrorKind.tls,
+    kind: DavErrorKind.network || DavErrorKind.timeout || DavErrorKind.server,
   ) =>
     l10n.nextcloudServerUnavailable,
   DavException(kind: DavErrorKind.unknownOutcome) =>
-    l10n.nextcloudRefreshPending,
-  DavException() => l10n.nextcloudUnsupported,
+    l10n.nextcloudOutcomeUnknown,
+  DavException(
+    kind: DavErrorKind.conflict ||
+        DavErrorKind.preconditionFailed ||
+        DavErrorKind.uidConflict,
+  ) =>
+    l10n.nextcloudConflict,
+  DavException(kind: DavErrorKind.notFound) => l10n.nextcloudItemUnavailable,
+  DavException() => l10n.operationFailed,
   _ => l10n.operationFailed,
 };

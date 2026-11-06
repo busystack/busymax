@@ -1,7 +1,13 @@
+import '../dav/dav_errors.dart';
+import '../core/http/authorization_leased_http_client.dart';
+import '../dav/trust/nextcloud_http_client_factory.dart';
+import '../dav/http/dav_account_http_client.dart';
 import '../features/notifications/operational_notification_coordinator.dart';
 import '../core/http/request_dispatch_exception.dart';
 import '../features/sync/domain_sync_schedule.dart';
 import '../features/sync/account_sync_activity.dart';
+import '../dav/storage/dav_collection_creation_notices.dart';
+import '../dav/mutation/dav_collection_creation_failure.dart';
 import '../core/auth/authorization_persistence.dart';
 import '../core/auth/registration_staging.dart';
 import '../core/auth/oauth_registration.dart';
@@ -26,7 +32,7 @@ import '../contacts/busymax_contacts_store.dart';
 import '../core/auth/account_token_broker.dart';
 import '../core/http/native_terminating_http_client.dart';
 import '../core/time/stored_temporal_projection.dart';
-import '../dav/nextcloud/nextcloud_native_export.dart';
+import '../dav/ical/dav_native_export.dart';
 import '../config/build_config.dart';
 import '../calendar_providers/cloud_calendar_client.dart';
 import '../db/app_database.dart';
@@ -38,6 +44,7 @@ import '../dav/discovery/dav_discovery_service.dart';
 import '../dav/http/dav_http_transport.dart';
 import '../dav/mutation/dav_conflict_repository.dart';
 import '../dav/mutation/dav_calendar_collection_mutation_service.dart';
+import '../dav/mutation/dav_collection_administration.dart';
 import '../dav/mutation/dav_pending_operations.dart';
 import '../dav/mutation/dav_task_list_mutation_service.dart';
 import '../dav/sync/dav_account_sync_engine.dart';
@@ -46,6 +53,7 @@ import '../dav/storage/dav_settings_repository.dart';
 import '../dav/nextcloud/nextcloud_collection_service.dart';
 import '../dav/nextcloud/nextcloud_sharing_service.dart';
 import '../dav/nextcloud/nextcloud_trash_service.dart';
+import '../dav/nextcloud/nextcloud_federation_service.dart';
 import '../dav/nextcloud/nextcloud_scheduling_service.dart';
 import '../features/calendar/data/calendar_repository.dart';
 import '../features/calendar/data/microsoft_shared_calendar_service.dart';
@@ -153,6 +161,55 @@ final baseHttpClientProvider = Provider<http.Client>((ref) {
   return client;
 });
 
+final nextcloudHttpClientFactoryProvider = Provider<NextcloudHttpClientFactory>(
+  (ref) {
+    final factory = NextcloudHttpClientFactory(
+      requireNetwork: ref
+          .watch(networkConnectivityMonitorProvider)
+          .requireNetwork,
+    );
+    final stopObserving = ref
+        .watch(authorizationPersistenceProvider)
+        .observeNextcloudInvalidation(factory.invalidate);
+    ref.onDispose(() {
+      stopObserving();
+      factory.close();
+    });
+    return factory;
+  },
+);
+
+final davAccountHttpClientProvider = Provider.family<http.Client, String>((
+  ref,
+  id,
+) {
+  final client = DavAccountHttpClient(
+    accountId: id,
+    persistence: ref.watch(authorizationPersistenceProvider),
+    createClient: (credential) => switch (credential) {
+      NextcloudSecretRecord() =>
+        ref
+            .read(nextcloudHttpClientFactoryProvider)
+            .create(
+              owner: id,
+              authority: credential.canonicalServer,
+              policy: credential.trustPolicy,
+              reuseConnections: true,
+            ),
+      AppleICloudSecretRecord() ||
+      CalDavSecretRecord() => ConnectivityAwareHttpClient(
+        inner: NativeTerminatingHttpClient(reuseConnections: true),
+        requireNetwork: ref
+            .read(networkConnectivityMonitorProvider)
+            .requireNetwork,
+      ),
+      _ => throw StateError('DAV credential required.'),
+    },
+  );
+  ref.onDispose(client.close);
+  return client;
+});
+
 final nextcloudLoginFlowV2Provider = Provider<NextcloudLoginFlowV2>((ref) {
   final flow = NextcloudLoginFlowV2(client: ref.watch(baseHttpClientProvider));
   ref.onDispose(flow.cancel);
@@ -190,6 +247,66 @@ davAccountOnboardingServiceProvider = Provider<DavAccountOnboardingService>((
         .finishLinkedAccountRemoval(id),
     accountsRepository: ref.watch(accountsRepositoryProvider),
     nextcloudLoginFlow: ref.watch(nextcloudLoginFlowV2Provider),
+    nextcloudClients: ref.watch(nextcloudHttpClientFactoryProvider),
+    nextcloudDiscovery: (secret, generation, requireExisting) =>
+        ({
+          required accountId,
+          required provider,
+          required accountAuthority,
+          required credential,
+          cancellationToken,
+        }) async {
+          final raw = ref
+              .read(nextcloudHttpClientFactoryProvider)
+              .create(
+                owner: accountId,
+                authority: accountAuthority,
+                policy: secret.trustPolicy,
+              );
+          final scoped = AuthorizationLeasedHttpClient(
+            delegate: raw,
+            runLease: (work) => ref
+                .read(authorizationPersistenceProvider)
+                .runShared(accountId, work),
+            validate: () async {
+              final persistence = ref.read(authorizationPersistenceProvider);
+              final account = await ref
+                  .read(accountsRepositoryProvider)
+                  .accountById(accountId);
+              if (await persistence.generation(accountId) != generation ||
+                  (account != null) != requireExisting) {
+                throw const DavException(
+                  kind: DavErrorKind.cancelled,
+                  code: 'NextcloudStaleDiscovery',
+                  safeMessage:
+                      'The account changed during certificate validation.',
+                );
+              }
+            },
+          );
+          try {
+            final profile = davProviderProfile(
+              provider,
+              nextcloudServer: accountAuthority,
+            );
+            return await DavDiscoveryService(
+              transport: DavHttpTransport(
+                client: scoped,
+                profile: profile,
+                accountAuthority: accountAuthority,
+              ),
+              profile: profile,
+              accountAuthority: accountAuthority,
+              accountId: accountId,
+              credential: credential,
+            ).discover(
+              correlationId: const Uuid().v4(),
+              cancellationToken: cancellationToken,
+            );
+          } finally {
+            scoped.close();
+          }
+        },
     discover:
         ({
           required accountId,
@@ -201,6 +318,9 @@ davAccountOnboardingServiceProvider = Provider<DavAccountOnboardingService>((
           final profile = davProviderProfile(
             provider,
             nextcloudServer: provider == BusyProvider.nextcloud
+                ? accountAuthority
+                : null,
+            caldavServer: provider == BusyProvider.caldav
                 ? accountAuthority
                 : null,
           );
@@ -220,22 +340,35 @@ davAccountOnboardingServiceProvider = Provider<DavAccountOnboardingService>((
             cancellationToken: cancellationToken,
           );
         },
-    nextcloudCredentialRevoker: ({required accountId, required credential}) {
+    nextcloudCredentialRevoker: ({required accountId, required credential}) async {
+      // Removal owns an immutable snapshot, never a lookup of deleted secrets.
+      final owner = 'revocation:${const Uuid().v4()}';
+      final scoped = ref
+          .read(nextcloudHttpClientFactoryProvider)
+          .create(
+            owner: owner,
+            authority: credential.canonicalServer,
+            policy: credential.trustPolicy?.bind(owner),
+          );
       final profile = davProviderProfile(
         BusyProvider.nextcloud,
         nextcloudServer: credential.canonicalServer,
       );
-      return NextcloudAppPasswordRevoker(
-        transport: DavHttpTransport(
-          client: client,
-          profile: profile,
-          accountAuthority: credential.canonicalServer,
-        ),
-      ).revoke(
-        accountId: accountId,
-        credential: credential,
-        correlationId: const Uuid().v4(),
-      );
+      try {
+        await NextcloudAppPasswordRevoker(
+          transport: DavHttpTransport(
+            client: scoped,
+            profile: profile,
+            accountAuthority: credential.canonicalServer,
+          ),
+        ).revoke(
+          accountId: accountId,
+          credential: credential,
+          correlationId: const Uuid().v4(),
+        );
+      } finally {
+        scoped.close();
+      }
     },
   );
 });
@@ -391,6 +524,9 @@ final busyMaxContactsControllerProvider = Provider<BusyMaxContactsController>((
       authorizationGenerationReaderProvider,
     ),
     httpClient: ref.watch(baseHttpClientProvider),
+    nextcloudClients: ref.watch(nextcloudHttpClientFactoryProvider),
+    accountGate: ref.watch(crossEngineAccountGateProvider),
+    linkedNextcloudClient: (id) => ref.read(davAccountHttpClientProvider(id)),
     readDavSecret: (accountId) => storage.read(key: key(accountId)),
     writeDavSecret: (accountId, value) =>
         storage.write(key: key(accountId), value: value),
@@ -1069,6 +1205,7 @@ final taskRemoteApiClientForAccountProvider =
         ),
         BusyProvider.appleICloud ||
         BusyProvider.nextcloud ||
+        BusyProvider.caldav ||
         BusyProvider.webCal => null,
       };
     });
@@ -1093,6 +1230,7 @@ final calendarRemoteApiClientForAccountProvider =
         ),
         BusyProvider.appleICloud ||
         BusyProvider.nextcloud ||
+        BusyProvider.caldav ||
         BusyProvider.webCal => null,
       };
     });
@@ -1113,7 +1251,8 @@ final syncEngineForAccountFactoryProvider =
             googleTasksApiClientForAccountProvider(accountId),
           ),
           BusyProvider.appleICloud ||
-          BusyProvider.nextcloud => throw StateError(
+          BusyProvider.nextcloud ||
+          BusyProvider.caldav => throw StateError(
             'DAV task accounts must use DavSynchronizationEngine.',
           ),
           BusyProvider.webCal => throw StateError(
@@ -1176,7 +1315,8 @@ final calendarSyncEngineForAccountFactoryProvider =
             googleCalendarApiClientForAccountProvider(accountId),
           ),
           BusyProvider.appleICloud ||
-          BusyProvider.nextcloud => throw StateError(
+          BusyProvider.nextcloud ||
+          BusyProvider.caldav => throw StateError(
             'DAV calendar accounts must use DavSynchronizationEngine.',
           ),
           BusyProvider.webCal => throw StateError(
@@ -1211,9 +1351,10 @@ typedef DavAccountSyncEngineFactory = DavAccountSyncEngine Function(
 final davAccountSyncEngineFactoryProvider =
     Provider<DavAccountSyncEngineFactory>((ref) {
       return (accountId) => DavAccountSyncEngine(
+        creationGate: ref.read(crossEngineAccountGateProvider),
         database: ref.read(databaseProvider),
         secretStore: ref.read(secretStoreProvider),
-        httpClient: ref.read(baseHttpClientProvider),
+        httpClient: ref.read(davAccountHttpClientProvider(accountId)),
         accountId: accountId,
         rebuildNotifications: (accountId, _) async {
           await NotificationScheduleService(
@@ -1265,6 +1406,58 @@ final calendarMonthRetrieverProvider = Provider<CalendarMonthRetriever>((ref) {
 final accountSyncActivityProvider = ChangeNotifierProvider<AccountSyncActivity>(
   (ref) => AccountSyncActivity(),
 );
+
+final davCollectionCreationNoticesProvider =
+    Provider<DavCollectionCreationNotices>(
+      (ref) => DavCollectionCreationNotices(ref.watch(databaseProvider)),
+    );
+
+final storedDavCollectionCreationNoticesProvider = StreamProvider.autoDispose
+    .family<List<DavCollectionCreationFailure>, String>(
+      (ref, accountId) =>
+          ref.watch(davCollectionCreationNoticesProvider).watch(accountId),
+    );
+
+/// Parents must observe persisted notices even before feedback is mounted.
+final accountCollectionCreationFailuresProvider = Provider.autoDispose
+    .family<Map<String, DavCollectionCreationFailure>, String>((
+      ref,
+      accountId,
+    ) {
+      final current = ref
+          .watch(accountSyncActivityProvider)
+          .collectionCreationFailures(accountId);
+      final stored = ref
+          .watch(storedDavCollectionCreationNoticesProvider(accountId))
+          .value;
+      return {
+        ...current,
+        for (final failure in stored ?? const <DavCollectionCreationFailure>[])
+          failure.operation.id: current[failure.operation.id] ?? failure,
+      };
+    });
+
+typedef DavCollectionCreationNoticeAcknowledger = Future<bool> Function(
+  String accountId,
+  String operationId,
+);
+
+final acknowledgeDavCollectionCreationNoticeProvider =
+    Provider<DavCollectionCreationNoticeAcknowledger>((ref) {
+      final notices = ref.watch(davCollectionCreationNoticesProvider);
+      final coordinator = ref.watch(accountSyncCoordinatorProvider);
+      final activity = ref.watch(accountSyncActivityProvider.notifier);
+      return (accountId, operationId) => coordinator.run(accountId, () async {
+        final acknowledged = await notices.acknowledge(accountId, operationId);
+        if (acknowledged) {
+          activity.setCollectionCreationFailures(
+            accountId,
+            await notices.load(accountId),
+          );
+        }
+        return acknowledged;
+      });
+    });
 
 final accountDomainSyncTimesProvider =
     StreamProvider.family<Map<String, DateTime>, String>((ref, id) {
@@ -1338,12 +1531,36 @@ final accountSyncOperationsProvider = Provider<AccountSyncOperations>((ref) {
     syncDav: (accountId, {required full}) => activity.run(
       accountId,
       'dav',
-      () => syncCoordinator.trackTaskImport(
-        accountId,
-        () => ref
+      () => syncCoordinator.trackTaskImport(accountId, () async {
+        final result = await ref
             .read(davAccountSyncEngineFactoryProvider)(accountId)
-            .synchronize(full: full),
-      ),
+            .synchronize(full: full);
+        // Pull success and collection-administration outcomes are independent.
+        // Rehydrate terminal diagnostics too: a later sync/restart must not
+        // silently clear a rejection that is no longer in the recovery queue.
+        activity.setCollectionCreationFailures(
+          accountId,
+          await ref
+              .read(davCollectionCreationNoticesProvider)
+              .load(
+                accountId,
+                currentErrors: result.collectionCreationFailures,
+              ),
+        );
+        if (await providerForAccount(accountId) == BusyProvider.nextcloud) {
+          // Piggyback on this refresh without extending DAV sync completion.
+          // The service coalesces overlapping checks and retains its cache.
+          unawaited(
+            Future<void>.sync(
+              () => ref
+                  .read(nextcloudFederationServiceProvider(accountId))
+                  .discoverPending(force: full),
+            ).catchError((Object error, StackTrace stack) {
+              // Optional discovery retains its last known count on failure.
+            }),
+          );
+        }
+      }),
     ),
     syncWebCal: (accountId, {required full}) => ref
         .read(webCalSubscriptionServiceProvider)
@@ -1479,6 +1696,17 @@ final calendarRepositoryProvider = Provider<CalendarRepository>((ref) {
     localTimeZone: ref.watch(localTimeZoneProvider),
     nextcloudCollections: (accountId) =>
         ref.read(nextcloudCollectionServiceProvider(accountId)),
+    genericCollections: (accountId) => DavCollectionAdministration(
+      creationGate: ref.read(crossEngineAccountGateProvider),
+      database: ref.read(databaseProvider),
+      secrets: ref.read(secretStoreProvider),
+      client: ref.read(davAccountHttpClientProvider(accountId)),
+      accountId: accountId,
+      refresh: () => ref.read(signedInSyncRunnerProvider)(accountId, true),
+      requireNetwork: ref
+          .read(networkConnectivityMonitorProvider)
+          .requireNetwork,
+    ),
     onNotificationScheduleChanged: () =>
         ref.read(notificationReconcilerProvider).reconcile(),
   );
@@ -1652,9 +1880,10 @@ final googleTasksApiClientProvider = Provider<TaskRemoteClient?>((ref) {
 final davTaskListMutationClientForAccountProvider =
     Provider.family<DavTaskListMutationClient, String>((ref, accountId) {
       return DavTaskListMutationService(
+        creationGate: ref.read(crossEngineAccountGateProvider),
         database: ref.watch(databaseProvider),
         secretStore: ref.watch(secretStoreProvider),
-        httpClient: ref.watch(baseHttpClientProvider),
+        httpClient: ref.watch(davAccountHttpClientProvider(accountId)),
         accountId: accountId,
         refreshAfterMutation: () =>
             ref.read(signedInSyncRunnerProvider)(accountId, true),
@@ -1669,7 +1898,7 @@ final nextcloudCollectionServiceProvider =
       (ref, accountId) => NextcloudCollectionService(
         database: ref.watch(databaseProvider),
         secrets: ref.watch(secretStoreProvider),
-        client: ref.watch(baseHttpClientProvider),
+        client: ref.watch(davAccountHttpClientProvider(accountId)),
         accountId: accountId,
         requireNetwork: ref
             .watch(networkConnectivityMonitorProvider)
@@ -1677,10 +1906,9 @@ final nextcloudCollectionServiceProvider =
         refresh: () => ref.read(signedInSyncRunnerProvider)(accountId, true),
       ),
     );
-final nextcloudNativeExportServiceProvider =
-    Provider<NextcloudNativeExportService>(
-      (ref) => NextcloudNativeExportService(ref.watch(databaseProvider)),
-    );
+final nextcloudNativeExportServiceProvider = Provider<DavNativeExportService>(
+  (ref) => DavNativeExportService(ref.watch(databaseProvider)),
+);
 final nextcloudSharingServiceProvider =
     Provider.family<NextcloudSharingService, String>(
       (ref, accountId) => NextcloudSharingService(
@@ -1690,6 +1918,13 @@ final nextcloudSharingServiceProvider =
 final nextcloudTrashServiceProvider =
     Provider.family<NextcloudTrashService, String>(
       (ref, accountId) => NextcloudTrashService(
+        ref.watch(nextcloudCollectionServiceProvider(accountId)),
+      ),
+    );
+
+final nextcloudFederationServiceProvider =
+    Provider.family<NextcloudFederationService, String>(
+      (ref, accountId) => NextcloudFederationService(
         ref.watch(nextcloudCollectionServiceProvider(accountId)),
       ),
     );
@@ -1707,9 +1942,10 @@ final davCalendarCollectionMutationClientForAccountProvider =
       accountId,
     ) {
       return DavCalendarCollectionMutationService(
+        creationGate: ref.read(crossEngineAccountGateProvider),
         database: ref.watch(databaseProvider),
         secretStore: ref.watch(secretStoreProvider),
-        httpClient: ref.watch(baseHttpClientProvider),
+        httpClient: ref.watch(davAccountHttpClientProvider(accountId)),
         accountId: accountId,
         refreshAfterMutation: () =>
             ref.read(signedInSyncRunnerProvider)(accountId, true),
@@ -1948,7 +2184,7 @@ final trayPresentationServiceProvider =
             return adapterDefaultTaskCapabilities(account.provider)
                 .canCreateTasks;
           }
-          if (account.provider != BusyProvider.nextcloud) return false;
+          if (!account.provider.isDav) return false;
           final capabilities = await ref.read(
             davTaskCollectionCapabilitiesProvider((
               accountId: account.id,
@@ -2234,3 +2470,37 @@ final dueTodayNotificationProvider = Provider<DueTodayNotificationScheduler>((
   ref.onDispose(scheduler.stop);
   return scheduler;
 });
+
+final nextcloudPendingInvitationCountProvider =
+    StreamProvider.family<int?, String>((ref, id) {
+      final db = ref.watch(databaseProvider);
+      final query = db.select(db.accounts).join([
+        leftOuterJoin(
+          db.authorizationGenerations,
+          db.authorizationGenerations.accountId.equalsExp(db.accounts.id),
+        ),
+      ])..where(db.accounts.id.equals(id));
+      return query.watch().map((rows) {
+        if (rows.isEmpty) return null;
+        final account = rows.single.readTable(db.accounts);
+        if (account.provider != 'nextcloud') return null;
+        final generation =
+            rows.single
+                .readTableOrNull(db.authorizationGenerations)
+                ?.generation ??
+            0;
+        final summary = federationSummary(account.providerMetadataJson);
+        return summary['available'] == true &&
+                summary['generation'] == generation &&
+                summary['count'] is int &&
+                (summary['count'] as int) >= 0
+            ? summary['count'] as int
+            : null;
+      });
+    });
+
+final nextcloudFederationAvailableProvider = Provider.family<bool, String>(
+  (ref, id) =>
+      ref.watch(nextcloudPendingInvitationCountProvider(id)).valueOrNull !=
+      null,
+);

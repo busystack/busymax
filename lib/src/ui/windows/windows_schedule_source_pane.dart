@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'windows_nextcloud_dialogs.dart';
+import 'windows_dav_account_dialogs.dart';
 import '../../dav/nextcloud/nextcloud_dav_context.dart';
 
 import 'package:fluent_ui/fluent_ui.dart';
@@ -13,7 +14,6 @@ import '../../calendar_providers/calendar_colors.dart';
 import '../../dav/dav_errors.dart';
 import '../../features/accounts/data/accounts_repository.dart';
 import '../../features/accounts/domain/account_collection_creation_capabilities.dart';
-import '../../features/calendar/data/calendar_collection_creation_service.dart';
 import '../../features/calendar/data/calendar_repository.dart';
 import '../../features/connectivity/network_connectivity_service.dart';
 import '../../features/task_lists/data/task_lists_repository.dart';
@@ -361,16 +361,22 @@ class _WindowsScheduleSourcePaneState
   ) {
     final l10n = AppLocalizations.of(context);
     return [
-      if (source.provider == BusyProvider.nextcloud &&
+      if ((source.provider == BusyProvider.nextcloud ||
+              source.provider == BusyProvider.caldav) &&
           source.davCollectionId != null)
         MenuFlyoutItem(
           text: Text(l10n.nextcloudCollectionSettings),
           onPressed: () => unawaited(
-            showWindowsNextcloudCollectionDialog(
-              context,
-              accountId: source.accountId,
-              collectionId: source.davCollectionId!,
-            ),
+            source.provider == BusyProvider.caldav
+                ? showWindowsCalDavCollectionDialog(
+                    context,
+                    source.davCollectionId!,
+                  )
+                : showWindowsNextcloudCollectionDialog(
+                    context,
+                    accountId: source.accountId,
+                    collectionId: source.davCollectionId!,
+                  ),
           ),
         ),
       ..._movementItems(
@@ -445,16 +451,22 @@ class _WindowsScheduleSourcePaneState
         ? davCapabilities?.supportsListDelete ?? false
         : true;
     return [
-      if (account.provider == BusyProvider.nextcloud &&
+      if ((account.provider == BusyProvider.nextcloud ||
+              account.provider == BusyProvider.caldav) &&
           list.davCollectionId != null)
         MenuFlyoutItem(
           text: Text(l10n.nextcloudCollectionSettings),
           onPressed: () => unawaited(
-            showWindowsNextcloudCollectionDialog(
-              context,
-              accountId: list.accountId,
-              collectionId: list.davCollectionId!,
-            ),
+            account.provider == BusyProvider.caldav
+                ? showWindowsCalDavCollectionDialog(
+                    context,
+                    list.davCollectionId!,
+                  )
+                : showWindowsNextcloudCollectionDialog(
+                    context,
+                    accountId: list.accountId,
+                    collectionId: list.davCollectionId!,
+                  ),
           ),
         ),
       ..._movementItems(
@@ -501,9 +513,7 @@ class _WindowsScheduleSourcePaneState
       final result = await ref
           .read(calendarCollectionCreationServiceProvider)
           .createCalendar(accountId: account.id, title: title);
-      if (result.outcome ==
-              CalendarCollectionCreationOutcome.createdRefreshPending &&
-          mounted) {
+      if (result.refreshPending && mounted) {
         await _showMessage(
           AppLocalizations.of(context).calendarCreatedRefreshPending,
         );
@@ -613,8 +623,7 @@ class _WindowsScheduleSourcePaneState
           : l10n.delete,
       message: removeFromList
           ? l10n.removeCalendarConfirmation(source.summary)
-          : source.provider == BusyProvider.nextcloud &&
-                source.davEffectivePermissions['supportedComponentMask'] == 3
+          : source.isMixedDavCollection
           ? l10n.nextcloudRemoveMixed
           : l10n.deleteCalendarConfirmation(source.summary),
       actionLabel: removeFromList ? l10n.removeAction : l10n.delete,
@@ -684,6 +693,10 @@ class _WindowsScheduleSourcePaneState
     try {
       await operation();
       if (mounted) widget.onSourcesChanged();
+    } on DavRefreshPending {
+      if (mounted) {
+        await _showMessage(AppLocalizations.of(context).davRefreshPending);
+      }
     } on NextcloudRefreshPending {
       if (mounted) {
         await _showMessage(
@@ -773,7 +786,7 @@ class _WindowsScheduleSourcePaneState
   );
 }
 
-class _AccountHeader extends StatelessWidget {
+class _AccountHeader extends ConsumerWidget {
   const _AccountHeader({
     super.key,
     required this.account,
@@ -792,13 +805,24 @@ class _AccountHeader extends StatelessWidget {
   final bool online;
 
   @override
-  Widget build(BuildContext context) => Padding(
+  Widget build(BuildContext context, WidgetRef ref) => Padding(
     padding: const EdgeInsetsDirectional.fromSTEB(14, 10, 8, 4),
     child: Row(
       children: [
         Expanded(
           child: Text(
-            account.displayLabel,
+            account.provider == BusyProvider.nextcloud &&
+                    (ref
+                                .watch(
+                                  nextcloudPendingInvitationCountProvider(
+                                    account.id,
+                                  ),
+                                )
+                                .valueOrNull ??
+                            0) >
+                        0
+                ? '${account.displayLabel} • ${AppLocalizations.of(context).nextcloudFederationInvitations} (${ref.watch(nextcloudPendingInvitationCountProvider(account.id)).valueOrNull ?? 0})'
+                : account.displayLabel,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: FluentTheme.of(context).typography.caption,

@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:busymax/src/core/secrets/secret_store.dart';
 import 'package:busymax/src/core/http/request_dispatch_exception.dart';
 import 'package:busymax/src/dav/dav_provider_profile.dart';
+import 'package:busymax/src/dav/discovery/dav_discovery_models.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -470,12 +471,12 @@ void main() {
           syncReports += 1;
           if (syncReports == 1) {
             return http.Response(
-              _davSyncResponse(token: 'token-1', etag: '"v1"'),
+              _davSyncResponse(token: 'urn:test:token-1', etag: '"v1"'),
               207,
             );
           }
           return http.Response(
-            _davSyncResponse(token: 'token-2', deleted: true),
+            _davSyncResponse(token: 'urn:test:token-2', deleted: true),
             207,
           );
         }
@@ -491,6 +492,8 @@ void main() {
           databaseProvider.overrideWithValue(database),
           secretStoreProvider.overrideWithValue(secrets),
           baseHttpClientProvider.overrideWithValue(client),
+          davAccountHttpClientProvider('nextcloud-account')
+              .overrideWithValue(client),
           notificationSchedulerProvider.overrideWithValue(scheduler),
         ],
       );
@@ -566,6 +569,7 @@ Future<void> _seedNextcloudNotificationAccount(
       .insert(
         DavAccountServicesCompanion.insert(
           accountId: 'nextcloud-account',
+          capabilitiesSchemaVersion: const Value(davCapabilitiesSchemaVersion),
           providerProfileVersion: const Value(davProviderProfileVersion),
           canonicalServiceUri:
               'https://cloud.example.test/cloud/remote.php/dav/',

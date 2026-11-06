@@ -1,3 +1,6 @@
+import 'package:busymax/src/dav/dav_errors.dart';
+import 'package:busymax/src/dav/nextcloud/nextcloud_dav_context.dart';
+import 'package:busymax/l10n/generated/app_localizations_en.dart';
 import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
@@ -17,6 +20,61 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../support/memory_settings_store.dart';
 
 void main() {
+  for (final nextcloud in [false, true]) {
+    testWidgets(
+      'Fluent committed rename refresh uses correct provider; Nextcloud=$nextcloud',
+      (tester) async {
+        final provider = nextcloud
+            ? BusyProvider.nextcloud
+            : BusyProvider.caldav;
+        final source = CalendarSourceEntity(
+          id: 'c',
+          accountId: 'a',
+          provider: provider,
+          providerCalendarId: 'c',
+          summary: 'Work',
+          selected: true,
+          hidden: false,
+          readOnly: false,
+          isDeleted: false,
+          davEffectivePermissions: const {'canWriteProperties': true},
+        );
+        final repository = _RefreshPendingRepository(nextcloud);
+        await _pumpPane(
+          tester,
+          MemorySettingsStore(),
+          [_account('a', provider)],
+          [source],
+          const [],
+          calendarRepository: repository,
+        );
+        final menu = tester.widget<DropDownButton>(
+          find.descendant(
+            of: _row(('schedule-calendar', 'a', 'c')),
+            matching: find.byType(DropDownButton),
+          ),
+        );
+        final entry = menu.items.whereType<MenuFlyoutItem>().singleWhere(
+          (e) => (e.text as Text).data == 'Rename',
+        );
+        expect(entry.onPressed, isNotNull);
+        entry.onPressed!();
+        await tester.pumpAndSettle();
+        await tester.enterText(find.byType(TextBox), 'Changed');
+        await tester.tap(find.widgetWithText(FilledButton, 'Rename'));
+        await tester.pumpAndSettle();
+        expect(repository.calls, 1);
+        final l10n = AppLocalizationsEn();
+        expect(
+          find.text(
+            nextcloud ? l10n.nextcloudRefreshPending : l10n.davRefreshPending,
+          ),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
   for (final saved in [
     ['s1', 'a', 's2', 'b'],
     ['s1', 's2', 'b', 'a'],
@@ -456,6 +514,7 @@ Future<void> _pumpPane(
   List<AccountEntity> accounts,
   List<CalendarSourceEntity> calendars,
   List<TaskListEntity> lists, {
+  CalendarRepository? calendarRepository,
   VoidCallback? onAddAccount,
   bool accountInventoryResolved = true,
 }) async {
@@ -471,6 +530,8 @@ Future<void> _pumpPane(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        if (calendarRepository != null)
+          calendarRepositoryProvider.overrideWithValue(calendarRepository),
         localSettingsStoreProvider.overrideWithValue(store),
         networkConnectivityMonitorProvider.overrideWithValue(monitor),
       ],
@@ -562,3 +623,18 @@ TaskListEntity _list(String accountId, String id, {String? title}) =>
       pendingDelete: false,
       rawJson: '{}',
     );
+
+final class _RefreshPendingRepository implements CalendarRepository {
+  _RefreshPendingRepository(this.nextcloud);
+  final bool nextcloud;
+  int calls = 0;
+  @override
+  Future<void> renameLocalSource(String sourceId, String summary) async {
+    calls++;
+    if (nextcloud) throw const NextcloudRefreshPending();
+    throw const DavRefreshPending();
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}

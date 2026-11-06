@@ -135,6 +135,48 @@ abstract class AppLocalizations {
     Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant'),
   ];
 
+  /// No description provided for @caldavSchedulingWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'This event has attendees. Saving or deleting it may cause your CalDAV server to notify participants when the change synchronizes.'**
+  String get caldavSchedulingWarning;
+
+  /// No description provided for @caldavNativeImport.
+  ///
+  /// In en, this message translates to:
+  /// **'Import complete event and task resources. For items with attendees, the CalDAV server may send invitations or meeting updates. Existing UIDs are skipped unless you choose new copies. Unsupported resources are reported individually.'**
+  String get caldavNativeImport;
+
+  /// No description provided for @davInsufficientStorage.
+  ///
+  /// In en, this message translates to:
+  /// **'The server has insufficient storage to create this collection.'**
+  String get davInsufficientStorage;
+
+  /// No description provided for @davCollectionPropertyRejected.
+  ///
+  /// In en, this message translates to:
+  /// **'The server rejected a requested collection property.'**
+  String get davCollectionPropertyRejected;
+
+  /// No description provided for @davCollectionDiscoveryRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh this account to update its server capabilities and permissions.'**
+  String get davCollectionDiscoveryRequired;
+
+  /// No description provided for @caldavImportSchedulingWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'This file contains attendees. I allow this import, which may cause the CalDAV server to send invitations or meeting updates.'**
+  String get caldavImportSchedulingWarning;
+
+  /// No description provided for @nextcloudCanonicalServerReview.
+  ///
+  /// In en, this message translates to:
+  /// **'Nextcloud returned {canonical} for the server {entered}. Allow BusyMax to send the new app password to this address?'**
+  String nextcloudCanonicalServerReview(String entered, String canonical);
+
   /// No description provided for @contactsAccountsUnavailable.
   ///
   /// In en, this message translates to:
@@ -435,6 +477,24 @@ abstract class AppLocalizations {
   /// **'The change was saved on Nextcloud. Refresh is pending; do not repeat the change.'**
   String get nextcloudRefreshPending;
 
+  /// No description provided for @davRefreshPending.
+  ///
+  /// In en, this message translates to:
+  /// **'The change was saved on the CalDAV server. Refresh is pending; do not repeat the change.'**
+  String get davRefreshPending;
+
+  /// No description provided for @davCollectionCreationPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Collection creation is pending. Synchronize this account before trying again; do not repeat the operation.'**
+  String get davCollectionCreationPending;
+
+  /// No description provided for @davCollectionCreationDenied.
+  ///
+  /// In en, this message translates to:
+  /// **'The server did not allow collection creation.'**
+  String get davCollectionCreationDenied;
+
   /// No description provided for @nextcloudOutcomeUnknown.
   ///
   /// In en, this message translates to:
@@ -530,6 +590,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Permanently delete this item? It cannot be restored from Nextcloud\'s calendar trash.'**
   String get nextcloudPermanentDeleteWarning;
+
+  /// No description provided for @nextcloudDiscoveryRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh this account to update its Nextcloud capabilities and permissions.'**
+  String get nextcloudDiscoveryRequired;
+
+  /// No description provided for @nextcloudConflict.
+  ///
+  /// In en, this message translates to:
+  /// **'The item or its permissions changed. Refresh and review it before trying again.'**
+  String get nextcloudConflict;
+
+  /// No description provided for @nextcloudItemUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This item is no longer available. Refresh to check its current state.'**
+  String get nextcloudItemUnavailable;
+
+  /// No description provided for @nextcloudFederationInvitations.
+  ///
+  /// In en, this message translates to:
+  /// **'Shared calendar invitations'**
+  String get nextcloudFederationInvitations;
+
+  /// No description provided for @nextcloudFederationEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No pending shared calendar invitations.'**
+  String get nextcloudFederationEmpty;
+
+  /// No description provided for @nextcloudFederationGrant.
+  ///
+  /// In en, this message translates to:
+  /// **'Share created on this server. Remote acceptance and synchronization are not confirmed.'**
+  String get nextcloudFederationGrant;
+
+  /// No description provided for @nextcloudTrashDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar trash retention is disabled on this server.'**
+  String get nextcloudTrashDisabled;
 
   /// No description provided for @nextcloudOperationDenied.
   ///
@@ -6409,6 +6511,168 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Set a deadline before removing the start of a task with a duration.'**
   String get taskDurationRequiresStart;
+
+  /// No description provided for @privateServerCertificates.
+  ///
+  /// In en, this message translates to:
+  /// **'Private server certificates'**
+  String get privateServerCertificates;
+
+  /// No description provided for @reviewServerCertificate.
+  ///
+  /// In en, this message translates to:
+  /// **'Review server certificate'**
+  String get reviewServerCertificate;
+
+  /// No description provided for @certificateStandard.
+  ///
+  /// In en, this message translates to:
+  /// **'Standard HTTPS'**
+  String get certificateStandard;
+
+  /// No description provided for @certificatePrivateCa.
+  ///
+  /// In en, this message translates to:
+  /// **'Private certificate authority'**
+  String get certificatePrivateCa;
+
+  /// No description provided for @certificatePinnedLeaf.
+  ///
+  /// In en, this message translates to:
+  /// **'Pinned self-signed certificate'**
+  String get certificatePinnedLeaf;
+
+  /// No description provided for @certificateImportCa.
+  ///
+  /// In en, this message translates to:
+  /// **'Import private CA'**
+  String get certificateImportCa;
+
+  /// No description provided for @certificateReplacePin.
+  ///
+  /// In en, this message translates to:
+  /// **'Review a replacement pin'**
+  String get certificateReplacePin;
+
+  /// No description provided for @certificateUseStandard.
+  ///
+  /// In en, this message translates to:
+  /// **'Return to standard HTTPS'**
+  String get certificateUseStandard;
+
+  /// No description provided for @certificateApprove.
+  ///
+  /// In en, this message translates to:
+  /// **'Approve this certificate policy'**
+  String get certificateApprove;
+
+  /// No description provided for @certificateReject.
+  ///
+  /// In en, this message translates to:
+  /// **'Reject'**
+  String get certificateReject;
+
+  /// No description provided for @certificatePrevious.
+  ///
+  /// In en, this message translates to:
+  /// **'Previously approved certificates'**
+  String get certificatePrevious;
+
+  /// No description provided for @certificateInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid certificate or private CA configuration'**
+  String get certificateInvalid;
+
+  /// No description provided for @certificateFirstUseWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Encryption alone does not establish server identity on first use. Compare the SHA-256 fingerprint through an independently trusted administrator channel before approval.'**
+  String get certificateFirstUseWarning;
+
+  /// No description provided for @certificateRenewalHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Prefer a private CA: server certificates may renew under it. A pinned leaf requires explicit review for every certificate change, even with the same key. Public certificates renew normally.'**
+  String get certificateRenewalHelp;
+
+  /// No description provided for @certificateBrowserBoundary.
+  ///
+  /// In en, this message translates to:
+  /// **'Browser authorization remains external. BusyMax approval does not configure browser trust; your browser must trust the server separately.'**
+  String get certificateBrowserBoundary;
+
+  /// Plain text certificate details derived from X.509; dates are UTC.
+  ///
+  /// In en, this message translates to:
+  /// **'Subject: {subject}\nIssuer: {issuer}\nValid from: {notBefore}\nValid until: {notAfter}\nSHA-256 fingerprint: {fingerprint}'**
+  String certificateDetails(
+    String subject,
+    String issuer,
+    String notBefore,
+    String notAfter,
+    String fingerprint,
+  );
+
+  /// No description provided for @certificateFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'{reason, select, approvalRequired{Approval required} pinMismatch{Pinned certificate changed} expired{Certificate expired} notYetValid{Certificate not yet valid} hostnameMismatch{Certificate hostname mismatch} invalidPolicy{Invalid private CA configuration} ineligible{Certificate is ineligible} verificationFailed{TLS verification failed} other{TLS verification failed}}'**
+  String certificateFailure(String reason);
+
+  /// No description provided for @addCalDavAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Add CalDAV account'**
+  String get addCalDavAccount;
+
+  /// No description provided for @caldavServerUrl.
+  ///
+  /// In en, this message translates to:
+  /// **'Server URL'**
+  String get caldavServerUrl;
+
+  /// No description provided for @caldavUsername.
+  ///
+  /// In en, this message translates to:
+  /// **'Username'**
+  String get caldavUsername;
+
+  /// No description provided for @caldavPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Password or app password'**
+  String get caldavPassword;
+
+  /// No description provided for @caldavInvalidServerUrl.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter an HTTPS URL without credentials, query, or fragment.'**
+  String get caldavInvalidServerUrl;
+
+  /// No description provided for @caldavHttpsHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter the HTTPS server URL or a direct CalDAV endpoint. Your password is stored securely.'**
+  String get caldavHttpsHelp;
+
+  /// No description provided for @davPermissionsUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'The server has not advertised permissions. Requested changes will be checked by the server.'**
+  String get davPermissionsUnknown;
+
+  /// No description provided for @localNetworkAccessRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Local network access required'**
+  String get localNetworkAccessRequired;
+
+  /// No description provided for @localNetworkAccessRecovery.
+  ///
+  /// In en, this message translates to:
+  /// **'To reach this server, allow BusyMax access to nearby devices in Android Settings, then try again.'**
+  String get localNetworkAccessRecovery;
 }
 
 class _AppLocalizationsDelegate

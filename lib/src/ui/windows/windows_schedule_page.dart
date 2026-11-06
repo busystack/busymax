@@ -3,6 +3,8 @@ import 'package:busymax/src/l10n/week_preferences_scope.dart';
 
 import 'dart:async';
 
+import '../../l10n/nextcloud_collection_error_description.dart';
+
 import '../../providers/busy_provider.dart';
 
 import 'dart:math' as math;
@@ -362,7 +364,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
       if (list.pendingDelete) return false;
       final account = accountsById[list.accountId];
       if (account == null || !account.isTaskCapable) return false;
-      if (account.provider == BusyProvider.nextcloud) {
+      if (account.provider.isDav) {
         return ref
                 .watch(
                   davTaskCollectionCapabilitiesProvider((
@@ -1907,13 +1909,17 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
           )
           .request();
       if (mounted) _reload();
-    } on Object {
+    } on Object catch (error) {
       if (!mounted) return;
       await showDialog<void>(
         context: context,
         builder: (dialogContext) => ContentDialog(
           content: InfoBar(
-            title: Text(l10n.operationFailed),
+            title: Text(
+              item.provider == BusyProvider.nextcloud
+                  ? localizedNextcloudCollectionError(l10n, error)
+                  : l10n.operationFailed,
+            ),
             severity: InfoBarSeverity.error,
           ),
           actions: [
@@ -1985,8 +1991,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
         } else if (series || !recurring) {
           rawICalendar = await repository.nativeEventExport(item.id);
         }
-      } else if (item is TaskScheduleItem &&
-          item.provider == BusyProvider.nextcloud) {
+      } else if (item is TaskScheduleItem && item.provider.isDav) {
         rawICalendar = await ref
             .read(tasksRepositoryForAccountProvider(item.accountId))
             .nativeTaskExport(item.sourceId, item.id);
@@ -2076,8 +2081,10 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     var guestUpdatePolicy = CalendarGuestUpdatePolicy.send;
     final hasGuestDeliveryChoice =
         item is CalendarScheduleItem &&
-        item.isOrganizer == true &&
-        _calendarItemHasExternalGuests(item);
+        (item.mayNotifyParticipants ||
+            (item.provider != BusyProvider.caldav &&
+                item.isOrganizer == true &&
+                _calendarItemHasExternalGuests(item)));
     if (hasGuestDeliveryChoice) {
       if (!mounted) return;
       final choice = await showWindowsGuestUpdateDialog(

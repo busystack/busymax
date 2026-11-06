@@ -14,6 +14,33 @@ class AppLocalizationsKo extends AppLocalizations {
   AppLocalizationsKo([String locale = 'ko']) : super(locale);
 
   @override
+  String get caldavSchedulingWarning =>
+      '이 일정에는 참석자가 있습니다. 저장하거나 삭제하면 변경 사항이 동기화될 때 CalDAV 서버가 참석자에게 알림을 보낼 수 있습니다.';
+
+  @override
+  String get caldavNativeImport =>
+      '일정과 작업의 전체 리소스를 가져옵니다. 참석자가 있는 항목의 경우 CalDAV 서버가 초대 또는 회의 업데이트를 보낼 수 있습니다. 새 사본을 선택하지 않으면 기존 UID는 건너뜁니다. 지원되지 않는 리소스는 개별적으로 보고됩니다.';
+
+  @override
+  String get davInsufficientStorage => '서버에 이 컬렉션을 만들 저장 공간이 부족합니다.';
+
+  @override
+  String get davCollectionPropertyRejected => '서버가 요청된 컬렉션 속성을 거부했습니다.';
+
+  @override
+  String get davCollectionDiscoveryRequired =>
+      '이 계정을 새로 고쳐 서버 기능과 권한을 업데이트하세요.';
+
+  @override
+  String get caldavImportSchedulingWarning =>
+      '이 파일에는 참석자가 포함되어 있습니다. CalDAV 서버가 초대장이나 회의 업데이트를 보낼 수 있음을 이해하고 가져오기를 허용합니다.';
+
+  @override
+  String nextcloudCanonicalServerReview(String entered, String canonical) {
+    return 'Nextcloud가 서버 $entered에 대해 $canonical을 반환했습니다. BusyMax가 이 주소로 새 앱 비밀번호를 보내도록 허용할까요?';
+  }
+
+  @override
   String get contactsAccountsUnavailable => '연락처 계정을 불러올 수 없습니다';
 
   @override
@@ -184,6 +211,17 @@ class AppLocalizationsKo extends AppLocalizations {
       '변경 내용을 Nextcloud에 저장했습니다. 새로 고침이 대기 중이므로 변경을 반복하지 마세요.';
 
   @override
+  String get davRefreshPending =>
+      '변경 내용을 CalDAV 서버에 저장했습니다. 새로 고침이 대기 중이므로 변경을 반복하지 마세요.';
+
+  @override
+  String get davCollectionCreationPending =>
+      '컬렉션 생성이 대기 중입니다. 다시 시도하기 전에 이 계정을 동기화하세요. 작업을 반복하지 마세요.';
+
+  @override
+  String get davCollectionCreationDenied => '서버에서 컬렉션 생성을 허용하지 않았습니다.';
+
+  @override
   String get nextcloudOutcomeUnknown => '서버 결과를 확인하지 못했습니다. 새로 고친 후 다시 시도하세요.';
 
   @override
@@ -232,6 +270,30 @@ class AppLocalizationsKo extends AppLocalizations {
   @override
   String get nextcloudPermanentDeleteWarning =>
       '이 항목을 영구 삭제할까요? Nextcloud 캘린더 휴지통에서 복원할 수 없게 됩니다.';
+
+  @override
+  String get nextcloudDiscoveryRequired =>
+      '이 계정을 새로고침하여 Nextcloud 기능과 권한을 업데이트하세요.';
+
+  @override
+  String get nextcloudConflict => '항목 또는 권한이 변경되었습니다. 새로고침하고 확인한 후 다시 시도하세요.';
+
+  @override
+  String get nextcloudItemUnavailable =>
+      '이 항목은 더 이상 사용할 수 없습니다. 새로고침하여 현재 상태를 확인하세요.';
+
+  @override
+  String get nextcloudFederationInvitations => '공유 캘린더 초대';
+
+  @override
+  String get nextcloudFederationEmpty => '대기 중인 공유 캘린더 초대가 없습니다.';
+
+  @override
+  String get nextcloudFederationGrant =>
+      '이 서버에 공유가 생성되었습니다. 원격 수락 및 동기화는 확인되지 않았습니다.';
+
+  @override
+  String get nextcloudTrashDisabled => '이 서버에서는 캘린더 휴지통 보관이 비활성화되어 있습니다.';
 
   @override
   String get nextcloudOperationDenied => 'Nextcloud가 이 작업을 허용하지 않았습니다.';
@@ -3729,4 +3791,110 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get taskDurationRequiresStart => '기간이 있는 작업의 시작을 제거하기 전에 마감일을 설정하세요.';
+
+  @override
+  String get privateServerCertificates => '개인 서버 인증서';
+
+  @override
+  String get reviewServerCertificate => '서버 인증서 검토';
+
+  @override
+  String get certificateStandard => '표준 HTTPS';
+
+  @override
+  String get certificatePrivateCa => '개인 인증 기관';
+
+  @override
+  String get certificatePinnedLeaf => '고정된 자체 서명 인증서';
+
+  @override
+  String get certificateImportCa => '개인 CA 가져오기';
+
+  @override
+  String get certificateReplacePin => '교체 인증서 검토';
+
+  @override
+  String get certificateUseStandard => '표준 HTTPS로 돌아가기';
+
+  @override
+  String get certificateApprove => '이 인증서 정책 승인';
+
+  @override
+  String get certificateReject => '거부';
+
+  @override
+  String get certificatePrevious => '이전에 승인된 인증서';
+
+  @override
+  String get certificateInvalid => '인증서 또는 개인 CA 구성이 잘못되었습니다';
+
+  @override
+  String get certificateFirstUseWarning =>
+      '처음 사용할 때 암호화만으로 서버의 신원을 확인할 수 없습니다. 승인 전에 독립적으로 신뢰할 수 있는 관리자 연락 수단으로 SHA-256 지문을 비교하세요.';
+
+  @override
+  String get certificateRenewalHelp =>
+      '개인 CA를 권장합니다. 그 아래에서 서버 인증서를 갱신할 수 있습니다. 고정된 인증서는 같은 키를 사용해도 변경될 때마다 명시적인 검토가 필요합니다. 공개 인증서는 정상적으로 갱신됩니다.';
+
+  @override
+  String get certificateBrowserBoundary =>
+      '인증에는 외부 브라우저를 사용합니다. BusyMax의 승인은 브라우저 신뢰를 설정하지 않습니다. 브라우저에서도 서버를 별도로 신뢰해야 합니다.';
+
+  @override
+  String certificateDetails(
+    String subject,
+    String issuer,
+    String notBefore,
+    String notAfter,
+    String fingerprint,
+  ) {
+    return '주체: $subject\n발급자: $issuer\n유효 시작: $notBefore\n유효 종료: $notAfter\nSHA-256 지문: $fingerprint';
+  }
+
+  @override
+  String certificateFailure(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'approvalRequired': '승인이 필요합니다',
+      'pinMismatch': '고정된 인증서가 변경되었습니다',
+      'expired': '인증서가 만료되었습니다',
+      'notYetValid': '인증서가 아직 유효하지 않습니다',
+      'hostnameMismatch': '인증서 호스트 이름이 일치하지 않습니다',
+      'invalidPolicy': '개인 CA 구성이 잘못되었습니다',
+      'ineligible': '사용할 수 없는 인증서입니다',
+      'verificationFailed': 'TLS 검증에 실패했습니다',
+      'other': 'TLS 검증에 실패했습니다',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get addCalDavAccount => 'CalDAV 계정 추가';
+
+  @override
+  String get caldavServerUrl => '서버 URL';
+
+  @override
+  String get caldavUsername => '사용자 이름';
+
+  @override
+  String get caldavPassword => '비밀번호 또는 앱 비밀번호';
+
+  @override
+  String get caldavInvalidServerUrl =>
+      '인증 정보, 쿼리 또는 프래그먼트가 없는 HTTPS URL을 입력하세요.';
+
+  @override
+  String get caldavHttpsHelp =>
+      'HTTPS 서버 URL 또는 직접 CalDAV 주소를 입력하세요. 비밀번호는 안전하게 저장됩니다.';
+
+  @override
+  String get davPermissionsUnknown =>
+      '서버가 권한을 알리지 않았습니다. 요청한 변경 사항은 서버에서 확인합니다.';
+
+  @override
+  String get localNetworkAccessRequired => '로컬 네트워크 접근 권한 필요';
+
+  @override
+  String get localNetworkAccessRecovery =>
+      '이 서버에 연결하려면 Android 설정에서 BusyMax에 근처 기기 접근 권한을 허용한 다음 다시 시도하세요.';
 }

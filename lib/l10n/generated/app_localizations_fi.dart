@@ -14,6 +14,35 @@ class AppLocalizationsFi extends AppLocalizations {
   AppLocalizationsFi([String locale = 'fi']) : super(locale);
 
   @override
+  String get caldavSchedulingWarning =>
+      'Tässä tapahtumassa on osallistujia. Tallentaminen tai poistaminen voi saada CalDAV-palvelimen ilmoittamaan osallistujille, kun muutos synkronoidaan.';
+
+  @override
+  String get caldavNativeImport =>
+      'Tuo tapahtumien ja tehtävien täydelliset resurssit. CalDAV-palvelin saattaa lähettää kutsuja tai kokouspäivityksiä kohteille, joissa on osallistujia. Olemassa olevat UID-tunnisteet ohitetaan, ellet valitse uusia kopioita. Resursseista, joita ei tueta, ilmoitetaan erikseen.';
+
+  @override
+  String get davInsufficientStorage =>
+      'Palvelimella ei ole tarpeeksi tallennustilaa tämän kokoelman luomiseen.';
+
+  @override
+  String get davCollectionPropertyRejected =>
+      'Palvelin hylkäsi kokoelmalle pyydetyn ominaisuuden.';
+
+  @override
+  String get davCollectionDiscoveryRequired =>
+      'Päivitä tämä tili, jotta palvelimen ominaisuudet ja käyttöoikeudet päivittyvät.';
+
+  @override
+  String get caldavImportSchedulingWarning =>
+      'Tämä tiedosto sisältää osallistujia. Sallin tämän tuonnin, joka voi saada CalDAV-palvelimen lähettämään kutsuja tai kokouspäivityksiä.';
+
+  @override
+  String nextcloudCanonicalServerReview(String entered, String canonical) {
+    return 'Nextcloud palautti osoitteen $canonical palvelimelle $entered. Saako BusyMax lähettää uuden sovellussalasanan tähän osoitteeseen?';
+  }
+
+  @override
   String get contactsAccountsUnavailable => 'Yhteystietotilejä ei voitu ladata';
 
   @override
@@ -190,6 +219,18 @@ class AppLocalizationsFi extends AppLocalizations {
       'Muutos tallennettiin Nextcloudiin. Päivitys odottaa; älä toista muutosta.';
 
   @override
+  String get davRefreshPending =>
+      'Muutos tallennettiin CalDAV-palvelimelle. Päivitys odottaa; älä toista muutosta.';
+
+  @override
+  String get davCollectionCreationPending =>
+      'Kokoelman luominen odottaa. Synkronoi tämä tili ennen uutta yritystä; älä toista toimintoa.';
+
+  @override
+  String get davCollectionCreationDenied =>
+      'Palvelin ei sallinut kokoelman luomista.';
+
+  @override
   String get nextcloudOutcomeUnknown =>
       'Palvelimen tulosta ei voitu vahvistaa. Päivitä ennen uutta yritystä.';
 
@@ -241,6 +282,33 @@ class AppLocalizationsFi extends AppLocalizations {
   @override
   String get nextcloudPermanentDeleteWarning =>
       'Poistetaanko kohde pysyvästi? Sitä ei voi palauttaa Nextcloudin kalenteriroskakorista.';
+
+  @override
+  String get nextcloudDiscoveryRequired =>
+      'Päivitä tämä tili Nextcloudin toimintojen ja käyttöoikeuksien päivittämiseksi.';
+
+  @override
+  String get nextcloudConflict =>
+      'Kohde tai sen käyttöoikeudet ovat muuttuneet. Päivitä ja tarkista ennen uutta yritystä.';
+
+  @override
+  String get nextcloudItemUnavailable =>
+      'Tämä kohde ei ole enää saatavilla. Tarkista nykyinen tila päivittämällä.';
+
+  @override
+  String get nextcloudFederationInvitations => 'Jaettujen kalenterien kutsut';
+
+  @override
+  String get nextcloudFederationEmpty =>
+      'Ei odottavia kutsuja jaettuihin kalentereihin.';
+
+  @override
+  String get nextcloudFederationGrant =>
+      'Jako luotiin tällä palvelimella. Etäpalvelimen hyväksyntää ja synkronointia ei ole vahvistettu.';
+
+  @override
+  String get nextcloudTrashDisabled =>
+      'Kalenterin roskakorin säilytys on poistettu käytöstä tällä palvelimella.';
 
   @override
   String get nextcloudOperationDenied => 'Nextcloud ei sallinut toimintoa.';
@@ -3854,4 +3922,113 @@ class AppLocalizationsFi extends AppLocalizations {
   @override
   String get taskDurationRequiresStart =>
       'Aseta määräaika ennen keston sisältävän tehtävän alun poistamista.';
+
+  @override
+  String get privateServerCertificates => 'Yksityisten palvelinten varmenteet';
+
+  @override
+  String get reviewServerCertificate => 'Tarkista palvelimen varmenne';
+
+  @override
+  String get certificateStandard => 'Tavallinen HTTPS';
+
+  @override
+  String get certificatePrivateCa => 'Yksityinen varmentaja';
+
+  @override
+  String get certificatePinnedLeaf =>
+      'Kiinnitetty itseallekirjoitettu varmenne';
+
+  @override
+  String get certificateImportCa => 'Tuo yksityinen CA';
+
+  @override
+  String get certificateReplacePin => 'Tarkista korvaava varmenne';
+
+  @override
+  String get certificateUseStandard => 'Palaa tavalliseen HTTPS-yhteyteen';
+
+  @override
+  String get certificateApprove => 'Hyväksy tämä varmennekäytäntö';
+
+  @override
+  String get certificateReject => 'Hylkää';
+
+  @override
+  String get certificatePrevious => 'Aiemmin hyväksytyt varmenteet';
+
+  @override
+  String get certificateInvalid =>
+      'Virheellinen varmenne tai yksityisen CA:n määritys';
+
+  @override
+  String get certificateFirstUseWarning =>
+      'Pelkkä salaus ei varmista palvelimen henkilöllisyyttä ensimmäisellä käyttökerralla. Vertaa SHA-256-sormenjälkeä ylläpitäjään riippumatonta luotettua kanavaa käyttäen ennen hyväksymistä.';
+
+  @override
+  String get certificateRenewalHelp =>
+      'Suosi yksityistä varmentajaa: palvelinvarmenteet voidaan uusia sen alaisuudessa. Kiinnitetyn varmenteen jokainen muutos vaatii tarkistuksen, myös samalla avaimella. Julkiset varmenteet uusiutuvat tavallisesti.';
+
+  @override
+  String get certificateBrowserBoundary =>
+      'Valtuutus tapahtuu ulkoisessa selaimessa. BusyMaxin hyväksyntä ei määritä selaimen luottamusta; selaimen on luotettava palvelimeen erikseen.';
+
+  @override
+  String certificateDetails(
+    String subject,
+    String issuer,
+    String notBefore,
+    String notAfter,
+    String fingerprint,
+  ) {
+    return 'Kohde: $subject\nMyöntäjä: $issuer\nVoimassa alkaen: $notBefore\nVoimassa asti: $notAfter\nSHA-256-sormenjälki: $fingerprint';
+  }
+
+  @override
+  String certificateFailure(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'approvalRequired': 'Hyväksyntä tarvitaan',
+      'pinMismatch': 'Kiinnitetty varmenne muuttui',
+      'expired': 'Varmenne vanhentui',
+      'notYetValid': 'Varmenne ei ole vielä voimassa',
+      'hostnameMismatch': 'Palvelimen nimi ei täsmää',
+      'invalidPolicy': 'Virheellinen yksityisen CA:n määritys',
+      'ineligible': 'Varmenne ei sovellu',
+      'verificationFailed': 'TLS-tarkistus epäonnistui',
+      'other': 'TLS-tarkistus epäonnistui',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get addCalDavAccount => 'Lisää CalDAV-tili';
+
+  @override
+  String get caldavServerUrl => 'Palvelimen URL';
+
+  @override
+  String get caldavUsername => 'Käyttäjätunnus';
+
+  @override
+  String get caldavPassword => 'Salasana tai sovellussalasana';
+
+  @override
+  String get caldavInvalidServerUrl =>
+      'Anna HTTPS-osoite ilman tunnistetietoja, kyselyä tai fragmenttia.';
+
+  @override
+  String get caldavHttpsHelp =>
+      'Anna palvelimen HTTPS-osoite tai suora CalDAV-osoite. Salasana tallennetaan turvallisesti.';
+
+  @override
+  String get davPermissionsUnknown =>
+      'Palvelin ei ole ilmoittanut oikeuksia. Palvelin tarkistaa pyydetyt muutokset.';
+
+  @override
+  String get localNetworkAccessRequired =>
+      'Paikallisverkon käyttöoikeus tarvitaan';
+
+  @override
+  String get localNetworkAccessRecovery =>
+      'Salli BusyMaxin käyttää lähellä olevia laitteita Androidin asetuksissa, jotta tähän palvelimeen voidaan muodostaa yhteys, ja yritä uudelleen.';
 }

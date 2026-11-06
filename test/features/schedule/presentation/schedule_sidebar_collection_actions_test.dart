@@ -1,5 +1,9 @@
 import 'dart:async';
 
+import 'package:busymax/src/dav/dav_errors.dart';
+import 'package:busymax/src/dav/nextcloud/nextcloud_dav_context.dart';
+import 'package:busymax/l10n/generated/app_localizations_en.dart';
+
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/schedule/schedule_sidebar_order.dart';
 import 'package:busymax/src/schedule/schedule_sidebar_sources.dart';
@@ -44,6 +48,95 @@ void main() {
         .setMockMethodCallHandler(_nativeMenuChannel, null);
   });
 
+  testWidgets(
+    'generic shared task list removal is disabled even without a DAV binding',
+    (tester) async {
+      final account = _account(BusyProvider.caldav, id: 'account');
+      await _pumpSidebar(
+        tester,
+        [account],
+        taskLists: [
+          TaskListEntity(
+            accountId: account.id,
+            id: 'tasks',
+            title: 'Shared',
+            isShared: true,
+            localDirty: false,
+            pendingDelete: false,
+            rawJson: '{}',
+          ),
+        ],
+      );
+      final menu = tester.widget<BusyMaxMenuButton<String>>(
+        find.byKey(const ValueKey(('task-list-options', 'account', 'tasks'))),
+      );
+      expect(
+        menu.entries.singleWhere((e) => e.value == 'delete').enabled,
+        isFalse,
+      );
+      menu.onSelected('delete');
+      await tester.pumpAndSettle();
+      expect(find.text('Unshare'), findsNothing);
+    },
+  );
+
+  for (final nextcloud in [false, true]) {
+    testWidgets(
+      'calendar rename refresh message retains the correct provider; Nextcloud=$nextcloud',
+      (tester) async {
+        final provider = nextcloud
+            ? BusyProvider.nextcloud
+            : BusyProvider.caldav;
+        final account = _account(provider);
+        final source = CalendarSourceEntity(
+          id: 'c',
+          accountId: account.id,
+          provider: provider,
+          davEffectivePermissions: const {'canWriteProperties': true},
+          providerCalendarId: 'c',
+          summary: 'Work',
+          selected: true,
+          hidden: false,
+          readOnly: false,
+          isDeleted: false,
+        );
+        final repository = _RefreshPendingCalendarRepository([
+          source,
+        ], nextcloud);
+        await _pumpSidebar(
+          tester,
+          [account],
+          calendarSources: [source],
+          calendarRepository: repository,
+        );
+        final menu = tester.widget<BusyMaxMenuButton<String>>(
+          find.byKey(const ValueKey(('calendar-options', 'c'))),
+        );
+        expect(
+          menu.entries.singleWhere((e) => e.value == 'rename').enabled,
+          isTrue,
+        );
+        menu.onSelected('rename');
+        await tester.pumpAndSettle();
+        await tester.enterText(find.byType(TextField), 'Changed');
+        await tester.testTextInput.receiveAction(TextInputAction.done);
+        await tester.pumpAndSettle();
+        expect(repository.calls, 1);
+        final l10n = AppLocalizationsEn();
+        expect(
+          find.text(
+            nextcloud ? l10n.nextcloudRefreshPending : l10n.davRefreshPending,
+          ),
+          findsOneWidget,
+        );
+        expect(find.textContaining('Could not'), findsNothing);
+        if (!nextcloud) {
+          expect(find.textContaining('saved on Nextcloud'), findsNothing);
+        }
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
   testWidgets(
     'source rows use type icons and task lists keep their actual titles',
     (tester) async {
@@ -549,7 +642,7 @@ void main() {
         id: 'nextcloud-custom-port',
         authority:
             'https://cloud.example.test:8443/nextcloud/index.php?token=secret',
-        displayName: 'albert',
+        displayName: 'fixture',
       ),
       _account(
         BusyProvider.nextcloud,
@@ -564,7 +657,7 @@ void main() {
     expect(find.textContaining('/nextcloud'), findsNothing);
     expect(find.textContaining('token=secret'), findsNothing);
     expect(
-      find.bySemanticsLabel('Nextcloud, albert, cloud.example.test:8443'),
+      find.bySemanticsLabel('Nextcloud, fixture, cloud.example.test:8443'),
       findsOneWidget,
     );
     expect(
@@ -948,6 +1041,7 @@ Future<void> _pumpSidebar(
   WidgetTester tester,
   List<AccountEntity> accounts, {
   CalendarCollectionCreator? creationService,
+  CalendarRepository? calendarRepository,
   Locale locale = const Locale('en'),
   NetworkAvailability? networkAvailability,
   List<CalendarSourceEntity> calendarSources = const [],
@@ -988,7 +1082,7 @@ Future<void> _pumpSidebar(
             (ref) => Stream.value(networkAvailability),
           ),
         calendarRepositoryProvider.overrideWithValue(
-          _CalendarSourcesRepository(calendarSources),
+          calendarRepository ?? _CalendarSourcesRepository(calendarSources),
         ),
         taskListsRepositoryForAccountProvider.overrideWith(
           (ref, accountId) => _TaskListsRepository(
@@ -1085,7 +1179,7 @@ TaskListEntity _list(String accountId, String id, {String? title}) =>
       rawJson: '{}',
     );
 
-final class _CalendarSourcesRepository implements CalendarRepository {
+class _CalendarSourcesRepository implements CalendarRepository {
   const _CalendarSourcesRepository(this.sources);
 
   final List<CalendarSourceEntity> sources;
@@ -1242,4 +1336,17 @@ final class _ReconnectRecordingAuthRepository implements AuthRepository {
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+final class _RefreshPendingCalendarRepository
+    extends _CalendarSourcesRepository {
+  _RefreshPendingCalendarRepository(super.sources, this.nextcloud);
+  final bool nextcloud;
+  int calls = 0;
+  @override
+  Future<void> renameLocalSource(String sourceId, String summary) async {
+    calls++;
+    if (nextcloud) throw const NextcloudRefreshPending();
+    throw const DavRefreshPending();
+  }
 }

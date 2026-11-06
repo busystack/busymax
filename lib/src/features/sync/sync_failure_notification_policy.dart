@@ -19,6 +19,7 @@ import 'sync_auth_error.dart';
 
 enum SyncFailureNotificationDisposition {
   suppressed,
+  certificateReviewRequired,
   reconnectRequired,
   permissionChanged,
   unsupportedProvider,
@@ -120,6 +121,7 @@ SyncFailureNotificationDisposition _aggregateDavFailures(
 int _priority(SyncFailureNotificationDisposition disposition) {
   return switch (disposition) {
     SyncFailureNotificationDisposition.suppressed => 0,
+    SyncFailureNotificationDisposition.certificateReviewRequired => 5,
     SyncFailureNotificationDisposition.temporarilyUnavailable => 1,
     SyncFailureNotificationDisposition.unsupportedProvider => 2,
     SyncFailureNotificationDisposition.permissionChanged => 3,
@@ -134,6 +136,10 @@ SyncFailureNotificationDisposition _davDisposition(DavException error) {
     DavErrorCategory.davTransientNetwork ||
     DavErrorCategory.davServerUnavailable =>
       SyncFailureNotificationDisposition.suppressed,
+    DavErrorCategory.davTlsFailure =>
+      error.code.startsWith('NextcloudCertificate')
+          ? SyncFailureNotificationDisposition.certificateReviewRequired
+          : SyncFailureNotificationDisposition.temporarilyUnavailable,
     DavErrorCategory.davAuthRejected ||
     DavErrorCategory.davCredentialsRevoked =>
       SyncFailureNotificationDisposition.reconnectRequired,

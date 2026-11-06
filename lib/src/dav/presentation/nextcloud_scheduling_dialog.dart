@@ -8,7 +8,7 @@ import 'package:yaru/yaru.dart';
 import '../../app/app_bootstrap.dart';
 import '../../app/busymax_design.dart';
 import '../../app/busymax_dialogs.dart';
-import '../../dav/dav_errors.dart';
+import '../../l10n/nextcloud_collection_error_description.dart';
 import '../../dav/nextcloud/nextcloud_scheduling_controller.dart';
 import '../../dav/nextcloud/nextcloud_scheduling_service.dart';
 import '../../features/calendar/presentation/event_editor_draft.dart';
@@ -114,12 +114,7 @@ class _LinuxNextcloudSchedulingDialogState
             ' (${widget.draft!.startTimeZone ?? ref.read(localTimeZoneProvider)})',
           ),
         if (model.busy) const Center(child: YaruCircularProgressIndicator()),
-        if (error != null)
-          Text(
-            error is DavException && error.kind == DavErrorKind.authorization
-                ? l10n.nextcloudOperationDenied
-                : l10n.nextcloudServerUnavailable,
-          ),
+        if (error != null) Text(localizedNextcloudCollectionError(l10n, error)),
         if (model.loaded &&
             !model.busy &&
             error == null &&
@@ -139,9 +134,13 @@ class _LinuxNextcloudSchedulingDialogState
                       : Text(message.method!),
                 ),
                 BusyMaxActionRow(
+                  key: ValueKey((
+                    'nextcloud-inbox-acknowledge',
+                    message.href.toString(),
+                  )),
                   title: l10n.nextcloudAcknowledge,
                   leading: const Icon(Icons.done_outlined),
-                  enabled: !model.busy,
+                  enabled: !model.busy && message.canAcknowledge,
                   onTap: () => _acknowledge(message),
                 ),
               ],

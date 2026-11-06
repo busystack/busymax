@@ -4,6 +4,7 @@ enum ProviderAuthenticationMethod {
   oauth,
   appleAppSpecificPassword,
   nextcloudLoginFlowV2,
+  usernamePassword,
 }
 
 enum ProviderServiceType { calendar, tasks }
@@ -58,6 +59,14 @@ const providerProfiles = <BusyProvider, ProviderProfileCapabilities>{
     allowsCalendarCollectionMutations: true,
     allowsSchedulingMutations: true,
   ),
+  BusyProvider.caldav: ProviderProfileCapabilities(
+    provider: BusyProvider.caldav,
+    authenticationMethod: ProviderAuthenticationMethod.usernamePassword,
+    expectedServices: {ProviderServiceType.calendar, ProviderServiceType.tasks},
+    allowsGenericServer: true,
+    allowsCalendarCollectionMutations: true,
+    allowsTaskCollectionMutations: true,
+  ),
 };
 
 class AccountServiceCapabilities {
@@ -80,6 +89,9 @@ class AccountServiceCapabilities {
 
 class CollectionCapabilities {
   const CollectionCapabilities({
+    this.permissionsKnown = true,
+    this.allowsItemMutations = true,
+    this.supportsMove = false,
     this.canRead = false,
     this.canReadPrivileges = false,
     this.canWriteContent = false,
@@ -103,6 +115,12 @@ class CollectionCapabilities {
   });
 
   final bool canRead;
+
+  /// An absent or inaccessible optional ACL property does not grant or deny
+  /// mutation privileges. Confirmed booleans below never turn true by default.
+  final bool permissionsKnown;
+  final bool allowsItemMutations;
+  final bool supportsMove;
   final bool canReadPrivileges;
   final bool canWriteContent;
   final bool canWriteProperties;
@@ -123,7 +141,32 @@ class CollectionCapabilities {
   final bool providerAllowsCollectionMutation;
   final bool providerAllowsSchedulingMutation;
 
-  bool get isReadOnly => !canWriteContent;
+  bool get isReadOnly =>
+      !allowsItemMutations || (permissionsKnown && !canWriteContent);
+  bool get canAttemptCreateEvent =>
+      allowsItemMutations &&
+      supportsEvents &&
+      (!permissionsKnown || canAddMembers);
+  bool get canAttemptUpdateEvent =>
+      allowsItemMutations &&
+      supportsEvents &&
+      (!permissionsKnown || canWriteContent);
+  bool get canAttemptDeleteEvent =>
+      allowsItemMutations &&
+      supportsEvents &&
+      (!permissionsKnown || canDeleteMembers);
+  bool get canAttemptCreateTask =>
+      allowsItemMutations &&
+      supportsTasks &&
+      (!permissionsKnown || canAddMembers);
+  bool get canAttemptUpdateTask =>
+      allowsItemMutations &&
+      supportsTasks &&
+      (!permissionsKnown || canWriteContent);
+  bool get canAttemptDeleteTask =>
+      allowsItemMutations &&
+      supportsTasks &&
+      (!permissionsKnown || canDeleteMembers);
   bool get canCreateEvent => supportsEvents && canAddMembers;
   bool get canUpdateEvent => supportsEvents && canWriteContent;
   bool get canDeleteEvent => supportsEvents && canDeleteMembers;

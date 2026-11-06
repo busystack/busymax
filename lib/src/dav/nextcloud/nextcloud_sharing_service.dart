@@ -105,6 +105,7 @@ final class NextcloudSharingService {
             href: href,
             label: name?.isNotEmpty == true ? name! : href,
             group: group,
+            federated: href.startsWith('principal:principals/remote-users/'),
           ),
           writable: writable,
           status: status,
@@ -376,6 +377,7 @@ NextcloudShareRecipient? _federatedRecipient(String value) {
   if (user.contains(RegExp(r'[/\\\s:@?#]')) ||
       server.contains(RegExp(r'\s')) ||
       server.contains('@') ||
+      (server.contains('://') && !server.startsWith('https://')) ||
       RegExp(
         r'(^|/)(?:\.{1,2}|%2e(?:%2e)?)(?:/|$)',
         caseSensitive: false,
@@ -388,7 +390,6 @@ NextcloudShareRecipient? _federatedRecipient(String value) {
   if (uri == null ||
       uri.scheme != 'https' ||
       uri.host.isEmpty ||
-      !uri.host.contains('.') ||
       uri.host.endsWith('.') ||
       uri.userInfo.isNotEmpty ||
       uri.hasQuery ||

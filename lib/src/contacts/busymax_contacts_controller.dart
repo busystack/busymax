@@ -1,3 +1,12 @@
+import '../core/http/terminating_http_client.dart' as app_http;
+import '../dav/auth/nextcloud_login_flow_v2.dart' as busymax_login;
+import '../core/http/authorization_leased_http_client.dart';
+import '../features/sync/account_sync_operations.dart';
+import '../dav/trust/nextcloud_http_client_factory.dart';
+import '../dav/trust/nextcloud_trust_policy.dart';
+import '../dav/auth/dav_account_onboarding_service.dart'
+    show NextcloudTrustReviewer;
+
 import 'dart:async';
 import 'dart:convert';
 
@@ -82,6 +91,9 @@ final class BusyMaxContactsController {
     ContactsProvider Function(ContactAccount)? providerFactory,
     this.readAuthorizationGeneration,
     this.reconnectLinkedDavAccount,
+    this.nextcloudClients,
+    this.linkedNextcloudClient,
+    this.accountGate = const InProcessAccountGate(),
   }) : _providerFactory = providerFactory,
        directory = ContactsDirectory(store: store);
 
@@ -89,6 +101,9 @@ final class BusyMaxContactsController {
   final AccountsRepository accounts;
   final ContactsAuthorizationBroker authorization;
   final http.Client httpClient;
+  final CrossEngineAccountGate accountGate;
+  final NextcloudHttpClientFactory? nextcloudClients;
+  final http.Client Function(String)? linkedNextcloudClient;
   final DavContactSecretReader readDavSecret;
   final DavContactSecretWriter writeDavSecret;
   final DavContactSecretDeleter deleteDavSecret;
@@ -153,15 +168,17 @@ final class BusyMaxContactsController {
     final contactAccounts = await store.read((tx) => tx.accounts());
     for (final account in contactAccounts) {
       if (!account.enabled) continue;
+      if (_certificateReviewCode(account.errorCode) != null) continue;
       try {
         await _bind(account);
-      } on Object {
-        await store.write((tx) async {
-          final current = await tx.account(account.id);
-          if (current != null) {
-            await tx.putAccount(current.copy(errorCode: 'reconnect-required'));
-          }
-        });
+      } on Object catch (error) {
+        await _setAccountError(
+          account.id,
+          account.generation,
+          error is NextcloudCertificateException
+              ? error.code
+              : 'reconnect-required',
+        );
       }
     }
     if (_closed) return;
@@ -522,6 +539,7 @@ final class BusyMaxContactsController {
     required String username,
     required String password,
     required bool nextcloud,
+    NextcloudTrustPolicy? trustPolicy,
   }) async {
     await start();
     _checkEnrollment(attempt);
@@ -547,13 +565,46 @@ final class BusyMaxContactsController {
       'password': password,
       'readOnly': true,
       'nextcloud': nextcloud,
+      if (trustPolicy != null)
+        'trustPolicy': trustPolicy.bind('contacts:$id').toJson(),
+      if (nextcloud) 'authorizationGeneration': account.generation,
     });
+    if (nextcloud) {
+      NextcloudCertificateException? certificateFailure;
+      final candidate = _davProvider(
+        account,
+        (jsonDecode(secret) as Map).cast<String, dynamic>(),
+        validationOnly: true,
+        onCertificateFailure: (error) => certificateFailure = error,
+      );
+      final validation = ContactsCancellationToken();
+      attempt.onCancel = validation.cancel;
+      try {
+        if ((await candidate.discover(validation)).isEmpty) {
+          throw const ContactsException(
+            ContactsFailure.permission,
+            'no-readable-address-books',
+          );
+        }
+        _checkEnrollment(attempt);
+      } on Object catch (error, stack) {
+        // The contacts adapter maps DAV errors to ContactsException. Retain
+        // the original TLS proof so enrollment can review the exact peer.
+        Error.throwWithStackTrace(certificateFailure ?? error, stack);
+      } finally {
+        candidate.close();
+      }
+    }
     var durable = false;
     try {
       _checkEnrollment(attempt);
-      await writeDavSecret(id, secret);
-      _checkEnrollment(attempt);
-      await store.write((tx) => tx.putAccount(account));
+      await _commitDavContactSecret(
+        account,
+        secret,
+        null,
+        null,
+        () => _checkEnrollment(attempt),
+      );
       durable = true;
       attempt.committed = true;
       if (_closed) return account;
@@ -575,8 +626,6 @@ final class BusyMaxContactsController {
               );
             }
           });
-        } else {
-          await deleteDavSecret(id);
         }
       } on Object catch (cleanup, cleanupStack) {
         _log.warning(
@@ -593,21 +642,66 @@ final class BusyMaxContactsController {
     required String id,
     required String label,
     required Uri server,
+    NextcloudTrustReviewer? reviewCertificate,
+    busymax_login.NextcloudCanonicalServerReviewer? reviewCanonicalServer,
   }) => _enroll(id, (attempt) async {
     final cancellation = DavCancellationToken();
-    final flow = NextcloudLoginFlowV2(
-      server: server,
-      launchBrowser: launchBrowser,
-      client: httpClient,
-    );
-    attempt.onCancel = () {
-      cancellation.cancel();
-      flow.close();
-    };
+    final owner =
+        'contacts-onboarding:$id:${DateTime.now().microsecondsSinceEpoch}';
+    NextcloudTrustPolicy? policy;
+    Future<NextcloudLoginCredential> authenticate() async {
+      final scoped = nextcloudClients?.create(
+        owner: owner,
+        authority: server,
+        policy: policy,
+      );
+      final flow = busymax_login.NextcloudLoginFlowV2(
+        browserLauncher: launchBrowser,
+        client: scoped ?? httpClient,
+      );
+      attempt.onCancel = () {
+        cancellation.cancel();
+        flow.cancel();
+        scoped?.close();
+      };
+      try {
+        final result = await flow.start(
+          server.toString(),
+          cancellationToken: cancellation,
+          reviewCanonicalServer: reviewCanonicalServer,
+        );
+        return NextcloudLoginCredential(
+          server: result.canonicalServer,
+          loginName: result.loginName,
+          appPassword: result.appPassword,
+        );
+      } finally {
+        flow.cancel();
+        scoped?.close();
+      }
+    }
+
     try {
-      final credential = await flow.authenticate(cancellation);
+      NextcloudLoginCredential credential;
+      try {
+        credential = await authenticate();
+      } on NextcloudCertificateException catch (challenge) {
+        if (reviewCertificate == null) rethrow;
+        policy = await reviewCertificate(challenge, owner);
+        _checkEnrollment(attempt);
+        cancellation.throwIfCancelled();
+        if (policy == null) rethrow;
+        policy.requireScope(owner, server);
+        credential = await authenticate();
+      }
       _checkEnrollment(attempt);
-      return await _addCardDav(
+      if (normalizeNextcloudServerAuthority(server.toString()) !=
+          normalizeNextcloudServerAuthority(credential.server.toString())) {
+        // Certificate exceptions are scoped to the entered installation.
+        // Approval of a canonical URL must never transfer that exception.
+        policy = null;
+      }
+      Future<ContactAccount> enroll(NextcloudTrustPolicy? trust) => _addCardDav(
         attempt,
         id: id,
         label: label,
@@ -615,9 +709,26 @@ final class BusyMaxContactsController {
         username: credential.loginName,
         password: credential.appPassword,
         nextcloud: true,
+        trustPolicy: trust,
       );
+      try {
+        return await enroll(policy);
+      } on NextcloudCertificateException catch (challenge) {
+        if (policy != null || reviewCertificate == null || attempt.committed) {
+          rethrow;
+        }
+        // The canonical installation needs its own explicit approval. Never
+        // reuse a certificate exception granted to the login installation.
+        final canonicalOwner = '$owner:canonical';
+        final approved = await reviewCertificate(challenge, canonicalOwner);
+        _checkEnrollment(attempt);
+        cancellation.throwIfCancelled();
+        if (approved == null) rethrow;
+        approved.requireScope(canonicalOwner, credential.server);
+        return await enroll(approved);
+      }
     } finally {
-      flow.close();
+      nextcloudClients?.invalidate(owner);
     }
   });
 
@@ -646,11 +757,20 @@ final class BusyMaxContactsController {
           'account-removal-in-progress',
         );
       }
+      if (_certificateReviewCode(captured?.errorCode) case final code?) {
+        throw ContactsException(ContactsFailure.protocol, code);
+      }
       if (captured?.errorCode == 'contacts-removal-recovery-required') {
         throw const ContactsException(
           ContactsFailure.unknownOutcome,
           'contacts-removal-recovery-required',
         );
+      }
+      if (captured?.provider == ContactProviderKind.carddav &&
+          captured?.enabled == true &&
+          _boundGenerations[id] != captured!.generation) {
+        await _detachBinding(id);
+        await _bind(captured);
       }
       final sources = await directory.discover(id);
       for (final source in sources) {
@@ -675,7 +795,9 @@ final class BusyMaxContactsController {
           await _setAccountError(
             id,
             captured?.generation,
-            error is ContactsException
+            error is NextcloudCertificateException
+                ? error.code
+                : error is ContactsException
                 ? error.code == 'contacts-removal-recovery-required' ||
                           error.code.startsWith('oauth:')
                       ? error.code
@@ -692,6 +814,11 @@ final class BusyMaxContactsController {
       }
       Error.throwWithStackTrace(error, stack);
     }
+  }
+
+  String? _certificateReviewCode(String? stored) {
+    final code = stored?.split(':').last;
+    return code?.startsWith('NextcloudCertificate') == true ? code : null;
   }
 
   Future<void> _setAccountError(String id, int? generation, String? error) =>
@@ -795,7 +922,7 @@ final class BusyMaxContactsController {
                 'readOnly': true,
                 'nextcloud': true,
               }
-            : (jsonDecode(encoded) as Map).cast<String, dynamic>();
+            : _acceptedDavConfig(encoded, account);
         if (config['version'] != 1) {
           throw const FormatException('Unsupported CardDAV credential.');
         }
@@ -804,6 +931,9 @@ final class BusyMaxContactsController {
           _davProvider(
             account,
             config,
+            scopedClient: parentId == null
+                ? null
+                : linkedNextcloudClient?.call(parentId),
             linkedCredential: parentId == null
                 ? null
                 : () => _currentLinkedDavCredential(
@@ -815,6 +945,12 @@ final class BusyMaxContactsController {
           ),
           accountGeneration: account.generation,
         );
+        if (parentId == null && encoded != null) {
+          await accountGate.run(
+            'contacts:${account.id}',
+            () => _compactCommittedDavSecret(account, encoded),
+          );
+        }
     }
     _boundGenerations[account.id] = account.generation;
   }
@@ -838,23 +974,70 @@ final class BusyMaxContactsController {
     ContactAccount account,
     Map<String, dynamic> config, {
     Future<DavBasicCredential> Function()? linkedCredential,
+    http.Client? scopedClient,
+    bool validationOnly = false,
+    int? expectedDurableGeneration,
+    void Function(NextcloudCertificateException)? onCertificateFailure,
   }) {
+    _requireDavTrustMetadata(config);
     final server = Uri.parse(config['server'] as String);
     _requireDavServer(server);
+    if (config.containsKey('trustPolicy') &&
+        (nextcloudClients == null || scopedClient != null)) {
+      throw NextcloudCertificateException(
+        NextcloudCertificateFailure.invalidPolicy,
+        endpoint: server,
+      );
+    }
     final profile = config['nextcloud'] == true
         ? const DavProviderProfile.nextcloud()
         : const DavProviderProfile();
+    http.Client client =
+        scopedClient ??
+        (config['nextcloud'] == true && nextcloudClients != null
+            ? nextcloudClients!.create(
+                owner: 'contacts:${account.id}',
+                authority: server,
+                policy: config.containsKey('trustPolicy')
+                    ? NextcloudTrustPolicy.fromJson(config['trustPolicy'])
+                    : null,
+              )
+            : httpClient);
+    if (config['nextcloud'] == true &&
+        scopedClient == null &&
+        nextcloudClients != null) {
+      client = AuthorizationLeasedHttpClient(
+        delegate: client,
+        runLease: (work) => accountGate.run('contacts:${account.id}', work),
+        validate: () async {
+          final current = await store.read((tx) => tx.account(account.id));
+          if (_closed ||
+              (validationOnly
+                  ? current?.generation != expectedDurableGeneration
+                  : current?.enabled != true ||
+                        current?.generation != account.generation)) {
+            throw const ContactsException(
+              ContactsFailure.cancelled,
+              'stale-nextcloud-contacts-policy',
+            );
+          }
+        },
+      );
+    }
+    if (onCertificateFailure != null) {
+      client = _CertificateFailureClient(client, onCertificateFailure);
+    }
     final resources = DavResourceClient(
       accountId: account.id,
       authority: server,
       profile: profile,
       transport: DavHttpTransport(
-        client: httpClient,
+        client: client,
         profile: profile,
         accountAuthority: server,
       ),
       streaming: DavTransferClient(
-        client: httpClient,
+        client: client,
         authority: server,
         profile: profile,
       ),
@@ -870,6 +1053,7 @@ final class BusyMaxContactsController {
       client: CardDavClient(resources),
       cachedRecord: (identity) => store.read((tx) => tx.contact(identity)),
       readOnly: true,
+      disposeTransport: identical(client, httpClient) ? null : client.close,
     );
   }
 
@@ -936,6 +1120,7 @@ final class BusyMaxContactsController {
     final account = await store.read((tx) => tx.account(id));
     if (account == null) return;
     _boundGenerations.remove(id);
+    nextcloudClients?.invalidate('contacts:$id');
     await directory.disconnect(id, remove: true);
   }
 
@@ -1116,10 +1301,14 @@ final class BusyMaxContactsController {
     final account = await store.read((tx) => tx.account(id));
     if (account == null) return;
     _boundGenerations.remove(id);
-    await directory.disconnect(id, remove: true);
-    if (account.provider == ContactProviderKind.carddav) {
-      await deleteDavSecret(id);
-    }
+    await _detachForReplacement(id);
+    await accountGate.run('contacts:$id', () async {
+      nextcloudClients?.invalidate('contacts:$id');
+      await directory.disconnect(id, remove: true);
+      if (account.provider == ContactProviderKind.carddav) {
+        await deleteDavSecret(id);
+      }
+    });
   }
 
   Future<void> disableContactsAccount(String id) async {
@@ -1128,6 +1317,154 @@ final class BusyMaxContactsController {
     _boundGenerations.remove(id);
     await directory.disconnect(id);
   }
+
+  Map<String, dynamic> _acceptedDavConfig(
+    String encoded,
+    ContactAccount account,
+  ) {
+    var config = (jsonDecode(encoded) as Map).cast<String, dynamic>();
+    _requireDavTrustMetadata(config);
+    if (config.containsKey('authorizationGeneration') &&
+        config['authorizationGeneration'] != account.generation) {
+      final previous = config['_previous'];
+      if (previous is! Map ||
+          (previous['authorizationGeneration'] ?? 0) != account.generation) {
+        throw NextcloudCertificateException(
+          NextcloudCertificateFailure.invalidPolicy,
+          endpoint: config['server'] is String
+              ? Uri.tryParse(config['server'] as String) ?? Uri()
+              : Uri(),
+        );
+      }
+      config = previous.cast<String, dynamic>();
+    }
+    _requireDavTrustMetadata(config);
+    return Map.of(config)..remove('_previous');
+  }
+
+  void _requireDavTrustMetadata(Map<String, dynamic> config) {
+    final generation = config['authorizationGeneration'];
+    if ((config.containsKey('trustPolicy') ||
+            config.containsKey('authorizationGeneration') ||
+            config.containsKey('_previous')) &&
+        (config['nextcloud'] != true ||
+            config['version'] != 1 ||
+            generation is! int ||
+            generation < 0)) {
+      throw NextcloudCertificateException(
+        NextcloudCertificateFailure.invalidPolicy,
+        endpoint: config['server'] is String
+            ? Uri.tryParse(config['server'] as String) ?? Uri()
+            : Uri(),
+      );
+    }
+  }
+
+  Future<void> _commitDavContactSecret(
+    ContactAccount account,
+    String next,
+    String? previous,
+    int? expectedGeneration,
+    void Function() validate,
+  ) => accountGate.run('contacts:${account.id}', () async {
+    final current = await store.read((tx) => tx.account(account.id));
+    if (current?.generation != expectedGeneration) {
+      throw const ContactsException(
+        ContactsFailure.cancelled,
+        'stale-contacts-authorization',
+      );
+    }
+    validate();
+    try {
+      await writeDavSecret(account.id, next);
+      if (await readDavSecret(account.id) != next) {
+        throw const FormatException('Contacts credential write failed.');
+      }
+      validate();
+      await store.write((tx) async {
+        validate();
+        await tx.putAccount(account);
+        validate();
+      });
+    } on Object {
+      if (previous == null) {
+        await deleteDavSecret(account.id);
+      } else {
+        await writeDavSecret(account.id, previous);
+      }
+      rethrow;
+    }
+    // SQL and secure storage now select the replacement. Cleanup must never
+    // roll the credential back after this durable commit.
+    await _compactCommittedDavSecret(account, next);
+  });
+
+  /// Runs under the independent account's exclusive authorization gate.
+  /// A staged envelope for a future generation must retain its recovery copy.
+  Future<void> _compactCommittedDavSecret(
+    ContactAccount account,
+    String encoded,
+  ) async {
+    try {
+      final config = (jsonDecode(encoded) as Map).cast<String, dynamic>();
+      if (config['nextcloud'] != true ||
+          !config.containsKey('_previous') ||
+          config['authorizationGeneration'] != account.generation) {
+        return;
+      }
+      final current = await store.read((tx) => tx.account(account.id));
+      if (current?.generation != account.generation ||
+          await store.hasAccountLink(account.id) ||
+          await readDavSecret(account.id) != encoded) {
+        return;
+      }
+      final compact = jsonEncode(Map.of(config)..remove('_previous'));
+      await writeDavSecret(account.id, compact);
+      if (await readDavSecret(account.id) != compact) {
+        throw const FormatException('Contacts credential cleanup failed.');
+      }
+    } on Object catch (error, stack) {
+      // The staged and compact forms both select the newly committed secret.
+      // Binding (including after restart) retries cleanup without reverting it.
+      _log.warning(
+        'Obsolete contacts credential cleanup will be retried',
+        error,
+        stack,
+      );
+    }
+  }
+
+  Future<(Uri, NextcloudTrustPolicy?, int)> privateTrustSnapshot(
+    String id,
+  ) async {
+    final account = await store.read((tx) => tx.account(id));
+    final encoded = await readDavSecret(id);
+    if (account == null || encoded == null || await store.hasAccountLink(id)) {
+      throw const FormatException('Independent Nextcloud account unavailable.');
+    }
+    final config = _acceptedDavConfig(encoded, account);
+    if (config['nextcloud'] != true) {
+      throw const FormatException('Nextcloud account required.');
+    }
+    return (
+      Uri.parse(config['server'] as String),
+      config.containsKey('trustPolicy')
+          ? NextcloudTrustPolicy.fromJson(config['trustPolicy'])
+          : null,
+      account.generation,
+    );
+  }
+
+  Future<void> replacePrivateTrust(
+    String id,
+    int generation,
+    NextcloudTrustPolicy? policy,
+  ) => reconnectDavContactsOnly(
+    id,
+    replaceTrust: true,
+    trustPolicy: policy,
+    expectedGeneration: generation,
+  );
 
   Future<bool> isIndependentNextcloud(String id) async {
     final encoded = await readDavSecret(id);
@@ -1172,6 +1509,9 @@ final class BusyMaxContactsController {
   Future<void> reconnectDavContactsOnly(
     String id, {
     String? password,
+    bool replaceTrust = false,
+    NextcloudTrustPolicy? trustPolicy,
+    int? expectedGeneration,
   }) => _enroll(id, (attempt) async {
     await start();
     _checkEnrollment(attempt);
@@ -1183,8 +1523,25 @@ final class BusyMaxContactsController {
         await store.hasAccountLink(id)) {
       throw StateError('Independent DAV account unavailable');
     }
-    final config = (jsonDecode(encoded) as Map).cast<String, dynamic>();
-    if (password != null) {
+    final config = _acceptedDavConfig(encoded, previous);
+    if (expectedGeneration != null &&
+        previous.generation != expectedGeneration) {
+      throw const ContactsException(
+        ContactsFailure.cancelled,
+        'stale-certificate-approval',
+      );
+    }
+    if (replaceTrust) {
+      if (config['nextcloud'] != true) {
+        throw const FormatException('Nextcloud account required.');
+      }
+      trustPolicy?.requireScope(
+        'contacts:$id',
+        Uri.parse(config['server'] as String),
+      );
+      config.remove('trustPolicy');
+      if (trustPolicy != null) config['trustPolicy'] = trustPolicy.toJson();
+    } else if (password != null) {
       if (password.isEmpty) {
         throw const ContactsException(
           ContactsFailure.validation,
@@ -1194,9 +1551,31 @@ final class BusyMaxContactsController {
       config['password'] = password;
     } else if (config['nextcloud'] == true) {
       final token = DavCancellationToken();
+      http.Client? reconnectClient = nextcloudClients?.create(
+        owner: 'contacts:$id',
+        authority: Uri.parse(config['server'] as String),
+        policy: config.containsKey('trustPolicy')
+            ? NextcloudTrustPolicy.fromJson(config['trustPolicy'])
+            : null,
+      );
+      if (reconnectClient != null) {
+        reconnectClient = AuthorizationLeasedHttpClient(
+          delegate: reconnectClient,
+          runLease: (work) => accountGate.run('contacts:$id', work),
+          validate: () async {
+            if ((await store.read((tx) => tx.account(id)))?.generation !=
+                previous.generation) {
+              throw const ContactsException(
+                ContactsFailure.cancelled,
+                'stale-nextcloud-contact-login',
+              );
+            }
+          },
+        );
+      }
       final flow = NextcloudLoginFlowV2(
         server: Uri.parse(config['server'] as String),
-        client: httpClient,
+        client: reconnectClient ?? httpClient,
         launchBrowser: launchBrowser,
       );
       attempt.onCancel = () {
@@ -1217,6 +1596,7 @@ final class BusyMaxContactsController {
         config['password'] = result.appPassword;
       } finally {
         flow.close();
+        reconnectClient?.close();
       }
     }
     final replacement = ContactAccount(
@@ -1228,7 +1608,12 @@ final class BusyMaxContactsController {
       generation: previous.generation + 1,
       grantedScopes: previous.grantedScopes,
     );
-    final provider = _davProvider(replacement, config);
+    final provider = _davProvider(
+      replacement,
+      config,
+      validationOnly: true,
+      expectedDurableGeneration: previous.generation,
+    );
     final cancellation = ContactsCancellationToken();
     attempt.onCancel = cancellation.cancel;
     try {
@@ -1242,12 +1627,25 @@ final class BusyMaxContactsController {
       provider.close();
     }
     _checkEnrollment(attempt);
+    if (config['nextcloud'] == true) {
+      final acceptedPrevious = _acceptedDavConfig(encoded, previous)
+        ..['authorizationGeneration'] = previous.generation;
+      config['authorizationGeneration'] = replacement.generation;
+      // One accepted snapshot, including accounts predating this envelope.
+      // Never accumulate obsolete credentials/policies in nested histories.
+      config['_previous'] = acceptedPrevious;
+    }
     final next = jsonEncode(config);
     var durable = false;
+    await _detachForReplacement(id);
     try {
-      await writeDavSecret(id, next);
-      _checkEnrollment(attempt);
-      await store.write((tx) => tx.putAccount(replacement));
+      await _commitDavContactSecret(
+        replacement,
+        next,
+        encoded,
+        previous.generation,
+        () => _checkEnrollment(attempt),
+      );
       durable = true;
       attempt.committed = true;
       if (_closed) return;
@@ -1257,7 +1655,11 @@ final class BusyMaxContactsController {
     } on Object catch (error, stack) {
       try {
         if (!durable) {
-          await writeDavSecret(id, encoded);
+          if (!_closed &&
+              (await store.read((tx) => tx.account(id)))?.generation ==
+                  previous.generation) {
+            await _bind(previous);
+          }
         } else {
           await _detachBinding(id);
           await store.write(
@@ -1424,4 +1826,47 @@ Never _throwContactsAuthorizationFailure(
     }, code);
   }
   throw ContactsException(failure, code);
+}
+
+/// Keeps the app-owned TLS challenge available across the contacts adapter's
+/// public error mapping, including cancellable connection establishment.
+final class _CertificateFailureClient extends http.BaseClient
+    implements app_http.TerminatingHttpClient {
+  _CertificateFailureClient(this.delegate, this.onFailure);
+  final http.Client delegate;
+  final void Function(NextcloudCertificateException) onFailure;
+
+  Future<http.StreamedResponse> _capture(
+    Future<http.StreamedResponse> Function() send,
+  ) async {
+    try {
+      return await send();
+    } on NextcloudCertificateException catch (error) {
+      onFailure(error);
+      rethrow;
+    }
+  }
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) =>
+      _capture(() => delegate.send(request));
+
+  @override
+  Future<http.StreamedResponse> sendTerminating(
+    http.BaseRequest request, {
+    required Future<void> terminate,
+    required Duration connectionTimeout,
+  }) => _capture(() {
+    final client = delegate;
+    return client is app_http.TerminatingHttpClient
+        ? client.sendTerminating(
+            request,
+            terminate: terminate,
+            connectionTimeout: connectionTimeout,
+          )
+        : client.send(request);
+  });
+
+  @override
+  void close() => delegate.close();
 }

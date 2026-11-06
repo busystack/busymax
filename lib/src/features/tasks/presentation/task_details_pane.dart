@@ -182,7 +182,9 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
       return const SizedBox.shrink();
     }
     final davCapabilities = switch (account.provider) {
-      BusyProvider.appleICloud || BusyProvider.nextcloud =>
+      BusyProvider.appleICloud ||
+      BusyProvider.nextcloud ||
+      BusyProvider.caldav =>
         ref
             .watch(
               davTaskCollectionCapabilitiesProvider((
@@ -197,7 +199,8 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
     };
     final capabilities = switch (account.provider) {
       BusyProvider.appleICloud ||
-      BusyProvider.nextcloud => davCapabilities ?? noTaskCollectionCapabilities,
+      BusyProvider.nextcloud ||
+      BusyProvider.caldav => davCapabilities ?? noTaskCollectionCapabilities,
       BusyProvider.google || BusyProvider.microsoft =>
         adapterDefaultTaskCapabilities(account.provider),
       BusyProvider.webCal => noTaskCollectionCapabilities,
@@ -976,6 +979,7 @@ String _providerEditorLabel(BuildContext context, BusyProvider provider) {
     BusyProvider.microsoft => l10n.microsoftTodoProvider,
     BusyProvider.appleICloud => 'Apple iCloud',
     BusyProvider.nextcloud => 'Nextcloud Tasks',
+    BusyProvider.caldav => 'CalDAV',
     BusyProvider.webCal => 'WebCal',
   };
 }

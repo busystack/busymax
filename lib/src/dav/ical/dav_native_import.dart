@@ -47,6 +47,10 @@ final class NextcloudNativeImportPreview {
   final List<NativeImportResource> resources;
   final List<NativeImportItemResult> rejected;
   final String? schedulingMethod;
+  bool get hasAttendees => resources.any(
+    (resource) => IcalDocument.parse(resource.rawIcs).calendarComponents
+        .any((component) => component.propertiesNamed('ATTENDEE').isNotEmpty),
+  );
 
   factory NextcloudNativeImportPreview.parse(IcalDocument document) {
     final groups = <(String, String), List<IcalComponent>>{};
@@ -116,8 +120,8 @@ final class NextcloudNativeImportPreview {
   }
 }
 
-final class NextcloudNativeImportService {
-  NextcloudNativeImportService(
+final class DavNativeImportService {
+  DavNativeImportService(
     this.database, {
     String Function()? idFactory,
     DateTime Function()? nowUtc,
@@ -133,6 +137,7 @@ final class NextcloudNativeImportService {
     required NextcloudNativeImportPreview preview,
     NativeImportDuplicates duplicates = NativeImportDuplicates.skip,
     bool normalizeSchedulingMethod = false,
+    bool allowScheduling = false,
   }) async {
     if (preview.schedulingMethod != null && !normalizeSchedulingMethod) {
       throw const DavException(
@@ -141,6 +146,18 @@ final class NextcloudNativeImportService {
         safeMessage:
             'Review importing this scheduling message as stored calendar data.',
       );
+    }
+    if (!allowScheduling && preview.hasAttendees) {
+      final account = await (database.select(
+        database.accounts,
+      )..where((r) => r.id.equals(accountId))).getSingle();
+      if (account.provider == 'caldav') {
+        throw const DavException(
+          kind: DavErrorKind.unsupportedComponent,
+          code: 'IcalSchedulingConsentRequired',
+          safeMessage: 'This CalDAV server may send invitations or meeting updates. Review the import before continuing.',
+        );
+      }
     }
     final replacements = {
       if (duplicates == NativeImportDuplicates.newCopies)
@@ -236,10 +253,10 @@ final class NextcloudNativeImportService {
             database.accounts,
           )..where((r) => r.id.equals(accountId))).getSingle();
           final caps = collectionCapabilitiesFromStored(collection);
-          if (account.provider != 'nextcloud' ||
+          if (!const {'nextcloud', 'caldav'}.contains(account.provider) ||
               !(resource.componentType == 'VEVENT'
-                  ? caps.canCreateEvent
-                  : caps.canCreateTask)) {
+                  ? caps.canAttemptCreateEvent
+                  : caps.canAttemptCreateTask)) {
             return NativeImportItemResult(
               resource.uid,
               resource.componentType,
@@ -304,7 +321,7 @@ final class NextcloudNativeImportService {
             initialMemberName: '${_idFactory()}.ics',
             rawIcs: document.serialize(),
             componentType: resource.componentType,
-            suppressScheduling: true,
+            suppressScheduling: account.provider == 'nextcloud',
           );
           final target = Uri.parse(
             collection.requestUri.endsWith('/')

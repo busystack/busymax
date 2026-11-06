@@ -634,7 +634,7 @@ class TaskDetailsDraft {
     fields['title'] = trimmedTitle;
     final recurrence = creationRecurrence;
     if (recurrence != null && recurrence.rule.repeats) {
-      fields['recurrence'] = recurrence.provider == BusyProvider.nextcloud
+      fields['recurrence'] = recurrence.provider.isDav
           ? jsonDecode(recurrence.rule.toJsonString())
           : EventRecurrenceCodec.encode(
               recurrence.provider,

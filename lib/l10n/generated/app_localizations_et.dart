@@ -14,6 +14,35 @@ class AppLocalizationsEt extends AppLocalizations {
   AppLocalizationsEt([String locale = 'et']) : super(locale);
 
   @override
+  String get caldavSchedulingWarning =>
+      'Sellel sündmusel on osalejaid. Salvestamisel või kustutamisel võib CalDAV-server neile muudatuse sünkroonimisel teavituse saata.';
+
+  @override
+  String get caldavNativeImport =>
+      'Impordi sündmuste ja ülesannete täielikud ressursid. Osalejatega kirjete puhul võib CalDAV-server saata kutseid või koosoleku uuendusi. Olemasolevad UID-d jäetakse vahele, kui sa ei vali uusi koopiaid. Toetamata ressurssidest teatatakse eraldi.';
+
+  @override
+  String get davInsufficientStorage =>
+      'Serveris pole selle kogu loomiseks piisavalt salvestusruumi.';
+
+  @override
+  String get davCollectionPropertyRejected =>
+      'Server lükkas kogu taotletud omaduse tagasi.';
+
+  @override
+  String get davCollectionDiscoveryRequired =>
+      'Värskenda seda kontot, et uuendada serveri võimalusi ja õigusi.';
+
+  @override
+  String get caldavImportSchedulingWarning =>
+      'See fail sisaldab osalejaid. Luban selle impordi, mille tõttu võib CalDAV-server saata kutseid või koosolekute uuendusi.';
+
+  @override
+  String nextcloudCanonicalServerReview(String entered, String canonical) {
+    return 'Nextcloud tagastas serveri $entered jaoks aadressi $canonical. Kas lubada BusyMaxil saata uus rakenduse parool sellele aadressile?';
+  }
+
+  @override
   String get contactsAccountsUnavailable =>
       'Kontaktikontosid ei õnnestunud laadida';
 
@@ -191,6 +220,17 @@ class AppLocalizationsEt extends AppLocalizations {
       'Muudatus salvestati Nextcloudi. Värskendamine on ootel; ära korda muudatust.';
 
   @override
+  String get davRefreshPending =>
+      'Muudatus salvestati CalDAV-serverisse. Värskendamine on ootel; ära korda muudatust.';
+
+  @override
+  String get davCollectionCreationPending =>
+      'Kogumi loomine on ootel. Enne uuesti proovimist sünkrooni see konto; ära korda toimingut.';
+
+  @override
+  String get davCollectionCreationDenied => 'Server ei lubanud kogumit luua.';
+
+  @override
   String get nextcloudOutcomeUnknown =>
       'Serveri tulemust ei saanud kinnitada. Värskenda enne uuesti proovimist.';
 
@@ -241,6 +281,33 @@ class AppLocalizationsEt extends AppLocalizations {
   @override
   String get nextcloudPermanentDeleteWarning =>
       'Kas kustutada jäädavalt? Seda ei saa Nextcloudi kalendriprügikastist taastada.';
+
+  @override
+  String get nextcloudDiscoveryRequired =>
+      'Värskenda seda kontot Nextcloudi võimaluste ja õiguste uuendamiseks.';
+
+  @override
+  String get nextcloudConflict =>
+      'Üksus või selle õigused on muutunud. Värskenda ja kontrolli enne uuesti proovimist.';
+
+  @override
+  String get nextcloudItemUnavailable =>
+      'See üksus pole enam saadaval. Värskenda selle praeguse oleku kontrollimiseks.';
+
+  @override
+  String get nextcloudFederationInvitations => 'Jagatud kalendrite kutsed';
+
+  @override
+  String get nextcloudFederationEmpty =>
+      'Ootel jagatud kalendrite kutseid pole.';
+
+  @override
+  String get nextcloudFederationGrant =>
+      'Jagamine loodi selles serveris. Kaugserveri vastuvõtmine ja sünkroonimine pole kinnitatud.';
+
+  @override
+  String get nextcloudTrashDisabled =>
+      'Kalendri prügikasti säilitamine on selles serveris keelatud.';
 
   @override
   String get nextcloudOperationDenied => 'Nextcloud ei lubanud seda toimingut.';
@@ -3803,4 +3870,113 @@ class AppLocalizationsEt extends AppLocalizations {
   @override
   String get taskDurationRequiresStart =>
       'Määra tähtaeg enne kestusega ülesande alguse eemaldamist.';
+
+  @override
+  String get privateServerCertificates => 'Privaatserverite sertifikaadid';
+
+  @override
+  String get reviewServerCertificate => 'Vaata serveri sertifikaat üle';
+
+  @override
+  String get certificateStandard => 'Tavaline HTTPS';
+
+  @override
+  String get certificatePrivateCa => 'Privaatne sertimiskeskus';
+
+  @override
+  String get certificatePinnedLeaf =>
+      'Kinnitatud iseallkirjastatud sertifikaat';
+
+  @override
+  String get certificateImportCa => 'Impordi privaatne CA';
+
+  @override
+  String get certificateReplacePin => 'Vaata asendussertifikaat üle';
+
+  @override
+  String get certificateUseStandard => 'Taasta tavaline HTTPS';
+
+  @override
+  String get certificateApprove => 'Kinnita see sertifikaadipoliitika';
+
+  @override
+  String get certificateReject => 'Keeldu';
+
+  @override
+  String get certificatePrevious => 'Varem kinnitatud sertifikaadid';
+
+  @override
+  String get certificateInvalid =>
+      'Vigane sertifikaat või privaatse CA seadistus';
+
+  @override
+  String get certificateFirstUseWarning =>
+      'Krüptimine üksi ei kinnita esmakasutusel serveri identiteeti. Võrdle SHA-256 sõrmejälge administraatoriga sõltumatu usaldusväärse kanali kaudu enne kinnitamist.';
+
+  @override
+  String get certificateRenewalHelp =>
+      'Eelista privaatset CA-d: selle all saab serveri sertifikaate uuendada. Kinnitatud sertifikaadi iga muudatus vajab ülevaatust, ka sama võtmega. Avalikud sertifikaadid uuenevad tavaliselt.';
+
+  @override
+  String get certificateBrowserBoundary =>
+      'Autoriseerimine toimub välises brauseris. BusyMaxi kinnitus ei seadista brauseri usaldust; brauser peab serverit eraldi usaldama.';
+
+  @override
+  String certificateDetails(
+    String subject,
+    String issuer,
+    String notBefore,
+    String notAfter,
+    String fingerprint,
+  ) {
+    return 'Omanik: $subject\nVäljastaja: $issuer\nKehtiv alates: $notBefore\nKehtiv kuni: $notAfter\nSHA-256 sõrmejälg: $fingerprint';
+  }
+
+  @override
+  String certificateFailure(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'approvalRequired': 'Vajalik on kinnitus',
+      'pinMismatch': 'Kinnitatud sertifikaat muutus',
+      'expired': 'Sertifikaat on aegunud',
+      'notYetValid': 'Sertifikaat ei kehti veel',
+      'hostnameMismatch': 'Serveri nimi ei vasta sertifikaadile',
+      'invalidPolicy': 'Vigane privaatse CA seadistus',
+      'ineligible': 'Sobimatu sertifikaat',
+      'verificationFailed': 'TLS-i kontroll nurjus',
+      'other': 'TLS-i kontroll nurjus',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get addCalDavAccount => 'Lisa CalDAV-konto';
+
+  @override
+  String get caldavServerUrl => 'Serveri URL';
+
+  @override
+  String get caldavUsername => 'Kasutajanimi';
+
+  @override
+  String get caldavPassword => 'Parool või rakenduse parool';
+
+  @override
+  String get caldavInvalidServerUrl =>
+      'Sisesta HTTPS-aadress ilma kasutajaandmete, päringu või fragmendita.';
+
+  @override
+  String get caldavHttpsHelp =>
+      'Sisesta serveri HTTPS-aadress või otsene CalDAV-aadress. Parool salvestatakse turvaliselt.';
+
+  @override
+  String get davPermissionsUnknown =>
+      'Server pole õigusi teatanud. Server kontrollib taotletud muudatusi.';
+
+  @override
+  String get localNetworkAccessRequired =>
+      'Vajalik on juurdepääs kohalikule võrgule';
+
+  @override
+  String get localNetworkAccessRecovery =>
+      'Selle serveriga ühenduse loomiseks luba BusyMaxile Androidi seadetes juurdepääs lähedalasuvatele seadmetele ja proovi uuesti.';
 }

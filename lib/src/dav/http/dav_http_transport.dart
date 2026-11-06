@@ -159,6 +159,9 @@ final class DavHttpTransport {
   final shared.DavHttpTransport _transport;
   Set<String> _serverFeatures = const {};
 
+  bool get supportsImplicitScheduling =>
+      _serverFeatures.contains('calendar-auto-schedule');
+
   /// Nextcloud's negotiated calendar cache extension remains provider policy,
   /// not a generic behavior of the shared transport.
   void setServerFeatures(Iterable<String> features) {

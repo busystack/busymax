@@ -1,3 +1,5 @@
+import '../../../dav/mutation/dav_event_move_policy.dart';
+import '../../../dav/mutation/dav_conditional_mutation_service.dart';
 import '../domain/event_property_policy.dart';
 
 import 'dart:convert';
@@ -13,6 +15,8 @@ import '../../../calendar_providers/calendar_create_identity.dart';
 import '../../../calendar_providers/calendar_mutation.dart';
 import '../../../calendar_providers/calendar_provider_capabilities.dart';
 import '../../../dav/storage/dav_collection_capabilities.dart';
+import '../../../dav/dav_errors.dart';
+import '../../../dav/mutation/dav_collection_administration.dart';
 import '../../../dav/nextcloud/nextcloud_collection_service.dart';
 import '../../../dav/nextcloud/nextcloud_dav_context.dart';
 import '../../../dav/xml/dav_xml.dart';
@@ -91,11 +95,13 @@ class CalendarSourceEntity {
     this.davCollectionId,
     this.allowedConferenceSolutions = const [],
     this.davEffectivePermissions = const {},
+    this.davSchedulingPrincipal,
   });
 
   factory CalendarSourceEntity.fromRow(
     CalendarSource row, {
     DavCollection? davCollection,
+    DavAccountService? davService,
     String? authenticatedAccountEmail,
     bool pendingCreate = false,
   }) {
@@ -122,11 +128,21 @@ class CalendarSourceEntity {
       authenticatedAccountEmail: authenticatedAccountEmail,
       pendingCreate: pendingCreate,
       davCollectionId: row.davCollectionId,
+      davSchedulingPrincipal: davCollection == null
+          ? null
+          : davSchedulingPrincipalForCollection(
+              davCollection,
+              service: davService,
+            ),
       allowedConferenceSolutions: _conferenceSolutions(row.rawJson),
-      davEffectivePermissions: row.provider == 'nextcloud'
+      davEffectivePermissions:
+          const {'nextcloud', 'apple_icloud', 'caldav'}.contains(row.provider)
           ? (davCollection == null
                 ? _jsonMap(row.rawJson)
-                : davSourcePermissionProjection(davCollection))
+                : davSourcePermissionProjection(
+                    davCollection,
+                    service: davService,
+                  ))
           : const {},
     );
   }
@@ -134,6 +150,10 @@ class CalendarSourceEntity {
   final String id;
   final String accountId;
   final BusyProvider provider;
+  bool get isMixedDavCollection =>
+      provider.isDav &&
+      davEffectivePermissions['supportedComponentMask'] is int &&
+      (davEffectivePermissions['supportedComponentMask'] as int) & 3 == 3;
   final String providerCalendarId;
   final String summary;
   final bool selected;
@@ -155,6 +175,11 @@ class CalendarSourceEntity {
   final String? davCollectionId;
   final List<String> allowedConferenceSolutions;
   final Map<String, Object?> davEffectivePermissions;
+  final Uri? davSchedulingPrincipal;
+
+  bool get usesImplicitScheduling =>
+      provider == BusyProvider.caldav &&
+      davEffectivePermissions['implicitScheduling'] == true;
 
   CalendarSourceCapabilities get capabilities =>
       CalendarSourceCapabilities.fromSource(this);
@@ -194,6 +219,7 @@ class CalendarSourceCapabilities {
     required this.canDeleteCalendar,
     required this.canChangeCalendarColor,
     required this.canChangeProviderVisibility,
+    this.canExportCalendar = false,
     required this.renameMode,
     required this.removalMode,
   });
@@ -209,11 +235,19 @@ class CalendarSourceCapabilities {
             null;
     final management = calendarManagementCapabilities(source.provider);
     final dav = source.davEffectivePermissions;
-    final davMetadataWritable = available && dav['canWriteProperties'] == true;
+    final davMetadataWritable =
+        available &&
+        (dav['canWriteProperties'] == true ||
+            source.provider == BusyProvider.caldav &&
+                dav['permissionsKnown'] == false);
     final parentPrivileges = (dav['parentPrivileges'] as List? ?? [])
         .whereType<String>()
         .toSet();
-    final davRemovable = available && davPrivilege(parentPrivileges, 'unbind');
+    final davRemovable =
+        available &&
+        (davPrivilege(parentPrivileges, 'unbind') ||
+            source.provider == BusyProvider.caldav &&
+                dav['parentPrivilegesKnown'] == 'false');
     final receivedShare =
         dav['delegated'] != true &&
         dav['ownerHref'] != null &&
@@ -223,8 +257,8 @@ class CalendarSourceCapabilities {
             Uri.parse(dav['principalHref']! as String).path
                 .replaceFirst(RegExp(r'/+$'), '');
     final renameMode = switch (source.provider) {
-      BusyProvider.nextcloud when davMetadataWritable =>
-        CalendarRenameMode.global,
+      BusyProvider.nextcloud ||
+      BusyProvider.caldav when davMetadataWritable => CalendarRenameMode.global,
       BusyProvider.google || BusyProvider.microsoft
           when available && source.pendingCreate =>
         CalendarRenameMode.global,
@@ -237,7 +271,19 @@ class CalendarSourceCapabilities {
       _ => CalendarRenameMode.unavailable,
     };
     final removalMode = switch (source.provider) {
-      BusyProvider.nextcloud when davRemovable =>
+      // Generic CalDAV has no standard shared-calendar unsubscribe operation.
+      BusyProvider.caldav
+          when davCollectionOwnershipFromHrefs(
+                ownerHref: dav['ownerHref'] as String?,
+                principalHref:
+                    (dav['accountPrincipalHref'] ?? dav['principalHref'])
+                        as String?,
+                shared: dav['shared'] == true,
+                delegated: dav['delegated'] == true,
+              ) !=
+              DavCollectionOwnership.owned =>
+        CalendarRemovalMode.unavailable,
+      BusyProvider.nextcloud || BusyProvider.caldav when davRemovable =>
         receivedShare
             ? CalendarRemovalMode.removeFromList
             : CalendarRemovalMode.delete,
@@ -265,16 +311,27 @@ class CalendarSourceCapabilities {
       _ => CalendarRemovalMode.unavailable,
     };
     return CalendarSourceCapabilities(
-      canCreateEvents: source.provider == BusyProvider.nextcloud
+      canExportCalendar:
+          available &&
+          source.davCollectionId != null &&
+          management.supportsNativeExport,
+      canCreateEvents: source.provider.isDav
           ? available &&
-                source.davEffectivePermissions['canCreateEvents'] == true
+                (source.davEffectivePermissions['canAttemptCreateEvents'] ??
+                        source.davEffectivePermissions['canCreateEvents']) ==
+                    true
           : writable,
-      canEditEvents: source.provider == BusyProvider.nextcloud
-          ? available && source.davEffectivePermissions['canEditEvents'] == true
-          : writable,
-      canDeleteEvents: source.provider == BusyProvider.nextcloud
+      canEditEvents: source.provider.isDav
           ? available &&
-                source.davEffectivePermissions['canDeleteEvents'] == true
+                (source.davEffectivePermissions['canAttemptEditEvents'] ??
+                        source.davEffectivePermissions['canEditEvents']) ==
+                    true
+          : writable,
+      canDeleteEvents: source.provider.isDav
+          ? available &&
+                (source.davEffectivePermissions['canAttemptDeleteEvents'] ??
+                        source.davEffectivePermissions['canDeleteEvents']) ==
+                    true
           : writable,
       canRenameCalendar:
           management.supportsRename &&
@@ -284,7 +341,8 @@ class CalendarSourceCapabilities {
           removalMode == CalendarRemovalMode.delete,
       canChangeCalendarColor:
           management.supportsColor &&
-          (source.provider == BusyProvider.nextcloud
+          (source.provider == BusyProvider.nextcloud ||
+                  source.provider == BusyProvider.caldav
               ? davMetadataWritable
               : source.provider == BusyProvider.google
               ? available
@@ -317,6 +375,7 @@ class CalendarSourceCapabilities {
   final bool canDeleteCalendar;
   final bool canChangeCalendarColor;
   final bool canChangeProviderVisibility;
+  final bool canExportCalendar;
   final CalendarRenameMode renameMode;
   final CalendarRemovalMode removalMode;
 
@@ -373,11 +432,13 @@ class CalendarRepository {
   CalendarRepository({
     required AppDatabase database,
     NextcloudCollectionService Function(String accountId)? nextcloudCollections,
+    DavCollectionAdministration Function(String accountId)? genericCollections,
     DateTime Function()? now,
     String? localTimeZone,
     Future<void> Function()? onNotificationScheduleChanged,
   }) : _database = database,
        _nextcloudCollections = nextcloudCollections,
+       _genericCollections = genericCollections,
        _now = now ?? DateTime.now,
        _localTimeZone = localTimeZone,
        _onNotificationScheduleChanged = onNotificationScheduleChanged;
@@ -385,6 +446,8 @@ class CalendarRepository {
   final AppDatabase _database;
   final NextcloudCollectionService Function(String accountId)?
   _nextcloudCollections;
+  final DavCollectionAdministration Function(String accountId)?
+  _genericCollections;
   final DateTime Function() _now;
   final String? _localTimeZone;
   final Future<void> Function()? _onNotificationScheduleChanged;
@@ -400,6 +463,12 @@ class CalendarRepository {
         _database.davCollections,
         _database.davCollections.id.equalsExp(
           _database.calendarSources.davCollectionId,
+        ),
+      ),
+      leftOuterJoin(
+        _database.davAccountServices,
+        _database.davAccountServices.accountId.equalsExp(
+          _database.calendarSources.accountId,
         ),
       ),
       innerJoin(
@@ -428,6 +497,7 @@ class CalendarRepository {
           CalendarSourceEntity.fromRow(
             result.readTable(_database.calendarSources),
             davCollection: result.readTableOrNull(_database.davCollections),
+            davService: result.readTableOrNull(_database.davAccountServices),
             authenticatedAccountEmail: result
                 .readTable(_database.accounts)
                 .email,
@@ -448,6 +518,12 @@ class CalendarRepository {
         _database.davCollections,
         _database.davCollections.id.equalsExp(
           _database.calendarSources.davCollectionId,
+        ),
+      ),
+      leftOuterJoin(
+        _database.davAccountServices,
+        _database.davAccountServices.accountId.equalsExp(
+          _database.calendarSources.accountId,
         ),
       ),
       innerJoin(
@@ -475,6 +551,7 @@ class CalendarRepository {
         CalendarSourceEntity.fromRow(
           result.readTable(_database.calendarSources),
           davCollection: result.readTableOrNull(_database.davCollections),
+          davService: result.readTableOrNull(_database.davAccountServices),
           authenticatedAccountEmail: result.readTable(_database.accounts).email,
           pendingCreate: result.readTableOrNull(_database.pendingOps) != null,
         ),
@@ -538,6 +615,9 @@ class CalendarRepository {
           : await (_database.select(_database.davCollections)
                   ..where((r) => r.id.equals(source.davCollectionId!)))
                 .getSingleOrNull(),
+      davService: await (_database.select(
+        _database.davAccountServices,
+      )..where((r) => r.accountId.equals(source.accountId))).getSingleOrNull(),
       authenticatedAccountEmail: account.email,
       pendingCreate: await _pendingCalendarCreate(source.id) != null,
     );
@@ -624,6 +704,7 @@ class CalendarRepository {
     required String summary,
   }) async {
     final title = summary.trim();
+
     if (title.isEmpty) {
       throw ArgumentError.value(summary, 'summary', 'Calendar title is empty.');
     }
@@ -701,6 +782,21 @@ class CalendarRepository {
       allowed: entity.capabilities.canRenameCalendar,
     );
     final title = summary.trim();
+    if (entity.provider == BusyProvider.caldav) {
+      final administration = _genericCollections?.call(source.accountId);
+      if (administration == null || source.davCollectionId == null) {
+        throw UnsupportedError(
+          'CalDAV collection administration is unavailable.',
+        );
+      }
+      final result = await administration.update(source.davCollectionId!, {
+        const DavPropertyName(davNamespace, 'displayname'): title,
+      });
+      if (result == DavCollectionAdministrationOutcome.refreshPending) {
+        throw const DavRefreshPending();
+      }
+      return;
+    }
     if (entity.provider == BusyProvider.nextcloud) {
       final result = await _requiredNextcloudCollections(source).update(
         source.davCollectionId!,
@@ -784,6 +880,22 @@ class CalendarRepository {
           candidate.backgroundColor.toLowerCase() ==
               choice.backgroundColor.toLowerCase(),
     );
+    if (entity.provider == BusyProvider.caldav && supportedChoice) {
+      final administration = _genericCollections?.call(source.accountId);
+      if (administration == null || source.davCollectionId == null) {
+        throw UnsupportedError(
+          'CalDAV collection administration is unavailable.',
+        );
+      }
+      final result = await administration.update(source.davCollectionId!, {
+        const DavPropertyName(appleIcalNamespace, 'calendar-color'):
+            choice.backgroundColor,
+      });
+      if (result == DavCollectionAdministrationOutcome.refreshPending) {
+        throw const DavRefreshPending();
+      }
+      return;
+    }
     if (entity.provider == BusyProvider.nextcloud && supportedChoice) {
       final result = await _requiredNextcloudCollections(source)
           .update(source.davCollectionId!, {
@@ -816,7 +928,9 @@ class CalendarRepository {
       BusyProvider.microsoft => <String, Object?>{
         'colorId': choice.providerValue,
       },
-      BusyProvider.appleICloud || BusyProvider.nextcloud => throw StateError(
+      BusyProvider.appleICloud ||
+      BusyProvider.nextcloud ||
+      BusyProvider.caldav => throw StateError(
         'DAV calendar colors are not mutable.',
       ),
       BusyProvider.webCal => throw StateError(
@@ -854,6 +968,24 @@ class CalendarRepository {
       _database.calendarSources,
     )..where((row) => row.id.equals(sourceId))).getSingle();
     final entity = await _sourceEntity(source);
+    if (entity.provider == BusyProvider.caldav) {
+      _requireCalendarSourceCapability(
+        source,
+        operation: CalendarMutationOperation.deleteCalendar,
+        allowed: entity.capabilities.canDeleteCalendar,
+      );
+      final administration = _genericCollections?.call(source.accountId);
+      if (administration == null || source.davCollectionId == null) {
+        throw UnsupportedError(
+          'CalDAV collection administration is unavailable.',
+        );
+      }
+      final result = await administration.remove(source.davCollectionId!);
+      if (result == DavCollectionAdministrationOutcome.refreshPending) {
+        throw const DavRefreshPending();
+      }
+      return;
+    }
     if (entity.provider == BusyProvider.nextcloud) {
       final result = await _requiredNextcloudCollections(source)
           .remove(source.davCollectionId!);
@@ -1492,6 +1624,7 @@ class CalendarRepository {
         }
       case BusyProvider.appleICloud ||
           BusyProvider.nextcloud ||
+          BusyProvider.caldav ||
           BusyProvider.webCal:
         break;
     }
@@ -1506,6 +1639,7 @@ class CalendarRepository {
       ),
       BusyProvider.appleICloud ||
       BusyProvider.nextcloud ||
+      BusyProvider.caldav ||
       BusyProvider.webCal => throw StateError(
         'Provider event recovery is unavailable for ${provider.storageValue}.',
       ),
@@ -1531,6 +1665,7 @@ class CalendarRepository {
             _hasNonEmptyValue(end, 'dateTime'),
       BusyProvider.appleICloud ||
       BusyProvider.nextcloud ||
+      BusyProvider.caldav ||
       BusyProvider.webCal => false,
     };
   }
@@ -1575,6 +1710,7 @@ class CalendarRepository {
       BusyProvider.microsoft => baseline['name']?.toString(),
       BusyProvider.appleICloud ||
       BusyProvider.nextcloud ||
+      BusyProvider.caldav ||
       BusyProvider.webCal => null,
     };
     final baselineColorId = switch (provider) {
@@ -1582,6 +1718,7 @@ class CalendarRepository {
       BusyProvider.microsoft => baseline['color']?.toString(),
       BusyProvider.appleICloud ||
       BusyProvider.nextcloud ||
+      BusyProvider.caldav ||
       BusyProvider.webCal => null,
     };
     final baselineBackground = switch (provider) {
@@ -1593,6 +1730,7 @@ class CalendarRepository {
       ),
       BusyProvider.appleICloud ||
       BusyProvider.nextcloud ||
+      BusyProvider.caldav ||
       BusyProvider.webCal => null,
     };
     await (_database.update(
@@ -1956,6 +2094,7 @@ class CalendarRepository {
             microsoftCalendarCreateTransactionId(operationId);
       case BusyProvider.appleICloud:
       case BusyProvider.nextcloud:
+      case BusyProvider.caldav:
       case BusyProvider.webCal:
         break;
     }
@@ -2635,7 +2774,7 @@ class CalendarRepository {
     }
     await _requireEventReadyToMove(existing);
 
-    final strategy = calendarEventMoveStrategy(
+    var strategy = calendarEventMoveStrategy(
       sourceAccountId: originalSource.accountId,
       sourceId: originalSource.id,
       sourceProviderCalendarId: originalSource.providerCalendarId,
@@ -2650,6 +2789,29 @@ class CalendarRepository {
       recurring: recurring,
       recurringScope: scope,
     );
+    if (sourceProvider.isDav &&
+        destinationProvider.isDav &&
+        originalSource.davCollectionId != null &&
+        destinationSource.davCollectionId != null &&
+        (!recurring || scope == RecurringEventMutationScope.entireSeries)) {
+      final sourceCollection =
+          await (_database.select(_database.davCollections)
+                ..where((r) => r.id.equals(originalSource.davCollectionId!)))
+              .getSingle();
+      final destinationCollection =
+          await (_database.select(_database.davCollections)
+                ..where((r) => r.id.equals(destinationSource.davCollectionId!)))
+              .getSingle();
+      if (await sameDavSchedulingIdentity(
+        _database,
+        sourceCollection,
+        destinationCollection,
+      )) {
+        // A duplicate account record does not change the server-side operation.
+        // The source credential must authorize the atomic MOVE at the server.
+        strategy = CalendarEventMoveStrategy.davNative;
+      }
+    }
     switch (strategy) {
       case CalendarEventMoveStrategy.none:
         throw StateError('The destination calendar is unchanged.');
@@ -2856,12 +3018,6 @@ class CalendarRepository {
     required CalendarEvent existing,
     required EventEditorDraft draft,
   }) async {
-    final scheduling = await _davSchedulingPolicy(originalSource);
-    _requireDavSchedulingUnchanged(
-      draft,
-      creating: false,
-      scheduling: scheduling,
-    );
     final sourceCollectionId = originalSource.davCollectionId;
     final destinationCollectionId = destinationSource.davCollectionId;
     final objectId = existing.davObjectId;
@@ -2876,16 +3032,122 @@ class CalendarRepository {
         end == null) {
       throw StateError('The DAV event is not ready to move.');
     }
+    final mutation = await _davEventMoveCandidate(
+      originalSource: originalSource,
+      destinationSource: destinationSource,
+      existing: existing,
+      draft: draft,
+    );
+    final queue = mutation.queue;
+    final target = mutation.target;
+    final patch = mutation.patch;
+    final candidate = mutation.candidate;
+    await _database.transaction(() async {
+      await queue.enqueueMove(
+        accountId: existing.accountId,
+        sourceCollectionId: sourceCollectionId,
+        destinationCollectionId: destinationCollectionId,
+        destinationAccountId: destinationSource.accountId,
+        objectId: objectId,
+        target: target,
+        localProjectionId: existing.id,
+        postMovePatch: patch,
+      );
+      await DavObjectRepository(database: _database)
+          .projectLocalMutationCandidate(
+            accountId: existing.accountId,
+            collectionId: sourceCollectionId,
+            provider: BusyProviderCodec.requireStorageValue(
+              originalSource.provider,
+            ),
+            objectId: objectId,
+            candidateRawIcs: candidate,
+            projectedAtUtc: _now().toUtc(),
+          );
+      await (_database.update(_database.calendarEvents)..where(
+            (row) =>
+                row.accountId.equals(existing.accountId) &
+                row.davObjectId.equals(objectId),
+          ))
+          .write(
+            CalendarEventsCompanion(
+              calendarSourceId:
+                  originalSource.accountId == destinationSource.accountId
+                  ? Value(destinationSource.id)
+                  : const Value.absent(),
+              providerCalendarId:
+                  originalSource.accountId == destinationSource.accountId
+                  ? Value(destinationSource.providerCalendarId)
+                  : const Value.absent(),
+              davCollectionId:
+                  originalSource.accountId == destinationSource.accountId
+                  ? Value(destinationCollectionId)
+                  : const Value.absent(),
+              syncStatus: const Value('pending'),
+              updatedAtLocal: Value(_now().millisecondsSinceEpoch),
+            ),
+          );
+    });
+    await _rebuildEventNotificationsFor({existing.accountId});
+  }
+
+  Future<
+    ({
+      DavPendingOperationQueue queue,
+      String baseline,
+      IcalComponentKey target,
+      DavMutationPatch? patch,
+      String candidate,
+    })
+  >
+  _davEventMoveCandidate({
+    required CalendarSource originalSource,
+    required CalendarSource destinationSource,
+    required CalendarEvent existing,
+    required EventEditorDraft draft,
+  }) async {
+    final scheduling = await _davSchedulingPolicy(originalSource);
+    _requireDavSchedulingUnchanged(
+      draft,
+      creating: false,
+      scheduling: scheduling,
+    );
+    final sourceCollectionId = originalSource.davCollectionId!;
+    final objectId = existing.davObjectId!;
+    final uid = existing.icalUid!;
+    final start = draft.start!;
+    final end = draft.end!;
     final queue = DavPendingOperationQueue(
       database: _database,
       nowUtc: () => _now().toUtc(),
     );
-    final baselineRawIcs = await queue.editableRawIcsForObject(
+    var baselineRawIcs = await queue.editableRawIcsForObject(
       accountId: existing.accountId,
       collectionId: sourceCollectionId,
       objectId: objectId,
     );
     final recurring = _eventRequiresRecurringScope(existing);
+    final singleOccurrence =
+        recurring &&
+        draft.recurringMutationScope ==
+            RecurringEventMutationScope.singleOccurrence;
+    if (singleOccurrence) {
+      final component = detachedDavEventOccurrence(
+        baselineRawIcs: baselineRawIcs,
+        uid: uid,
+        occurrenceKey: existing.occurrenceKey!,
+      );
+      component.children.removeWhere(
+        (node) => node is IcalProperty && node.name == 'RECURRENCE-ID',
+      );
+      final document = IcalDocument.parse(baselineRawIcs);
+      document.root.children.removeWhere(
+        (node) => node is IcalComponent && node.name == 'VEVENT',
+      );
+      document.root.children.add(component);
+      document.root.structurallyDirty = true;
+      baselineRawIcs = document.serialize();
+    }
     final target = IcalComponentKey(
       componentType: 'VEVENT',
       uid: uid,
@@ -2911,7 +3173,7 @@ class CalendarRepository {
       scheduling: scheduling,
       nowUtc: _now().toUtc(),
     );
-    if (recurring) {
+    if (recurring && !singleOccurrence) {
       input = _seriesDavEventInput(
         baselineRawIcs: baselineRawIcs,
         uid: uid,
@@ -2927,43 +3189,13 @@ class CalendarRepository {
     final candidate =
         patch?.applyTo(baselineRawIcs, nowUtc: _now().toUtc()) ??
         baselineRawIcs;
-    await _database.transaction(() async {
-      await queue.enqueueMove(
-        accountId: existing.accountId,
-        sourceCollectionId: sourceCollectionId,
-        destinationCollectionId: destinationCollectionId,
-        objectId: objectId,
-        target: target,
-        localProjectionId: existing.id,
-        postMovePatch: patch,
-      );
-      await DavObjectRepository(database: _database)
-          .projectLocalMutationCandidate(
-            accountId: existing.accountId,
-            collectionId: sourceCollectionId,
-            provider: BusyProviderCodec.requireStorageValue(
-              originalSource.provider,
-            ),
-            objectId: objectId,
-            candidateRawIcs: candidate,
-            projectedAtUtc: _now().toUtc(),
-          );
-      await (_database.update(_database.calendarEvents)..where(
-            (row) =>
-                row.accountId.equals(existing.accountId) &
-                row.davObjectId.equals(objectId),
-          ))
-          .write(
-            CalendarEventsCompanion(
-              calendarSourceId: Value(destinationSource.id),
-              providerCalendarId: Value(destinationSource.providerCalendarId),
-              davCollectionId: Value(destinationCollectionId),
-              syncStatus: const Value('pending'),
-              updatedAtLocal: Value(_now().millisecondsSinceEpoch),
-            ),
-          );
-    });
-    await _rebuildEventNotificationsFor({existing.accountId});
+    return (
+      queue: queue,
+      baseline: baselineRawIcs,
+      target: target,
+      patch: patch,
+      candidate: candidate,
+    );
   }
 
   Future<void> _copyThenDeleteLocalEvent({
@@ -2975,11 +3207,37 @@ class CalendarRepository {
     required BusyProvider destinationProvider,
     required CalendarGuestUpdatePolicy guestUpdatePolicy,
   }) async {
-    if ((sourceProvider == BusyProvider.nextcloud ||
-            destinationProvider == BusyProvider.nextcloud) &&
-        (_jsonMapList(existing.attendeesJson).isNotEmpty ||
+    String? nativeSource;
+    if (sourceProvider.isDav && existing.davObjectId != null) {
+      nativeSource = await DavPendingOperationQueue(database: _database)
+          .editableRawIcsForObject(
+            accountId: existing.accountId,
+            collectionId: originalSource.davCollectionId!,
+            objectId: existing.davObjectId!,
+          );
+    }
+    if ((sourceProvider.isDav || destinationProvider.isDav) &&
+        ((nativeSource != null &&
+                davResourceHasSchedulingIdentity(nativeSource)) ||
+            _jsonMapList(existing.attendeesJson).isNotEmpty ||
             draft.attendees.isNotEmpty)) {
       throw schedulingDenied('DavMeetingCopyDeleteUnsupported');
+    }
+    if (nativeSource != null &&
+        (destinationProvider == BusyProvider.caldav ||
+            destinationProvider == BusyProvider.nextcloud)) {
+      await _transferDavEventResource(
+        originalSource: originalSource,
+        destinationSource: destinationSource,
+        existing: existing,
+        draft: draft,
+      );
+      return;
+    }
+    if (sourceProvider == BusyProvider.caldav && nativeSource != null) {
+      throw UnsupportedError(
+        'This destination cannot preserve the complete event. Choose a CalDAV calendar.',
+      );
     }
     final effectiveSelection = await _eventMoveLocationSelection(
       draft,
@@ -3028,6 +3286,70 @@ class CalendarRepository {
     );
     await _rebuildEventNotificationsFor({
       originalSource.accountId,
+      destinationSource.accountId,
+    });
+  }
+
+  Future<void> _transferDavEventResource({
+    required CalendarSource originalSource,
+    required CalendarSource destinationSource,
+    required CalendarEvent existing,
+    required EventEditorDraft draft,
+  }) async {
+    final mutation = await _davEventMoveCandidate(
+      originalSource: originalSource,
+      destinationSource: destinationSource,
+      existing: existing,
+      draft: draft,
+    );
+    final memberName = '${const Uuid().v4()}.ics';
+    final collection =
+        await (_database.select(_database.davCollections)
+              ..where((r) => r.id.equals(destinationSource.davCollectionId!)))
+            .getSingle();
+    final destinationUri = Uri.parse(
+      collection.requestUri.endsWith('/')
+          ? collection.requestUri
+          : '${collection.requestUri}/',
+    ).resolve(memberName);
+    final object = DavNewObject(
+      uid: existing.icalUid!,
+      initialMemberName: memberName,
+      rawIcs: mutation.candidate,
+      componentType: 'VEVENT',
+    );
+    await _database.transaction(() async {
+      final localObjectId = await DavObjectRepository(database: _database)
+          .projectPendingImport(
+            accountId: destinationSource.accountId,
+            collectionId: collection.id,
+            object: DavPreparedObject.parse(
+              hrefKey: destinationUri.path,
+              requestUri: destinationUri,
+              etag: null,
+              contentType: 'text/calendar',
+              rawIcsBody: object.rawIcs,
+            ),
+            nowUtc: _now().toUtc(),
+          );
+      final createOperationId = await mutation.queue.enqueueCreate(
+        accountId: destinationSource.accountId,
+        collectionId: collection.id,
+        object: object,
+        localObjectId: localObjectId,
+      );
+      await _queueDavEventDeletionAfterCopy(
+        source: originalSource,
+        existing: existing,
+        recurringScope: draft.recurringMutationScope,
+        dependsOnOperationId: createOperationId,
+      );
+      await (_database.update(_database.calendarEvents)
+            ..where((r) => r.davObjectId.equals(existing.davObjectId!)))
+          .write(const CalendarEventsCompanion(syncStatus: Value('pending')));
+    });
+    await _rebuildEventNotificationsFor({
+      existing.accountId,
       destinationSource.accountId,
     });
   }
@@ -6100,6 +6422,7 @@ CalendarEventsCompanion _eventPatchProjection({
           request.containsKey('structuredLocation'),
     BusyProvider.appleICloud ||
     BusyProvider.nextcloud ||
+    BusyProvider.caldav ||
     BusyProvider.webCal => false,
   };
   return CalendarEventsCompanion(
@@ -6419,6 +6742,7 @@ Object? _conferenceRequest(EventEditorDraft draft, BusyProvider provider) {
     BusyProvider.microsoft => 'teamsForBusiness',
     BusyProvider.appleICloud ||
     BusyProvider.nextcloud ||
+    BusyProvider.caldav ||
     BusyProvider.webCal => null,
   };
 }
@@ -6575,6 +6899,7 @@ Map<String, Object?> _optimisticEventRaw(
       }
     case BusyProvider.appleICloud:
     case BusyProvider.nextcloud:
+    case BusyProvider.caldav:
     case BusyProvider.webCal:
       break;
   }
@@ -6652,6 +6977,7 @@ Map<String, Object?> _optimisticEventRawForPatch(
       );
     case BusyProvider.appleICloud:
     case BusyProvider.nextcloud:
+    case BusyProvider.caldav:
     case BusyProvider.webCal:
       break;
   }

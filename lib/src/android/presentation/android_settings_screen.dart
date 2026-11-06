@@ -1,3 +1,6 @@
+import '../../features/sync/all_accounts_sync_scheduler.dart';
+import 'android_nextcloud_certificate_dialog.dart';
+import '../../ui/common/nextcloud_certificate_review.dart';
 import 'android_contacts_settings.dart';
 import '../../l10n/oauth_error_description.dart';
 
@@ -8,6 +11,9 @@ import 'android_registration_setup_dialog.dart';
 import '../../core/auth/oauth_registration.dart';
 
 import 'dart:async';
+
+import '../../features/settings/presentation/account_collection_creation_feedback.dart';
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -22,10 +28,13 @@ import '../../app/app_bootstrap.dart';
 import '../../calendar_providers/calendar_colors.dart';
 import '../../core/auth/oauth_models.dart';
 import '../../dav/dav_errors.dart';
+import '../../dav/auth/caldav_material_dialog.dart';
 import '../../dav/http/dav_http_transport.dart';
 import '../../dav/mutation/dav_conflict_repository.dart';
 import '../../dav/nextcloud/nextcloud_sharing_service.dart';
 import '../../dav/nextcloud/nextcloud_trash_service.dart';
+import '../../dav/nextcloud/nextcloud_federation_controller.dart';
+import '../../l10n/nextcloud_collection_error_description.dart';
 import '../../features/accounts/data/accounts_repository.dart';
 import '../../features/accounts/domain/account_collection_creation_capabilities.dart';
 import '../../features/calendar/data/calendar_repository.dart';
@@ -138,6 +147,17 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                     widget.notificationAccountId == null ||
                     account.id == widget.notificationAccountId,
               )) ...[
+                if (account.provider.isDav &&
+                    ref
+                        .watch(
+                          accountCollectionCreationFailuresProvider(account.id),
+                        )
+                        .isNotEmpty)
+                  AccountCollectionCreationFeedback(
+                    accountId: account.id,
+                    dismissButtonBuilder: (_, onPressed, label) =>
+                        TextButton(onPressed: onPressed, child: Text(label)),
+                  ),
                 if (account.provider == BusyProvider.microsoft ||
                     account.provider == BusyProvider.google)
                   _AndroidRegistrationCard(
@@ -147,7 +167,20 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                 ListTile(
                   leading: Icon(_providerIcon(account.provider)),
                   title: Text(account.displayLabel),
-                  subtitle: Text(_accountSubtitle(account)),
+                  subtitle: Text(
+                    account.provider == BusyProvider.nextcloud &&
+                            (ref
+                                        .watch(
+                                          nextcloudPendingInvitationCountProvider(
+                                            account.id,
+                                          ),
+                                        )
+                                        .valueOrNull ??
+                                    0) >
+                                0
+                        ? '${_accountSubtitle(account)} • ${context.l10n.nextcloudFederationInvitations} (${ref.watch(nextcloudPendingInvitationCountProvider(account.id)).valueOrNull ?? 0})'
+                        : _accountSubtitle(account),
+                  ),
                   trailing: _removing.contains(account.id)
                       ? const SizedBox.square(
                           dimension: 22,
@@ -316,6 +349,36 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                   ),
                   onTap: () => unawaited(_editTaskList(list, accounts)),
                 ),
+              for (final collection
+                  in ref.watch(davCollectionsStreamProvider).valueOrNull ??
+                      const [])
+                if (collection.provider == BusyProvider.caldav &&
+                    (collection.supportsEvents || collection.supportsTasks))
+                  ListTile(
+                    leading: const Icon(Icons.tune_outlined),
+                    title: Text(collection.name),
+                    subtitle: Text(
+                      collection.capabilities.permissionsKnown
+                          ? context.l10n.collectionSettings
+                          : context.l10n.davPermissionsUnknown,
+                    ),
+                    onTap: () => _selectCalDavCollection(collection.id),
+                  ),
+              for (final account in accounts.where(
+                (a) => a.provider == BusyProvider.nextcloud,
+              ))
+                ListTile(
+                  leading: const Icon(Icons.verified_user_outlined),
+                  title: Text(context.l10n.privateServerCertificates),
+                  subtitle: Text(account.displayLabel),
+                  onTap: () => manageNextcloudCertificates(
+                    ref,
+                    account.id,
+                    (data) => mounted
+                        ? showAndroidNextcloudCertificate(context, data)
+                        : Future.value(null),
+                  ),
+                ),
               for (final account in accounts.where(
                 (account) => account.provider == BusyProvider.nextcloud,
               ))
@@ -327,6 +390,25 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                     MaterialPageRoute(
                       builder: (_) =>
                           AndroidNextcloudTrashScreen(accountId: account.id),
+                    ),
+                  ),
+                ),
+              for (final account in accounts.where(
+                (account) =>
+                    account.provider == BusyProvider.nextcloud &&
+                    ref.watch(nextcloudFederationAvailableProvider(account.id)),
+              ))
+                ListTile(
+                  leading: const Icon(Icons.mark_email_unread_outlined),
+                  title: Text(
+                    '${context.l10n.nextcloudFederationInvitations} (${ref.watch(nextcloudPendingInvitationCountProvider(account.id)).valueOrNull ?? 0})',
+                  ),
+                  subtitle: Text(account.displayLabel),
+                  onTap: () => Navigator.of(context).push<void>(
+                    MaterialPageRoute(
+                      builder: (_) => AndroidNextcloudFederationScreen(
+                        accountId: account.id,
+                      ),
                     ),
                   ),
                 ),
@@ -796,9 +878,7 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
         : account.needsReconnect
         ? context.l10n.accountReconnectRequired
         : account.authState;
-    final synced =
-        account.provider == BusyProvider.nextcloud ||
-            account.provider == BusyProvider.appleICloud
+    final synced = account.provider.isDav
         ? account.lastSuccessfulSyncAtUtc
         : null;
     return synced == null
@@ -820,11 +900,20 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
     final davCancellation = DavCancellationToken();
     unawaited(ownedCancellation.signal.then((_) => davCancellation.cancel()));
     try {
-      final localNetworkDenied = context.l10n.nextcloudOperationDenied;
       String? email;
       String? password;
       String? server;
-      if (provider == BusyProvider.appleICloud) {
+      if (provider == BusyProvider.caldav) {
+        final input = await showMaterialCalDavCredentialDialog(
+          context,
+          fixedServer: reconnecting?.authority,
+          fixedUsername: reconnecting?.providerAccountId,
+        );
+        if (input == null || !mounted) return;
+        server = input.serverUrl;
+        email = input.username;
+        password = input.password;
+      } else if (provider == BusyProvider.appleICloud) {
         final input = await _appleCredentials(reconnecting?.email);
         if (input == null) return;
         (email, password) = input;
@@ -838,20 +927,9 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
           helper: context.l10n.nextcloudBrowserAuthorizationHelp,
         );
         if (server == null || !mounted) return;
-        final uri = Uri.tryParse(server);
-        if (uri != null && await requiresAndroidLocalNetworkAccess(uri.host)) {
-          try {
-            final granted = await BusyMaxAndroidPlatform.instance
-                .requestLocalNetworkAccess();
-            if (!granted) {
-              _message(localNetworkDenied);
-              return;
-            }
-          } on PlatformException catch (error) {
-            _message(error.message ?? localNetworkDenied);
-            return;
-          }
-        }
+      }
+      if (server != null) {
+        if (!await _ensureLocalNetworkAccess(server)) return;
       }
       if (!mounted) return;
       AuthorizationRequest? request;
@@ -908,12 +986,56 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
             final service = ref.read(davAccountOnboardingServiceProvider);
             accountId = reconnecting == null
                 ? (await service.connectNextcloud(
+                    reviewCanonicalServer: (entered, canonical) => mounted
+                        ? showAndroidNextcloudCanonicalServer(
+                            context,
+                            entered,
+                            canonical,
+                          )
+                        : Future.value(false),
+                    reviewCertificate: (challenge, owner) =>
+                        reviewNextcloudCertificate(
+                          challenge,
+                          owner,
+                          (data) => mounted
+                              ? showAndroidNextcloudCertificate(context, data)
+                              : Future.value(null),
+                        ),
                     enteredServer: server!,
                     cancellationToken: davCancellation,
                   )).accountId
                 : (await service.reconnectNextcloud(
+                    reviewCanonicalServer: (entered, canonical) => mounted
+                        ? showAndroidNextcloudCanonicalServer(
+                            context,
+                            entered,
+                            canonical,
+                          )
+                        : Future.value(false),
+                    reviewCertificate: (challenge, owner) =>
+                        reviewNextcloudCertificate(
+                          challenge,
+                          owner,
+                          (data) => mounted
+                              ? showAndroidNextcloudCertificate(context, data)
+                              : Future.value(null),
+                        ),
                     accountId: reconnecting.id,
                     enteredServer: server!,
+                    cancellationToken: davCancellation,
+                  )).accountId;
+          case BusyProvider.caldav:
+            final service = ref.read(davAccountOnboardingServiceProvider);
+            accountId = reconnecting == null
+                ? (await service.connectCalDav(
+                    serverUrl: server!,
+                    username: email!,
+                    password: password!,
+                    cancellationToken: davCancellation,
+                  )).accountId
+                : (await service.replaceCalDavPassword(
+                    accountId: reconnecting.id,
+                    password: password!,
                     cancellationToken: davCancellation,
                   )).accountId;
           case BusyProvider.webCal:
@@ -1000,8 +1122,7 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
     if (confirmed != true) return;
     setState(() => _removing.add(account.id));
     try {
-      if (account.provider == BusyProvider.appleICloud ||
-          account.provider == BusyProvider.nextcloud) {
+      if (account.provider.isDav) {
         // DAV onboarding owns this account gate, including contact preparation.
         final result = await ref
             .read(davAccountOnboardingServiceProvider)
@@ -1036,9 +1157,34 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
     final l10n = context.l10n;
     setState(() => _syncing = true);
     try {
-      await ref.read(allAccountsSyncRunnerProvider)();
+      final accounts = await ref
+          .read(accountsRepositoryProvider)
+          .listSyncEligibleAccounts();
+      final blocked = <String>{};
+      for (final account in accounts) {
+        if ((account.provider == BusyProvider.caldav ||
+                account.provider == BusyProvider.nextcloud) &&
+            !await _ensureLocalNetworkAccess(account.authority)) {
+          blocked.add(account.id);
+        }
+      }
+      if (blocked.isEmpty) {
+        await ref.read(allAccountsSyncRunnerProvider)();
+      } else {
+        await runAllSyncEligibleAccountSync(
+          listSyncEligibleAccounts: () async => [
+            for (final account in accounts)
+              if (!blocked.contains(account.id)) account,
+          ],
+          syncAccount: (id) => ref.read(signedInSyncRunnerProvider)(id, false),
+          rethrowFirstFailure: true,
+          onSyncFailure: (error) => ref
+              .read(operationalNotificationReporterProvider)
+              .notifySyncFailure(error),
+        );
+      }
       await ref.read(notificationReconcilerProvider).reconcile();
-      _message(l10n.syncComplete);
+      if (blocked.isEmpty) _message(l10n.syncComplete);
     } on Object catch (error) {
       _message(
         l10n.syncFailed(
@@ -1065,6 +1211,11 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
         }
         return;
       }
+      if ((account!.provider == BusyProvider.caldav ||
+              account.provider == BusyProvider.nextcloud) &&
+          !await _ensureLocalNetworkAccess(account.authority)) {
+        return;
+      }
       await ref.read(signedInSyncRunnerProvider)(accountId, true);
       await ref.read(notificationReconcilerProvider).reconcile();
       _message(l10n.syncComplete);
@@ -1078,6 +1229,43 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
         ),
       );
     }
+  }
+
+  /// Foreground recovery for retained accounts, including permission revoked
+  /// after onboarding. Background synchronization never requests permission.
+  Future<bool> _ensureLocalNetworkAccess(String server) async {
+    final uri = Uri.tryParse(server);
+    if (uri == null || !await requiresAndroidLocalNetworkAccess(uri.host)) {
+      return true;
+    }
+    final platform = BusyMaxAndroidPlatform.instance;
+    try {
+      if (await platform.hasLocalNetworkAccess()) return true;
+      if (!mounted) return false;
+      if (await platform.requestLocalNetworkAccess()) return true;
+    } on PlatformException {
+      // A denied request or an unavailable prompt has the same recovery path.
+    }
+    if (!mounted) return false;
+    final openSettings = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(context.l10n.localNetworkAccessRequired),
+        content: Text(context.l10n.localNetworkAccessRecovery),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(context.l10n.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(context.l10n.settings),
+          ),
+        ],
+      ),
+    );
+    if (openSettings == true) await platform.openAppSettings();
+    return false;
   }
 
   Future<void> _openSharedCalendar(String accountId) async {
@@ -1157,6 +1345,55 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
     );
   }
 
+  Future<void> _selectCalDavCollection(String id) => showDialog<void>(
+    context: context,
+    builder: (dialogContext) => Consumer(
+      builder: (context, ref, _) {
+        final collection = ref
+            .watch(davCollectionsStreamProvider)
+            .valueOrNull
+            ?.where((c) => c.id == id && c.provider == BusyProvider.caldav)
+            .firstOrNull;
+        return AlertDialog(
+          title: Text(collection?.name ?? context.l10n.collectionSettings),
+          content: collection == null
+              ? Text(context.l10n.collectionsUnavailable)
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (!collection.capabilities.permissionsKnown)
+                      Text(context.l10n.davPermissionsUnknown),
+                    if (collection.readOnly)
+                      Text(context.l10n.readOnlySharedCollection),
+                    if (collection.supportsEvents)
+                      SwitchListTile(
+                        title: Text(context.l10n.calendarContent),
+                        value: collection.eventsSelected,
+                        onChanged: (value) => ref
+                            .read(davSettingsRepositoryProvider)
+                            .setEventsSelected(id, value),
+                      ),
+                    if (collection.supportsTasks)
+                      SwitchListTile(
+                        title: Text(context.l10n.taskContent),
+                        value: collection.tasksSelected,
+                        onChanged: (value) => ref
+                            .read(davSettingsRepositoryProvider)
+                            .setTasksSelected(id, value),
+                      ),
+                  ],
+                ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(context.l10n.close),
+            ),
+          ],
+        );
+      },
+    ),
+  );
+
   Future<void> _editCalendarSource(CalendarSourceEntity source) async {
     final l10n = context.l10n;
     final action = await showModalBottomSheet<String>(
@@ -1166,7 +1403,15 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ListTile(title: Text(source.summary)),
+            ListTile(
+              title: Text(source.summary),
+              subtitle:
+                  source.provider == BusyProvider.caldav &&
+                      source.davEffectivePermissions['permissionsKnown'] ==
+                          false
+                  ? Text(context.l10n.davPermissionsUnknown)
+                  : null,
+            ),
             if (source.capabilities.canRenameCalendar)
               ListTile(
                 leading: const Icon(Icons.edit_outlined),
@@ -1198,8 +1443,7 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                 title: Text(context.l10n.nextcloudSharing),
                 onTap: () => Navigator.pop(context, 'sharing'),
               ),
-            if (source.provider == BusyProvider.nextcloud &&
-                source.davCollectionId != null)
+            if (source.capabilities.canExportCalendar)
               ListTile(
                 leading: const Icon(Icons.file_download_outlined),
                 title: Text(context.l10n.export),
@@ -1263,7 +1507,7 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
       } else if (action == 'export') {
         await _exportCollection(source.accountId, source.davCollectionId!);
       } else if (action == 'sharing') {
-        if (!mounted) return;
+        if (!mounted || source.provider != BusyProvider.nextcloud) return;
         await Navigator.of(context).push<void>(
           MaterialPageRoute(
             builder: (_) => AndroidNextcloudSharingScreen(
@@ -1297,6 +1541,8 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                         source.summary,
                       )
                     : l10n.removeCalendarConfirmation(source.summary)
+              : source.isMixedDavCollection
+              ? l10n.nextcloudRemoveMixed
               : l10n.deleteCalendarConfirmation(source.summary),
           remove ? l10n.removeAction : l10n.delete,
         );
@@ -1304,7 +1550,15 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
         await ref.read(calendarRepositoryProvider).deleteLocalSource(source.id);
         if (!openedMicrosoftOwner) _requestQueuedCalendarSync(source);
       }
+    } on DavRefreshPending {
+      _message(l10n.davRefreshPending);
     } on Object catch (error) {
+      if (error is DavException &&
+          error.code == 'DavCollectionCreationPending') {
+        _message(l10n.davCollectionCreationPending);
+        return;
+      }
+
       _message(
         l10n.calendarUpdateFailed(
           syncFailureMessage(
@@ -1341,7 +1595,10 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
     final canRename = account?.provider == BusyProvider.microsoft
         ? list.canRenameOrDeleteForMicrosoft
         : capabilities.supportsListRename;
-    final canDelete = account?.provider == BusyProvider.microsoft
+    final canDelete =
+        account?.provider == BusyProvider.caldav && list.davCollectionId == null
+        ? false
+        : account?.provider == BusyProvider.microsoft
         ? list.canRenameOrDeleteForMicrosoft
         : capabilities.supportsListDelete;
     final action = await showModalBottomSheet<String>(
@@ -1363,8 +1620,9 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
               title: Text(context.l10n.reminders),
               onTap: () => Navigator.pop(context, 'reminders'),
             ),
-            if (list.davCollectionId != null &&
-                capabilities.supportsNativeExport)
+            if (account?.provider == BusyProvider.nextcloud &&
+                list.davCollectionId != null &&
+                capabilities.supportsSharing)
               ListTile(
                 leading: const Icon(Icons.people_outline),
                 title: Text(context.l10n.nextcloudSharing),
@@ -1414,7 +1672,11 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
       } else if (action == 'export') {
         await _exportCollection(list.accountId, list.davCollectionId!);
       } else if (action == 'sharing') {
-        if (!mounted) return;
+        if (!mounted ||
+            account?.provider != BusyProvider.nextcloud ||
+            !capabilities.supportsSharing) {
+          return;
+        }
         await Navigator.of(context).push<void>(
           MaterialPageRoute(
             builder: (_) => AndroidNextcloudSharingScreen(
@@ -1437,7 +1699,15 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
             .read(taskListsRepositoryForAccountProvider(list.accountId))
             .deleteTaskList(list.id);
       }
+    } on DavRefreshPending {
+      _message(l10n.davRefreshPending);
     } on Object catch (error) {
+      if (error is DavException &&
+          error.code == 'DavCollectionCreationPending') {
+        _message(l10n.davCollectionCreationPending);
+        return;
+      }
+
       _message(
         l10n.taskListRenameFailed(
           syncFailureMessage(
@@ -1502,15 +1772,26 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
     if (title == null || !mounted) return;
     try {
       if (calendar) {
-        await ref
+        final result = await ref
             .read(calendarCollectionCreationServiceProvider)
             .createCalendar(accountId: account.id, title: title);
+        if (account.provider == BusyProvider.caldav && result.refreshPending) {
+          _message(l10n.davRefreshPending);
+        }
       } else {
         await ref
             .read(taskListsRepositoryForAccountProvider(account.id))
             .createTaskList(title);
       }
+    } on DavRefreshPending {
+      _message(l10n.davRefreshPending);
     } on Object catch (error) {
+      if (error is DavException &&
+          error.code == 'DavCollectionCreationPending') {
+        _message(l10n.davCollectionCreationPending);
+        return;
+      }
+
       final message = syncFailureMessage(
         error,
         networkUnavailableMessage: l10n.networkOfflineTryAgain,
@@ -2289,7 +2570,9 @@ class _AndroidNextcloudSharingScreenState
                       ),
                       title: Text(share.recipient.label),
                       subtitle: Text(
-                        share.writable
+                        share.recipient.federated
+                            ? context.l10n.nextcloudFederationGrant
+                            : share.writable
                             ? context.l10n.nextcloudWriteAccess
                             : context.l10n.nextcloudReadAccess,
                       ),
@@ -2345,6 +2628,13 @@ class AndroidNextcloudTrashScreen extends ConsumerStatefulWidget {
 
 class _AndroidNextcloudTrashScreenState
     extends ConsumerState<AndroidNextcloudTrashScreen> {
+  final _loadCancellation = DavCancellationToken();
+  @override
+  void dispose() {
+    _loadCancellation.cancel();
+    super.dispose();
+  }
+
   NextcloudTrashListing? _listing;
   bool _busy = true;
   Object? _error;
@@ -2358,18 +2648,64 @@ class _AndroidNextcloudTrashScreenState
     unawaited(_load());
   }
 
+  int _listingEpoch = 0;
+  final _loadingDetails = <Uri>{};
+
+  Future<void> _details(
+    NextcloudTrashItem item, {
+    bool automatic = false,
+  }) async {
+    if (!_loadingDetails.add(item.href)) return;
+    final epoch = _listingEpoch;
+    setState(() {});
+    try {
+      final detailed = await ref
+          .read(nextcloudTrashServiceProvider(widget.accountId))
+          .details(item, cancellationToken: _loadCancellation);
+      if (mounted && _listingEpoch == epoch) {
+        setState(
+          () => _listing = NextcloudTrashListing(
+            List.unmodifiable(
+              _listing!.items.map(
+                (row) => row.href == item.href ? detailed : row,
+              ),
+            ),
+            _listing!.retentionSeconds,
+          ),
+        );
+      }
+    } on Object catch (caught) {
+      if (!automatic && mounted && _listingEpoch == epoch) {
+        setState(() => _error = caught);
+      }
+    } finally {
+      _loadingDetails.remove(item.href);
+      if (mounted) setState(() {});
+    }
+  }
+
   Future<void> _load() async {
+    final epoch = ++_listingEpoch;
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
-      final listing = await _service.list();
-      if (mounted) setState(() => _listing = listing);
+      final listing = await _service.list(cancellationToken: _loadCancellation);
+      if (mounted && _listingEpoch == epoch) setState(() => _listing = listing);
     } on Object catch (error) {
-      if (mounted) setState(() => _error = error);
+      if (mounted && _listingEpoch == epoch) setState(() => _error = error);
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted && _listingEpoch == epoch) setState(() => _busy = false);
+    }
+    if (mounted && _listingEpoch == epoch) {
+      final previews =
+          _listing?.items.where((item) => item.canPreview).take(5).toList() ??
+          const <NextcloudTrashItem>[];
+      for (final item in previews) {
+        if (!mounted || _listingEpoch != epoch || _busy) break;
+        await _details(item, automatic: true);
+      }
     }
   }
 
@@ -2416,48 +2752,83 @@ class _AndroidNextcloudTrashScreenState
       appBar: AppBar(title: Text(context.l10n.nextcloudTrash)),
       body: RefreshIndicator(
         onRefresh: _load,
-        child: ListView(
+        child: ListView.builder(
           padding: const EdgeInsets.all(16),
-          children: [
-            if (_error != null)
-              ListTile(
-                leading: const Icon(Icons.error_outline),
-                title: Text(context.l10n.operationFailed),
-                subtitle: Text('$_error'),
-              ),
-            if (!_busy && items.isEmpty && _error == null)
-              ListTile(title: Text(context.l10n.nextcloudTrashEmpty)),
-            for (final item in items)
-              ListTile(
-                leading: Icon(switch (item.kind) {
-                  NextcloudTrashKind.event => Icons.event_outlined,
-                  NextcloudTrashKind.task => Icons.task_alt_outlined,
-                  NextcloudTrashKind.calendar => Icons.calendar_month_outlined,
-                  NextcloudTrashKind.taskList => Icons.checklist_outlined,
-                  NextcloudTrashKind.mixedCollection =>
-                    Icons.folder_copy_outlined,
-                }),
-                title: Text(item.title),
-                subtitle: item.deletedAt == null ? null : Text(item.deletedAt!),
-                trailing: PopupMenuButton<String>(
-                  onSelected: (value) =>
-                      unawaited(_act(item, permanent: value == 'delete')),
-                  itemBuilder: (context) => [
-                    if (item.canRestore)
-                      PopupMenuItem(
-                        value: 'restore',
-                        child: Text(context.l10n.nextcloudRestore),
+          itemCount: items.length + 1,
+          itemBuilder: (context, index) {
+            if (index == 0) {
+              return Column(
+                children: [
+                  if (_error != null)
+                    ListTile(
+                      leading: const Icon(Icons.error_outline),
+                      title: Text(context.l10n.operationFailed),
+                      subtitle: Text(
+                        localizedNextcloudCollectionError(context.l10n, _error),
                       ),
-                    if (item.canPermanentlyDelete)
-                      PopupMenuItem(
-                        value: 'delete',
-                        child: Text(context.l10n.nextcloudPermanentDelete),
+                    ),
+                  if (_listing?.retentionSeconds case final seconds?)
+                    ListTile(
+                      title: Text(
+                        seconds == 0
+                            ? context.l10n.nextcloudTrashDisabled
+                            : context.l10n.nextcloudTrashRetention(
+                                (seconds / 86400).ceil(),
+                              ),
                       ),
-                  ],
+                    ),
+                  if (!_busy && items.isEmpty && _error == null)
+                    ListTile(title: Text(context.l10n.nextcloudTrashEmpty)),
+                  if (_busy) const LinearProgressIndicator(),
+                ],
+              );
+            }
+            final item = items[index - 1];
+            return ListTile(
+              leading: Icon(switch (item.kind) {
+                NextcloudTrashKind.unknownObject => Icons.description_outlined,
+                NextcloudTrashKind.event => Icons.event_outlined,
+                NextcloudTrashKind.task => Icons.task_alt_outlined,
+                NextcloudTrashKind.calendar => Icons.calendar_month_outlined,
+                NextcloudTrashKind.taskList => Icons.checklist_outlined,
+                NextcloudTrashKind.mixedCollection =>
+                  Icons.folder_copy_outlined,
+              }),
+              title: Text(item.title),
+              subtitle: _loadingDetails.contains(item.href)
+                  ? const LinearProgressIndicator()
+                  : item.deletedAt == null
+                  ? null
+                  : Text(item.deletedAt!),
+              trailing: PopupMenuButton<String>(
+                key: ValueKey(('nextcloud-trash-menu', item.href.toString())),
+                onSelected: (value) => unawaited(
+                  value == 'details'
+                      ? _details(item)
+                      : _act(item, permanent: value == 'delete'),
                 ),
+                enabled: !_busy,
+                itemBuilder: (context) => [
+                  if (item.isObject && !item.contentLoaded)
+                    PopupMenuItem(
+                      value: 'details',
+                      enabled: !_loadingDetails.contains(item.href),
+                      child: Text(context.l10n.show),
+                    ),
+                  if (item.canRestore)
+                    PopupMenuItem(
+                      value: 'restore',
+                      child: Text(context.l10n.nextcloudRestore),
+                    ),
+                  if (item.canPermanentlyDelete)
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: Text(context.l10n.nextcloudPermanentDelete),
+                    ),
+                ],
               ),
-            if (_busy) const LinearProgressIndicator(),
-          ],
+            );
+          },
         ),
       ),
     );
@@ -2506,6 +2877,7 @@ class _AccountButtons extends StatelessWidget {
           context.l10n.addNextcloudAccount,
         ),
         _button(context, BusyProvider.google, context.l10n.addGoogleAccount),
+        _button(context, BusyProvider.caldav, context.l10n.addCalDavAccount),
         _button(
           context,
           BusyProvider.microsoft,
@@ -2572,6 +2944,7 @@ IconData _providerIcon(BusyProvider provider) => switch (provider) {
   BusyProvider.appleICloud => Icons.cloud_outlined,
   BusyProvider.nextcloud => Icons.cloud_sync_outlined,
   BusyProvider.webCal => Icons.public,
+  BusyProvider.caldav => Icons.calendar_month_outlined,
 };
 
 Color _colorFromHex(String value) =>
@@ -2595,6 +2968,7 @@ Future<void> showAndroidIcsImport(
     if (!context.mounted) return;
     CalendarSourceEntity? destination = destinations.firstOrNull;
     var newCopies = false;
+    var allowScheduling = false;
     final selection = await showDialog<IcalImportSelection>(
       context: context,
       barrierDismissible: false,
@@ -2627,10 +3001,23 @@ Future<void> showAndroidIcsImport(
                           child: Text(source.summary),
                         ),
                     ],
-                    onChanged: (value) =>
-                        setDialogState(() => destination = value),
+                    onChanged: (value) => setDialogState(() {
+                      destination = value;
+                      allowScheduling = false;
+                    }),
                   ),
-                if (destination?.provider == BusyProvider.nextcloud)
+                if (destination?.provider == BusyProvider.caldav &&
+                    preview.nativePreview.hasAttendees)
+                  CheckboxListTile(
+                    key: const ValueKey('caldav-import-scheduling-consent'),
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(context.l10n.caldavImportSchedulingWarning),
+                    value: allowScheduling,
+                    onChanged: (value) =>
+                        setDialogState(() => allowScheduling = value == true),
+                  ),
+                if (destination?.provider == BusyProvider.nextcloud ||
+                    destination?.provider == BusyProvider.caldav)
                   CheckboxListTile(
                     contentPadding: EdgeInsets.zero,
                     title: Text(context.l10n.nextcloudImportCopies),
@@ -2647,11 +3034,19 @@ Future<void> showAndroidIcsImport(
               child: Text(context.l10n.cancel),
             ),
             FilledButton(
-              onPressed: destination == null
+              onPressed:
+                  destination == null ||
+                      (destination?.provider == BusyProvider.caldav &&
+                          preview.nativePreview.hasAttendees &&
+                          !allowScheduling)
                   ? null
                   : () => Navigator.pop(
                       dialogContext,
-                      IcalImportSelection(destination!, newCopies: newCopies),
+                      IcalImportSelection(
+                        destination!,
+                        newCopies: newCopies,
+                        allowScheduling: allowScheduling,
+                      ),
                     ),
               child: Text(context.l10n.importIcsConfirm),
             ),
@@ -2664,8 +3059,10 @@ Future<void> showAndroidIcsImport(
       preview: preview,
       destination: selection.destination,
       nativeDuplicates: selection.duplicatePolicy,
+      allowScheduling: selection.allowScheduling,
       normalizeNativeSchedulingMethod:
-          selection.destination.provider == BusyProvider.nextcloud,
+          selection.destination.provider == BusyProvider.nextcloud ||
+          selection.destination.provider == BusyProvider.caldav,
     );
     if (!context.mounted) return;
     await showDialog<void>(
@@ -2737,6 +3134,111 @@ class _AndroidRegistrationCard extends ConsumerWidget {
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class AndroidNextcloudFederationScreen extends ConsumerStatefulWidget {
+  const AndroidNextcloudFederationScreen({super.key, required this.accountId});
+  final String accountId;
+  @override
+  ConsumerState<AndroidNextcloudFederationScreen> createState() =>
+      _AndroidNextcloudFederationScreenState();
+}
+
+class _AndroidNextcloudFederationScreenState
+    extends ConsumerState<AndroidNextcloudFederationScreen> {
+  late final NextcloudFederationController model;
+  @override
+  void initState() {
+    super.initState();
+    model = NextcloudFederationController(
+      ref.read(nextcloudFederationServiceProvider(widget.accountId)),
+    )..addListener(_changed);
+    unawaited(model.load());
+  }
+
+  void _changed() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    model.removeListener(_changed);
+    model.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final enabled = !model.busy && model.error == null && !model.refreshPending;
+    return PopScope(
+      canPop: !model.busy,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(l10n.nextcloudFederationInvitations),
+          actions: [
+            IconButton(
+              tooltip: l10n.refresh,
+              onPressed: model.busy ? null : model.load,
+              icon: const Icon(Icons.refresh),
+            ),
+          ],
+        ),
+        body: RefreshIndicator(
+          onRefresh: model.load,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              if (model.busy) const LinearProgressIndicator(),
+              if (model.error != null)
+                ListTile(
+                  title: Text(
+                    localizedNextcloudCollectionError(l10n, model.error),
+                  ),
+                ),
+              if (model.refreshPending)
+                ListTile(title: Text(l10n.nextcloudRefreshPending)),
+              if (model.invitations?.isEmpty == true)
+                ListTile(title: Text(l10n.nextcloudFederationEmpty)),
+              for (final invitation in model.invitations ?? [])
+                Card(
+                  child: Column(
+                    children: [
+                      ListTile(
+                        title: Text(invitation.displayName),
+                        subtitle: Text(invitation.sharedBy),
+                      ),
+                      OverflowBar(
+                        children: [
+                          FilledButton(
+                            key: ValueKey(
+                              'nextcloud-federation-accept-${invitation.id}',
+                            ),
+                            onPressed: enabled
+                                ? () => model.respond(invitation, accept: true)
+                                : null,
+                            child: Text(l10n.acceptInvitation),
+                          ),
+                          TextButton(
+                            key: ValueKey(
+                              'nextcloud-federation-decline-${invitation.id}',
+                            ),
+                            onPressed: enabled
+                                ? () => model.respond(invitation, accept: false)
+                                : null,
+                            child: Text(l10n.declineInvitation),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );

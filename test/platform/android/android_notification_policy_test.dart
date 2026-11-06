@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:busymax/src/android/android_notifications.dart';
 import 'package:busymax/src/app/app_settings.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:timezone/data/latest.dart' as tz_data;
+import 'package:busymax/src/core/time/iana_time_zone_data.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 
 void main() {

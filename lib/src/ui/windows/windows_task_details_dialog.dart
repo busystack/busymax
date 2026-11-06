@@ -74,7 +74,7 @@ Future<bool> showWindowsTaskDetailsDialog(
   if (loadedTask == null || account == null || !context.mounted) return false;
   var original = loadedTask;
   var capabilities = switch (account.provider) {
-    BusyProvider.nextcloud =>
+    BusyProvider.nextcloud || BusyProvider.caldav =>
       await ref.read(
             davTaskCollectionCapabilitiesProvider((
               accountId: task.accountId,
@@ -1112,9 +1112,7 @@ Future<bool> showWindowsTaskDetailsDialog(
                                     value,
                                     due: due,
                                     start: start,
-                                    dav:
-                                        account.provider ==
-                                        BusyProvider.nextcloud,
+                                    dav: account.provider.isDav,
                                   );
                                 }),
                               ),

@@ -1,3 +1,4 @@
+import 'package:busymax/l10n/generated/app_localizations_en.dart';
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/busymax_yaru_theme.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
@@ -12,6 +13,65 @@ import 'package:yaru/yaru.dart';
 import '../../../test_localized_app.dart';
 
 void main() {
+  testWidgets('CalDAV attendee import needs consent before confirmation', (
+    tester,
+  ) async {
+    late BuildContext host;
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Builder(
+          builder: (context) {
+            host = context;
+            return const SizedBox.shrink();
+          },
+        ),
+      ),
+    );
+    const destination = CalendarSourceEntity(
+      id: 'source',
+      accountId: 'account',
+      provider: BusyProvider.caldav,
+      providerCalendarId: 'calendar',
+      summary: 'Work',
+      selected: true,
+      hidden: false,
+      readOnly: false,
+      isDeleted: false,
+    );
+    final preview = IcalImportPreview(
+      ingestion: IcalIngestion.parseBytes(
+        'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//BusyMax//QA//EN\r\nBEGIN:VEVENT\r\nUID:meeting\r\nDTSTART:20261103T120000Z\r\nORGANIZER:mailto:qa@example.test\r\nATTENDEE:mailto:guest@example.test\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n'
+            .codeUnits,
+        policy: IcalIngestionPolicy.fileImport,
+      ),
+      eventCount: 1,
+      invalidEventCount: 0,
+      fieldsThatWillBeOmitted: const {},
+    );
+    final result = showIcalImportPreviewDialog(
+      host,
+      preview: preview,
+      destinations: const [destination],
+      accountLabels: const {},
+    );
+    await tester.pumpAndSettle();
+    expect(find.text(AppLocalizationsEn().caldavNativeImport), findsOneWidget);
+    expect(find.text(AppLocalizationsEn().nextcloudNativeImport), findsNothing);
+    expect(
+      find.text(AppLocalizationsEn().caldavImportSchedulingWarning),
+      findsOneWidget,
+    );
+    final confirm = find.byKey(const ValueKey('confirm-ics-import'));
+    expect(tester.widget<ElevatedButton>(confirm).onPressed, isNull);
+    await tester.tap(
+      find.byKey(const ValueKey('caldav-import-scheduling-consent')),
+    );
+    await tester.pump();
+    await tester.tap(confirm);
+    await tester.pumpAndSettle();
+    expect((await result)?.allowScheduling, isTrue);
+  });
+
   testWidgets('Nextcloud import copies uses the Yaru checkbox selection', (
     tester,
   ) async {
@@ -51,6 +111,15 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(BusyMaxDialogShell), findsOneWidget);
+    expect(
+      find.text(AppLocalizationsEn().nextcloudNativeImport),
+      findsOneWidget,
+    );
+    expect(find.text(AppLocalizationsEn().caldavNativeImport), findsNothing);
+    expect(
+      find.byKey(const ValueKey('caldav-import-scheduling-consent')),
+      findsNothing,
+    );
     expect(find.byType(CheckboxListTile), findsNothing);
     final checkboxFinder = find.byKey(
       const ValueKey('nextcloud-import-copies'),

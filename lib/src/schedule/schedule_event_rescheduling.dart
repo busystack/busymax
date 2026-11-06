@@ -1,3 +1,4 @@
+import '../providers/busy_provider.dart';
 import '../calendar_providers/calendar_mutation.dart';
 import '../core/time/provider_date_time.dart';
 import '../dav/ical/ical_semantics.dart';
@@ -240,8 +241,10 @@ final class ScheduleReschedulingCoordinator {
     }
     var draft = EventEditorDraft.fromEventDetail(detail);
     var policy = CalendarGuestUpdatePolicy.send;
-    if (draft.isOrganizer == true &&
-        draft.attendees.any((guest) => !guest.self && !guest.organizer)) {
+    if (request.item.mayNotifyParticipants ||
+        (request.item.provider != BusyProvider.caldav &&
+            draft.isOrganizer == true &&
+            draft.attendees.any((guest) => !guest.self && !guest.organizer))) {
       final decision = await chooseGuestUpdates(draft);
       if (decision == null || !active()) {
         return ScheduleRescheduleResult.cancelled;

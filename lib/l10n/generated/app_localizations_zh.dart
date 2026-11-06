@@ -14,6 +14,32 @@ class AppLocalizationsZh extends AppLocalizations {
   AppLocalizationsZh([String locale = 'zh']) : super(locale);
 
   @override
+  String get caldavSchedulingWarning =>
+      '此日程有参与者。保存或删除日程后，CalDAV 服务器可能会在同步更改时通知参与者。';
+
+  @override
+  String get caldavNativeImport =>
+      '导入完整的日程和任务资源。对于有参与者的项目，CalDAV 服务器可能会发送邀请或会议更新。除非选择创建新副本，否则将跳过已有的 UID。不支持的资源将单独报告。';
+
+  @override
+  String get davInsufficientStorage => '服务器存储空间不足，无法创建此集合。';
+
+  @override
+  String get davCollectionPropertyRejected => '服务器拒绝了请求设置的集合属性。';
+
+  @override
+  String get davCollectionDiscoveryRequired => '请刷新此账号以更新服务器功能和权限。';
+
+  @override
+  String get caldavImportSchedulingWarning =>
+      '此文件包含与会者。我允许导入，并知悉 CalDAV 服务器可能会发送邀请或会议更新。';
+
+  @override
+  String nextcloudCanonicalServerReview(String entered, String canonical) {
+    return 'Nextcloud 为服务器 $entered 返回了 $canonical。是否允许 BusyMax 向此地址发送新的应用密码？';
+  }
+
+  @override
   String get contactsAccountsUnavailable => '无法加载联系人账户';
 
   @override
@@ -175,6 +201,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get nextcloudRefreshPending => '更改已保存在 Nextcloud。刷新尚未完成；请勿重复更改。';
 
   @override
+  String get davRefreshPending => '更改已保存在 CalDAV 服务器上。刷新尚未完成；请勿重复更改。';
+
+  @override
+  String get davCollectionCreationPending => '集合创建尚未完成。请先同步此账户再重试；请勿重复此操作。';
+
+  @override
+  String get davCollectionCreationDenied => '服务器不允许创建集合。';
+
+  @override
   String get nextcloudOutcomeUnknown => '无法确认服务器结果。请刷新后再试。';
 
   @override
@@ -222,6 +257,27 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get nextcloudPermanentDeleteWarning =>
       '永久删除此项目？之后无法从 Nextcloud 日历回收站恢复。';
+
+  @override
+  String get nextcloudDiscoveryRequired => '请刷新此账户以更新 Nextcloud 功能和权限。';
+
+  @override
+  String get nextcloudConflict => '项目或其权限已更改。请刷新并检查后重试。';
+
+  @override
+  String get nextcloudItemUnavailable => '此项目已不可用。请刷新以检查其当前状态。';
+
+  @override
+  String get nextcloudFederationInvitations => '共享日历邀请';
+
+  @override
+  String get nextcloudFederationEmpty => '没有待处理的共享日历邀请。';
+
+  @override
+  String get nextcloudFederationGrant => '已在此服务器上创建共享。尚未确认远程接受和同步。';
+
+  @override
+  String get nextcloudTrashDisabled => '此服务器已禁用日历回收站保留功能。';
 
   @override
   String get nextcloudOperationDenied => 'Nextcloud 不允许此操作。';
@@ -3657,11 +3713,140 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get taskDurationRequiresStart => '移除设有持续时间的任务的开始日期前，请先设置截止日期。';
+
+  @override
+  String get privateServerCertificates => '私有服务器证书';
+
+  @override
+  String get reviewServerCertificate => '检查服务器证书';
+
+  @override
+  String get certificateStandard => '标准 HTTPS';
+
+  @override
+  String get certificatePrivateCa => '私有证书颁发机构';
+
+  @override
+  String get certificatePinnedLeaf => '固定的自签名证书';
+
+  @override
+  String get certificateImportCa => '导入私有 CA';
+
+  @override
+  String get certificateReplacePin => '检查替换证书';
+
+  @override
+  String get certificateUseStandard => '恢复标准 HTTPS';
+
+  @override
+  String get certificateApprove => '批准此证书策略';
+
+  @override
+  String get certificateReject => '拒绝';
+
+  @override
+  String get certificatePrevious => '先前批准的证书';
+
+  @override
+  String get certificateInvalid => '证书或私有 CA 配置无效';
+
+  @override
+  String get certificateFirstUseWarning =>
+      '首次连接时，仅加密并不能确认服务器身份。批准前，请通过独立可信的管理员渠道核对 SHA-256 指纹。';
+
+  @override
+  String get certificateRenewalHelp =>
+      '建议使用私有 CA，服务器证书可在其下正常续期。固定的叶证书每次变更都须明确检查，即使用同一密钥。公开证书可正常续期。';
+
+  @override
+  String get certificateBrowserBoundary =>
+      '授权仍通过外部浏览器进行。BusyMax 的批准不会配置浏览器信任；浏览器必须单独信任该服务器。';
+
+  @override
+  String certificateDetails(
+    String subject,
+    String issuer,
+    String notBefore,
+    String notAfter,
+    String fingerprint,
+  ) {
+    return '主体: $subject\n颁发者: $issuer\n生效时间: $notBefore\n到期时间: $notAfter\nSHA-256 指纹: $fingerprint';
+  }
+
+  @override
+  String certificateFailure(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'approvalRequired': '需要批准',
+      'pinMismatch': '固定的证书已更改',
+      'expired': '证书已过期',
+      'notYetValid': '证书尚未生效',
+      'hostnameMismatch': '证书主机名不匹配',
+      'invalidPolicy': '私有 CA 配置无效',
+      'ineligible': '证书不符合要求',
+      'verificationFailed': 'TLS 验证失败',
+      'other': 'TLS 验证失败',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get addCalDavAccount => '添加 CalDAV 账户';
+
+  @override
+  String get caldavServerUrl => '服务器 URL';
+
+  @override
+  String get caldavUsername => '用户名';
+
+  @override
+  String get caldavPassword => '密码或应用专用密码';
+
+  @override
+  String get caldavInvalidServerUrl => '请输入不含凭据、查询或片段的 HTTPS URL。';
+
+  @override
+  String get caldavHttpsHelp => '输入 HTTPS 服务器 URL 或直接 CalDAV 地址。密码将安全存储。';
+
+  @override
+  String get davPermissionsUnknown => '服务器尚未提供权限信息。服务器将验证请求的更改。';
+
+  @override
+  String get localNetworkAccessRequired => '需要本地网络访问权限';
+
+  @override
+  String get localNetworkAccessRecovery =>
+      '要连接此服务器，请在 Android 设置中允许 BusyMax 访问附近的设备，然后重试。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
 class AppLocalizationsZhHans extends AppLocalizationsZh {
   AppLocalizationsZhHans() : super('zh_Hans');
+
+  @override
+  String get caldavSchedulingWarning =>
+      '此日程有参与者。保存或删除日程后，CalDAV 服务器可能会在同步更改时通知参与者。';
+
+  @override
+  String get caldavNativeImport =>
+      '导入完整的日程和任务资源。对于有参与者的项目，CalDAV 服务器可能会发送邀请或会议更新。除非选择创建新副本，否则将跳过已有的 UID。不支持的资源将单独报告。';
+
+  @override
+  String get davInsufficientStorage => '服务器存储空间不足，无法创建此集合。';
+
+  @override
+  String get davCollectionPropertyRejected => '服务器拒绝了请求设置的集合属性。';
+
+  @override
+  String get davCollectionDiscoveryRequired => '请刷新此账号以更新服务器功能和权限。';
+
+  @override
+  String get caldavImportSchedulingWarning =>
+      '此文件包含与会者。我允许导入，并知悉 CalDAV 服务器可能会发送邀请或会议更新。';
+
+  @override
+  String nextcloudCanonicalServerReview(String entered, String canonical) {
+    return 'Nextcloud 为服务器 $entered 返回了 $canonical。是否允许 BusyMax 向此地址发送新的应用密码？';
+  }
 
   @override
   String get contactsAccountsUnavailable => '无法加载联系人账户';
@@ -3825,6 +4010,15 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get nextcloudRefreshPending => '更改已保存在 Nextcloud。刷新尚未完成；请勿重复更改。';
 
   @override
+  String get davRefreshPending => '更改已保存在 CalDAV 服务器上。刷新尚未完成；请勿重复更改。';
+
+  @override
+  String get davCollectionCreationPending => '集合创建尚未完成。请先同步此账户再重试；请勿重复此操作。';
+
+  @override
+  String get davCollectionCreationDenied => '服务器不允许创建集合。';
+
+  @override
   String get nextcloudOutcomeUnknown => '无法确认服务器结果。请刷新后再试。';
 
   @override
@@ -3872,6 +4066,27 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   @override
   String get nextcloudPermanentDeleteWarning =>
       '永久删除此项目？之后无法从 Nextcloud 日历回收站恢复。';
+
+  @override
+  String get nextcloudDiscoveryRequired => '请刷新此账户以更新 Nextcloud 功能和权限。';
+
+  @override
+  String get nextcloudConflict => '项目或其权限已更改。请刷新并检查后重试。';
+
+  @override
+  String get nextcloudItemUnavailable => '此项目已不可用。请刷新以检查其当前状态。';
+
+  @override
+  String get nextcloudFederationInvitations => '共享日历邀请';
+
+  @override
+  String get nextcloudFederationEmpty => '没有待处理的共享日历邀请。';
+
+  @override
+  String get nextcloudFederationGrant => '已在此服务器上创建共享。尚未确认远程接受和同步。';
+
+  @override
+  String get nextcloudTrashDisabled => '此服务器已禁用日历回收站保留功能。';
 
   @override
   String get nextcloudOperationDenied => 'Nextcloud 不允许此操作。';
@@ -7307,11 +7522,140 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get taskDurationRequiresStart => '移除设有持续时间的任务的开始日期前，请先设置截止日期。';
+
+  @override
+  String get privateServerCertificates => '私有服务器证书';
+
+  @override
+  String get reviewServerCertificate => '检查服务器证书';
+
+  @override
+  String get certificateStandard => '标准 HTTPS';
+
+  @override
+  String get certificatePrivateCa => '私有证书颁发机构';
+
+  @override
+  String get certificatePinnedLeaf => '固定的自签名证书';
+
+  @override
+  String get certificateImportCa => '导入私有 CA';
+
+  @override
+  String get certificateReplacePin => '检查替换证书';
+
+  @override
+  String get certificateUseStandard => '恢复标准 HTTPS';
+
+  @override
+  String get certificateApprove => '批准此证书策略';
+
+  @override
+  String get certificateReject => '拒绝';
+
+  @override
+  String get certificatePrevious => '先前批准的证书';
+
+  @override
+  String get certificateInvalid => '证书或私有 CA 配置无效';
+
+  @override
+  String get certificateFirstUseWarning =>
+      '首次连接时，仅加密并不能确认服务器身份。批准前，请通过独立可信的管理员渠道核对 SHA-256 指纹。';
+
+  @override
+  String get certificateRenewalHelp =>
+      '建议使用私有 CA，服务器证书可在其下正常续期。固定的叶证书每次变更都须明确检查，即使用同一密钥。公开证书可正常续期。';
+
+  @override
+  String get certificateBrowserBoundary =>
+      '授权仍通过外部浏览器进行。BusyMax 的批准不会配置浏览器信任；浏览器必须单独信任该服务器。';
+
+  @override
+  String certificateDetails(
+    String subject,
+    String issuer,
+    String notBefore,
+    String notAfter,
+    String fingerprint,
+  ) {
+    return '主体: $subject\n颁发者: $issuer\n生效时间: $notBefore\n到期时间: $notAfter\nSHA-256 指纹: $fingerprint';
+  }
+
+  @override
+  String certificateFailure(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'approvalRequired': '需要批准',
+      'pinMismatch': '固定的证书已更改',
+      'expired': '证书已过期',
+      'notYetValid': '证书尚未生效',
+      'hostnameMismatch': '证书主机名不匹配',
+      'invalidPolicy': '私有 CA 配置无效',
+      'ineligible': '证书不符合要求',
+      'verificationFailed': 'TLS 验证失败',
+      'other': 'TLS 验证失败',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get addCalDavAccount => '添加 CalDAV 账户';
+
+  @override
+  String get caldavServerUrl => '服务器 URL';
+
+  @override
+  String get caldavUsername => '用户名';
+
+  @override
+  String get caldavPassword => '密码或应用专用密码';
+
+  @override
+  String get caldavInvalidServerUrl => '请输入不含凭据、查询或片段的 HTTPS URL。';
+
+  @override
+  String get caldavHttpsHelp => '输入 HTTPS 服务器 URL 或直接 CalDAV 地址。密码将安全存储。';
+
+  @override
+  String get davPermissionsUnknown => '服务器尚未提供权限信息。服务器将验证请求的更改。';
+
+  @override
+  String get localNetworkAccessRequired => '需要本地网络访问权限';
+
+  @override
+  String get localNetworkAccessRecovery =>
+      '要连接此服务器，请在 Android 设置中允许 BusyMax 访问附近的设备，然后重试。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
 class AppLocalizationsZhHant extends AppLocalizationsZh {
   AppLocalizationsZhHant() : super('zh_Hant');
+
+  @override
+  String get caldavSchedulingWarning =>
+      '此行程有參與者。儲存或刪除行程後，CalDAV 伺服器可能會在同步變更時通知參與者。';
+
+  @override
+  String get caldavNativeImport =>
+      '匯入完整的行程和工作資源。對於有參與者的項目，CalDAV 伺服器可能會傳送邀請或會議更新。除非選擇建立新副本，否則將略過現有的 UID。不支援的資源將個別回報。';
+
+  @override
+  String get davInsufficientStorage => '伺服器儲存空間不足，無法建立此集合。';
+
+  @override
+  String get davCollectionPropertyRejected => '伺服器拒絕了要求設定的集合屬性。';
+
+  @override
+  String get davCollectionDiscoveryRequired => '請重新整理此帳號以更新伺服器功能和權限。';
+
+  @override
+  String get caldavImportSchedulingWarning =>
+      '此檔案包含與會者。我允許匯入，並知悉 CalDAV 伺服器可能會傳送邀請或會議更新。';
+
+  @override
+  String nextcloudCanonicalServerReview(String entered, String canonical) {
+    return 'Nextcloud 為伺服器 $entered 傳回了 $canonical。是否允許 BusyMax 向此位址傳送新的應用程式密碼？';
+  }
 
   @override
   String get contactsAccountsUnavailable => '無法載入聯絡人帳號';
@@ -7475,6 +7819,15 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get nextcloudRefreshPending => '變更已儲存在 Nextcloud。更新尚未完成；請勿重複變更。';
 
   @override
+  String get davRefreshPending => '變更已儲存在 CalDAV 伺服器。更新尚未完成；請勿重複變更。';
+
+  @override
+  String get davCollectionCreationPending => '集合建立尚未完成。請先同步此帳戶再重試；請勿重複此操作。';
+
+  @override
+  String get davCollectionCreationDenied => '伺服器不允許建立集合。';
+
+  @override
   String get nextcloudOutcomeUnknown => '無法確認伺服器結果。請重新整理後再試。';
 
   @override
@@ -7522,6 +7875,27 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   @override
   String get nextcloudPermanentDeleteWarning =>
       '永久刪除此項目？之後無法從 Nextcloud 行事曆垃圾桶還原。';
+
+  @override
+  String get nextcloudDiscoveryRequired => '請重新整理此帳戶以更新 Nextcloud 功能和權限。';
+
+  @override
+  String get nextcloudConflict => '項目或其權限已變更。請重新整理並檢查後再試。';
+
+  @override
+  String get nextcloudItemUnavailable => '此項目已無法使用。請重新整理以檢查目前狀態。';
+
+  @override
+  String get nextcloudFederationInvitations => '共用行事曆邀請';
+
+  @override
+  String get nextcloudFederationEmpty => '沒有待處理的共用行事曆邀請。';
+
+  @override
+  String get nextcloudFederationGrant => '已在此伺服器上建立共用。尚未確認遠端接受和同步。';
+
+  @override
+  String get nextcloudTrashDisabled => '此伺服器已停用行事曆垃圾桶保留功能。';
 
   @override
   String get nextcloudOperationDenied => 'Nextcloud 不允許此操作。';
@@ -10958,4 +11332,107 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get taskDurationRequiresStart => '移除設有持續時間的工作的開始日期前，請先設定截止日期。';
+
+  @override
+  String get privateServerCertificates => '私有伺服器憑證';
+
+  @override
+  String get reviewServerCertificate => '檢查伺服器憑證';
+
+  @override
+  String get certificateStandard => '標準 HTTPS';
+
+  @override
+  String get certificatePrivateCa => '私有憑證授權單位';
+
+  @override
+  String get certificatePinnedLeaf => '固定的自我簽署憑證';
+
+  @override
+  String get certificateImportCa => '匯入私有 CA';
+
+  @override
+  String get certificateReplacePin => '檢查替換憑證';
+
+  @override
+  String get certificateUseStandard => '恢復標準 HTTPS';
+
+  @override
+  String get certificateApprove => '核准此憑證原則';
+
+  @override
+  String get certificateReject => '拒絕';
+
+  @override
+  String get certificatePrevious => '先前核准的憑證';
+
+  @override
+  String get certificateInvalid => '憑證或私有 CA 設定無效';
+
+  @override
+  String get certificateFirstUseWarning =>
+      '首次連線時，僅加密並不能確認伺服器身分。核准前，請透過獨立可信的管理員管道核對 SHA-256 指紋。';
+
+  @override
+  String get certificateRenewalHelp =>
+      '建議使用私有 CA，伺服器憑證可在其下正常續期。固定的葉憑證每次變更都須明確檢查，即使用同一金鑰。公開憑證可正常續期。';
+
+  @override
+  String get certificateBrowserBoundary =>
+      '授權仍透過外部瀏覽器進行。BusyMax 的核准不會設定瀏覽器信任；瀏覽器必須單獨信任該伺服器。';
+
+  @override
+  String certificateDetails(
+    String subject,
+    String issuer,
+    String notBefore,
+    String notAfter,
+    String fingerprint,
+  ) {
+    return '主體: $subject\n簽發者: $issuer\n生效時間: $notBefore\n到期時間: $notAfter\nSHA-256 指紋: $fingerprint';
+  }
+
+  @override
+  String certificateFailure(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'approvalRequired': '需要核准',
+      'pinMismatch': '固定的憑證已變更',
+      'expired': '憑證已過期',
+      'notYetValid': '憑證尚未生效',
+      'hostnameMismatch': '憑證主機名稱不符',
+      'invalidPolicy': '私有 CA 設定無效',
+      'ineligible': '憑證不符合要求',
+      'verificationFailed': 'TLS 驗證失敗',
+      'other': 'TLS 驗證失敗',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get addCalDavAccount => '新增 CalDAV 帳戶';
+
+  @override
+  String get caldavServerUrl => '伺服器 URL';
+
+  @override
+  String get caldavUsername => '使用者名稱';
+
+  @override
+  String get caldavPassword => '密碼或應用程式專用密碼';
+
+  @override
+  String get caldavInvalidServerUrl => '請輸入不含憑證、查詢或片段的 HTTPS URL。';
+
+  @override
+  String get caldavHttpsHelp => '輸入 HTTPS 伺服器 URL 或直接 CalDAV 位址。密碼會安全儲存。';
+
+  @override
+  String get davPermissionsUnknown => '伺服器尚未提供權限資訊。伺服器將驗證要求的變更。';
+
+  @override
+  String get localNetworkAccessRequired => '需要區域網路存取權限';
+
+  @override
+  String get localNetworkAccessRecovery =>
+      '若要連線至此伺服器，請在 Android 設定中允許 BusyMax 存取附近的裝置，然後再試一次。';
 }
