@@ -57,6 +57,12 @@ overrides removed; fingerprints and details are selectable. Dates are UTC.
 
 ## Ownership and authorization
 
+Contacts-only enrollment reviews a different canonical server separately from
+the entered login server. Consent to the canonical URL does not transfer a
+private-certificate exception. A private canonical server requires a second
+certificate review scoped to that installation, before contacts credentials
+are committed. Rejecting or cancelling either review leaves no enrolled account.
+
 Version 1 private policies store mode, owner, normalized installation (including
 exact hostname/effective port), original certificate material and SHA-256,
 approval time and a policy generation. Display names/dates come from the

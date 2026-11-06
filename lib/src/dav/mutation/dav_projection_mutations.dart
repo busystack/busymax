@@ -1768,35 +1768,40 @@ List<DavPatchOperation> _eventAlarmUpdateOperations(
   final editableAlarms = _editableDisplayAlarms(current);
   final currentReminders = [for (final alarm in editableAlarms) alarm.minutes];
   if (_sameIntegers(currentReminders, desiredReminders)) return const [];
-  return [
-    for (
-      var index = 0;
-      index < editableAlarms.length && index < desiredReminders.length;
-      index += 1
-    )
-      DavPatchOperation.replaceAlarm(
-        alarmIndex: editableAlarms[index].index,
-        alarm: _displayAlarm(desiredReminders[index]),
-      ),
-    for (
-      var index = editableAlarms.length - 1;
-      index >= desiredReminders.length;
-      index -= 1
-    )
-      DavPatchOperation.replaceAlarm(
-        alarmIndex: editableAlarms[index].index,
-        alarm: null,
-      ),
-    for (
-      var index = editableAlarms.length;
-      index < desiredReminders.length;
-      index += 1
-    )
-      DavPatchOperation.replaceAlarm(
-        alarmIndex: current.alarms.length + index - editableAlarms.length,
-        alarm: _displayAlarm(desiredReminders[index]),
-      ),
-  ];
+  // Older callers have only minute lists. Match unchanged alarms first, then
+  // update remaining identities in place, retaining descriptions/extensions.
+  // Editors that know identities use davEditableRows directly (including
+  // distinct alarms sharing the same minute value).
+  final retained = <int>{};
+  final matched = <int, int>{};
+  for (var i = 0; i < desiredReminders.length; i++) {
+    final unchanged = editableAlarms
+        .where(
+          (alarm) =>
+              alarm.minutes == desiredReminders[i] &&
+              !retained.contains(alarm.index),
+        )
+        .firstOrNull;
+    if (unchanged != null) {
+      matched[i] = unchanged.index;
+      retained.add(unchanged.index);
+    }
+  }
+  final remaining = editableAlarms
+      .where((alarm) => !retained.contains(alarm.index))
+      .iterator;
+  return _eventAlarmUpdateOperations(current, {
+    'davEditableRows': [
+      for (var i = 0; i < desiredReminders.length; i++)
+        {
+          'minutes': desiredReminders[i],
+          if (matched[i] case final index?)
+            'originalIndex': index
+          else if (remaining.moveNext())
+            'originalIndex': remaining.current.index,
+        },
+    ],
+  });
 }
 
 List<IcalComponent> _eventAlarmComponents(Object? reminders) {

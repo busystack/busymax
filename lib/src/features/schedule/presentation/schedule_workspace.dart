@@ -2417,11 +2417,24 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     }
     final savedDraft = result.draft;
     if (savedDraft != null) {
-      await _saveEvent(
-        savedDraft,
-        originalAccountId: draft.accountId,
-        guestUpdatePolicy: result.guestUpdatePolicy,
-      );
+      try {
+        await _saveEvent(
+          savedDraft,
+          originalAccountId: draft.accountId,
+          guestUpdatePolicy: result.guestUpdatePolicy,
+        );
+      } on Object catch (error) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              error is UnsupportedError
+                  ? error.message ?? context.l10n.operationFailed
+                  : localizedNextcloudCollectionError(context.l10n, error),
+            ),
+          ),
+        );
+      }
     }
   }
 

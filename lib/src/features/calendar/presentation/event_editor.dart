@@ -1,3 +1,5 @@
+import 'dav_event_reminders.dart';
+
 import 'package:busymax/src/core/auth/authorization_attempt.dart';
 
 import '../domain/event_property_policy.dart';
@@ -259,11 +261,13 @@ _EventMoveContext? _eventMoveContext({
     sourceProviderCalendarId: source.providerCalendarId,
     sourceProvider: source.provider,
     sourceDavCollectionId: source.davCollectionId,
+    sourceDavSchedulingPrincipal: source.davSchedulingPrincipal,
     destinationAccountId: destination.accountId,
     destinationId: destination.id,
     destinationProviderCalendarId: destination.providerCalendarId,
     destinationProvider: destination.provider,
     destinationDavCollectionId: destination.davCollectionId,
+    destinationDavSchedulingPrincipal: destination.davSchedulingPrincipal,
     eventType: initialDraft.eventType,
     recurring: initialDraft.providerRecurringEventId != null,
     recurringScope: draft.recurringMutationScope,
@@ -1286,7 +1290,23 @@ class _EventEditorState extends ConsumerState<EventEditor> {
   List<Widget> _reminderRows(BusyProvider provider) {
     final l10n = context.l10n;
     final colorScheme = Theme.of(context).colorScheme;
-    final minutes = _reminderMinutesList(_draft.reminders);
+    final davRows =
+        provider.isDav && davEventRemindersHaveIdentities(_draft.reminders)
+        ? davEventEditableReminderRows(_draft.reminders) ??
+              <DavEventReminderRow>[]
+        : null;
+    final minutes = davRows == null
+        ? _reminderMinutesList(_draft.reminders)
+        : [for (final row in davRows) row.minutes];
+    void setDavRows(List<DavEventReminderRow> rows) {
+      setState(() {
+        _draft = _draft.copyWith(
+          reminders: davEventReminderPayload(rows),
+          remindersChanged: true,
+        );
+      });
+    }
+
     final supportsMultiple = provider != BusyProvider.microsoft;
     final canAddReminder =
         minutes.isEmpty ||
@@ -1301,6 +1321,14 @@ class _EventEditorState extends ConsumerState<EventEditor> {
           selected: minutes[index],
           labelFor: (value) => _reminderLabel(context, value),
           onSelected: (value) {
+            if (davRows != null) {
+              setDavRows([
+                ...davRows.take(index),
+                davRows[index].copyWith(minutes: value),
+                ...davRows.skip(index + 1),
+              ]);
+              return;
+            }
             _setReminderMinutes(provider, [
               ...minutes.take(index),
               value,
@@ -1312,6 +1340,13 @@ class _EventEditorState extends ConsumerState<EventEditor> {
             iconSize: BusyMaxSizes.headerIcon,
             icon: const Icon(YaruIcons.window_close),
             onPressed: () {
+              if (davRows != null) {
+                setDavRows([
+                  ...davRows.take(index),
+                  ...davRows.skip(index + 1),
+                ]);
+                return;
+              }
               _setReminderMinutes(provider, [
                 ...minutes.take(index),
                 ...minutes.skip(index + 1),
@@ -1339,6 +1374,13 @@ class _EventEditorState extends ConsumerState<EventEditor> {
             ),
           ),
           onTap: () {
+            if (davRows != null) {
+              setDavRows([
+                ...davRows,
+                DavEventReminderRow(minutes: _nextReminderMinute(minutes)),
+              ]);
+              return;
+            }
             _setReminderMinutes(provider, [
               ...minutes,
               _nextReminderMinute(minutes),
@@ -2292,13 +2334,20 @@ DateTime _calendarDate(DateTime value) {
   return DateTime.utc(value.year, value.month, value.day);
 }
 
-const _eventReminderMinuteOptions = [5, 10, 30, 60, 1440];
+const _eventReminderMinuteOptions = [5, 10, 30, 60, 1440, 0];
 
 List<int> _reminderMinutesList(Object? reminders) {
   if (reminders is! Map) {
     return const [];
   }
   final map = reminders.cast<String, Object?>();
+  if (map.containsKey('davEditableRows') || map.containsKey('alarms')) {
+    return [
+      for (final row
+          in davEventEditableReminderRows(map) ?? <DavEventReminderRow>[])
+        row.minutes,
+    ];
+  }
   final minutes = map['reminderMinutesBeforeStart'];
   if (minutes is int) {
     return _normalizedReminderMinutes([minutes]);
@@ -2347,7 +2396,7 @@ Object _disabledRemindersFor(BusyProvider provider) {
 List<int> _normalizedReminderMinutes(Iterable<int> minutes) {
   final result = <int>[];
   for (final value in minutes) {
-    if (value <= 0 || result.contains(value)) {
+    if (value < 0 || result.contains(value)) {
       continue;
     }
     result.add(value);

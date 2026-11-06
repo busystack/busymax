@@ -1,3 +1,5 @@
+import 'dav_event_move_policy.dart';
+
 import 'dart:convert';
 
 import '../../features/maps/data/location_resolution_repository.dart';
@@ -683,7 +685,10 @@ final class DavPendingOperationQueue {
     final cursors =
         await (_database.select(_database.syncCursors)..where(
               (row) =>
-                  row.accountId.equals(operation.accountId) &
+                  row.accountId.isIn([
+                    operation.accountId,
+                    _moveDestinationAccountId(operation),
+                  ]) &
                   row.davCollectionId.isIn([
                     sourceCollectionId,
                     destinationCollectionId,
@@ -713,7 +718,7 @@ final class DavPendingOperationQueue {
     final destination =
         await (_database.select(_database.davObjects)..where(
               (row) =>
-                  row.accountId.equals(operation.accountId) &
+                  row.accountId.equals(_moveDestinationAccountId(operation)) &
                   row.collectionId.equals(destinationCollectionId) &
                   row.hrefKey.equals(destinationHref) &
                   row.serverDeleted.equals(false),
@@ -821,6 +826,7 @@ final class DavPendingOperationQueue {
     required String accountId,
     required String sourceCollectionId,
     required String destinationCollectionId,
+    String? destinationAccountId,
     required String objectId,
     required IcalComponentKey target,
     String? localProjectionId,
@@ -832,10 +838,16 @@ final class DavPendingOperationQueue {
       sourceCollectionId,
       objectId,
     );
-    final destination = await _context(accountId, destinationCollectionId);
+    final destination = await _context(
+      destinationAccountId ?? accountId,
+      destinationCollectionId,
+    );
     final providerSupportsMove = source.provider.isDav;
     if (!providerSupportsMove ||
-        destination.provider != source.provider ||
+        (destination.provider != source.provider &&
+            target.componentType != 'VEVENT') ||
+        (destination.account.id != accountId &&
+            target.componentType != 'VEVENT') ||
         source.collection.id == destination.collection.id) {
       throw _invalidPendingOperation();
     }
@@ -907,6 +919,19 @@ final class DavPendingOperationQueue {
     if (!_containsTarget(semantic, target)) throw _invalidPendingOperation();
     final nowUtc = _nowUtc().toUtc();
     final materializedPatch = postMovePatch?.materialize(nowUtc);
+    if (event &&
+        (source.provider == BusyProvider.caldav ||
+            destination.account.id != accountId)) {
+      await validateDavEventNativeMove(
+        database: _database,
+        source: source.collection,
+        destination: destination.collection,
+        baseline: intendedSourceRaw,
+        candidate:
+            materializedPatch?.applyTo(intendedSourceRaw, nowUtc: nowUtc) ??
+            intendedSourceRaw,
+      );
+    }
     if (source.provider == BusyProvider.nextcloud && event) {
       final policy = await NextcloudSchedulingPolicy.load(
         _database,
@@ -962,6 +987,7 @@ final class DavPendingOperationQueue {
         requestJson: jsonEncode({
           'isEvent': event,
           'destinationRequestUri': destinationUri.toString(),
+          'destinationAccountId': destination.account.id,
         }),
         state: Value(DavPendingState.pending.storageValue),
         createdAtUtc: now,
@@ -1444,6 +1470,13 @@ final class DavPendingOperationsReplayer {
     final allowDeletedMoveSource =
         op.operationType == 'dav.move' && reconcileFirst;
     if (op.operationType == 'dav.move') {
+      if (account.provider == 'caldav' && !capabilities.supportsMove) {
+        throw const DavException(
+          kind: DavErrorKind.protocol,
+          code: 'DavMoveUnsupported',
+          safeMessage: 'The server does not support moving this resource.',
+        );
+      }
       await _requiredMoveSource(
         op,
         collection,
@@ -1481,6 +1514,23 @@ final class DavPendingOperationsReplayer {
                 baseline,
           );
       }
+    }
+    if (op.operationType == 'dav.move' &&
+        _deleteIsEvent(op) &&
+        (account.provider == 'caldav' ||
+            _moveDestinationAccountId(op) != _accountId)) {
+      final destination = await _requiredDestinationCollection(op);
+      final baseline = _required(op.baselineRawIcs);
+      await validateDavEventNativeMove(
+        database: _database,
+        source: collection,
+        destination: destination,
+        baseline: baseline,
+        candidate:
+            _decodeOptionalMovePatch(op)
+                ?.applyTo(baseline, nowUtc: _nowUtc()) ??
+            baseline,
+      );
     }
     final service = await _serviceFactory(
       account: account,
@@ -1581,6 +1631,7 @@ final class DavPendingOperationsReplayer {
         accountId: _accountId,
         sourceCollectionId: _required(op.davCollectionId),
         destinationCollectionId: destination.id,
+        destinationAccountId: destination.accountId,
         provider: provider,
         sourceHrefKey: _required(op.davMemberHref),
         canonicalDestinationObject: DavPreparedObject.parse(
@@ -1736,7 +1787,7 @@ final class DavPendingOperationsReplayer {
     String? destinationHref,
   ) async {
     if (completedCreate.operationType != 'dav.create' ||
-        completedCreate.eventId == null) {
+        completedCreate.entityType != 'event') {
       return;
     }
     final dependents = await (_database.select(
@@ -2019,7 +2070,7 @@ final class DavPendingOperationsReplayer {
       _database.davCollections,
     )..where((row) => row.id.equals(id))).getSingleOrNull();
     if (collection == null ||
-        collection.accountId != _accountId ||
+        collection.accountId != _moveDestinationAccountId(op) ||
         collection.deleted ||
         collection.serverMissing ||
         collection.hrefKey != op.destinationCollectionHref) {
@@ -2028,6 +2079,18 @@ final class DavPendingOperationsReplayer {
         code: 'DavMoveDestinationRemoved',
         safeMessage: 'The destination DAV collection is no longer available.',
       );
+    }
+    final destinationAccount = await (_database.select(
+      _database.accounts,
+    )..where((row) => row.id.equals(collection.accountId))).getSingleOrNull();
+    if (destinationAccount == null ||
+        !BusyProviderCodec.requireStorageValue(destinationAccount.provider)
+            .isDav ||
+        !sameDavOrigin(
+          Uri.parse(destinationAccount.authority),
+          Uri.parse(collection.requestUri),
+        )) {
+      throw _invalidPendingOperation();
     }
     return collection;
   }
@@ -2536,3 +2599,8 @@ DavException _permissionError() => const DavException(
   code: 'DavReadOnly',
   safeMessage: 'This DAV collection does not allow that change.',
 );
+
+String _moveDestinationAccountId(PendingOp op) {
+  final request = jsonDecode(op.requestJson) as Map;
+  return request['destinationAccountId'] as String? ?? op.accountId;
+}

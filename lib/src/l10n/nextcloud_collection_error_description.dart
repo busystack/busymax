@@ -37,6 +37,10 @@ String localizedNextcloudCollectionError(
   DavException(code: 'DavCollectionCreationInvalid') =>
     l10n.invalidCollectionValue,
   DavException(
+    code: 'DavMeetingCopyDeleteUnsupported' || 'DavMeetingMoveIdentityChanged',
+  ) =>
+    l10n.nextcloudMeetingMoveUnsupported,
+  DavException(
     code: 'DavDiscoveryRequired' ||
         'DavIncompleteInventory' ||
         'DavTrashNotDiscovered',

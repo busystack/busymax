@@ -1,3 +1,4 @@
+import '../../features/sync/all_accounts_sync_scheduler.dart';
 import 'android_nextcloud_certificate_dialog.dart';
 import '../../ui/common/nextcloud_certificate_review.dart';
 import 'android_contacts_settings.dart';
@@ -1156,19 +1157,34 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
     final l10n = context.l10n;
     setState(() => _syncing = true);
     try {
-      for (final account
-          in await ref
-              .read(accountsRepositoryProvider)
-              .listSyncEligibleAccounts()) {
+      final accounts = await ref
+          .read(accountsRepositoryProvider)
+          .listSyncEligibleAccounts();
+      final blocked = <String>{};
+      for (final account in accounts) {
         if ((account.provider == BusyProvider.caldav ||
                 account.provider == BusyProvider.nextcloud) &&
             !await _ensureLocalNetworkAccess(account.authority)) {
-          return;
+          blocked.add(account.id);
         }
       }
-      await ref.read(allAccountsSyncRunnerProvider)();
+      if (blocked.isEmpty) {
+        await ref.read(allAccountsSyncRunnerProvider)();
+      } else {
+        await runAllSyncEligibleAccountSync(
+          listSyncEligibleAccounts: () async => [
+            for (final account in accounts)
+              if (!blocked.contains(account.id)) account,
+          ],
+          syncAccount: (id) => ref.read(signedInSyncRunnerProvider)(id, false),
+          rethrowFirstFailure: true,
+          onSyncFailure: (error) => ref
+              .read(operationalNotificationReporterProvider)
+              .notifySyncFailure(error),
+        );
+      }
       await ref.read(notificationReconcilerProvider).reconcile();
-      _message(l10n.syncComplete);
+      if (blocked.isEmpty) _message(l10n.syncComplete);
     } on Object catch (error) {
       _message(
         l10n.syncFailed(

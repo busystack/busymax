@@ -467,7 +467,12 @@ final class DavAccountSyncEngine {
       }
       if (failures.isNotEmpty) {
         if (affected.isNotEmpty || notificationProjectionsChanged) {
-          await _rebuildNotifications?.call(_accountId, affected);
+          await rebuildDavAffectedAccountNotifications(
+            database: _database,
+            accountId: _accountId,
+            affectedObjectIds: affected,
+            rebuild: _rebuildNotifications,
+          );
         }
         final accountFailure = failures.where(_blocksAccountReplay).firstOrNull;
         if (accountFailure != null) {
@@ -489,7 +494,12 @@ final class DavAccountSyncEngine {
         await _markSuccessful(full: full);
       }
       if (affected.isNotEmpty || notificationProjectionsChanged) {
-        await _rebuildNotifications?.call(_accountId, affected);
+        await rebuildDavAffectedAccountNotifications(
+          database: _database,
+          accountId: _accountId,
+          affectedObjectIds: affected,
+          rebuild: _rebuildNotifications,
+        );
       }
       return DavAccountSyncResult(
         discoveryRefreshed: discoveryRefreshed,
@@ -824,3 +834,24 @@ bool _blocksAccountReplay(DavException failure) =>
     _requiresReconnect(failure) ||
     failure.kind == DavErrorKind.tls ||
     failure.kind == DavErrorKind.cancelled;
+
+/// A confirmed native MOVE can project a destination owned by another local
+/// account. Rebuild its reminders as well as those of the account doing sync.
+Future<void> rebuildDavAffectedAccountNotifications({
+  required AppDatabase database,
+  required String accountId,
+  required Set<String> affectedObjectIds,
+  required Future<void> Function(String, Set<String>)? rebuild,
+}) async {
+  if (rebuild == null) return;
+  final accounts = <String>{accountId};
+  if (affectedObjectIds.isNotEmpty) {
+    final objects = await (database.select(
+      database.davObjects,
+    )..where((row) => row.id.isIn(affectedObjectIds))).get();
+    accounts.addAll(objects.map((object) => object.accountId));
+  }
+  for (final id in accounts) {
+    await rebuild(id, affectedObjectIds);
+  }
+}

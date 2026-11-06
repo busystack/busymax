@@ -43,7 +43,11 @@ void main() {
   });
 
   test('same-account CalDAV movement uses the DAV resource operation', () {
-    for (final provider in [BusyProvider.nextcloud, BusyProvider.appleICloud]) {
+    for (final provider in [
+      BusyProvider.caldav,
+      BusyProvider.nextcloud,
+      BusyProvider.appleICloud,
+    ]) {
       expect(
         _strategy(
           sourceProvider: provider,
@@ -55,6 +59,40 @@ void main() {
       );
     }
   });
+
+  for (final destinationPrincipal in [
+    null,
+    'https://dav.example.test/principals/user',
+    'https://dav.example.test/principals/other',
+    'https://other.example.test/principals/user',
+  ]) {
+    test(
+      'cross-account DAV move presentation uses the discovered scheduling identity: $destinationPrincipal',
+      () {
+        final strategy = _strategy(
+          sourceProvider: BusyProvider.caldav,
+          destinationProvider: BusyProvider.caldav,
+          destinationAccountId: 'other-account',
+          sourceDavCollectionId: 'source',
+          destinationDavCollectionId: 'destination',
+          sourceDavSchedulingPrincipal: Uri.parse(
+            'https://dav.example.test/principals/user',
+          ),
+          destinationDavSchedulingPrincipal: destinationPrincipal == null
+              ? null
+              : Uri.parse(destinationPrincipal),
+          recurring: true,
+          recurringScope: RecurringEventMutationScope.entireSeries,
+        );
+        expect(
+          strategy,
+          destinationPrincipal == 'https://dav.example.test/principals/user'
+              ? CalendarEventMoveStrategy.davNative
+              : CalendarEventMoveStrategy.copyThenDelete,
+        );
+      },
+    );
+  }
 
   test('Microsoft movement uses explicit copy then delete', () {
     expect(
@@ -77,6 +115,8 @@ CalendarEventMoveStrategy _strategy({
   String? eventType = 'default',
   bool recurring = false,
   RecurringEventMutationScope? recurringScope,
+  Uri? sourceDavSchedulingPrincipal,
+  Uri? destinationDavSchedulingPrincipal,
 }) {
   return calendarEventMoveStrategy(
     sourceAccountId: sourceAccountId,
@@ -92,5 +132,7 @@ CalendarEventMoveStrategy _strategy({
     eventType: eventType,
     recurring: recurring,
     recurringScope: recurringScope,
+    sourceDavSchedulingPrincipal: sourceDavSchedulingPrincipal,
+    destinationDavSchedulingPrincipal: destinationDavSchedulingPrincipal,
   );
 }

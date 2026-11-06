@@ -1,3 +1,4 @@
+import '../core/http/terminating_http_client.dart' as app_http;
 import '../dav/auth/nextcloud_login_flow_v2.dart' as busymax_login;
 import '../core/http/authorization_leased_http_client.dart';
 import '../features/sync/account_sync_operations.dart';
@@ -569,10 +570,12 @@ final class BusyMaxContactsController {
       if (nextcloud) 'authorizationGeneration': account.generation,
     });
     if (nextcloud) {
+      NextcloudCertificateException? certificateFailure;
       final candidate = _davProvider(
         account,
         (jsonDecode(secret) as Map).cast<String, dynamic>(),
         validationOnly: true,
+        onCertificateFailure: (error) => certificateFailure = error,
       );
       final validation = ContactsCancellationToken();
       attempt.onCancel = validation.cancel;
@@ -584,6 +587,10 @@ final class BusyMaxContactsController {
           );
         }
         _checkEnrollment(attempt);
+      } on Object catch (error, stack) {
+        // The contacts adapter maps DAV errors to ContactsException. Retain
+        // the original TLS proof so enrollment can review the exact peer.
+        Error.throwWithStackTrace(certificateFailure ?? error, stack);
       } finally {
         candidate.close();
       }
@@ -694,7 +701,7 @@ final class BusyMaxContactsController {
         // Approval of a canonical URL must never transfer that exception.
         policy = null;
       }
-      return await _addCardDav(
+      Future<ContactAccount> enroll(NextcloudTrustPolicy? trust) => _addCardDav(
         attempt,
         id: id,
         label: label,
@@ -702,8 +709,24 @@ final class BusyMaxContactsController {
         username: credential.loginName,
         password: credential.appPassword,
         nextcloud: true,
-        trustPolicy: policy,
+        trustPolicy: trust,
       );
+      try {
+        return await enroll(policy);
+      } on NextcloudCertificateException catch (challenge) {
+        if (policy != null || reviewCertificate == null || attempt.committed) {
+          rethrow;
+        }
+        // The canonical installation needs its own explicit approval. Never
+        // reuse a certificate exception granted to the login installation.
+        final canonicalOwner = '$owner:canonical';
+        final approved = await reviewCertificate(challenge, canonicalOwner);
+        _checkEnrollment(attempt);
+        cancellation.throwIfCancelled();
+        if (approved == null) rethrow;
+        approved.requireScope(canonicalOwner, credential.server);
+        return await enroll(approved);
+      }
     } finally {
       nextcloudClients?.invalidate(owner);
     }
@@ -954,6 +977,7 @@ final class BusyMaxContactsController {
     http.Client? scopedClient,
     bool validationOnly = false,
     int? expectedDurableGeneration,
+    void Function(NextcloudCertificateException)? onCertificateFailure,
   }) {
     _requireDavTrustMetadata(config);
     final server = Uri.parse(config['server'] as String);
@@ -999,6 +1023,9 @@ final class BusyMaxContactsController {
           }
         },
       );
+    }
+    if (onCertificateFailure != null) {
+      client = _CertificateFailureClient(client, onCertificateFailure);
     }
     final resources = DavResourceClient(
       accountId: account.id,
@@ -1799,4 +1826,47 @@ Never _throwContactsAuthorizationFailure(
     }, code);
   }
   throw ContactsException(failure, code);
+}
+
+/// Keeps the app-owned TLS challenge available across the contacts adapter's
+/// public error mapping, including cancellable connection establishment.
+final class _CertificateFailureClient extends http.BaseClient
+    implements app_http.TerminatingHttpClient {
+  _CertificateFailureClient(this.delegate, this.onFailure);
+  final http.Client delegate;
+  final void Function(NextcloudCertificateException) onFailure;
+
+  Future<http.StreamedResponse> _capture(
+    Future<http.StreamedResponse> Function() send,
+  ) async {
+    try {
+      return await send();
+    } on NextcloudCertificateException catch (error) {
+      onFailure(error);
+      rethrow;
+    }
+  }
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) =>
+      _capture(() => delegate.send(request));
+
+  @override
+  Future<http.StreamedResponse> sendTerminating(
+    http.BaseRequest request, {
+    required Future<void> terminate,
+    required Duration connectionTimeout,
+  }) => _capture(() {
+    final client = delegate;
+    return client is app_http.TerminatingHttpClient
+        ? client.sendTerminating(
+            request,
+            terminate: terminate,
+            connectionTimeout: connectionTimeout,
+          )
+        : client.send(request);
+  });
+
+  @override
+  void close() => delegate.close();
 }

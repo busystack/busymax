@@ -1,3 +1,4 @@
+import '../../features/calendar/presentation/dav_event_reminders.dart';
 import '../../features/recurrence/domain/series_timing_change.dart';
 import '../../features/recurrence/presentation/recurrence_summary.dart';
 
@@ -154,6 +155,15 @@ Future<bool> showWindowsEventEditorDialog(
   var reminderMinutes = decodeWindowsEventReminderMinutes(
     originalDraft?.reminders,
   );
+  var davReminderRows = [
+    ...?davEventEditableReminderRows(originalDraft?.reminders),
+  ];
+  bool usesDavReminderRows() =>
+      (detail?.provider ?? selectedSource.provider).isDav &&
+      davEventRemindersHaveIdentities(originalDraft?.reminders);
+  if (usesDavReminderRows()) {
+    reminderMinutes = [for (final row in davReminderRows) row.minutes];
+  }
   var remindersChanged = false;
   var attendees = [...?originalDraft?.attendees];
   var attendeesChanged = false;
@@ -359,6 +369,14 @@ Future<bool> showWindowsEventEditorDialog(
                                   }
                                   guestSuggestionGeneration++;
                                   guestSuggestions = const [];
+                                  if (detail == null &&
+                                      source.provider !=
+                                          selectedSource.provider) {
+                                    davReminderRows = [
+                                      for (final minute in reminderMinutes)
+                                        DavEventReminderRow(minutes: minute),
+                                    ];
+                                  }
                                   selectedSource = source;
                                   // Destination conversion belongs to the shared save
                                   // policy. Keep the editable data intact while browsing.
@@ -573,18 +591,31 @@ Future<bool> showWindowsEventEditorDialog(
                                               : (value) {
                                                   if (value == null) return;
                                                   setState(() {
-                                                    reminderMinutes =
-                                                        normalizeWindowsEventReminderMinutes(
-                                                          [
-                                                            ...reminderMinutes
-                                                                .take(index),
-                                                            value,
-                                                            ...reminderMinutes
-                                                                .skip(
-                                                                  index + 1,
-                                                                ),
-                                                          ],
-                                                        );
+                                                    if (usesDavReminderRows()) {
+                                                      davReminderRows[index] =
+                                                          davReminderRows[index]
+                                                              .copyWith(
+                                                                minutes: value,
+                                                              );
+                                                      reminderMinutes = [
+                                                        for (final row
+                                                            in davReminderRows)
+                                                          row.minutes,
+                                                      ];
+                                                    } else {
+                                                      reminderMinutes =
+                                                          normalizeWindowsEventReminderMinutes(
+                                                            [
+                                                              ...reminderMinutes
+                                                                  .take(index),
+                                                              value,
+                                                              ...reminderMinutes
+                                                                  .skip(
+                                                                    index + 1,
+                                                                  ),
+                                                            ],
+                                                          );
+                                                    }
                                                     remindersChanged = true;
                                                   });
                                                 },
@@ -600,6 +631,11 @@ Future<bool> showWindowsEventEditorDialog(
                                         onPressed: saving
                                             ? null
                                             : () => setState(() {
+                                                if (usesDavReminderRows()) {
+                                                  davReminderRows.removeAt(
+                                                    index,
+                                                  );
+                                                }
                                                 reminderMinutes = [
                                                   ...reminderMinutes.take(
                                                     index,
@@ -624,6 +660,16 @@ Future<bool> showWindowsEventEditorDialog(
                                   onPressed: saving
                                       ? null
                                       : () => setState(() {
+                                          if (usesDavReminderRows()) {
+                                            davReminderRows.add(
+                                              DavEventReminderRow(
+                                                minutes:
+                                                    nextWindowsEventReminderMinute(
+                                                      reminderMinutes,
+                                                    ),
+                                              ),
+                                            );
+                                          }
                                           reminderMinutes = [
                                             ...reminderMinutes,
                                             nextWindowsEventReminderMinute(
@@ -1283,7 +1329,8 @@ Future<bool> showWindowsEventEditorDialog(
                   ],
                   if (selectedSource.provider == BusyProvider.google ||
                       selectedSource.provider == BusyProvider.microsoft ||
-                      selectedSource.provider == BusyProvider.nextcloud) ...[
+                      selectedSource.provider == BusyProvider.nextcloud ||
+                      selectedSource.provider == BusyProvider.caldav) ...[
                     const SizedBox(height: 12),
                     InfoLabel(
                       label: l10n.guests,
@@ -1707,11 +1754,15 @@ Future<bool> showWindowsEventEditorDialog(
                                         recurrenceChanged &&
                                         !recurrence.repeats,
                                     reminders: remindersChanged
-                                        ? encodeWindowsEventReminderPayload(
-                                            detail?.provider ??
-                                                selectedSource.provider,
-                                            reminderMinutes,
-                                          )
+                                        ? usesDavReminderRows()
+                                              ? davEventReminderPayload(
+                                                  davReminderRows,
+                                                )
+                                              : encodeWindowsEventReminderPayload(
+                                                  detail?.provider ??
+                                                      selectedSource.provider,
+                                                  reminderMinutes,
+                                                )
                                         : null,
                                     remindersChanged: remindersChanged,
                                     attendees: attendeesChanged
@@ -1820,6 +1871,8 @@ Future<bool> showWindowsEventEditorDialog(
                                   sourceProvider: moveSource.provider,
                                   sourceDavCollectionId:
                                       moveSource.davCollectionId,
+                                  sourceDavSchedulingPrincipal:
+                                      moveSource.davSchedulingPrincipal,
                                   destinationAccountId:
                                       selectedSource.accountId,
                                   destinationId: selectedSource.id,
@@ -1828,6 +1881,8 @@ Future<bool> showWindowsEventEditorDialog(
                                   destinationProvider: selectedSource.provider,
                                   destinationDavCollectionId:
                                       selectedSource.davCollectionId,
+                                  destinationDavSchedulingPrincipal:
+                                      selectedSource.davSchedulingPrincipal,
                                   eventType: originalDraft?.eventType,
                                   recurring:
                                       originalDraft?.providerRecurringEventId !=
@@ -1971,14 +2026,20 @@ Future<bool> showWindowsEventEditorDialog(
                             );
                           }
                           if (selectedSource.provider ==
-                              BusyProvider.nextcloud) {
-                            ref
-                                .read(
-                                  pendingCalendarMutationSyncRequesterForAccountProvider(
-                                    draft.accountId,
-                                  ),
-                                )
-                                .request();
+                                  BusyProvider.nextcloud ||
+                              selectedSource.provider == BusyProvider.caldav) {
+                            for (final accountId in {
+                              draft.accountId,
+                              if (detail != null) detail.accountId,
+                            }) {
+                              ref
+                                  .read(
+                                    pendingCalendarMutationSyncRequesterForAccountProvider(
+                                      accountId,
+                                    ),
+                                  )
+                                  .request();
+                            }
                           }
                           saved = true;
                           closeDialog();
@@ -1987,8 +2048,10 @@ Future<bool> showWindowsEventEditorDialog(
                             saving = false;
                             error = failure is SeriesTimingDecisionRequired
                                 ? failure.message
-                                : selectedSource.provider ==
-                                      BusyProvider.nextcloud
+                                : (selectedSource.provider ==
+                                          BusyProvider.nextcloud ||
+                                      selectedSource.provider ==
+                                          BusyProvider.caldav)
                                 ? localizedNextcloudCollectionError(
                                     l10n,
                                     failure,

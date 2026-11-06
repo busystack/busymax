@@ -1,3 +1,5 @@
+import '../../../dav/mutation/dav_event_move_policy.dart';
+import '../../../dav/mutation/dav_conditional_mutation_service.dart';
 import '../domain/event_property_policy.dart';
 
 import 'dart:convert';
@@ -93,6 +95,7 @@ class CalendarSourceEntity {
     this.davCollectionId,
     this.allowedConferenceSolutions = const [],
     this.davEffectivePermissions = const {},
+    this.davSchedulingPrincipal,
   });
 
   factory CalendarSourceEntity.fromRow(
@@ -125,6 +128,12 @@ class CalendarSourceEntity {
       authenticatedAccountEmail: authenticatedAccountEmail,
       pendingCreate: pendingCreate,
       davCollectionId: row.davCollectionId,
+      davSchedulingPrincipal: davCollection == null
+          ? null
+          : davSchedulingPrincipalForCollection(
+              davCollection,
+              service: davService,
+            ),
       allowedConferenceSolutions: _conferenceSolutions(row.rawJson),
       davEffectivePermissions:
           const {'nextcloud', 'apple_icloud', 'caldav'}.contains(row.provider)
@@ -166,6 +175,7 @@ class CalendarSourceEntity {
   final String? davCollectionId;
   final List<String> allowedConferenceSolutions;
   final Map<String, Object?> davEffectivePermissions;
+  final Uri? davSchedulingPrincipal;
 
   bool get usesImplicitScheduling =>
       provider == BusyProvider.caldav &&
@@ -2764,7 +2774,7 @@ class CalendarRepository {
     }
     await _requireEventReadyToMove(existing);
 
-    final strategy = calendarEventMoveStrategy(
+    var strategy = calendarEventMoveStrategy(
       sourceAccountId: originalSource.accountId,
       sourceId: originalSource.id,
       sourceProviderCalendarId: originalSource.providerCalendarId,
@@ -2779,6 +2789,29 @@ class CalendarRepository {
       recurring: recurring,
       recurringScope: scope,
     );
+    if (sourceProvider.isDav &&
+        destinationProvider.isDav &&
+        originalSource.davCollectionId != null &&
+        destinationSource.davCollectionId != null &&
+        (!recurring || scope == RecurringEventMutationScope.entireSeries)) {
+      final sourceCollection =
+          await (_database.select(_database.davCollections)
+                ..where((r) => r.id.equals(originalSource.davCollectionId!)))
+              .getSingle();
+      final destinationCollection =
+          await (_database.select(_database.davCollections)
+                ..where((r) => r.id.equals(destinationSource.davCollectionId!)))
+              .getSingle();
+      if (await sameDavSchedulingIdentity(
+        _database,
+        sourceCollection,
+        destinationCollection,
+      )) {
+        // A duplicate account record does not change the server-side operation.
+        // The source credential must authorize the atomic MOVE at the server.
+        strategy = CalendarEventMoveStrategy.davNative;
+      }
+    }
     switch (strategy) {
       case CalendarEventMoveStrategy.none:
         throw StateError('The destination calendar is unchanged.');
@@ -2985,12 +3018,6 @@ class CalendarRepository {
     required CalendarEvent existing,
     required EventEditorDraft draft,
   }) async {
-    final scheduling = await _davSchedulingPolicy(originalSource);
-    _requireDavSchedulingUnchanged(
-      draft,
-      creating: false,
-      scheduling: scheduling,
-    );
     final sourceCollectionId = originalSource.davCollectionId;
     final destinationCollectionId = destinationSource.davCollectionId;
     final objectId = existing.davObjectId;
@@ -3005,16 +3032,122 @@ class CalendarRepository {
         end == null) {
       throw StateError('The DAV event is not ready to move.');
     }
+    final mutation = await _davEventMoveCandidate(
+      originalSource: originalSource,
+      destinationSource: destinationSource,
+      existing: existing,
+      draft: draft,
+    );
+    final queue = mutation.queue;
+    final target = mutation.target;
+    final patch = mutation.patch;
+    final candidate = mutation.candidate;
+    await _database.transaction(() async {
+      await queue.enqueueMove(
+        accountId: existing.accountId,
+        sourceCollectionId: sourceCollectionId,
+        destinationCollectionId: destinationCollectionId,
+        destinationAccountId: destinationSource.accountId,
+        objectId: objectId,
+        target: target,
+        localProjectionId: existing.id,
+        postMovePatch: patch,
+      );
+      await DavObjectRepository(database: _database)
+          .projectLocalMutationCandidate(
+            accountId: existing.accountId,
+            collectionId: sourceCollectionId,
+            provider: BusyProviderCodec.requireStorageValue(
+              originalSource.provider,
+            ),
+            objectId: objectId,
+            candidateRawIcs: candidate,
+            projectedAtUtc: _now().toUtc(),
+          );
+      await (_database.update(_database.calendarEvents)..where(
+            (row) =>
+                row.accountId.equals(existing.accountId) &
+                row.davObjectId.equals(objectId),
+          ))
+          .write(
+            CalendarEventsCompanion(
+              calendarSourceId:
+                  originalSource.accountId == destinationSource.accountId
+                  ? Value(destinationSource.id)
+                  : const Value.absent(),
+              providerCalendarId:
+                  originalSource.accountId == destinationSource.accountId
+                  ? Value(destinationSource.providerCalendarId)
+                  : const Value.absent(),
+              davCollectionId:
+                  originalSource.accountId == destinationSource.accountId
+                  ? Value(destinationCollectionId)
+                  : const Value.absent(),
+              syncStatus: const Value('pending'),
+              updatedAtLocal: Value(_now().millisecondsSinceEpoch),
+            ),
+          );
+    });
+    await _rebuildEventNotificationsFor({existing.accountId});
+  }
+
+  Future<
+    ({
+      DavPendingOperationQueue queue,
+      String baseline,
+      IcalComponentKey target,
+      DavMutationPatch? patch,
+      String candidate,
+    })
+  >
+  _davEventMoveCandidate({
+    required CalendarSource originalSource,
+    required CalendarSource destinationSource,
+    required CalendarEvent existing,
+    required EventEditorDraft draft,
+  }) async {
+    final scheduling = await _davSchedulingPolicy(originalSource);
+    _requireDavSchedulingUnchanged(
+      draft,
+      creating: false,
+      scheduling: scheduling,
+    );
+    final sourceCollectionId = originalSource.davCollectionId!;
+    final objectId = existing.davObjectId!;
+    final uid = existing.icalUid!;
+    final start = draft.start!;
+    final end = draft.end!;
     final queue = DavPendingOperationQueue(
       database: _database,
       nowUtc: () => _now().toUtc(),
     );
-    final baselineRawIcs = await queue.editableRawIcsForObject(
+    var baselineRawIcs = await queue.editableRawIcsForObject(
       accountId: existing.accountId,
       collectionId: sourceCollectionId,
       objectId: objectId,
     );
     final recurring = _eventRequiresRecurringScope(existing);
+    final singleOccurrence =
+        recurring &&
+        draft.recurringMutationScope ==
+            RecurringEventMutationScope.singleOccurrence;
+    if (singleOccurrence) {
+      final component = detachedDavEventOccurrence(
+        baselineRawIcs: baselineRawIcs,
+        uid: uid,
+        occurrenceKey: existing.occurrenceKey!,
+      );
+      component.children.removeWhere(
+        (node) => node is IcalProperty && node.name == 'RECURRENCE-ID',
+      );
+      final document = IcalDocument.parse(baselineRawIcs);
+      document.root.children.removeWhere(
+        (node) => node is IcalComponent && node.name == 'VEVENT',
+      );
+      document.root.children.add(component);
+      document.root.structurallyDirty = true;
+      baselineRawIcs = document.serialize();
+    }
     final target = IcalComponentKey(
       componentType: 'VEVENT',
       uid: uid,
@@ -3040,7 +3173,7 @@ class CalendarRepository {
       scheduling: scheduling,
       nowUtc: _now().toUtc(),
     );
-    if (recurring) {
+    if (recurring && !singleOccurrence) {
       input = _seriesDavEventInput(
         baselineRawIcs: baselineRawIcs,
         uid: uid,
@@ -3056,43 +3189,13 @@ class CalendarRepository {
     final candidate =
         patch?.applyTo(baselineRawIcs, nowUtc: _now().toUtc()) ??
         baselineRawIcs;
-    await _database.transaction(() async {
-      await queue.enqueueMove(
-        accountId: existing.accountId,
-        sourceCollectionId: sourceCollectionId,
-        destinationCollectionId: destinationCollectionId,
-        objectId: objectId,
-        target: target,
-        localProjectionId: existing.id,
-        postMovePatch: patch,
-      );
-      await DavObjectRepository(database: _database)
-          .projectLocalMutationCandidate(
-            accountId: existing.accountId,
-            collectionId: sourceCollectionId,
-            provider: BusyProviderCodec.requireStorageValue(
-              originalSource.provider,
-            ),
-            objectId: objectId,
-            candidateRawIcs: candidate,
-            projectedAtUtc: _now().toUtc(),
-          );
-      await (_database.update(_database.calendarEvents)..where(
-            (row) =>
-                row.accountId.equals(existing.accountId) &
-                row.davObjectId.equals(objectId),
-          ))
-          .write(
-            CalendarEventsCompanion(
-              calendarSourceId: Value(destinationSource.id),
-              providerCalendarId: Value(destinationSource.providerCalendarId),
-              davCollectionId: Value(destinationCollectionId),
-              syncStatus: const Value('pending'),
-              updatedAtLocal: Value(_now().millisecondsSinceEpoch),
-            ),
-          );
-    });
-    await _rebuildEventNotificationsFor({existing.accountId});
+    return (
+      queue: queue,
+      baseline: baselineRawIcs,
+      target: target,
+      patch: patch,
+      candidate: candidate,
+    );
   }
 
   Future<void> _copyThenDeleteLocalEvent({
@@ -3104,11 +3207,37 @@ class CalendarRepository {
     required BusyProvider destinationProvider,
     required CalendarGuestUpdatePolicy guestUpdatePolicy,
   }) async {
-    if ((sourceProvider == BusyProvider.nextcloud ||
-            destinationProvider == BusyProvider.nextcloud) &&
-        (_jsonMapList(existing.attendeesJson).isNotEmpty ||
+    String? nativeSource;
+    if (sourceProvider.isDav && existing.davObjectId != null) {
+      nativeSource = await DavPendingOperationQueue(database: _database)
+          .editableRawIcsForObject(
+            accountId: existing.accountId,
+            collectionId: originalSource.davCollectionId!,
+            objectId: existing.davObjectId!,
+          );
+    }
+    if ((sourceProvider.isDav || destinationProvider.isDav) &&
+        ((nativeSource != null &&
+                davResourceHasSchedulingIdentity(nativeSource)) ||
+            _jsonMapList(existing.attendeesJson).isNotEmpty ||
             draft.attendees.isNotEmpty)) {
       throw schedulingDenied('DavMeetingCopyDeleteUnsupported');
+    }
+    if (nativeSource != null &&
+        (destinationProvider == BusyProvider.caldav ||
+            destinationProvider == BusyProvider.nextcloud)) {
+      await _transferDavEventResource(
+        originalSource: originalSource,
+        destinationSource: destinationSource,
+        existing: existing,
+        draft: draft,
+      );
+      return;
+    }
+    if (sourceProvider == BusyProvider.caldav && nativeSource != null) {
+      throw UnsupportedError(
+        'This destination cannot preserve the complete event. Choose a CalDAV calendar.',
+      );
     }
     final effectiveSelection = await _eventMoveLocationSelection(
       draft,
@@ -3157,6 +3286,70 @@ class CalendarRepository {
     );
     await _rebuildEventNotificationsFor({
       originalSource.accountId,
+      destinationSource.accountId,
+    });
+  }
+
+  Future<void> _transferDavEventResource({
+    required CalendarSource originalSource,
+    required CalendarSource destinationSource,
+    required CalendarEvent existing,
+    required EventEditorDraft draft,
+  }) async {
+    final mutation = await _davEventMoveCandidate(
+      originalSource: originalSource,
+      destinationSource: destinationSource,
+      existing: existing,
+      draft: draft,
+    );
+    final memberName = '${const Uuid().v4()}.ics';
+    final collection =
+        await (_database.select(_database.davCollections)
+              ..where((r) => r.id.equals(destinationSource.davCollectionId!)))
+            .getSingle();
+    final destinationUri = Uri.parse(
+      collection.requestUri.endsWith('/')
+          ? collection.requestUri
+          : '${collection.requestUri}/',
+    ).resolve(memberName);
+    final object = DavNewObject(
+      uid: existing.icalUid!,
+      initialMemberName: memberName,
+      rawIcs: mutation.candidate,
+      componentType: 'VEVENT',
+    );
+    await _database.transaction(() async {
+      final localObjectId = await DavObjectRepository(database: _database)
+          .projectPendingImport(
+            accountId: destinationSource.accountId,
+            collectionId: collection.id,
+            object: DavPreparedObject.parse(
+              hrefKey: destinationUri.path,
+              requestUri: destinationUri,
+              etag: null,
+              contentType: 'text/calendar',
+              rawIcsBody: object.rawIcs,
+            ),
+            nowUtc: _now().toUtc(),
+          );
+      final createOperationId = await mutation.queue.enqueueCreate(
+        accountId: destinationSource.accountId,
+        collectionId: collection.id,
+        object: object,
+        localObjectId: localObjectId,
+      );
+      await _queueDavEventDeletionAfterCopy(
+        source: originalSource,
+        existing: existing,
+        recurringScope: draft.recurringMutationScope,
+        dependsOnOperationId: createOperationId,
+      );
+      await (_database.update(_database.calendarEvents)
+            ..where((r) => r.davObjectId.equals(existing.davObjectId!)))
+          .write(const CalendarEventsCompanion(syncStatus: Value('pending')));
+    });
+    await _rebuildEventNotificationsFor({
+      existing.accountId,
       destinationSource.accountId,
     });
   }

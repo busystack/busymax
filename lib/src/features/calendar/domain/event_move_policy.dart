@@ -17,6 +17,8 @@ CalendarEventMoveStrategy calendarEventMoveStrategy({
   required String? eventType,
   required bool recurring,
   required RecurringEventMutationScope? recurringScope,
+  Uri? sourceDavSchedulingPrincipal,
+  Uri? destinationDavSchedulingPrincipal,
 }) {
   final changed =
       sourceAccountId != destinationAccountId ||
@@ -27,7 +29,13 @@ CalendarEventMoveStrategy calendarEventMoveStrategy({
 
   final movesWholeResource =
       !recurring || recurringScope == RecurringEventMutationScope.entireSeries;
-  if (!movesWholeResource || sourceAccountId != destinationAccountId) {
+  final sameDavIdentity =
+      sourceProvider.isDav &&
+      destinationProvider.isDav &&
+      sourceDavSchedulingPrincipal != null &&
+      sourceDavSchedulingPrincipal == destinationDavSchedulingPrincipal;
+  if (!movesWholeResource ||
+      (sourceAccountId != destinationAccountId && !sameDavIdentity)) {
     return CalendarEventMoveStrategy.copyThenDelete;
   }
 
@@ -39,7 +47,8 @@ CalendarEventMoveStrategy calendarEventMoveStrategy({
 
   final davProvider = sourceProvider.isDav;
   if (davProvider &&
-      destinationProvider == sourceProvider &&
+      destinationProvider.isDav &&
+      (destinationProvider == sourceProvider || sameDavIdentity) &&
       sourceDavCollectionId != null &&
       destinationDavCollectionId != null) {
     return CalendarEventMoveStrategy.davNative;

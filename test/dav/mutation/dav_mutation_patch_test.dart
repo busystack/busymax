@@ -346,6 +346,50 @@ void main() {
     expect(added, contains('ACTION:AUDIO'));
   });
 
+  for (final minutes in [
+    <int>[0, 15, 30],
+    <int>[30],
+    <int>[30, 45],
+  ]) {
+    test('legacy minute edits $minutes preserve retained alarm metadata', () {
+      const secondAlarm =
+          'BEGIN:VALARM\r\nACTION:DISPLAY\r\nTRIGGER:-PT30M\r\nDESCRIPTION:Second\r\nX-KEEP:second\r\nEND:VALARM\r\n';
+      final baseline = _baselineEvent
+          .replaceFirst(
+            'DESCRIPTION:Reminder',
+            'DESCRIPTION:Custom first\r\nX-KEEP:first',
+          )
+          .replaceFirst(
+            'BEGIN:VALARM\r\nACTION:AUDIO',
+            '${secondAlarm}BEGIN:VALARM\r\nACTION:AUDIO',
+          );
+      final patch = buildDavEventUpdatePatch(
+        target: target,
+        baselineRawIcs: baseline,
+        input: DavEventMutationInput(
+          title: 'Baseline',
+          allDay: false,
+          start: DateTime(2026, 8, 3, 9),
+          end: DateTime(2026, 8, 3, 10),
+          startTimeZone: 'America/Vancouver',
+          endTimeZone: 'America/Vancouver',
+          description: 'Baseline details',
+          location: 'Room one',
+          reminders: {'minutes': minutes},
+          remindersChanged: true,
+        ),
+      );
+      final result = patch!.applyTo(baseline, nowUtc: DateTime.utc(2026, 8, 8));
+      expect(result, contains(secondAlarm));
+      expect(result, contains('X-ALARM-UNKNOWN:keep'));
+      if (minutes.length > 1) {
+        expect(result, contains('DESCRIPTION:Custom first\r\nX-KEEP:first'));
+      } else {
+        expect(result, isNot(contains('X-KEEP:first')));
+      }
+    });
+  }
+
   test('UTC task dates preserve the entered wall-clock value', () {
     final object = buildDavTaskObject(
       const {

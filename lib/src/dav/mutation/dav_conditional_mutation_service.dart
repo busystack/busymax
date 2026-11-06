@@ -202,6 +202,15 @@ final class DavMutationHttpClient
       ),
       credential: _credential,
     );
+    if (response.statusCode == 405 || response.statusCode == 501) {
+      throw DavException(
+        kind: DavErrorKind.protocol,
+        code: 'DavMoveUnsupported',
+        categoryOverride: DavErrorCategory.davUnsupportedServer,
+        statusCode: response.statusCode,
+        safeMessage: 'The server does not support moving this resource.',
+      );
+    }
     return _conditionalResponse(response, operation: 'move the object');
   }
 

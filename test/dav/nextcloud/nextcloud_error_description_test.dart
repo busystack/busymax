@@ -10,6 +10,23 @@ void main() {
   final l10n = AppLocalizationsEn();
   String describe(Object error) =>
       localizedNextcloudCollectionError(l10n, error);
+  test('meeting transfers explain the scheduling identity boundary', () {
+    for (final code in [
+      'DavMeetingCopyDeleteUnsupported',
+      'DavMeetingMoveIdentityChanged',
+    ]) {
+      expect(
+        describe(
+          DavException(
+            kind: DavErrorKind.authorization,
+            code: code,
+            safeMessage: 'Synthetic',
+          ),
+        ),
+        l10n.nextcloudMeetingMoveUnsupported,
+      );
+    }
+  });
   test('CalDAV committed, pending and uncertain outcomes stay distinct from Nextcloud', () {
     expect(
       describe(const NextcloudRefreshPending()),

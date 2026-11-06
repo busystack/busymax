@@ -666,6 +666,7 @@ final class DavObjectRepository {
     required String accountId,
     required String sourceCollectionId,
     required String destinationCollectionId,
+    String? destinationAccountId,
     required BusyProvider provider,
     required String sourceHrefKey,
     required DavPreparedObject canonicalDestinationObject,
@@ -689,12 +690,20 @@ final class DavObjectRepository {
     final destination = collections
         .where((collection) => collection.id == destinationCollectionId)
         .firstOrNull;
+    final destinationAccount =
+        await (_database.select(
+              _database.accounts,
+            )..where((row) => row.id.equals(destinationAccountId ?? accountId)))
+            .getSingleOrNull();
     if (account == null ||
+        destinationAccount == null ||
+        !BusyProviderCodec.requireStorageValue(destinationAccount.provider)
+            .isDav ||
         account.provider != provider.storageValue ||
         source == null ||
         destination == null ||
         source.accountId != accountId ||
-        destination.accountId != accountId ||
+        destination.accountId != (destinationAccountId ?? accountId) ||
         !_hrefIsMemberOf(
           canonicalDestinationObject.hrefKey,
           destination.hrefKey,
@@ -726,9 +735,11 @@ final class DavObjectRepository {
       projectionRangeEndUtc: sourceRange.end,
     );
     final destinationContext = DavCollectionCommit(
-      accountId: accountId,
+      accountId: destination.accountId,
       collectionId: destinationCollectionId,
-      provider: provider,
+      provider: BusyProviderCodec.requireStorageValue(
+        destinationAccount.provider,
+      ),
       objects: const [],
       deletedHrefKeys: const {},
       completeMembership: false,
@@ -834,7 +845,7 @@ final class DavObjectRepository {
       affected.add(destinationObjectId);
       await resolutions.restore(
         remembered,
-        accountId: accountId,
+        accountId: destination.accountId,
         sourceId:
             canonicalDestinationObject
                     .semantic
@@ -1780,7 +1791,7 @@ final class DavObjectRepository {
                 (row) => row.id.equals(operation.destinationCollectionId!),
               ))
               .getSingleOrNull();
-      if (destination != null) {
+      if (destination != null && destination.accountId == operation.accountId) {
         eventChanges = eventChanges.copyWith(
           calendarSourceId: Value('dav-calendar-${destination.id}'),
           providerCalendarId: Value(destination.hrefKey),

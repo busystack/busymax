@@ -46,6 +46,27 @@ organizers and recurrence forms outside that subset remain in the stored
 resource. Changing an unrelated field preserves them. Cross-list task moves
 require advertised MOVE support and suitable permissions on both lists.
 
+Whole-event moves on the same server use native HTTP MOVE when the calendar
+ownership establishes the same scheduling principal, including calendars shown
+under separate BusyMax accounts. MOVE preserves the complete resource: UID,
+organizer, attendees and their responses, recurrence exceptions, alarms and
+custom properties. Both calendars must authorize the operation and the source
+must advertise MOVE support. An unsupported or rejected MOVE never falls back
+to PUT followed by DELETE.
+
+Meetings cannot be transferred transparently between different servers or
+scheduling principals. Such a transfer needs explicit invitation, cancellation
+and response handling; BusyMax keeps the original instead of performing it.
+Personal events can be transferred between CalDAV/Nextcloud accounts using
+their complete iCalendar data. The destination is read back and verified before
+the original is deleted (or the selected occurrence is cancelled). A destination
+that cannot preserve the complete CalDAV event is rejected.
+
+These boundaries follow the resource preconditions in
+[RFC 4791 §5.3.2.1](https://www.rfc-editor.org/rfc/rfc4791#section-5.3.2.1)
+and the calendar-to-calendar MOVE semantics in
+[RFC 6638 §3.2.3.4](https://www.rfc-editor.org/rfc/rfc6638#section-3.2.3.4).
+
 Offline item edits enter a durable queue. Reconnection replays conditional
 writes with ETags; conflicts remain visible for resolution. Failed refreshes do
 not establish that cached items were deleted. Collection administration needs

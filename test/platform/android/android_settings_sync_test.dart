@@ -190,7 +190,7 @@ void main() {
   }
 
   testWidgets(
-    'Sync all checks local-network permission for a retained account',
+    'Sync all skips only a denied DAV account and synchronizes unrelated accounts',
     (tester) async {
       const platform = MethodChannel('io.busystack.busymax/android');
       var granted = false, syncs = 0;
@@ -207,22 +207,40 @@ void main() {
         () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
             .setMockMethodCallHandler(platform, null),
       );
+      final syncedAccounts = <String>[];
       final harness = await _pumpAndroidSettings(
         tester,
         provider: BusyProvider.caldav,
         authority: 'https://192.168.1.20/',
+        signedInSyncRunner: (id, full) async {
+          expectSync(full, isFalse);
+          syncedAccounts.add(id);
+        },
         allAccountsSyncRunner: () async {
           syncs++;
         },
       );
       addTearDown(harness.dispose);
+      for (final (id, provider, authority) in [
+        ('google:public', BusyProvider.google, null),
+        ('dav:public', BusyProvider.nextcloud, 'https://203.0.113.20/'),
+        ('microsoft:public', BusyProvider.microsoft, null),
+      ]) {
+        await harness.accounts.upsertSignedInAccount(
+          id: id,
+          provider: provider,
+          authority: authority,
+          grantedScopes: 'calendar tasks',
+        );
+      }
+      await tester.pumpAndSettle();
       final action = find.widgetWithText(ListTile, 'Sync');
       await tester.scrollUntilVisible(
         action,
         500,
         scrollable: find.byType(Scrollable).first,
       );
-      await tester.tap(action);
+      tester.widget<ListTile>(action).onTap!();
       // Sync all remains busy while the permission recovery dialog is open.
       for (
         var i = 0;
@@ -235,8 +253,14 @@ void main() {
       expect(syncs, 0);
       await tester.tap(find.widgetWithText(TextButton, 'Cancel').last);
       await tester.pumpAndSettle();
+      expect(syncedAccounts, [
+        'google:public',
+        'microsoft:public',
+        'dav:public',
+      ]);
+      expect(syncs, 0);
       granted = true;
-      await tester.tap(action);
+      tester.widget<ListTile>(action).onTap!();
       await tester.pumpAndSettle();
       expect(syncs, 1);
     },
