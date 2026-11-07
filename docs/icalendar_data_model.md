@@ -183,3 +183,12 @@ Record the versions actually installed during
 - [RFC 6638](https://www.rfc-editor.org/rfc/rfc6638): CalDAV scheduling
 - [RFC 6764](https://www.rfc-editor.org/rfc/rfc6764): service discovery
 - [RFC 7809](https://www.rfc-editor.org/rfc/rfc7809): timezones by reference
+
+Attendee-bearing generic CalDAV task duplication preserves native properties
+and recurrence-set UID relationships, but requires an explicit scheduling
+decision before a new object is queued. This includes duplicated descendants.
+The accepted decision is persisted with the create operation for restart/retry;
+rejection/cancellation leaves no partial subtree. Unknown properties, organizer
+and attendee parameters are not stripped or rewritten to suppress delivery.
+Implicit VTODO scheduling and message delivery depend on server support;
+independent attendee-inbox/message readback is required to claim delivery.

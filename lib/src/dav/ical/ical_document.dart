@@ -780,3 +780,9 @@ DavException _icalError(String code, String safeMessage) => DavException(
   code: code,
   safeMessage: safeMessage,
 );
+
+/// Participant data is preserved; creating a new scheduling object requires
+/// explicit consent on generic CalDAV servers that may schedule implicitly.
+bool icalHasAttendees(String rawIcs) =>
+    IcalDocument.parse(rawIcs).calendarComponents
+        .any((component) => component.propertiesNamed('ATTENDEE').isNotEmpty);

@@ -728,32 +728,40 @@ void main() {
         androidScheduleViewMode: ScheduleViewMode.day,
       ),
       populated: true,
+      localTimeZone: 'Etc/UTC',
     );
     addTearDown(harness.dispose);
-    final stored = await (harness.database.select(
-      harness.database.calendarEvents,
-    )..where((row) => row.id.equals('overnight'))).getSingle();
+    final today = DateTime.now();
+    final noon = DateTime.utc(today.year, today.month, today.day, 12);
     await (harness.database.update(
       harness.database.calendarEvents,
     )..where((row) => row.id.equals('overnight'))).write(
       CalendarEventsCompanion(
-        startDateTime: Value(
-          DateTime.parse(stored.startDateTime!).toUtc().toIso8601String(),
-        ),
+        startDateTime: Value(noon.toIso8601String()),
         endDateTime: Value(
-          DateTime.parse(stored.endDateTime!).toUtc().toIso8601String(),
+          noon.add(const Duration(hours: 1)).toIso8601String(),
         ),
         startTimeZone: const Value('Pacific/Honolulu'),
         endTimeZone: const Value('Asia/Tokyo'),
       ),
     );
     await tester.pumpAndSettle();
-    final eventLabel = find.textContaining('Overnight event').first;
-    await tester.ensureVisible(eventLabel);
+    final eventLabel = find
+        .textContaining('Overnight event')
+        .hitTestable()
+        .first;
+    final label = find.textContaining('Overnight event').first;
+    await tester.ensureVisible(label);
     await tester.pumpAndSettle();
     await tester.tap(eventLabel);
     await tester.pumpAndSettle();
+    expect(
+      find.text('Overnight event'),
+      findsOneWidget,
+      reason: 'the detail sheet opened before timezone assertions',
+    );
     expect(find.textContaining('UTC'), findsWidgets);
+    expect(find.textContaining('12:00'), findsWidgets);
     expect(find.textContaining('Pacific/Honolulu'), findsNothing);
     expect(find.textContaining('Asia/Tokyo'), findsNothing);
   });
@@ -7024,6 +7032,7 @@ Future<_AndroidAppHarness> _pumpApp(
   WidgetTester tester,
   AppSettings settings, {
   bool populated = false,
+  String? localTimeZone,
   Future<void> Function(AppDatabase database)? seedDatabase,
   Future<void> Function(String accountId)? onCalendarSync,
   FeedbackSubmissionService? feedbackService,

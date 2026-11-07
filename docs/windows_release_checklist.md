@@ -181,3 +181,26 @@ Synthetic CI clients may be included only in the explicit nonproduction
 CI package. Unconfigured CI builds show Connect with BusyMax as unavailable
 and leave custom registration usable; they cannot become official packages.
 See the [desktop OAuth release checklist](desktop_oauth_release_checklist.md).
+
+## v0.4.0 correction acceptance
+
+Use a separately authorized disposable Windows session and the exact candidate
+package. A VM occupied by another agent must remain untouched. Linux-hosted
+Fluent widget tests do not satisfy these checks.
+
+- [ ] Run `test/core/http/native_terminating_http_client_test.dart` on Windows;
+  confirm both slow response bodies and reuse of one explicitly persistent
+  direct connection. Retain the connection-count assertion.
+- [ ] In the production source pane, exercise partial collection deletion
+  (gateway fault identified separately), surviving collection refresh, malformed
+  response, lost response and committed deletion with refresh failure. Verify
+  feedback distinguishes each outcome and does not repeat uncertain DELETE.
+- [ ] Duplicate an attendee-bearing generic CalDAV task, cancel and verify no
+  queued create, then accept with isolated recipients. Check restart/retry and
+  recurrence UID consistency. A PUT is not delivery evidence.
+- [ ] Retry independent Nextcloud contacts after transport termination using
+  ordinary HTTPS, approved private CA and leaf pinning. Verify replacement,
+  removal, secure-storage restart and isolation from another account.
+
+The 2026-11-07 working-tree run defers this native gate at the user's request;
+existing historical Windows results do not qualify the corrected candidate.

@@ -3684,6 +3684,126 @@ void main() {
     );
   });
 
+  for (final participantsOnChild in [false, true]) {
+    test(
+      'generic task duplication requires explicit scheduling consent for ${participantsOnChild ? 'descendants' : 'recurrence sets'} before any queued create',
+      () async {
+        await usePersistentFixture();
+        final participantResource = _taskHistoryResource(1).replaceAll(
+          'END:VTODO',
+          'ORGANIZER:mailto:organizer@example.invalid\r\nATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:recipient@example.invalid\r\nX-KEEP;X-PARAM=opaque:preserve\r\nEND:VTODO',
+        );
+        await _commitObjects(objectRepository, [
+          if (participantsOnChild)
+            _prepared(
+              href: '${_collectionHref}parent.ics',
+              etag: '"parent"',
+              body: _taskResource(uid: 'history-parent', summary: 'Parent'),
+            ),
+          _prepared(
+            href: '${_collectionHref}attendee.ics',
+            etag: '"attendee"',
+            body: participantResource,
+          ),
+        ]);
+        await database
+            .update(database.accounts)
+            .write(
+              const AccountsCompanion(
+                provider: Value('caldav'),
+                credentialKind: Value('caldav_password'),
+              ),
+            );
+        final source = (await database.select(database.tasks).get())
+            .singleWhere(
+              (r) =>
+                  r.icalUid ==
+                      (participantsOnChild
+                          ? 'history-parent'
+                          : 'history-child') &&
+                  r.recurrenceIdKey == null,
+            );
+        final before = (await database.select(database.tasks).get())
+            .map((r) => r.toJson())
+            .toList();
+        expect(
+          await tasksRepository.taskDuplicationRequiresSchedulingConsent(
+            _taskListId,
+            source.id,
+          ),
+          isTrue,
+        );
+        for (var attempt = 0; attempt < 2; attempt++) {
+          await expectLater(
+            tasksRepository.duplicateTask(_taskListId, source.id),
+            throwsA(
+              isA<DavException>().having(
+                (e) => e.code,
+                'code',
+                'IcalSchedulingConsentRequired',
+              ),
+            ),
+          );
+          expect(await database.select(database.pendingOps).get(), isEmpty);
+          expect(
+            (await database.select(database.tasks).get()).map(
+              (r) => r.toJson(),
+            ),
+            before,
+          );
+          await reopen();
+        }
+        await tasksRepository.duplicateTask(
+          _taskListId,
+          source.id,
+          allowScheduling: true,
+        );
+        final queued = await database.select(database.pendingOps).get();
+        expect(queued, hasLength(participantsOnChild ? 2 : 1));
+        final consent = queued.singleWhere(
+          (op) => _createRaw(op).contains('ATTENDEE'),
+        );
+        final raw = _createRaw(consent);
+        expect(raw, contains('ORGANIZER:mailto:organizer@example.invalid'));
+        expect(
+          raw,
+          contains(
+            'ATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:recipient@example.invalid',
+          ),
+        );
+        expect(raw, contains('X-KEEP;X-PARAM=opaque:preserve'));
+        expect(
+          IcalSemanticDocument.parse(raw).components.map((c) => c.uid).toSet(),
+          hasLength(1),
+        );
+        expect(
+          (jsonDecode(consent.requestJson) as Map)['schedulingConsent'],
+          isTrue,
+        );
+        await reopen();
+        expect(
+          (await database.select(database.pendingOps).get()).map(
+            (r) => (r.id, r.requestJson),
+          ),
+          queued.map((r) => (r.id, r.requestJson)),
+        );
+        final remote = _StatefulTaskTreeRemote(
+          await database.select(database.davObjects).get(),
+        );
+        expect((await replayTree(remote)).appliedCount, queued.length);
+        expect(await database.select(database.pendingOps).get(), isEmpty);
+        expect(
+          remote.resources.values.any(
+            (r) => r.raw.contains(
+              'ATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:recipient@example.invalid',
+            ),
+          ),
+          isTrue,
+        );
+      },
+    );
+  }
+
   test(
     'duplicate recursively preserves task data and reparents children',
     () async {

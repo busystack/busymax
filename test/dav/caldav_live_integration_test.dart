@@ -202,17 +202,16 @@ void main() {
           }
         }
 
-        final restricted =
-            (await f.database.select(f.database.davCollections).get())
-                .singleWhere(
-                  (c) =>
-                      c.displayName == 'BusyMax QA restricted' ||
-                      c.hrefKey.endsWith('/restricted/'),
-                );
-        final parent = Uri.parse(restricted.requestUri);
-        // Model the selected creation namespace being read-only. The server's
-        // real advertised privileges and real authenticated responses remain
-        // authoritative; normal account discovery is restored by the sync below.
+        final otherOwner = CalDavFixture(Uri.parse(server.value));
+        await otherOwner.open(username: 'bob');
+        addTearDown(otherOwner.close);
+        final otherService = await otherOwner.database
+            .select(otherOwner.database.davAccountServices)
+            .getSingle();
+        // Use another owner's ordinary home, rather than a calendar collection
+        // as an invalid nested-calendar parent. Its actual response authorizes
+        // or rejects creation for Alice; ordinary discovery is restored below.
+        final parent = Uri.parse(otherService.calendarHomeHref!);
         for (final component in ['VEVENT', 'VTODO']) {
           await (f.database.update(
             f.database.davAccountServices,
@@ -897,9 +896,14 @@ void main() {
     test(
       '${server.key}: absent optional ACL permits a guarded attempt while real 403 preserves queued data',
       () async {
+        final wire = <_AbsentAclClient>[];
         final f = CalDavFixture(
           Uri.parse(server.value),
-          wrapAccountClient: _AbsentAclClient.new,
+          wrapAccountClient: (client) {
+            final lane = _AbsentAclClient(client);
+            wire.add(lane);
+            return lane;
+          },
         );
         await f.open();
         addTearDown(f.close);
@@ -921,16 +925,14 @@ void main() {
           list.id,
           const TaskCreateInput(title: 'Denied task stays local'),
         );
-        await expectLater(
-          f.synchronize(),
-          throwsA(
-            isA<DavAccountSyncException>().having(
-              (e) =>
-                  e.failures.any((f) => f.kind == DavErrorKind.authorization),
-              'authorization failure',
-              isTrue,
-            ),
-          ),
+        // Item permission denial is collection-scoped: the engine retains the
+        // blocked operation and records permission_changed while other readable
+        // collections continue. It is not an account-wide authentication pause.
+        await f.synchronize();
+        expect(
+          wire.fold<int>(0, (total, lane) => total + lane.deniedWrites),
+          1,
+          reason: 'the unmodified server rejected PUT',
         );
         final pending = await f.database
             .select(f.database.pendingOps)
@@ -1422,7 +1424,7 @@ void main() {
             } else {
               expect(
                 await f.administration.remove(collection.id),
-                DavCollectionAdministrationOutcome.committed,
+                DavCollectionAdministrationOutcome.reconciled,
               );
             }
           }
@@ -1882,9 +1884,11 @@ class _BarrierClient extends http.BaseClient {
 class _AbsentAclClient extends http.BaseClient {
   _AbsentAclClient(this.delegate);
   final http.Client delegate;
+  int deniedWrites = 0;
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
     final response = await delegate.send(request);
+    if (request.method == 'PUT' && response.statusCode == 403) deniedWrites++;
     if (request.method != 'PROPFIND' || response.statusCode != 207) {
       return response;
     }

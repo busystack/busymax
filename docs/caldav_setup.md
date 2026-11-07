@@ -17,7 +17,15 @@ explicit installation or DAV endpoint is verified directly. Redirects cannot
 authorize another origin or downgrade to HTTP. If your administrator redirects
 to a different host or port, enter that verified HTTPS endpoint explicitly.
 An installation landing page can fall back to the origin's well-known endpoint;
-a successful HTML page alone never establishes a connected account.
+only a same-origin redirect remaining inside the selected installation prefix
+is accepted. A successful HTML page alone never establishes a connected account.
+Homes may identify calendars directly or contain nested calendar collections.
+Read discovery does not imply permission to create or delete collections.
+
+Attendee-bearing task duplication asks for an explicit scheduling decision,
+including attendees in a task subtree or recurrence set. Cancelling preserves
+the original and queues no copy. Servers supporting implicit task scheduling
+may send messages after an accepted copy.
 
 ## Radicale
 
@@ -70,7 +78,10 @@ and the calendar-to-calendar MOVE semantics in
 Offline item edits enter a durable queue. Reconnection replays conditional
 writes with ETags; conflicts remain visible for resolution. Failed refreshes do
 not establish that cached items were deleted. Collection administration needs
-an online connection. Deleting a mixed remote collection deletes both its
+an online connection. A partial collection deletion reports that the collection remains; refresh and
+review surviving items before deciding whether to retry. An uncertain outcome
+requires reconciliation, not automatic repeated deletion. Deleting a mixed
+remote collection deletes both its
 events and tasks, subject to the existing confirmation process.
 
 When the server omits optional privilege information, BusyMax labels permission

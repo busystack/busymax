@@ -77,12 +77,40 @@ BUSYMAX_CALDAV_FIXTURE_DIR="$PWD/test/interop/caldav/.runtime" \
 GDK_BACKEND=x11 flutter test integration_test/caldav_workflows_test.dart -d linux --reporter expanded
 ```
 
+When an unmodified target cannot advertise collection creation, do not enable
+unadvertised methods in BusyMax to unblock fixture setup. For separately labelled
+data-path evidence, opt in to independent disposable collection provisioning:
+
+```bash
+BUSYMAX_CALDAV_LIVE=1 BUSYMAX_CALDAV_LIFECYCLE=1 \
+BUSYMAX_CALDAV_FIXTURE_COLLECTION_SETUP=independent \
+flutter test test/dav/caldav_live_integration_test.dart --reporter expanded
+```
+
+This setup sends independent MKCALENDAR and requires actual HTTP 201 before
+production discovery/synchronization. It does not qualify BusyMax's collection
+creation route. Application administration assertions still execute and can
+fail for the unsupported capability; retain that nonzero result and identify
+blocked cases. The opt-in never changes application/provider capability rules.
+The 2026-11-07 BusyStack 0.1.0 target advertises no creation method on its home
+and returns 404 to child OPTIONS, unlike the historical qualification claim.
+Keep that gate open. The release-edge harness also injects a DELETE 207/423
+through an identified gateway after one child is really removed upstream;
+independent GET/PROPFIND and database reopening verify reconciliation. It is
+client fault handling evidence, not a claim that the server emits that response.
+
 The HTTPS profile covers Radicale root (18443), Baïkal direct endpoint (18444),
 Radicale installation path (18445), an untrusted certificate (18446), and a
 separate Baïkal installation (18447). Its first-party proxy also provides
 cross-origin and HTTP-downgrade redirect fixtures. Upstream servers remain
 unmodified. Live fault tests lose a gateway response after an upstream commit;
 they do not replace the server with a simulated protocol implementation.
+
+For an explicitly scoped run, set `BUSYMAX_CALDAV_QA_TARGETS=radicale,baikal`
+(or the matching Dart define for native tests). The default remains all three
+pinned targets. Unknown names fail; partial target selection is recorded as
+partial evidence and never closes the omitted target's qualification gate.
+The Android two-process harness currently covers Radicale and Baïkal only.
 
 Run Flutter tests and native builds sequentially. In particular, starting an
 Android release build while `flutter test` is generating plugin registration
@@ -99,7 +127,7 @@ adb -s DEVICE reverse tcp:18444 tcp:18444
 adb -s DEVICE reverse tcp:18448 tcp:18448
 ORG_GRADLE_PROJECT_busymaxCalDavQa=true \
 ORG_GRADLE_PROJECT_busymaxTestSigning=true \
-flutter test integration_test/caldav_android_workflows_test.dart -d DEVICE \
+flutter test integration_test/caldav_android_workflows_test.dart -d DEVICE --no-uninstall \
   --dart-define-from-file=test/interop/caldav/.runtime/android-defines.json --reporter expanded
 ```
 
@@ -116,12 +144,14 @@ two-process qualification using production Android secure storage, SQLite,
 authorization recovery and native account gates. Run it twice with the same
 QA package and fixture defines, substituting its path in the Android command
 above, adding **`--no-uninstall` to both runs**, without clearing application
-data between runs. Flutter's integration runner otherwise uninstalls the QA app
-after a test. After preparation, explicitly stop only this QA package with
+data between runs. With dynamic Gradle QA application IDs, Flutter's default cleanup can select
+the base package ID. Always use `--no-uninstall`; verify the APK's application
+ID before installation and explicitly remove only the task-owned QA package
+after testing. After preparation, explicitly stop only this QA package with
 `adb -s DEVICE shell am force-stop io.busystack.busymax.caldavqa`, then run the
 same test again with `--no-uninstall`. The first process prints
 `BUSYMAX_CALDAV_PROCESS_PREPARED` after persisting queued edits. The second must
-print `BUSYMAX_CALDAV_PROCESS_PASS` separately for all three servers, verify
+print `BUSYMAX_CALDAV_PROCESS_PASS` separately for Radicale and Baïkal, verify
 independent remote changes, and remove its test accounts and credentials.
 After testing, uninstall only this QA package and remove only mappings created
 for this run. Windows native acceptance requires a separately authorized
@@ -273,3 +303,20 @@ freedesktop daemon, then remove its owned fixtures and secure credentials.
 Only QA key names are prefixed; the native secure-storage plugin is real.
 Its receipt contains no secrets. This does not claim Snap confinement or
 Windows acceptance. Do not delete the receipt before recovery/cleanup.
+
+### Repeating destructive credential lifecycle qualification
+
+Before each full BusyStack lifecycle run, use
+`python3 test/interop/caldav/busystack-fixture.py prepare-lifecycle`. The supported
+administrator UI creates a fresh disposable account, then its browser/MFA flow
+issues a named DAV credential. Its private receipt is required by the expiry
+fixture. The test independently removes its owned remote collections before
+disabling that account. Disabling is terminal; prepare another fresh account
+for another run. Do not attempt to re-enable or repurpose an unrelated account.
+
+The credential registry binds each browser-issued label to the exact held
+credential ID. Rotation refuses a mismatched registry before revocation. The
+expiry fault ages only timestamps for the recorded disposable account and
+issued credential; this is explicit QA database fault injection, not a natural
+expiry interval or an authentication bypass. All receipts, credentials and MFA
+state remain in ignored private fixture storage.

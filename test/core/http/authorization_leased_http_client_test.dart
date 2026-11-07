@@ -9,6 +9,81 @@ import 'package:http/http.dart' as http;
 void main() {
   final endpoint = Uri.parse('https://example.test/slow');
 
+  for (final failure in ['connection', 'stream', 'cancellation', 'timeout']) {
+    test(
+      'request-scoped binding recovers after $failure without replacing authorization',
+      () async {
+        var attempts = 0, closed = 0, leases = 0;
+        var valid = true;
+        final abort = Completer<void>();
+        final client = AuthorizationLeasedHttpClient.requestScoped(
+          maximumLifetime: const Duration(milliseconds: 30),
+          createDelegate: () {
+            final attempt = ++attempts;
+            return _Client(
+              (request) async {
+                if (attempt != 2) {
+                  return http.StreamedResponse(Stream.value([111, 107]), 200);
+                }
+                switch (failure) {
+                  case 'connection':
+                    throw http.ClientException('connection lost');
+                  case 'stream':
+                    return http.StreamedResponse(
+                      Stream.error(http.ClientException('body lost')),
+                      200,
+                    );
+                  case 'cancellation':
+                    abort.complete();
+                }
+                return Completer<http.StreamedResponse>().future;
+              },
+              onClose: () {
+                expect(
+                  leases,
+                  greaterThan(0),
+                  reason: 'terminate before releasing authorization',
+                );
+                closed++;
+              },
+            );
+          },
+          runLease: (work) async {
+            leases++;
+            try {
+              await work();
+            } finally {
+              leases--;
+            }
+          },
+          validate: () async {
+            if (!valid) throw StateError('replaced authorization');
+          },
+        );
+        addTearDown(client.close);
+        expect((await client.get(endpoint)).body, 'ok');
+        final failed = client
+            .sendTerminating(
+              http.Request('GET', endpoint),
+              terminate: abort.future,
+              connectionTimeout: const Duration(seconds: 1),
+            )
+            .then(http.Response.fromStream);
+        await expectLater(failed, throwsA(isA<Exception>()));
+        expect(closed, 2);
+        expect((await client.get(endpoint)).body, 'ok');
+        expect(attempts, 3);
+        valid = false;
+        await expectLater(client.get(endpoint), throwsStateError);
+        expect(
+          attempts,
+          3,
+          reason: 'replacement/removal invalidates the old binding before transport creation',
+        );
+      },
+    );
+  }
+
   test('queue time does not consume the two-minute active response budget', () {
     fakeAsync((clock) {
       final acquired = Completer<void>();
@@ -139,11 +214,12 @@ void main() {
 }
 
 final class _Client extends http.BaseClient {
-  _Client(this.sendRequest);
+  _Client(this.sendRequest, {this.onClose});
+  final void Function()? onClose;
   final Future<http.StreamedResponse> Function(http.BaseRequest) sendRequest;
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) =>
       sendRequest(request);
   @override
-  void close() {}
+  void close() => onClose?.call();
 }

@@ -14,6 +14,14 @@ class AppLocalizationsFi extends AppLocalizations {
   AppLocalizationsFi([String locale = 'fi']) : super(locale);
 
   @override
+  String get davCollectionRemovalPartial =>
+      'Joitakin kohteita ei voitu poistaa. Kokoelma on yhä olemassa. Päivitä ennen uutta yritystä.';
+
+  @override
+  String get caldavTaskDuplicationSchedulingWarning =>
+      'Tässä tehtävässä tai sen alitehtävissä on osallistujia. Monistaminen voi saada CalDAV-palvelimen lähettämään kutsuja tai tehtäväpäivityksiä. Sallitaanko monistaminen?';
+
+  @override
   String get caldavSchedulingWarning =>
       'Tässä tapahtumassa on osallistujia. Tallentaminen tai poistaminen voi saada CalDAV-palvelimen ilmoittamaan osallistujille, kun muutos synkronoidaan.';
 

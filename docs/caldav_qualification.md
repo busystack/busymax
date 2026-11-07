@@ -6,7 +6,140 @@ record distinguishes deterministic regression coverage, real-server protocol
 checks, native application checks and build validation. Documentation cleanup
 does not constitute a new execution of these checks.
 
-## Qualified implementations
+## 2026-11-07 working candidate qualification
+
+This follow-up starts at `6b26f1db46f29dd7e68c75fe79367d88a2009a1d` on
+`release/v0.4.0`, initially clean. Corrections are uncommitted; this is not a
+release-ready declaration or final-revision hosted CI result. Version 0.4.0,
+Android versionCode 8, schema 25 and the recorded shared-package pins remain.
+The DAV pin is `33afd70a761822847a37c7ad47f5e61dfeaa74a7`. The official
+Flutter 3.47.5 / bundled Dart 3.13.4 toolchain and lockfiles are used.
+
+| Finding | Implementation and regression evidence |
+| --- | --- |
+| A1 contacts transport termination | Request-owned leased delegates; `authorization_leased_http_client_test.dart` and `nextcloud_certificate_lifecycle_test.dart` cover retries without reconnect across standard fixture HTTPS, private CA and leaf pinning. Fixture roots are explicit, not public-PKI native acceptance. |
+| A2 fallback completeness | Dedicated PROPFIND validation; file-backed `dav_sync_engine_test.dart` seeds events/tasks/pending edits, rejects empty/failed/ambiguous/malformed inventories, reopens and recovers with an ETag-less empty collection. RFC 6578 pagination is separate. |
+| A3 partial DELETE | Inspect multistatus, reconcile uncertain outcomes and distinguish refresh pending; `dav_collection_creation_identity_test.dart` plus production Linux sidebar, Windows source pane and Android settings tests retain partial-deletion feedback. Windows widgets execute on Linux, not in a Windows runtime. |
+| A4 home layouts | Inspect direct homes, bound/cancel nested traversal, deduplicate overlaps, persist actual parent evidence; `caldav_discovery_test.dart` includes denied/incomplete traversal and database reopening. |
+| A5 duplication consent | Repository and pending-create boundary, recursive transaction, persisted decision; repository mutation and three production duplication route tests. Baikal delivered an isolated VEVENT REQUEST. VTODO delivery has not been demonstrated on that unmodified target and is not inferred from storage. |
+| A6 contacts permission routes | Shared foreground permission flow and headless per-request gate; production settings routes and file-backed retained-account recovery tests. Native API 37 acceptance is recorded separately. |
+| A7 routed classification | App-owned Android route/interface bridge, CGNAT boundaries and scoped IPv6 handling; Kotlin route tests and Dart host tests. Unknown routing retains explicit settings recovery. |
+
+Historical hygiene's seven matches were synthetic fixture URLs, corrected to
+unambiguous `calendar-homes` URLs without weakening the checker. The Windows
+transport fixture now explicitly establishes keep-alive and bypasses ambient
+proxy settings; both body assertions and the one-connection assertion remain.
+A Windows rerun is pending because the VM belongs to another agent and must
+remain untouched. The Android timed-detail fixture pins UTC and viewport,
+places the event at visible local noon, and asserts the detail opened before
+checking labels. The previously unfinished Python runtime-verifier test and
+complete 81-test release-tool suite have completed successfully; fake-lxc tests
+are tooling evidence, not real-VM acceptance.
+
+Executed checks retain private command/UTC/source-manifest/exit receipts and
+logs under ignored `build/release-v040-qualification-20261107/`. Each receipt
+records its own source hash; counts from intermediate trees are not combined.
+Negative controls in an isolated source copy reproduced A1–A7 regressions.
+Official SDK/package integrity verification executed successfully (not just its
+unit tests). Sibling IDE metadata is pre-existing and was left untouched;
+clean pinned clones separately passed the dependency checkout/resolution gate.
+Generated localization/Drift sources reproduced without changes. A subsequent
+full run exposed host-disk latency in the new file-backed contacts permission
+regression. A diagnostic repeat exceeded its unchanged 30-second deadline;
+the maintained real-file persistence helper completed all stages in 574 ms
+under the same workload. The test now uses that helper without changing SQLite
+durability, assertions or its deadline. The complete rerun passed 5,081 tests with 102 gated/optional skips and exit 0
+after this fixture correction.
+
+### Current execution evidence (2026-11-07)
+
+| Check | Result and practical scope |
+| --- | --- |
+| Complete Flutter suite | 5,081 passed, 102 gated/optional skips, exit 0 after the final test correction; includes migrations through schema 25 and existing provider/security/persistence regressions. |
+| Static and generation gates | Formatting: 868 files, zero changes; analysis clean; platform boundaries and repository hygiene passed; localization/Drift reproduction matched the reviewed generated files. |
+| Android native/build checks | Native platform unit tests and app lint passed (506 Gradle tasks); both registration-mode builds and inspections passed with synthetic public clients, not live grants; candidate manifest/alignment/signature inspection passed. |
+| Python release tooling | 81 passed; separate runtime-verifier file: 10 passed in under one second, including the exact-package/owned-VM cleanup case. Its fake `lxc` is not real VM acceptance. |
+| SDK and package integrity | Actual read-only verifier: 1,171 SDK files and eight reviewed packages passed; separate verifier unit suite: 29 passed. |
+| Linux native TLS and GTK | 51 TLS/concurrency cases and the GTK integration passed in the native engine. Native clock/weekday/GTK checks, registration-helper teardown and the standalone registration CTest also passed. Explicit fixture trust is identified. |
+| Linux production settings/editors | Three server workflows passed with injected disposable secrets and fixture CA. This does not qualify secure storage or the installed Snap. |
+| Linux separate OS processes | Both phases passed for Radicale 3.9.0 and Baïkal 0.13.0, with an isolated production keyring, SQLite, pending edits, persisted collection identity and real notification-daemon acceptance. BusyStack was explicitly omitted because collection creation lacks positive advertisement. |
+| Android certificate review | API 29: six native TLS/storage cases passed; the separately enabled native CA-picker case also passed. An earlier gated picker case adds no acceptance evidence. |
+| Android native settings/editors | Three pinned-server workflows passed on the unlocked API 29 phone. A locked first attempt was interrupted and excluded; the clean retry completed with independent readback. |
+| Android secure storage and engine coordination | Both real-process recovery phases passed for Radicale 3.9.0 and Baïkal 0.13.0. Production secure storage/SQLite retained queued work; a separate real foreground/WorkManager lease test also passed. |
+| Release artifacts | Linux release bundle and normal-ID Android APK/AAB built. Android manifest/version/permissions, signatures and 16 KiB ELF/ZIP/bundle alignment passed. Android artifacts use the test signer and unconfigured provider paths; they are not distribution artifacts. |
+| Partial collection deletion | Five release-edge live tests passed, including all three pinned servers behind an identified fault gateway. A real child deletion, injected DELETE 207/423, independent server readback and database reopening verify reconciliation. This does not assert that those servers naturally emit 207/423. |
+
+Android runtime evidence uses isolated QA integration APKs built from the same
+application code, with their test trust/storage overrides identified above.
+The saved normal-ID release APK/AAB were built and inspected, not installed for
+interactive release-package acceptance. Both task-owned QA packages, recorded
+phone mappings and the public certificate-picker file were removed afterward;
+normal application/package state and device settings were preserved.
+
+The source manifest used for the final-code artifacts is
+`03483cdc8ab85a33bdad1009d99a30e950b869e5131f9d9588a6e9218252b742`
+over HEAD `6b26f1db46f29dd7e68c75fe79367d88a2009a1d`. Subsequent changes
+are qualification documentation and the contacts persistence-test fixture; the
+application/build inputs remain identical. Private receipts retain exact file
+manifests and commands.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Test-signed 0.4.0/code 8 APK | `f7cb1b21e1f5a0d59710fecf9fd00a55e832d0a7c95a477675bf6cff27d1b8df` |
+| Test-signed 0.4.0/code 8 AAB | `c8760ae0f721d84b0235187761999f3dfe098e5680186dd99e18d6f57359b366` |
+| Linux release bundle file-manifest hash | `192a9d08230530e881452b15d633ca2b4b890330e737715056e3f955cc84e062` |
+
+The final complete main live run with explicitly independent fixture provisioning
+completed with **55 passes, four failures, exit 1**. Three BusyStack application
+collection-administration cases were blocked by missing positive method
+advertisement. The fourth was a Radicale independent GET readback disconnect
+before response headers, not an established production lifecycle defect. Three
+focused repetitions passed without source changes; the failed complete result
+remains, and the disconnect cause is not established.
+An earlier main run also finished 55/4, but its fourth failure was the subsequently
+corrected credential-registry fixture. Those results must not be combined into
+a successful complete harness. The default application-provisioned BusyStack
+matrix also remains blocked. Independent MKCALENDAR fixture setup is not evidence
+that BusyMax's creation route passed.
+
+All **six BusyStack additional cases passed together, exit 0**, after provisioning
+a fresh disposable lifecycle account through supported administration and MFA.
+The first preparation attempt hit the browser's 30-second navigation timeout;
+an instrumented copy of the same BusyMax-owned script retried successfully
+without changing authentication or server software. Credential expiry aging is
+explicit database fault injection restricted to that issued QA credential.
+Real 507 paging, strict Depth 0, installation prefixes, sharing, representation
+repair, revocation and account disabling retain independent readback.
+
+The final release-edge suite passed **five tests, exit 0**. The final scheduling
+suite passed **one VEVENT delivery test and skipped one VTODO delivery test**:
+Baïkal stored the attendee-bearing VTODO, but no inbox REQUEST was observed.
+A stored object or successful PUT is not task-delivery evidence.
+
+The actual strict Snap pack command failed because the existing Snapcraft
+project's provider profile references an unavailable storage pool. No shared
+LXD project, profile, instance or pool was changed. No new 0.4.0 Snap was produced
+or installed, and the installed older Snap was left untouched. Official release
+packaging also requires a clean committed candidate; committing is not authorized.
+The API 37 AVD failed to boot with either hardware or software acceleration; only
+that task-owned emulator was stopped and its isolated AVD removed. The connected phone is API 29 and cannot
+close the API 37 gate. The authorized Windows VM is deferred by the user because
+another agent is using it; no Windows runtime or MSIX acceptance was attempted.
+
+Required gates remain open until explicitly supported by candidate evidence:
+final committed-revision Linux/Windows/Android CI (publishing needs separate
+authorization); actual newly packaged strict 0.4.0 Snap acceptance; Windows
+candidate/MSIX/native acceptance (deferred by request); API 37 permission
+acceptance; and actual VTODO message delivery on an unmodified capable target.
+Older native/Snap results below are historical and do not close these gates.
+
+## Historical qualification baseline (2026-11-02–03)
+
+The matrices and counts below retain their original revision-specific results.
+They are not current-candidate passes. In particular, their BusyStack collection
+administration and older Snap/API coverage do not close the open gates above.
+
+### Qualified implementations
 
 | Implementation | Version | Tested configuration |
 | --- | --- | --- |

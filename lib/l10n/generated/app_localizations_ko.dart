@@ -14,6 +14,14 @@ class AppLocalizationsKo extends AppLocalizations {
   AppLocalizationsKo([String locale = 'ko']) : super(locale);
 
   @override
+  String get davCollectionRemovalPartial =>
+      '일부 항목을 삭제하지 못했습니다. 컬렉션이 남아 있습니다. 다시 시도하기 전에 새로고침하세요.';
+
+  @override
+  String get caldavTaskDuplicationSchedulingWarning =>
+      '이 작업 또는 하위 작업에 참석자가 있습니다. 복제하면 CalDAV 서버가 초대나 작업 업데이트를 보낼 수 있습니다. 복제를 허용할까요?';
+
+  @override
   String get caldavSchedulingWarning =>
       '이 일정에는 참석자가 있습니다. 저장하거나 삭제하면 변경 사항이 동기화될 때 CalDAV 서버가 참석자에게 알림을 보낼 수 있습니다.';
 

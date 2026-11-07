@@ -22,6 +22,8 @@ String localizedNextcloudCollectionError(
 ) => switch (error) {
   NextcloudCollectionValidationException() => l10n.invalidCollectionValue,
   SecretStoreException() => l10n.oauthSecureStorageUnavailable,
+  DavException(code: 'DavCollectionRemovalPartial') =>
+    l10n.davCollectionRemovalPartial,
   NextcloudRefreshPending() => l10n.nextcloudRefreshPending,
   DavRefreshPending() => l10n.davRefreshPending,
   DavException(statusCode: 507) => l10n.davInsufficientStorage,

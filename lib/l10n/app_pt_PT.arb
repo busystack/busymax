@@ -1,4 +1,6 @@
 {
+  "davCollectionRemovalPartial": "Não foi possível eliminar alguns itens. A coleção permanece. Atualize antes de tentar novamente.",
+  "caldavTaskDuplicationSchedulingWarning": "Esta tarefa ou as suas subtarefas têm participantes. A duplicação pode fazer o servidor CalDAV enviar convites ou atualizações de tarefas. Permitir a duplicação?",
   "caldavSchedulingWarning": "Este evento tem participantes. Ao guardá-lo ou eliminá-lo, o servidor CalDAV pode notificar os participantes quando a alteração for sincronizada.",
   "caldavNativeImport": "Importar os recursos completos de eventos e tarefas. Para itens com participantes, o servidor CalDAV pode enviar convites ou atualizações de reuniões. Os UID existentes são ignorados, a menos que escolha novas cópias. Os recursos não suportados são comunicados individualmente.",
   "davInsufficientStorage": "O servidor não tem espaço de armazenamento suficiente para criar esta coleção.",

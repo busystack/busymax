@@ -14,6 +14,14 @@ class AppLocalizationsFa extends AppLocalizations {
   AppLocalizationsFa([String locale = 'fa']) : super(locale);
 
   @override
+  String get davCollectionRemovalPartial =>
+      'برخی موارد حذف نشدند. مجموعه همچنان باقی است. پیش از تلاش دوباره، تازه‌سازی کنید.';
+
+  @override
+  String get caldavTaskDuplicationSchedulingWarning =>
+      'این کار یا زیرکارهای آن شرکت‌کننده دارند. تکثیر آن‌ها ممکن است باعث ارسال دعوت‌نامه یا به‌روزرسانی کار توسط سرور CalDAV شود. تکثیر مجاز است؟';
+
+  @override
   String get caldavSchedulingWarning =>
       'این رویداد شرکت‌کننده دارد. با ذخیره یا حذف آن، سرور CalDAV ممکن است هنگام همگام‌سازی تغییر به شرکت‌کنندگان اطلاع دهد.';
 

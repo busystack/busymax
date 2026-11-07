@@ -38,6 +38,75 @@ void main() {
       });
       tearDown(() => f.close());
 
+      test(
+        'creation negotiates methods at its persisted reserved URL',
+        () async {
+          f.creationMethodsOnlyAtTarget = true;
+          expect(
+            await f.admin.create('Work', {component}),
+            DavCollectionAdministrationOutcome.committed,
+          );
+          expect(f.writes, 1);
+        },
+      );
+
+      test('unavailable optional target OPTIONS never grants creation or leaves uncertain work', () async {
+        f.creationMethodsOnlyAtTarget = true;
+        f.targetOptionsUnavailable = true;
+        await expectLater(
+          f.admin.create('Unsupported', {component}),
+          throwsA(
+            isA<DavException>().having(
+              (e) => e.code,
+              'unsupported',
+              'DavCollectionCreationUnsupported',
+            ),
+          ),
+        );
+        expect(f.writes, 0);
+        expect(
+          (await f.database
+                  .select(f.database.davCollectionCreations)
+                  .getSingle())
+              .state,
+          'rejected',
+        );
+      });
+
+      for (final propertyLevel in [false, true]) {
+        test(
+          'parent denial in HTTP 207 is rejected durably; properties=$propertyLevel',
+          () async {
+            f.parentDeniedPropertyLevel = propertyLevel;
+            f.parentDenied = true;
+            await expectLater(
+              f.admin.create('Denied', {component}),
+              throwsA(
+                isA<DavException>().having((e) => e.statusCode, 'status', 403),
+              ),
+            );
+            expect(f.writes, 0);
+            final op = await f.database
+                .select(f.database.davCollectionCreations)
+                .getSingle();
+            expect(op.state, 'rejected');
+            expect(op.lastErrorStatus, 403);
+            await f.reopen();
+            await expectLater(
+              f.admin.resumeCreation(op.id),
+              throwsA(
+                isA<DavException>().having(
+                  (e) => e.statusCode,
+                  'persisted denial',
+                  403,
+                ),
+              ),
+            );
+            expect(f.writes, 0);
+          },
+        );
+      }
+
       for (final extended in [false, true]) {
         for (final style in ['method', 'multistatus']) {
           test(
@@ -106,6 +175,196 @@ void main() {
             },
           );
         }
+      }
+
+      for (final mode in [
+        'partial',
+        'malformed',
+        'complete',
+        'refresh-failure',
+        'lost-deleted',
+        'lost-survived',
+      ]) {
+        test(
+          'DELETE $mode reconciles refresh without claiming a surviving collection committed',
+          () async {
+            f.remote = f.collectionXml;
+            f.deleteMode = mode;
+            f.refreshFails = mode == 'refresh-failure';
+            await f.database
+                .into(f.database.davCollections)
+                .insert(
+                  DavCollectionsCompanion.insert(
+                    id: 'collection',
+                    accountId: 'qa',
+                    hrefKey: Uri.parse(_target).path,
+                    requestUri: _target,
+                    displayName: 'Work',
+                    ownerHref: const Value('/principals/alice/'),
+                    createdAtUtc: 'now',
+                    updatedAtUtc: 'now',
+                  ),
+                );
+            if (['partial', 'malformed', 'lost-survived'].contains(mode)) {
+              await expectLater(
+                f.admin.remove('collection'),
+                throwsA(
+                  isA<DavException>().having(
+                    (e) => e.code,
+                    'code',
+                    mode == 'partial'
+                        ? 'DavCollectionRemovalPartial'
+                        : 'DavCollectionOutcomeUnknown',
+                  ),
+                ),
+              );
+            } else {
+              expect(await f.admin.remove('collection'), switch (mode) {
+                'refresh-failure' =>
+                  DavCollectionAdministrationOutcome.refreshPending,
+                'lost-deleted' => DavCollectionAdministrationOutcome.reconciled,
+                _ => DavCollectionAdministrationOutcome.committed,
+              });
+            }
+            expect(
+              f.metadataWrites,
+              1,
+              reason: 'uncertain destructive operations are never replayed',
+            );
+            expect(f.refreshes, 1);
+            if (['partial', 'malformed', 'lost-survived'].contains(mode)) {
+              expect(f.remote, isNotNull);
+              expect(
+                (await f.database.select(f.database.davCollections).getSingle())
+                    .serverMissing,
+                isFalse,
+              );
+            }
+          },
+        );
+      }
+
+      for (final scenario in [
+        'nested-parent-allows',
+        'nested-parent-denies',
+        'direct-unverified-parent',
+        'direct-other-principal',
+        'direct-overlapping-parent',
+      ]) {
+        test('collection administration uses verified immediate parent: $scenario', () async {
+          const principal = 'https://example.test/principals/alice/';
+          final direct = scenario.startsWith('direct');
+          final target = Uri.parse(direct ? _home : '${_home}nested/calendar/');
+          final parent = target.resolve('..');
+          await f.database
+              .update(f.database.davAccountServices)
+              .write(
+                DavAccountServicesCompanion(
+                  principalHref: const Value(principal),
+                  capabilitiesJson: Value(
+                    jsonEncode({
+                      'principalContexts': [
+                        if (scenario == 'direct-overlapping-parent' ||
+                            scenario == 'direct-other-principal')
+                          {
+                            'principalHref':
+                                scenario == 'direct-other-principal'
+                                ? 'https://example.test/principals/bob/'
+                                : principal,
+                            'calendarHomeHref': parent.toString(),
+                          },
+                      ],
+                    }),
+                  ),
+                ),
+              );
+          await f.database
+              .into(f.database.davCollections)
+              .insert(
+                DavCollectionsCompanion.insert(
+                  id: 'parent-scope',
+                  accountId: 'qa',
+                  hrefKey: target.path,
+                  requestUri: target.toString(),
+                  displayName: 'Work',
+                  ownerHref: const Value('/principals/alice/'),
+                  safeDisplayMetadataJson: Value(
+                    jsonEncode({
+                      'calendarHomeHref': _home,
+                      'principalHref': principal,
+                    }),
+                  ),
+                  createdAtUtc: 'now',
+                  updatedAtUtc: 'now',
+                ),
+              );
+          var title = 'Work';
+          final calls = <http.Request>[];
+          final client = MockClient((request) async {
+            calls.add(request);
+            if (request.method == 'DELETE') return http.Response('', 204);
+            if (request.method == 'PROPPATCH') title = 'Renamed';
+            final denied = scenario == 'nested-parent-denies';
+            final calendarProps = f.collectionXml.replaceFirst(
+              '<d:displayname>Work</d:displayname>',
+              '<d:displayname>$title</d:displayname>',
+            );
+            final props = request.url == target
+                ? '$calendarProps<d:current-user-privilege-set><d:privilege><d:write-properties/></d:privilege></d:current-user-privilege-set>'
+                : '<d:resourcetype><d:collection/></d:resourcetype><d:current-user-privilege-set><d:privilege><d:${request.url == parent ? (denied ? 'read' : 'unbind') : (denied ? 'unbind' : 'read')}/></d:privilege></d:current-user-privilege-set>';
+            return http.Response(
+              '<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:response><d:href>${request.url}</d:href><d:propstat><d:prop>$props</d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>',
+              207,
+            );
+          });
+          addTearDown(client.close);
+          final admin = DavCollectionAdministration(
+            database: f.database,
+            secrets: f.secrets,
+            client: client,
+            accountId: 'qa',
+            refresh: () async {},
+            requireNetwork: () async {},
+          );
+          if (scenario == 'nested-parent-denies' ||
+              scenario == 'direct-unverified-parent' ||
+              scenario == 'direct-other-principal') {
+            await expectLater(
+              admin.remove('parent-scope'),
+              throwsA(
+                isA<DavException>().having(
+                  (e) => e.statusCode,
+                  'parent authorization',
+                  403,
+                ),
+              ),
+            );
+            expect(calls.where((r) => r.method == 'DELETE'), isEmpty);
+            if (direct) {
+              expect(
+                await admin.update('parent-scope', {
+                  const DavPropertyName(davNamespace, 'displayname'): 'Renamed',
+                }),
+                DavCollectionAdministrationOutcome.committed,
+              );
+              expect(calls.where((r) => r.method == 'PROPPATCH'), hasLength(1));
+            }
+          } else {
+            expect(
+              await admin.remove('parent-scope'),
+              DavCollectionAdministrationOutcome.committed,
+            );
+            expect(calls.where((r) => r.method == 'DELETE'), hasLength(1));
+          }
+          if (!direct || scenario == 'direct-overlapping-parent') {
+            expect(
+              calls.where((r) => r.method == 'PROPFIND' && r.url == parent),
+              hasLength(1),
+            );
+          } else {
+            expect(calls.where((r) => r.url == parent), isEmpty);
+          }
+        });
       }
 
       for (final owner in [
@@ -1327,9 +1586,11 @@ class _Fixture {
   late AppDatabase database;
   final secrets = InMemorySecretStore();
   late final http.Client client = MockClient(handle);
-  int metadataWrites = 0;
+  int metadataWrites = 0, refreshes = 0;
+  String? deleteMode;
   bool refreshFails = false;
-  bool optionsNetworkFailure = false;
+  bool optionsNetworkFailure = false, creationMethodsOnlyAtTarget = false;
+  bool targetOptionsUnavailable = false;
   int writes = 0, interruptedProbes = 0, unavailableProbes = 0;
   int targetReads = 0;
   String? rejectionBody;
@@ -1338,6 +1599,7 @@ class _Fixture {
   int? rejectionStatus;
   int optionsStatus = 200;
   bool bindDenied = false, unsupported = false;
+  bool parentDenied = false, parentDeniedPropertyLevel = false;
   bool loseResponse = false,
       interrupt = false,
       commitBeforeInterrupt = true,
@@ -1360,6 +1622,7 @@ class _Fixture {
     client: client,
     accountId: 'qa',
     refresh: () async {
+      refreshes++;
       if (refreshFails) throw StateError('refresh failed');
     },
     requireNetwork: () async {},
@@ -1411,6 +1674,18 @@ class _Fixture {
   }
 
   Future<http.Response> handle(http.Request request) async {
+    if (parentDenied &&
+        request.method == 'PROPFIND' &&
+        request.url.toString() == _home) {
+      final denied = parentDeniedPropertyLevel
+          ? '<d:propstat><d:prop><d:resourcetype/></d:prop><d:status>HTTP/1.1 403 Forbidden</d:status></d:propstat>'
+          : '<d:status>HTTP/1.1 403 Forbidden</d:status>';
+      return http.Response(
+        '<d:multistatus xmlns:d="DAV:"><d:response><d:href>$_home</d:href>$denied</d:response></d:multistatus>',
+        207,
+      );
+    }
+
     if (request.method == 'PROPFIND' && request.url.toString() == _target) {
       targetReads++;
     }
@@ -1455,17 +1730,37 @@ class _Fixture {
     }
     if (request.method == 'DELETE') {
       metadataWrites++;
+      if (deleteMode == 'partial') {
+        return http.Response(
+          '<d:multistatus xmlns:d="DAV:"><d:response><d:href>${_target}locked.ics</d:href><d:status>HTTP/1.1 423 Locked</d:status></d:response></d:multistatus>',
+          207,
+        );
+      }
+      if (deleteMode == 'malformed') {
+        return http.Response('<d:multistatus', 207);
+      }
+      if (deleteMode == 'lost-survived') {
+        throw StateError('Lost DELETE response before commit');
+      }
       remote = null;
+      if (deleteMode == 'lost-deleted') {
+        throw StateError('Lost DELETE response after commit');
+      }
       return http.Response('', 204);
     }
     if (request.method == 'OPTIONS') {
+      if (targetOptionsUnavailable && request.url.toString() == _target) {
+        return http.Response('', 404);
+      }
       if (optionsNetworkFailure) {
         throw http.ClientException('Simulated pre-dispatch connection loss');
       }
       return http.Response(
         '',
         optionsStatus,
-        headers: optionsStatus == 503
+        headers: creationMethodsOnlyAtTarget && request.url.toString() == _home
+            ? {'dav': 'calendar-access', 'allow': 'GET, PROPFIND'}
+            : optionsStatus == 503
             ? {'retry-after': '0'}
             : calendarAccessOnly
             ? {'dav': 'calendar-access', 'allow': 'GET, PROPFIND'}

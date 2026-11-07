@@ -45,12 +45,18 @@ def main():
         if args.action == 'restore':
             raise SystemExit('A revoked DAV credential must never be restored; use the newly issued credential.')
         state_path = RUNTIME / 'busystack-credential-label.json'
-        old_label = json.loads(state_path.read_text())['label'] if state_path.exists() else 'BusyMax QA primary'
+        current = json.loads((RUNTIME / 'busystack-credentials.json').read_text())['alice']
+        if not state_path.exists():
+            raise SystemExit('Issue a dedicated QA credential first; current label identity is unavailable.')
+        state = json.loads(state_path.read_text())
+        if not state.get('label') or state.get('credentialId') != current.split('.')[0]:
+            raise SystemExit('QA credential label does not match the held credential; issue a fresh named QA credential.')
+        old_label = state['label']
         label = 'BusyMax QA replacement ' + secrets.token_hex(8)
         subprocess.run(runner + ['issue', 'alice', label], check=True, capture_output=True)
         subprocess.run(runner + ['revoke', 'alice', old_label], check=True, capture_output=True)
         value = json.loads((RUNTIME / 'busystack-credentials.json').read_text())['alice']
-        for path, data in [(state_path, {'label': label}), (RUNTIME / 'rotation-busystack.json', {'password': value})]:
+        for path, data in [(state_path, {'label': label, 'credentialId': value.split('.')[0]}), (RUNTIME / 'rotation-busystack.json', {'password': value})]:
             path.write_text(json.dumps(data))
             path.chmod(0o600)
         print('Disposable named DAV credential reissued and predecessor revoked through MFA (not printed).')

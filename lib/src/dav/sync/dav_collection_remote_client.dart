@@ -5,6 +5,7 @@ import '../dav_href.dart';
 import '../dav_provider_profile.dart';
 import '../http/dav_http_transport.dart';
 import '../xml/dav_xml.dart';
+import '../xml/dav_propfind_inventory.dart';
 
 final class DavRemoteMember {
   const DavRemoteMember({
@@ -358,15 +359,60 @@ final class DavCollectionHttpClient implements DavCollectionRemoteClient {
     if (response.statusCode != 207) {
       throw _statusException(response, operation: 'list members');
     }
-    final multistatus = _xmlParser.parseMultistatus(
+    final multistatus = parseDavPropfindInventory(
+      _xmlParser,
       response.bodyBytes,
       correlationId: correlationId,
     );
     final members = <DavRemoteMember>[];
+    final seen = <String>{};
+    var foundCollection = false;
+    final collectionKey = normalizedDavHrefKey(
+      _profile.provider,
+      _collectionUri,
+    );
     for (final entry in multistatus.responses) {
+      if (entry.statusCode case final status?) {
+        if (status >= 400) throw _memberStatusException(status, correlationId);
+        throw _syncProtocol('DavInventoryInvalidResourceStatus', correlationId);
+      }
+      final uri = resolveDavHref(
+        href: entry.href,
+        responseRequestUri: response.requestUri,
+        profile: _profile,
+        accountAuthority: _accountAuthority,
+        correlationId: correlationId,
+      );
+      final key = normalizedDavHrefKey(_profile.provider, uri);
+      if (_sameCollectionTarget(key, collectionKey)) {
+        if (foundCollection) {
+          throw _syncProtocol('DavInventoryDuplicateCollection', correlationId);
+        }
+        foundCollection = true;
+        // getetag is optional on collections. A property-level 404 means the
+        // property is unavailable, not that the collection is missing.
+        for (final stat in entry.propstats) {
+          if (!stat.isSuccessful && stat.statusCode != 404) {
+            throw _memberStatusException(stat.statusCode, correlationId);
+          }
+          if (stat.properties.isEmpty) {
+            throw _syncProtocol('DavInventoryInvalidCollection', correlationId);
+          }
+        }
+        continue;
+      }
+      if (!seen.add(key)) {
+        throw _syncProtocol('DavInventoryDuplicateMember', correlationId);
+      }
       final target = _resolveMember(entry.href, response, correlationId);
-      if (target == null) continue;
-      if (entry.statusCode == 404) continue;
+      if (target == null) {
+        throw _syncProtocol('DavInventoryInvalidMember', correlationId);
+      }
+      for (final stat in entry.propstats) {
+        if (!stat.isSuccessful) {
+          throw _memberStatusException(stat.statusCode, correlationId);
+        }
+      }
       if (entry.statusCode case final status? when status >= 400) {
         throw _memberStatusException(status, correlationId);
       }
@@ -389,6 +435,9 @@ final class DavCollectionHttpClient implements DavCollectionRemoteClient {
           etag: etag,
         ),
       );
+    }
+    if (!foundCollection) {
+      throw _syncProtocol('DavInventoryMissingCollection', correlationId);
     }
     return DavMemberInventory(members: List.unmodifiable(members));
   }
@@ -639,7 +688,9 @@ final class DavCollectionHttpClient implements DavCollectionRemoteClient {
 
 DavException _memberStatusException(int status, String correlationId) =>
     DavException(
-      kind: status == 403
+      kind: status == 401
+          ? DavErrorKind.authentication
+          : status == 403
           ? DavErrorKind.authorization
           : status >= 500
           ? DavErrorKind.server

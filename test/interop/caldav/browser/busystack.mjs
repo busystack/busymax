@@ -1,3 +1,4 @@
+import {randomBytes} from 'node:crypto';
 import {chromium} from 'playwright';
 import assert from 'node:assert/strict';
 import {readFileSync, writeFileSync, existsSync, chownSync} from 'node:fs';
@@ -6,6 +7,11 @@ const base = 'https://localhost:18448';
 const runtime = '/fixtures/.runtime/';
 const passwords = JSON.parse(readFileSync('/private/accounts.json', 'utf8'));
 passwords.administrator = readFileSync('/private/administrator-password', 'utf8').trimEnd();
+const lifecycleFile = runtime + 'busystack-lifecycle-account.json';
+if (existsSync(lifecycleFile)) {
+  const account = JSON.parse(readFileSync(lifecycleFile, 'utf8'));
+  passwords[account.username] = account.password;
+}
 const keyFile = runtime + 'busystack-authenticators.json';
 const keys = existsSync(keyFile) ? JSON.parse(readFileSync(keyFile, 'utf8')) : {};
 const credentialFile = runtime + 'busystack-credentials.json';
@@ -64,11 +70,29 @@ async function issue(username, label) {
   credentials[username] = secret;
   credentials.endpoint = displayed[0];
   save(credentialFile, credentials);
+  if (username === 'alice') save(runtime + 'busystack-credential-label.json', {label, credentialId: secret.split('.')[0]});
   await context.close();
 }
 try {
   const mode = process.argv[2] || 'provision';
-  if (mode === 'provision') {
+  if (mode === 'prepare-lifecycle') {
+    const username = 'busymax-life-' + randomBytes(6).toString('hex');
+    const password = randomBytes(32).toString('base64url');
+    privateValues.push(password);
+    passwords[username] = password;
+    save(lifecycleFile, {username, password, owner: 'BusyMax isolated lifecycle qualification'});
+    const {context, page} = await login('administrator');
+    await page.goto(base + '/admin');
+    const form = page.locator('form[action="/admin/accounts"]');
+    await form.locator('input[name=username]').fill(username);
+    await form.locator('input[name=displayName]').fill('BusyMax disposable lifecycle QA');
+    await form.locator('input[name=password]').fill(password);
+    await Promise.all([page.waitForURL(base + '/admin'), form.getByRole('button', {name: 'Create account', exact: true}).click()]);
+    await page.locator('li').filter({hasText: username}).waitFor();
+    await context.close();
+    await issue(username, 'BusyMax QA primary');
+    console.log('Fresh disposable lifecycle account provisioned through supported administration and MFA (identity not printed).');
+  } else if (mode === 'provision') {
     const {context, page} = await login('administrator');
     for (const username of ['alice', 'bob', 'disabled']) {
       await page.goto(base + '/admin');

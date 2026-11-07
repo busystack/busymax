@@ -14,6 +14,14 @@ class AppLocalizationsEs extends AppLocalizations {
   AppLocalizationsEs([String locale = 'es']) : super(locale);
 
   @override
+  String get davCollectionRemovalPartial =>
+      'No se pudieron eliminar algunos elementos. La colección sigue existiendo. Actualiza antes de volver a intentarlo.';
+
+  @override
+  String get caldavTaskDuplicationSchedulingWarning =>
+      'Esta tarea o sus subtareas tienen participantes. Al duplicarlas, el servidor CalDAV podría enviar invitaciones o actualizaciones de tareas. ¿Permitir la duplicación?';
+
+  @override
   String get caldavSchedulingWarning =>
       'Este evento tiene asistentes. Al guardarlo o eliminarlo, tu servidor CalDAV puede notificar a los participantes cuando se sincronice el cambio.';
 

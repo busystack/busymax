@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'dart:io';
 
 import 'package:busystack_contacts/busystack_contacts.dart';
@@ -22,6 +23,7 @@ void main() {
   late DavFixture dav;
   final dispatched = <String?>[];
   late NextcloudHttpClientFactory clients;
+  String? transportFault;
 
   NextcloudCertificate certificate(String name) =>
       NextcloudCertificate.import(File(tls.path('$name.pem')).readAsBytesSync())
@@ -98,6 +100,17 @@ void main() {
     server = await tls.serve('self');
     endpoint = Uri.parse('https://localhost:${server.port}/nextcloud/');
     server.listen((request) async {
+      if (transportFault == 'connection' || transportFault == 'stream') {
+        final socket = await request.response.detachSocket(writeHeaders: false);
+        if (transportFault == 'stream') {
+          socket.write(
+            'HTTP/1.1 207 Multi-Status\r\nContent-Length: 99999\r\nConnection: close\r\n\r\n<d:multistatus',
+          );
+          await socket.flush();
+        }
+        socket.destroy();
+        return;
+      }
       dispatched.add(request.headers.value(HttpHeaders.authorizationHeader));
       final incoming = http.Request(
         request.method,
@@ -120,9 +133,126 @@ void main() {
   setUp(() {
     dav = DavFixture();
     dispatched.clear();
-    clients = NextcloudHttpClientFactory(requireNetwork: () async {});
+    transportFault = null;
+    clients = NextcloudHttpClientFactory(
+      requireNetwork: () async {
+        if (transportFault == 'cancellation') {
+          throw http.RequestAbortedException(endpoint);
+        }
+        if (transportFault == 'timeout') {
+          throw TimeoutException('Injected connection timeout');
+        }
+      },
+    );
     addTearDown(clients.close);
   });
+
+  for (final mode in ['standard', 'private-ca', 'pinned-leaf']) {
+    for (final failure in ['connection', 'stream', 'cancellation', 'timeout']) {
+      test(
+        'independent contacts $mode recovers from $failure with the same generation, credential and policy',
+        () async {
+          Future<void> exercise() async {
+            final database = AppDatabase.memoryForTests();
+            addTearDown(database.close);
+            final f = controller(database, factory: clients);
+            final account = await seed(f);
+            final generation = account.generation + 1;
+            final record = config(f, account)
+              ..['authorizationGeneration'] = generation;
+            if (mode == 'standard') record.remove('trustPolicy');
+            if (mode == 'private-ca') {
+              // The fixture uses a self-signed server; serve the CA-signed leaf
+              // on another ephemeral listener to exercise actual private-CA TLS.
+              record['trustPolicy'] = NextcloudTrustPolicy.approve(
+                owner: 'contacts:${account.id}',
+                installation: endpoint,
+                mode: NextcloudTrustMode.privateCa,
+                certificates: [certificate('ca')],
+                generation: 'qa-ca',
+              ).toJson();
+            }
+            f.davSecrets[account.id] = jsonEncode(record);
+            await f.store.write(
+              (tx) => tx.putAccount(account.copy(generation: generation)),
+            );
+            await f.controller.synchronizeAccount(account.id);
+            final before = await cache(f);
+            expect(before, isNotEmpty);
+            transportFault = failure;
+            await expectLater(
+              f.controller.synchronizeAccount(account.id),
+              throwsA(isA<ContactsException>()),
+            );
+            expect(await cache(f), before);
+            transportFault = null;
+            await f.controller.synchronizeAccount(account.id);
+            final after = await f.store.read((tx) => tx.account(account.id));
+            expect(after!.generation, generation);
+            expect(after.errorCode, isNull);
+            expect(f.davSecrets[account.id], jsonEncode(record));
+            expect(await cache(f), before);
+          }
+
+          if (mode == 'private-ca') {
+            // The CA and pinned modes use production trust contexts. The standard
+            // mode below injects fixture roots and does not qualify public PKI.
+            final previousServer = server;
+            final previousEndpoint = endpoint;
+            final caServer = await tls.serve('leaf');
+            server = caServer;
+            endpoint = Uri.parse(
+              'https://localhost:${caServer.port}/nextcloud/',
+            );
+            caServer.listen((request) async {
+              if (transportFault == 'connection' ||
+                  transportFault == 'stream') {
+                final socket = await request.response.detachSocket(
+                  writeHeaders: false,
+                );
+                if (transportFault == 'stream') {
+                  socket.write(
+                    'HTTP/1.1 207 Multi-Status\r\nContent-Length: 99999\r\nConnection: close\r\n\r\n<d:multistatus',
+                  );
+                  await socket.flush();
+                }
+                socket.destroy();
+                return;
+              }
+              final incoming =
+                  http.Request(request.method, endpoint.resolveUri(request.uri))
+                    ..bodyBytes = await request.fold<List<int>>(
+                      [],
+                      (a, b) => a..addAll(b),
+                    );
+              request.headers.forEach(
+                (k, v) => incoming.headers[k] = v.join(','),
+              );
+              final response = await dav.respond(incoming);
+              request.response.statusCode = response.statusCode;
+              response.headers.forEach(request.response.headers.set);
+              request.response.add(response.bodyBytes);
+              await request.response.close();
+            });
+            try {
+              await exercise();
+            } finally {
+              await caServer.close(force: true);
+              server = previousServer;
+              endpoint = previousEndpoint;
+            }
+          } else if (mode == 'standard') {
+            await HttpOverrides.runWithHttpOverrides(
+              exercise,
+              _FixtureTrustedRoots(tls.path('self.pem')),
+            );
+          } else {
+            await exercise();
+          }
+        },
+      );
+    }
+  }
 
   test('direct expired-certificate failure during provider recreation stays reviewable', () async {
     final database = AppDatabase.memoryForTests();
@@ -345,4 +475,14 @@ void main() {
       expect(dispatched, isEmpty);
     },
   );
+}
+
+final class _FixtureTrustedRoots extends HttpOverrides {
+  _FixtureTrustedRoots(this.path);
+  final String path;
+  @override
+  HttpClient createHttpClient(SecurityContext? context) =>
+      super.createHttpClient(
+        (context ?? SecurityContext())..setTrustedCertificates(path),
+      );
 }

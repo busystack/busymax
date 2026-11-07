@@ -1379,7 +1379,36 @@ class TasksRepository {
         .length;
   }
 
-  Future<String> duplicateTask(String taskListId, String taskId) async {
+  Future<bool> taskDuplicationRequiresSchedulingConsent(
+    String taskListId,
+    String taskId,
+  ) async {
+    final account = await (_database.select(
+      _database.accounts,
+    )..where((r) => r.id.equals(_accountId))).getSingle();
+    if (account.provider != 'caldav') return false;
+    final list = await _requiredTaskList(taskListId);
+    final visited = <String>{};
+    Future<bool> inspect(Task task) async {
+      if (!visited.add(task.id)) {
+        throw StateError('The DAV task hierarchy contains a cycle.');
+      }
+      final raw = await nativeTaskExport(taskListId, task.id);
+      if (raw != null && icalHasAttendees(raw)) return true;
+      for (final child in await _davChildren(list.id, task)) {
+        if (await inspect(child)) return true;
+      }
+      return false;
+    }
+
+    return inspect(await _requiredTask(taskListId, taskId));
+  }
+
+  Future<String> duplicateTask(
+    String taskListId,
+    String taskId, {
+    bool allowScheduling = false,
+  }) async {
     final taskList = await _requiredTaskList(taskListId);
     if (taskList.davCollectionId == null) {
       throw UnsupportedError(
@@ -1399,6 +1428,7 @@ class TasksRepository {
       parentId: existingParent?.id,
       parentUid: existingParent?.icalUid,
       dependsOnOperationId: null,
+      allowScheduling: allowScheduling,
     );
     await _rebuildTaskNotifications();
     _onMutationQueued?.call();
@@ -1512,6 +1542,7 @@ class TasksRepository {
     required String? parentUid,
     required String? dependsOnOperationId,
     bool preflight = true,
+    required bool allowScheduling,
   }) async {
     if (preflight) {
       return _database.transaction(() async {
@@ -1523,6 +1554,7 @@ class TasksRepository {
           parentUid: parentUid,
           dependsOnOperationId: dependsOnOperationId,
           preflight: false,
+          allowScheduling: allowScheduling,
         );
       });
     }
@@ -1652,6 +1684,7 @@ class TasksRepository {
       operationId = await queue.enqueueCreate(
         accountId: _accountId,
         collectionId: collectionId,
+        allowScheduling: allowScheduling,
         object: DavNewObject(
           uid: newUid,
           initialMemberName: '${_uuid.v4()}.ics',
@@ -1672,6 +1705,7 @@ class TasksRepository {
         parentUid: newUid,
         dependsOnOperationId: lastOperationId,
         preflight: false,
+        allowScheduling: allowScheduling,
       );
       lastOperationId = duplicate.lastOperationId;
     }

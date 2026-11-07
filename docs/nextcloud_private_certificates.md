@@ -86,6 +86,15 @@ does not own the lease. The local gate uses the same ordering. Credentials and
 policy are selected and checked inside the lease, before any transmission.
 Secure-storage staging and SQLite journal commits remain exclusive.
 
+Independent Nextcloud contacts bindings create a fresh request-owned transport
+inside the authorization lease for each operation. Connection/body failure,
+cancellation and timeout terminate that transport; an ordinary retry uses the
+same account generation, credentials and trust policy with a usable new client.
+Binding eligibility is also validated eagerly, so invalid persisted policies
+remain reviewable before network work. Credential/trust replacement and removal
+continue to invalidate the old binding. Generic CardDAV/CalDAV do not inherit
+this dedicated Nextcloud trust exception.
+
 Each account request owns its TLS client, without idle connections surviving
 its lease. A response releases ownership on EOF, error, cancellation or client
 disposal. Lease acquisition has its own two-minute timeout. After acquisition,
@@ -177,3 +186,20 @@ process restart and certificate recovery with the isolated QA package. Run nativ
 TLS and workflow targets on Linux, Windows and Android as described in
 [Development](development.md); widget tests alone do not establish native TLS,
 browser trust or provider delivery. Keep per-run evidence outside tracked source.
+
+Native Android certificate acceptance uses the maintained
+`tool/nextcloud_native_tls_host.dart` peer and
+`integration_test/nextcloud_native_certificate_test.dart`. Start the host with
+a private temporary define-file path; map only its reported loopback ports
+with `adb -s DEVICE reverse`. Use `busymaxCalDavQa=true` and
+`busymaxTestSigning=true` Gradle properties and the host's define file with
+`flutter test ... -d DEVICE --no-uninstall`. Inspect the APK application ID
+before deployment and explicitly uninstall only the fresh
+`io.busystack.busymax.caldavqa` installation after testing. Flutter's default
+cleanup can select the base package when QA IDs are computed by Gradle; it must
+not be allowed to remove a normal installation. The native CA picker case is
+opt-in with `BUSYMAX_NATIVE_CA_PICKER=true`; choose only the disposable QA CA
+through DocumentsUI, test rejection before approval, and remove only the
+certificate file and reverse mappings created by that run. These tests use
+real native sockets and encrypted storage with synthetic peers/credentials;
+they do not establish public-PKI onboarding or a real Nextcloud account session.

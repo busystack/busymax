@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -525,6 +526,158 @@ void main() {
       );
     },
   );
+
+  for (final invalid in [
+    'empty',
+    'collection-failure',
+    'malformed-member',
+    'duplicate',
+    'missing-home',
+  ]) {
+    test(
+      'PROPFIND $invalid preserves cached events, tasks, queue and baseline across reopen',
+      () async {
+        await database.close();
+        final directory = await Directory.systemTemp.createTemp(
+          'busymax-inventory-',
+        );
+        addTearDown(() => directory.delete(recursive: true));
+        final file = File('${directory.path}/fixture.sqlite');
+        database = AppDatabase(NativeDatabase(file));
+        repository = DavObjectRepository(database: database);
+        await _seedCollection(database, syncCollection: true);
+        await _runInitial(database, repository, {
+          'event.ics': ('"e1"', _event('event', 'Cached event')),
+          'task.ics': (
+            '"t1"',
+            _event(
+              'task',
+              'Cached task',
+            ).replaceAll('VEVENT', 'VTODO').replaceAll('DTEND', 'DUE'),
+          ),
+        }, token: 'urn:stable');
+        final object = (await repository.liveObjects('collection')).first;
+        await DavPendingOperationQueue(database: database).enqueueUpdate(
+          accountId: 'account',
+          collectionId: 'collection',
+          objectId: object.id,
+          patch: DavMutationPatch(
+            target: IcalComponentKey(
+              componentType: 'VEVENT',
+              uid: object.primaryUid!,
+            ),
+            scope: DavMutationScope.object,
+            operations: [DavPatchOperation.setText('SUMMARY', 'Pending edit')],
+          ),
+        );
+        await database
+            .update(database.davCollections)
+            .write(
+              const DavCollectionsCompanion(supportedReportsJson: Value('[]')),
+            );
+        final objects = await database
+            .customSelect('SELECT * FROM dav_objects ORDER BY id')
+            .get();
+        final events = await database
+            .customSelect('SELECT * FROM calendar_events ORDER BY id')
+            .get();
+        final tasks = await database
+            .customSelect('SELECT * FROM tasks ORDER BY id')
+            .get();
+        final pending = await database
+            .customSelect('SELECT * FROM pending_ops ORDER BY id')
+            .get();
+        final self = _wireChanged('', '"collection"');
+        final member = _wireChanged('event.ics', '"e1"');
+        var broken = true;
+        final remote = DavCollectionHttpClient(
+          transport: DavHttpTransport(
+            client: MockClient((request) async {
+              expect(request.method, 'PROPFIND');
+              final contents = !broken
+                  ? self.replaceFirst('200 OK', '404 Not Found')
+                  : switch (invalid) {
+                      'empty' => '',
+                      'collection-failure' =>
+                        '<d:response><d:href>${_href('')}</d:href><d:status>HTTP/1.1 403 Forbidden</d:status></d:response>',
+                      'malformed-member' =>
+                        self +
+                            member.replaceFirst(
+                              '<d:getetag>"e1"</d:getetag>',
+                              '',
+                            ),
+                      'duplicate' => self + member + member,
+                      _ => member,
+                    };
+              return http.Response(_wireSync(contents, null), 207);
+            }),
+            profile: davProviderProfile(
+              BusyProvider.nextcloud,
+              nextcloudServer: Uri.parse('https://cloud.example.test'),
+            ),
+            accountAuthority: Uri.parse('https://cloud.example.test'),
+          ),
+          profile: davProviderProfile(
+            BusyProvider.nextcloud,
+            nextcloudServer: Uri.parse('https://cloud.example.test'),
+          ),
+          accountAuthority: Uri.parse('https://cloud.example.test'),
+          accountId: 'account',
+          collectionId: 'collection',
+          collectionUri: Uri.parse('https://cloud.example.test${_href('')}'),
+          credential: DavBasicCredential(username: 'qa', password: 'synthetic'),
+        );
+        await expectLater(
+          _engine(
+            database,
+            repository,
+            remote,
+          ).synchronize(correlationId: 'invalid-inventory'),
+          throwsA(isA<DavException>()),
+        );
+        await database.close();
+        database = AppDatabase(NativeDatabase(file));
+        repository = DavObjectRepository(database: database);
+        for (final item in [
+          ('dav_objects', objects),
+          ('calendar_events', events),
+          ('tasks', tasks),
+          ('pending_ops', pending),
+        ]) {
+          expect(
+            (await database
+                    .customSelect('SELECT * FROM ${item.$1} ORDER BY id')
+                    .get())
+                .map((r) => r.data),
+            item.$2.map((r) => r.data),
+          );
+        }
+        expect(
+          (await repository.cursor('collection'))!.cursorValue,
+          'urn:stable',
+        );
+        expect((await repository.cursor('collection'))!.baselineGeneration, 1);
+        expect(
+          (await repository.cursor('collection'))!.inProgressCursor,
+          isNull,
+        );
+        broken = false;
+        await _engine(
+          database,
+          repository,
+          remote,
+        ).synchronize(correlationId: 'valid-empty');
+        expect(
+          (await database.select(database.pendingOps).get()).map((r) => r.id),
+          pending.map((r) => r.data['id']),
+        );
+        expect(
+          (await repository.cursor('collection'))!.cursorKind,
+          'snapshot_generation',
+        );
+      },
+    );
+  }
 
   test(
     'fallback inventory performs a complete ETag diff and snapshot cursor',

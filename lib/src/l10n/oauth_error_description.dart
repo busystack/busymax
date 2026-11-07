@@ -67,6 +67,9 @@ String localizedSyncFailureMessage(
   String? networkUnavailableMessage,
 }) {
   if (error is DavRefreshPending) return l10n.davRefreshPending;
+  if (error is DavException && error.code == 'DavCollectionRemovalPartial') {
+    return l10n.davCollectionRemovalPartial;
+  }
   if (error is DavException && error.code == 'DavCollectionCreationPending') {
     return l10n.davCollectionCreationPending;
   }

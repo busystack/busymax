@@ -135,6 +135,18 @@ abstract class AppLocalizations {
     Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant'),
   ];
 
+  /// No description provided for @davCollectionRemovalPartial.
+  ///
+  /// In en, this message translates to:
+  /// **'Some items could not be deleted. The collection remains. Refresh before trying again.'**
+  String get davCollectionRemovalPartial;
+
+  /// No description provided for @caldavTaskDuplicationSchedulingWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'This task or its subtasks contain attendees. Duplicating them may cause the CalDAV server to send invitations or task updates. Allow duplication?'**
+  String get caldavTaskDuplicationSchedulingWarning;
+
   /// No description provided for @caldavSchedulingWarning.
   ///
   /// In en, this message translates to:

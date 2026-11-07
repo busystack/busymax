@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import pathlib
+import re
 import subprocess
 import sys
 import uuid
@@ -28,7 +29,7 @@ def browser(*arguments):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['setup', 'start', 'bootstrap', 'build-browser', 'provision',
+    parser.add_argument('action', choices=['setup', 'start', 'bootstrap', 'build-browser', 'provision', 'prepare-lifecycle',
                                          'share', 'group-create', 'group-members', 'group-delete', 'group-share',
                                          'issue', 'revoke', 'disable', 'expire', 'restart', 'profile', 'stop', 'reset'])
     parser.add_argument('arguments', nargs='*')
@@ -48,18 +49,20 @@ def main():
     elif args.action == 'build-browser':
         subprocess.run(['docker', 'build', '-f', str(ROOT / 'browser.Dockerfile'),
                         '-t', 'busymax-caldav-browser-qa:1.61.1', str(ROOT)], check=True)
-    elif args.action in ('provision', 'share', 'group-create', 'group-members', 'group-delete', 'group-share', 'issue', 'revoke', 'disable'):
+    elif args.action in ('provision', 'prepare-lifecycle', 'share', 'group-create', 'group-members', 'group-delete', 'group-share', 'issue', 'revoke', 'disable'):
         subprocess.run(browser(args.action, *args.arguments), check=True)
     elif args.action == 'expire':
-        if args.arguments != ['disabled']:
-            raise SystemExit('Expiry aging is restricted to the dedicated disposable lifecycle user')
-        token = json.loads((RUNTIME / 'busystack-credentials.json').read_text())['disabled']
+        lifecycle = RUNTIME / 'busystack-lifecycle-account.json'
+        username = json.loads(lifecycle.read_text())['username'] if lifecycle.exists() else 'disabled'
+        if args.arguments != [username] or (username != 'disabled' and not re.fullmatch(r'busymax-life-[0-9a-f]{12}', username)):
+            raise SystemExit('Expiry aging is restricted to the recorded disposable lifecycle user')
+        token = json.loads((RUNTIME / 'busystack-credentials.json').read_text())[username]
         credential_id = str(uuid.UUID(token.split('.')[0]))
         # Age a genuinely MFA/browser-issued credential. No credential/verifier
         # is inserted or changed, and account authentication is never bypassed.
         sql = ("UPDATE dav_credentials SET created_at=created_at-interval '2 days', "
                "expires_at=expires_at-interval '2 days' WHERE id='" + credential_id + "' "
-               "AND account_id=(SELECT id FROM accounts WHERE username='disabled') RETURNING id;\n")
+               "AND account_id=(SELECT id FROM accounts WHERE username='" + username + "') RETURNING id;\n")
         result = subprocess.run(compose('exec', '-T', 'database', 'sh', '-ec',
             'IFS= read -r PGPASSWORD < /run/secrets/spring.datasource.password; export PGPASSWORD; '
             'exec psql -h 127.0.0.1 -U busystack -d busystack --no-psqlrc --tuples-only --no-align --set ON_ERROR_STOP=1'),

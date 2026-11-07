@@ -541,7 +541,17 @@ void main() {
     'BusyStack 0.1.0: revocation, expiry and disabling reject held leases and retain queued work',
     () async {
       final f = CalDavFixture(Uri.parse('https://localhost:18448/dav/'));
-      await f.open(username: 'disabled');
+      final lifecycle = jsonDecode(
+        await File(
+          'test/interop/caldav/.runtime/busystack-lifecycle-account.json',
+        ).readAsString(),
+      ) as Map;
+      final lifecycleUser = lifecycle['username'] as String;
+      expect(
+        RegExp(r'^busymax-life-[0-9a-f]{12}$').hasMatch(lifecycleUser),
+        isTrue,
+      );
+      await f.open(username: lifecycleUser);
       try {
         final list = (await f.database.select(f.database.taskLists).get())
             .singleWhere((l) => l.davCollectionId == f.collectionId);
@@ -617,7 +627,8 @@ void main() {
 
         Future<void> reconnect() async {
           final generation = await f.persistence.generation(f.id);
-          f.password = (await calDavQaCredentials(f.uri))['disabled'] as String;
+          f.password =
+              (await calDavQaCredentials(f.uri))[lifecycleUser] as String;
           final result = await f.onboarding.replaceCalDavPassword(
             accountId: f.id,
             password: f.password,
@@ -631,15 +642,15 @@ void main() {
 
         await queue('Queued during revocation');
         await heldLeaseRejects(() async {
-          await manage(['issue', 'disabled', 'BusyMax QA expiry']);
-          await manage(['revoke', 'disabled', 'BusyMax QA primary']);
+          await manage(['issue', lifecycleUser, 'BusyMax QA expiry']);
+          await manage(['revoke', lifecycleUser, 'BusyMax QA primary']);
         });
         await blocked('Queued during revocation');
         await reconnect();
         await queue('Queued during expiry');
-        await heldLeaseRejects(() => manage(['expire', 'disabled']));
+        await heldLeaseRejects(() => manage(['expire', lifecycleUser]));
         await blocked('Queued during expiry');
-        await manage(['issue', 'disabled', 'BusyMax QA final']);
+        await manage(['issue', lifecycleUser, 'BusyMax QA final']);
         await reconnect();
         final stored = (await f.database.select(f.database.tasks).get())
             .singleWhere((t) => t.id == item);
@@ -664,9 +675,8 @@ void main() {
             204,
           );
         }
-        f.createdCollectionUri = null;
-        f.createdEventCollectionUri = null;
-        await heldLeaseRejects(() => manage(['disable', 'disabled']));
+        f.markRemoteFixturesRemoved();
+        await heldLeaseRejects(() => manage(['disable', lifecycleUser]));
         await blocked('Queued when account disabled');
       } finally {
         await f.close();
@@ -807,9 +817,13 @@ void sharingTests(bool enabled) {
             ),
           ),
         );
-        await expectLater(
-          reader.synchronize(full: true),
-          throwsA(isA<DavAccountSyncException>()),
+        // A discovery-confirmed READ downgrade blocks this collection's
+        // queued write while synchronization of readable collections succeeds.
+        await reader.synchronize(full: true);
+        expect(
+          (await reader.database.select(reader.database.accounts).getSingle())
+              .authState,
+          'permission_changed',
         );
         expect(
           (await reader.database.select(reader.database.pendingOps).get())

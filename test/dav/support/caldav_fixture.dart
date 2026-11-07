@@ -20,6 +20,7 @@ import 'package:busymax/src/dav/sync/dav_account_sync_engine.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
+import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
@@ -54,6 +55,11 @@ final class CalDavFixture {
   late String id, password, collectionName;
   String? collectionId;
   String? eventCollectionId;
+  final _independentlyProvisioned = <Uri>[];
+  bool _remoteFixturesRemoved = false;
+
+  /// Call only after independently confirming removal of every owned fixture.
+  void markRemoteFixturesRemoved() => _remoteFixturesRemoved = true;
   Uri? createdCollectionUri;
   Uri? createdEventCollectionUri;
   String username = 'alice';
@@ -112,25 +118,68 @@ final class CalDavFixture {
     collectionName = 'BusyMax QA ${DateTime.now().microsecondsSinceEpoch}';
     onStage?.call('creating test collection');
     final mixed = calDavQaSupportsMixed(uri);
-    final creation = await administration.create(
+    await _createFixtureCollection(
       collectionName,
       mixed ? const {'VEVENT', 'VTODO'} : const {'VTODO'},
     );
-    if (creation != DavCollectionAdministrationOutcome.committed) {
-      throw StateError('QA collection refresh failed');
-    }
     final created = (await database.select(database.davCollections).get())
         .singleWhere((c) => c.displayName == collectionName);
     collectionId = created.id;
     createdCollectionUri = Uri.parse(created.requestUri);
     eventCollectionId = collectionId;
     if (!mixed) {
-      await administration.create('$collectionName events', const {'VEVENT'});
+      await _createFixtureCollection('$collectionName events', const {
+        'VEVENT',
+      });
       final events = (await database.select(database.davCollections).get())
           .singleWhere((c) => c.displayName == '$collectionName events');
       eventCollectionId = events.id;
       createdEventCollectionUri = Uri.parse(events.requestUri);
     }
+  }
+
+  /// Opt-in independent setup qualifies data paths when creation advertisement
+  /// is unavailable. It never counts as application collection-create evidence.
+  Future<void> _createFixtureCollection(
+    String title,
+    Set<String> components,
+  ) async {
+    final setup =
+        Platform.environment['BUSYMAX_CALDAV_FIXTURE_COLLECTION_SETUP'] ??
+        const String.fromEnvironment('BUSYMAX_CALDAV_FIXTURE_COLLECTION_SETUP');
+    if (setup != 'independent') {
+      final creation = await administration.create(title, components);
+      if (creation != DavCollectionAdministrationOutcome.committed) {
+        throw StateError('QA collection refresh failed');
+      }
+      return;
+    }
+    final service = await database
+        .select(database.davAccountServices)
+        .getSingle();
+    final home = uri.resolve(service.calendarHomeHref!);
+    final target = home.resolve(
+      'busymax-fixture-${DateTime.now().microsecondsSinceEpoch}/',
+    );
+    final safeTitle = title.replaceAll('&', '&amp;').replaceAll('<', '&lt;');
+    final members = components.map((c) => '<c:comp name="$c"/>').join();
+    final response = await independentRequest(
+      'MKCALENDAR',
+      target,
+      body:
+          '<c:mkcalendar xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:set><d:prop><d:displayname>$safeTitle</d:displayname><c:supported-calendar-component-set>$members</c:supported-calendar-component-set></d:prop></d:set></c:mkcalendar>',
+      headers: const {'content-type': 'application/xml'},
+    );
+    if (response.statusCode != 201) {
+      throw StateError(
+        'Independent fixture provisioning rejected: ${response.statusCode}',
+      );
+    }
+    _independentlyProvisioned.add(target);
+    onStage?.call(
+      'Independent fixture MKCALENDAR setup (not application creation qualification)',
+    );
+    await synchronize(full: true);
   }
 
   void _attach() {
@@ -347,10 +396,24 @@ final class CalDavFixture {
       // Fixture teardown owns this uniquely named remote collection. It also
       // cleans up after tests deliberately retaining blocked local work; product
       // collection deletion correctly refuses such queued changes.
-      for (final target in [
-        createdCollectionUri,
-        createdEventCollectionUri,
-      ].whereType<Uri>()) {
+      final completed = _storageOpened && _accountCreated
+          ? await (database.select(database.davCollectionCreations)..where(
+                  (row) =>
+                      row.accountId.equals(id) & row.state.equals('committed'),
+                ))
+                .get()
+          : const <DavCollectionCreation>[];
+      for (final target
+          in _remoteFixturesRemoved
+              ? const <Uri>[]
+              : [
+                  createdCollectionUri,
+                  createdEventCollectionUri,
+                  ..._independentlyProvisioned,
+                  ...completed.map(
+                    (operation) => Uri.parse(operation.targetUri),
+                  ),
+                ].whereType<Uri>().toSet()) {
         final response = await independentRequest('DELETE', target);
         if (![200, 204, 404, 410].contains(response.statusCode)) {
           throw StateError(

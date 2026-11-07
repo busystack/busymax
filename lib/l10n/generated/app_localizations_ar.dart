@@ -14,6 +14,14 @@ class AppLocalizationsAr extends AppLocalizations {
   AppLocalizationsAr([String locale = 'ar']) : super(locale);
 
   @override
+  String get davCollectionRemovalPartial =>
+      'تعذر حذف بعض العناصر. ما زالت المجموعة موجودة. حدّث قبل المحاولة مجددًا.';
+
+  @override
+  String get caldavTaskDuplicationSchedulingWarning =>
+      'تحتوي هذه المهمة أو مهامها الفرعية على مشاركين. قد يؤدي تكرارها إلى إرسال خادم CalDAV دعوات أو تحديثات للمهام. هل تسمح بالتكرار؟';
+
+  @override
   String get caldavSchedulingWarning =>
       'لهذا الحدث مشاركون. قد يؤدي حفظه أو حذفه إلى إرسال خادم CalDAV إشعارًا إليهم عند مزامنة التغيير.';
 

@@ -109,8 +109,8 @@ void main() {
                   DavCollectionsCompanion.insert(
                     id: 'collection',
                     accountId: 'account',
-                    hrefKey: '/home/events/',
-                    requestUri: 'https://calendar.test/home/events/',
+                    hrefKey: '/calendar-homes/events/',
+                    requestUri: 'https://calendar.test/calendar-homes/events/',
                     displayName: 'Calendar',
                     supportedComponentMask: const Value(1),
                     eventProjectionEnabled: const Value(true),
@@ -125,10 +125,10 @@ void main() {
                 .into(db.calendarSources)
                 .insert(
                   CalendarSourcesCompanion.insert(
-                    id: 'account|caldav|/home/events/',
+                    id: 'account|caldav|/calendar-homes/events/',
                     accountId: 'account',
                     provider: 'caldav',
-                    providerCalendarId: '/home/events/',
+                    providerCalendarId: '/calendar-homes/events/',
                     summary: 'Calendar',
                     davCollectionId: const Value('collection'),
                     createdAtLocal: 0,
@@ -142,7 +142,7 @@ void main() {
               accountId: 'account',
               event: CalendarEventDto(
                 provider: BusyProvider.caldav,
-                providerCalendarId: '/home/events/',
+                providerCalendarId: '/calendar-homes/events/',
                 providerEventId: 'event',
                 title: 'Imported meeting',
                 allDay: false,

@@ -701,9 +701,27 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
     TaskEntity task,
   ) async {
     try {
+      final needsConsent = await repository
+          .taskDuplicationRequiresSchedulingConsent(task.taskListId, task.id);
+      if (!mounted) return;
+      final allowed =
+          !needsConsent ||
+          await showBusyMaxConfirm(
+            context,
+            title: context.l10n.duplicateTask,
+            message: context.l10n.caldavTaskDuplicationSchedulingWarning,
+            confirmLabel: context.l10n.duplicateTask,
+          );
+      if (!allowed ||
+          !mounted ||
+          _effectiveTaskId != task.id ||
+          _effectiveAccountId != task.accountId) {
+        return;
+      }
       final duplicateId = await repository.duplicateTask(
         task.taskListId,
         task.id,
+        allowScheduling: needsConsent && allowed,
       );
       await widget.onTaskMutationCommitted?.call(
         TaskMutationResult(

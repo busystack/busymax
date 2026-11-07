@@ -8,6 +8,8 @@ String localizedDavCollectionError(
   Object? error,
 ) => switch (error) {
   SecretStoreException() => l10n.oauthSecureStorageUnavailable,
+  DavException(code: 'DavCollectionRemovalPartial') =>
+    l10n.davCollectionRemovalPartial,
   DavRefreshPending() => l10n.davRefreshPending,
   DavException(code: 'DavCollectionCreationPending') =>
     l10n.davCollectionCreationPending,

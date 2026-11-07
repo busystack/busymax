@@ -14,8 +14,21 @@ final class AuthorizationLeasedHttpClient extends http.BaseClient
     required this.validate,
     this.maximumLifetime = const Duration(minutes: 2),
     this.acquisitionTimeout = const Duration(minutes: 2),
-  });
-  final http.Client delegate;
+  }) : _createDelegate = null;
+
+  /// Long-lived bindings create a fresh request-owned transport inside the
+  /// authorization lease. A terminated transport is never reused by a retry.
+  AuthorizationLeasedHttpClient.requestScoped({
+    required http.Client Function() createDelegate,
+    required this.runLease,
+    required this.validate,
+    this.maximumLifetime = const Duration(minutes: 2),
+    this.acquisitionTimeout = const Duration(minutes: 2),
+  }) : delegate = null,
+       _createDelegate = createDelegate;
+
+  final http.Client? delegate;
+  final http.Client Function()? _createDelegate;
   final Future<void> Function(Future<void> Function()) runLease;
   final Future<void> Function() validate;
   final Duration maximumLifetime;
@@ -49,13 +62,14 @@ final class AuthorizationLeasedHttpClient extends http.BaseClient
     StreamSubscription<List<int>>? subscription;
     late final StreamController<List<int>> body;
     Timer? timer;
+    http.Client? operationDelegate = delegate;
     var finished = false;
     void finish([Object? error, StackTrace? stack, bool closeDelegate = true]) {
       if (finished) return;
       finished = true;
       timer?.cancel();
       // The delegate belongs to this operation/binding, never the app client.
-      if (closeDelegate) delegate.close();
+      if (closeDelegate || _createDelegate != null) operationDelegate?.close();
       stop.complete();
       if (error != null) {
         if (!ready.isCompleted) {
@@ -110,7 +124,8 @@ final class AuthorizationLeasedHttpClient extends http.BaseClient
               }
               await validate();
               if (finished) return;
-              final inner = delegate;
+              final inner = operationDelegate =
+                  _createDelegate?.call() ?? delegate!;
               final sending = (inner is TerminatingHttpClient
                   ? inner.sendTerminating(
                       request,
@@ -167,6 +182,6 @@ final class AuthorizationLeasedHttpClient extends http.BaseClient
     for (final cancel in _active.toList()) {
       cancel();
     }
-    delegate.close();
+    delegate?.close();
   }
 }

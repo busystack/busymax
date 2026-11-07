@@ -506,6 +506,9 @@ final busyMaxContactsStoreProvider = Provider<BusyMaxContactsStore>((ref) {
   return BusyMaxContactsStore(ref.watch(databaseProvider));
 });
 
+final contactsDavServerAccessCheckProvider =
+    Provider<Future<void> Function(Uri)?>((ref) => null);
+
 final busyMaxContactsControllerProvider = Provider<BusyMaxContactsController>((
   ref,
 ) {
@@ -525,6 +528,7 @@ final busyMaxContactsControllerProvider = Provider<BusyMaxContactsController>((
     ),
     httpClient: ref.watch(baseHttpClientProvider),
     nextcloudClients: ref.watch(nextcloudHttpClientFactoryProvider),
+    requireDavServerAccess: ref.watch(contactsDavServerAccessCheckProvider),
     accountGate: ref.watch(crossEngineAccountGateProvider),
     linkedNextcloudClient: (id) => ref.read(davAccountHttpClientProvider(id)),
     readDavSecret: (accountId) => storage.read(key: key(accountId)),

@@ -3224,11 +3224,50 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
     if (!_canWrite) return;
     setState(() => _saving = true);
     try {
+      final repository = ref.read(
+        tasksRepositoryForAccountProvider(widget.accountId),
+      );
+      final taskId = _observedTask?.id ?? widget.task!.id;
+      final needsConsent = await repository
+          .taskDuplicationRequiresSchedulingConsent(_draft.taskListId, taskId);
+      if (!mounted) return;
+      final allowed =
+          !needsConsent ||
+          await showDialog<bool>(
+                context: context,
+                builder: (dialog) => AlertDialog(
+                  title: Text(context.l10n.duplicateTask),
+                  content: Text(
+                    context.l10n.caldavTaskDuplicationSchedulingWarning,
+                  ),
+                  actions: [
+                    TextButton(
+                      autofocus: true,
+                      onPressed: () => Navigator.pop(dialog, false),
+                      child: Text(context.l10n.cancel),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(dialog, true),
+                      child: Text(context.l10n.duplicateTask),
+                    ),
+                  ],
+                ),
+              ) ==
+              true;
+      if (!allowed ||
+          !mounted ||
+          !_capabilities.canCreateTasks ||
+          !_recoveryLoaded ||
+          _hierarchyNavigationPending ||
+          taskId != (_observedTask?.id ?? widget.task!.id)) {
+        return;
+      }
       final duplicateId = await ref
           .read(tasksRepositoryForAccountProvider(widget.accountId))
           .duplicateTask(
             _draft.taskListId,
             (_observedTask?.id ?? widget.task!.id),
+            allowScheduling: needsConsent && allowed,
           );
       widget.onMutationCommitted?.call(
         AndroidTaskEditorResult(

@@ -1,3 +1,4 @@
+import '../android_local_network_access.dart';
 import 'android_nextcloud_certificate_dialog.dart';
 import '../../ui/common/nextcloud_certificate_review.dart';
 import '../../l10n/l10n.dart';
@@ -53,14 +54,30 @@ class _AndroidContactsSettingsState
       builder: (_) => _DavDialog(nextcloud: nextcloud),
     );
     if (!mounted || input == null) return;
+    if (!await ensureAndroidLocalNetworkAccess(context, input.server) ||
+        !mounted) {
+      return;
+    }
     {
       final controller = ref.read(busyMaxContactsControllerProvider);
       final id = const Uuid().v7();
       if (nextcloud) {
         await controller.addNextcloudContactsOnly(
-          reviewCanonicalServer: (entered, canonical) => mounted
-              ? showAndroidNextcloudCanonicalServer(context, entered, canonical)
-              : Future.value(false),
+          reviewCanonicalServer: (entered, canonical) async {
+            if (!mounted ||
+                !await showAndroidNextcloudCanonicalServer(
+                  context,
+                  entered,
+                  canonical,
+                ) ||
+                !mounted) {
+              return false;
+            }
+            return ensureAndroidLocalNetworkAccess(
+              context,
+              canonical.toString(),
+            );
+          },
           reviewCertificate: (challenge, owner) => reviewNextcloudCertificate(
             challenge,
             owner,
@@ -86,6 +103,7 @@ class _AndroidContactsSettingsState
 
   Future<void> _reconnect(ContactAccount account) async {
     final controller = ref.read(busyMaxContactsControllerProvider);
+    if (!await _ensureAccountAccess(account) || !mounted) return;
     final parent = await controller.store.linkedBusyMaxAccount(account.id);
     if (parent != null ||
         account.provider != ContactProviderKind.carddav ||
@@ -100,6 +118,21 @@ class _AndroidContactsSettingsState
     );
     if (!mounted || password == null) return;
     await controller.reconnectDavContactsOnly(account.id, password: password);
+  }
+
+  Future<bool> _ensureAccountAccess(ContactAccount account) async {
+    if (account.provider != ContactProviderKind.carddav) return true;
+    final controller = ref.read(busyMaxContactsControllerProvider);
+    final parentId = await controller.store.linkedBusyMaxAccount(account.id);
+    final parent = parentId == null
+        ? null
+        : await ref.read(accountsRepositoryProvider).accountById(parentId);
+    final server =
+        parent?.authority ??
+        (await controller.independentServer(account.id))?.toString();
+    return mounted &&
+        (server == null ||
+            await ensureAndroidLocalNetworkAccess(context, server));
   }
 
   @override
@@ -119,6 +152,9 @@ class _AndroidContactsSettingsState
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(context.l10n.contactsTitle),
+            _action(context.l10n.localNetworkAccessRequired, () async {
+              await ensureAndroidLocalNetworkAccess(context, '', review: true);
+            }),
             if (accounts.isEmpty) Text(context.l10n.contactsLinkedDescription),
             for (final parent in parents.where(
               (p) => [
@@ -136,7 +172,17 @@ class _AndroidContactsSettingsState
               _action(
                 context.l10n.contactsEnableSuggestions,
                 () => parent.provider == BusyProvider.nextcloud
-                    ? controller.enableLinkedNextcloudContacts(parent.id)
+                    ? () async {
+                        if (await ensureAndroidLocalNetworkAccess(
+                              context,
+                              parent.authority,
+                            ) &&
+                            mounted) {
+                          await controller.enableLinkedNextcloudContacts(
+                            parent.id,
+                          );
+                        }
+                      }()
                     : controller.enableLinkedContacts(parent.id),
               ),
             ],
@@ -162,25 +208,32 @@ class _AndroidContactsSettingsState
                       builder: (context, snapshot) => snapshot.data == true
                           ? _action(
                               context.l10n.privateServerCertificates,
-                              () => manageNextcloudCertificates(
-                                ref,
-                                account.id,
-                                (data) => mounted
-                                    ? showAndroidNextcloudCertificate(
-                                        context,
-                                        data,
-                                      )
-                                    : Future.value(null),
-                                contactsOnly: true,
-                              ),
+                              () async {
+                                if (!await _ensureAccountAccess(account) ||
+                                    !mounted) {
+                                  return;
+                                }
+                                await manageNextcloudCertificates(
+                                  ref,
+                                  account.id,
+                                  (data) => mounted
+                                      ? showAndroidNextcloudCertificate(
+                                          context,
+                                          data,
+                                        )
+                                      : Future.value(null),
+                                  contactsOnly: true,
+                                );
+                              },
                             )
                           : const SizedBox.shrink(),
                     ),
                   if (account.enabled)
-                    _action(
-                      context.l10n.contactsRetrySync,
-                      () => controller.synchronizeAccount(account.id),
-                    ),
+                    _action(context.l10n.contactsRetrySync, () async {
+                      if (await _ensureAccountAccess(account) && mounted) {
+                        await controller.synchronizeAccount(account.id);
+                      }
+                    }),
                   _action(
                     context.l10n.reconnectAccount,
                     () => _reconnect(account),

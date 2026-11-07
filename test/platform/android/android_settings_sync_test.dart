@@ -1,3 +1,4 @@
+import 'package:busymax/src/dav/dav_errors.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
@@ -22,6 +23,55 @@ import '../../support/memory_settings_store.dart';
 import '../../test_localized_app.dart';
 
 void main() {
+  testWidgets(
+    'Android settings delete explains partial deletion and retains the collection',
+    (tester) async {
+      final source = CalendarSourceEntity(
+        id: 'partial-calendar',
+        accountId: 'google:g',
+        provider: BusyProvider.caldav,
+        providerCalendarId: 'partial-calendar',
+        davCollectionId: 'partial-calendar',
+        summary: 'Surviving collection',
+        selected: true,
+        hidden: false,
+        readOnly: false,
+        isDeleted: false,
+        davEffectivePermissions: const {
+          'ownerHref': 'https://example.test/principals/qa/',
+          'principalHref': 'https://example.test/principals/qa/',
+          'parentPrivileges': ['{DAV:}unbind'],
+        },
+      );
+      final repository = _PartialRemovalRepository();
+      final harness = await _pumpAndroidSettings(
+        tester,
+        provider: BusyProvider.caldav,
+        sources: [source],
+        calendarRepository: repository,
+      );
+      addTearDown(harness.dispose);
+      final row = find.widgetWithText(ListTile, 'Surviving collection');
+      await tester.scrollUntilVisible(
+        row,
+        400,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(row);
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ListTile, 'Delete'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Delete').last);
+      await tester.pumpAndSettle();
+      expect(repository.calls, 1);
+      expect(
+        find.textContaining(AppLocalizationsEn().davCollectionRemovalPartial),
+        findsOneWidget,
+      );
+      expect(find.text('Surviving collection'), findsOneWidget);
+    },
+  );
+
   for (final (provider, caps, sharing) in [
     (BusyProvider.caldav, caldavTaskCollectionCapabilities, false),
     (BusyProvider.caldav, nextcloudTaskCollectionCapabilities, false),
@@ -502,6 +552,7 @@ Future<_AndroidSettingsHarness> _pumpAndroidSettings(
   BusyProvider provider = BusyProvider.google,
   String? authority,
   CalendarCollectionCreator? creator,
+  CalendarRepository? calendarRepository,
   List<CalendarSourceEntity> sources = const [],
   List<TaskListEntity> lists = const [],
   TaskCollectionCapabilities? taskCapabilities,
@@ -529,6 +580,8 @@ Future<_AndroidSettingsHarness> _pumpAndroidSettings(
   }
   final container = ProviderContainer(
     overrides: [
+      if (calendarRepository != null)
+        calendarRepositoryProvider.overrideWithValue(calendarRepository),
       if (creator != null)
         calendarCollectionCreationServiceProvider.overrideWithValue(creator),
       buildConfigProvider.overrideWithValue(BuildConfig.forAndroid()),
@@ -618,4 +671,20 @@ final class _PendingCreator implements CalendarCollectionCreator {
       outcome: CalendarCollectionCreationOutcome.createdRefreshPending,
     );
   }
+}
+
+final class _PartialRemovalRepository implements CalendarRepository {
+  int calls = 0;
+  @override
+  Future<void> deleteLocalSource(String id) async {
+    calls++;
+    throw const DavException(
+      kind: DavErrorKind.conflict,
+      code: 'DavCollectionRemovalPartial',
+      safeMessage: 'fixture',
+    );
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
 }

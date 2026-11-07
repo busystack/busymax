@@ -14,6 +14,14 @@ class AppLocalizationsVi extends AppLocalizations {
   AppLocalizationsVi([String locale = 'vi']) : super(locale);
 
   @override
+  String get davCollectionRemovalPartial =>
+      'Không thể xóa một số mục. Bộ sưu tập vẫn còn. Hãy làm mới trước khi thử lại.';
+
+  @override
+  String get caldavTaskDuplicationSchedulingWarning =>
+      'Tác vụ này hoặc các tác vụ con có người tham gia. Việc nhân bản có thể khiến máy chủ CalDAV gửi lời mời hoặc cập nhật tác vụ. Cho phép nhân bản?';
+
+  @override
   String get caldavSchedulingWarning =>
       'Sự kiện này có người tham dự. Khi lưu hoặc xóa, máy chủ CalDAV có thể thông báo cho họ lúc thay đổi được đồng bộ.';
 

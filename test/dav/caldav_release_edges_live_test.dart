@@ -1,3 +1,7 @@
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
+
 import 'dart:io';
 
 import 'package:busymax/src/dav/dav_errors.dart';
@@ -7,9 +11,125 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:xml/xml.dart';
 
 import 'support/caldav_fixture.dart';
+import 'support/caldav_qa_targets.dart';
 
 void main() {
   final enabled = Platform.environment['BUSYMAX_CALDAV_LIVE'] == '1';
+  for (final server in calDavQaTargets.entries) {
+    test(
+      '${server.key}: gateway DELETE 207 retains collection and reconciles actually removed child',
+      () async {
+        final fault = _PartialDeleteFault();
+        final f = CalDavFixture(
+          Uri.parse(server.value),
+          wrapAccountClient: (client) => _PartialDeleteGateway(client, fault),
+        );
+        await f.open();
+        addTearDown(f.close);
+        fault.collection = f.createdCollectionUri!;
+        fault.removed = fault.collection!.resolve('removed.ics');
+        fault.locked = fault.collection!.resolve('locked.ics');
+        final marker = DateTime.now().microsecondsSinceEpoch;
+        for (final name in ['removed', 'locked']) {
+          final raw =
+              'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//BusyMax QA//EN\r\nBEGIN:VTODO\r\nUID:partial-$name-$marker@example.invalid\r\nDTSTAMP:20261107T000000Z\r\nSUMMARY:Partial $name\r\nEND:VTODO\r\nEND:VCALENDAR\r\n';
+          expect(
+            (await f.independentRequest(
+              'PUT',
+              fault.collection!.resolve('$name.ics'),
+              body: raw,
+              headers: const {
+                'content-type': 'text/calendar',
+                'if-none-match': '*',
+              },
+            )).statusCode,
+            201,
+          );
+        }
+        await f.synchronize(full: true);
+        expect(
+          (await f.database.select(f.database.davObjects).get()).where(
+            (r) => r.collectionId == f.collectionId,
+          ),
+          hasLength(2),
+        );
+        await expectLater(
+          f.administration.remove(f.collectionId!),
+          throwsA(
+            isA<DavException>().having(
+              (e) => e.code,
+              'partial deletion',
+              'DavCollectionRemovalPartial',
+            ),
+          ),
+        );
+        expect(fault.calls, 1);
+        expect(
+          (await f.database.select(f.database.davCollections).get())
+              .singleWhere((r) => r.id == f.collectionId)
+              .deleted,
+          isFalse,
+        );
+        final objects = (await f.database.select(f.database.davObjects).get())
+            .where((r) => r.collectionId == f.collectionId)
+            .toList();
+        expect(objects.where((r) => !r.serverDeleted), hasLength(1));
+        expect(
+          objects.singleWhere((r) => !r.serverDeleted).requestUri,
+          fault.locked.toString(),
+        );
+        expect(
+          objects
+              .singleWhere((r) => r.requestUri == fault.removed.toString())
+              .serverDeleted,
+          isTrue,
+        );
+        expect(
+          (await f.database.select(f.database.tasks).get()).where(
+            (r) => r.title == 'Partial removed',
+          ),
+          isEmpty,
+        );
+        expect(
+          (await f.database.select(f.database.tasks).get()).where(
+            (r) => r.title == 'Partial locked',
+          ),
+          hasLength(1),
+        );
+        expect(
+          (await f.independentRequest('GET', fault.removed!)).statusCode,
+          404,
+        );
+        expect(
+          (await f.independentRequest('GET', fault.locked!)).statusCode,
+          200,
+        );
+        expect(
+          (await f.independentRequest(
+            'PROPFIND',
+            fault.collection!,
+            headers: const {'Depth': '0'},
+          )).statusCode,
+          207,
+        );
+        await f.reopen();
+        expect(
+          (await f.database.select(f.database.davCollections).get())
+              .singleWhere((r) => r.id == f.collectionId)
+              .deleted,
+          isFalse,
+        );
+        await f.synchronize(full: true);
+        expect(
+          fault.calls,
+          1,
+          reason: 'refresh/restart never repeats the destructive request',
+        );
+      },
+      skip: enabled ? false : 'Requires pinned HTTPS fixtures; 207/423 is injected by the gateway, not emitted by the server.',
+    );
+  }
+
   test('Radicale 3.9.0: conditional PUT, zero-offset VALARM and VTODO time filtering', () async {
     final f = CalDavFixture(Uri.parse('https://localhost:18443/'));
     await f.open();
@@ -175,4 +295,40 @@ void main() {
     },
     skip: enabled ? false : 'Requires provisioned locked/deletion-protected Radicale collections.',
   );
+}
+
+final class _PartialDeleteFault {
+  Uri? collection, removed, locked;
+  int calls = 0;
+}
+
+/// Fault gateway, not a claim that the upstream emits DELETE multistatus.
+/// One child is really deleted upstream; the collection DELETE is intercepted.
+final class _PartialDeleteGateway extends http.BaseClient {
+  _PartialDeleteGateway(this.delegate, this.fault);
+  final http.Client delegate;
+  final _PartialDeleteFault fault;
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    if (request.method == 'DELETE' && request.url == fault.collection) {
+      fault.calls++;
+      final removed = http.Request('DELETE', fault.removed!)
+        ..headers.addAll(request.headers);
+      final result = await delegate.send(removed);
+      await result.stream.drain<void>();
+      expect(result.statusCode, anyOf(200, 204));
+      final body =
+          '<d:multistatus xmlns:d="DAV:"><d:response><d:href>${fault.locked!.path}</d:href><d:status>HTTP/1.1 423 Locked</d:status></d:response></d:multistatus>';
+      return http.StreamedResponse(
+        Stream.value(utf8.encode(body)),
+        207,
+        request: request,
+        headers: const {'content-type': 'application/xml'},
+      );
+    }
+    return delegate.send(request);
+  }
+
+  @override
+  void close() => delegate.close();
 }

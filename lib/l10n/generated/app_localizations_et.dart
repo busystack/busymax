@@ -14,6 +14,14 @@ class AppLocalizationsEt extends AppLocalizations {
   AppLocalizationsEt([String locale = 'et']) : super(locale);
 
   @override
+  String get davCollectionRemovalPartial =>
+      'Mõnda üksust ei saanud kustutada. Kogu on alles. Enne uuesti proovimist värskenda.';
+
+  @override
+  String get caldavTaskDuplicationSchedulingWarning =>
+      'Sellel ülesandel või selle alamülesannetel on osalejad. Kopeerimine võib panna CalDAV-serveri saatma kutseid või ülesannete uuendusi. Kas lubada kopeerimine?';
+
+  @override
   String get caldavSchedulingWarning =>
       'Sellel sündmusel on osalejaid. Salvestamisel või kustutamisel võib CalDAV-server neile muudatuse sünkroonimisel teavituse saata.';
 

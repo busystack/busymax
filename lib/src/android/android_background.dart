@@ -1,3 +1,4 @@
+import 'android_local_network_access.dart';
 import '../features/notifications/notification_schedule_service.dart';
 import '../features/notifications/notification_reconciler.dart';
 import '../features/notifications/operational_notification_coordinator.dart';
@@ -220,6 +221,9 @@ final class AndroidHeadlessRuntime {
           overrides: [
             buildConfigProvider.overrideWithValue(BuildConfig.forAndroid()),
             databaseProvider.overrideWithValue(database),
+            contactsDavServerAccessCheckProvider.overrideWithValue(
+              requireAndroidContactsServerAccess,
+            ),
             secureStorageProvider.overrideWithValue(storage),
             initialAppSettingsProvider.overrideWithValue(settings),
             localSettingsStoreProvider.overrideWithValue(settingsStore),

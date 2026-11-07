@@ -47,10 +47,8 @@ final class NextcloudNativeImportPreview {
   final List<NativeImportResource> resources;
   final List<NativeImportItemResult> rejected;
   final String? schedulingMethod;
-  bool get hasAttendees => resources.any(
-    (resource) => IcalDocument.parse(resource.rawIcs).calendarComponents
-        .any((component) => component.propertiesNamed('ATTENDEE').isNotEmpty),
-  );
+  bool get hasAttendees =>
+      resources.any((resource) => icalHasAttendees(resource.rawIcs));
 
   factory NextcloudNativeImportPreview.parse(IcalDocument document) {
     final groups = <(String, String), List<IcalComponent>>{};
@@ -348,6 +346,7 @@ final class DavNativeImportService {
               ).enqueueCreate(
                 accountId: accountId,
                 collectionId: collectionId,
+                allowScheduling: allowScheduling,
                 object: object,
                 localObjectId: localObjectId,
                 dependsOnOperationId: parents

@@ -1808,10 +1808,58 @@ Future<bool> showWindowsTaskDetailsDialog(
                                 ? () async {
                                     setState(() => busy = true);
                                     try {
+                                      final needsConsent = await repository
+                                          .taskDuplicationRequiresSchedulingConsent(
+                                            original.taskListId,
+                                            original.id,
+                                          );
+                                      if (!context.mounted) return;
+                                      final allowed =
+                                          !needsConsent ||
+                                          await showDialog<bool>(
+                                                context: context,
+                                                builder: (dialog) => ContentDialog(
+                                                  title: Text(
+                                                    l10n.duplicateTask,
+                                                  ),
+                                                  content: Text(
+                                                    l10n.caldavTaskDuplicationSchedulingWarning,
+                                                  ),
+                                                  actions: [
+                                                    Button(
+                                                      autofocus: true,
+                                                      onPressed: () =>
+                                                          Navigator.pop(
+                                                            dialog,
+                                                            false,
+                                                          ),
+                                                      child: Text(l10n.cancel),
+                                                    ),
+                                                    FilledButton(
+                                                      onPressed: () =>
+                                                          Navigator.pop(
+                                                            dialog,
+                                                            true,
+                                                          ),
+                                                      child: Text(
+                                                        l10n.duplicateTask,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ) ==
+                                              true;
+                                      if (!context.mounted) return;
+                                      if (!allowed) {
+                                        setState(() => busy = false);
+                                        return;
+                                      }
                                       final duplicateId = await repository
                                           .duplicateTask(
                                             original.taskListId,
                                             original.id,
+                                            allowScheduling:
+                                                needsConsent && allowed,
                                           );
                                       report(
                                         onTaskMutationCommitted,

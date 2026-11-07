@@ -15,6 +15,9 @@ String localizedContactsError(AppLocalizations l10n, Object error) {
     return localizedAuthorizationError(l10n, error);
   }
   if (error is ContactsException) {
+    if (error.code.contains('android-local-network-required')) {
+      return l10n.localNetworkAccessRecovery;
+    }
     if (error.code.contains('NextcloudCertificate')) {
       return l10n.certificateFailure(
         error.code.split('NextcloudCertificate').last,
@@ -28,6 +31,9 @@ String localizedContactsError(AppLocalizations l10n, Object error) {
 }
 
 String localizedContactsStatus(AppLocalizations l10n, String code) {
+  if (code.contains('android-local-network-required')) {
+    return l10n.localNetworkAccessRecovery;
+  }
   if (code.contains('NextcloudCertificate')) {
     return l10n.certificateFailure(code.split('NextcloudCertificate').last);
   }

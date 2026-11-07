@@ -70,14 +70,8 @@ final class DavDiscoveryRepository {
             ) ==
             true;
         final supported =
-            home?.endpointCapabilities.any(
-              (e) =>
-                  e.href == service.calendarHomeHref &&
-                  (e.allowedMethods.contains('MKCALENDAR') ||
-                      e.serverFeatures.contains('extended-mkcol') &&
-                          e.allowedMethods.contains('MKCOL')),
-            ) ==
-            true;
+            home?.calendarHomeIsCalendar != true &&
+            home?.advertisedCollectionCreationMethods.isNotEmpty == true;
         await (_database.update(
           _database.accounts,
         )..where((r) => r.id.equals(result.accountId))).write(

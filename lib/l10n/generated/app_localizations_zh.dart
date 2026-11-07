@@ -14,6 +14,13 @@ class AppLocalizationsZh extends AppLocalizations {
   AppLocalizationsZh([String locale = 'zh']) : super(locale);
 
   @override
+  String get davCollectionRemovalPartial => '部分项目无法删除。集合仍然存在。请刷新后再试。';
+
+  @override
+  String get caldavTaskDuplicationSchedulingWarning =>
+      '此任务或其子任务包含参与者。复制可能会导致 CalDAV 服务器发送邀请或任务更新。允许复制吗？';
+
+  @override
   String get caldavSchedulingWarning =>
       '此日程有参与者。保存或删除日程后，CalDAV 服务器可能会在同步更改时通知参与者。';
 
@@ -3823,6 +3830,13 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   AppLocalizationsZhHans() : super('zh_Hans');
 
   @override
+  String get davCollectionRemovalPartial => '部分项目无法删除。集合仍然存在。请刷新后再试。';
+
+  @override
+  String get caldavTaskDuplicationSchedulingWarning =>
+      '此任务或其子任务包含参与者。复制可能会导致 CalDAV 服务器发送邀请或任务更新。允许复制吗？';
+
+  @override
   String get caldavSchedulingWarning =>
       '此日程有参与者。保存或删除日程后，CalDAV 服务器可能会在同步更改时通知参与者。';
 
@@ -7630,6 +7644,13 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 /// The translations for Chinese, using the Han script (`zh_Hant`).
 class AppLocalizationsZhHant extends AppLocalizationsZh {
   AppLocalizationsZhHant() : super('zh_Hant');
+
+  @override
+  String get davCollectionRemovalPartial => '部分項目無法刪除。集合仍然存在。請重新整理後再試。';
+
+  @override
+  String get caldavTaskDuplicationSchedulingWarning =>
+      '此工作或其子工作包含參與者。複製可能會導致 CalDAV 伺服器傳送邀請或工作更新。允許複製嗎？';
 
   @override
   String get caldavSchedulingWarning =>

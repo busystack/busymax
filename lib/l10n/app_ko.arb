@@ -1,4 +1,6 @@
 {
+  "davCollectionRemovalPartial": "일부 항목을 삭제하지 못했습니다. 컬렉션이 남아 있습니다. 다시 시도하기 전에 새로고침하세요.",
+  "caldavTaskDuplicationSchedulingWarning": "이 작업 또는 하위 작업에 참석자가 있습니다. 복제하면 CalDAV 서버가 초대나 작업 업데이트를 보낼 수 있습니다. 복제를 허용할까요?",
   "caldavSchedulingWarning": "이 일정에는 참석자가 있습니다. 저장하거나 삭제하면 변경 사항이 동기화될 때 CalDAV 서버가 참석자에게 알림을 보낼 수 있습니다.",
   "caldavNativeImport": "일정과 작업의 전체 리소스를 가져옵니다. 참석자가 있는 항목의 경우 CalDAV 서버가 초대 또는 회의 업데이트를 보낼 수 있습니다. 새 사본을 선택하지 않으면 기존 UID는 건너뜁니다. 지원되지 않는 리소스는 개별적으로 보고됩니다.",
   "davInsufficientStorage": "서버에 이 컬렉션을 만들 저장 공간이 부족합니다.",

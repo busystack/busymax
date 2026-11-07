@@ -20,6 +20,58 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../support/memory_settings_store.dart';
 
 void main() {
+  testWidgets(
+    'Windows delete explains partial deletion and retains the collection',
+    (tester) async {
+      final source = CalendarSourceEntity(
+        id: 'partial-calendar',
+        accountId: 'a',
+        provider: BusyProvider.caldav,
+        providerCalendarId: 'partial-calendar',
+        davCollectionId: 'partial-calendar',
+        summary: 'Surviving collection',
+        selected: true,
+        hidden: false,
+        readOnly: false,
+        isDeleted: false,
+        davEffectivePermissions: const {
+          'ownerHref': 'https://example.test/principals/qa/',
+          'principalHref': 'https://example.test/principals/qa/',
+          'parentPrivileges': ['{DAV:}unbind'],
+        },
+      );
+      final repository = _PartialRemovalRepository();
+      await _pumpPane(
+        tester,
+        MemorySettingsStore(),
+        [_account('a', BusyProvider.caldav)],
+        [source],
+        const [],
+        calendarRepository: repository,
+      );
+      final menu = tester.widget<DropDownButton>(
+        find.descendant(
+          of: _row(('schedule-calendar', 'a', 'partial-calendar')),
+          matching: find.byType(DropDownButton),
+        ),
+      );
+      final entry = menu.items.whereType<MenuFlyoutItem>().singleWhere(
+        (e) => (e.text as Text).data == 'Delete',
+      );
+      expect(entry.onPressed, isNotNull);
+      entry.onPressed!();
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Delete').last);
+      await tester.pumpAndSettle();
+      expect(repository.calls, 1);
+      expect(
+        find.text(AppLocalizationsEn().davCollectionRemovalPartial),
+        findsOneWidget,
+      );
+      expect(find.text('Surviving collection'), findsOneWidget);
+    },
+  );
+
   for (final nextcloud in [false, true]) {
     testWidgets(
       'Fluent committed rename refresh uses correct provider; Nextcloud=$nextcloud',
@@ -637,4 +689,20 @@ final class _RefreshPendingRepository implements CalendarRepository {
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+final class _PartialRemovalRepository implements CalendarRepository {
+  int calls = 0;
+  @override
+  Future<void> deleteLocalSource(String id) async {
+    calls++;
+    throw const DavException(
+      kind: DavErrorKind.conflict,
+      code: 'DavCollectionRemovalPartial',
+      safeMessage: 'fixture',
+    );
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
 }

@@ -164,6 +164,16 @@ Startup-folder substitute. Windows notification display, cancellation, and
 action callbacks require installed package identity, so exercise them with the
 test-signed MSIX described in [Windows packaging](windows_packaging.md).
 
+### Isolated Android native QA
+
+Use only the dedicated QA application IDs and explicit test signing documented
+in [the CalDAV fixture guide](../test/interop/caldav/README.md). With dynamic
+Gradle QA application IDs, pass `--no-uninstall` to every `flutter test` native
+run: Flutter cleanup can otherwise select the base package ID. Inspect the
+built APK's ID, retain data for process-restart tests, and explicitly uninstall
+only the QA package created by the current task. Never install over a normal
+BusyMax profile or clear its data.
+
 ## Validation
 
 After the shared preparation sequence, run the normal offline checks:

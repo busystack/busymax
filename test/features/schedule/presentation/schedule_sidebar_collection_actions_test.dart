@@ -80,6 +80,56 @@ void main() {
     },
   );
 
+  testWidgets(
+    'Linux delete retains and explains a partially removed collection',
+    (tester) async {
+      final account = _account(BusyProvider.caldav);
+      final source = CalendarSourceEntity(
+        id: 'partial-calendar',
+        accountId: account.id,
+        provider: BusyProvider.caldav,
+        providerCalendarId: 'partial-calendar',
+        davCollectionId: 'partial-calendar',
+        summary: 'Surviving collection',
+        selected: true,
+        hidden: false,
+        readOnly: false,
+        isDeleted: false,
+        davEffectivePermissions: const {
+          'ownerHref': 'https://example.test/principals/qa/',
+          'principalHref': 'https://example.test/principals/qa/',
+          'parentPrivileges': ['{DAV:}unbind'],
+        },
+      );
+      final repository = _PartialRemovalRepository([source]);
+      await _pumpSidebar(
+        tester,
+        [account],
+        calendarSources: [source],
+        calendarRepository: repository,
+      );
+      final menu = tester.widget<BusyMaxMenuButton<String>>(
+        find.byKey(const ValueKey(('calendar-options', 'partial-calendar'))),
+      );
+      expect(
+        menu.entries.singleWhere((e) => e.value == 'delete').enabled,
+        isTrue,
+      );
+      menu.onSelected('delete');
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.widgetWithText(ElevatedButton, AppLocalizationsEn().delete).last,
+      );
+      await tester.pumpAndSettle();
+      expect(repository.calls, 1);
+      expect(
+        find.textContaining(AppLocalizationsEn().davCollectionRemovalPartial),
+        findsOneWidget,
+      );
+      expect(find.text('Surviving collection'), findsWidgets);
+    },
+  );
+
   for (final nextcloud in [false, true]) {
     testWidgets(
       'calendar rename refresh message retains the correct provider; Nextcloud=$nextcloud',
@@ -1348,5 +1398,19 @@ final class _RefreshPendingCalendarRepository
     calls++;
     if (nextcloud) throw const NextcloudRefreshPending();
     throw const DavRefreshPending();
+  }
+}
+
+final class _PartialRemovalRepository extends _CalendarSourcesRepository {
+  _PartialRemovalRepository(super.sources);
+  int calls = 0;
+  @override
+  Future<void> deleteLocalSource(String id) async {
+    calls++;
+    throw const DavException(
+      kind: DavErrorKind.conflict,
+      code: 'DavCollectionRemovalPartial',
+      safeMessage: 'fixture',
+    );
   }
 }

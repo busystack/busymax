@@ -91,11 +91,22 @@ final class DavPendingOperationQueue {
     required String accountId,
     required String collectionId,
     required DavNewObject object,
+    bool allowScheduling = false,
     String? localProjectionId,
     String? localObjectId,
     String? dependsOnOperationId,
   }) async {
     final context = await _context(accountId, collectionId);
+    if (context.provider == BusyProvider.caldav &&
+        !allowScheduling &&
+        icalHasAttendees(object.rawIcs)) {
+      throw const DavException(
+        kind: DavErrorKind.unsupportedComponent,
+        code: 'IcalSchedulingConsentRequired',
+        safeMessage:
+            'Review scheduling before creating an attendee-bearing object.',
+      );
+    }
     if (object.suppressScheduling &&
         context.provider != BusyProvider.nextcloud) {
       throw _invalidPendingOperation();
@@ -172,6 +183,7 @@ final class DavPendingOperationQueue {
           'rawIcs': object.rawIcs,
           'componentType': object.componentType.toUpperCase(),
           if (object.suppressScheduling) 'suppressScheduling': true,
+          if (allowScheduling) 'schedulingConsent': true,
         }),
         state: Value(DavPendingState.pending.storageValue),
         createdAtUtc: now,
@@ -373,6 +385,22 @@ final class DavPendingOperationQueue {
     final materialized = patch.materialize(nowUtc);
     final updatedRaw = materialized.applyTo(object.rawIcs, nowUtc: nowUtc);
     _validateTaskTemporalRange(IcalSemanticDocument.parse(updatedRaw));
+    final consent =
+        (jsonDecode(operation.requestJson) as Map)['schedulingConsent'] == true;
+    final context = await _context(
+      operation.accountId,
+      _required(operation.davCollectionId),
+    );
+    if (context.provider == BusyProvider.caldav &&
+        !consent &&
+        icalHasAttendees(updatedRaw)) {
+      throw const DavException(
+        kind: DavErrorKind.unsupportedComponent,
+        code: 'IcalSchedulingConsentRequired',
+        safeMessage:
+            'Review scheduling before creating an attendee-bearing object.',
+      );
+    }
     await _validateScheduling(
       await _context(operation.accountId, _required(operation.davCollectionId)),
       object.rawIcs,
@@ -398,6 +426,7 @@ final class DavPendingOperationQueue {
                     'rawIcs': updatedRaw,
                     'componentType': object.componentType.toUpperCase(),
                     if (object.suppressScheduling) 'suppressScheduling': true,
+                    if (consent) 'schedulingConsent': true,
                   }),
                 ),
                 state: Value(DavPendingState.pending.storageValue),

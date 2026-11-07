@@ -1,3 +1,4 @@
+import '../core/http/destination_checked_http_client.dart';
 import '../core/http/terminating_http_client.dart' as app_http;
 import '../dav/auth/nextcloud_login_flow_v2.dart' as busymax_login;
 import '../core/http/authorization_leased_http_client.dart';
@@ -93,6 +94,7 @@ final class BusyMaxContactsController {
     this.reconnectLinkedDavAccount,
     this.nextcloudClients,
     this.linkedNextcloudClient,
+    this.requireDavServerAccess,
     this.accountGate = const InProcessAccountGate(),
   }) : _providerFactory = providerFactory,
        directory = ContactsDirectory(store: store);
@@ -101,6 +103,7 @@ final class BusyMaxContactsController {
   final AccountsRepository accounts;
   final ContactsAuthorizationBroker authorization;
   final http.Client httpClient;
+  final Future<void> Function(Uri)? requireDavServerAccess;
   final CrossEngineAccountGate accountGate;
   final NextcloudHttpClientFactory? nextcloudClients;
   final http.Client Function(String)? linkedNextcloudClient;
@@ -992,22 +995,28 @@ final class BusyMaxContactsController {
     final profile = config['nextcloud'] == true
         ? const DavProviderProfile.nextcloud()
         : const DavProviderProfile();
-    http.Client client =
-        scopedClient ??
-        (config['nextcloud'] == true && nextcloudClients != null
-            ? nextcloudClients!.create(
-                owner: 'contacts:${account.id}',
-                authority: server,
-                policy: config.containsKey('trustPolicy')
-                    ? NextcloudTrustPolicy.fromJson(config['trustPolicy'])
-                    : null,
-              )
-            : httpClient);
+    http.Client client;
     if (config['nextcloud'] == true &&
         scopedClient == null &&
         nextcloudClients != null) {
-      client = AuthorizationLeasedHttpClient(
-        delegate: client,
+      final policy = config.containsKey('trustPolicy')
+          ? NextcloudTrustPolicy.fromJson(config['trustPolicy'])
+          : null;
+      // Preserve eager envelope/certificate eligibility validation when binding.
+      // This constructs no connection; request transports are still lease-owned.
+      nextcloudClients!
+          .create(
+            owner: 'contacts:${account.id}',
+            authority: server,
+            policy: policy,
+          )
+          .close();
+      client = AuthorizationLeasedHttpClient.requestScoped(
+        createDelegate: () => nextcloudClients!.create(
+          owner: 'contacts:${account.id}',
+          authority: server,
+          policy: policy,
+        ),
         runLease: (work) => accountGate.run('contacts:${account.id}', work),
         validate: () async {
           final current = await store.read((tx) => tx.account(account.id));
@@ -1022,6 +1031,15 @@ final class BusyMaxContactsController {
             );
           }
         },
+      );
+    } else {
+      client = scopedClient ?? httpClient;
+    }
+    if (requireDavServerAccess case final check?) {
+      client = DestinationCheckedHttpClient(
+        client,
+        check,
+        closeInner: !identical(client, httpClient),
       );
     }
     if (onCertificateFailure != null) {

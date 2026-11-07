@@ -220,19 +220,16 @@ void main() {
             aliceId = (await f.database.select(f.database.accounts).get())
                 .singleWhere((a) => a.providerAccountId == 'alice')
                 .id;
-            final restricted =
-                (await f.database.select(f.database.davCollections).get())
-                    .singleWhere(
-                      (c) =>
-                          c.accountId == aliceId &&
-                          (c.displayName == 'BusyMax QA restricted' ||
-                              c.hrefKey.endsWith('/restricted/')),
-                    );
+            // A calendar cannot be the parent of a new calendar. Use Bob's
+            // verified ordinary home for the actual Alice permission rejection.
+            final ownerService =
+                (await f.database.select(f.database.davAccountServices).get())
+                    .singleWhere((row) => row.accountId == f.id);
             await (f.database.update(
               f.database.davAccountServices,
             )..where((r) => r.accountId.equals(aliceId))).write(
               DavAccountServicesCompanion(
-                calendarHomeHref: Value(restricted.requestUri),
+                calendarHomeHref: Value(ownerService.calendarHomeHref),
               ),
             );
             await expectLater(

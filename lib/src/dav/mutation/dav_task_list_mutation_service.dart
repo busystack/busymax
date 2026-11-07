@@ -175,7 +175,9 @@ final class DavTaskListMutationService implements DavTaskListMutationClient {
           title,
         ),
       });
-      if (result == DavCollectionAdministrationOutcome.refreshPending) {
+      if (result == DavCollectionAdministrationOutcome.refreshPending ||
+          result ==
+              DavCollectionAdministrationOutcome.reconciledRefreshPending) {
         throw const DavRefreshPending();
       }
       return;
@@ -219,7 +221,9 @@ final class DavTaskListMutationService implements DavTaskListMutationClient {
         if (order != null)
           const DavPropertyName(appleIcalNamespace, 'calendar-order'): '$order',
       });
-      if (result == DavCollectionAdministrationOutcome.refreshPending) {
+      if (result == DavCollectionAdministrationOutcome.refreshPending ||
+          result ==
+              DavCollectionAdministrationOutcome.reconciledRefreshPending) {
         throw const DavRefreshPending();
       }
       return NextcloudMutationOutcome.committed;
@@ -252,7 +256,9 @@ final class DavTaskListMutationService implements DavTaskListMutationClient {
         );
       }
       final result = await _genericAdministration.remove(collectionId);
-      if (result == DavCollectionAdministrationOutcome.refreshPending) {
+      if (result == DavCollectionAdministrationOutcome.refreshPending ||
+          result ==
+              DavCollectionAdministrationOutcome.reconciledRefreshPending) {
         throw const DavRefreshPending();
       }
       return;

@@ -16,6 +16,9 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.database.Cursor
 import android.net.Uri
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import java.net.InetAddress
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -387,6 +390,7 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
             "createDocument" -> createDocument(call, result)
             "exportDocumentTree" -> exportDocumentTree(call, result)
             "launchExternalUri" -> launchExternalUri(call, result)
+            "requiresLocalNetworkAccess" -> requiresLocalNetworkAccess(call, result)
             "hasLocalNetworkAccess" -> result.success(hasLocalNetworkAccess())
             "requestLocalNetworkAccess" -> requestLocalNetworkAccess(result)
             "openAppSettings" -> {
@@ -853,6 +857,35 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
         val intent = Intent(Intent.ACTION_VIEW, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         if (intent.resolveActivity(context.packageManager) == null) return result.success(false)
         context.startActivity(intent); result.success(true)
+    }
+
+    private fun requiresLocalNetworkAccess(call: MethodCall, result: MethodChannel.Result) {
+        if (Build.VERSION.SDK_INT < 37) return result.success(false)
+        val host = call.argument<String>("host").orEmpty().trim().removePrefix("[").removeSuffix("]").replace("%25", "%")
+        if (host.isEmpty()) return result.success(false)
+        executor.execute {
+            val required = runCatching {
+                val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+                val network = manager.activeNetwork ?: return@runCatching null
+                val capabilities = manager.getNetworkCapabilities(network) ?: return@runCatching null
+                val applicable = !capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN) &&
+                    !capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) &&
+                    (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                     capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) ||
+                     capabilities.hasTransport(NetworkCapabilities.TRANSPORT_LOWPAN) ||
+                     capabilities.hasTransport(NetworkCapabilities.TRANSPORT_THREAD))
+                if (!applicable) return@runCatching false
+                // .local resolution itself is permission gated. This is a
+                // contextual preflight, not multicast discovery or LAN scanning.
+                if (host.endsWith(".local", ignoreCase = true)) return@runCatching true
+                val properties = manager.getLinkProperties(network) ?: return@runCatching null
+                val routes = properties.routes.filter { !it.isDefaultRoute }.map {
+                    LocalNetworkRoute(it.destination.address.address, it.destination.prefixLength)
+                }
+                InetAddress.getAllByName(host).any { localNetworkAddress(it, applicable, routes) }
+            }.getOrNull()
+            postSuccess(result, required)
+        }
     }
 
     private fun hasLocalNetworkAccess() = Build.VERSION.SDK_INT < 37 || ContextCompat.checkSelfPermission(context, ACCESS_LOCAL_NETWORK) == PackageManager.PERMISSION_GRANTED

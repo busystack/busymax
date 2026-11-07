@@ -13,10 +13,236 @@ import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:drift/native.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  for (final (direct, overlap) in [
+    (true, false),
+    (false, false),
+    (false, true),
+  ]) {
+    test(
+      'discovers ${direct ? 'direct' : 'nested'} home calendars with overlap=$overlap, prefixes and encoded hrefs',
+      () async {
+        final requests = <String>[];
+        final root = Uri.parse('https://example.test/install/dav/');
+        String item(String href, String type) => _response(
+          href,
+          '<d:resourcetype><d:collection/>$type</d:resourcetype>'
+          '<d:current-user-privilege-set><d:privilege><d:all/></d:privilege></d:current-user-privilege-set>',
+        );
+        final home = direct
+            ? '/install/calendars/work%20team/'
+            : '/install/calendars/';
+        final child = '${home}nested/';
+        final client = MockClient((request) async {
+          if (request.method == 'OPTIONS') {
+            return http.Response(
+              '',
+              200,
+              headers: {
+                'allow': 'PROPFIND, MKCALENDAR, MOVE',
+                'dav': '1, calendar-access',
+              },
+            );
+          }
+          expect(request.headers['depth'], isNot('infinity'));
+          requests.add(request.url.path);
+          final contents = request.url.path == root.path
+              ? _response(
+                  root.path,
+                  '<d:current-user-principal><d:href>/install/principal/</d:href></d:current-user-principal>',
+                )
+              : request.url.path == '/install/principal/'
+              ? _response(
+                  '/install/principal/',
+                  '<c:calendar-home-set><d:href>$home</d:href>${!direct && overlap ? '<d:href>$child</d:href>' : ''}</c:calendar-home-set>',
+                )
+              : request.url.path == home
+              ? item(home, direct ? '<c:calendar/>' : '') +
+                    (direct ? '' : item(child, ''))
+              : item(child, '') +
+                    item('${child}team%2Fcalendar/', '<c:calendar/>');
+          return http.Response(
+            '<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">$contents</d:multistatus>',
+            207,
+          );
+        });
+        final profile = davProviderProfile(
+          BusyProvider.caldav,
+          caldavServer: root,
+        );
+        final result = await DavDiscoveryService(
+          transport: DavHttpTransport(
+            client: client,
+            profile: profile,
+            accountAuthority: root,
+          ),
+          profile: profile,
+          accountAuthority: root,
+          accountId: 'caldav',
+          credential: DavBasicCredential(username: 'qa', password: 'synthetic'),
+        ).discover(correlationId: 'nested-homes');
+        expect(result.collections, hasLength(1));
+        expect(
+          result.collections.single.requestUri.path,
+          direct ? home : '${child}team%2Fcalendar/',
+        );
+        expect(
+          requests.where((path) => path == child),
+          hasLength(direct ? 0 : 1),
+        );
+        if (direct) {
+          expect(result.collections.single.parentPrivileges, isEmpty);
+          expect(
+            result.service.principalContexts.single.calendarHomeIsCalendar,
+            isTrue,
+          );
+          final db = AppDatabase.memoryForTests();
+          addTearDown(db.close);
+          await db
+              .into(db.accounts)
+              .insert(
+                AccountsCompanion.insert(
+                  id: 'caldav',
+                  provider: 'caldav',
+                  providerAccountId: 'qa',
+                  authority: root.toString(),
+                  credentialKind: 'caldav_password',
+                  createdAtUtc: 'now',
+                  updatedAtUtc: 'now',
+                ),
+              );
+          await DavDiscoveryRepository(database: db)
+              .commitSuccessfulInventory(result);
+          final account = await db.select(db.accounts).getSingle();
+          expect(
+            (jsonDecode(account.providerMetadataJson!)
+                as Map)['caldavCollectionCreationSupported'],
+            isFalse,
+          );
+        }
+      },
+    );
+  }
+
+  for (final failure in ['depth-limit', 'denied', 'cancelled']) {
+    test(
+      'bounded traversal $failure rejects partial inventory and retains persisted sources',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'busymax-discovery-',
+        );
+        addTearDown(() => directory.delete(recursive: true));
+        final file = File('${directory.path}/qa.sqlite');
+        var db = AppDatabase(NativeDatabase(file));
+        await db
+            .into(db.accounts)
+            .insert(
+              AccountsCompanion.insert(
+                id: 'caldav',
+                provider: 'caldav',
+                providerAccountId: 'qa',
+                authority: 'https://example.test/',
+                credentialKind: 'caldav_password',
+                createdAtUtc: 'now',
+                updatedAtUtc: 'now',
+              ),
+            );
+        await DavDiscoveryRepository(database: db)
+            .commitSuccessfulInventory(await _discover());
+        final before = (await db.select(db.davCollections).get())
+            .map((r) => r.toJson())
+            .toList();
+        final sources = (await db.select(db.calendarSources).get())
+            .map((r) => r.toJson())
+            .toList();
+        final lists = (await db.select(db.taskLists).get())
+            .map((r) => r.toJson())
+            .toList();
+        final cancellation = DavCancellationToken();
+        var requests = 0;
+        final root = Uri.parse('https://example.test/install/dav/');
+        final profile = davProviderProfile(
+          BusyProvider.caldav,
+          caldavServer: root,
+        );
+        final client = MockClient((request) async {
+          if (request.method == 'OPTIONS') {
+            return http.Response(
+              '',
+              200,
+              headers: {'dav': '1, calendar-access'},
+            );
+          }
+          requests++;
+          String props(String path) => _response(
+            path,
+            '<d:resourcetype><d:collection/></d:resourcetype>',
+          );
+          final path = request.url.path;
+          if (path.contains('nested') && failure == 'denied') {
+            return http.Response('', 403);
+          }
+          if (path.contains('nested') && failure == 'cancelled') {
+            cancellation.cancel();
+          }
+          final contents = path == root.path
+              ? _response(
+                  path,
+                  '<d:current-user-principal><d:href>/install/principal/</d:href></d:current-user-principal>',
+                )
+              : path == '/install/principal/'
+              ? _response(
+                  path,
+                  '<c:calendar-home-set><d:href>/install/calendars/</d:href></c:calendar-home-set>',
+                )
+              : props(path) + props('${path}nested/');
+          return http.Response(
+            '<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">$contents</d:multistatus>',
+            207,
+          );
+        });
+        await expectLater(() async {
+          final result = await DavDiscoveryService(
+            transport: DavHttpTransport(
+              client: client,
+              profile: profile,
+              accountAuthority: root,
+            ),
+            profile: profile,
+            accountAuthority: root,
+            accountId: 'caldav',
+            credential: DavBasicCredential(
+              username: 'qa',
+              password: 'synthetic',
+            ),
+          ).discover(correlationId: 'bounded', cancellationToken: cancellation);
+          await DavDiscoveryRepository(database: db)
+              .commitSuccessfulInventory(result);
+        }(), throwsA(isA<DavException>()));
+        expect(requests, lessThanOrEqualTo(12));
+        await db.close();
+        db = AppDatabase(NativeDatabase(file));
+        expect(
+          (await db.select(db.davCollections).get()).map((r) => r.toJson()),
+          before,
+        );
+        expect(
+          (await db.select(db.calendarSources).get()).map((r) => r.toJson()),
+          sources,
+        );
+        expect(
+          (await db.select(db.taskLists).get()).map((r) => r.toJson()),
+          lists,
+        );
+        await db.close();
+      },
+    );
+  }
+
   test('100 collections probe with bounded concurrency and reuse durable method hints', () async {
     final now = DateTime.utc(2026, 11, 3);
     final requests = <http.Request>[];
@@ -141,6 +367,27 @@ void main() {
       },
     );
   }
+
+  test('creation methods advertised only at an unused child are separate from home permissions', () async {
+    final requests = <http.Request>[];
+    final result = await _discover(
+      targetCreationMethodsOnly: true,
+      requests: requests,
+    );
+    final context = result.service.principalContexts.single;
+    expect(context.advertisedCollectionCreationMethods, contains('MKCALENDAR'));
+    expect(context.homePrivilegesKnown, isFalse);
+    expect(
+      requests.where(
+        (r) => r.method == 'OPTIONS' && r.url.path.contains('busymax-options-'),
+      ),
+      hasLength(1),
+    );
+    expect(
+      requests.any((r) => r.method == 'MKCALENDAR' || r.method == 'MKCOL'),
+      isFalse,
+    );
+  });
 
   test(
     'optional method-probe server failure preserves readable discovery',
@@ -305,6 +552,32 @@ void main() {
       expect(requests.any((r) => r.url.path == '/.well-known/caldav'), isFalse);
     },
   );
+  test('HTML installation landing page accepts only a well-known redirect inside that installation', () async {
+    final requests = <http.Request>[];
+    final result = await _discover(
+      server: 'https://example.test/team/',
+      explicitStatus: 200,
+      wellKnownRedirectPath: '/team/dav.php/',
+      requests: requests,
+    );
+    expect(result.collections, isNotEmpty);
+    expect(requests.take(3).map((r) => r.url.path), [
+      '/team/',
+      '/.well-known/caldav',
+      '/team/dav.php/',
+    ]);
+    for (final other in ['/other/dav.php/', '/team-other/dav.php/']) {
+      await expectLater(
+        _discover(
+          server: 'https://example.test/team/',
+          explicitStatus: 200,
+          wellKnownRedirectPath: other,
+        ),
+        throwsA(isA<DavException>()),
+      );
+    }
+  });
+
   test(
     'origin discovery can independently select the other installation',
     () async {
@@ -329,8 +602,8 @@ void main() {
           ),
           throwsA(isA<DavException>()),
         );
-        expect(requests, hasLength(1));
-        expect(requests.single.url.path, '/team/');
+        expect(requests, hasLength(status == 200 ? 2 : 1));
+        expect(requests.first.url.path, '/team/');
       },
     );
   }
@@ -441,7 +714,9 @@ Future<DavDiscoveryResult> _discover({
   bool missingPrincipal = false,
   int wellKnownStatus = 404,
   int? explicitStatus,
+  String? wellKnownRedirectPath,
   String creationMethods = 'OPTIONS, PROPFIND, REPORT, MKCALENDAR',
+  bool targetCreationMethodsOnly = false,
   String serverFeatures = 'calendar-access',
   bool homeMove = true,
   bool? collectionMove,
@@ -467,6 +742,13 @@ Future<DavDiscoveryResult> _discover({
       );
     }
     if (request.url.path == '/.well-known/caldav') {
+      if (wellKnownRedirectPath != null) {
+        return http.Response(
+          '',
+          302,
+          headers: {'location': wellKnownRedirectPath},
+        );
+      }
       if (wellKnownStatus == 207) {
         return http.Response(
           '<d:multistatus xmlns:d="DAV:"><d:response><d:href>/.well-known/caldav</d:href><d:propstat><d:prop><d:current-user-principal><d:href>/other/principal/</d:href></d:current-user-principal></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>',
@@ -484,7 +766,7 @@ Future<DavDiscoveryResult> _discover({
         headers: {
           'dav': serverFeatures,
           'allow':
-              '$creationMethods${(collection ? collectionMove ?? homeMove : homeMove) ? ', MOVE' : ''}',
+              '${targetCreationMethodsOnly && !request.url.path.contains('busymax-options-') ? 'OPTIONS, PROPFIND' : creationMethods}${(collection ? collectionMove ?? homeMove : homeMove) ? ', MOVE' : ''}',
         },
       );
     }
@@ -556,3 +838,6 @@ Future<DavDiscoveryResult> _discover({
     nowUtc: now == null ? null : () => now,
   ).discover(correlationId: 'generic-discovery');
 }
+
+String _response(String href, String properties) =>
+    '<d:response><d:href>$href</d:href><d:propstat><d:prop>$properties</d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>';

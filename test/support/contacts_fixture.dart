@@ -28,6 +28,7 @@ final class ContactsFixture implements ContactsAuthorizationBroker {
     reconnectLinkedDavAccount,
     Future<String?> Function(String)? readDavSecret,
     NextcloudHttpClientFactory? nextcloudClients,
+    Future<void> Function(Uri)? requireDavServerAccess,
   }) : accounts = AccountsRepository(database: database),
        store = BusyMaxContactsStore(database) {
     controller = BusyMaxContactsController(
@@ -51,6 +52,7 @@ final class ContactsFixture implements ContactsAuthorizationBroker {
       syncInterval: syncInterval,
       providerFactory: realDav ? null : provider,
       nextcloudClients: nextcloudClients,
+      requireDavServerAccess: requireDavServerAccess,
     );
   }
   final AppDatabase database;

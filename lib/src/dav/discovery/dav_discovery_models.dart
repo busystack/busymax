@@ -71,6 +71,8 @@ final class DavPrincipalContext {
     this.scheduleDefaultCalendarHref,
     this.homePrivileges = const {},
     this.homePrivilegesKnown = false,
+    this.calendarHomeIsCalendar = false,
+    this.collectionCreationMethods,
     this.outboxPrivileges = const {},
     this.inboxPrivileges = const {},
     this.inboxPrivilegesKnown = false,
@@ -85,6 +87,21 @@ final class DavPrincipalContext {
   final Uri? scheduleDefaultCalendarHref;
   final Set<String> homePrivileges;
   final bool homePrivilegesKnown;
+  final bool calendarHomeIsCalendar;
+  final Set<String>? collectionCreationMethods;
+  Set<String> get advertisedCollectionCreationMethods =>
+      collectionCreationMethods ??
+      {
+        for (final endpoint in endpointCapabilities.where(
+          (e) => e.href == calendarHomeHref,
+        ))
+          ...endpoint.allowedMethods.where(
+            (method) =>
+                method == 'MKCALENDAR' ||
+                method == 'MKCOL' &&
+                    endpoint.serverFeatures.contains('extended-mkcol'),
+          ),
+      };
   final Set<String> outboxPrivileges;
   final Set<String> inboxPrivileges;
   final bool inboxPrivilegesKnown;
@@ -104,6 +121,9 @@ final class DavPrincipalContext {
     'scheduleDefaultCalendarHref': scheduleDefaultCalendarHref?.toString(),
     'homePrivileges': homePrivileges.toList()..sort(),
     'homePrivilegesKnown': homePrivilegesKnown,
+    'calendarHomeIsCalendar': calendarHomeIsCalendar,
+    if (collectionCreationMethods != null)
+      'collectionCreationMethods': collectionCreationMethods!.toList()..sort(),
     'outboxPrivileges': outboxPrivileges.toList()..sort(),
     'inboxPrivileges': inboxPrivileges.toList()..sort(),
     'inboxPrivilegesKnown': inboxPrivilegesKnown || inboxPrivileges.isNotEmpty,
@@ -112,45 +132,49 @@ final class DavPrincipalContext {
         .toList(),
     'delegated': delegated,
   };
-  factory DavPrincipalContext.fromJson(Map<String, Object?> value) =>
-      DavPrincipalContext(
-        principalHref: Uri.parse(value['principalHref']! as String),
-        calendarHomeHref: Uri.parse(value['calendarHomeHref']! as String),
-        calendarUserAddresses: (value['calendarUserAddresses'] as List? ?? [])
-            .cast<String>()
-            .map(Uri.parse)
-            .toList(),
-        scheduleInboxHref: value['scheduleInboxHref'] is String
-            ? Uri.parse(value['scheduleInboxHref']! as String)
-            : null,
-        scheduleOutboxHref: value['scheduleOutboxHref'] is String
-            ? Uri.parse(value['scheduleOutboxHref']! as String)
-            : null,
-        scheduleDefaultCalendarHref:
-            value['scheduleDefaultCalendarHref'] is String
-            ? Uri.parse(value['scheduleDefaultCalendarHref']! as String)
-            : null,
-        homePrivileges: (value['homePrivileges'] as List? ?? [])
-            .cast<String>()
-            .toSet(),
-        homePrivilegesKnown: value['homePrivilegesKnown'] == true,
-        outboxPrivileges: (value['outboxPrivileges'] as List? ?? [])
-            .cast<String>()
-            .toSet(),
-        inboxPrivileges: (value['inboxPrivileges'] as List? ?? [])
-            .cast<String>()
-            .toSet(),
-        inboxPrivilegesKnown:
-            value['inboxPrivilegesKnown'] == true ||
-            (value['inboxPrivileges'] as List? ?? []).isNotEmpty,
-        endpointCapabilities: [
-          for (final endpoint in value['endpointCapabilities'] as List? ?? [])
-            DavEndpointCapabilities.fromJson(
-              Map<String, Object?>.from(endpoint as Map),
-            ),
-        ],
-        delegated: value['delegated'] == true,
-      );
+  factory DavPrincipalContext.fromJson(
+    Map<String, Object?> value,
+  ) => DavPrincipalContext(
+    principalHref: Uri.parse(value['principalHref']! as String),
+    calendarHomeHref: Uri.parse(value['calendarHomeHref']! as String),
+    calendarUserAddresses: (value['calendarUserAddresses'] as List? ?? [])
+        .cast<String>()
+        .map(Uri.parse)
+        .toList(),
+    scheduleInboxHref: value['scheduleInboxHref'] is String
+        ? Uri.parse(value['scheduleInboxHref']! as String)
+        : null,
+    scheduleOutboxHref: value['scheduleOutboxHref'] is String
+        ? Uri.parse(value['scheduleOutboxHref']! as String)
+        : null,
+    scheduleDefaultCalendarHref: value['scheduleDefaultCalendarHref'] is String
+        ? Uri.parse(value['scheduleDefaultCalendarHref']! as String)
+        : null,
+    homePrivileges: (value['homePrivileges'] as List? ?? [])
+        .cast<String>()
+        .toSet(),
+    homePrivilegesKnown: value['homePrivilegesKnown'] == true,
+    calendarHomeIsCalendar: value['calendarHomeIsCalendar'] == true,
+    collectionCreationMethods: value['collectionCreationMethods'] is List
+        ? (value['collectionCreationMethods'] as List).cast<String>().toSet()
+        : null,
+    outboxPrivileges: (value['outboxPrivileges'] as List? ?? [])
+        .cast<String>()
+        .toSet(),
+    inboxPrivileges: (value['inboxPrivileges'] as List? ?? [])
+        .cast<String>()
+        .toSet(),
+    inboxPrivilegesKnown:
+        value['inboxPrivilegesKnown'] == true ||
+        (value['inboxPrivileges'] as List? ?? []).isNotEmpty,
+    endpointCapabilities: [
+      for (final endpoint in value['endpointCapabilities'] as List? ?? [])
+        DavEndpointCapabilities.fromJson(
+          Map<String, Object?>.from(endpoint as Map),
+        ),
+    ],
+    delegated: value['delegated'] == true,
+  );
 }
 
 final class DavServiceDiscovery {

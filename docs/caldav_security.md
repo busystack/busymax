@@ -26,7 +26,9 @@ revalidation uses the same rule and cannot strand retained blocked operations
 by prematurely changing the account state. Missing collections and unresolved
 edits remain recoverable.
 
-Schema 23 persists collection creation intent before dispatch: an unpredictable
+The schema 23 migration introduced collection creation intent; the current
+schema is 25 and retains that migration and subsequent journal diagnostics
+and notice acknowledgments. Creation persists intent before dispatch: an unpredictable
 UUID, an operation-specific reserved member URL, account/service/home identity,
 component set and state. Matching names or deterministic title URLs cannot
 authorize recovery. A fresh pre-existing target is a conflict. A dispatched
@@ -46,9 +48,13 @@ name reservation.
 Native import preserves organizer and attendee properties. Generic CalDAV
 servers advertising RFC 6638 implicit scheduling may send invitations or meeting
 updates when those objects are created, including stored files without `METHOD`.
-Every platform's import preview requires explicit consent for attendee-bearing
-CalDAV data; the import service rejects an unconsented import before queueing or
-projecting any resources. Nextcloud retains its provider-specific scheduling
+Every platform's import preview and task-duplication action require explicit
+consent for attendee-bearing CalDAV data. The application/service boundary
+rejects an unconsented create before queueing; recursive task duplication rolls
+back atomically if a descendant requires consent. Accepted creates retain the
+decision with their persisted operation for restart/retry. Servers implementing
+implicit VTODO scheduling may deliver task messages; a stored VTODO alone does
+not demonstrate delivery. Nextcloud retains its provider-specific scheduling
 suppression. For servers advertising `calendar-auto-schedule`, synchronization
 also reconciles server-owned scheduling metadata and uses Schedule-Tag validators;
 this does not expose Nextcloud scheduling controls. See [RFC 6638](https://www.rfc-editor.org/rfc/rfc6638.html).
@@ -65,6 +71,27 @@ collections; authentication, TLS and cancellation remain authoritative.
 Creation-failure notices are read reactively from local storage in Settings,
 independently of connectivity or the outcome of account synchronization.
 Acknowledgment remains a presentation-only operation.
+
+Discovery inspects each advertised home's resource type. A home can itself be
+a calendar; ordinary collections are traversed with Depth 1, a visited-target
+set, at most 256 inventory requests and eight descendant levels. Cancellation,
+denied branches and incomplete traversal prevent replacement of the persisted
+inventory. A direct-home calendar grants no inferred parent administration
+privilege. Property updates use the calendar's own authoritative ACL. Deletion
+requires the actual immediate parent's unbind grant within a verified home of
+the same principal; a distant advertised root or another principal's home cannot
+authorize it. Collection method advertisement and parent ACLs are independent;
+creation requires positive MKCALENDAR or extended MKCOL evidence from the home
+or the operation's reserved target.
+
+A PROPFIND fallback requires an unambiguous collection response and complete,
+valid member href/ETag data. The collection ETag is optional. Failed/incomplete
+inventories retain the stable cursor, cache, projections and pending writes.
+These checks do not impose full-inventory rules on RFC 6578 deltas or 507 pages.
+A collection DELETE 207 is inspected for member failures. Partial deletion
+refreshes children while retaining the surviving collection and reports partial
+failure. Malformed or lost responses require reconciliation; discovery success
+alone does not confirm deletion, and uncertain destructive work is not repeated.
 
 The existing XML parser, byte limits, timeouts, cancellation and response
 validation remain in force. Incomplete inventories cannot advance a complete

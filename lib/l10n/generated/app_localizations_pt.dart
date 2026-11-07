@@ -14,6 +14,14 @@ class AppLocalizationsPt extends AppLocalizations {
   AppLocalizationsPt([String locale = 'pt']) : super(locale);
 
   @override
+  String get davCollectionRemovalPartial =>
+      'Some items could not be deleted. The collection remains. Refresh before trying again.';
+
+  @override
+  String get caldavTaskDuplicationSchedulingWarning =>
+      'This task or its subtasks contain attendees. Duplicating them may cause the CalDAV server to send invitations or task updates. Allow duplication?';
+
+  @override
   String get caldavSchedulingWarning =>
       'This event has attendees. Saving or deleting it may cause your CalDAV server to notify participants when the change synchronizes.';
 
@@ -4025,6 +4033,14 @@ class AppLocalizationsPt extends AppLocalizations {
 /// The translations for Portuguese, as used in Portugal (`pt_PT`).
 class AppLocalizationsPtPt extends AppLocalizationsPt {
   AppLocalizationsPtPt() : super('pt_PT');
+
+  @override
+  String get davCollectionRemovalPartial =>
+      'Não foi possível eliminar alguns itens. A coleção permanece. Atualize antes de tentar novamente.';
+
+  @override
+  String get caldavTaskDuplicationSchedulingWarning =>
+      'Esta tarefa ou as suas subtarefas têm participantes. A duplicação pode fazer o servidor CalDAV enviar convites ou atualizações de tarefas. Permitir a duplicação?';
 
   @override
   String get caldavSchedulingWarning =>

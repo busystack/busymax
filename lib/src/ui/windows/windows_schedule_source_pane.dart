@@ -1,3 +1,5 @@
+import '../../l10n/dav_collection_error_description.dart';
+
 import 'dart:async';
 
 import 'windows_nextcloud_dialogs.dart';
@@ -709,6 +711,8 @@ class _WindowsScheduleSourcePaneState
           pendingChangesMessage != null &&
                   isDavCollectionPendingChangesError(error)
               ? pendingChangesMessage
+              : error is DavException
+              ? localizedDavCollectionError(AppLocalizations.of(context), error)
               : AppLocalizations.of(context).operationFailed,
         );
       }

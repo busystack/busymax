@@ -46,11 +46,18 @@ void main() {
     final ports = <int>[];
     server.listen((request) async {
       ports.add(request.connectionInfo!.remotePort);
+      await request.drain<void>();
+      request.response
+        ..persistentConnection = true
+        ..contentLength = 2;
       await Future<void>.delayed(const Duration(milliseconds: 100));
       request.response.write('ok');
       await request.response.close();
     });
-    final client = NativeTerminatingHttpClient(reuseConnections: true);
+    final client = NativeTerminatingHttpClient(
+      reuseConnections: true,
+      nativeClientFactory: () => HttpClient()..findProxy = ((_) => 'DIRECT'),
+    );
     addTearDown(client.close);
     final uri = Uri.parse('http://127.0.0.1:${server.port}/');
     for (var i = 0; i < 2; i++) {
@@ -60,6 +67,8 @@ void main() {
         terminate: stop.future,
         connectionTimeout: const Duration(milliseconds: 50),
       );
+      expect(response.persistentConnection, isTrue);
+      expect(response.contentLength, 2);
       expect(await response.stream.bytesToString(), 'ok');
       stop.complete();
     }

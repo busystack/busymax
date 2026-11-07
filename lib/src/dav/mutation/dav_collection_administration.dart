@@ -183,16 +183,31 @@ final class DavCollectionAdministration {
               target.path,
         )
         .toList();
-    if (entries.length != 1 ||
-        (entries.single.statusCode ?? 200) >= 400 ||
-        entries.single.successfulProperty(davNamespace, 'resourcetype') ==
-            null) {
+    if (entries.length != 1) throw _error(502, 'DavCollectionReadIncomplete');
+    final entry = entries.single;
+    final resourceStatus = entry.statusCode;
+    if (resourceStatus != null &&
+        (resourceStatus < 200 || resourceStatus >= 300)) {
+      throw _error(resourceStatus, 'DavCollectionReadFailed');
+    }
+    if (entry.successfulProperty(davNamespace, 'resourcetype') == null) {
+      // A forbidden requested property is authoritative denial, whereas an
+      // absent/unsupported type cannot establish either existence or absence.
+      final denied = entry.propstats
+          .where((p) => p.statusCode == 401 || p.statusCode == 403)
+          .firstOrNull;
+      if (denied != null) {
+        throw _error(denied.statusCode, 'DavCollectionReadFailed');
+      }
       throw _error(502, 'DavCollectionReadIncomplete');
     }
-    return entries.single;
+    return entry;
   }
 
-  Future<({Uri uri, Uri home})> _target(_Context c, String id) async {
+  Future<({Uri uri, Uri home, Uri? parent})> _target(
+    _Context c,
+    String id,
+  ) async {
     final row =
         await (database.select(database.davCollections)..where(
               (r) =>
@@ -216,11 +231,14 @@ final class DavCollectionAdministration {
         : c.home;
     // Bind the collection to an identity committed by authenticated discovery.
     // Path containment alone does not establish a principal's calendar home.
-    if (!c.identities.any(
-      (identity) =>
-          davCollectionUri(identity.home) == davCollectionUri(home) &&
-          (principal == null || identity.principal == principal),
-    )) {
+    final identity = c.identities
+        .where(
+          (identity) =>
+              davCollectionUri(identity.home) == davCollectionUri(home) &&
+              (principal == null || identity.principal == principal),
+        )
+        .firstOrNull;
+    if (identity == null) {
       throw _error(403, 'DavCollectionOutsideHome');
     }
     final target = resolveDavHref(
@@ -229,12 +247,23 @@ final class DavCollectionAdministration {
       profile: c.profile,
       accountAuthority: c.authority,
     );
+    final normalizedTarget = davCollectionUri(target);
     final homePath = davCollectionUri(home).path;
-    if (!target.path.startsWith(homePath) ||
-        davCollectionUri(target).path == homePath) {
+    if (!normalizedTarget.path.startsWith(homePath)) {
       throw _error(403, 'DavCollectionOutsideHome');
     }
-    return (uri: target, home: home);
+    final parent = normalizedTarget.resolve('..');
+    // Property writes concern the calendar itself. Deletion separately needs
+    // its immediate parent, bounded by an authenticated home of this principal.
+    // A direct-home calendar cannot supply its own parent's authority.
+    final parentVerified = c.identities.any(
+      (candidate) =>
+          candidate.principal == identity.principal &&
+          candidate.home.origin == parent.origin &&
+          davCollectionUri(parent).path
+              .startsWith(davCollectionUri(candidate.home).path),
+    );
+    return (uri: target, home: home, parent: parentVerified ? parent : null);
   }
 
   void _requirePrivilege(DavMultistatusResponse entry, String name) {
@@ -488,15 +517,50 @@ final class DavCollectionAdministration {
     }
     final parent = await _read(c, c.home, cancellation: cancellation);
     if (parent == null) throw _error(404, 'DavCalendarHomeUnavailable');
+    if (parent
+        .successfulProperty(davNamespace, 'resourcetype')!
+        .element
+        .descendantElements
+        .any(
+          (e) =>
+              e.name.namespaceUri == caldavNamespace &&
+              e.name.local == 'calendar',
+        )) {
+      throw _error(405, 'DavCollectionCreationUnsupported');
+    }
     _requirePrivilege(parent, 'bind');
-    final options = await _send(
-      c,
-      'OPTIONS',
-      c.home,
-      cancellation: cancellation,
-    );
+    var options = await _send(c, 'OPTIONS', c.home, cancellation: cancellation);
     if (options.statusCode < 200 || options.statusCode >= 300) {
       throw _error(options.statusCode, 'DavCollectionCapabilitiesUnavailable');
+    }
+    bool advertisesCreation(DavResponse response) {
+      final allowed = (response.headers['allow'] ?? '')
+          .split(',')
+          .map((s) => s.trim().toUpperCase())
+          .toSet();
+      final dav = (response.headers['dav'] ?? '')
+          .split(',')
+          .map((s) => s.trim().toLowerCase())
+          .toSet();
+      return allowed.contains('MKCALENDAR') ||
+          (allowed.contains('MKCOL') && dav.contains('extended-mkcol'));
+    }
+
+    if (!advertisesCreation(options)) {
+      // Allow is resource-specific. Some servers advertise creation only at a
+      // new child, others on the home. Require positive method evidence from
+      // one of these authenticated resources, separately from parent ACLs.
+      options = await _send(c, 'OPTIONS', target, cancellation: cancellation);
+      if (const {404, 405, 410, 501}.contains(options.statusCode)) {
+        // No positive method evidence: preserve an unsupported pre-dispatch outcome.
+        throw _error(405, 'DavCollectionCreationUnsupported');
+      }
+      if (options.statusCode < 200 || options.statusCode >= 300) {
+        throw _error(
+          options.statusCode,
+          'DavCollectionCapabilitiesUnavailable',
+        );
+      }
     }
     final methods = (options.headers['allow'] ?? '')
         .split(',')
@@ -939,23 +1003,95 @@ final class DavCollectionAdministration {
             : 'DavCollectionOwnershipUnknown',
       );
     }
-    final parent = await _read(c, resolved.home);
+    if (resolved.parent == null) {
+      throw _error(403, 'DavCollectionParentUnverified');
+    }
+    final parent = await _read(c, resolved.parent!);
     if (parent == null) throw _error(404, 'DavCalendarHomeUnavailable');
     _requirePrivilege(parent, 'unbind');
+    var reconciled = false;
     try {
       final response = await _send(c, 'DELETE', target);
-      if (response.statusCode != 404 &&
+      if (response.statusCode == 207) {
+        var partial = false;
+        try {
+          const parser = DavXmlParser();
+          final document = parser.parseDocument(response.bodyBytes);
+          for (final element in document.rootElement.childElements.where(
+            (e) =>
+                e.name.namespaceUri == davNamespace &&
+                e.name.local == 'response',
+          )) {
+            int count(String name) => element.childElements
+                .where(
+                  (e) =>
+                      e.name.namespaceUri == davNamespace &&
+                      e.name.local == name,
+                )
+                .length;
+            if (count('href') != 1 ||
+                count('status') != 1 ||
+                count('propstat') != 0 ||
+                count('error') > 1) {
+              throw const FormatException();
+            }
+          }
+          final data = parser.parseMultistatus(response.bodyBytes);
+          if (data.responses.isEmpty || data.errorConditions.isNotEmpty) {
+            throw const FormatException();
+          }
+          final seen = <Uri>{};
+          for (final entry in data.responses) {
+            final href = resolveDavHref(
+              href: entry.href,
+              responseRequestUri: target,
+              profile: c.profile,
+              accountAuthority: c.authority,
+            );
+            if (!seen.add(href) ||
+                !davCollectionUri(href).path
+                    .startsWith(davCollectionUri(target).path) ||
+                entry.statusCode == null ||
+                entry.propstats.isNotEmpty ||
+                (entry.errorConditions.isNotEmpty && entry.statusCode! < 400)) {
+              throw const FormatException();
+            }
+            final status = entry.statusCode!;
+            if (status < 200 || status >= 300) partial = true;
+          }
+        } on Object {
+          await _refresh();
+          throw _error(409, 'DavCollectionOutcomeUnknown');
+        }
+        // A refresh reconciles children removed by the partial DELETE. Its
+        // success cannot turn a member failure into a committed deletion.
+        if (partial) {
+          await _refresh();
+          throw _error(409, 'DavCollectionRemovalPartial');
+        }
+        if (await _read(c, target) != null) {
+          await _refresh();
+          throw _error(409, 'DavCollectionOutcomeUnknown');
+        }
+        reconciled = true;
+      } else if (response.statusCode != 404 &&
           response.statusCode != 410 &&
           (response.statusCode < 200 || response.statusCode >= 300)) {
         throw _error(response.statusCode, 'DavCollectionRemovalFailed');
       }
     } on DavException catch (error) {
       if (!_uncertain(error)) rethrow;
-      if (await _read(c, target) != null) {
+      try {
+        if (await _read(c, target) != null) {
+          throw _error(409, 'DavCollectionOutcomeUnknown');
+        }
+      } on Object {
+        await _refresh();
         throw _error(409, 'DavCollectionOutcomeUnknown');
       }
+      reconciled = true;
     }
-    return _refresh();
+    return _creationRefresh(reconciled: reconciled);
   }
 
   Future<DavCollectionAdministrationOutcome> _refresh() async {

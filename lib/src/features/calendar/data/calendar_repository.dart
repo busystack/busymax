@@ -792,7 +792,9 @@ class CalendarRepository {
       final result = await administration.update(source.davCollectionId!, {
         const DavPropertyName(davNamespace, 'displayname'): title,
       });
-      if (result == DavCollectionAdministrationOutcome.refreshPending) {
+      if (result == DavCollectionAdministrationOutcome.refreshPending ||
+          result ==
+              DavCollectionAdministrationOutcome.reconciledRefreshPending) {
         throw const DavRefreshPending();
       }
       return;
@@ -891,7 +893,9 @@ class CalendarRepository {
         const DavPropertyName(appleIcalNamespace, 'calendar-color'):
             choice.backgroundColor,
       });
-      if (result == DavCollectionAdministrationOutcome.refreshPending) {
+      if (result == DavCollectionAdministrationOutcome.refreshPending ||
+          result ==
+              DavCollectionAdministrationOutcome.reconciledRefreshPending) {
         throw const DavRefreshPending();
       }
       return;
@@ -981,7 +985,9 @@ class CalendarRepository {
         );
       }
       final result = await administration.remove(source.davCollectionId!);
-      if (result == DavCollectionAdministrationOutcome.refreshPending) {
+      if (result == DavCollectionAdministrationOutcome.refreshPending ||
+          result ==
+              DavCollectionAdministrationOutcome.reconciledRefreshPending) {
         throw const DavRefreshPending();
       }
       return;

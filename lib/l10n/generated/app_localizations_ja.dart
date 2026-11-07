@@ -14,6 +14,14 @@ class AppLocalizationsJa extends AppLocalizations {
   AppLocalizationsJa([String locale = 'ja']) : super(locale);
 
   @override
+  String get davCollectionRemovalPartial =>
+      '一部の項目を削除できませんでした。コレクションは残っています。再試行する前に更新してください。';
+
+  @override
+  String get caldavTaskDuplicationSchedulingWarning =>
+      'このタスクまたはサブタスクには参加者が含まれています。複製すると、CalDAVサーバーが招待やタスクの更新を送信する場合があります。複製を許可しますか？';
+
+  @override
   String get caldavSchedulingWarning =>
       'この予定には参加者がいます。保存や削除を行うと、変更の同期時にCalDAVサーバーが参加者に通知する場合があります。';
 
