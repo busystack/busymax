@@ -18,6 +18,10 @@ class AppLocalizationsIt extends AppLocalizations {
       'Non è stato possibile eliminare alcuni elementi. La raccolta esiste ancora. Aggiorna prima di riprovare.';
 
   @override
+  String get caldavConflictDuplicationSchedulingWarning =>
+      'Questo elemento contiene partecipanti. La duplicazione potrebbe indurre il server CalDAV a inviare inviti o aggiornamenti. Consentire la duplicazione?';
+
+  @override
   String get caldavTaskDuplicationSchedulingWarning =>
       'Questa attività o le sue sottoattività hanno partecipanti. La duplicazione potrebbe causare l’invio di inviti o aggiornamenti dal server CalDAV. Consentire la duplicazione?';
 

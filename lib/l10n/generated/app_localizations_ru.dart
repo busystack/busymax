@@ -18,6 +18,10 @@ class AppLocalizationsRu extends AppLocalizations {
       'Некоторые элементы не удалось удалить. Коллекция сохранена. Обновите данные перед повторной попыткой.';
 
   @override
+  String get caldavConflictDuplicationSchedulingWarning =>
+      'В этом элементе есть участники. При его дублировании сервер CalDAV может отправить приглашения или обновления. Разрешить дублирование?';
+
+  @override
   String get caldavTaskDuplicationSchedulingWarning =>
       'Эта задача или её подзадачи содержат участников. При дублировании сервер CalDAV может отправить приглашения или обновления задач. Разрешить дублирование?';
 

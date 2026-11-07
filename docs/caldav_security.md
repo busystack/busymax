@@ -48,9 +48,14 @@ name reservation.
 Native import preserves organizer and attendee properties. Generic CalDAV
 servers advertising RFC 6638 implicit scheduling may send invitations or meeting
 updates when those objects are created, including stored files without `METHOD`.
-Every platform's import preview and task-duplication action require explicit
-consent for attendee-bearing CalDAV data. The application/service boundary
-rejects an unconsented create before queueing; recursive task duplication rolls
+Every platform's import preview, task-duplication action and conflict-duplication
+action require explicit consent for attendee-bearing CalDAV data. Conflict
+duplication presents the same decision for VEVENT and VTODO; cancelling
+leaves the snapshot and original operation unresolved. The resolution service
+passes an explicit decision to the durable create queue. Presentation hints
+cannot bypass that queue guard, including after a snapshot changes.
+The application/service boundary rejects an unconsented create before queueing;
+recursive task duplication rolls
 back atomically if a descendant requires consent. Accepted creates retain the
 decision with their persisted operation for restart/retry. Servers implementing
 implicit VTODO scheduling may deliver task messages; a stored VTODO alone does
@@ -81,12 +86,27 @@ privilege. Property updates use the calendar's own authoritative ACL. Deletion
 requires the actual immediate parent's unbind grant within a verified home of
 the same principal; a distant advertised root or another principal's home cannot
 authorize it. Collection method advertisement and parent ACLs are independent;
-creation requires positive MKCALENDAR or extended MKCOL evidence from the home
-or the operation's reserved target.
+positive MKCALENDAR or extended MKCOL evidence selects the normal creation
+path. With the user's explicitly approved policy, an unavailable OPTIONS on a
+nonexistent reserved child (including 404) leaves method capability unknown.
+A successful target Allow omitting creation methods remains unsupported; an
+explicit denial remains blocked. An unknown method permits MKCALENDAR only
+for an already persisted, explicitly requested creation intent and a fresh
+parent bind/write/all grant. Unknown parent ACL cannot authorize this fallback.
+Discovery persists unknown/supported/unsupported/denied separately from ACLs;
+it never advertises MKCALENDAR merely because calendar-access is present.
+Recovery may continue that same authorized journal after verifying its reserved
+URL; it cannot invent an intent or blindly replay an uncertain request.
 
 A PROPFIND fallback requires an unambiguous collection response and complete,
 valid member href/ETag data. The collection ETag is optional. Failed/incomplete
 inventories retain the stable cursor, cache, projections and pending writes.
+RFC 4918 property-level error details are permitted in a propstat with one
+property container and one status; a DAV:error must contain condition elements
+and no non-whitespace direct text. Structured condition details and unknown
+conditions are legal. Only successful properties establish capabilities; failed
+optional ACL properties remain unknown. Mandatory resource types, resource-level
+failures and full inventory completeness remain independently validated.
 These checks do not impose full-inventory rules on RFC 6578 deltas or 507 pages.
 A collection DELETE 207 is inspected for member failures. Partial deletion
 refreshes children while retaining the surviving collection and reports partial

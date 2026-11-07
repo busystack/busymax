@@ -18,6 +18,10 @@ class AppLocalizationsHi extends AppLocalizations {
       'कुछ आइटम हटाए नहीं जा सके। संग्रह अभी मौजूद है। दोबारा कोशिश करने से पहले रीफ़्रेश करें।';
 
   @override
+  String get caldavConflictDuplicationSchedulingWarning =>
+      'इस आइटम में सहभागी हैं। इसकी प्रतिलिपि बनाने से CalDAV सर्वर निमंत्रण या अपडेट भेज सकता है। प्रतिलिपि बनाने की अनुमति दें?';
+
+  @override
   String get caldavTaskDuplicationSchedulingWarning =>
       'इस कार्य या इसके उपकार्यों में प्रतिभागी हैं। उनकी प्रतिलिपि बनाने पर CalDAV सर्वर आमंत्रण या कार्य अपडेट भेज सकता है। प्रतिलिपि बनाने की अनुमति दें?';
 

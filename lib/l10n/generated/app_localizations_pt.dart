@@ -18,6 +18,10 @@ class AppLocalizationsPt extends AppLocalizations {
       'Some items could not be deleted. The collection remains. Refresh before trying again.';
 
   @override
+  String get caldavConflictDuplicationSchedulingWarning =>
+      'This item contains attendees. Duplicating it may cause the CalDAV server to send invitations or updates. Allow duplication?';
+
+  @override
   String get caldavTaskDuplicationSchedulingWarning =>
       'This task or its subtasks contain attendees. Duplicating them may cause the CalDAV server to send invitations or task updates. Allow duplication?';
 
@@ -4037,6 +4041,10 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
   @override
   String get davCollectionRemovalPartial =>
       'Não foi possível eliminar alguns itens. A coleção permanece. Atualize antes de tentar novamente.';
+
+  @override
+  String get caldavConflictDuplicationSchedulingWarning =>
+      'Este item tem participantes. A duplicação pode fazer o servidor CalDAV enviar convites ou atualizações. Permitir a duplicação?';
 
   @override
   String get caldavTaskDuplicationSchedulingWarning =>

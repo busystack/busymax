@@ -59,6 +59,10 @@ final class DavEndpointCapabilities {
       );
 }
 
+/// Method evidence is separate from ACL authorization. OPTIONS on an unmapped
+/// child may be unavailable even when the server accepts MKCALENDAR there.
+enum DavCollectionCreationCapability { supported, unknown, unsupported, denied }
+
 /// Each discovered identity retains its own home and scheduling context.
 /// Delegation never replaces the authenticated principal or invents a path.
 final class DavPrincipalContext {
@@ -73,6 +77,7 @@ final class DavPrincipalContext {
     this.homePrivilegesKnown = false,
     this.calendarHomeIsCalendar = false,
     this.collectionCreationMethods,
+    this.collectionCreationCapability = DavCollectionCreationCapability.unknown,
     this.outboxPrivileges = const {},
     this.inboxPrivileges = const {},
     this.inboxPrivilegesKnown = false,
@@ -89,6 +94,13 @@ final class DavPrincipalContext {
   final bool homePrivilegesKnown;
   final bool calendarHomeIsCalendar;
   final Set<String>? collectionCreationMethods;
+  final DavCollectionCreationCapability collectionCreationCapability;
+  DavCollectionCreationCapability get effectiveCollectionCreationCapability =>
+      calendarHomeIsCalendar
+      ? DavCollectionCreationCapability.unsupported
+      : advertisedCollectionCreationMethods.isNotEmpty
+      ? DavCollectionCreationCapability.supported
+      : collectionCreationCapability;
   Set<String> get advertisedCollectionCreationMethods =>
       collectionCreationMethods ??
       {
@@ -122,6 +134,7 @@ final class DavPrincipalContext {
     'homePrivileges': homePrivileges.toList()..sort(),
     'homePrivilegesKnown': homePrivilegesKnown,
     'calendarHomeIsCalendar': calendarHomeIsCalendar,
+    'collectionCreationCapability': effectiveCollectionCreationCapability.name,
     if (collectionCreationMethods != null)
       'collectionCreationMethods': collectionCreationMethods!.toList()..sort(),
     'outboxPrivileges': outboxPrivileges.toList()..sort(),
@@ -155,6 +168,11 @@ final class DavPrincipalContext {
         .toSet(),
     homePrivilegesKnown: value['homePrivilegesKnown'] == true,
     calendarHomeIsCalendar: value['calendarHomeIsCalendar'] == true,
+    collectionCreationCapability:
+        DavCollectionCreationCapability.values
+            .where((v) => v.name == value['collectionCreationCapability'])
+            .firstOrNull ??
+        DavCollectionCreationCapability.unknown,
     collectionCreationMethods: value['collectionCreationMethods'] is List
         ? (value['collectionCreationMethods'] as List).cast<String>().toSet()
         : null,

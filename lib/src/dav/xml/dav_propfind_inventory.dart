@@ -54,11 +54,27 @@ DavMultistatus parseDavPropfindInventory(
     for (final stat in stats) {
       final props = children(stat, 'prop');
       final statuses = children(stat, 'status');
+      final errors = children(stat, 'error');
       if (props.length != 1 ||
           statuses.length != 1 ||
           statuses.single.childElements.isNotEmpty ||
-          children(stat, 'error').isNotEmpty) {
+          errors.length > 1) {
         incomplete();
+      }
+      // RFC 4918 sections 14.22 and 14.5: error details apply only to
+      // the named properties. Conditions may themselves contain structured
+      // details (e.g. RFC 3744 need-privileges); unknown conditions are legal.
+      // Mandatory property success is still checked by the inventory caller.
+      for (final error in errors) {
+        if (error.childElements.isEmpty ||
+            error.children.whereType<XmlText>().any(
+              (node) => node.value.trim().isNotEmpty,
+            ) ||
+            error.children.whereType<XmlCDATA>().any(
+              (node) => node.value.trim().isNotEmpty,
+            )) {
+          incomplete();
+        }
       }
       for (final property in props.single.childElements) {
         if (!seen.add(

@@ -18,6 +18,10 @@ class AppLocalizationsVi extends AppLocalizations {
       'Không thể xóa một số mục. Bộ sưu tập vẫn còn. Hãy làm mới trước khi thử lại.';
 
   @override
+  String get caldavConflictDuplicationSchedulingWarning =>
+      'Mục này có người tham dự. Việc nhân bản có thể khiến máy chủ CalDAV gửi lời mời hoặc thông báo cập nhật. Cho phép nhân bản?';
+
+  @override
   String get caldavTaskDuplicationSchedulingWarning =>
       'Tác vụ này hoặc các tác vụ con có người tham gia. Việc nhân bản có thể khiến máy chủ CalDAV gửi lời mời hoặc cập nhật tác vụ. Cho phép nhân bản?';
 

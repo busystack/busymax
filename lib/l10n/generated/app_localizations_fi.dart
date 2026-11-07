@@ -18,6 +18,10 @@ class AppLocalizationsFi extends AppLocalizations {
       'Joitakin kohteita ei voitu poistaa. Kokoelma on yhä olemassa. Päivitä ennen uutta yritystä.';
 
   @override
+  String get caldavConflictDuplicationSchedulingWarning =>
+      'Tällä kohteella on osallistujia. Sen monistaminen voi saada CalDAV-palvelimen lähettämään kutsuja tai päivityksiä. Sallitaanko monistaminen?';
+
+  @override
   String get caldavTaskDuplicationSchedulingWarning =>
       'Tässä tehtävässä tai sen alitehtävissä on osallistujia. Monistaminen voi saada CalDAV-palvelimen lähettämään kutsuja tai tehtäväpäivityksiä. Sallitaanko monistaminen?';
 

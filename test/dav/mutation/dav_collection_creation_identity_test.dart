@@ -50,28 +50,115 @@ void main() {
         },
       );
 
-      test('unavailable optional target OPTIONS never grants creation or leaves uncertain work', () async {
-        f.creationMethodsOnlyAtTarget = true;
-        f.targetOptionsUnavailable = true;
-        await expectLater(
-          f.admin.create('Unsupported', {component}),
-          throwsA(
-            isA<DavException>().having(
-              (e) => e.code,
-              'unsupported',
-              'DavCollectionCreationUnsupported',
-            ),
-          ),
-        );
-        expect(f.writes, 0);
-        expect(
-          (await f.database
+      for (final scenario in [
+        'fresh',
+        'existing',
+        'denied-parent',
+        'unknown-parent',
+        'malformed-parent',
+        'nested-parent',
+        'denied-target',
+        'lost-response',
+        'restart-committed',
+        'restart-absent',
+        'rejected',
+        'rejected-method',
+        'not-implemented',
+        'restart-prepared',
+      ]) {
+        test(
+          'unknown creation method with explicit persisted intent: $scenario',
+          () async {
+            f.creationMethodsOnlyAtTarget = true;
+            f.targetOptionsUnavailable = true;
+            f.bindDenied = scenario == 'denied-parent';
+            f.parentPrivilegesUnknown = scenario == 'unknown-parent';
+            f.malformedParentPrivileges = scenario == 'malformed-parent';
+            f.nestedParentPrivileges = scenario == 'nested-parent';
+            f.targetOptionsStatus = scenario == 'denied-target' ? 403 : 404;
+            f.remote = scenario == 'existing' ? f.collectionXml : null;
+            f.loseResponse = scenario == 'lost-response';
+            f.interrupt =
+                scenario == 'restart-committed' || scenario == 'restart-absent';
+            f.commitBeforeInterrupt = scenario != 'restart-absent';
+            f.rejectionStatus = switch (scenario) {
+              'rejected' => 403,
+              'rejected-method' => 405,
+              'not-implemented' => 501,
+              _ => null,
+            };
+            if (scenario == 'restart-prepared') {
+              await f.prepare();
+              await f.reopen();
+              expect(
+                await f.admin.resumeCreation(_id),
+                DavCollectionAdministrationOutcome.committed,
+              );
+            } else if ([
+              'existing',
+              'denied-parent',
+              'unknown-parent',
+              'malformed-parent',
+              'nested-parent',
+              'denied-target',
+              'rejected',
+              'rejected-method',
+              'not-implemented',
+              'restart-committed',
+              'restart-absent',
+            ].contains(scenario)) {
+              await expectLater(
+                f.admin.create('Work', {component}),
+                throwsA(isA<DavException>()),
+              );
+              final op = await f.database
                   .select(f.database.davCollectionCreations)
-                  .getSingle())
-              .state,
-          'rejected',
+                  .getSingle();
+              expect(op.targetUri, _target);
+              await f.reopen();
+              if (scenario.startsWith('restart-')) {
+                expect(op.state, 'dispatched');
+                f.interrupt = false;
+                if (scenario == 'restart-committed') f.bindDenied = true;
+                expect(
+                  await f.admin.resumeCreation(_id),
+                  scenario == 'restart-committed'
+                      ? DavCollectionAdministrationOutcome.reconciled
+                      : DavCollectionAdministrationOutcome.committed,
+                );
+                expect(f.writes, scenario == 'restart-committed' ? 1 : 2);
+                expect(f.preflightBeforeRetry, isTrue);
+              } else {
+                expect(op.state, 'rejected');
+                final writes = f.writes;
+                await expectLater(
+                  f.admin.resumeCreation(_id),
+                  throwsA(isA<DavException>()),
+                );
+                expect(f.writes, writes);
+                expect(
+                  writes,
+                  const {
+                        'rejected',
+                        'rejected-method',
+                        'not-implemented',
+                      }.contains(scenario)
+                      ? 1
+                      : 0,
+                );
+              }
+            } else {
+              expect(
+                await f.admin.create('Work', {component}),
+                scenario == 'lost-response'
+                    ? DavCollectionAdministrationOutcome.reconciled
+                    : DavCollectionAdministrationOutcome.committed,
+              );
+              expect(f.writes, 1);
+            }
+          },
         );
-      });
+      }
 
       for (final propertyLevel in [false, true]) {
         test(
@@ -1591,6 +1678,9 @@ class _Fixture {
   bool refreshFails = false;
   bool optionsNetworkFailure = false, creationMethodsOnlyAtTarget = false;
   bool targetOptionsUnavailable = false;
+  int targetOptionsStatus = 404;
+  bool parentPrivilegesUnknown = false;
+  bool malformedParentPrivileges = false, nestedParentPrivileges = false;
   int writes = 0, interruptedProbes = 0, unavailableProbes = 0;
   int targetReads = 0;
   String? rejectionBody;
@@ -1750,7 +1840,7 @@ class _Fixture {
     }
     if (request.method == 'OPTIONS') {
       if (targetOptionsUnavailable && request.url.toString() == _target) {
-        return http.Response('', 404);
+        return http.Response('', targetOptionsStatus);
       }
       if (optionsNetworkFailure) {
         throw http.ClientException('Simulated pre-dispatch connection loss');
@@ -1823,7 +1913,13 @@ class _Fixture {
       preflightBeforeRetry = true;
     }
     final properties = request.url.toString() == _home
-        ? '<d:resourcetype><d:collection/></d:resourcetype><d:current-user-privilege-set><d:privilege><d:${bindDenied ? 'read' : 'all'}/></d:privilege></d:current-user-privilege-set>'
+        ? '<d:resourcetype><d:collection/></d:resourcetype>${parentPrivilegesUnknown
+              ? ''
+              : malformedParentPrivileges
+              ? '<d:current-user-privilege-set><d:privilege><d:all/><d:read/></d:privilege></d:current-user-privilege-set>'
+              : nestedParentPrivileges
+              ? '<d:current-user-privilege-set><d:unrelated><d:bind/></d:unrelated></d:current-user-privilege-set>'
+              : '<d:current-user-privilege-set><d:privilege><d:${bindDenied ? 'read' : 'all'}/></d:privilege></d:current-user-privilege-set>'}'
         : remote;
     if (properties == null) return http.Response('', 404);
     return http.Response(

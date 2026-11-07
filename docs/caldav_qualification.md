@@ -6,7 +6,166 @@ record distinguishes deterministic regression coverage, real-server protocol
 checks, native application checks and build validation. Documentation cleanup
 does not constitute a new execution of these checks.
 
-## 2026-11-07 working candidate qualification
+## 2026-11-07 final-corrections follow-up
+
+This follow-up starts with a **clean** `release/v0.4.0` at
+`40827a012638825b89a2898da570226218b29b57`. The earlier A1–A7 implementation
+is already in this commit. Comparing HEAD with the private manifest of the
+historical 5,081-pass run finds only a qualification-document difference.
+Those historical results explain the baseline; they do not qualify the new
+uncommitted corrections. Nothing in this follow-up is committed, pushed,
+tagged or published. Version 0.4.0, Android code 8, schema 25 and all pins stay.
+
+The optional-property regression first failed for structured 403 and 404 ACL
+errors on the unchanged validator. The corrected BusyMax inventory validator
+accepts the RFC 4918 sections 14.5/14.22 error container, including structured
+condition details, while rejecting empty, duplicate and text/mixed-content
+errors. It retains mandatory-property, resource-failure, href, duplicate and
+baseline completeness checks. Optional ACL failure remains unknown; readable
+calendars do not acquire inferred content/admin grants.
+
+Conflict duplication now supplies explicit scheduling authorization to the
+existing durable queue. Linux Settings, Windows conflict review and Android
+Settings ask before attendee-bearing VEVENT/VTODO duplication. Cancellation
+leaves the conflict/recovery options intact. The underlying queue still blocks
+missing consent. Tests invoke the actual resolution service, preserve organizer,
+attendees, unknown native properties, RRULE and RECURRENCE-ID, and reopen the
+database before and after approval. Ordinary duplication remains covered.
+The VTODO live consent case now executes independently of the separate inbox
+REQUEST delivery case; successful storage is never labelled delivery evidence.
+
+Independent observations of the unchanged pinned BusyStack server confirm:
+home OPTIONS 200 with no creation method, proposed child OPTIONS 404, explicit
+parent `DAV:all`/`write`, MKCALENDAR 201 and independent calendar readback 207.
+Only the UUID-named disposable probe was removed (204). This is **independent
+protocol evidence**, not acceptance of BusyMax's creation service. The user explicitly approved the provider-neutral unknown-capability policy
+on this follow-up. Discovery persists method evidence separately from parent
+ACLs. The UI permits a request when capability is unknown only if the parent
+has an explicit grant. The production service then requires a fresh parent
+bind/write/all grant before its journalled MKCALENDAR fallback. A successful
+reserved-target OPTIONS/Allow omitting creation methods is unsupported; target
+403 remains denied. OPTIONS 404/405/410/501 or a successful response without
+Allow cannot establish creation support/refusal. General calendar-access grants
+nothing. Unknown parent privileges block this fallback. Existing operation
+UUID/reserved URL, exclusive lease, definitive rejection and reconciliation
+rules remain. A previously rejected operation never becomes success solely
+because policy changed. No provider override or upstream change was applied.
+
+The original Radicale failure is retained. Its independent fixture client failed
+before the next production sync, after a separately issued PUT. Server logs show
+a 35.575-second PUT and concurrent 36.766/26.212-second health PROPFINDs;
+no subsequent GET for that member reached Radicale before cleanup. Gateway
+request logging was suppressed and retains no correlated event. Receipt times
+prove the complete live run overlapped full Flutter, Android registration builds
+and Gradle lint. This violated the maintained sequential qualification procedure
+and is consistent with environmental stalls. It does **not** prove the precise
+closing socket or original timeout mechanism. No retries, longer timeouts or
+application transport changes were introduced on that basis. Current runs are
+sequential; the original exact disconnect cause remains explicitly unproven.
+
+Completed live results for this follow-up:
+
+| Gate | Actual result |
+| --- | --- |
+| Complete main matrix | **59 passed, exit 0**, default application collection provisioning on all three pinned servers; no independent setup override. |
+| Previously blocked BusyStack cases | All three focused cases passed through production administration: rejected creation/restart, lost-response identity reconciliation, and collection metadata/component management. |
+| BusyStack additional suite | **6 passed, exit 0**, supported fresh lifecycle provisioning, unmodified pinned server. |
+| Release-edge live suite | **5 passed, exit 0**, including identified partial-DELETE fault gateways and independent readback. |
+| Scheduling live suite | **2 passed, 1 skipped, exit 0**: VEVENT REQUEST delivery and VTODO client consent/durable copy passed. Only actual VTODO REQUEST delivery skipped, because no initial inbox REQUEST was observed. |
+
+The first complete follow-up run retained **58 passes, 1 failure, exit 1**:
+the absent-calendar-ACL fault also removed parent-home ACL during fixture
+creation. The new policy correctly blocked creation with unknown parent
+privileges. Scoping that fault to calendar resources preserves every item-write
+assertion and parent authorization for fixture setup. The subsequent complete
+59-pass run includes the final strict-parent-ACL logic and this fixture correction.
+An earlier full Flutter run was interrupted when the user approved the creation
+policy; it is retained as partial evidence and supplies no complete-suite pass.
+
+Completed deterministic/build results for this follow-up:
+
+| Gate | Actual result |
+| --- | --- |
+| Complete Flutter, corrected catalogs | **5,142 passed, 103 gated/optional skips, exit 0**; source manifest `85485771499fb8a07a61e7922491a5ef24d97a991192ec27e98fec2fec276d83` over HEAD `40827a012638825b89a2898da570226218b29b57`. |
+| Affected regressions | 405 passed; separate strict-parent/method/restart matrix 28 passed; all six production conflict routes use the actual service. These counts are separate runs, not added into the full-suite total. |
+| Static/generation gates | Clean analysis, zero formatting changes, platform boundaries, localization and Drift reproduction passed. The final 38-test catalog audit passed without changed assertions. |
+| Tooling and integrity | 81 release-tool tests and 29 verifier tests passed; actual read-only integrity verification passed 1,171 SDK files and eight reviewed packages. Repository hygiene and native registration CTest passed. |
+| Native Linux clock/GTK | Maintained native script passed with the retained unmodified upstream Xvfb packages on PATH; no system package or tool source changes. |
+| Android native/lint | Passed, 506 Gradle tasks. Newly built APK/AAB passed manifest/version/permissions, signature and 16 KiB ELF/ZIP/bundle alignment inspection. |
+
+The first complete Flutter follow-up retained 5,141 passes, 103 skips and one
+catalog-parity failure. New warning translations now cover every supported
+catalog; the metadata-only generic Portuguese catalog and reviewed French
+punctuation remain intact. Intermediate audit and generation-snapshot failures
+are retained in private failure accounting. A braces-only lint issue was also
+corrected. Hash reconstruction confirms that the earlier 59-pass live matrix
+differs from the final runtime source only by that lint fix and warning
+translations; no protocol/queue/recovery behavior changed afterward.
+
+The new Android artifacts are **test-signed and provider-unconfigured**, not
+production distribution artifacts. They are preserved before registration-mode
+and QA builds can overwrite build output:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| New test-signed 0.4.0/code 8 APK | `eb553667709a11ffdda2a649950b31a9ca1541c0502f36372b12dddd08b7c9d8` |
+| New test-signed 0.4.0/code 8 AAB | `9fe15ac450f2ec584e5b1c40555d96b9c169ea1fc203bf277f7948b519372400` |
+
+Native and packaging results for this follow-up:
+
+| Gate | Actual result and scope |
+| --- | --- |
+| Linux native TLS | **51 passed, exit 0**, real native TLS/authorization lifecycle and concurrency. |
+| Linux editors and GTK | **3 pinned-server workflows passed** through production Settings/event/task editors; separate GTK header integration passed. Disposable fixture secrets/CA are explicit overrides. |
+| Linux secure storage/process recovery | Both distinct OS-process phases passed for **all three servers**, including BusyStack. Production keyring/SQLite, queued edits, persisted uncertain collection identity and native notification acceptance were independently verified in an isolated desktop session. |
+| Linux release bundle | New unconfigured release bundle built, exit 0. Its file-manifest SHA-256 is `bbebaf977012498f73137873aa3c46931bf61a76061dc9fc3d67326ad727264d`. This is not an installed Snap result. |
+| Android registration modes | Both maintained registration-mode builds/inspections passed with synthetic public clients, not live production grants. |
+| Android release-package smoke | After physical unlock, the exact saved test-signed APK passed cold startup and restart with distinct PIDs on API 29, exit 0. The application ID was initially absent; the owned installation was removed successfully. |
+| Android native editors | **3 pinned-server workflows passed, exit 0**, including BusyStack production collection setup and failure feedback. Isolated QA package, disposable fixture secrets and private fixture trust; this does not substitute for production secure-storage or normal-package account acceptance. Owned QA package and only its three port mappings were removed. |
+| Secret scans | Pinned Gitleaks: **282 reachable commits** and current source passed, exit 0, unchanged allowlist. The absolute-path diagnostic's 64 findings were independently matched to the existing allowlist: 62 checksum rows and two public curve names. Repository-relative paths restore those exact anchored exceptions. |
+| Strict Snap | Actual fresh-bundle `snapcraft pack --use-lxd` failed, exit 1: the shared Snapcraft LXD profile references an unavailable storage pool. No shared profile/pool/project was changed; no new 0.4.0 Snap was produced or installed. |
+
+The first phone launch waited behind secure keyguard. That owned attempt was
+stopped and removed; no acceptance is claimed for it. After the owner unlocked
+the phone, the separate successful smoke/native runs above completed. The
+previous API-29 certificate/storage/process evidence remains historical and
+separate. API 29 cannot establish API-37 permission acceptance.
+
+The final formatting check covers 871 real repository files, zero changes.
+An intermediate scan export under `build/` was included by recursive formatting;
+its differently scoped package language settings caused one check-only format
+finding in that copy. The preserved export was moved outside the repository;
+no application file or formatter expectation changed. Private command receipts
+also preserve intermediate fixture, catalog, scan-path and orchestration errors.
+
+**Remaining external release requirements:** a newly packaged and installed
+strict 0.4.0 Snap with full confined account/storage/editor/recovery acceptance;
+authorized native Windows build/tests/MSIX/runtime acceptance (the other
+agent's VM was untouched); native API-37 permission/interface acceptance;
+actual VTODO scheduling delivery on a suitable unmodified server; production
+signing/required provider-registration configuration; and successful Linux,
+Android and Windows CI on the exact final committed candidate. Normal-ID
+Android account/storage workflows are not established by the release startup
+smoke or injected-fixture editor tests. The original Radicale socket closure
+remains unproven because correlated gateway diagnostics are unavailable;
+overlapping load and server stalls are established, and the isolated full
+matrix passed without retries or increased timeouts.
+
+No commit, push, tag, publication, merge or PR-state change was performed.
+Committing the reviewed changes and pushing the branch to run exact-revision
+CI require explicit authorization under the mission's no-commit/no-push rule.
+This candidate is **not release-ready** while these mandatory gates remain.
+
+Private evidence is appended as `corrections-*` command/source/exit receipts
+under the existing ignored qualification directory; original receipts are
+preserved. Each gate above records the actual command outcome; private receipts retain
+exact source manifests and environment scope. Source manifests precede only documented later
+warning translations and a braces-only lint fix; private hash reconstruction
+verifies no other runtime change after the 59-pass live run. The replacement
+full Flutter run and candidate native builds include those final translations.
+This is not a release-ready declaration.
+
+## Earlier 2026-11-07 qualification (superseded by the follow-up above)
 
 This follow-up starts at `6b26f1db46f29dd7e68c75fe79367d88a2009a1d` on
 `release/v0.4.0`, initially clean. Corrections are uncommitted; this is not a
@@ -51,7 +210,7 @@ under the same workload. The test now uses that helper without changing SQLite
 durability, assertions or its deadline. The complete rerun passed 5,081 tests with 102 gated/optional skips and exit 0
 after this fixture correction.
 
-### Current execution evidence (2026-11-07)
+### Earlier execution evidence (2026-11-07)
 
 | Check | Result and practical scope |
 | --- | --- |

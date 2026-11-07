@@ -11,6 +11,7 @@ import 'package:busymax/src/dav/storage/dav_collection_capabilities.dart';
 import 'package:busymax/src/dav/storage/dav_settings_repository.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/db/app_database.dart';
+import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:drift/native.dart';
@@ -368,6 +369,60 @@ void main() {
     );
   }
 
+  for (final status in [200, 403, 404, 405, 501]) {
+    for (final acl in ['all', 'read', 'unknown']) {
+      test(
+        'persisted unknown creation evidence separates target status=$status and parent ACL=$acl',
+        () async {
+          final result = await _discover(
+            creationMethods: 'OPTIONS, PROPFIND',
+            collectionOptionsStatus: status,
+            homeAcl: acl == 'unknown'
+                ? ''
+                : '<d:current-user-privilege-set><d:privilege><d:$acl/></d:privilege></d:current-user-privilege-set>',
+          );
+          final context = result.service.principalContexts.single;
+          final capability = status == 200
+              ? DavCollectionCreationCapability.unsupported
+              : status == 403
+              ? DavCollectionCreationCapability.denied
+              : DavCollectionCreationCapability.unknown;
+          expect(context.effectiveCollectionCreationCapability, capability);
+          expect(
+            DavPrincipalContext.fromJson(context.toJson())
+                .effectiveCollectionCreationCapability,
+            capability,
+          );
+          final db = AppDatabase.memoryForTests();
+          addTearDown(db.close);
+          await db
+              .into(db.accounts)
+              .insert(
+                AccountsCompanion.insert(
+                  id: 'caldav',
+                  provider: 'caldav',
+                  providerAccountId: 'user',
+                  authority: 'https://example.test/',
+                  credentialKind: 'caldav_password',
+                  createdAtUtc: 'now',
+                  updatedAtUtc: 'now',
+                ),
+              );
+          await DavDiscoveryRepository(database: db)
+              .commitSuccessfulInventory(result);
+          final account = AccountEntity.fromRow(
+            await db.select(db.accounts).getSingle(),
+          );
+          expect(
+            account.caldavCollectionCreationAvailable,
+            capability == DavCollectionCreationCapability.unknown &&
+                acl == 'all',
+          );
+        },
+      );
+    }
+  }
+
   test('creation methods advertised only at an unused child are separate from home permissions', () async {
     final requests = <http.Request>[];
     final result = await _discover(
@@ -458,6 +513,58 @@ void main() {
       expect(c.capabilities.supportsMove, isFalse);
     },
   );
+  for (final status in [403, 404]) {
+    test(
+      'structured optional ACL error $status preserves readable calendar and unknown administration',
+      () async {
+        final result = await _discover(
+          aclStatus: status,
+          aclError: '<d:error><d:need-privileges><d:resource><d:href>/home/team%2Fwork/</d:href><d:privilege><d:read-current-user-privilege-set/></d:privilege></d:resource></d:need-privileges><x:unknown xmlns:x="urn:example:error"/></d:error>',
+        );
+        final calendar = result.collections.single;
+        expect(calendar.capabilities.canRead, isTrue);
+        expect(calendar.capabilities.permissionsKnown, isFalse);
+        expect(calendar.capabilities.canWriteProperties, isFalse);
+        expect(calendar.capabilities.canWriteContent, isFalse);
+        expect(calendar.capabilities.canAddMembers, isFalse);
+        expect(calendar.capabilities.canDeleteMembers, isFalse);
+        expect(calendar.parentPrivileges, isEmpty);
+        expect(
+          result.service.principalContexts.single.homePrivilegesKnown,
+          isFalse,
+        );
+      },
+    );
+  }
+  for (final error in [
+    '<d:error/>',
+    '<d:error>not structured</d:error>',
+    '<d:error><![CDATA[invalid text]]><d:need-privileges/></d:error>',
+    '<d:error>mixed<d:need-privileges/></d:error>',
+    '<d:error><d:need-privileges/></d:error><d:error><d:need-privileges/></d:error>',
+    '<d:error><d:need-privileges/></d:error><d:status>HTTP/1.1 403 Forbidden</d:status>',
+  ]) {
+    test('rejects malformed optional property error $error', () async {
+      await expectLater(
+        _discover(aclError: error),
+        throwsA(isA<DavException>()),
+      );
+    });
+  }
+  test('missing mandatory resource type remains incomplete', () async {
+    await expectLater(
+      _discover(resourceType: ''),
+      throwsA(isA<DavException>()),
+    );
+  });
+  test('resource-level failure remains incomplete', () async {
+    await expectLater(
+      _discover(
+        resourceResponse: '<d:response><d:href>/home/team%2Fwork/</d:href><d:status>HTTP/1.1 403 Forbidden</d:status><d:error><d:need-privileges/></d:error></d:response>',
+      ),
+      throwsA(isA<DavException>()),
+    );
+  });
   for (final aclStatus in [404, 403]) {
     for (final ownerKnown in [false, true]) {
       test(
@@ -708,7 +815,12 @@ void main() {
 
 Future<DavDiscoveryResult> _discover({
   int aclStatus = 404,
+  String aclError = '',
+  String resourceType =
+      '<d:resourcetype><d:collection/><c:calendar/></d:resourcetype>',
+  String? resourceResponse,
   String extra = '',
+  String homeAcl = '',
   bool deniedComponents = false,
   String server = 'https://example.test/',
   bool missingPrincipal = false,
@@ -799,19 +911,21 @@ Future<DavDiscoveryResult> _discover({
         : request.url.path == '/home/'
         ? response(
                 '/home/',
-                '<d:resourcetype><d:collection/></d:resourcetype>',
+                '<d:resourcetype><d:collection/></d:resourcetype>$homeAcl',
               ) +
               List.generate(
                 collectionCount,
-                (i) => response(
-                  collectionCount == 1
-                      ? '/home/team%2Fwork/'
-                      : Uri(pathSegments: ['', 'home', 'collection-$i', ''])
-                            .path,
-                  '<d:resourcetype><d:collection/><c:calendar/></d:resourcetype>$extra${aclStatus == 200 ? '<d:current-user-privilege-set/>' : ''}',
-                  other:
-                      '${aclStatus == 200 ? '' : '<d:propstat><d:prop><d:current-user-privilege-set/></d:prop><d:status>HTTP/1.1 $aclStatus Unavailable</d:status></d:propstat>'}${deniedComponents ? '<d:propstat><d:prop><c:supported-calendar-component-set/></d:prop><d:status>HTTP/1.1 403 Forbidden</d:status></d:propstat>' : ''}',
-                ),
+                (i) =>
+                    resourceResponse ??
+                    response(
+                      collectionCount == 1
+                          ? '/home/team%2Fwork/'
+                          : Uri(pathSegments: ['', 'home', 'collection-$i', ''])
+                                .path,
+                      '$resourceType$extra${aclStatus == 200 ? '<d:current-user-privilege-set/>' : ''}',
+                      other:
+                          '${aclStatus == 200 ? '' : '<d:propstat><d:prop><d:current-user-privilege-set/></d:prop><d:status>HTTP/1.1 $aclStatus Unavailable</d:status>$aclError</d:propstat>'}${deniedComponents ? '<d:propstat><d:prop><c:supported-calendar-component-set/></d:prop><d:status>HTTP/1.1 403 Forbidden</d:status></d:propstat>' : ''}',
+                    ),
               ).join()
         : response(
             request.url.path,

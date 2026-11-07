@@ -266,18 +266,45 @@ final class DavCollectionAdministration {
     return (uri: target, home: home, parent: parentVerified ? parent : null);
   }
 
-  void _requirePrivilege(DavMultistatusResponse entry, String name) {
+  void _requirePrivilege(
+    DavMultistatusResponse entry,
+    String name, {
+    bool requireKnown = false,
+  }) {
     final property = entry.successfulProperty(
       davNamespace,
       'current-user-privilege-set',
     );
     if (property == null) {
+      if (requireKnown) {
+        throw _error(403, 'DavCollectionCreationPermissionUnknown');
+      }
       return; // Unknown: the user-requested method is authoritative.
     }
-    final names = property.element.descendantElements
-        .where((e) => e.name.namespaceUri == davNamespace)
-        .map((e) => e.name.local)
-        .toSet();
+    final directPrivileges = property.element.childElements.where(
+      (e) => e.name.namespaceUri == davNamespace && e.name.local == 'privilege',
+    );
+    if (requireKnown &&
+        (directPrivileges.any(
+              (e) =>
+                  e.childElements.length != 1 ||
+                  e.childElements.single.name.namespaceUri == null,
+            ) ||
+            property.element.children.whereType<XmlText>().any(
+              (e) => e.value.trim().isNotEmpty,
+            ) ||
+            property.element.children.whereType<XmlCDATA>().any(
+              (e) => e.value.trim().isNotEmpty,
+            ))) {
+      throw _error(403, 'DavPrivilegesMalformed');
+    }
+    final names =
+        (requireKnown
+                ? directPrivileges.map((e) => e.childElements.single)
+                : property.element.descendantElements)
+            .where((e) => e.name.namespaceUri == davNamespace)
+            .map((e) => e.name.local)
+            .toSet();
     if (!names.contains('all') &&
         !names.contains('write') &&
         !names.contains(name)) {
@@ -546,16 +573,19 @@ final class DavCollectionAdministration {
           (allowed.contains('MKCOL') && dav.contains('extended-mkcol'));
     }
 
+    var unknownMethod = false;
     if (!advertisesCreation(options)) {
       // Allow is resource-specific. Some servers advertise creation only at a
-      // new child, others on the home. Require positive method evidence from
-      // one of these authenticated resources, separately from parent ACLs.
+      // new child, others on the home. A successful target Allow is specific
+      // evidence; an unavailable OPTIONS method leaves capability unknown.
       options = await _send(c, 'OPTIONS', target, cancellation: cancellation);
-      if (const {404, 405, 410, 501}.contains(options.statusCode)) {
-        // No positive method evidence: preserve an unsupported pre-dispatch outcome.
-        throw _error(405, 'DavCollectionCreationUnsupported');
-      }
-      if (options.statusCode < 200 || options.statusCode >= 300) {
+      unknownMethod =
+          const {404, 405, 410, 501}.contains(options.statusCode) ||
+          (options.statusCode >= 200 &&
+              options.statusCode < 300 &&
+              !options.headers.containsKey('allow'));
+      if (!unknownMethod &&
+          (options.statusCode < 200 || options.statusCode >= 300)) {
         throw _error(
           options.statusCode,
           'DavCollectionCapabilitiesUnavailable',
@@ -570,9 +600,13 @@ final class DavCollectionAdministration {
         .split(',')
         .map((s) => s.trim().toLowerCase())
         .toSet();
-    // calendar-access does not require MKCALENDAR (RFC 4791 section 5.3.1).
-    // Select only an advertised creation method, including Extended MKCOL.
-    final method = methods.contains('MKCALENDAR')
+    // An unmapped child's OPTIONS 404 cannot establish MKCALENDAR support
+    // or refusal. Only an explicit persisted creation intent and a fresh parent
+    // grant authorize this fallback. General calendar-access grants nothing.
+    if (unknownMethod) _requirePrivilege(parent, 'bind', requireKnown: true);
+    final method = unknownMethod
+        ? 'MKCALENDAR'
+        : methods.contains('MKCALENDAR')
         ? 'MKCALENDAR'
         : features.contains('extended-mkcol') && methods.contains('MKCOL')
         ? 'MKCOL'
@@ -675,6 +709,7 @@ final class DavCollectionAdministration {
             412,
             415,
             422,
+            501,
             507,
           }.contains(response.statusCode)) {
             if (operation.state == 'dispatched') {

@@ -17,6 +17,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get davCollectionRemovalPartial => '部分项目无法删除。集合仍然存在。请刷新后再试。';
 
   @override
+  String get caldavConflictDuplicationSchedulingWarning =>
+      '此项目包含参与者。复制此项目可能会使 CalDAV 服务器发送邀请或更新。是否允许复制？';
+
+  @override
   String get caldavTaskDuplicationSchedulingWarning =>
       '此任务或其子任务包含参与者。复制可能会导致 CalDAV 服务器发送邀请或任务更新。允许复制吗？';
 
@@ -3833,6 +3837,10 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get davCollectionRemovalPartial => '部分项目无法删除。集合仍然存在。请刷新后再试。';
 
   @override
+  String get caldavConflictDuplicationSchedulingWarning =>
+      '此项目包含参与者。复制此项目可能会使 CalDAV 服务器发送邀请或更新。是否允许复制？';
+
+  @override
   String get caldavTaskDuplicationSchedulingWarning =>
       '此任务或其子任务包含参与者。复制可能会导致 CalDAV 服务器发送邀请或任务更新。允许复制吗？';
 
@@ -7647,6 +7655,10 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get davCollectionRemovalPartial => '部分項目無法刪除。集合仍然存在。請重新整理後再試。';
+
+  @override
+  String get caldavConflictDuplicationSchedulingWarning =>
+      '此項目包含參與者。複製此項目可能會使 CalDAV 伺服器傳送邀請或更新。是否允許複製？';
 
   @override
   String get caldavTaskDuplicationSchedulingWarning =>

@@ -832,6 +832,7 @@ final class DavDiscoveryService {
               .contains(_name(caldavNamespace, 'calendar')),
     );
     final creationMethods = <String>{};
+    var creationCapability = DavCollectionCreationCapability.unknown;
     if (!directCalendar && _profile.provider == BusyProvider.caldav) {
       for (final endpoint in endpointCapabilities.where(
         (e) => e.href == home,
@@ -865,6 +866,13 @@ final class DavDiscoveryService {
           cancellationToken: cancellationToken,
         );
         if (response.statusCode == 401) _requireSuccessfulOrDav(response);
+        if (response.statusCode == 403) {
+          creationCapability = DavCollectionCreationCapability.denied;
+        } else if (response.statusCode >= 200 &&
+            response.statusCode < 300 &&
+            response.headers.containsKey('allow')) {
+          creationCapability = DavCollectionCreationCapability.unsupported;
+        }
         if (response.statusCode >= 200 && response.statusCode < 300) {
           final methods = _allowedMethods(response);
           if (methods.contains('MKCALENDAR')) creationMethods.add('MKCALENDAR');
@@ -897,6 +905,9 @@ final class DavDiscoveryService {
         correlationId: correlationId,
       ),
       calendarHomeIsCalendar: directCalendar,
+      collectionCreationCapability: directCalendar
+          ? DavCollectionCreationCapability.unsupported
+          : creationCapability,
       collectionCreationMethods: _profile.provider == BusyProvider.caldav
           ? creationMethods
           : null,

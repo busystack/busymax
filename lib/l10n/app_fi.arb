@@ -1,4 +1,5 @@
 {
+  "caldavConflictDuplicationSchedulingWarning": "Tällä kohteella on osallistujia. Sen monistaminen voi saada CalDAV-palvelimen lähettämään kutsuja tai päivityksiä. Sallitaanko monistaminen?",
   "davCollectionRemovalPartial": "Joitakin kohteita ei voitu poistaa. Kokoelma on yhä olemassa. Päivitä ennen uutta yritystä.",
   "caldavTaskDuplicationSchedulingWarning": "Tässä tehtävässä tai sen alitehtävissä on osallistujia. Monistaminen voi saada CalDAV-palvelimen lähettämään kutsuja tai tehtäväpäivityksiä. Sallitaanko monistaminen?",
   "caldavSchedulingWarning": "Tässä tapahtumassa on osallistujia. Tallentaminen tai poistaminen voi saada CalDAV-palvelimen ilmoittamaan osallistujille, kun muutos synkronoidaan.",

@@ -1940,11 +1940,22 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
         ),
       ),
     );
-    if (resolution == null) return;
+    if (resolution == null || !mounted) return;
+    final needsConsent =
+        resolution == DavConflictResolution.duplicateLocal &&
+        conflict.duplicationRequiresSchedulingConsent;
+    if (needsConsent) {
+      final allowed = await _confirm(
+        l10n.duplicateLocalItem,
+        l10n.caldavConflictDuplicationSchedulingWarning,
+        l10n.duplicateLocalItem,
+      );
+      if (!allowed || !mounted) return;
+    }
     try {
       await ref
           .read(davConflictResolutionServiceProvider)
-          .resolve(conflict.id, resolution);
+          .resolve(conflict.id, resolution, allowScheduling: needsConsent);
       await ref.read(signedInSyncRunnerProvider)(conflict.accountId, false);
     } on Object {
       _message(l10n.conflictResolutionFailed);

@@ -18,6 +18,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'Einige Einträge konnten nicht gelöscht werden. Die Sammlung bleibt bestehen. Vor einem erneuten Versuch aktualisieren.';
 
   @override
+  String get caldavConflictDuplicationSchedulingWarning =>
+      'Dieser Eintrag enthält Teilnehmer. Beim Duplizieren kann der CalDAV-Server Einladungen oder Aktualisierungen senden. Duplizieren erlauben?';
+
+  @override
   String get caldavTaskDuplicationSchedulingWarning =>
       'Diese Aufgabe oder ihre Unteraufgaben enthalten Teilnehmer. Beim Duplizieren kann der CalDAV-Server Einladungen oder Aufgabenaktualisierungen senden. Duplizieren erlauben?';
 

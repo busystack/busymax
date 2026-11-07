@@ -1902,6 +1902,20 @@ class _AbsentAclClient extends http.BaseClient {
                   e.name.local == 'current-user-privilege-set',
             )
             .toList()) {
+      final resource = property.ancestors.whereType<XmlElement>().firstWhere(
+        (e) =>
+            e.name.namespaceUri == davNamespace && e.name.local == 'response',
+      );
+      // This fault tests item writes with unavailable calendar ACLs. Keep
+      // parent-home authorization intact for production fixture creation.
+      // Unknown parent ACL must block unknown-method collection creation.
+      if (!resource.descendantElements.any(
+        (e) =>
+            e.name.namespaceUri == caldavNamespace &&
+            e.name.local == 'calendar',
+      )) {
+        continue;
+      }
       property.parent!.children.remove(property);
     }
     final body = utf8.encode(document.toXmlString());

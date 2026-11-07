@@ -81,6 +81,9 @@ final class DavDiscoveryRepository {
                 if (existingMetadata is Map)
                   ...existingMetadata.cast<String, Object?>(),
                 'caldavCollectionCreationSupported': supported,
+                'caldavCollectionCreationCapability':
+                    home?.effectiveCollectionCreationCapability.name ??
+                    'unknown',
                 'caldavCollectionCreationPermission': permitted
                     ? 'allowed'
                     : home?.homePrivilegesKnown == true

@@ -1,4 +1,5 @@
 {
+  "caldavConflictDuplicationSchedulingWarning": "Dieser Eintrag enthält Teilnehmer. Beim Duplizieren kann der CalDAV-Server Einladungen oder Aktualisierungen senden. Duplizieren erlauben?",
   "davCollectionRemovalPartial": "Einige Einträge konnten nicht gelöscht werden. Die Sammlung bleibt bestehen. Vor einem erneuten Versuch aktualisieren.",
   "caldavTaskDuplicationSchedulingWarning": "Diese Aufgabe oder ihre Unteraufgaben enthalten Teilnehmer. Beim Duplizieren kann der CalDAV-Server Einladungen oder Aufgabenaktualisierungen senden. Duplizieren erlauben?",
   "caldavSchedulingWarning": "Dieser Termin hat Teilnehmer. Beim Speichern oder Löschen kann Ihr CalDAV-Server die Teilnehmer benachrichtigen, sobald die Änderung synchronisiert wird.",

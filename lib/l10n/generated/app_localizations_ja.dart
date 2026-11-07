@@ -18,6 +18,10 @@ class AppLocalizationsJa extends AppLocalizations {
       '一部の項目を削除できませんでした。コレクションは残っています。再試行する前に更新してください。';
 
   @override
+  String get caldavConflictDuplicationSchedulingWarning =>
+      'この項目には参加者が含まれています。複製すると、CalDAV サーバーが招待や更新通知を送信する場合があります。複製を許可しますか？';
+
+  @override
   String get caldavTaskDuplicationSchedulingWarning =>
       'このタスクまたはサブタスクには参加者が含まれています。複製すると、CalDAVサーバーが招待やタスクの更新を送信する場合があります。複製を許可しますか？';
 

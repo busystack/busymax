@@ -105,8 +105,10 @@ class AccountEntity {
     try {
       final metadata = jsonDecode(providerMetadataJson ?? '{}');
       return metadata is Map &&
-          metadata['caldavCollectionCreationSupported'] == true &&
-          metadata['caldavCollectionCreationPermission'] != 'denied';
+          ((metadata['caldavCollectionCreationSupported'] == true &&
+                  metadata['caldavCollectionCreationPermission'] != 'denied') ||
+              (metadata['caldavCollectionCreationCapability'] == 'unknown' &&
+                  metadata['caldavCollectionCreationPermission'] == 'allowed'));
     } on FormatException {
       return false;
     }

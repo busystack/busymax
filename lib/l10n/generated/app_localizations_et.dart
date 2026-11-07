@@ -18,6 +18,10 @@ class AppLocalizationsEt extends AppLocalizations {
       'Mõnda üksust ei saanud kustutada. Kogu on alles. Enne uuesti proovimist värskenda.';
 
   @override
+  String get caldavConflictDuplicationSchedulingWarning =>
+      'Sellel üksusel on osalejad. Selle kopeerimine võib panna CalDAV-serveri saatma kutseid või värskendusi. Kas lubada kopeerimine?';
+
+  @override
   String get caldavTaskDuplicationSchedulingWarning =>
       'Sellel ülesandel või selle alamülesannetel on osalejad. Kopeerimine võib panna CalDAV-serveri saatma kutseid või ülesannete uuendusi. Kas lubada kopeerimine?';
 

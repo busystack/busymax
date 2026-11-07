@@ -18,6 +18,10 @@ class AppLocalizationsFa extends AppLocalizations {
       'برخی موارد حذف نشدند. مجموعه همچنان باقی است. پیش از تلاش دوباره، تازه‌سازی کنید.';
 
   @override
+  String get caldavConflictDuplicationSchedulingWarning =>
+      'این مورد شرکت‌کننده دارد. تکثیر آن ممکن است باعث شود سرور CalDAV دعوت‌نامه یا به‌روزرسانی ارسال کند. تکثیر مجاز است؟';
+
+  @override
   String get caldavTaskDuplicationSchedulingWarning =>
       'این کار یا زیرکارهای آن شرکت‌کننده دارند. تکثیر آن‌ها ممکن است باعث ارسال دعوت‌نامه یا به‌روزرسانی کار توسط سرور CalDAV شود. تکثیر مجاز است؟';
 

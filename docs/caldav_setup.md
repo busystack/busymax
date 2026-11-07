@@ -22,10 +22,17 @@ is accepted. A successful HTML page alone never establishes a connected account.
 Homes may identify calendars directly or contain nested calendar collections.
 Read discovery does not imply permission to create or delete collections.
 
-Attendee-bearing task duplication asks for an explicit scheduling decision,
-including attendees in a task subtree or recurrence set. Cancelling preserves
+Attendee-bearing task duplication and **Duplicate as new item** in conflict
+review ask for an explicit scheduling decision. Conflict review supports both
+events and tasks; task duplication also checks the subtree and recurrence set. Cancelling preserves
 the original and queues no copy. Servers supporting implicit task scheduling
-may send messages after an accepted copy.
+may send messages after an accepted copy. Cancelling conflict duplication keeps
+the original conflict and its recovery options available.
+
+When a server cannot establish which collection-creation methods it supports,
+BusyMax permits your explicit creation request only after confirming parent
+creation rights. Unknown parent rights and explicit denials remain blocked.
+Interrupted creation is reconciled using its saved operation identity.
 
 ## Radicale
 

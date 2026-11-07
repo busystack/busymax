@@ -141,6 +141,12 @@ abstract class AppLocalizations {
   /// **'Some items could not be deleted. The collection remains. Refresh before trying again.'**
   String get davCollectionRemovalPartial;
 
+  /// No description provided for @caldavConflictDuplicationSchedulingWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'This item contains attendees. Duplicating it may cause the CalDAV server to send invitations or updates. Allow duplication?'**
+  String get caldavConflictDuplicationSchedulingWarning;
+
   /// No description provided for @caldavTaskDuplicationSchedulingWarning.
   ///
   /// In en, this message translates to:

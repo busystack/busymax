@@ -18,6 +18,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Some items could not be deleted. The collection remains. Refresh before trying again.';
 
   @override
+  String get caldavConflictDuplicationSchedulingWarning =>
+      'This item contains attendees. Duplicating it may cause the CalDAV server to send invitations or updates. Allow duplication?';
+
+  @override
   String get caldavTaskDuplicationSchedulingWarning =>
       'This task or its subtasks contain attendees. Duplicating them may cause the CalDAV server to send invitations or task updates. Allow duplication?';
 

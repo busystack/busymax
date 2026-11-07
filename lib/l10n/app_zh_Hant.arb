@@ -1,4 +1,5 @@
 {
+  "caldavConflictDuplicationSchedulingWarning": "此項目包含參與者。複製此項目可能會使 CalDAV 伺服器傳送邀請或更新。是否允許複製？",
   "davCollectionRemovalPartial": "部分項目無法刪除。集合仍然存在。請重新整理後再試。",
   "caldavTaskDuplicationSchedulingWarning": "此工作或其子工作包含參與者。複製可能會導致 CalDAV 伺服器傳送邀請或工作更新。允許複製嗎？",
   "caldavSchedulingWarning": "此行程有參與者。儲存或刪除行程後，CalDAV 伺服器可能會在同步變更時通知參與者。",

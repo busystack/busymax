@@ -77,9 +77,14 @@ BUSYMAX_CALDAV_FIXTURE_DIR="$PWD/test/interop/caldav/.runtime" \
 GDK_BACKEND=x11 flutter test integration_test/caldav_workflows_test.dart -d linux --reporter expanded
 ```
 
-When an unmodified target cannot advertise collection creation, do not enable
-unadvertised methods in BusyMax to unblock fixture setup. For separately labelled
-data-path evidence, opt in to independent disposable collection provisioning:
+The default harness provisions collections through BusyMax's production service.
+Under the explicitly approved provider-neutral policy, unavailable child OPTIONS
+leaves method capability unknown; a user-requested persisted creation can use
+MKCALENDAR only with a fresh explicit parent bind/write/all grant. Successful
+child OPTIONS/Allow excluding creation methods and explicit denials still block.
+Lost responses retain the journal/reserved URL and require reconciliation.
+
+For separately labelled independent setup (never application-creation evidence):
 
 ```bash
 BUSYMAX_CALDAV_LIVE=1 BUSYMAX_CALDAV_LIFECYCLE=1 \
@@ -87,17 +92,10 @@ BUSYMAX_CALDAV_FIXTURE_COLLECTION_SETUP=independent \
 flutter test test/dav/caldav_live_integration_test.dart --reporter expanded
 ```
 
-This setup sends independent MKCALENDAR and requires actual HTTP 201 before
-production discovery/synchronization. It does not qualify BusyMax's collection
-creation route. Application administration assertions still execute and can
-fail for the unsupported capability; retain that nonzero result and identify
-blocked cases. The opt-in never changes application/provider capability rules.
-The 2026-11-07 BusyStack 0.1.0 target advertises no creation method on its home
-and returns 404 to child OPTIONS, unlike the historical qualification claim.
-Keep that gate open. The release-edge harness also injects a DELETE 207/423
-through an identified gateway after one child is really removed upstream;
-independent GET/PROPFIND and database reopening verify reconciliation. It is
-client fault handling evidence, not a claim that the server emits that response.
+The release-edge harness also injects a DELETE 207/423 through an identified
+gateway after one child is really removed upstream; independent GET/PROPFIND
+and database reopening verify reconciliation. This is client fault handling
+evidence, not a claim that the server naturally emits that response.
 
 The HTTPS profile covers Radicale root (18443), Baïkal direct endpoint (18444),
 Radicale installation path (18445), an untrusted certificate (18446), and a
@@ -112,6 +110,11 @@ pinned targets. Unknown names fail; partial target selection is recorded as
 partial evidence and never closes the omitted target's qualification gate.
 The Android two-process harness currently covers Radicale and Baïkal only.
 
+Run the full Flutter suite, complete live suites and native builds sequentially.
+The previous failed Radicale run overlapped the Flutter suite and Android
+builds; independent PUT/root PROPFIND requests stalled for over 30 seconds.
+The exact socket closure remains unproven; passing focused repeats do not
+explain it. Preserve complete-run and timestamped server/gateway logs.
 Run Flutter tests and native builds sequentially. In particular, starting an
 Android release build while `flutter test` is generating plugin registration
 can leave the build with mismatched integration-test plugin sources.
@@ -156,6 +159,21 @@ independent remote changes, and remove its test accounts and credentials.
 After testing, uninstall only this QA package and remove only mappings created
 for this run. Windows native acceptance requires a separately authorized
 Windows environment; a Linux build is not Windows runtime acceptance.
+
+## Scheduling qualification
+
+```bash
+BUSYMAX_CALDAV_LIVE=1 flutter test test/dav/caldav_scheduling_live_test.dart --reporter expanded
+flutter test test/dav/mutation/dav_conflict_scheduling_consent_test.dart test/platform/conflict_duplication_consent_routes_test.dart
+```
+
+The Baïkal VTODO client-consent case always runs its queue guard, accepted
+copy, database reopening and independent object readback. Its separate delivery
+case skips only when no initial inbox REQUEST is demonstrated. Storage never
+counts as scheduling delivery. The deterministic conflict tests exercise the
+production resolution service and all three production UI routes, including
+cancel/approve, both component types, native properties and recurrence identity.
+They do not establish native Windows/Android acceptance.
 
 ## Reset and teardown
 

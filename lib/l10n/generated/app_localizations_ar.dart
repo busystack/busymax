@@ -18,6 +18,10 @@ class AppLocalizationsAr extends AppLocalizations {
       'تعذر حذف بعض العناصر. ما زالت المجموعة موجودة. حدّث قبل المحاولة مجددًا.';
 
   @override
+  String get caldavConflictDuplicationSchedulingWarning =>
+      'يحتوي هذا العنصر على مشاركين. قد يؤدي تكراره إلى إرسال خادم CalDAV دعوات أو تحديثات. هل تسمح بالتكرار؟';
+
+  @override
   String get caldavTaskDuplicationSchedulingWarning =>
       'تحتوي هذه المهمة أو مهامها الفرعية على مشاركين. قد يؤدي تكرارها إلى إرسال خادم CalDAV دعوات أو تحديثات للمهام. هل تسمح بالتكرار؟';
 

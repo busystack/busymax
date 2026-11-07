@@ -1723,10 +1723,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     DavConflictEntity conflict,
     DavConflictResolution resolution,
   ) async {
+    final needsConsent =
+        resolution == DavConflictResolution.duplicateLocal &&
+        conflict.duplicationRequiresSchedulingConsent;
+    if (needsConsent) {
+      final allowed = await showBusyMaxConfirm(
+        context,
+        title: context.l10n.duplicateLocalItem,
+        message: context.l10n.caldavConflictDuplicationSchedulingWarning,
+        confirmLabel: context.l10n.duplicateLocalItem,
+      );
+      if (!allowed || !mounted) return;
+    }
     try {
       await ref
           .read(davConflictResolutionServiceProvider)
-          .resolve(conflict.id, resolution);
+          .resolve(conflict.id, resolution, allowScheduling: needsConsent);
       await ref.read(signedInSyncRunnerProvider)(conflict.accountId, false);
     } on Object catch (error) {
       _settingsLogger.warning('DAV conflict resolution failed: $error');
