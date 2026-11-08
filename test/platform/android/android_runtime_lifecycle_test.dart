@@ -33,13 +33,14 @@ void main() {
   final leases = <String, String>{};
   final leaseOperations = <String, Object?>{};
   final changed = <Completer<void>>[];
-  var serial = 0, releaseAll = 0;
+  var serial = 0, releaseAll = 0, dataChanges = 0;
   var failRelease = false, failDuplicateAcquire = false;
   var rejectNotificationAcquisition = false;
   setUp(() {
     leases.clear();
     leaseOperations.clear();
     serial = 0;
+    dataChanges = 0;
     releaseAll = 0;
     failRelease = false;
     failDuplicateAcquire = false;
@@ -49,6 +50,9 @@ void main() {
         .setMockMethodCallHandler(channel, (call) async {
           final args = call.arguments as Map?;
           switch (call.method) {
+            case 'notifyDataChanged':
+              dataChanges++;
+              return null;
             case 'acquireAccountGate':
               final key = args!['accountId'] as String;
               if (rejectNotificationAcquisition && key == '__notifications__') {
@@ -112,6 +116,23 @@ void main() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, null);
   });
+
+  for (final notificationFailure in [false, true]) {
+    test(
+      'background foreground notification survives reminder failure=$notificationFailure',
+      () async {
+        final succeeded = await completeAndroidBackgroundRefresh(
+          reconcileNotifications: () async {
+            if (notificationFailure) {
+              throw StateError('Reminder refresh failed');
+            }
+          },
+        );
+        expect(dataChanges, 1);
+        expect(succeeded, !notificationFailure);
+      },
+    );
+  }
 
   test(
     'cleanup attempts every resource once and preserves initialization failure',

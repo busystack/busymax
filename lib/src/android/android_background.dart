@@ -78,10 +78,9 @@ void busyMaxWorkmanagerDispatcher() {
         }
         // Local reminders must still refill while offline and after a failed
         // provider synchronization.
-        try {
-          await runtime.notifications.reconcile();
-          await BusyMaxAndroidPlatform.instance.notifyDataChanged();
-        } on Object {
+        if (!await completeAndroidBackgroundRefresh(
+          reconcileNotifications: runtime.notifications.reconcile,
+        )) {
           succeeded = false;
         }
         return succeeded;
@@ -98,6 +97,25 @@ void busyMaxWorkmanagerDispatcher() {
       await BusyMaxAndroidPlatform.instance.releaseOwnedAccountGates();
     },
   );
+}
+
+/// Notifies foreground readers even if reminder reconciliation fails.
+/// A reminder or notification failure still asks WorkManager to retry.
+Future<bool> completeAndroidBackgroundRefresh({
+  required Future<void> Function() reconcileNotifications,
+}) async {
+  var succeeded = true;
+  try {
+    await reconcileNotifications();
+  } on Object {
+    succeeded = false;
+  }
+  try {
+    await BusyMaxAndroidPlatform.instance.notifyDataChanged();
+  } on Object {
+    succeeded = false;
+  }
+  return succeeded;
 }
 
 Future<void> configureBusyMaxWorkmanager() async {
