@@ -482,6 +482,7 @@ final class DavCollectionHttpClient implements DavCollectionRemoteClient {
     );
     final requested = {for (final member in members) member.hrefKey: member};
     final returned = <String, DavFetchedMember>{};
+    final seen = <String>{};
     for (final entry in multistatus.responses) {
       final target = _resolveMember(entry.href, response, correlationId);
       if (target == null || !requested.containsKey(target.hrefKey)) {
@@ -491,6 +492,17 @@ final class DavCollectionHttpClient implements DavCollectionRemoteClient {
           safeMessage: 'The DAV server returned an unexpected object.',
           correlationId: correlationId,
         );
+      }
+      // Duplicate members cannot supply authoritative evidence. Reject even
+      // identical duplicates rather than allowing response order to decide.
+      if (!seen.add(target.hrefKey)) {
+        throw _syncProtocol('DavMultigetDuplicateMember', correlationId);
+      }
+      if (entry.statusCode != null && entry.propstats.isNotEmpty) {
+        throw _syncProtocol('DavMultigetInvalidMember', correlationId);
+      }
+      if (entry.errorConditions.isNotEmpty) {
+        throw _syncProtocol('DavMultigetInvalidMember', correlationId);
       }
       if (entry.statusCode == 404) {
         returned[target.hrefKey] = DavFetchedMember.missing(
@@ -511,22 +523,10 @@ final class DavCollectionHttpClient implements DavCollectionRemoteClient {
         'calendar-data',
       );
       if (etag == null || etag.isEmpty || calendarData == null) {
-        final onlyMissingPropstats =
-            entry.propstats.isNotEmpty &&
-            entry.propstats.every((propstat) => propstat.statusCode == 404);
-        if (onlyMissingPropstats) {
-          returned[target.hrefKey] = DavFetchedMember.missing(
-            hrefKey: target.hrefKey,
-            requestUri: target.uri,
-          );
-          continue;
-        }
-        throw DavException(
-          kind: DavErrorKind.protocol,
-          code: 'DavMultigetMemberDataMissing',
-          safeMessage: 'A DAV object response omitted calendar data or ETag.',
-          correlationId: correlationId,
-        );
+        // RFC 4918 section 13: propstat describes properties, not resource
+        // existence. Missing mandatory properties require safe GET just like
+        // an omitted response. No deletion is inferred from property failures.
+        continue;
       }
       returned[target.hrefKey] = DavFetchedMember.live(
         hrefKey: target.hrefKey,
@@ -537,7 +537,7 @@ final class DavCollectionHttpClient implements DavCollectionRemoteClient {
       );
     }
 
-    // An omitted multiget member is ambiguous, so resolve it with a safe GET
+    // An omitted or incomplete multiget member is ambiguous; use a safe GET
     // rather than treating an incomplete response as deletion.
     for (final member in members) {
       returned[member.hrefKey] ??= await _getMember(
@@ -573,7 +573,7 @@ final class DavCollectionHttpClient implements DavCollectionRemoteClient {
         requestUri: response.requestUri,
       );
     }
-    if (response.statusCode < 200 || response.statusCode >= 300) {
+    if (response.statusCode != 200) {
       throw _statusException(response, operation: 'fetch object');
     }
     final etag = response.etag;

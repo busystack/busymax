@@ -2,7 +2,11 @@
 
 Generic accounts use HTTP Basic authentication over validated HTTPS. Account
 URLs cannot contain credentials, fragments or query strings. Discovery resolves
-well-known at the origin and permits bounded, same-origin HTTPS redirects.
+well-known at the origin using HEAD before issuing the principal PROPFIND at
+the validated service URI. RFC 6764 HTTP 303 is resolved as retrieval, without
+replaying PROPFIND across a 303. The pinned transport enforces bounded,
+same-origin HTTPS redirects; a selected installation must contain the resolved
+service endpoint.
 Principal, home, collection and member hrefs pass the existing DAV scope checks;
 a remote href cannot grant another origin access to a credential. Nextcloud's
 certificate trust and login extensions are not inherited by generic accounts.
@@ -118,8 +122,16 @@ alone does not confirm deletion, and uncertain destructive work is not repeated.
 
 The existing XML parser, byte limits, timeouts, cancellation and response
 validation remain in force. Incomplete inventories cannot advance a complete
-sync baseline. Successful PUT responses without ETag require retrieval of the
-stored representation and authoritative validator before another edit. Narrow
+sync baseline. Calendar-multiget property-level 404, missing calendar data or
+ETag, and omitted members require safe GET reconciliation. Only a resource-level
+404 or authoritative GET 404 establishes deletion. Failed/denied/malformed GET
+retains the cache, projections, pending operations and stable cursor. Duplicate
+multiget hrefs, including identical duplicates, fail the batch before promotion;
+response order cannot decide resource existence. Cancellation is checked before
+promotion. Existing repository transactions atomically promote the complete
+batch and cursor; they do not need a schema change. Successful PUT responses
+without ETag require retrieval of the stored representation and authoritative
+validator before another edit. Narrow
 timezone comparison equivalence does not ignore unrelated properties or permit
 blind replay.
 

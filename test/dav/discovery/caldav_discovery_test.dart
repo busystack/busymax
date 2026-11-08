@@ -748,7 +748,8 @@ void main() {
     () async {
       final requests = <http.Request>[];
       final result = await _discover(requests: requests, wellKnownStatus: 200);
-      expect(requests.take(2).map((r) => r.url.path), [
+      expect(requests.take(3).map((r) => r.url.path), [
+        '/.well-known/caldav',
         '/.well-known/caldav',
         '/',
       ]);
@@ -767,6 +768,95 @@ void main() {
         isTrue,
       );
     });
+  }
+  for (final status in [301, 303, 307]) {
+    test(
+      'production discovery resolves well-known $status with HEAD before DAV',
+      () async {
+        final requests = <http.Request>[];
+        final result = await _discover(
+          requests: requests,
+          wellKnownRedirectPath: '/dav/',
+          wellKnownRedirectStatus: status,
+        );
+        expect(requests.take(3).map((r) => (r.method, r.url.path)), [
+          ('HEAD', '/.well-known/caldav'),
+          ('HEAD', '/dav/'),
+          ('PROPFIND', '/dav/'),
+        ]);
+        expect(result.service.canonicalServiceUri.path, '/dav/');
+        expect(result.service.principalHref.path, '/principal/user/');
+        expect(result.service.calendarHomeHref.path, '/home/');
+        expect(result.collections.single.hrefKey, '/home/team%2Fwork/');
+      },
+    );
+  }
+  test('production discovery follows multiple retrieval redirects inside installation', () async {
+    final requests = <http.Request>[];
+    final result = await _discover(
+      server: 'https://example.test/team/',
+      explicitStatus: 200,
+      wellKnownRedirectPath: '/team/first/',
+      wellKnownRedirectStatus: 303,
+      redirects: {'/team/first/': (307, '../dav/')},
+      requests: requests,
+    );
+    expect(result.service.canonicalServiceUri.path, '/team/dav/');
+    expect(requests.take(5).map((r) => (r.method, r.url.path)), [
+      ('PROPFIND', '/team/'),
+      ('HEAD', '/.well-known/caldav'),
+      ('HEAD', '/team/first/'),
+      ('HEAD', '/team/dav/'),
+      ('PROPFIND', '/team/dav/'),
+    ]);
+  });
+  for (final scenario in [
+    'loop',
+    'limit',
+    'cross-origin',
+    'downgrade',
+    'missing-location',
+    'malformed-location',
+    'cancelled',
+  ]) {
+    test(
+      'production discovery rejects well-known $scenario before DAV or credential transfer',
+      () async {
+        final requests = <http.Request>[];
+        final token = DavCancellationToken();
+        final redirects = <String, (int, String?)>{
+          '/.well-known/caldav': (
+            303,
+            switch (scenario) {
+              'loop' => '/.well-known/caldav',
+              'cross-origin' => 'https://other.test/dav/',
+              'downgrade' => 'http://example.test/dav/',
+              'missing-location' => null,
+              'malformed-location' => 'https://[',
+              _ => '/hop/0',
+            },
+          ),
+          for (var i = 0; i < 7; i++) '/hop/$i': (307, '/hop/${i + 1}'),
+        };
+        await expectLater(
+          _discover(
+            requests: requests,
+            redirects: redirects,
+            cancellationToken: token,
+            onRequest: (_) {
+              if (scenario == 'cancelled') token.cancel();
+            },
+          ),
+          throwsA(isA<DavException>()),
+        );
+        expect(requests.every((r) => r.method == 'HEAD'), isTrue);
+        expect(
+          requests.every((r) => r.url.origin == 'https://example.test'),
+          isTrue,
+        );
+        expect(requests.length, lessThanOrEqualTo(6));
+      },
+    );
   }
   for (final components in ['VEVENT', 'VTODO', 'VEVENT,VTODO', 'VJOURNAL']) {
     test('respects advertised $components restrictions', () async {
@@ -855,6 +945,10 @@ Future<DavDiscoveryResult> _discover({
   int wellKnownStatus = 404,
   int? explicitStatus,
   String? wellKnownRedirectPath,
+  int wellKnownRedirectStatus = 302,
+  Map<String, (int, String?)> redirects = const {},
+  DavCancellationToken? cancellationToken,
+  void Function(http.Request)? onRequest,
   String creationMethods = 'OPTIONS, PROPFIND, REPORT, MKCALENDAR',
   bool targetCreationMethodsOnly = false,
   String serverFeatures = 'calendar-access',
@@ -875,6 +969,14 @@ Future<DavDiscoveryResult> _discover({
   );
   final client = MockClient((request) async {
     requests?.add(request);
+    onRequest?.call(request);
+    if (redirects[request.url.path] case final hop?) {
+      return http.Response(
+        '',
+        hop.$1,
+        headers: {if (hop.$2 != null) 'location': hop.$2!},
+      );
+    }
     if (latency > Duration.zero) await Future<void>.delayed(latency);
     if (request.url.path == '/team/' && explicitStatus != null) {
       return http.Response(
@@ -886,7 +988,7 @@ Future<DavDiscoveryResult> _discover({
       if (wellKnownRedirectPath != null) {
         return http.Response(
           '',
-          302,
+          wellKnownRedirectStatus,
           headers: {'location': wellKnownRedirectPath},
         );
       }
@@ -898,6 +1000,7 @@ Future<DavDiscoveryResult> _discover({
       }
       return http.Response('<html>Server home</html>', wellKnownStatus);
     }
+    if (request.method == 'HEAD') return http.Response('', 200);
     if (request.method == 'OPTIONS') {
       final collection =
           request.url.path.startsWith('/home/') && request.url.path != '/home/';
@@ -981,7 +1084,10 @@ Future<DavDiscoveryResult> _discover({
     credential: DavBasicCredential(username: 'user', password: 'secret'),
     collectionMethodCache: methodCache,
     nowUtc: now == null ? null : () => now,
-  ).discover(correlationId: 'generic-discovery');
+  ).discover(
+    correlationId: 'generic-discovery',
+    cancellationToken: cancellationToken,
+  );
 }
 
 String _response(String href, String properties) =>

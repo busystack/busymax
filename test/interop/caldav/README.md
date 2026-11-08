@@ -71,6 +71,11 @@ BUSYMAX_CALDAV_LIVE=1 BUSYMAX_CALDAV_LIFECYCLE=1 \
 flutter test test/dav/busystack_live_integration_test.dart \
   --plain-name 'strict Depth, real 507 pages' --reporter expanded
 
+# Labelled gateway fault injection over all three unmodified live servers.
+# Property-only multiget 404 with real GET 200/404, injected GET denial/network
+# failure, DB reopening and independent readback; injected HEAD 303 discovery.
+BUSYMAX_CALDAV_LIVE=1 flutter test test/dav/caldav_reconciliation_live_test.dart --reporter expanded
+
 # Actual Linux settings and editors, with independent server readback.
 BUSYMAX_CALDAV_NATIVE=1 \
 BUSYMAX_CALDAV_FIXTURE_DIR="$PWD/test/interop/caldav/.runtime" \

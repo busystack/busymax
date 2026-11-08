@@ -8,6 +8,102 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  for (final scenario in [
+    'resource404',
+    'property404',
+    'missing-data',
+    'missing-etag',
+    'omitted',
+    'identical-duplicate',
+    'contradictory-duplicate',
+  ]) {
+    test('multiget $scenario uses only authoritative resource evidence', () async {
+      final authority = Uri.parse('https://cal.example.test/');
+      final profile = davProviderProfile(
+        BusyProvider.caldav,
+        caldavServer: authority,
+      );
+      final methods = <String>[];
+      final live =
+          '<d:response><d:href>a.ics</d:href><d:propstat><d:prop>'
+          '<d:getetag>"a2"</d:getetag><c:calendar-data>complete calendar</c:calendar-data>'
+          '</d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>';
+      const missing =
+          '<d:response><d:href>a.ics</d:href><d:status>HTTP/1.1 404 Not Found</d:status></d:response>';
+      final client = MockClient((request) async {
+        methods.add(request.method);
+        if (request.method == 'GET') {
+          return http.Response(
+            'retrieved calendar',
+            200,
+            headers: {'etag': '"a3"'},
+          );
+        }
+        final content = switch (scenario) {
+          'resource404' => missing,
+          'property404' => live.replaceFirst('200 OK', '404 Not Found'),
+          'missing-data' => live.replaceFirst(
+            '<c:calendar-data>complete calendar</c:calendar-data>',
+            '',
+          ),
+          'missing-etag' => live.replaceFirst(
+            '<d:getetag>"a2"</d:getetag>',
+            '',
+          ),
+          'omitted' => '',
+          'identical-duplicate' => live + live,
+          _ => missing + live,
+        };
+        return http.Response(
+          '<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">$content</d:multistatus>',
+          207,
+        );
+      });
+      addTearDown(client.close);
+      final result =
+          DavCollectionHttpClient(
+            transport: DavHttpTransport(
+              client: client,
+              profile: profile,
+              accountAuthority: authority,
+            ),
+            profile: profile,
+            accountAuthority: authority,
+            accountId: 'a',
+            collectionId: 'c',
+            collectionUri: authority.resolve('/work/'),
+            credential: DavBasicCredential(
+              username: 'qa',
+              password: 'synthetic',
+            ),
+          ).fetchMembers(
+            [
+              DavRemoteMember(
+                hrefKey: '/work/a.ics',
+                requestUri: authority.resolve('/work/a.ics'),
+                etag: '"a2"',
+              ),
+            ],
+            correlationId: 'multiget',
+            useCalendarMultiget: true,
+          );
+      if (scenario.endsWith('duplicate')) {
+        await expectLater(result, throwsA(isA<DavException>()));
+        expect(methods, ['REPORT']);
+      } else {
+        final member = (await result).single;
+        expect(member.missing, scenario == 'resource404');
+        expect(
+          member.rawIcsBody,
+          scenario == 'resource404' ? null : 'retrieved calendar',
+        );
+        expect(
+          methods,
+          scenario == 'resource404' ? ['REPORT'] : ['REPORT', 'GET'],
+        );
+      }
+    });
+  }
   for (final limit in [null, 17]) {
     test('sync-collection uses RFC 6578 Depth: 0', () async {
       final authority = Uri.parse('https://cloud.example.test/nextcloud');

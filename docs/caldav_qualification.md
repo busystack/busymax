@@ -1,10 +1,224 @@
 # Generic CalDAV qualification
 
 BusyMax qualifies the following implementations for the workflows below, not
-universal CalDAV conformance. Results were recorded on 2026-11-02–03. This
-record distinguishes deterministic regression coverage, real-server protocol
+universal CalDAV conformance. Initial results were recorded on 2026-11-02–03;
+dated follow-ups below identify subsequent executions. This record
+distinguishes deterministic regression coverage, real-server protocol
 checks, native application checks and build validation. Documentation cleanup
 does not constitute a new execution of these checks.
+
+## 2026-11-07 remaining-corrections qualification
+
+This run began with a clean `release/v0.4.0` at
+`2c0d1e82007ec9586f167868117c4e647e756ada`, matching the reviewed PR head.
+The changes below are **uncommitted**. No commit, push, merge, tag, publication
+or PR-state change is authorized or performed. PR #38 remains draft. Existing
+A1–A7 work, creation policy and HTTP 405/Allow handling are retained. Version
+0.4.0, Android versionCode 8, schema 25 and all dependency pins are unchanged.
+The earlier evidence and failures below remain historical evidence.
+
+### Corrected source and fixture defects
+
+- **Ambiguous multiget:** `dav_collection_remote_client.dart` previously promoted
+  all-property-404 responses to resource deletion. [RFC 4918 section 13](https://www.rfc-editor.org/rfc/rfc4918.html#section-13)
+  does not give property status that meaning. Property-only 404, missing calendar data or
+  ETag and omitted responses now use the existing bounded safe GET. Only an
+  authoritative resource 404 establishes deletion; GET denial, failure or
+  malformed data fails synchronization. All duplicate hrefs, even identical
+  copies, reject the batch before reconciliation; later responses cannot
+  overwrite earlier evidence. `dav_sync_engine.dart` additionally validates
+  fetched identities and checks cancellation before promotion. Inspection of
+  `dav_object_repository.dart` confirmed that its existing transaction already
+  promotes objects, projections and the stable cursor atomically; no storage or
+  schema redesign was needed. This preserves [calendar-multiget resource/property
+  status semantics](https://www.rfc-editor.org/rfc/rfc4791.html#section-7.9) and
+  [WebDAV synchronization baselines](https://www.rfc-editor.org/rfc/rfc6578.html).
+- **Well-known 303:** generic `dav_discovery_service.dart` resolves the endpoint
+  with HEAD through the actual pinned DAV transport before principal PROPFIND.
+  The transport's operational 303 rejection is unchanged. Same-origin HTTPS,
+  redirect bounds/loops, cancellation and the selected installation boundary
+  remain enforced; credentials are not transferred to another authority.
+  Explicit endpoints, HTML fallback and supported 301/307 paths remain covered.
+  This follows [RFC 6764 bootstrapping](https://www.rfc-editor.org/rfc/rfc6764.html#section-5)
+  and [HTTP 303 retrieval semantics](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.4).
+- **Windows SQLite fixtures:** the five PROPFIND persistence tests registered
+  directory deletion with `addTearDown`, which precedes regular `tearDown` and
+  therefore the reopened connection's close. The regular teardown now owns
+  closure of the current connection followed by awaited directory removal and
+  absence assertion. The established persistence-directory helper is used.
+  [Flutter documents this callback order](https://api.flutter.dev/flutter/flutter_test/addTearDown.html).
+  Linux execution verifies the assertions; actual Windows execution of these
+  five Flutter tests remains an open gate.
+- **Windows connection reuse:** an actual Windows x64 comparison using official
+  Dart 3.13.4, the unchanged BusyMax implementation and pinned package:http 1.6.0
+  reproduced the original two-request/100 ms response/50 ms connection-deadline
+  flow. With the default unlimited connection policy, the single-socket
+  assertion failed **24/30** times for BusyMax and **27/30** for plain IOClient.
+  With `maxConnectionsPerHost = 1`, each passed **30/30**. A second comparison
+  with socket-creation tracing observed **15/30**, **26/30**, **0/30**, **0/30**
+  respectively. Response body, length and persistence checks passed throughout.
+  This reproduces an assumption in the fixture, without demonstrating premature
+  BusyMax termination. Runtime idle-pool return timing is the supported
+  explanation; internal runtime event ordering was not instrumented.
+  The fixture now explicitly bounds its sequential native client to one live
+  connection while retaining the single-socket assertion and completion signal.
+  No sleep, timeout increase or production transport change was introduced.
+  Dart documents [opportunistic connection reuse](https://api.dart.dev/dart-io/HttpClient-class.html)
+  and the [unlimited default connection bound](https://api.dart.dev/dart-io/HttpClient/maxConnectionsPerHost.html).
+  The standalone comparison is Windows runtime evidence, **not** a Windows
+  Flutter-suite or installed-package pass.
+
+Regression locations are
+`test/dav/sync/dav_collection_remote_client_test.dart`,
+`test/dav/sync/dav_sync_engine_test.dart`,
+`test/dav/discovery/caldav_discovery_test.dart`, and
+`test/core/http/native_terminating_http_client_test.dart`.
+File-backed multiget cases seed events, tasks and a pending mutation, reopen the
+SQLite database after reconciliation/failure, and assert raw resources, ETags,
+server-deletion state, projections, pending rows, baseline generation and cursor.
+They cover resource 404, property 404 with GET 200/404/403/network failure,
+missing mandatory properties, omissions, identical/contradictory duplicates,
+cancellation and malformed/incomplete GET. Discovery tests execute production
+service and pinned transport for principal/home discovery, non-root and multiple
+redirects, loops/limits, cross-origin/downgrade, invalid Location, cancellation
+and explicit endpoints. These deterministic protocol responses do not establish
+that any qualified server naturally exhibits the defects.
+
+### Execution and release gates
+
+The source-file manifest (1,070 files under `lib`, `test`, `tool`, `android`,
+`linux`, `windows`, including the new live regression) has SHA-256
+`658f44ec6e602232dd256a9721fe6ee2c7919b7664a025441ccad439d7aa7511`.
+This identifies uncommitted source atop the HEAD above, not a new Git revision.
+Documentation and private execution receipts are outside this source digest.
+
+Pinned shared revisions remain:
+
+| Dependency | Revision |
+| --- | --- |
+| busystack_contacts | `af6490c55f1c4c638ea51066603eb97bf0d8e2c8` |
+| busystack_dav | `33afd70a761822847a37c7ad47f5e61dfeaa74a7` |
+| busystack_graph | `0ccf8a654a159aa453ebf322e95503972fec5e64` |
+
+| Check and maintained command | Current-run result |
+| --- | --- |
+| `flutter test test/dav/sync test/dav/discovery test/dav/trust test/core/http test/db --reporter expanded` | Final affected run: **332 passed, 2 opt-in benchmark skips**, exit 0. Includes all five persistence fixtures and the corrected native reuse fixture on Linux. |
+| `flutter test --concurrency=4 --reporter expanded` | Initial correction run: **5,201 passed, 103 skips**, exit 0. Final rerun after the reuse fixture correction: **5,201 passed, 118 skips**, exit 0. The 15 extra live-only skips passed separately in the injected live suite. |
+| `BUSYMAX_CALDAV_LIVE=1 BUSYMAX_CALDAV_LIFECYCLE=1 flutter test test/dav/caldav_live_integration_test.dart --reporter expanded` | **59 passed**, exit 0, all three pinned servers with application collection provisioning and independent readback. The first run overlapped the beginning of Android packaging. The final sequential rerun also passed **59/59, exit 0**, with no concurrent native build or full suite. |
+| Same live opt-ins, `test/dav/busystack_live_integration_test.dart` | **6 passed**, exit 0, including strict Depth/507 pages, restart, permission changes and durable recovery. |
+| `BUSYMAX_CALDAV_LIVE=1 flutter test test/dav/caldav_release_edges_live_test.dart --reporter expanded` | **5 passed**, exit 0. |
+| Same opt-in, `test/dav/caldav_scheduling_live_test.dart` | **2 passed, 1 skipped**, exit 0. Client VTODO consent/storage and VEVENT REQUEST delivery passed; no initial VTODO inbox REQUEST was demonstrated. |
+| Same opt-in, `test/dav/caldav_reconciliation_live_test.dart` | **15 passed**, exit 0. Identified gateway injection of property-only 404 and well-known HEAD 303 over all three actual servers; real GET 200/404, injected GET 403/network failure, database reopen and independent readback. This does not attribute injected behavior to the unmodified servers. |
+| `flutter analyze`; `dart run tool/check_platform_boundaries.dart`; `dart format --output=none --set-exit-if-changed .` | Final complete analysis and platform boundaries passed; formatting checked **872 files, zero changes**; repository hygiene and `git diff --check` passed. |
+| `flutter pub get --enforce-lockfile`; generated snapshot, `flutter gen-l10n`, `dart run build_runner build --delete-conflicting-outputs --force-jit`, snapshot verify | Locked resolution passed; localization and Drift outputs are reproducible and unchanged. Database migrations/recovery are included in the affected and full suites. |
+| SDK verifier; `python3 tool/verify_upstream_packages.py`; `python3 -m unittest discover -s tool -p test_upstream_packages.py` | Official Flutter 3.47.5 / bundled Dart 3.13.4; **1,171 SDK files**, **8 reviewed upstream packages** verified; **29 checker tests** passed. Shared heads match the unchanged manifest; unrelated sibling IDE metadata was left untouched rather than resetting those working trees. |
+| `python3 tool/check_repository_hygiene.py`; workflow-pinned gitleaks container `git --log-opts=--all --redact --config .gitleaks.toml` | Hygiene passed; **284 reachable commits scanned, no leaks**. A supplementary current public-source directory scan also passed from the repository root. Its first absolute-path invocation produced 64 checksum/curve false positives because it missed the existing repository-relative path allowlists (62 dependency hashes, 2 named-curve checks); rules were unchanged. Private receipts and credentials remain outside public Git. |
+| `python3 -m unittest discover -s test/tool -p '*_test.py'` | **81 passed**, exit 0. |
+| `bash tool/release/check_linux_native.sh`; registration-reader CMake/build/CTest commands from Linux CI | Native checks and **1 CTest** passed. Initial native run stopped because `xvfb-run` was absent; a rerun used official unmodified Ubuntu xvfb/xauth packages extracted into private QA storage, without changing system packages. |
+| Isolated XDG profile, `BUSYMAX_CALDAV_NATIVE=1 ... xvfb-run -a flutter test integration_test/caldav_workflows_test.dart -d linux --reporter expanded` | **3 passed**, exit 0, real native settings/editors and independent readback on all three servers. Fixture database/secrets do not qualify normal-package secure storage. |
+| Same isolated native session, `integration_test/nextcloud_private_tls_linux_test.dart` | **51 passed**, exit 0. Dedicated Nextcloud private trust, authorization, cancellation and ordinary HTTPS coverage retained. |
+| `xvfb-run -a flutter test integration_test/gtk_header_icons_integration_test.dart -d linux --reporter expanded` | **1 passed**, exit 0. |
+| `android/gradlew --project-dir android :busymax_android_platform:testDebugUnitTest :app:lintDebug` | **BUILD SUCCESSFUL**, exit 0. API 37/Build Tools 37 prerequisites passed. |
+| `tool/android/build_release.sh --all --test-signing --allow-unconfigured-providers`; `BUNDLETOOL_JAR=... tool/android/inspect_artifacts.sh` | Fresh APK/AAB built and inspected, including native 16 KiB LOAD alignment, AAB `PAGE_ALIGNMENT_16K`, retained notification drawable, permissions and signing certificate. First inspection reported missing bundletool input; the complete rerun with the existing official jar passed. Explicitly **test-signed and unconfigured**, not production distribution artifacts. |
+
+Android package identity is `io.busystack.busymax`, version `0.4.0`, code `8`,
+compile/target API `37`. Current APK SHA-256:
+`c6a235967d9263965b373594cc3134b3ee735ffc605907c0bcffa01e635cfb93`.
+Current AAB SHA-256:
+`7c7957e71cf6217fc1de6fed2d3beafada844adb10b3ab26e7126b6c4a7798d6`.
+
+No Android device remains attached. A fresh task-owned AVD used the installed
+official API-37 Google APIs x64 image. Although `emulator -accel-check` reported
+KVM usable, actual boot failed with `KVM: entry failed, hardware error 0x80000021`
+and exit 139 before ADB was available. No software-rendering timeout extension,
+platform restriction change or existing-VM shutdown was attempted. The owned AVD
+was removed. Existing API-29 results are retained, but API-37 local-network
+permission/interface acceptance and normal-package secure-storage/account
+workflows remain open. The installed host Snap is 0.3.2 and was not used as
+current-candidate acceptance; the fresh 0.4.0 package checks are recorded below.
+Windows has no prepared Flutter toolchain; official pinned Flutter archive and
+release-manifest retrieval returned HTTP 404 from this environment. The official
+Dart 3.13.4 diagnostic runtime was downloaded with matching upstream SHA-256 and
+removed from the QA guest after comparison. Windows Flutter fixtures/full suite,
+release builds, native C++ tests, MSIX and installed runtime acceptance remain
+open; standalone Dart evidence cannot close them.
+
+Production Android prerequisite checks independently report missing public
+provider configuration and missing `android/key.properties`. Existing desktop
+local public settings alone fail the production validator: required managed
+Google Desktop client ID/secret/project and product privacy-policy configuration
+are not supplied in that file. No production registrations, signing credentials
+or Windows Store identity were invented or certified. Actual VTODO scheduling
+delivery still needs a suitable unmodified scheduling-capable server.
+
+All skipped live/provider/benchmark tests remain unqualified. Baseline CI does
+not qualify the uncommitted candidate. The normal
+Linux release build (`flutter build linux --release -t lib/main_linux.dart`)
+passed with an unconfigured normal entry point. Its staged `libapp.so` matches
+the new release bundle (SHA-256
+`78ab9216265e4ee72860093459ae0d9d1e8b0a7d024cfeab3d6fe3ca1eaa31ba`);
+no fixture certificates or integration-test assets were found in its asset
+payload. Runner executable SHA-256:
+`00652942bf6fce3b4580788eb99e3a3c614196cc0b201625993b02a232c2eac9`.
+
+The unchanged Snapcraft recipe was copied with this fresh bundle into new
+private staging. `snapcraft pack --use-lxd` failed before packaging because
+the shared LXD storage pool was unavailable. Shared infrastructure was left
+untouched. A separate task-owned Ubuntu 24.04 LXD project, pool and bridge then
+built the same staged recipe using the official unmodified Snapcraft 9.2.1,
+revision 19387, with `snapcraft pack --destructive-mode` inside its disposable
+container. An initial output path outside the project was rejected; selecting
+an output directory inside that project corrected the invocation. Packaging
+passed with all linters enabled. Nonfatal unused-library warnings were retained
+for the dynamic registration reader, colord, dconf and gweather libraries.
+
+The resulting `busymax_0.4.0_amd64.snap` is version 0.4.0, core24, **strict**,
+grade **devel**, unconfigured and locally installed with `--dangerous`; it is
+not a production-configured or Store-signed artifact. SHA-256:
+`6925d8526b091486ea491d6e352b1308978ca94458fda3f7033ed4ff23aeb7c0`.
+Its extracted `libapp.so` matches the fresh normal release bundle above.
+
+### Normal strict-Snap native acceptance
+
+The exact new package was installed only in the disposable Ubuntu environment.
+The normal entry point ran under `snap.busymax.busymax (enforce)` with a fresh
+user/profile, X11/Xvfb, session D-Bus, normal GNOME Keyring and portal services.
+No injected database, secret backend, fixture assets or custom app TLS provider
+was used. A labeled HTTPS gateway forwarded DAV to unmodified Radicale; its QA
+root was installed only in the disposable operating system's trust store.
+An initially incomplete QA-root key-usage extension was corrected after the
+independent strict verifier rejected it; no certificate validation was disabled.
+
+| Actual normal-package workflow | Result and evidence scope |
+| --- | --- |
+| CalDAV onboarding and synchronization | Passed through normal account UI and platform TLS/secure storage; principal/home inventory and existing tasks loaded. |
+| Native collection administration | Created a calendar and task list through the approved creation flow. Both creation journals committed; independent PROPFIND confirmed them. Deleted only these owned collections through native confirmation dialogs; independent readback returned 404, local collections were tombstoned and no pending mutations remained. |
+| Native editors | Created and edited an event, and created a task in the owned list. Independent GET verified exact titles, UIDs and authoritative ETags. GUI automation waited for complete rendered input before submission; an earlier premature input submission was corrected through the editor. |
+| Secure storage, forced restart and offline recovery | Stopped the QA gateway, created an offline task, observed the durable pending row, then killed only the owned app process. Restarted the same normal Snap without plaintext onboarding inputs. Account and projection survived; pending ID, reserved member URI, UID and mutation payload matched before/after reopening; stable cursors and baseline generations did not advance offline. After gateway restoration, synchronization drained the queue and independent GET found exactly one task with the reserved identity. The local draft projection became one canonical projection after acknowledgement. |
+| Rejection feedback | A naturally denied PROPPATCH on the existing QA property-locked collection produced visible permission feedback. Local state and independent PROPFIND retained its authoritative title; no pending operation remained. |
+| Nextcloud private-certificate review | An explicitly untrusted self-signed TLS fixture displayed the expected authority, validity and independently computed fingerprint in the dedicated Nextcloud review. Reject created no account; retry required review again. The approval action was exercised. This fixture fronts Radicale, so it does **not** qualify live Nextcloud login or a successfully persisted Nextcloud account. Generic CalDAV at the same untrusted authority failed without an exception-review path or a new account. |
+| Profile cleanup | Normal account removal completed, leaving zero accounts, pending operations, event projections or tasks. The owned gateway, user profile, container, failed verifier VM, project, pool and bridge were removed after private evidence capture. The host's older Snap and shared LXD infrastructure were untouched. |
+
+These are scripted normal-package GUI checks in an enforced Ubuntu container,
+not physical desktop or Wayland acceptance. The maintained fresh-VM command,
+`bash tool/release/verify_snap_runtime.sh <exact-snap> <evidence-path>`, was also
+attempted in the task-owned project. Its VM stopped before cloud-init with
+`KVM: entry failed, hardware error 0x0` and a QEMU assertion; the verifier exited
+1 and produced no passing receipt. This fresh-VM/X11/Wayland gate remains open,
+as do live Nextcloud sign-in and the other platform gates above. No timeout,
+runtime, virtualization tool or platform restriction was modified to obtain a
+pass. Private screenshots, readbacks, repository snapshots and execution logs
+are retained outside public Git.
+
+The baseline commit's verified workflow identities are
+[Linux 42433201277](https://github.com/busystack/busymax/actions/runs/42433201277)
+(success),
+[Android 42433201276](https://github.com/busystack/busymax/actions/runs/42433201276)
+(success), and
+[Windows 42433201308](https://github.com/busystack/busymax/actions/runs/42433201308)
+(failed at Flutter tests; release builds/native C++/MSIX steps skipped).
+All three exact-final-revision CI gates remain open until a separately authorized
+commit/push and successful workflows on that same revision.
 
 ## 2026-11-07 HTTP 405 method-evidence follow-up
 

@@ -641,34 +641,22 @@ final class DavDiscoveryService {
         ? {bootstrap}
         : {davWellKnownUri(_profile), bootstrap};
     for (final uri in candidates) {
-      var response = await _transport.send(
-        DavRequest.xml(
-          method: 'PROPFIND',
-          uri: uri,
-          accountId: _accountId,
-          correlationId: correlationId,
-          headers: const {'Depth': '0'},
-          body: _currentPrincipalPropfind,
-          redirectPolicy: DavRedirectPolicy.discovery,
-        ),
-        credential: _credential,
-        cancellationToken: cancellationToken,
-      );
+      var response = uri == davWellKnownUri(_profile)
+          ? await _wellKnownPrincipal(correlationId, cancellationToken)
+          : await _propfind(
+              uri: uri,
+              depth: '0',
+              body: _currentPrincipalPropfind,
+              requireMultistatus: false,
+              correlationId: correlationId,
+              cancellationToken: cancellationToken,
+            );
       if (bootstrap.path.isNotEmpty &&
           bootstrap.path != '/' &&
           response.statusCode == 200) {
-        final located = await _transport.send(
-          DavRequest.xml(
-            method: 'PROPFIND',
-            uri: davWellKnownUri(_profile),
-            accountId: _accountId,
-            correlationId: correlationId,
-            headers: const {'Depth': '0'},
-            body: _currentPrincipalPropfind,
-            redirectPolicy: DavRedirectPolicy.discovery,
-          ),
-          credential: _credential,
-          cancellationToken: cancellationToken,
+        final located = await _wellKnownPrincipal(
+          correlationId,
+          cancellationToken,
         );
         if (located.requestUri.origin == bootstrap.origin &&
             located.requestUri.path.startsWith(
@@ -716,12 +704,58 @@ final class DavDiscoveryService {
     throw _incompleteInventory();
   }
 
+  /// RFC 6764 bootstrapping resolves the service with a retrieval request.
+  /// In particular a 303 is never a reason to replay PROPFIND. The pinned
+  /// transport owns HTTPS/origin validation, bounds, loops and cancellation.
+  Future<DavResponse> _wellKnownPrincipal(
+    String correlationId,
+    DavCancellationToken? cancellationToken,
+  ) async {
+    final response = await _transport.send(
+      DavRequest(
+        method: 'HEAD',
+        uri: davWellKnownUri(_profile),
+        accountId: _accountId,
+        correlationId: correlationId,
+        retryClass: DavRetryClass.safeRead,
+        redirectPolicy: DavRedirectPolicy.discovery,
+      ),
+      credential: _credential,
+      cancellationToken: cancellationToken,
+    );
+    final bootstrap = _profile.bootstrapUri;
+    final endpoint = response.requestUri;
+    if (bootstrap.path.isNotEmpty &&
+        bootstrap.path != '/' &&
+        endpoint.path != bootstrap.path &&
+        !endpoint.path.startsWith(davCollectionUri(bootstrap).path)) {
+      throw DavException(
+        kind: DavErrorKind.redirectRejected,
+        code: 'DavDiscoveryInstallationRedirectRejected',
+        safeMessage: 'The DAV service is outside the selected installation.',
+        correlationId: correlationId,
+      );
+    }
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      if (response.statusCode != 405) return response;
+    }
+    return _propfind(
+      uri: endpoint,
+      depth: '0',
+      body: _currentPrincipalPropfind,
+      requireMultistatus: false,
+      correlationId: correlationId,
+      cancellationToken: cancellationToken,
+    );
+  }
+
   Future<DavResponse> _propfind({
     required Uri uri,
     required String depth,
     required String body,
     required String correlationId,
     required DavCancellationToken? cancellationToken,
+    bool requireMultistatus = true,
   }) async {
     final response = await _transport.send(
       DavRequest.xml(
@@ -736,7 +770,7 @@ final class DavDiscoveryService {
       credential: _credential,
       cancellationToken: cancellationToken,
     );
-    _requireMultistatus(response);
+    if (requireMultistatus) _requireMultistatus(response);
     return response;
   }
 

@@ -174,6 +174,18 @@ built APK's ID, retain data for process-restart tests, and explicitly uninstall
 only the QA package created by the current task. Never install over a normal
 BusyMax profile or clear its data.
 
+### Native HTTP reuse regression
+
+The slow-response reuse fixture in
+`test/core/http/native_terminating_http_client_test.dart` explicitly sets
+`HttpClient.maxConnectionsPerHost = 1`. The default is unlimited; completion of
+one response does not promise that its socket is already available to an
+immediately dispatched request. Dart 3.13.4 Windows comparison runs reproduced
+multiple sockets with both BusyMax and plain IOClient. Bounding this sequential
+fixture preserves its single-socket assertion, completion/termination check and
+separate connection deadline without relying on native idle-pool timing. See the
+[qualification record](caldav_qualification.md) for the Windows evidence scope.
+
 ## Validation
 
 After the shared preparation sequence, run the normal offline checks:

@@ -20,10 +20,13 @@ import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../support/persistence_test_directory.dart';
+
 void main() {
   late AppDatabase database;
   late DavObjectRepository repository;
   var nextId = 0;
+  Directory? fixtureDirectory;
 
   setUp(() async {
     database = AppDatabase(NativeDatabase.memory());
@@ -33,7 +36,226 @@ void main() {
     );
   });
 
-  tearDown(() => database.close());
+  tearDown(() async {
+    // Own the currently open connection, including replacements after reopening.
+    // addTearDown runs before regular tearDown, so directory removal belongs here.
+    await database.close();
+    final directory = fixtureDirectory;
+    fixtureDirectory = null;
+    if (directory != null) {
+      await directory.delete(recursive: true);
+      expect(await directory.exists(), isFalse);
+    }
+  });
+
+  for (final scenario in [
+    'resource404',
+    'property404-get200',
+    'property404-get404',
+    'property404-get403',
+    'property404-network',
+    'missing-data',
+    'missing-etag',
+    'omitted',
+    'identical-duplicate',
+    'contradictory-duplicate',
+    'cancelled',
+    'malformed-get',
+    'get-without-etag',
+  ]) {
+    test('multiget $scenario preserves durable state unless reconciled', () async {
+      await database.close();
+      final directory = await createPersistenceTestDirectory(
+        'busymax-multiget-',
+      );
+      fixtureDirectory = directory;
+      final file = File('${directory.path}/fixture.sqlite');
+      database = AppDatabase(NativeDatabase(file));
+      repository = DavObjectRepository(database: database);
+      await _seedCollection(database, syncCollection: true);
+      await _runInitial(database, repository, {
+        'event.ics': ('"e1"', _event('event', 'Cached event')),
+        'task.ics': (
+          '"t1"',
+          _event(
+            'task',
+            'Cached task',
+          ).replaceAll('VEVENT', 'VTODO').replaceAll('DTEND', 'DUE'),
+        ),
+      }, token: 'urn:stable');
+      final object = (await repository.liveObjects('collection'))
+          .singleWhere((o) => o.hrefKey.endsWith('/task.ics'));
+      await DavPendingOperationQueue(database: database).enqueueUpdate(
+        accountId: 'account',
+        collectionId: 'collection',
+        objectId: object.id,
+        patch: DavMutationPatch(
+          target: IcalComponentKey(
+            componentType: 'VTODO',
+            uid: object.primaryUid!,
+          ),
+          scope: DavMutationScope.object,
+          operations: [DavPatchOperation.setText('SUMMARY', 'Pending edit')],
+        ),
+      );
+      final before = <String, List<Map<String, Object?>>>{};
+      for (final table in [
+        'dav_objects',
+        'calendar_events',
+        'tasks',
+        'pending_ops',
+      ]) {
+        before[table] =
+            (await database
+                    .customSelect('SELECT * FROM $table ORDER BY id')
+                    .get())
+                .map((r) => r.data)
+                .toList();
+      }
+      final token = DavCancellationToken();
+      final requests = <String>[];
+      final live =
+          '<d:response><d:href>${_href('event.ics')}</d:href>'
+          '<d:propstat><d:prop><d:getetag>"e2"</d:getetag>'
+          '<c:calendar-data>${_event('event', 'Updated event')}</c:calendar-data>'
+          '</d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>';
+      final missing =
+          '<d:response><d:href>${_href('event.ics')}</d:href>'
+          '<d:status>HTTP/1.1 404 Not Found</d:status></d:response>';
+      final property404 =
+          '<d:response><d:href>${_href('event.ics')}</d:href>'
+          '<d:propstat><d:prop><d:getetag/><c:calendar-data/></d:prop>'
+          '<d:status>HTTP/1.1 404 Not Found</d:status></d:propstat></d:response>';
+      final client = MockClient((request) async {
+        requests.add(request.method);
+        if (request.method == 'GET') {
+          if (scenario == 'cancelled') token.cancel();
+          if (scenario == 'property404-network') {
+            throw http.ClientException('synthetic network failure');
+          }
+          if (scenario == 'property404-get403') return http.Response('', 403);
+          if (scenario == 'property404-get404') return http.Response('', 404);
+          return http.Response(
+            scenario == 'malformed-get'
+                ? 'not a calendar'
+                : _event('event', 'Updated event'),
+            200,
+            headers: {
+              if (scenario != 'get-without-etag') 'etag': '"e2"',
+              'content-type': 'text/calendar',
+            },
+          );
+        }
+        if (request.body.contains('sync-collection')) {
+          return http.Response(
+            _wireSync(_wireChanged('event.ics', '"e2"'), 'urn:next'),
+            207,
+          );
+        }
+        final contents = switch (scenario) {
+          'resource404' => missing,
+          'omitted' => '',
+          'missing-data' => live.replaceFirst(
+            RegExp(r'<c:calendar-data>[\s\S]*?</c:calendar-data>'),
+            '',
+          ),
+          'missing-etag' => live.replaceFirst(
+            '<d:getetag>"e2"</d:getetag>',
+            '',
+          ),
+          'identical-duplicate' => live + live,
+          'contradictory-duplicate' => live + missing,
+          _ => property404,
+        };
+        return http.Response(
+          '<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">$contents</d:multistatus>',
+          207,
+        );
+      });
+      addTearDown(client.close);
+      final authority = Uri.parse('https://cloud.example.test/');
+      final profile = davProviderProfile(
+        BusyProvider.nextcloud,
+        nextcloudServer: authority,
+      );
+      final remote = DavCollectionHttpClient(
+        transport: DavHttpTransport(
+          client: client,
+          profile: profile,
+          accountAuthority: authority,
+          limits: const DavTransportLimits(maximumReadAttempts: 1),
+        ),
+        profile: profile,
+        accountAuthority: authority,
+        accountId: 'account',
+        collectionId: 'collection',
+        collectionUri: authority.resolve(_href('')),
+        credential: DavBasicCredential(username: 'qa', password: 'synthetic'),
+      );
+      final resolved = [
+        'resource404',
+        'property404-get200',
+        'property404-get404',
+        'missing-data',
+        'missing-etag',
+        'omitted',
+      ].contains(scenario);
+      final run = _engine(database, repository, remote).synchronize(
+        correlationId: 'multiget-reconcile',
+        cancellationToken: token,
+      );
+      if (resolved) {
+        await run;
+      } else {
+        await expectLater(run, throwsA(isA<DavException>()));
+      }
+      await database.close();
+      database = AppDatabase(NativeDatabase(file));
+      repository = DavObjectRepository(database: database);
+      for (final table in [
+        'pending_ops',
+        'tasks',
+        if (!resolved) 'dav_objects',
+        if (!resolved) 'calendar_events',
+      ]) {
+        expect(
+          (await database
+                  .customSelect('SELECT * FROM $table ORDER BY id')
+                  .get())
+              .map((r) => r.data),
+          before[table],
+          reason: table,
+        );
+      }
+      final cursor = (await repository.cursor('collection'))!;
+      expect(cursor.cursorValue, resolved ? 'urn:next' : 'urn:stable');
+      expect(cursor.baselineGeneration, resolved ? 2 : 1);
+      expect(cursor.inProgressCursor, isNull);
+      final event = (await repository.objectByHref(
+        'collection',
+        _href('event.ics'),
+      ))!;
+      final deleted = ['resource404', 'property404-get404'].contains(scenario);
+      expect(event.serverDeleted, deleted);
+      expect(event.etag, resolved && !deleted ? '"e2"' : '"e1"');
+      expect(
+        (await database.select(database.calendarEvents).get()).map(
+          (r) => r.title,
+        ),
+        deleted ? isEmpty : [resolved ? 'Updated event' : 'Cached event'],
+      );
+      expect(
+        requests.where((m) => m == 'GET').length,
+        [
+              'resource404',
+              'identical-duplicate',
+              'contradictory-duplicate',
+            ].contains(scenario)
+            ? 0
+            : 1,
+      );
+    });
+  }
 
   for (final mode in ['initial', 'incremental', 'invalid-token rebaseline']) {
     for (final failure in [
@@ -538,10 +760,10 @@ void main() {
       'PROPFIND $invalid preserves cached events, tasks, queue and baseline across reopen',
       () async {
         await database.close();
-        final directory = await Directory.systemTemp.createTemp(
+        final directory = await createPersistenceTestDirectory(
           'busymax-inventory-',
         );
-        addTearDown(() => directory.delete(recursive: true));
+        fixtureDirectory = directory;
         final file = File('${directory.path}/fixture.sqlite');
         database = AppDatabase(NativeDatabase(file));
         repository = DavObjectRepository(database: database);

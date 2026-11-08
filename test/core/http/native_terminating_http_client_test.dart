@@ -56,7 +56,14 @@ void main() {
     });
     final client = NativeTerminatingHttpClient(
       reuseConnections: true,
-      nativeClientFactory: () => HttpClient()..findProxy = ((_) => 'DIRECT'),
+      // The default native limit is unlimited. In Dart 3.13.4 on Windows,
+      // response completion can precede return of its socket to the idle pool;
+      // an immediate next request may open another socket even with IOClient.
+      // Bound this sequential fixture to one connection so it tests reuse and
+      // termination after body completion, without relying on idle-pool timing.
+      nativeClientFactory: () => HttpClient()
+        ..findProxy = ((_) => 'DIRECT')
+        ..maxConnectionsPerHost = 1,
     );
     addTearDown(client.close);
     final uri = Uri.parse('http://127.0.0.1:${server.port}/');
