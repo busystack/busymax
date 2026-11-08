@@ -7,12 +7,250 @@ distinguishes deterministic regression coverage, real-server protocol
 checks, native application checks and build validation. Documentation cleanup
 does not constitute a new execution of these checks.
 
-## 2026-11-07 remaining-corrections qualification
+## 2026-11-08 engineering audit and release decision
+
+**Recommendation: NO-GO for production release.** The investigated implementation
+faults have focused corrections and regression evidence. Native distribution
+acceptance and CI for the new local revision are separate, still-open gates.
+Nothing was pushed, merged, tagged, published, or changed on PR #38.
+
+### Revision and scope
+
+- Clean starting BusyMax branch: `release/v0.4.0`,
+  `34d771b91e460469b7d513f1ff241dc9c822cc52`; PR #38's actual head matched it.
+- Audited implementation and final regression revision:
+  `60edc0fdadff260a2b2215bc95534dc3db24467f`. The main corrections are
+  `b8e72a57a3950ca698031eaca55cc222501bf730`, explicit coverage is
+  `9370560da5bb01eaead86f278887667535194e44`, and the final worker correction is
+  `88d5e6678505c075d6cddc75f2c5b896954f97be`; owner cancellation during pool
+  retirement is protected by `60edc0fdadff260a2b2215bc95534dc3db24467f`. The documentation-only
+  follow-up containing this record is identified by `git log -1 -- docs/caldav_qualification.md`.
+  The final delivery supplies that documentation commit's exact hash.
+- Comparison base: PR's `main` at `daee1dfc3c0a3bf24e6124d88c88ad399ab7fcdc`;
+  387 release files, 58,590 additions and 2,891 deletions were inventoried before
+  these fixes. Review concentrated on reachable application paths and their
+  maintained deterministic, persistence, security, live and native checks.
+  This is workflow qualification, not a universal CalDAV conformance certificate.
+- First-party `busystack_dav` started at
+  `33afd70a761822847a37c7ad47f5e61dfeaa74a7` and now pins
+  `ce5f75aee0477b2056bb60e928ee362949a82b23`, through its own local commits
+  `1702615b96fef73b5b928020c1c1c065012fcd9c` and
+  `ce5f75aee0477b2056bb60e928ee362949a82b23`. Its pre-existing IDE edit was
+  preserved and excluded. Contacts and Graph pins, version 0.4.0,
+  Android versionCode 8 and schema 25 are unchanged. No third-party source was modified.
+
+### Independently established findings
+
+| ID / impact | Production path, reproduction and root cause | Correction and regression evidence |
+| --- | --- | --- |
+| A / high, destructive transfer | `CalendarRepository._transferDavEventResource` journals a destination `dav.create` and dependent source delete or recurrence update. Successful replay records durable copy confirmation, then removes the create dependency. Under production `implicitScheduling=true`, a successful PUT followed by same-UID readback could bypass content comparison. The old movement fixture used the default `false`, hiding this path. Five initial regressions failed for lost alarm description, alarm, RRULE, detached exception and changed extension data; final coverage separately checks loss of the VEVENT description. | Creates with source-destruction dependents now require the existing conservative semantic comparison, including known metadata normalization. A changed UID or meaningful property loss remains an explicit conflict and retains the original and dependency. Ordinary scheduling creates retain the approved server-updated participation behavior. File-backed transfer tests reopen after an unverified successful PUT and again after durable confirmation, proving one PUT and a source DELETE only after confirmation. A normalization success case preserves alarms and detached exceptions. |
+| B / medium, synchronization availability | Batches contain up to 100 members; the application and HTTP resource budget is 16 MiB, whereas the parser limits XML to 8 MiB and text to 4 MiB. Valid members can collectively exceed text/transport budgets, or one valid member can exceed XML budgets. Previously the same REPORT would fail every attempt. | On aggregate byte/text limits only, discard the REPORT and use sequential, individually bounded GETs. All other XML/protocol errors remain fatal. Tests exercise valid large ICS payloads, both parser and transport limits, real production UTF-16 multiget, and file-backed rejection/success with cursor, projections, raw resources and queue comparisons after reopen. Existing transaction boundaries promote no batch until every fetch and parse succeeds. A real-server case on each pinned implementation uses a labelled smaller parser text budget and independent GET/ETag comparison; this qualifies recovery without claiming every server permits a 9 MiB resource. |
+| C / medium, incorrect recovery feedback | `accountCollectionCreationFailuresProvider` preferred cached activity failures, including IDs absent from loaded storage. A pending notice could survive a committed journal or override a newer rejected journal after unrelated synchronization failure. Both focused transition tests failed before correction. | Once storage loads, its complete result is authoritative, including an empty result. Activity remains only the loading fallback. Durable identities, rejection diagnostics and acknowledgments are unchanged. New transition tests and the existing UI/restart/acknowledgment and live journal tests cover feedback. |
+| D / medium, stale foreground Settings | Android's worker already emits native `dataChanged`; the foreground invalidated accounts, tasks and conflicts, but not collection/journal query state. Separate SQLite connections do not broadcast Drift updates. Both mounted-Settings event/resume tests fail on the original code. Provider recreation alone also failed the retained-query resume case. An additional worker-path regression demonstrated that a reminder refresh exception suppressed the native data-change signal after DAV work. | Notify Drift of changes to collections, creation journals and acknowledgments at the existing `dataChanged` and resume boundaries, preserving other refreshes. File-backed widget tests use two independent SQLite connections and the actual native event/lifecycle handlers. They demonstrate refreshed discovery inventory and rejected creation state without polling in production. The worker now attempts foreground notification independently while retaining its failure/retry result; both success and reminder-failure tests invoke the actual platform-channel API. Device-level worker-engine acceptance is still a separate gate. |
+| E / medium, unstable retry identity | After HTTP 412 the mutation service chose a replacement filename only in memory. Restart reconciliation still fetched the original occupied URI; the regression independently reproduced that identity mismatch. | A pre-dispatch callback transaction persists the selected member URI, create payload filename and pending draft object's URI before the replacement PUT. Failed persistence prevents dispatch. Five file-backed failpoints cover before-send, after-send, readback, projection insertion and acknowledgment deletion, reopening the DB and asserting one canonical draft identity, the replacement target and no duplicate committed PUT. These are deterministic failure injection and database-reopen tests, not a claim of OS process killing at every instruction. |
+| XML / medium, inherited first-party standards defect | Both buffered and streaming DAV parsers decoded unconditionally as UTF-8. Four UTF-16 BE/LE buffered/byte-stream cases failed. Discovery, PROPFIND and REPORT use the shared parser, so the defect is reachable in production. | Fixed in the separate first-party DAV component, with strict surrogate/odd-byte validation, split-BOM/character handling, endian-specific input, DTD/entity rejection and unchanged resource/cancellation limits. Its full suite passes 101 tests and analysis is clean. No third-party XML library changed. BusyMax's production multiget regression verifies adoption. |
+| TLS / medium, confirmed narrow renewal failure | Existing renewal tests closed the old server and constructed new clients. The requested real sequence retained a CA-approved live socket, replaced the server certificate under the same CA, let the old leaf expire and reused the client. It failed before dispatch with `NextcloudCertificateexpired`. | Retire the pool before new dispatch when a private-CA peer has expired; establish a fresh connection with a validated chain, validity period and service identity. Four real-socket cases cover renewed/unrenewed servers and ordinary/terminating HTTP. Expired unrenewed servers remain rejected before HTTP. Separate real-response tests prove that graceful retirement permits an in-flight response to finish, while owner closure still terminates retired responses. A cancellation regression in the initial implementation was reproduced and corrected before final acceptance: only actively draining retired pools remain tracked, and completion/cancellation removes them. No request replay was introduced. Exact leaf pinning and ordinary HTTPS retain existing validation. |
+
+The seven investigation targets were confirmed in the narrower forms above;
+none was accepted solely from a previous AI report. No original target was
+disproved. The TLS evidence is limited to the retained, expired peer; ordinary
+fresh-client renewal already worked. The approved ordinary scheduling-create
+flow can receive updated participation, but its UID-only acceptance cannot
+authorize destructive transfer. Server normalization is not
+itself a defect. Missing property data is not proof of resource deletion.
+
+One additional **test-fixture defect** was independently exposed: the partial
+collection-deletion live test counted tasks by title across the entire account.
+After a timed-out earlier run, two different collections contained `Partial locked`.
+Raw collection objects and independent server readback were correct. Both task
+assertions now use the fixture's collection identity. This is not a BusyMax
+cross-collection deletion bug, and no product code or server behavior was changed
+for it.
+
+### Independent implementation and standards review
+
+The actual execution paths checked include generic onboarding and secret binding,
+provider profiles and href resolution, discovery inventories, account replay and
+leases, collection administration/journals, object projection transactions,
+recurrence/timezone semantics, native notifications, and platform settings.
+Regression and live evidence substantiate the supported operations below;
+unexecuted platforms and feature extensions remain explicitly unqualified.
+
+| Requirement and authoritative reference | Implementation and evidence checked |
+| --- | --- |
+| [CalDAV RFC 4791](https://www.rfc-editor.org/rfc/rfc4791.html), sections 4.1, 5.3 and 7.9 | Complete calendar resources, strong conditional writes, UID conflicts, multiget resource versus property status, component restrictions and actual GET readback. Existing ambiguity/duplicate safeguards were retained; no property-404 deletion fallback was reintroduced. |
+| [WebDAV RFC 4918](https://www.rfc-editor.org/rfc/rfc4918.html), sections 8, 9, 13 and 19 | Href boundaries, conditional operations, partial DELETE handling, multistatus interpretation and required UTF-16 processing. Byte/text/depth/entity protections remain enforced; HTML/error responses cannot become inventory. |
+| [iCalendar RFC 5545](https://www.rfc-editor.org/rfc/rfc5545.html) and its [current update metadata](https://www.rfc-editor.org/info/rfc5545/) | Recurrence exceptions, DTSTART/DTEND and all-day semantics, embedded timezones, alarms, opaque properties, VTODO completion/recurrence and preservation during moves/imports. Existing gap-resolution and UNTIL tests align with verified errata 4271 and 4414. Later extensions, including non-Gregorian recurrence and new task extensions, were not silently added to product support. |
+| [WebDAV Sync RFC 6578](https://www.rfc-editor.org/rfc/rfc6578.html), sections 3.3, 3.6 and 3.7 | Depth 0, real 507 continuation, token loops/page bounds, invalid-token rebaseline, collection-scoped failure barriers, resource deletions and atomic cursor promotion. Oversized/rejected fetches retain the baseline. |
+| [Scheduling RFC 6638](https://www.rfc-editor.org/rfc/rfc6638.html) | Scheduling consent, Schedule-Tag/ETag policy, readback and server SCHEDULE-STATUS transformations; safe source retention for content changes. Actual VEVENT delivery is distinct from successful storage of an attendee-bearing VTODO. |
+| [Discovery RFC 6764](https://www.rfc-editor.org/rfc/rfc6764.html), sections 5–6 | Root well-known discovery, installation prefixes, same-origin HTTPS redirects including the pre-existing HEAD 303 fix, principal/home discovery and relative hrefs. Cross-origin/downgrade redirects do not acquire account credentials. No new DNS enrollment contract was added. |
+| [TLS identity RFC 9525](https://www.rfc-editor.org/rfc/rfc9525.html) | SAN/IP/wildcard checks, no CN fallback, certificate time/signature/CA constraints, owner/authority/installation binding, exact self-signed leaf pinning and private-CA isolation. Generic CalDAV still constructs the standard native client and cannot inherit Nextcloud exception approval. |
+| [XML media types RFC 7303](https://www.rfc-editor.org/rfc/rfc7303.html) | Strict XML UTF-16 decoding belongs in first-party DAV parsing; UTF-8 remains strict. Buffer and stream paths retain security/resource guards. |
+
+The current RFC Editor update relationships and errata were retrieved on
+2026-11-08. The web tool could not follow most errata redirects; direct HTTPS
+retrieval of the official RFC Editor records succeeded. Records retrieved:
+RFC 4791: 24; RFC 4918: 9; RFC 5545: 39; RFC 9525: 1; no records returned for
+6578, 6638 or 6764. Verified errata were distinguished from reported, held and
+rejected proposals. Relevant checks included 4791/1002 (privilege condition),
+1476 (namespaces), 4161/4166/4167 (VTODO alarm anchoring), 4918/1519 (href versus
+Destination semantics), 5545/3779, 4271 and 4414 (recurrence), and held editorial
+9525/8173. The updated CalDAV relationships include RFC 5689, 6638, 6764, 7809,
+7953 and 8996; these were not treated as authorization to expand supported
+components or administration. A full implementation of every optional extension
+was not claimed.
+
+Official [sabre/dav client](https://sabre.io/dav/building-a-caldav-client/),
+[scheduling](https://sabre.io/dav/scheduling/),
+[Baïkal](https://sabre.io/baikal/) and
+[Radicale](https://radicale.org/v3.html) documentation was consulted. Server
+limitations remain server observations, including Radicale's property-lock ACL
+inconsistency, Baïkal's recorded duplicate-UID behavior, and the absence of
+independently demonstrated VTODO scheduling delivery. Dart documents
+[graceful HttpClient closure](https://api.dart.dev/dart-io/HttpClient/close.html)
+and [TLS 1.2 as the default minimum](https://api.dart.dev/dart-io/SecurityContext/minimumTlsProtocolVersion.html).
+The corrected foreground notification follows Drift's
+[manual table-update API](https://drift.simonbinder.eu/dart_api/streams/).
+Android worker scheduling was checked against the official
+[WorkManager documentation](https://developer.android.com/develop/background-work/background-tasks/persistent/getting-started/define-work).
+
+### Exact changed-file inventory
+
+BusyMax production:
+`lib/src/features/calendar/data/calendar_repository.dart` was traced but did
+not require modification. Changes are limited to:
+
+- `lib/src/dav/mutation/dav_conditional_mutation_service.dart`: transfer content
+  requirement and awaited target reservation hook.
+- `lib/src/dav/mutation/dav_pending_operations.dart`: recognize destructive
+  dependents; transactionally reserve dispatch and pending-draft identities.
+- `lib/src/dav/sync/dav_collection_remote_client.dart`: bounded sequential GET
+  recovery for oversized aggregate XML only.
+- `lib/src/app/app_bootstrap.dart`: authoritative persisted notice precedence.
+- `lib/src/android/android_app.dart`: external table-update notification on the
+  existing event/resume boundaries; `lib/src/android/android_background.dart`:
+  publish foreground changes even when reminder reconciliation fails.
+- `lib/src/dav/trust/nextcloud_http_client_factory.dart` and
+  `lib/src/core/http/native_terminating_http_client.dart`: gracefully retire
+  obsolete private-CA pools before validated fresh dispatch.
+- `tool/shared_dependencies.json`: pin the independently tested DAV correction.
+
+Regression changes:
+`test/dav/mutation/caldav_event_movement_test.dart`,
+`test/dav/mutation/dav_conditional_mutation_service_test.dart`,
+`test/dav/mutation/dav_pending_operations_test.dart`,
+`test/dav/sync/dav_collection_remote_client_test.dart`,
+`test/dav/sync/dav_sync_engine_test.dart`,
+`test/dav/trust/nextcloud_private_tls_test.dart`,
+`test/core/http/native_terminating_http_client_test.dart`,
+`test/features/settings/presentation/account_collection_creation_feedback_test.dart`,
+`test/platform/android/android_adaptive_app_test.dart`,
+`test/platform/android/android_runtime_lifecycle_test.dart`,
+`test/dav/caldav_reconciliation_live_test.dart` and
+`test/dav/caldav_release_edges_live_test.dart`.
+This qualification record is the sole documentation change.
+
+First-party DAV changes, in its own repository:
+`lib/src/xml/dav_xml.dart`, `lib/src/xml/dav_stream_parser.dart`,
+new `lib/src/xml/dav_xml_encoding.dart`,
+`test/xml_contract_test.dart`, new `test/xml_encoding_test.dart`, and
+`CHANGELOG.md`.
+
+### Executed verification and remaining acceptance gates
+
+The final full-suite and release-build revision is
+`60edc0fdadff260a2b2215bc95534dc3db24467f`; only this report changes afterward.
+The live mutation/synchronization/discovery implementations and DAV pin are
+unchanged since the executed live runs. Android notification and native pool
+follow-ups were checked separately and in the final suite. Intermediate
+5223/5227-test passes and intentionally interrupted follow-up runs are not
+substituted for the final result below.
+
+| Executed check / maintained command | Independently observed outcome |
+| --- | --- |
+| `flutter test --concurrency=4 --reporter expanded` | **5,232 passed, 121 skipped, 0 failed, exit 0** on final source. Skips remain opt-in live/provider/benchmark gaps, not passes. |
+| Focused mutation/sync/feedback, file-backed recovery and Android lifecycle checks | All final cases pass within the complete suite. Separate final checks: **68** movement/remote-client cases, **5** collision failpoints, **15** worker lifecycle cases; TLS/HTTP **93 passed, 2 opt-in skips**. Initial failing regressions are described with their findings above. |
+| `flutter test test/db --reporter expanded` | **36 passed**, including actual schema upgrades, interruption rollback and bounded database contention. No schema change was introduced. |
+| First-party DAV: bundled `dart test`; `dart analyze`; formatting | **101 passed, 0 failed**; analysis clean. Contacts consumer's own suite: **119 passed**. |
+| `BUSYMAX_CALDAV_LIVE=1 BUSYMAX_CALDAV_LIFECYCLE=1 flutter test test/dav/caldav_live_integration_test.dart --reporter expanded` | Complete final three-server run: **59 passed**. Initial run: 57 passed/2 rejected authentications; both were the expired disposable BusyStack `bob` credential. Supported MFA issuance corrected the fixture, then all 59 passed unchanged. |
+| `test/dav/busystack_live_integration_test.dart`, same opt-ins | **6 distinct cases passed across executions**. Five passed in the combined additional run; the old lifecycle account returned 401. A fresh disposable account was provisioned through supported administration/MFA; the isolated revocation/expiry/disabling case passed, **1/1, exit 0**. This is not described as one new 6/6 invocation. |
+| `BUSYMAX_CALDAV_LIVE=1 flutter test test/dav/caldav_reconciliation_live_test.dart --reporter expanded` | **18 passed**: three actual-server aggregate-budget cases plus the 15 existing labelled gateway reconciliation/discovery cases. Each uses independent remote readback; injected gateway behavior is not attributed to upstream servers. |
+| Same opt-in, `test/dav/caldav_release_edges_live_test.dart` | Final isolated run after the collection-scoping fixture correction: **5 passed, exit 0**. The initial combined run had one timeout while the full suite was active; the first isolated attempt exposed the unrelated-collection title count, which was fixed only in the fixture. |
+| Same opt-in, `test/dav/caldav_scheduling_live_test.dart` | Isolated unchanged rerun: **2 passed, 1 skipped, exit 0**. VTODO consent/storage and real VEVENT inbox REQUEST passed. VTODO inbox REQUEST was not demonstrated and remains unqualified. The initial concurrent run timed out in the consent case; no deadline or product code was changed to obtain the isolated pass. |
+| `flutter analyze`; `dart format --output=none --set-exit-if-changed .`; platform-boundary and hygiene tools | Clean analysis; **872 files, zero formatting changes**; boundary, tracked-text hygiene and `git diff --check` pass. |
+| Locked Pub resolution; generated-source snapshot, `flutter gen-l10n`, `dart run build_runner build --delete-conflicting-outputs --force-jit`, snapshot verify | Locked resolution succeeds; localization/Drift output reproduces the reviewed source unchanged. The generator reports that its deprecated delete-conflicting-outputs flag is ignored; no generated drift was accepted. |
+| SDK verifier; upstream checker; checker tests | Official Flutter **3.47.5**, bundled Dart **3.13.4**. **1,171 SDK files and 8 upstream packages** verify unchanged; **29** checker tests pass. |
+| `python3 -m unittest discover -s test/tool -p '*_test.py'` | **81 passed**. |
+| Workflow-pinned gitleaks Git-history scans | BusyMax and the separate first-party DAV histories have **no detected leaks**. Synthetic fixture private material is not committed. The first-party scan includes both new parser commits. |
+| `bash tool/release/check_linux_native.sh`; native registration-reader CMake/build/CTest | Native checks pass with official unmodified Ubuntu Xvfb/xauth packages in isolated tooling; registration reader **1 CTest passed**. The sandbox initially denied D-Bus socket creation; execution with socket access passed. |
+| Isolated XDG/Xvfb Linux CalDAV integration | **3 passed, exit 0** on final source. Actual Settings/onboarding and event/task editors with independent DAV readback. The fixture injects its database, secrets and QA CA client, so this does **not** certify the normal package's secure-storage backend. |
+| `xvfb-run -a flutter test integration_test/nextcloud_private_tls_linux_test.dart -d linux --reporter expanded` | Final implementation: **55 passed, exit 0** in the real Linux Flutter engine, including renewed/unrenewed retained private-CA sockets and authorization lifecycle. |
+| `android/gradlew --project-dir android :busymax_android_platform:testDebugUnitTest :app:lintDebug` | **BUILD SUCCESSFUL**; native plugin JUnit results show **18 tests, 0 failures/errors/skips**. This is native unit/lint evidence, not device acceptance. |
+| `flutter build linux --release -t lib/main_linux.dart` | **Passed** on final source, normal unconfigured entry point. Compilation is not installed-package runtime acceptance. |
+| `tool/android/build_release.sh --all --test-signing --allow-unconfigured-providers`; maintained artifact inspector with official bundletool | Final-source APK and AAB **built and inspected successfully**. 16 KiB native LOAD/ZIP alignment, AAB `PAGE_ALIGNMENT_16K`, notification drawable, package permissions and signing were inspected. Explicitly **test-signed and unconfigured**. Existing KGP/Gradle deprecation and watcher diagnostics were retained; no dependency/SDK patch was used. |
+| Android device/API 37 runtime | No device attached. A new task-owned AVD using the official installed API 37 image passed acceleration preflight, then failed actual boot with a KVM hardware error and exit **139**, before ADB. The owned AVD was deleted. No emulator timeout, software modification or platform/security restriction was changed. Physical/background-engine, API 37 permission and normal secure-storage acceptance remain **open**. |
+| Canonical strict Snap packaging/runtime | Official Snapcraft **9.2.1**, unchanged core24/strict/devel recipe and the final normal Linux bundle were staged in a task-owned directory. `snapcraft pack --use-lxd` fails copying the build instance because the shared storage pool is **UNAVAILABLE**. Shared storage/profiles and existing installed BusyMax were not altered. **No new final Snap artifact or runtime pass** exists; the runtime verifier cannot qualify a missing candidate. Historical container/VM receipts below are not reused. |
+| Windows native/build/MSIX | No running authorized Windows VM/toolchain was available in the inspected environment. **Not executed for this revision**. Linux-hosted Windows-widget tests are not Windows native acceptance. |
+| Exact-final-source CI | **Not run**: the new commits and DAV dependency pin are local only and were not pushed. GitHub returned no workflow runs for the final source hash. Starting revision `34d771b` has successful [Linux](https://github.com/busystack/busymax/actions/runs/42472442027), [Android](https://github.com/busystack/busymax/actions/runs/42472442015) and [Windows](https://github.com/busystack/busymax/actions/runs/42472441995) runs; these do not qualify the new code. PR #38 remains draft at its original head. |
+
+There are **90 distinct passing live cases across the maintained executions**
+(59 shared, 6 BusyStack-specific, 18 reconciliation, 5 edges, 2 scheduling),
+with the separate VTODO-delivery skip. This total does not count repeated cases
+again or relabel a composed result as a single clean suite invocation.
+
+Current package identity remains `io.busystack.busymax`, version `0.4.0`,
+Android code `8`, compile/target API `37`. Final-source artifact SHA-256 values:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Linux runner | `00652942bf6fce3b4580788eb99e3a3c614196cc0b201625993b02a232c2eac9` |
+| Linux `libapp.so` | `957a204f23b38cb462d8bd9874f132ab5b9d8f0f70f816a4386442db1d92df86` |
+| Test-signed APK | `a3062764fc13b96dd086dd2533b45b2ab38174c96d24205229a2c6aed368e69d` |
+| Test-signed AAB | `f6d2a7355675cf70577c8654ded22f2303d5750133a97805eacada81640350c9` |
+
+APK/AAB filename inspection found no fixture `.pem`/`.key`, test or interop
+assets. The managed-production Android configuration and signing prerequisite
+checks fail because the corresponding public registration configuration and
+`android/key.properties` are absent. The existing local desktop configuration
+also fails the required managed Google and product privacy-policy validator.
+No production credentials, signing keys or registrations were invented.
+
+| Remaining issue | Classification / impact |
+| --- | --- |
+| Unpublished local first-party dependency and no final-revision CI | Release blocker: remote reproducibility and all required CI gates remain open until separately authorized publication/CI. |
+| Android physical/worker/API 37 acceptance | Release blocker: widget/channel and native-unit evidence do not replace actual device processes, permission flows and platform storage. |
+| Current strict Snap and Windows distribution/runtime acceptance | Release blocker: current Snap packaging infrastructure failed; Windows environment was absent. No installed candidate or runtime result is fabricated. |
+| Production registrations, signing and normal-package secure storage/private-Nextcloud workflows | External release prerequisites / inherited acceptance gap. Current fixture runs do not prove these normal-package workflows. |
+| Independently demonstrated VTODO scheduling delivery | Inherited interoperability gap on the available server; storage/consent passes are not delivery evidence. Do not expand or silently narrow the approved scheduling contract. |
+
+No confirmed implementation defect from the reported destructive transfer,
+multiget-budget, persisted-notice, dispatch-identity, XML-decoding or retained-CA
+cases is left without a correction and regression. Native/platform gaps above
+remain sufficient grounds for **NO-GO**.
+
+Earlier sections below are historical receipts. Their artifacts, hashes,
+platform results and CI identities do not qualify this new local implementation.
+The new first-party commits are local only, so fresh remote CI cannot resolve the
+new dependency pin until separately authorized publication. No push was attempted.
+
+Before release, obtain exact-final-revision CI on all three platforms, qualify
+normal installed distribution workflows on Android/Windows and the current strict
+Snap, complete the remaining platform/security-store and private-Nextcloud
+acceptance, and close the already recorded VTODO delivery qualification gap on
+a suitable server where delivery is part of the approved support contract.
+Validation and provider contracts remain unchanged. No uncorrected destructive source-delete path was
+reproduced after the transfer fix; that conclusion is bounded by the documented
+regressions and live workflows.
+
+## Historical 2026-11-07 remaining-corrections qualification
 
 This run began with a clean `release/v0.4.0` at
 `2c0d1e82007ec9586f167868117c4e647e756ada`, matching the reviewed PR head.
-The changes below are **uncommitted**. No commit, push, merge, tag, publication
-or PR-state change is authorized or performed. PR #38 remains draft. Existing
+At that execution these changes were uncommitted; they were subsequently
+recorded in `34d771b91e460469b7d513f1ff241dc9c822cc52`. The restrictions,
+source digests and receipts in this dated section describe that historical run.
+The present 2026-11-08 audit separately authorizes local commits. No push,
+merge, tag, publication or PR-state change was performed. Existing
 A1–A7 work, creation policy and HTTP 405/Allow handling are retained. Version
 0.4.0, Android versionCode 8, schema 25 and all dependency pins are unchanged.
 The earlier evidence and failures below remain historical evidence.
