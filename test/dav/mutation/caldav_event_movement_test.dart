@@ -331,6 +331,7 @@ void main() {
 
   for (final loss in [
     'description',
+    'alarm-description',
     'alarm',
     'rrule',
     'exception',
@@ -342,7 +343,11 @@ void main() {
         await f.seed(crossAccount: true, differentServer: true, meeting: false);
         await f.move();
         f.transformCreate = (raw) => switch (loss) {
-          'description' => raw.replaceFirst('DESCRIPTION:Custom\r\n', ''),
+          'description' => raw.replaceFirst(
+            'DESCRIPTION:Event description\r\n',
+            '',
+          ),
+          'alarm-description' => raw.replaceFirst('DESCRIPTION:Custom\r\n', ''),
           'alarm' => raw.replaceFirst(
             RegExp(r'BEGIN:VALARM[\s\S]*?END:VALARM\r\n'),
             '',
@@ -521,7 +526,7 @@ class _Fixture {
         ? 'ORGANIZER:mailto:${organizer ? 'user' : 'host'}@example.test\r\nATTENDEE;PARTSTAT=ACCEPTED;X-CUSTOM=retained:mailto:${organizer ? 'guest' : 'user'}@example.test\r\n'
         : '';
     raw =
-        'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nX-CALENDAR:retained\r\nBEGIN:VEVENT\r\nUID:meeting\r\nDTSTART:20261110T090000Z\r\nDTEND:20261110T100000Z\r\nSUMMARY:Move me\r\nRRULE:FREQ=DAILY;COUNT=2\r\nX-EVENT;X-PARAM=retained:keep\r\n${exceptionOnlyMeeting ? '' : scheduling}BEGIN:VALARM\r\nACTION:DISPLAY\r\nTRIGGER:-PT0M\r\nDESCRIPTION:Custom\r\nX-ALARM:keep\r\nEND:VALARM\r\nEND:VEVENT\r\nBEGIN:VEVENT\r\nUID:meeting\r\nRECURRENCE-ID:20261111T090000Z\r\nDTSTART:20261111T110000Z\r\nDTEND:20261111T120000Z\r\nSUMMARY:Exception\r\n${scheduling}X-EXCEPTION:keep\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n';
+        'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nX-CALENDAR:retained\r\nBEGIN:VEVENT\r\nUID:meeting\r\nDTSTART:20261110T090000Z\r\nDTEND:20261110T100000Z\r\nSUMMARY:Move me\r\nDESCRIPTION:Event description\r\nRRULE:FREQ=DAILY;COUNT=2\r\nX-EVENT;X-PARAM=retained:keep\r\n${exceptionOnlyMeeting ? '' : scheduling}BEGIN:VALARM\r\nACTION:DISPLAY\r\nTRIGGER:-PT0M\r\nDESCRIPTION:Custom\r\nX-ALARM:keep\r\nEND:VALARM\r\nEND:VEVENT\r\nBEGIN:VEVENT\r\nUID:meeting\r\nRECURRENCE-ID:20261111T090000Z\r\nDTSTART:20261111T110000Z\r\nDTEND:20261111T120000Z\r\nSUMMARY:Exception\r\n${scheduling}X-EXCEPTION:keep\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n';
     resources[sourceUri.toString()] = raw;
     final prepared = DavPreparedObject.parse(
       hrefKey: sourceUri.path,

@@ -59,65 +59,74 @@ void main() {
     expect(result.single.rawIcsBody, 'Café 😀');
   });
 
-  for (final resourceBytes in [3 * 1024 * 1024, 9 * 1024 * 1024]) {
-    test('multiget recovers bounded aggregate limits with $resourceBytes byte members', () async {
-      final authority = Uri.parse('https://cal.example.test/');
-      final profile = davProviderProfile(
-        BusyProvider.caldav,
-        caldavServer: authority,
-      );
-      final raw =
-          'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//BusyMax QA//EN\r\nBEGIN:VEVENT\r\nUID:large\r\nDTSTAMP:20261108T000000Z\r\nDTSTART:20261109T090000Z\r\nDESCRIPTION:${'x' * resourceBytes}\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n';
-      final methods = <String>[];
-      final client = MockClient((request) async {
-        methods.add(request.method);
-        if (request.method == 'GET') {
-          return http.Response(raw, 200, headers: {'etag': '"large"'});
-        }
-        return http.Response(
-          '<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">'
-          '<d:response><d:href>a.ics</d:href><d:propstat><d:prop>'
-          '<d:getetag>"large"</d:getetag><c:calendar-data>$raw</c:calendar-data>'
-          '</d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>'
-          '<d:response><d:href>b.ics</d:href><d:propstat><d:prop>'
-          '<d:getetag>"large"</d:getetag><c:calendar-data>$raw</c:calendar-data>'
-          '</d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>'
-          '</d:multistatus>',
-          207,
+  for (final (resourceBytes, memberCount) in [
+    (3 * 1024 * 1024, 2),
+    (9 * 1024 * 1024, 1),
+    (9 * 1024 * 1024, 2),
+  ]) {
+    test(
+      'multiget recovers bounded aggregate limits with $resourceBytes byte members, count=$memberCount',
+      () async {
+        final authority = Uri.parse('https://cal.example.test/');
+        final profile = davProviderProfile(
+          BusyProvider.caldav,
+          caldavServer: authority,
         );
-      });
-      addTearDown(client.close);
-      final result =
-          await DavCollectionHttpClient(
-            transport: DavHttpTransport(
-              client: client,
+        final raw =
+            'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//BusyMax QA//EN\r\nBEGIN:VEVENT\r\nUID:large\r\nDTSTAMP:20261108T000000Z\r\nDTSTART:20261109T090000Z\r\nDESCRIPTION:${'x' * resourceBytes}\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n';
+        final methods = <String>[];
+        final client = MockClient((request) async {
+          methods.add(request.method);
+          if (request.method == 'GET') {
+            return http.Response(raw, 200, headers: {'etag': '"large"'});
+          }
+          final entries = [
+            for (final name in ['a', 'b'].take(memberCount))
+              '<d:response><d:href>$name.ics</d:href><d:propstat><d:prop>'
+                  '<d:getetag>"large"</d:getetag><c:calendar-data>$raw</c:calendar-data>'
+                  '</d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>',
+          ].join();
+          return http.Response(
+            '<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">$entries</d:multistatus>',
+            207,
+          );
+        });
+        addTearDown(client.close);
+        final result =
+            await DavCollectionHttpClient(
+              transport: DavHttpTransport(
+                client: client,
+                profile: profile,
+                accountAuthority: authority,
+              ),
               profile: profile,
               accountAuthority: authority,
-            ),
-            profile: profile,
-            accountAuthority: authority,
-            accountId: 'a',
-            collectionId: 'c',
-            collectionUri: authority.resolve('/work/'),
-            credential: DavBasicCredential(
-              username: 'qa',
-              password: 'synthetic',
-            ),
-          ).fetchMembers(
-            [
-              for (final name in ['a', 'b'])
-                DavRemoteMember(
-                  hrefKey: '/work/$name.ics',
-                  requestUri: authority.resolve('/work/$name.ics'),
-                  etag: '"large"',
-                ),
-            ],
-            correlationId: 'large',
-            useCalendarMultiget: true,
-          );
-      expect(result.map((m) => m.rawIcsBody), [raw, raw]);
-      expect(methods, ['REPORT', 'GET', 'GET']);
-    });
+              accountId: 'a',
+              collectionId: 'c',
+              collectionUri: authority.resolve('/work/'),
+              credential: DavBasicCredential(
+                username: 'qa',
+                password: 'synthetic',
+              ),
+            ).fetchMembers(
+              [
+                for (final name in ['a', 'b'].take(memberCount))
+                  DavRemoteMember(
+                    hrefKey: '/work/$name.ics',
+                    requestUri: authority.resolve('/work/$name.ics'),
+                    etag: '"large"',
+                  ),
+              ],
+              correlationId: 'large',
+              useCalendarMultiget: true,
+            );
+        expect(result.map((m) => m.rawIcsBody), List.filled(memberCount, raw));
+        expect(methods, [
+          'REPORT',
+          for (var i = 0; i < memberCount; i++) 'GET',
+        ]);
+      },
+    );
   }
   for (final scenario in [
     'resource404',
