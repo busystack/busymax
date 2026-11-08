@@ -11,7 +11,7 @@
     {
       "name": "busystack_dav",
       "repository": "https://github.com/busystack/busystack_dav.git",
-      "revision": "33afd70a761822847a37c7ad47f5e61dfeaa74a7",
+      "revision": "ce5f75aee0477b2056bb60e928ee362949a82b23",
       "path": "../busystack_dav"
     },
     {

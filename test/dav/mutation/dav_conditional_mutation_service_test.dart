@@ -389,6 +389,46 @@ void main() {
     expect(task.rawIcs, contains('DTSTAMP:20260808T120000Z'));
   });
 
+  test('failed replacement reservation prevents PUT dispatch', () async {
+    var puts = 0;
+    final remote = _FakeMutationRemote(
+      put:
+          ({
+            required uri,
+            required rawIcs,
+            required ifMatch,
+            required ifNoneMatch,
+          }) async {
+            puts++;
+            return _precondition;
+          },
+    );
+    final service = DavConditionalMutationService(
+      remoteClient: remote,
+      memberIdFactory: () => 'replacement',
+    );
+    await expectLater(
+      service.create(
+        collectionUri: _collectionUri,
+        object: DavNewObject(
+          uid: 'event@example.test',
+          initialMemberName: 'occupied.ics',
+          rawIcs: _event('Before'),
+          componentType: 'VEVENT',
+        ),
+        capabilities: _writable,
+        correlationId: 'reservation-failure',
+        beforeCreateDispatch: (uri) async {
+          if (uri.path.endsWith('replacement.ics')) {
+            throw StateError('Persistence failed');
+          }
+        },
+      ),
+      throwsStateError,
+    );
+    expect(puts, 1);
+  });
+
   test(
     'create uses If-None-Match semantics and bounds filename collisions',
     () async {

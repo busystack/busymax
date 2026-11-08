@@ -8,6 +8,117 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  test('production multiget accepts UTF-16 DAV XML', () async {
+    final authority = Uri.parse('https://cal.example.test/');
+    final profile = davProviderProfile(
+      BusyProvider.caldav,
+      caldavServer: authority,
+    );
+    const xml =
+        '<?xml version="1.0" encoding="UTF-16"?>'
+        '<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">'
+        '<d:response><d:href>a.ics</d:href><d:propstat><d:prop><d:getetag>"v1"</d:getetag>'
+        '<c:calendar-data>Café 😀</c:calendar-data></d:prop>'
+        '<d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>';
+    final client = MockClient(
+      (request) async => http.Response.bytes(
+        [
+          255,
+          254,
+          for (final u in xml.codeUnits) ...[u & 255, u >> 8],
+        ],
+        207,
+        headers: {'content-type': 'application/xml; charset=utf-16'},
+      ),
+    );
+    addTearDown(client.close);
+    final result =
+        await DavCollectionHttpClient(
+          transport: DavHttpTransport(
+            client: client,
+            profile: profile,
+            accountAuthority: authority,
+          ),
+          profile: profile,
+          accountAuthority: authority,
+          accountId: 'a',
+          collectionId: 'c',
+          collectionUri: authority.resolve('/work/'),
+          credential: DavBasicCredential(username: 'qa', password: 'synthetic'),
+        ).fetchMembers(
+          [
+            DavRemoteMember(
+              hrefKey: '/work/a.ics',
+              requestUri: authority.resolve('/work/a.ics'),
+              etag: '"v1"',
+            ),
+          ],
+          correlationId: 'utf16',
+          useCalendarMultiget: true,
+        );
+    expect(result.single.rawIcsBody, 'Café 😀');
+  });
+
+  for (final resourceBytes in [3 * 1024 * 1024, 9 * 1024 * 1024]) {
+    test('multiget recovers bounded aggregate limits with $resourceBytes byte members', () async {
+      final authority = Uri.parse('https://cal.example.test/');
+      final profile = davProviderProfile(
+        BusyProvider.caldav,
+        caldavServer: authority,
+      );
+      final raw =
+          'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//BusyMax QA//EN\r\nBEGIN:VEVENT\r\nUID:large\r\nDTSTAMP:20261108T000000Z\r\nDTSTART:20261109T090000Z\r\nDESCRIPTION:${'x' * resourceBytes}\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n';
+      final methods = <String>[];
+      final client = MockClient((request) async {
+        methods.add(request.method);
+        if (request.method == 'GET') {
+          return http.Response(raw, 200, headers: {'etag': '"large"'});
+        }
+        return http.Response(
+          '<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">'
+          '<d:response><d:href>a.ics</d:href><d:propstat><d:prop>'
+          '<d:getetag>"large"</d:getetag><c:calendar-data>$raw</c:calendar-data>'
+          '</d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>'
+          '<d:response><d:href>b.ics</d:href><d:propstat><d:prop>'
+          '<d:getetag>"large"</d:getetag><c:calendar-data>$raw</c:calendar-data>'
+          '</d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>'
+          '</d:multistatus>',
+          207,
+        );
+      });
+      addTearDown(client.close);
+      final result =
+          await DavCollectionHttpClient(
+            transport: DavHttpTransport(
+              client: client,
+              profile: profile,
+              accountAuthority: authority,
+            ),
+            profile: profile,
+            accountAuthority: authority,
+            accountId: 'a',
+            collectionId: 'c',
+            collectionUri: authority.resolve('/work/'),
+            credential: DavBasicCredential(
+              username: 'qa',
+              password: 'synthetic',
+            ),
+          ).fetchMembers(
+            [
+              for (final name in ['a', 'b'])
+                DavRemoteMember(
+                  hrefKey: '/work/$name.ics',
+                  requestUri: authority.resolve('/work/$name.ics'),
+                  etag: '"large"',
+                ),
+            ],
+            correlationId: 'large',
+            useCalendarMultiget: true,
+          );
+      expect(result.map((m) => m.rawIcsBody), [raw, raw]);
+      expect(methods, ['REPORT', 'GET', 'GET']);
+    });
+  }
   for (final scenario in [
     'resource404',
     'property404',

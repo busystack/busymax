@@ -16,6 +16,55 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../../test_localized_app.dart';
 
 void main() {
+  for (final terminal in ['committed', 'rejected']) {
+    test(
+      'persisted $terminal supersedes stale pending notice after unrelated sync failure',
+      () async {
+        final activity = AccountSyncActivity();
+        final pending = _failure(taskList: false, pending: true);
+        final stored = DavCollectionCreationFailure.fromStored(
+          pending.operation.copyWith(state: terminal),
+        );
+        final container = ProviderContainer(
+          overrides: [
+            accountSyncActivityProvider.overrideWith((ref) => activity),
+            storedDavCollectionCreationNoticesProvider.overrideWith(
+              (ref, id) =>
+                  Stream.value(terminal == 'committed' ? [] : [stored]),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+        final subscription = container.listen(
+          accountCollectionCreationFailuresProvider('account'),
+          (_, _) {},
+        );
+        addTearDown(subscription.close);
+        activity.setCollectionCreationFailures('account', [pending]);
+        await container.read(
+          storedDavCollectionCreationNoticesProvider('account').future,
+        );
+        await expectLater(
+          activity.run(
+            'account',
+            'dav',
+            () async => throw StateError('unrelated failure'),
+          ),
+          throwsStateError,
+        );
+        final notices = container.read(
+          accountCollectionCreationFailuresProvider('account'),
+        );
+        if (terminal == 'committed') {
+          expect(notices, isEmpty);
+        } else {
+          expect(notices.values.single.pending, isFalse);
+          expect(notices.values.single.operation.id, pending.operation.id);
+          expect(notices.values.single.error.code, stored.error.code);
+        }
+      },
+    );
+  }
   testWidgets(
     'stored rejection appears after restart while synchronization is offline',
     (tester) async {
@@ -130,7 +179,13 @@ void main() {
           final container = ProviderContainer(
             overrides: [
               storedDavCollectionCreationNoticesProvider.overrideWith(
-                (ref, id) => Stream.value([]),
+                (ref, id) => Stream.value(
+                  ref
+                      .watch(accountSyncActivityProvider)
+                      .collectionCreationFailures(id)
+                      .values
+                      .toList(),
+                ),
               ),
               accountSyncActivityProvider.overrideWith((ref) => activity),
               acknowledgeDavCollectionCreationNoticeProvider.overrideWithValue((

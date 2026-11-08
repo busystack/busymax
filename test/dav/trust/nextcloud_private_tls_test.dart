@@ -296,6 +296,94 @@ void main() {
       expect(received, 2);
     },
   );
+  for (final terminating in [false, true]) {
+    for (final renewed in [false, true]) {
+      test(
+        'retained private CA connection handles leaf expiry, renewed=$renewed, terminating=$terminating',
+        () async {
+          String date(DateTime value) =>
+              '${value.year}${value.month.toString().padLeft(2, '0')}${value.day.toString().padLeft(2, '0')}${value.hour.toString().padLeft(2, '0')}${value.minute.toString().padLeft(2, '0')}${value.second.toString().padLeft(2, '0')}Z';
+          final expiry = DateTime.now().toUtc().add(const Duration(seconds: 5));
+          await fixture.openssl([
+            'ca',
+            '-batch',
+            '-config',
+            'validity.cnf',
+            '-keyfile',
+            'ca.key',
+            '-cert',
+            'ca.pem',
+            '-in',
+            'server.csr',
+            '-startdate',
+            date(expiry.subtract(const Duration(minutes: 1))),
+            '-enddate',
+            date(expiry),
+            '-extensions',
+            'server',
+            '-notext',
+            '-out',
+            'short.pem',
+          ]);
+          final context = SecurityContext()
+            ..useCertificateChain(fixture.path('short.pem'))
+            ..usePrivateKey(fixture.path('server.key'));
+          final server = await HttpServer.bindSecure(
+            InternetAddress.loopbackIPv4,
+            0,
+            context,
+          );
+          servers.add(server);
+          endpoint = Uri.parse('https://localhost:${server.port}/nextcloud');
+          final ports = <int>{};
+          server.listen((request) async {
+            received++;
+            ports.add(request.connectionInfo!.remotePort);
+            await request.drain<void>();
+            request.response.write('ok');
+            await request.response.close();
+          });
+          final pooled = factory.create(
+            owner: 'one',
+            authority: endpoint,
+            policy: policy(NextcloudTrustMode.privateCa, 'ca'),
+            reuseConnections: true,
+          );
+          Future<http.Response> request() async {
+            if (!terminating) return pooled.get(endpoint);
+            return http.Response.fromStream(
+              await (pooled as TerminatingHttpClient).sendTerminating(
+                http.Request('GET', endpoint),
+                terminate: Completer<void>().future,
+                connectionTimeout: const Duration(seconds: 5),
+              ),
+            );
+          }
+
+          expect((await request()).statusCode, 200);
+          // Updating the server context changes subsequent handshakes, retaining the
+          // already authenticated connection and its original peer certificate.
+          if (renewed) context.useCertificateChain(fixture.path('renewed.pem'));
+          await Future<void>.delayed(
+            expiry.difference(DateTime.now().toUtc()) +
+                const Duration(seconds: 1),
+          );
+          if (renewed) {
+            expect((await request()).statusCode, 200);
+            expect(ports, hasLength(2));
+            expect(received, 2);
+          } else {
+            await expectLater(
+              request(),
+              throwsA(failure(NextcloudCertificateFailure.expired)),
+            );
+            expect(ports, hasLength(1));
+            expect(received, 1);
+          }
+        },
+      );
+    }
+  }
   test('private CA permits leaf renewal; unapproved account on same origin stays rejected', () async {
     final server = await serve('leaf');
     final ca = policy(NextcloudTrustMode.privateCa, 'ca');

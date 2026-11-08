@@ -86,13 +86,17 @@ void main() {
         );
         expect(
           (await f.database.select(f.database.tasks).get()).where(
-            (r) => r.title == 'Partial removed',
+            (r) =>
+                r.davCollectionId == f.collectionId &&
+                r.title == 'Partial removed',
           ),
           isEmpty,
         );
         expect(
           (await f.database.select(f.database.tasks).get()).where(
-            (r) => r.title == 'Partial locked',
+            (r) =>
+                r.davCollectionId == f.collectionId &&
+                r.title == 'Partial locked',
           ),
           hasLength(1),
         );

@@ -1583,6 +1583,55 @@ final class DavPendingOperationsReplayer {
         capabilities: capabilities,
         correlationId: correlationId,
         reconcileFirst: reconcileFirst,
+        requireContentPreservation:
+            (await (_database.select(
+              _database.pendingOps,
+            )..where((row) => row.dependsOnOpId.equals(op.id))).get()).any(
+              (dependent) =>
+                  _requestObject(
+                    dependent,
+                  )[calendarEventCopyConfirmationRequiredKey] ==
+                  true,
+            ),
+
+        beforeCreateDispatch: (uri) async {
+          if (uri.path == op.davMemberHref) return;
+          final request = _requestObject(op);
+          request['initialMemberName'] = uri.pathSegments.last;
+          await _database.transaction(() async {
+            final updated =
+                await (_database.update(_database.pendingOps)..where(
+                      (row) =>
+                          row.id.equals(op.id) &
+                          row.state.equals('in_progress'),
+                    ))
+                    .write(
+                      PendingOpsCompanion(
+                        davMemberHref: Value(uri.path),
+                        requestJson: Value(jsonEncode(request)),
+                        updatedAtUtc: Value(
+                          _nowUtc().toUtc().toIso8601String(),
+                        ),
+                      ),
+                    );
+            if (updated != 1) throw _invalidPendingOperation();
+            if (op.davObjectId != null) {
+              await (_database.update(_database.davObjects)..where(
+                    (row) =>
+                        row.id.equals(op.davObjectId!) &
+                        row.accountId.equals(_accountId) &
+                        row.collectionId.equals(collection.id) &
+                        row.etag.isNull(),
+                  ))
+                  .write(
+                    DavObjectsCompanion(
+                      hrefKey: Value(uri.path),
+                      requestUri: Value(uri.toString()),
+                    ),
+                  );
+            }
+          });
+        },
       ),
       'dav.update' => service.update(
         hrefKey: _required(op.davMemberHref),

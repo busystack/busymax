@@ -157,7 +157,10 @@ class _AndroidHomeShellState extends ConsumerState<AndroidHomeShell>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) unawaited(_refresh());
+    if (state == AppLifecycleState.resumed) {
+      _invalidateExternalDatabaseState();
+      unawaited(_refresh());
+    }
   }
 
   Future<void> _refresh() async {
@@ -209,20 +212,31 @@ class _AndroidHomeShellState extends ConsumerState<AndroidHomeShell>
       return;
     }
     if (event.type == 'dataChanged') {
+      _invalidateExternalDatabaseState();
       await ref.read(appSettingsControllerProvider.notifier).reload();
-      ref.invalidate(accountsStreamProvider);
-      ref.invalidate(accountManagementStreamProvider);
-      ref.invalidate(calendarSourcesStreamProvider);
-      ref.invalidate(scheduleTaskListsProvider);
-      ref.invalidate(scheduleDataRevisionProvider);
-      ref.invalidate(davConflictsStreamProvider);
-      ref.invalidate(webCalSubscriptionsProvider);
       await ref.read(notificationReconcilerProvider).reconcile();
       return;
     }
     if (event.type == 'document') {
       await _openDocumentActivation(AndroidActivation.fromMap(event.data));
     }
+  }
+
+  void _invalidateExternalDatabaseState() {
+    // Drift streams do not receive writes from an independent worker engine.
+    final database = ref.read(databaseProvider);
+    database.notifyUpdates({
+      TableUpdate.onTable(database.davCollections),
+      TableUpdate.onTable(database.davCollectionCreations),
+      TableUpdate.onTable(database.davCollectionCreationAcknowledgments),
+    });
+    ref.invalidate(accountsStreamProvider);
+    ref.invalidate(accountManagementStreamProvider);
+    ref.invalidate(calendarSourcesStreamProvider);
+    ref.invalidate(scheduleTaskListsProvider);
+    ref.invalidate(scheduleDataRevisionProvider);
+    ref.invalidate(davConflictsStreamProvider);
+    ref.invalidate(webCalSubscriptionsProvider);
   }
 
   Future<void> _openDocumentActivation(AndroidActivation activation) async {

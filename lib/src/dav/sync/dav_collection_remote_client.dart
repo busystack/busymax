@@ -460,26 +460,48 @@ final class DavCollectionHttpClient implements DavCollectionRemoteClient {
           ),
       ]);
     }
-    final response = await _transport.send(
-      DavRequest.xml(
-        method: 'REPORT',
-        uri: _collectionUri,
-        accountId: _accountId,
-        collectionId: _collectionId,
+    late DavResponse response;
+    late DavMultistatus multistatus;
+    try {
+      response = await _transport.send(
+        DavRequest.xml(
+          method: 'REPORT',
+          uri: _collectionUri,
+          accountId: _accountId,
+          collectionId: _collectionId,
+          correlationId: correlationId,
+          headers: const {'depth': '1'},
+          body: _calendarMultigetBody(members),
+        ),
+        credential: _credential,
+        cancellationToken: cancellationToken,
+      );
+      if (response.statusCode != 207) {
+        throw _statusException(response, operation: 'fetch members');
+      }
+      multistatus = _xmlParser.parseMultistatus(
+        response.bodyBytes,
         correlationId: correlationId,
-        headers: const {'depth': '1'},
-        body: _calendarMultigetBody(members),
-      ),
-      credential: _credential,
-      cancellationToken: cancellationToken,
-    );
-    if (response.statusCode != 207) {
-      throw _statusException(response, operation: 'fetch members');
+      );
+    } on DavException catch (error) {
+      // Discard oversized aggregate XML; individual GETs retain transport and
+      // resource bounds. Sequential reads avoid a burst of large responses.
+      if (error.kind != DavErrorKind.responseTooLarge &&
+          error.code != 'DavXmlTextLimitExceeded') {
+        rethrow;
+      }
+      final recovered = <DavFetchedMember>[];
+      for (final member in members) {
+        recovered.add(
+          await _getMember(
+            member,
+            correlationId: correlationId,
+            cancellationToken: cancellationToken,
+          ),
+        );
+      }
+      return recovered;
     }
-    final multistatus = _xmlParser.parseMultistatus(
-      response.bodyBytes,
-      correlationId: correlationId,
-    );
     final requested = {for (final member in members) member.hrefKey: member};
     final returned = <String, DavFetchedMember>{};
     final seen = <String>{};

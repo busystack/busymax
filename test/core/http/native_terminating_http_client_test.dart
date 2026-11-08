@@ -6,6 +6,41 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 
 void main() {
+  test('retiring connections preserves an in-flight response and validates a fresh lane', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    final finish = Completer<void>();
+    addTearDown(() async {
+      if (!finish.isCompleted) finish.complete();
+      await server.close(force: true);
+    });
+    final ports = <int>{};
+    server.listen((request) async {
+      ports.add(request.connectionInfo!.remotePort);
+      await request.drain<void>();
+      if (request.uri.path == '/first') {
+        request.response.write('first');
+        await request.response.flush();
+        await finish.future;
+        request.response.write('done');
+      } else {
+        request.response.write('second');
+      }
+      await request.response.close();
+    });
+    final client = NativeTerminatingHttpClient();
+    addTearDown(client.close);
+    final origin = Uri.parse('http://127.0.0.1:${server.port}/');
+    final first = await client.send(
+      http.Request('GET', origin.resolve('first')),
+    );
+    final body = first.stream.bytesToString();
+    client.retireConnections();
+    expect((await client.get(origin.resolve('second'))).body, 'second');
+    finish.complete();
+    expect(await body, 'firstdone');
+    expect(ports, hasLength(2));
+  });
+
   test(
     'a pooled lane cancels a stalled connection at its connection deadline',
     () async {

@@ -113,6 +113,7 @@ final class NextcloudHttpClientFactory {
     final clients = _clients.putIfAbsent(owner, () => {});
     final peers = <SecureSocket, NextcloudCertificate>{};
     NextcloudCertificate? proxyRejected;
+    late final NativeTerminatingHttpClient nativeTransport;
     late final _ScopedClient scoped;
     scoped = _ScopedClient(
       authority: authority,
@@ -127,6 +128,16 @@ final class NextcloudHttpClientFactory {
               certificate.validateServer(authority.host, selfSigned: true);
             }
           }
+          if (policy.mode == NextcloudTrustMode.privateCa &&
+              peers.values.any(
+                (peer) => !DateTime.now().toUtc().isBefore(peer.notAfter),
+              )) {
+            // A retained socket can carry an expired, superseded leaf. Retire
+            // the pool before dispatch; the new handshake still validates the
+            // complete chain, validity and service identity. No request replay.
+            nativeTransport.retireConnections();
+            peers.clear();
+          }
           for (final peer in peers.values) {
             peer.validateServer(
               authority.host,
@@ -140,7 +151,7 @@ final class NextcloudHttpClientFactory {
       tlsFailure: (error) => _failure(error, authority, policy, proxyRejected),
       inner: ConnectivityAwareHttpClient(
         requireNetwork: requireNetwork,
-        inner: NativeTerminatingHttpClient(
+        inner: nativeTransport = NativeTerminatingHttpClient(
           reuseConnections: reuseConnections,
           nativeClientFactory: () => _native(
             authority,

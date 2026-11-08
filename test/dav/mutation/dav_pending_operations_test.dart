@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:busymax/src/app/app_settings.dart';
@@ -29,10 +30,13 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../support/persistence_test_directory.dart';
+
 void main() {
   late AppDatabase database;
   late DavObjectRepository objectRepository;
   late DavPendingOperationQueue queue;
+  Directory? recoveryDirectory;
 
   setUp(() async {
     database = AppDatabase(NativeDatabase.memory());
@@ -49,7 +53,11 @@ void main() {
     );
   });
 
-  tearDown(() => database.close());
+  tearDown(() async {
+    await database.close();
+    await recoveryDirectory?.delete(recursive: true);
+    recoveryDirectory = null;
+  });
 
   test(
     'denial, discard and rediscovery allow a subsequent CalDAV update',
@@ -1390,6 +1398,147 @@ void main() {
       );
     },
   );
+
+  for (final boundary in [
+    'before-send',
+    'after-send',
+    'readback',
+    'projection',
+    'acknowledgment',
+  ]) {
+    test('replacement filename survives restart at $boundary', () async {
+      await database.close();
+      recoveryDirectory = await createPersistenceTestDirectory(
+        'busymax-collision-',
+      );
+      final file = File('${recoveryDirectory!.path}/state.sqlite');
+      database = AppDatabase(NativeDatabase(file));
+      objectRepository = DavObjectRepository(database: database);
+      await _seed(database, objectRepository);
+      queue = DavPendingOperationQueue(
+        database: database,
+        idFactory: () => 'pending-op',
+        nowUtc: () => _now,
+      );
+      const uid = 'collision-recovery@example.test';
+      final raw = _eventWithUid('Collision recovery', uid);
+      final localObjectId = await objectRepository.projectPendingImport(
+        accountId: 'account',
+        collectionId: 'collection',
+        nowUtc: _now,
+        object: DavPreparedObject.parse(
+          hrefKey: '${_collectionHref}occupied.ics',
+          requestUri: Uri.parse(
+            'https://cloud.example.test${_collectionHref}occupied.ics',
+          ),
+          etag: null,
+          contentType: 'text/calendar',
+          rawIcsBody: raw,
+        ),
+      );
+      await queue.enqueueCreate(
+        localObjectId: localObjectId,
+        accountId: 'account',
+        collectionId: 'collection',
+        object: DavNewObject(
+          uid: uid,
+          initialMemberName: 'occupied.ics',
+          rawIcs: raw,
+          componentType: 'VEVENT',
+        ),
+      );
+      var puts = 0;
+      var interrupted = true;
+      var remoteCreated = false;
+      final fetched = <String>[];
+      final remote = _FakeMutationRemote(
+        put: ({required rawIcs, required ifMatch, required ifNoneMatch}) async {
+          puts++;
+          if (puts == 1) return _precondition;
+          final durable = await database
+              .select(database.pendingOps)
+              .getSingle();
+          expect(durable.davMemberHref, '${_collectionHref}replacement.ics');
+          expect(
+            jsonDecode(durable.requestJson)['initialMemberName'],
+            'replacement.ics',
+          );
+          final draft = (await database.select(database.davObjects).get())
+              .singleWhere((o) => o.id == localObjectId);
+          expect(draft.hrefKey, durable.davMemberHref);
+          expect(Uri.parse(draft.requestUri).path, durable.davMemberHref);
+          expect(ifNoneMatch, isTrue);
+          if (interrupted && boundary == 'before-send') {
+            throw StateError('Process stopped before replacement PUT');
+          }
+          remoteCreated = true;
+          if (interrupted && boundary == 'after-send') {
+            throw StateError('Process stopped after replacement PUT');
+          }
+          return _success;
+        },
+        fetcher: (href) async {
+          fetched.add(href);
+          if (interrupted && boundary == 'readback') {
+            throw StateError('Process stopped during readback');
+          }
+          if (!remoteCreated) return _missing(href);
+          return _live(href, '"created"', raw);
+        },
+      );
+      DavPendingOperationsReplayer replayer() => DavPendingOperationsReplayer(
+        database: database,
+        accountId: 'account',
+        objectRepository: objectRepository,
+        serviceFactory: ({required account, required collection}) async =>
+            DavConditionalMutationService(
+              remoteClient: remote,
+              memberIdFactory: () => 'replacement',
+            ),
+        nowUtc: () => _now,
+      );
+      if (boundary == 'projection') {
+        await database.customStatement(
+          "CREATE TRIGGER interrupt_recovery BEFORE INSERT ON dav_objects WHEN NEW.primary_uid = 'collision-recovery@example.test' BEGIN SELECT RAISE(ABORT, 'Interrupted projection'); END",
+        );
+      } else if (boundary == 'acknowledgment') {
+        await database.customStatement(
+          "CREATE TRIGGER interrupt_recovery BEFORE DELETE ON pending_ops WHEN OLD.id = 'pending-op' BEGIN SELECT RAISE(ABORT, 'Interrupted acknowledgment'); END",
+        );
+      }
+      expect((await replayer().replayDueOperations()).retryCount, 1);
+      final pending = await database.select(database.pendingOps).getSingle();
+      expect(pending.state, 'retry');
+      expect(pending.davMemberHref, '${_collectionHref}replacement.ics');
+      await database.close();
+      database = AppDatabase(NativeDatabase(file));
+      objectRepository = DavObjectRepository(database: database);
+      queue = DavPendingOperationQueue(database: database, nowUtc: () => _now);
+      interrupted = false;
+      await database.customStatement(
+        'DROP TRIGGER IF EXISTS interrupt_recovery',
+      );
+      await queue.retryBlockedOperation(
+        accountId: 'account',
+        operationId: 'pending-op',
+      );
+      expect((await replayer().replayDueOperations()).appliedCount, 1);
+      expect(puts, boundary == 'before-send' ? 3 : 2);
+      expect(fetched.toSet(), {'${_collectionHref}replacement.ics'});
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+      expect(
+        (await objectRepository.liveObjects('collection'))
+            .singleWhere((o) => o.primaryUid == uid)
+            .id,
+        localObjectId,
+      );
+      expect(
+        (await objectRepository.liveObjects('collection'))
+            .where((o) => o.primaryUid == uid),
+        hasLength(1),
+      );
+    });
+  }
 
   test(
     'Diagnostics retry reconciles a created DAV resource before another PUT',

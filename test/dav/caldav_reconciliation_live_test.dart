@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:busymax/src/dav/dav_provider_profile.dart';
 import 'package:busymax/src/dav/http/dav_http_transport.dart';
 import 'package:busymax/src/dav/storage/dav_object_repository.dart';
+import 'package:busymax/src/dav/xml/dav_xml.dart';
 import 'package:busymax/src/dav/sync/dav_collection_remote_client.dart';
 import 'package:busymax/src/dav/sync/dav_sync_engine.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
@@ -16,6 +17,91 @@ import 'support/caldav_qa_targets.dart';
 void main() {
   final enabled = Platform.environment['BUSYMAX_CALDAV_LIVE'] == '1';
   for (final target in calDavQaTargets.entries) {
+    test(
+      '${target.key}: real multiget aggregate recovery preserves independent server data',
+      () async {
+        final f = CalDavFixture(Uri.parse(target.value));
+        await f.open();
+        addTearDown(f.close);
+        final members = <DavRemoteMember>[];
+        final expected = <String>[];
+        final marker = DateTime.now().microsecondsSinceEpoch;
+        for (final name in ['large-a', 'large-b']) {
+          final uri = f.createdCollectionUri!.resolve('$name.ics');
+          final raw =
+              'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//BusyMax QA//EN\r\nBEGIN:VTODO\r\n'
+              'UID:$name-$marker@example.invalid\r\nDTSTAMP:20261108T000000Z\r\nSUMMARY:$name\r\n'
+              'DESCRIPTION:${'x' * (96 * 1024)}\r\nEND:VTODO\r\nEND:VCALENDAR\r\n';
+          expect(
+            (await f.independentRequest(
+              'PUT',
+              uri,
+              body: raw,
+              headers: {'content-type': 'text/calendar', 'if-none-match': '*'},
+            )).statusCode,
+            201,
+          );
+          final stored = await f.independentRequest('GET', uri);
+          expect(stored.statusCode, 200);
+          expected.add(stored.body);
+          members.add(
+            DavRemoteMember(
+              hrefKey: uri.path,
+              requestUri: uri,
+              etag: stored.headers['etag']!,
+            ),
+          );
+        }
+        final methods = <String>[];
+        final gateway = _Gateway(f.newClient(), (request) async {
+          methods.add(request.method);
+          return null;
+        });
+        addTearDown(gateway.close);
+        final authority = Uri.parse(target.value);
+        final profile = davProviderProfile(
+          BusyProvider.caldav,
+          caldavServer: authority,
+        );
+        final fetched =
+            await DavCollectionHttpClient(
+              transport: DavHttpTransport(
+                client: gateway,
+                profile: profile,
+                accountAuthority: authority,
+              ),
+              profile: profile,
+              accountAuthority: authority,
+              accountId: f.id,
+              collectionId: f.collectionId!,
+              collectionUri: f.createdCollectionUri!,
+              credential: DavBasicCredential(
+                username: f.username,
+                password: f.password,
+              ),
+              // Scale the unchanged parser budget to qualify the actual fallback on
+              // every server, including those that limit individual resource sizes.
+              xmlParser: const DavXmlParser(
+                limits: DavXmlLimits(maximumTextBytes: 128 * 1024),
+              ),
+            ).fetchMembers(
+              members,
+              correlationId: 'live-size-recovery',
+              useCalendarMultiget: true,
+            );
+        expect(methods, ['REPORT', 'GET', 'GET']);
+        expect(fetched.map((m) => m.rawIcsBody), expected);
+        for (var index = 0; index < members.length; index++) {
+          final verified = await f.independentRequest(
+            'GET',
+            members[index].requestUri,
+          );
+          expect(verified.body, expected[index]);
+          expect(verified.headers['etag'], fetched[index].etag);
+        }
+      },
+      skip: !enabled,
+    );
     test(
       '${target.key}: injected well-known 303 resolves real service and inventory',
       () async {

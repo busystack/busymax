@@ -1,6 +1,11 @@
 import 'package:busymax/src/dav/sync/dav_account_sync_engine.dart';
 
 import 'dart:convert';
+import 'dart:io';
+
+import 'package:drift/native.dart';
+
+import '../../support/persistence_test_directory.dart';
 
 import 'package:busymax/src/dav/dav_provider_profile.dart';
 import 'package:busymax/src/dav/http/dav_http_transport.dart';
@@ -18,11 +23,56 @@ import 'package:http/testing.dart';
 
 void main() {
   late _Fixture f;
+  Directory? transferDirectory;
   setUp(() {
     f = _Fixture();
   });
-  tearDown(() => f.db.close());
+  tearDown(() async {
+    await f.db.close();
+    await transferDirectory?.delete(recursive: true);
+    transferDirectory = null;
+  });
 
+  test('transfer restarts after PUT and after confirmation without losing the source or duplicating the copy', () async {
+    await f.db.close();
+    transferDirectory = await createPersistenceTestDirectory(
+      'busymax-transfer-',
+    );
+    final file = File('${transferDirectory!.path}/state.sqlite');
+    f = _Fixture(database: AppDatabase(NativeDatabase(file)));
+    await f.seed(crossAccount: true, differentServer: true, meeting: false);
+    await f.move();
+    f.failReadback = true;
+    expect((await f.replay(f.destinationAccount)).appliedCount, 0);
+    expect(f.resources[f.sourceUri.toString()], f.raw);
+    await f.reopen(file);
+    f.failReadback = false;
+    f.now = f.now.add(const Duration(days: 1));
+    expect((await f.replay(f.destinationAccount)).appliedCount, 1);
+    expect(f.methods.where((m) => m == 'PUT'), hasLength(1));
+    expect(f.resources[f.sourceUri.toString()], f.raw);
+    await f.reopen(file);
+    expect((await f.replay('source')).appliedCount, 1);
+    expect(f.methods.where((m) => m == 'DELETE'), hasLength(1));
+    expect(f.resources.values.single, f.raw);
+  });
+
+  test(
+    'transfer accepts known server metadata normalization before deletion',
+    () async {
+      await f.seed(crossAccount: true, differentServer: true, meeting: false);
+      await f.move();
+      f.transformCreate = (raw) => raw.replaceFirst(
+        'END:VEVENT',
+        'LAST-MODIFIED:20261108T000000Z\r\nSEQUENCE:2\r\nEND:VEVENT',
+      );
+      expect((await f.replay(f.destinationAccount)).appliedCount, 1);
+      expect((await f.replay('source')).appliedCount, 1);
+      expect(f.methods.where((m) => m == 'DELETE'), hasLength(1));
+      expect(f.resources.values.single, contains('X-EXCEPTION:keep'));
+      expect(f.resources.values.single, contains('DESCRIPTION:Custom'));
+    },
+  );
   for (final crossAccount in [false, true]) {
     for (final organizer in [false, true]) {
       test(
@@ -279,15 +329,43 @@ void main() {
     );
   }
 
-  test('personal transfer keeps the original when server readback loses event data', () async {
-    await f.seed(crossAccount: true, differentServer: true, meeting: false);
-    await f.move();
-    f.corruptCreate = true;
-    expect((await f.replay(f.destinationAccount)).conflictCount, 1);
-    expect((await f.replay('source')).appliedCount, 0);
-    expect(f.methods.where((m) => m == 'DELETE'), isEmpty);
-    expect(f.resources[f.sourceUri.toString()], f.raw);
-  });
+  for (final loss in [
+    'description',
+    'alarm',
+    'rrule',
+    'exception',
+    'extension',
+  ]) {
+    test(
+      'personal transfer retains original after $loss loss with scheduling enabled',
+      () async {
+        await f.seed(crossAccount: true, differentServer: true, meeting: false);
+        await f.move();
+        f.transformCreate = (raw) => switch (loss) {
+          'description' => raw.replaceFirst('DESCRIPTION:Custom\r\n', ''),
+          'alarm' => raw.replaceFirst(
+            RegExp(r'BEGIN:VALARM[\s\S]*?END:VALARM\r\n'),
+            '',
+          ),
+          'rrule' => raw.replaceFirst('RRULE:FREQ=DAILY;COUNT=2\r\n', ''),
+          'exception' => raw.replaceFirst(
+            RegExp(
+              r'BEGIN:VEVENT\r\nUID:meeting\r\nRECURRENCE-ID:[\s\S]*?END:VEVENT\r\n',
+            ),
+            '',
+          ),
+          _ => raw.replaceFirst('X-EXCEPTION:keep', 'X-EXCEPTION:lost'),
+        };
+        expect((await f.replay(f.destinationAccount)).conflictCount, 1);
+        expect((await f.replay('source')).appliedCount, 0);
+        // A fresh replayer must also preserve the durable dependency barrier.
+        f.now = f.now.add(const Duration(days: 1));
+        expect((await f.replay('source')).appliedCount, 0);
+        expect(f.methods.where((m) => m == 'DELETE'), isEmpty);
+        expect(f.resources[f.sourceUri.toString()], f.raw);
+      },
+    );
+  }
 
   for (final failCopy in [false, true]) {
     test(
@@ -333,9 +411,11 @@ void main() {
 }
 
 class _Fixture {
-  final db = AppDatabase.memoryForTests();
-  late final objects = DavObjectRepository(database: db);
-  late final repository = CalendarRepository(
+  _Fixture({AppDatabase? database})
+    : db = database ?? AppDatabase.memoryForTests();
+  AppDatabase db;
+  late DavObjectRepository objects = DavObjectRepository(database: db);
+  late CalendarRepository repository = CalendarRepository(
     database: db,
     localTimeZone: 'UTC',
     now: () => now,
@@ -353,7 +433,19 @@ class _Fixture {
       failCreate = false,
       loseMoveResponse = false,
       corruptCreate = false;
+  String Function(String)? transformCreate;
   var schedulingMessages = 0;
+
+  Future<void> reopen(File file) async {
+    await db.close();
+    db = AppDatabase(NativeDatabase(file));
+    objects = DavObjectRepository(database: db);
+    repository = CalendarRepository(
+      database: db,
+      localTimeZone: 'UTC',
+      now: () => now,
+    );
+  }
 
   Future<void> seed({
     bool crossAccount = false,
@@ -485,6 +577,7 @@ class _Fixture {
     serviceFactory: ({required account, required collection}) async =>
         DavConditionalMutationService(
           nowUtc: () => now,
+          implicitScheduling: true,
           remoteClient: DavMutationHttpClient(
             transport: DavHttpTransport(
               client: MockClient((request) async {
@@ -511,7 +604,9 @@ class _Fixture {
                   } else {
                     expect(request.headers['if-match'], '"one"');
                   }
-                  resources[request.url.toString()] = corruptCreate
+                  resources[request.url.toString()] = transformCreate != null
+                      ? transformCreate!(request.body)
+                      : corruptCreate
                       ? request.body.replaceFirst(
                           'X-EXCEPTION:keep',
                           'X-EXCEPTION:lost',

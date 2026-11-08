@@ -6,6 +6,7 @@ import 'package:http/testing.dart';
 import 'package:busymax/src/dav/dav_provider_profile.dart';
 
 import 'package:busymax/src/dav/dav_errors.dart';
+import 'package:busymax/src/dav/xml/dav_xml.dart';
 import 'package:busymax/src/dav/http/dav_http_transport.dart';
 import 'package:busymax/src/dav/ical/ical_document.dart';
 import 'package:busymax/src/dav/mutation/dav_mutation_patch.dart';
@@ -62,6 +63,8 @@ void main() {
     'cancelled',
     'malformed-get',
     'get-without-etag',
+    'aggregate-limit-get200',
+    'aggregate-limit-get403',
   ]) {
     test('multiget $scenario preserves durable state unless reconciled', () async {
       await database.close();
@@ -133,7 +136,10 @@ void main() {
           if (scenario == 'property404-network') {
             throw http.ClientException('synthetic network failure');
           }
-          if (scenario == 'property404-get403') return http.Response('', 403);
+          if (scenario == 'property404-get403' ||
+              scenario == 'aggregate-limit-get403') {
+            return http.Response('', 403);
+          }
           if (scenario == 'property404-get404') return http.Response('', 404);
           return http.Response(
             scenario == 'malformed-get'
@@ -153,6 +159,8 @@ void main() {
           );
         }
         final contents = switch (scenario) {
+          'aggregate-limit-get200' || 'aggregate-limit-get403' =>
+            '$live<x:padding xmlns:x="urn:test">${'x' * 2048}</x:padding>',
           'resource404' => missing,
           'omitted' => '',
           'missing-data' => live.replaceFirst(
@@ -179,6 +187,9 @@ void main() {
         nextcloudServer: authority,
       );
       final remote = DavCollectionHttpClient(
+        xmlParser: scenario.startsWith('aggregate-limit')
+            ? const DavXmlParser(limits: DavXmlLimits(maximumTextBytes: 1024))
+            : const DavXmlParser(),
         transport: DavHttpTransport(
           client: client,
           profile: profile,
@@ -195,6 +206,7 @@ void main() {
       final resolved = [
         'resource404',
         'property404-get200',
+        'aggregate-limit-get200',
         'property404-get404',
         'missing-data',
         'missing-etag',

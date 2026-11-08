@@ -1,5 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+
+import 'package:drift/native.dart';
 
 import 'package:busymax/src/android/android_app.dart';
 import 'package:busymax/src/android/android_notifications.dart';
@@ -120,6 +123,181 @@ void main() {
     messenger.setMockMethodCallHandler(secureStorageChannel, null);
   });
 
+  for (final resume in [false, true]) {
+    testWidgets(
+      'Settings observes external DAV journals and collections after ${resume ? 'resume' : 'dataChanged'}',
+      (tester) async {
+        final directory = (await tester.runAsync(
+          () => Directory.systemTemp.createTemp('busymax-ui-db-'),
+        ))!;
+        final file = File('${directory.path}/state.sqlite');
+        final foreground = AppDatabase(NativeDatabase(file));
+        final background = AppDatabase(NativeDatabase(file));
+        final harness = (await tester.runAsync(
+          () => _pumpApp(
+            tester,
+            AppSettings.defaults(),
+            databaseOverride: foreground,
+            seedDatabase: (db) async {
+              await db
+                  .into(db.accounts)
+                  .insert(
+                    AccountsCompanion.insert(
+                      id: 'caldav',
+                      provider: 'caldav',
+                      authority: 'https://example.test/',
+                      providerAccountId: 'user',
+                      credentialKind: 'caldav_password',
+                      createdAtUtc: 'now',
+                      updatedAtUtc: 'now',
+                    ),
+                  );
+              await db
+                  .into(db.davCollectionCreations)
+                  .insert(
+                    DavCollectionCreationsCompanion.insert(
+                      id: 'creation',
+                      accountId: 'caldav',
+                      authority: 'https://example.test/',
+                      homeUri: 'https://example.test/calendars/',
+                      targetUri: 'https://example.test/calendars/new/',
+                      displayName: 'Background request',
+                      componentsJson: '["VEVENT"]',
+                      state: const Value('dispatched'),
+                      lastErrorCode: const Value('DavUncertain'),
+                      createdAtUtc: 'now',
+                    ),
+                  );
+            },
+          ),
+        ))!;
+        addTearDown(
+          () => tester.runAsync(() async {
+            await background.close();
+            await harness.dispose();
+            await directory.delete(recursive: true);
+          }),
+        );
+
+        harness.container
+                .read(androidSelectedDestinationProvider.notifier)
+                .state =
+            2;
+        await tester.pumpAndSettle();
+        final noticeSubscription = harness.container.listen(
+          accountCollectionCreationFailuresProvider('caldav'),
+          (_, _) {},
+        );
+        addTearDown(noticeSubscription.close);
+        await tester.pump();
+        for (
+          var attempt = 0;
+          attempt < 20 &&
+              !harness.container
+                  .read(storedDavCollectionCreationNoticesProvider('caldav'))
+                  .hasValue;
+          attempt++
+        ) {
+          await tester.pump();
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 10)),
+          );
+        }
+        expect(
+          harness.container
+              .read(accountCollectionCreationFailuresProvider('caldav'))
+              .values
+              .single
+              .pending,
+          isTrue,
+        );
+        await tester.runAsync(() async {
+          await background
+              .into(background.davCollections)
+              .insert(
+                DavCollectionsCompanion.insert(
+                  id: 'new',
+                  accountId: 'caldav',
+                  hrefKey: '/calendars/new/',
+                  requestUri: 'https://example.test/calendars/new/',
+                  displayName: 'Discovered in background',
+                  supportedComponentMask: const Value(1),
+                  createdAtUtc: 'now',
+                  updatedAtUtc: 'now',
+                ),
+              );
+          await background
+              .update(background.davCollectionCreations)
+              .write(
+                const DavCollectionCreationsCompanion(
+                  state: Value('rejected'),
+                  lastErrorCode: Value('DavPermissionDenied'),
+                  lastErrorKind: Value('authorization'),
+                  lastErrorStatus: Value(403),
+                ),
+              );
+        });
+        if (resume) {
+          for (final state in [
+            AppLifecycleState.inactive,
+            AppLifecycleState.hidden,
+            AppLifecycleState.paused,
+            AppLifecycleState.hidden,
+            AppLifecycleState.inactive,
+            AppLifecycleState.resumed,
+          ]) {
+            tester.binding.handleAppLifecycleStateChanged(state);
+          }
+        } else {
+          await messenger.handlePlatformMessage(
+            'io.busystack.busymax/events',
+            const StandardMethodCodec().encodeSuccessEnvelope({
+              'type': 'dataChanged',
+              'data': <String, Object?>{},
+            }),
+            (_) {},
+          );
+        }
+        await tester.pump();
+        for (var attempt = 0; attempt < 20; attempt++) {
+          await tester.pump();
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 10)),
+          );
+          final notices = harness.container
+              .read(storedDavCollectionCreationNoticesProvider('caldav'))
+              .valueOrNull;
+          if (harness.container
+                      .read(davCollectionsStreamProvider)
+                      .valueOrNull
+                      ?.isNotEmpty ==
+                  true &&
+              notices?.singleOrNull?.pending == false) {
+            break;
+          }
+        }
+        await tester.pumpAndSettle();
+        expect(
+          harness.container
+              .read(davCollectionsStreamProvider)
+              .value!
+              .single
+              .name,
+          'Discovered in background',
+        );
+        expect(
+          harness.container
+              .read(accountCollectionCreationFailuresProvider('caldav'))
+              .values
+              .single
+              .pending,
+          isFalse,
+        );
+        expect(find.byType(AndroidSettingsScreen), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
   testWidgets(
     'compact Android shell uses bottom navigation and accessible taps',
     (tester) async {
@@ -7031,6 +7209,7 @@ Future<void> _pumpUntilFound(WidgetTester tester, Finder target) async {
 Future<_AndroidAppHarness> _pumpApp(
   WidgetTester tester,
   AppSettings settings, {
+  AppDatabase? databaseOverride,
   bool populated = false,
   String? localTimeZone,
   Future<void> Function(AppDatabase database)? seedDatabase,
@@ -7051,7 +7230,7 @@ Future<_AndroidAppHarness> _pumpApp(
   scheduleProjectionCoverage,
   TaskCollectionCapabilities? davTaskCapabilities,
 }) async {
-  final database = AppDatabase.memoryForTests();
+  final database = databaseOverride ?? AppDatabase.memoryForTests();
   if (seedDatabase != null) await seedDatabase(database);
   if (populated) await _seedPopulatedSchedule(database);
   final notifications = AndroidNotificationService(

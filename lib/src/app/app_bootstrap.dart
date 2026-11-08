@@ -1434,11 +1434,10 @@ final accountCollectionCreationFailuresProvider = Provider.autoDispose
       final stored = ref
           .watch(storedDavCollectionCreationNoticesProvider(accountId))
           .value;
-      return {
-        ...current,
-        for (final failure in stored ?? const <DavCollectionCreationFailure>[])
-          failure.operation.id: current[failure.operation.id] ?? failure,
-      };
+      // Once loaded, the journal is authoritative, including an empty result
+      // after commitment or acknowledgment. Activity may predate a partial sync.
+      if (stored == null) return current;
+      return {for (final failure in stored) failure.operation.id: failure};
     });
 
 typedef DavCollectionCreationNoticeAcknowledger = Future<bool> Function(

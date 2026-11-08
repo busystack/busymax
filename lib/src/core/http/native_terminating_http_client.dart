@@ -22,11 +22,12 @@ final class NativeTerminatingHttpClient extends http.BaseClient
       _reusableNative = _nativeClientFactory();
       _reusableClient = IOClient(_reusableNative!);
     } else {
-      _sharedClient ??= IOClient(_nativeClientFactory());
+      _sharedClient ??= IOClient(_sharedNative = _nativeClientFactory());
     }
   }
 
   http.Client? _sharedClient;
+  HttpClient? _sharedNative;
   HttpClient? _reusableNative;
   IOClient? _reusableClient;
 
@@ -43,7 +44,20 @@ final class NativeTerminatingHttpClient extends http.BaseClient
     if (_closed) {
       throw http.ClientException('HTTP client is closed.', request.url);
     }
-    return (_sharedClient ??= IOClient(_nativeClientFactory())).send(request);
+    return (_sharedClient ??= IOClient(
+      _sharedNative = _nativeClientFactory(),
+    )).send(request);
+  }
+
+  /// Retire pooled sockets before a new dispatch without interrupting responses
+  /// already in flight. The next request must establish a new connection.
+  void retireConnections() {
+    _sharedNative?.close(force: false);
+    _reusableNative?.close(force: false);
+    _sharedNative = null;
+    _sharedClient = null;
+    _reusableNative = null;
+    _reusableClient = null;
   }
 
   @override

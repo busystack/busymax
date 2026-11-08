@@ -534,6 +534,8 @@ final class DavConditionalMutationService {
     required CollectionCapabilities capabilities,
     required String correlationId,
     bool reconcileFirst = false,
+    Future<void> Function(Uri uri)? beforeCreateDispatch,
+    bool requireContentPreservation = false,
   }) async {
     final allowed = object.componentType == 'VEVENT'
         ? capabilities.canAttemptCreateEvent
@@ -578,6 +580,9 @@ final class DavConditionalMutationService {
     for (var attempt = 0; attempt < maximumConditionalAttempts; attempt += 1) {
       final uri = _memberUri(collectionUri, memberName);
       final hrefKey = uri.path;
+      // The queue must durably reserve each replacement filename before PUT.
+      // A failed reservation must never transmit the request.
+      await beforeCreateDispatch?.call(uri);
       try {
         final response = await remote.conditionalPut(
           uri: uri,
@@ -597,7 +602,8 @@ final class DavConditionalMutationService {
         );
         if (!canonical.missing &&
             (_matchesCreatedCanonical(object.rawIcs, canonical.rawIcsBody!) ||
-                (implicitScheduling &&
+                (!requireContentPreservation &&
+                    implicitScheduling &&
                     _sameResourceIdentity(
                       object.rawIcs,
                       canonical.rawIcsBody!,
