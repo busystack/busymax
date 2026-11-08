@@ -6,6 +6,40 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 
 void main() {
+  test('closing a client also closes retired responses', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    final finish = Completer<void>();
+    addTearDown(() async {
+      if (!finish.isCompleted) finish.complete();
+      await server.close(force: true);
+    });
+    server.listen((request) async {
+      try {
+        await request.drain<void>();
+        request.response.write('first');
+        await request.response.flush();
+        await finish.future;
+        request.response.write('done');
+        await request.response.close();
+      } on HttpException {
+        // Expected when the owner cancels this active response.
+      } on SocketException {
+        // Platform-specific forced-close reporting.
+      }
+    });
+    final client = NativeTerminatingHttpClient();
+    addTearDown(client.close);
+    final response = await client.send(
+      http.Request('GET', Uri.parse('http://127.0.0.1:${server.port}/')),
+    );
+    final body = response.stream.bytesToString();
+    client.retireConnections();
+    final closed = expectLater(body, throwsA(isA<http.ClientException>()));
+    client.close();
+    finish.complete();
+    await closed;
+  });
+
   test('retiring connections preserves an in-flight response and validates a fresh lane', () async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     final finish = Completer<void>();

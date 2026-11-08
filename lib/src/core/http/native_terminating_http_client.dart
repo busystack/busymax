@@ -30,6 +30,8 @@ final class NativeTerminatingHttpClient extends http.BaseClient
   HttpClient? _sharedNative;
   HttpClient? _reusableNative;
   IOClient? _reusableClient;
+  final _sharedActive = <HttpClient, int>{};
+  final _retiredShared = <HttpClient>{};
 
   /// Only for a request-owned lane: termination may close this entire client.
   /// The owner must not dispatch overlapping requests on a reusable lane.
@@ -40,22 +42,64 @@ final class NativeTerminatingHttpClient extends http.BaseClient
   var _closed = false;
 
   @override
-  Future<http.StreamedResponse> send(http.BaseRequest request) {
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
     if (_closed) {
       throw http.ClientException('HTTP client is closed.', request.url);
     }
-    return (_sharedClient ??= IOClient(
+    final client = _sharedClient ??= IOClient(
       _sharedNative = _nativeClientFactory(),
-    )).send(request);
+    );
+    final native = _sharedNative;
+    if (native == null) return client.send(request);
+    _sharedActive[native] = (_sharedActive[native] ?? 0) + 1;
+    late final http.StreamedResponse response;
+    try {
+      response = await client.send(request);
+    } on Object {
+      _finishSharedRequest(native);
+      rethrow;
+    }
+    Stream<List<int>> trackedBody() async* {
+      try {
+        yield* response.stream;
+      } finally {
+        _finishSharedRequest(native);
+      }
+    }
+
+    return http.StreamedResponse(
+      trackedBody(),
+      response.statusCode,
+      headers: response.headers,
+      contentLength: response.contentLength,
+      request: response.request,
+      isRedirect: response.isRedirect,
+      reasonPhrase: response.reasonPhrase,
+      persistentConnection: response.persistentConnection,
+    );
+  }
+
+  void _finishSharedRequest(HttpClient native) {
+    final remaining = (_sharedActive[native] ?? 1) - 1;
+    if (remaining == 0) {
+      _sharedActive.remove(native);
+      _retiredShared.remove(native);
+    } else {
+      _sharedActive[native] = remaining;
+    }
   }
 
   /// Retire pooled sockets before a new dispatch without interrupting responses
   /// already in flight. The next request must establish a new connection.
   void retireConnections() {
-    _sharedNative?.close(force: false);
+    if (_busy) throw StateError('A reusable HTTP lane is still active.');
+    if (_sharedNative case final native?) {
+      if ((_sharedActive[native] ?? 0) > 0) _retiredShared.add(native);
+      native.close(force: false);
+      _sharedNative = null;
+      _sharedClient = null;
+    }
     _reusableNative?.close(force: false);
-    _sharedNative = null;
-    _sharedClient = null;
     _reusableNative = null;
     _reusableClient = null;
   }
@@ -148,6 +192,11 @@ final class NativeTerminatingHttpClient extends http.BaseClient
     _closed = true;
     _sharedClient?.close();
     _reusableClient?.close();
+    for (final native in _retiredShared) {
+      native.close(force: true);
+    }
+    _retiredShared.clear();
+    _sharedActive.clear();
     for (final attempt in _attempts) {
       attempt.close(force: true);
     }
