@@ -576,16 +576,19 @@ final class DavCollectionAdministration {
     var unknownMethod = false;
     if (!advertisesCreation(options)) {
       // Allow is resource-specific. Some servers advertise creation only at a
-      // new child, others on the home. A successful target Allow is specific
-      // evidence; an unavailable OPTIONS method leaves capability unknown.
+      // new child, others on the home. A successful target Allow, or Allow on
+      // a 405 (RFC 9110 section 15.5.6), is target-specific method evidence.
       options = await _send(c, 'OPTIONS', target, cancellation: cancellation);
+      final hasMethodEvidence =
+          options.headers.containsKey('allow') &&
+          (options.statusCode == 405 ||
+              options.statusCode >= 200 && options.statusCode < 300);
       unknownMethod =
-          const {404, 405, 410, 501}.contains(options.statusCode) ||
-          (options.statusCode >= 200 &&
-              options.statusCode < 300 &&
-              !options.headers.containsKey('allow'));
-      if (!unknownMethod &&
-          (options.statusCode < 200 || options.statusCode >= 300)) {
+          const {404, 410, 501}.contains(options.statusCode) ||
+          ((options.statusCode == 405 ||
+                  options.statusCode >= 200 && options.statusCode < 300) &&
+              !hasMethodEvidence);
+      if (!unknownMethod && !hasMethodEvidence) {
         throw _error(
           options.statusCode,
           'DavCollectionCapabilitiesUnavailable',

@@ -369,6 +369,34 @@ void main() {
     );
   }
 
+  for (final (headers, expected) in [
+    (<String, String>{}, DavCollectionCreationCapability.unknown),
+    ({'allow': 'GET, PROPFIND'}, DavCollectionCreationCapability.unsupported),
+    ({'allow': ''}, DavCollectionCreationCapability.unsupported),
+    ({'allow': 'MKCALENDAR'}, DavCollectionCreationCapability.supported),
+    (
+      {'allow': 'MKCOL', 'dav': 'extended-mkcol'},
+      DavCollectionCreationCapability.supported,
+    ),
+    ({'allow': 'MKCOL'}, DavCollectionCreationCapability.unsupported),
+  ]) {
+    test('discovery OPTIONS 405 respects Allow $headers', () async {
+      final result = await _discover(
+        targetCreationMethodsOnly: true,
+        collectionOptionsStatus: 405,
+        collectionOptionsHeaders: headers,
+      );
+      final context = result.service.principalContexts.single;
+      expect(context.effectiveCollectionCreationCapability, expected);
+      expect(
+        DavPrincipalContext.fromJson(context.toJson())
+            .effectiveCollectionCreationCapability,
+        expected,
+      );
+      expect(result.collections, hasLength(1));
+    });
+  }
+
   for (final status in [200, 403, 404, 405, 501]) {
     for (final acl in ['all', 'read', 'unknown']) {
       test(
@@ -382,7 +410,7 @@ void main() {
                 : '<d:current-user-privilege-set><d:privilege><d:$acl/></d:privilege></d:current-user-privilege-set>',
           );
           final context = result.service.principalContexts.single;
-          final capability = status == 200
+          final capability = status == 200 || status == 405
               ? DavCollectionCreationCapability.unsupported
               : status == 403
               ? DavCollectionCreationCapability.denied
@@ -833,6 +861,7 @@ Future<DavDiscoveryResult> _discover({
   bool homeMove = true,
   bool? collectionMove,
   int collectionOptionsStatus = 200,
+  Map<String, String>? collectionOptionsHeaders,
   List<http.Request>? requests,
   Map<String, (DateTime, bool)> methodCache = const {},
   int collectionCount = 1,
@@ -875,11 +904,13 @@ Future<DavDiscoveryResult> _discover({
       return http.Response(
         '',
         collection ? collectionOptionsStatus : 200,
-        headers: {
-          'dav': serverFeatures,
-          'allow':
-              '${targetCreationMethodsOnly && !request.url.path.contains('busymax-options-') ? 'OPTIONS, PROPFIND' : creationMethods}${(collection ? collectionMove ?? homeMove : homeMove) ? ', MOVE' : ''}',
-        },
+        headers: collection && collectionOptionsHeaders != null
+            ? collectionOptionsHeaders
+            : {
+                'dav': serverFeatures,
+                'allow':
+                    '${targetCreationMethodsOnly && !request.url.path.contains('busymax-options-') ? 'OPTIONS, PROPFIND' : creationMethods}${(collection ? collectionMove ?? homeMove : homeMove) ? ', MOVE' : ''}',
+              },
       );
     }
     String response(String path, String props, {String other = ''}) =>

@@ -89,8 +89,11 @@ authorize it. Collection method advertisement and parent ACLs are independent;
 positive MKCALENDAR or extended MKCOL evidence selects the normal creation
 path. With the user's explicitly approved policy, an unavailable OPTIONS on a
 nonexistent reserved child (including 404) leaves method capability unknown.
-A successful target Allow omitting creation methods remains unsupported; an
-explicit denial remains blocked. An unknown method permits MKCALENDAR only
+A target Allow on a successful OPTIONS or HTTP 405 is method evidence, even
+when empty (RFC 9110 sections 10.2.1 and 15.5.6). If it omits calendar creation
+methods, creation remains unsupported. A 405 without Allow leaves method
+capability unknown under the existing fallback policy. Explicit denials remain
+blocked. An unknown method permits MKCALENDAR only
 for an already persisted, explicitly requested creation intent and a fresh
 parent bind/write/all grant. Unknown parent ACL cannot authorize this fallback.
 Discovery persists unknown/supported/unsupported/denied separately from ACLs;

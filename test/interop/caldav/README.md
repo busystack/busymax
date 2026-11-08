@@ -81,7 +81,9 @@ The default harness provisions collections through BusyMax's production service.
 Under the explicitly approved provider-neutral policy, unavailable child OPTIONS
 leaves method capability unknown; a user-requested persisted creation can use
 MKCALENDAR only with a fresh explicit parent bind/write/all grant. Successful
-child OPTIONS/Allow excluding creation methods and explicit denials still block.
+child OPTIONS/Allow and HTTP 405/Allow excluding creation methods still block,
+including an empty Allow field. A 405 without Allow remains unknown; explicit
+denials still block.
 Lost responses retain the journal/reserved URL and require reconciliation.
 
 For separately labelled independent setup (never application-creation evidence):

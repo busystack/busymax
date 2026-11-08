@@ -50,6 +50,127 @@ void main() {
         },
       );
 
+      for (final (headers, supported, extended) in [
+        (<String, String>{}, true, false),
+        ({'allow': 'GET, PROPFIND'}, false, false),
+        ({'allow': ''}, false, false),
+        ({'allow': 'MKCALENDAR'}, true, false),
+        ({'allow': 'MKCOL', 'dav': 'extended-mkcol'}, true, true),
+        ({'allow': 'MKCOL'}, false, false),
+      ]) {
+        test('target OPTIONS 405 respects Allow $headers', () async {
+          f.creationMethodsOnlyAtTarget = true;
+          f.targetOptionsUnavailable = true;
+          f.targetOptionsStatus = 405;
+          f.targetOptionsHeaders = headers;
+          f.extendedMkcol = extended;
+          if (supported) {
+            expect(
+              await f.admin.create('Work', {component}),
+              DavCollectionAdministrationOutcome.committed,
+            );
+            expect(f.writes, 1);
+          } else {
+            await expectLater(
+              f.admin.create('Work', {component}),
+              throwsA(
+                isA<DavException>().having(
+                  (e) => e.code,
+                  'code',
+                  'DavCollectionCreationUnsupported',
+                ),
+              ),
+            );
+            expect(f.writes, 0);
+            final rejected = await f.database
+                .select(f.database.davCollectionCreations)
+                .getSingle();
+            expect(rejected.state, 'rejected');
+            expect(rejected.lastErrorStatus, 405);
+            await f.reopen();
+            await expectLater(
+              f.admin.resumeCreation(rejected.id),
+              throwsA(isA<DavException>()),
+            );
+            expect(f.writes, 0);
+          }
+        });
+      }
+      for (final committed in [false, true]) {
+        test(
+          'target OPTIONS 405 Allow preserves uncertain operation recovery committed=$committed',
+          () async {
+            f.creationMethodsOnlyAtTarget = true;
+            f.targetOptionsUnavailable = true;
+            f.interrupt = true;
+            f.commitBeforeInterrupt = committed;
+            await expectLater(
+              f.admin.create('Work', {component}),
+              throwsA(isA<DavException>()),
+            );
+            expect(f.writes, 1);
+            await f.reopen();
+            f.interrupt = false;
+            f.targetOptionsStatus = 405;
+            f.targetOptionsHeaders = {'allow': 'GET, PROPFIND'};
+            if (committed) {
+              expect(
+                await f.admin.resumeCreation(_id),
+                DavCollectionAdministrationOutcome.reconciled,
+              );
+            } else {
+              await expectLater(
+                f.admin.resumeCreation(_id),
+                throwsA(
+                  isA<DavException>().having(
+                    (e) => e.kind,
+                    'unresolved prior dispatch',
+                    DavErrorKind.unknownOutcome,
+                  ),
+                ),
+              );
+            }
+            expect(f.writes, 1);
+            final operation = await f.database
+                .select(f.database.davCollectionCreations)
+                .getSingle();
+            expect(operation.id, _id);
+            expect(operation.targetUri, _target);
+            expect(operation.state, committed ? 'committed' : 'dispatched');
+          },
+        );
+      }
+      for (final denied in [false, true]) {
+        test(
+          'target OPTIONS 405 without Allow still requires explicit parent authorization denied=$denied',
+          () async {
+            f.creationMethodsOnlyAtTarget = true;
+            f.targetOptionsUnavailable = true;
+            f.targetOptionsStatus = 405;
+            f.bindDenied = denied;
+            f.parentPrivilegesUnknown = !denied;
+            await expectLater(
+              f.admin.create('Work', {component}),
+              throwsA(isA<DavException>()),
+            );
+            expect(f.writes, 0);
+          },
+        );
+      }
+      test(
+        'target OPTIONS 404 Allow does not establish creation refusal',
+        () async {
+          f.creationMethodsOnlyAtTarget = true;
+          f.targetOptionsUnavailable = true;
+          f.targetOptionsHeaders = {'allow': 'GET, PROPFIND'};
+          expect(
+            await f.admin.create('Work', {component}),
+            DavCollectionAdministrationOutcome.committed,
+          );
+          expect(f.writes, 1);
+        },
+      );
+
       for (final scenario in [
         'fresh',
         'existing',
@@ -1679,6 +1800,7 @@ class _Fixture {
   bool optionsNetworkFailure = false, creationMethodsOnlyAtTarget = false;
   bool targetOptionsUnavailable = false;
   int targetOptionsStatus = 404;
+  Map<String, String> targetOptionsHeaders = const {};
   bool parentPrivilegesUnknown = false;
   bool malformedParentPrivileges = false, nestedParentPrivileges = false;
   int writes = 0, interruptedProbes = 0, unavailableProbes = 0;
@@ -1840,7 +1962,11 @@ class _Fixture {
     }
     if (request.method == 'OPTIONS') {
       if (targetOptionsUnavailable && request.url.toString() == _target) {
-        return http.Response('', targetOptionsStatus);
+        return http.Response(
+          '',
+          targetOptionsStatus,
+          headers: targetOptionsHeaders,
+        );
       }
       if (optionsNetworkFailure) {
         throw http.ClientException('Simulated pre-dispatch connection loss');

@@ -866,14 +866,18 @@ final class DavDiscoveryService {
           cancellationToken: cancellationToken,
         );
         if (response.statusCode == 401) _requireSuccessfulOrDav(response);
+        // A 405 refuses OPTIONS, but its required Allow field still describes
+        // this target's methods (RFC 9110 section 15.5.6), even when empty.
+        final hasMethodEvidence =
+            response.headers.containsKey('allow') &&
+            (response.statusCode == 405 ||
+                response.statusCode >= 200 && response.statusCode < 300);
         if (response.statusCode == 403) {
           creationCapability = DavCollectionCreationCapability.denied;
-        } else if (response.statusCode >= 200 &&
-            response.statusCode < 300 &&
-            response.headers.containsKey('allow')) {
+        } else if (hasMethodEvidence) {
           creationCapability = DavCollectionCreationCapability.unsupported;
         }
-        if (response.statusCode >= 200 && response.statusCode < 300) {
+        if (hasMethodEvidence) {
           final methods = _allowedMethods(response);
           if (methods.contains('MKCALENDAR')) creationMethods.add('MKCALENDAR');
           if (methods.contains('MKCOL') &&

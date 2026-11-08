@@ -6,6 +6,33 @@ record distinguishes deterministic regression coverage, real-server protocol
 checks, native application checks and build validation. Documentation cleanup
 does not constitute a new execution of these checks.
 
+## 2026-11-07 HTTP 405 method-evidence follow-up
+
+This narrow follow-up starts clean at
+`4d2d92195bdb953e695ca68f6c88078c7446cb14` on `release/v0.4.0`.
+The issue is source-confirmed and reproduced by deterministic fixtures; it has
+not been observed against the three pinned live servers. HTTP 405 with Allow
+now supplies target-specific method evidence in both production administration
+and discovery, per [RFC 9110 sections 10.2.1 and 15.5.6](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.6).
+An empty Allow or one omitting both supported calendar-creation methods blocks
+creation before dispatch; a positive advertisement selects the advertised
+method, including Extended MKCOL only with its existing DAV feature evidence.
+A 405 lacking Allow remains unknown under the approved fallback policy and
+still requires explicit parent authorization. The existing 404 fallback is
+unchanged even if its error response contains Allow.
+
+Regressions cover VEVENT/VTODO, negative/empty/positive Allow, Extended MKCOL,
+missing Allow with unknown/denied parent ACL, rejected-journal persistence,
+and restart reconciliation without another mutation. The previous implementation
+failed 13 of the initial 18 new 405 cases; its failure receipts are retained.
+The complete affected discovery/creation/service suites passed **346 tests,
+exit 0**; analysis and repository hygiene passed. The four changed Dart files
+were formatted. Commands, negative controls and source identities are appended
+as `options405-*` under the existing private qualification directory. Prior full-suite, live-server,
+native and package evidence below predates this change and is not a new run.
+No release metadata, schema, pins, upstream software, commits or pushes are
+changed by this follow-up; outstanding release gates remain open.
+
 ## 2026-11-07 final-corrections follow-up
 
 This follow-up starts with a **clean** `release/v0.4.0` at
@@ -44,8 +71,10 @@ ACLs. The UI permits a request when capability is unknown only if the parent
 has an explicit grant. The production service then requires a fresh parent
 bind/write/all grant before its journalled MKCALENDAR fallback. A successful
 reserved-target OPTIONS/Allow omitting creation methods is unsupported; target
-403 remains denied. OPTIONS 404/405/410/501 or a successful response without
-Allow cannot establish creation support/refusal. General calendar-access grants
+403 remains denied. OPTIONS 404/410/501, HTTP 405 without Allow, or a
+successful response without Allow cannot establish creation support/refusal.
+HTTP 405 with Allow is target-specific evidence, including an empty field;
+see the method-evidence follow-up above. General calendar-access grants
 nothing. Unknown parent privileges block this fallback. Existing operation
 UUID/reserved URL, exclusive lease, definitive rejection and reconciliation
 rules remain. A previously rejected operation never becomes success solely
