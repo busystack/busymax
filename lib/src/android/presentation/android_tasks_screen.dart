@@ -1,5 +1,7 @@
 import 'package:busymax/src/core/auth/authorization_attempt.dart';
 
+import 'android_dav_attachments_section.dart';
+
 import 'dart:async';
 import 'dart:convert';
 
@@ -1184,6 +1186,17 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
                     }
                   },
                 ),
+            if (widget.provider.isDav &&
+                widget.task != null &&
+                (_observedTask ?? widget.task!).icalUid != null &&
+                (_observedTask ?? widget.task!).davCollectionId != null)
+              AndroidDavAttachmentsSection.task(
+                target: (
+                  accountId: widget.accountId,
+                  taskListId: (_observedTask ?? widget.task!).taskListId,
+                  taskId: (_observedTask ?? widget.task!).id,
+                ),
+              ),
             if (widget.provider == BusyProvider.microsoft &&
                 widget.task != null)
               Column(

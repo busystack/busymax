@@ -4060,4 +4060,8 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get taskReminderRequiresAnchor =>
       'عدّل التذكير النسبي قبل إزالة وقت البدء أو الموعد النهائي المرتبط به.';
+
+  @override
+  String get attachmentInvalidOrTooLarge =>
+      'هذا المرفق غير صالح أو يتجاوز الحد الأقصى للحجم.';
 }

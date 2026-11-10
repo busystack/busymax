@@ -1404,5 +1404,6 @@
   "davPermissionsUnknown": "サーバーは権限を通知していません。要求された変更はサーバーで確認されます。",
   "localNetworkAccessRequired": "ローカルネットワークへのアクセスが必要です",
   "localNetworkAccessRecovery": "このサーバーに接続するには、Android の設定で BusyMax に付近のデバイスへのアクセスを許可してから、もう一度お試しください。",
-  "taskReminderRequiresAnchor": "開始日時や期限を削除する前に、それを基準とするリマインダーを変更してください。"
+  "taskReminderRequiresAnchor": "開始日時や期限を削除する前に、それを基準とするリマインダーを変更してください。",
+  "attachmentInvalidOrTooLarge": "この添付ファイルは無効か、サイズの上限を超えています。"
 }

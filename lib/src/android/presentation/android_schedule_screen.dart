@@ -1,4 +1,5 @@
 import '../../features/calendar/presentation/dav_event_reminders.dart';
+import 'android_dav_attachments_section.dart';
 import '../../features/recurrence/presentation/recurrence_summary.dart';
 
 import 'package:busymax/src/core/auth/authorization_attempt.dart';
@@ -803,6 +804,13 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
                         Navigator.pop(sheetContext);
                         unawaited(_openEventWebLink(attachment.url));
                       },
+                    ),
+                  if (item.provider.isDav && item.attachmentsLoaded)
+                    AndroidDavAttachmentsSection.event(
+                      eventId: item.id,
+                      showHeading:
+                          !item.attachmentsMayExist &&
+                          item.attachmentLinks.isEmpty,
                     ),
                   if (item.attachmentsMayExist && !item.attachmentsLoaded)
                     Text(context.l10n.attachmentsNotLoaded),

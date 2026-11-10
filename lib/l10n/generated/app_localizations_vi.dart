@@ -4004,4 +4004,8 @@ class AppLocalizationsVi extends AppLocalizations {
   @override
   String get taskReminderRequiresAnchor =>
       'Điều chỉnh lời nhắc tương đối trước khi xóa thời gian bắt đầu hoặc hạn chót của lời nhắc.';
+
+  @override
+  String get attachmentInvalidOrTooLarge =>
+      'Tệp đính kèm này không hợp lệ hoặc vượt quá giới hạn kích thước.';
 }

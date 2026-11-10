@@ -4026,4 +4026,8 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get taskReminderRequiresAnchor =>
       'Passe die relative Erinnerung an, bevor du ihren Beginn oder ihre Frist entfernst.';
+
+  @override
+  String get attachmentInvalidOrTooLarge =>
+      'Dieser Anhang ist ungültig oder überschreitet die Größenbegrenzung.';
 }

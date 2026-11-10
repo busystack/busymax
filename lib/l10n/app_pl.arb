@@ -2085,5 +2085,6 @@
   "davPermissionsUnknown": "Serwer nie podał uprawnień. Sprawdzi żądane zmiany.",
   "localNetworkAccessRequired": "Wymagany dostęp do sieci lokalnej",
   "localNetworkAccessRecovery": "Aby połączyć się z tym serwerem, zezwól aplikacji BusyMax na dostęp do urządzeń w pobliżu w ustawieniach Androida, a następnie spróbuj ponownie.",
-  "taskReminderRequiresAnchor": "Zmień przypomnienie względne przed usunięciem jego początku lub terminu."
+  "taskReminderRequiresAnchor": "Zmień przypomnienie względne przed usunięciem jego początku lub terminu.",
+  "attachmentInvalidOrTooLarge": "Ten załącznik jest nieprawidłowy lub przekracza limit rozmiaru."
 }

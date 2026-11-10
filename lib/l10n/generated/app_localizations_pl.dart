@@ -4194,4 +4194,8 @@ class AppLocalizationsPl extends AppLocalizations {
   @override
   String get taskReminderRequiresAnchor =>
       'Zmień przypomnienie względne przed usunięciem jego początku lub terminu.';
+
+  @override
+  String get attachmentInvalidOrTooLarge =>
+      'Ten załącznik jest nieprawidłowy lub przekracza limit rozmiaru.';
 }

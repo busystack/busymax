@@ -1467,5 +1467,6 @@
   "davPermissionsUnknown": "El servidor no ha indicado los permisos. Comprobará los cambios solicitados.",
   "localNetworkAccessRequired": "Se requiere acceso a la red local",
   "localNetworkAccessRecovery": "Para acceder a este servidor, permite que BusyMax acceda a los dispositivos cercanos en los ajustes de Android y vuelve a intentarlo.",
-  "taskReminderRequiresAnchor": "Ajusta el recordatorio relativo antes de eliminar su inicio o fecha límite."
+  "taskReminderRequiresAnchor": "Ajusta el recordatorio relativo antes de eliminar su inicio o fecha límite.",
+  "attachmentInvalidOrTooLarge": "Este archivo adjunto no es válido o supera el límite de tamaño."
 }

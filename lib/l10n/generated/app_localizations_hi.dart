@@ -4008,4 +4008,8 @@ class AppLocalizationsHi extends AppLocalizations {
   @override
   String get taskReminderRequiresAnchor =>
       'शुरू होने का समय या समय सीमा हटाने से पहले सापेक्ष रिमाइंडर बदलें।';
+
+  @override
+  String get attachmentInvalidOrTooLarge =>
+      'यह अटैचमेंट अमान्य है या आकार सीमा से बड़ा है।';
 }

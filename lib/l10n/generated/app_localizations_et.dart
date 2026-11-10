@@ -3995,4 +3995,8 @@ class AppLocalizationsEt extends AppLocalizations {
   @override
   String get taskReminderRequiresAnchor =>
       'Muuda suhtelist meeldetuletust enne selle alguse või tähtaja eemaldamist.';
+
+  @override
+  String get attachmentInvalidOrTooLarge =>
+      'See manus on vigane või ületab suurusepiirangu.';
 }

@@ -1,5 +1,28 @@
 # Generic CalDAV security and recovery
 
+Calendar attachments are read from the existing cached DAV resource, including
+the same pending-edit representation used by export. Viewing, saving and opening
+attachments do not alter that resource or submit DAV mutations. Event and task
+HTTP/HTTPS references use the normal external URI handler without DAV credentials
+or cookies; other schemes and credential-bearing URLs are not launched.
+
+Inline binary attachments require explicit Save. Strict base64 decoding checks
+the alphabet, padding, pad bits and existing 16 MiB calendar-resource bound before
+allocating bytes. At most 256 attachments per selected component, including its
+alarm data, are listed. Invalid entries remain stored unchanged and cannot be
+saved. MIME metadata and all original parameters remain in the raw resource;
+valid MIME types are displayed and supplied to Android's normal document saver.
+Filename hints cannot choose a directory or contain control/path characters.
+Desktop saves stage in a private, uniquely named directory beside the explicitly
+chosen destination, flush and atomically rename the data, reject symlink or
+directory destinations, and remove staging files on completion/failure. Linux
+files use mode 0600; Windows uses its normal destination ACLs. Android uses the
+existing document-provider save interface. No binary is automatically opened,
+executed or retained in a separate attachment cache. Alarm data can be saved;
+this does not add alarm execution or audio playback. No generic upload service,
+managed attachments, external-document cleanup or arbitrary-scheme execution is
+implemented.
+
 Generic accounts use HTTP Basic authentication over validated HTTPS. Account
 URLs cannot contain credentials, fragments or query strings. Discovery resolves
 well-known at the origin using HEAD before issuing the principal PROPFIND at

@@ -6697,6 +6697,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Adjust the relative reminder before removing its start or deadline.'**
   String get taskReminderRequiresAnchor;
+
+  /// No description provided for @attachmentInvalidOrTooLarge.
+  ///
+  /// In en, this message translates to:
+  /// **'This attachment is invalid or exceeds the size limit.'**
+  String get attachmentInvalidOrTooLarge;
 }
 
 class _AppLocalizationsDelegate

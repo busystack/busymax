@@ -2182,5 +2182,6 @@
   "davPermissionsUnknown": "The server has not advertised permissions. Requested changes will be checked by the server.",
   "localNetworkAccessRequired": "Local network access required",
   "localNetworkAccessRecovery": "To reach this server, allow BusyMax access to nearby devices in Android Settings, then try again.",
-  "taskReminderRequiresAnchor": "Adjust the relative reminder before removing its start or deadline."
+  "taskReminderRequiresAnchor": "Adjust the relative reminder before removing its start or deadline.",
+  "attachmentInvalidOrTooLarge": "This attachment is invalid or exceeds the size limit."
 }

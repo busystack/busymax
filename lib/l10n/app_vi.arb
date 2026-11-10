@@ -1404,5 +1404,6 @@
   "davPermissionsUnknown": "Máy chủ chưa thông báo quyền. Máy chủ sẽ kiểm tra các thay đổi được yêu cầu.",
   "localNetworkAccessRequired": "Cần quyền truy cập mạng cục bộ",
   "localNetworkAccessRecovery": "Để kết nối với máy chủ này, hãy cho phép BusyMax truy cập các thiết bị ở gần trong phần Cài đặt Android, rồi thử lại.",
-  "taskReminderRequiresAnchor": "Điều chỉnh lời nhắc tương đối trước khi xóa thời gian bắt đầu hoặc hạn chót của lời nhắc."
+  "taskReminderRequiresAnchor": "Điều chỉnh lời nhắc tương đối trước khi xóa thời gian bắt đầu hoặc hạn chót của lời nhắc.",
+  "attachmentInvalidOrTooLarge": "Tệp đính kèm này không hợp lệ hoặc vượt quá giới hạn kích thước."
 }

@@ -1404,5 +1404,6 @@
   "davPermissionsUnknown": "Palvelin ei ole ilmoittanut oikeuksia. Palvelin tarkistaa pyydetyt muutokset.",
   "localNetworkAccessRequired": "Paikallisverkon käyttöoikeus tarvitaan",
   "localNetworkAccessRecovery": "Salli BusyMaxin käyttää lähellä olevia laitteita Androidin asetuksissa, jotta tähän palvelimeen voidaan muodostaa yhteys, ja yritä uudelleen.",
-  "taskReminderRequiresAnchor": "Muuta suhteellista muistutusta ennen sen aloituksen tai määräajan poistamista."
+  "taskReminderRequiresAnchor": "Muuta suhteellista muistutusta ennen sen aloituksen tai määräajan poistamista.",
+  "attachmentInvalidOrTooLarge": "Tämä liite on virheellinen tai ylittää kokorajan."
 }

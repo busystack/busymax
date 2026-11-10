@@ -4036,6 +4036,10 @@ class AppLocalizationsPt extends AppLocalizations {
   @override
   String get taskReminderRequiresAnchor =>
       'Adjust the relative reminder before removing its start or deadline.';
+
+  @override
+  String get attachmentInvalidOrTooLarge =>
+      'Este anexo é inválido ou excede o limite de tamanho.';
 }
 
 /// The translations for Portuguese, as used in Portugal (`pt_PT`).
@@ -8075,4 +8079,8 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
   @override
   String get taskReminderRequiresAnchor =>
       'Ajuste o lembrete relativo antes de remover o início ou o prazo associado.';
+
+  @override
+  String get attachmentInvalidOrTooLarge =>
+      'Este anexo é inválido ou excede o limite de tamanho.';
 }

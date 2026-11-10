@@ -4040,4 +4040,8 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get taskReminderRequiresAnchor =>
       'Modifiez le rappel relatif avant de supprimer son début ou son échéance.';
+
+  @override
+  String get attachmentInvalidOrTooLarge =>
+      'Cette pièce jointe est invalide ou dépasse la taille limite.';
 }

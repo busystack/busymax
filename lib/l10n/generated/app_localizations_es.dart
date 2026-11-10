@@ -4032,4 +4032,8 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get taskReminderRequiresAnchor =>
       'Ajusta el recordatorio relativo antes de eliminar su inicio o fecha límite.';
+
+  @override
+  String get attachmentInvalidOrTooLarge =>
+      'Este archivo adjunto no es válido o supera el límite de tamaño.';
 }

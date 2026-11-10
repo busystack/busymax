@@ -1,4 +1,7 @@
 import 'package:busymax/src/l10n/time_format_scope.dart';
+
+import 'windows_dav_attachments_section.dart';
+
 import 'package:busymax/src/l10n/week_preferences_scope.dart';
 
 import 'dart:async';
@@ -1645,6 +1648,13 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
                     onPressed: () =>
                         unawaited(_openEventWebLink(attachment.url)),
                     child: Text(attachment.name),
+                  ),
+                if (item.provider.isDav && item.attachmentsLoaded)
+                  WindowsDavAttachmentsSection.event(
+                    eventId: item.id,
+                    showHeading:
+                        !item.attachmentsMayExist &&
+                        item.attachmentLinks.isEmpty,
                   ),
                 if (item.attachmentsMayExist && !item.attachmentsLoaded)
                   Text(l10n.attachmentsNotLoaded),

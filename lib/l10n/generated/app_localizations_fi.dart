@@ -4047,4 +4047,8 @@ class AppLocalizationsFi extends AppLocalizations {
   @override
   String get taskReminderRequiresAnchor =>
       'Muuta suhteellista muistutusta ennen sen aloituksen tai määräajan poistamista.';
+
+  @override
+  String get attachmentInvalidOrTooLarge =>
+      'Tämä liite on virheellinen tai ylittää kokorajan.';
 }

@@ -3907,4 +3907,7 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get taskReminderRequiresAnchor =>
       '開始日時や期限を削除する前に、それを基準とするリマインダーを変更してください。';
+
+  @override
+  String get attachmentInvalidOrTooLarge => 'この添付ファイルは無効か、サイズの上限を超えています。';
 }

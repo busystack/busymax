@@ -3830,6 +3830,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get taskReminderRequiresAnchor => '移除开始时间或截止时间前，请先调整以其为基准的提醒。';
+
+  @override
+  String get attachmentInvalidOrTooLarge => '此附件无效或超过大小限制。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -7653,6 +7656,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get taskReminderRequiresAnchor => '移除开始时间或截止时间前，请先调整以其为基准的提醒。';
+
+  @override
+  String get attachmentInvalidOrTooLarge => '此附件无效或超过大小限制。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -11477,4 +11483,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get taskReminderRequiresAnchor => '移除開始時間或截止時間前，請先調整以其為基準的提醒。';
+
+  @override
+  String get attachmentInvalidOrTooLarge => '此附件無效或超過大小限制。';
 }

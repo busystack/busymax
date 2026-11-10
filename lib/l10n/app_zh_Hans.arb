@@ -1404,5 +1404,6 @@
   "davPermissionsUnknown": "服务器尚未提供权限信息。服务器将验证请求的更改。",
   "localNetworkAccessRequired": "需要本地网络访问权限",
   "localNetworkAccessRecovery": "要连接此服务器，请在 Android 设置中允许 BusyMax 访问附近的设备，然后重试。",
-  "taskReminderRequiresAnchor": "移除开始时间或截止时间前，请先调整以其为基准的提醒。"
+  "taskReminderRequiresAnchor": "移除开始时间或截止时间前，请先调整以其为基准的提醒。",
+  "attachmentInvalidOrTooLarge": "此附件无效或超过大小限制。"
 }

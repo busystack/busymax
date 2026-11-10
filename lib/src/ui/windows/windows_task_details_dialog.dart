@@ -1,6 +1,7 @@
 import 'package:busymax/src/core/auth/authorization_attempt.dart';
 
 import 'windows_time_picker.dart';
+import 'windows_dav_attachments_section.dart';
 
 import 'package:busymax/src/l10n/time_format_scope.dart';
 
@@ -442,6 +443,16 @@ Future<bool> showWindowsTaskDetailsDialog(
                       maxLines: 5,
                     ),
                   ),
+                  if (account.provider.isDav &&
+                      original.icalUid != null &&
+                      original.davCollectionId != null)
+                    WindowsDavAttachmentsSection.task(
+                      target: (
+                        accountId: original.accountId,
+                        taskListId: original.taskListId,
+                        taskId: original.id,
+                      ),
+                    ),
                   if (account.provider == BusyProvider.google)
                     for (final link in original.googleSourceLinks) ...[
                       const SizedBox(height: 12),

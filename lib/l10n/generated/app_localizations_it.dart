@@ -4044,4 +4044,8 @@ class AppLocalizationsIt extends AppLocalizations {
   @override
   String get taskReminderRequiresAnchor =>
       'Modifica il promemoria relativo prima di rimuoverne l’inizio o la scadenza.';
+
+  @override
+  String get attachmentInvalidOrTooLarge =>
+      'Questo allegato non è valido o supera il limite di dimensione.';
 }

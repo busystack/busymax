@@ -1,3 +1,4 @@
 {
-  "@@locale": "pt"
+  "@@locale": "pt",
+  "attachmentInvalidOrTooLarge": "Este anexo é inválido ou excede o limite de tamanho."
 }

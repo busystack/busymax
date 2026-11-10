@@ -4054,4 +4054,8 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get taskReminderRequiresAnchor =>
       'Измените относительное напоминание перед удалением связанного с ним начала или срока.';
+
+  @override
+  String get attachmentInvalidOrTooLarge =>
+      'Это вложение недействительно или превышает допустимый размер.';
 }

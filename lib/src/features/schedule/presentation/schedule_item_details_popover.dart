@@ -14,6 +14,7 @@ import '../application/saved_schedule_location.dart';
 import 'schedule_anchored_popover.dart';
 import 'schedule_event_block.dart';
 import 'schedule_event_details_format.dart';
+import 'dav_attachments_section.dart';
 import '../../calendar/presentation/google_status_event_labels.dart';
 
 enum ScheduleItemDetailsAction {
@@ -602,6 +603,11 @@ List<Widget> _eventDetails(
       ),
     for (final attachment in item.attachmentLinks)
       _ScheduleWebLinkButton(label: attachment.name, url: attachment.url),
+    if (item.provider.isDav && item.attachmentsLoaded)
+      DavAttachmentsSection.event(
+        eventId: item.id,
+        showHeading: !item.attachmentsMayExist && item.attachmentLinks.isEmpty,
+      ),
     if (item.attachmentsMayExist && !item.attachmentsLoaded)
       _ScheduleDetailRow(
         icon: Icons.info_outline,

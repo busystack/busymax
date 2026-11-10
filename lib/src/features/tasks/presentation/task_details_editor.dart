@@ -29,6 +29,7 @@ import '../data/tasks_repository.dart';
 import '../domain/task_source_links.dart';
 import '../../schedule/presentation/schedule_event_details_format.dart';
 import '../../schedule/presentation/attachment_download.dart';
+import '../../schedule/presentation/dav_attachments_section.dart';
 import '../../schedule/presentation/attachment_upload_coordinator.dart';
 import '../../../microsoft_todo/api/microsoft_todo_api_client.dart';
 import '../../../microsoft_todo/api/microsoft_todo_api_models.dart';
@@ -298,6 +299,17 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                         ),
                       ],
                     ),
+                    if (widget.provider?.isDav == true &&
+                        !widget.isCreate &&
+                        _editingTask.icalUid != null &&
+                        _editingTask.davCollectionId != null)
+                      DavAttachmentsSection.task(
+                        target: (
+                          accountId: _editingTask.accountId,
+                          taskListId: _editingTask.taskListId,
+                          taskId: _editingTask.id,
+                        ),
+                      ),
                     if (_editingTask.googleSourceLinks.isNotEmpty)
                       BusyMaxGroupedList(
                         filled: true,

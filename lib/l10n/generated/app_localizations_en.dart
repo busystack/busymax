@@ -4036,4 +4036,8 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get taskReminderRequiresAnchor =>
       'Adjust the relative reminder before removing its start or deadline.';
+
+  @override
+  String get attachmentInvalidOrTooLarge =>
+      'This attachment is invalid or exceeds the size limit.';
 }

@@ -1582,5 +1582,6 @@
   "davPermissionsUnknown": "Server pole õigusi teatanud. Server kontrollib taotletud muudatusi.",
   "localNetworkAccessRequired": "Vajalik on juurdepääs kohalikule võrgule",
   "localNetworkAccessRecovery": "Selle serveriga ühenduse loomiseks luba BusyMaxile Androidi seadetes juurdepääs lähedalasuvatele seadmetele ja proovi uuesti.",
-  "taskReminderRequiresAnchor": "Muuda suhtelist meeldetuletust enne selle alguse või tähtaja eemaldamist."
+  "taskReminderRequiresAnchor": "Muuda suhtelist meeldetuletust enne selle alguse või tähtaja eemaldamist.",
+  "attachmentInvalidOrTooLarge": "See manus on vigane või ületab suurusepiirangu."
 }

@@ -3913,4 +3913,7 @@ class AppLocalizationsKo extends AppLocalizations {
   @override
   String get taskReminderRequiresAnchor =>
       '시작 시간이나 기한을 삭제하기 전에 이를 기준으로 하는 알림을 변경하세요.';
+
+  @override
+  String get attachmentInvalidOrTooLarge => '이 첨부 파일은 유효하지 않거나 크기 제한을 초과합니다.';
 }
