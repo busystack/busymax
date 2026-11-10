@@ -4039,7 +4039,7 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get attachmentInvalidOrTooLarge =>
-      'Este anexo é inválido ou excede o limite de tamanho.';
+      'This attachment is invalid or exceeds the size limit.';
 }
 
 /// The translations for Portuguese, as used in Portugal (`pt_PT`).

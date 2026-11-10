@@ -29,11 +29,20 @@ class AndroidDavAttachmentsSection extends StatelessWidget {
         bytes: attachment.decode(),
       );
   @override
-  Widget build(BuildContext context) => task == null
-      ? CalDavAttachmentsSection.event(
-          eventId: eventId!,
-          showHeading: showHeading,
-          saveInline: _save,
-        )
-      : CalDavAttachmentsSection.task(target: task!, saveInline: _save);
+  Widget build(BuildContext context) {
+    Widget button(String label, VoidCallback? pressed) =>
+        TextButton(onPressed: pressed, child: Text(label));
+    return task == null
+        ? CalDavAttachmentsSection.event(
+            eventId: eventId!,
+            showHeading: showHeading,
+            saveInline: _save,
+            buttonBuilder: button,
+          )
+        : CalDavAttachmentsSection.task(
+            target: task!,
+            saveInline: _save,
+            buttonBuilder: button,
+          );
+  }
 }

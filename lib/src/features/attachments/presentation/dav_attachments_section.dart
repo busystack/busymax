@@ -23,7 +23,7 @@ class CalDavAttachmentsSection extends ConsumerStatefulWidget {
     required String eventId,
     required this.saveInline,
     this.showHeading = true,
-    this.buttonBuilder,
+    required this.buttonBuilder,
   }) : eventId = eventId,
        task = null;
 
@@ -31,7 +31,7 @@ class CalDavAttachmentsSection extends ConsumerStatefulWidget {
     super.key,
     required DavTaskAttachmentTarget target,
     required this.saveInline,
-    this.buttonBuilder,
+    required this.buttonBuilder,
   }) : eventId = null,
        task = target,
        showHeading = true;
@@ -40,7 +40,7 @@ class CalDavAttachmentsSection extends ConsumerStatefulWidget {
   final DavTaskAttachmentTarget? task;
   final bool showHeading;
   final Future<String?> Function(IcalAttachment) saveInline;
-  final DavAttachmentButtonBuilder? buttonBuilder;
+  final DavAttachmentButtonBuilder buttonBuilder;
 
   @override
   ConsumerState<CalDavAttachmentsSection> createState() =>
@@ -53,12 +53,7 @@ class _CalDavAttachmentsSectionState
   bool _failed = false;
 
   Widget _button(String label, VoidCallback? pressed, {Key? key}) =>
-      KeyedSubtree(
-        key: key,
-        child:
-            widget.buttonBuilder?.call(label, pressed) ??
-            TextButton(onPressed: pressed, child: Text(label)),
-      );
+      KeyedSubtree(key: key, child: widget.buttonBuilder(label, pressed));
 
   @override
   Widget build(BuildContext context) {
