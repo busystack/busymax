@@ -95,6 +95,55 @@ void main() {
             ? NativeImportDuplicates.newCopies
             : NativeImportDuplicates.skip,
       );
+  for (final status in ['PENDING', 'FAILED']) {
+    test(
+      'RFC10051 duration-only $status task imports without invented dates',
+      () async {
+        final db = fixture.database;
+        await db
+            .update(db.accounts)
+            .write(
+              const AccountsCompanion(
+                provider: Value('caldav'),
+                credentialKind: Value('caldav_password'),
+              ),
+            );
+        final raw = [
+          'BEGIN:VCALENDAR',
+          'VERSION:2.0',
+          'PRODID:-//Qualification//EN',
+          'BEGIN:VTODO',
+          'UID:duration-only-$status',
+          'DTSTAMP:20261109T000000Z',
+          'DURATION:PT1H',
+          'STATUS:$status',
+          'SUMMARY:Duration only',
+          'ESTIMATED-DURATION:PT2H',
+          'X-KEEP;X-PARAM=one^nTwo:opaque',
+          'END:VTODO',
+          'END:VCALENDAR',
+          '',
+        ].join('\r\n');
+        final result = await importer.import(
+          accountId: 'account',
+          collectionId: 'collection',
+          preview: NextcloudNativeImportPreview.parse(IcalDocument.parse(raw)),
+        );
+        expect(result.single.status, NativeImportItemStatus.queued);
+        final task = await db.select(db.tasks).getSingle();
+        expect(task.providerStatus, status);
+        expect(task.dueUtc, isNull);
+        expect(task.microsoftStartDateTime, isNull);
+        expect(task.microsoftDueDateTime, isNull);
+        final object = await db.select(db.davObjects).getSingle();
+        expect(object.rawIcsBody, contains('DURATION:PT1H'));
+        expect(object.rawIcsBody, isNot(contains('DTSTART:')));
+        expect(object.rawIcsBody, isNot(contains('DUE:')));
+        expect(await db.select(db.pendingOps).get(), hasLength(1));
+      },
+    );
+  }
+
   test('generic attendee import without METHOD requires explicit consent before local or remote changes', () async {
     final db = fixture.database;
     await db

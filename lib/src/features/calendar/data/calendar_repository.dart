@@ -4921,17 +4921,18 @@ class CalendarRepository {
         'A supported recurring-event editing scope is required.',
       );
     }
+    // A missing zone on an existing DAV event means floating time. Creation
+    // defaults must not turn an unrelated edit into a temporal conversion.
     final startTimeZone = timingOnly
         ? existing.startTimeZone
-        : _effectiveStartTimeZone(draft, source.timeZone, _localTimeZone);
+        : draft.allDay
+        ? null
+        : draft.startTimeZone;
     final endTimeZone = timingOnly
         ? existing.endTimeZone
-        : _effectiveEndTimeZone(
-            draft,
-            source.timeZone,
-            startTimeZone,
-            _localTimeZone,
-          );
+        : draft.allDay
+        ? null
+        : draft.endTimeZone;
     var input = _davEventInput(
       draft,
       start: start,
@@ -6226,28 +6227,30 @@ DavEventMutationInput _seriesDavEventInput({
                 master.duration?.duration ?? const Duration(hours: 1),
               )
       : _editableIcalTemporal(master.end!);
-  var projectedStart = DateTime.tryParse(
+  // DAV projections without an inline offset already contain civil fields.
+  // In particular, embedded custom TZIDs cannot be resolved through the host's
+  // timezone database. Only convert an explicitly stored instant here.
+  DateTime? projectedWall(String? value, String? zone) {
+    if (value == null) return null;
+    if (!existing.allDay &&
+        zone != null &&
+        RegExp(r'(?:[zZ]|[+-]\d{2}:?\d{2})$').hasMatch(value)) {
+      final instant = DateTime.tryParse(value)?.toUtc();
+      return instant == null ? null : resolver.fromUtc(instant, zone);
+    }
+    return providerDateTimeAsCivilTime(value, zone);
+  }
+
+  final projectedStart = projectedWall(
     existing.allDay ? existing.startDate ?? '' : existing.startDateTime ?? '',
+    existing.startTimeZone,
   );
-  var projectedEnd = DateTime.tryParse(
+  final projectedEnd = projectedWall(
     existing.allDay ? existing.endDate ?? '' : existing.endDateTime ?? '',
+    existing.endTimeZone,
   );
   if (projectedStart == null || projectedEnd == null) {
     throw StateError('The DAV occurrence projection is incomplete.');
-  }
-  if (!existing.allDay) {
-    if (existing.startTimeZone case final zone?) {
-      projectedStart = resolver.fromUtc(
-        providerDateTimeAsUtcInstant(existing.startDateTime, zone)!,
-        zone,
-      );
-    }
-    if (existing.endTimeZone case final zone?) {
-      projectedEnd = resolver.fromUtc(
-        providerDateTimeAsUtcInstant(existing.endDateTime, zone)!,
-        zone,
-      );
-    }
   }
   final startDelta = providerCivilDateTime(desired.start)
       .difference(providerCivilDateTime(projectedStart));

@@ -1882,7 +1882,6 @@ void main() {
       due: 'DUE:20260809T100000Z',
       code: 'DavTaskDueAndDuration',
     ),
-    (start: '', due: '', code: 'DavTaskDurationRequiresStart'),
   ]) {
     test('queue rejects invalid duration relationship ${invalid.code}', () async {
       final raw = _task(
@@ -1912,6 +1911,77 @@ void main() {
       );
       expect(await database.select(database.pendingOps).get(), isEmpty);
       expect(await database.select(database.tasks).get(), isEmpty);
+    });
+  }
+
+  for (final duration in [
+    'P',
+    'PT',
+    'not-a-duration',
+    '-PT1H',
+    'PT0S',
+    'P1W1D',
+    'P0W1D',
+    'P1DT',
+  ]) {
+    for (final dated in [false, true]) {
+      test(
+        'RFC10051 rejects invalid duration $duration (dated $dated) atomically',
+        () async {
+          final raw = _task(
+            uid: 'invalid-duration',
+            start: dated ? 'DTSTART:20260809T090000Z' : '',
+            due: '',
+          ).replaceFirst('SUMMARY:Task', 'DURATION:$duration\r\nSUMMARY:Task');
+          await expectLater(
+            queue.enqueueCreate(
+              accountId: 'account',
+              collectionId: 'collection',
+              object: DavNewObject(
+                uid: 'invalid-duration',
+                initialMemberName: 'invalid-duration.ics',
+                rawIcs:
+                    '${raw.split('\r\n').where((line) => line.isNotEmpty).join('\r\n')}\r\n',
+                componentType: 'VTODO',
+              ),
+            ),
+            throwsA(
+              isA<DavException>().having(
+                (e) => e.code,
+                'code',
+                isIn(['IcalInvalidDuration', 'DavTaskInvalidDuration']),
+              ),
+            ),
+          );
+          expect(await database.select(database.pendingOps).get(), isEmpty);
+        },
+      );
+    }
+  }
+
+  for (final duration in ['PT1H', '+PT1H', 'P1W', 'P1DT2H']) {
+    test('RFC10051 accepts positive undated duration $duration without dates', () async {
+      final raw = _task(
+        uid: 'valid-duration',
+        start: '',
+        due: '',
+      ).replaceFirst('SUMMARY:Task', 'DURATION:$duration\r\nSUMMARY:Task');
+      final normalized =
+          '${raw.split('\r\n').where((line) => line.isNotEmpty).join('\r\n')}\r\n';
+      await queue.enqueueCreate(
+        accountId: 'account',
+        collectionId: 'collection',
+        object: DavNewObject(
+          uid: 'valid-duration',
+          initialMemberName: 'valid-duration.ics',
+          rawIcs: normalized,
+          componentType: 'VTODO',
+        ),
+      );
+      final op = await database.select(database.pendingOps).getSingle();
+      expect((jsonDecode(op.requestJson) as Map)['rawIcs'], normalized);
+      expect(normalized, isNot(contains('DTSTART:')));
+      expect(normalized, isNot(contains('DUE:')));
     });
   }
 

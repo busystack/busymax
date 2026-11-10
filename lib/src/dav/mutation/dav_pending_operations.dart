@@ -2323,7 +2323,21 @@ void _validateTaskTemporalRange(IcalSemanticDocument document) {
     }
     final start = component.start;
     final due = component.due;
-    if (component.duration != null) {
+    final duration = component.duration;
+    if (duration != null) {
+      final raw = component.documentComponent
+          .firstProperty('DURATION')!
+          .rawValue;
+      if (duration.negative ||
+          duration.duration <= Duration.zero ||
+          raw.endsWith('T') ||
+          raw.contains('W') && !RegExp(r'^\+?P[0-9]+W$').hasMatch(raw)) {
+        throw const DavException(
+          kind: DavErrorKind.invalidCalendarData,
+          code: 'DavTaskInvalidDuration',
+          safeMessage: 'A task duration must be a valid positive duration.',
+        );
+      }
       if (due != null) {
         throw const DavException(
           kind: DavErrorKind.invalidCalendarData,
@@ -2331,15 +2345,8 @@ void _validateTaskTemporalRange(IcalSemanticDocument document) {
           safeMessage: 'A task cannot contain both a deadline and a duration.',
         );
       }
-      if (start == null) {
-        throw const DavException(
-          kind: DavErrorKind.invalidCalendarData,
-          code: 'DavTaskDurationRequiresStart',
-          safeMessage:
-              'A task with a duration needs a start. Set a deadline before '
-              'removing its start.',
-        );
-      }
+      // RFC 10051 section 11.1 allows DURATION without DTSTART. Keep the
+      // submitted duration; it supplies no implicit start or due timestamp.
     }
     if (start == null || due == null) {
       continue;

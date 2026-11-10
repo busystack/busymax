@@ -850,6 +850,272 @@ void main() {
     );
   }
 
+  for (final form in [
+    'floating',
+    'UTC',
+    'Vancouver',
+    'Berlin',
+    'custom',
+    'DATE',
+  ]) {
+    for (final scope in [
+      'single',
+      'series',
+      'occurrence',
+      'detached',
+      'reschedule',
+    ]) {
+      test('DAV editor preserves $form temporal identity for $scope edits', () async {
+        await database
+            .update(database.accounts)
+            .write(
+              const AccountsCompanion(
+                provider: Value('caldav'),
+                credentialKind: Value('caldav_password'),
+              ),
+            );
+        await database
+            .update(database.calendarSources)
+            .write(const CalendarSourcesCompanion(provider: Value('caldav')));
+        final dateOnly = form == 'DATE';
+        final zone = switch (form) {
+          'Vancouver' => 'America/Vancouver',
+          'Berlin' => 'Europe/Berlin',
+          'custom' => 'Custom/Office',
+          _ => null,
+        };
+        final day = form == 'Berlin' ? 28 : 7;
+        final suffix = form == 'UTC' ? 'Z' : '';
+        final parameters = dateOnly
+            ? ';VALUE=DATE'
+            : zone == null
+            ? ''
+            : ';TZID=$zone';
+        String temporal(int day, int hour) =>
+            '202603${day.toString().padLeft(2, '0')}${dateOnly ? '' : 'T${hour.toString().padLeft(2, '0')}0000$suffix'}';
+        final recurring = scope != 'single' && scope != 'reschedule';
+        final baseline = _ical([
+          'BEGIN:VCALENDAR',
+          'VERSION:2.0',
+          'PRODID:-//DAV preservation regression//EN',
+          if (zone != null) ...[
+            'BEGIN:VTIMEZONE',
+            'TZID:$zone',
+            'BEGIN:STANDARD',
+            'DTSTART:20251102T020000',
+            'TZOFFSETFROM:${form == 'Vancouver'
+                ? '-0700'
+                : form == 'Berlin'
+                ? '+0200'
+                : '+0230'}',
+            'TZOFFSETTO:${form == 'Vancouver'
+                ? '-0800'
+                : form == 'Berlin'
+                ? '+0100'
+                : '+0230'}',
+            'END:STANDARD',
+            if (form == 'Vancouver' || form == 'Berlin') ...[
+              'BEGIN:DAYLIGHT',
+              'DTSTART:${form == 'Vancouver' ? '20260308T020000' : '20260329T020000'}',
+              'TZOFFSETFROM:${form == 'Vancouver' ? '-0800' : '+0100'}',
+              'TZOFFSETTO:${form == 'Vancouver' ? '-0700' : '+0200'}',
+              'END:DAYLIGHT',
+            ],
+            'END:VTIMEZONE',
+          ],
+          'BEGIN:VEVENT',
+          'UID:preservation',
+          'DTSTAMP:20260301T000000Z',
+          'DTSTART$parameters:${temporal(day, 9)}',
+          'DTEND$parameters:${temporal(day + (dateOnly ? 3 : 0), 10)}',
+          if (recurring) 'RRULE:FREQ=DAILY;COUNT=4',
+          'SUMMARY:Original',
+          'LOCATION:Original room',
+          'DESCRIPTION:Original notes',
+          'X-KEEP;X-PARAM=opaque:retained',
+          'BEGIN:VALARM',
+          'ACTION:DISPLAY',
+          'TRIGGER:-PT15M',
+          'DESCRIPTION:Reminder',
+          'END:VALARM',
+          'END:VEVENT',
+          if (scope == 'series' || scope == 'detached') ...[
+            'BEGIN:VEVENT',
+            'UID:preservation',
+            'DTSTAMP:20260301T000000Z',
+            'RECURRENCE-ID$parameters:${temporal(day + 1, 9)}',
+            'DTSTART$parameters:${temporal(day + 1, 11)}',
+            'DTEND$parameters:${temporal(day + (dateOnly ? 4 : 1), 12)}',
+            'SUMMARY:Detached',
+            'X-DETACHED:preserved',
+            'END:VEVENT',
+          ],
+          'END:VCALENDAR',
+        ]);
+        await _commitObjects(objectRepository, [
+          _prepared(
+            href: '${_collectionHref}preservation.ics',
+            etag: '"one"',
+            body: baseline,
+          ),
+        ], provider: BusyProvider.caldav);
+        final events = await database.select(database.calendarEvents).get();
+        final event = scope == 'detached'
+            ? events.singleWhere((r) => r.recurrenceIdKey != null)
+            : scope == 'occurrence'
+            ? events.firstWhere(
+                (r) => (r.startDate ?? r.startDateTime)!.startsWith(
+                  '2026-03-${(day + 1).toString().padLeft(2, '0')}',
+                ),
+              )
+            : events.firstWhere((r) => r.recurrenceIdKey == null);
+        final detail = (await calendarRepository.loadEventDetail(event.id))!;
+        final draft = EventEditorDraft.fromEventDetail(detail);
+        await calendarRepository.updateLocalEvent(
+          draft.copyWith(
+            title: 'Edited title',
+            location: 'Edited room',
+            description: 'Edited notes',
+            reminders: {
+              'minutes': [5],
+            },
+            remindersChanged: true,
+            start: scope == 'reschedule'
+                ? draft.start!.add(
+                    Duration(days: dateOnly ? 1 : 0, hours: dateOnly ? 0 : 1),
+                  )
+                : draft.start,
+            end: scope == 'reschedule'
+                ? draft.end!.add(
+                    Duration(days: dateOnly ? 1 : 0, hours: dateOnly ? 0 : 1),
+                  )
+                : draft.end,
+            recurringMutationScope: scope == 'series'
+                ? RecurringEventMutationScope.entireSeries
+                : recurring
+                ? RecurringEventMutationScope.singleOccurrence
+                : null,
+          ),
+        );
+        final candidate = await _serializedPendingDavMutation(
+          database,
+          baseline,
+        );
+        final before = IcalSemanticDocument.parse(baseline);
+        final after = IcalSemanticDocument.parse(candidate);
+        List<String> times(IcalSemanticComponent c) => [
+          for (final p in c.documentComponent.properties)
+            if ([
+              'DTSTART',
+              'DTEND',
+              'DURATION',
+              'RECURRENCE-ID',
+              'RRULE',
+              'RDATE',
+              'EXDATE',
+            ].contains(p.name))
+              p.serializeLogicalLine(),
+        ];
+        if (scope != 'reschedule') {
+          for (final original in before.components) {
+            expect(
+              times(
+                after.components.singleWhere(
+                  (c) => c.recurrenceIdKey == original.recurrenceIdKey,
+                ),
+              ),
+              times(original),
+            );
+          }
+        }
+        final changed = scope == 'occurrence'
+            ? after.components.singleWhere((c) => c.recurrenceIdKey != null)
+            : after.components.firstWhere(
+                (c) => c.recurrenceIdKey == detail.recurrenceIdKey,
+              );
+        expect(changed.start!.kind, before.components.first.start!.kind);
+        expect(changed.start!.timeZoneId, zone);
+        expect(changed.end!.kind, before.components.first.end!.kind);
+        expect(changed.end!.timeZoneId, zone);
+        if (scope == 'occurrence') {
+          expect(changed.recurrenceId!.kind, changed.start!.kind);
+          expect(changed.recurrenceId!.timeZoneId, zone);
+          expect(changed.recurrenceId!.localValue, changed.start!.localValue);
+        }
+        if (scope == 'reschedule') {
+          expect(changed.start!.localValue.day, day + (dateOnly ? 1 : 0));
+          expect(changed.start!.localValue.hour, dateOnly ? 0 : 10);
+          expect(
+            changed.end!.localValue.difference(changed.start!.localValue),
+            dateOnly ? const Duration(days: 3) : const Duration(hours: 1),
+          );
+        }
+        expect(candidate, contains('X-KEEP;X-PARAM=opaque:retained'));
+        expect(candidate, contains('BEGIN:VALARM'));
+      });
+    }
+  }
+
+  for (final status in ['PENDING', 'FAILED']) {
+    test(
+      'RFC10051 undated duration $status survives unrelated edit and pending recovery',
+      () async {
+        await usePersistentFixture();
+        final baseline = _taskResource(
+          uid: 'duration-only',
+          summary: 'Undated',
+          extra: [
+            'DURATION:PT2H',
+            'STATUS:$status',
+            'ESTIMATED-DURATION:PT3H',
+            'X-KEEP;X-PARAM=one^nTwo:opaque',
+          ],
+        );
+        await _commitObjects(objectRepository, [
+          _prepared(
+            href: '${_collectionHref}duration-only.ics',
+            etag: '"one"',
+            body: baseline,
+          ),
+        ]);
+        final task = await database.select(database.tasks).getSingle();
+        await tasksRepository.patchTask(
+          _taskListId,
+          task.id,
+          const TaskPatchInput({'title': 'Unrelated title'}),
+        );
+        await reopen();
+        final op = await database.select(database.pendingOps).getSingle();
+        final candidate = DavMutationPatch.fromJsonString(op.mutationPatchJson!)
+            .applyTo(op.baselineRawIcs!, nowUtc: _now);
+        final projected = await database.select(database.tasks).getSingle();
+        expect(projected.dueUtc, isNull);
+        expect(projected.microsoftStartDateTime, isNull);
+        expect(projected.microsoftDueDateTime, isNull);
+        expect(projected.providerStatus, status);
+        expect(candidate, contains('DURATION:PT2H'));
+        expect(candidate, contains('STATUS:$status'));
+        expect(candidate, contains('ESTIMATED-DURATION:PT3H'));
+        expect(candidate, contains('X-KEEP;X-PARAM=one^nTwo:opaque'));
+        expect(
+          await tasksRepository.nativeTaskExport(_taskListId, task.id),
+          candidate,
+        );
+        await replayResource(candidate);
+        await reopen();
+        expect(await database.select(database.pendingOps).get(), isEmpty);
+        expect(
+          (await database.select(database.davObjects).getSingle()).rawIcsBody,
+          candidate,
+        );
+        expect(
+          (await database.select(database.tasks).getSingle()).dueUtc,
+          isNull,
+        );
+      },
+    );
+  }
+
   test('timing-only occurrence exception retains guests, alarms and opaque provider fields', () async {
     await _seedScheduling(database, 'owner@example.test');
     final baseline = _recurringEventResource().replaceFirst(
@@ -3486,7 +3752,7 @@ void main() {
   }
 
   test(
-    'task timing edits replace duration or reject an orphan atomically',
+    'task timing edits retain an undated duration or replace it with due',
     () async {
       final baseline = _taskResource(
         uid: 'duration-task',
@@ -3510,22 +3776,33 @@ void main() {
         ),
       ]);
       final task = await database.select(database.tasks).getSingle();
-      await expectLater(
-        tasksRepository.patchTask(
-          _taskListId,
-          task.id,
-          const TaskPatchInput({'microsoftStartDateTime': null}),
-        ),
-        throwsA(
-          isA<DavException>().having(
-            (error) => error.code,
-            'code',
-            'DavTaskDurationRequiresStart',
-          ),
-        ),
+      await tasksRepository.patchTask(
+        _taskListId,
+        task.id,
+        const TaskPatchInput({'microsoftStartDateTime': null}),
       );
-      expect(await database.select(database.tasks).getSingle(), task);
-      expect(await database.select(database.pendingOps).get(), isEmpty);
+      final undated = await database.select(database.tasks).getSingle();
+      expect(undated.microsoftStartDateTime, isNull);
+      expect(undated.microsoftDueDateTime, isNull);
+      expect(undated.dueUtc, isNull);
+      final undatedCandidate = await _serializedPendingDavMutation(
+        database,
+        baseline,
+      );
+      expect(undatedCandidate, contains('DURATION:PT2H'));
+      expect(undatedCandidate, isNot(contains('DTSTART:')));
+      expect(undatedCandidate, isNot(contains('DUE:')));
+      await tasksRepository.patchTask(
+        _taskListId,
+        task.id,
+        const TaskPatchInput({
+          'microsoftStartDateTime': {
+            'dateTime': '2026-08-08T09:00:00',
+            'timeZone': 'UTC',
+          },
+          'microsoftStartTimeZone': 'UTC',
+        }),
+      );
       expect(
         (await database.select(database.davObjects).getSingle()).rawIcsBody,
         baseline,
@@ -4189,12 +4466,13 @@ Future<void> _commitObjects(
   DavObjectRepository repository,
   List<DavPreparedObject> objects, {
   String collectionId = _collectionId,
+  BusyProvider provider = BusyProvider.nextcloud,
 }) {
   return repository.commit(
     DavCollectionCommit(
       accountId: _accountId,
       collectionId: collectionId,
-      provider: BusyProvider.nextcloud,
+      provider: provider,
       objects: objects,
       deletedHrefKeys: const {},
       completeMembership: true,
