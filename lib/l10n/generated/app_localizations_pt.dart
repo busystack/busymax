@@ -4035,7 +4035,7 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get taskReminderRequiresAnchor =>
-      'Ajuste o lembrete relativo antes de remover o início ou o prazo associado.';
+      'Adjust the relative reminder before removing its start or deadline.';
 }
 
 /// The translations for Portuguese, as used in Portugal (`pt_PT`).
