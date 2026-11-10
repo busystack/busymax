@@ -3827,6 +3827,9 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get localNetworkAccessRecovery =>
       '要连接此服务器，请在 Android 设置中允许 BusyMax 访问附近的设备，然后重试。';
+
+  @override
+  String get taskReminderRequiresAnchor => '移除开始时间或截止时间前，请先调整以其为基准的提醒。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -7647,6 +7650,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   @override
   String get localNetworkAccessRecovery =>
       '要连接此服务器，请在 Android 设置中允许 BusyMax 访问附近的设备，然后重试。';
+
+  @override
+  String get taskReminderRequiresAnchor => '移除开始时间或截止时间前，请先调整以其为基准的提醒。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -11468,4 +11474,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   @override
   String get localNetworkAccessRecovery =>
       '若要連線至此伺服器，請在 Android 設定中允許 BusyMax 存取附近的裝置，然後再試一次。';
+
+  @override
+  String get taskReminderRequiresAnchor => '移除開始時間或截止時間前，請先調整以其為基準的提醒。';
 }

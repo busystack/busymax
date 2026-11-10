@@ -1403,5 +1403,6 @@
   "caldavHttpsHelp": "HTTPS सर्वर URL या सीधा CalDAV पता दर्ज करें। आपका पासवर्ड सुरक्षित रूप से संग्रहीत होता है।",
   "davPermissionsUnknown": "सर्वर ने अनुमतियाँ नहीं बताई हैं। अनुरोधित बदलावों की जाँच सर्वर करेगा।",
   "localNetworkAccessRequired": "स्थानीय नेटवर्क का ऐक्सेस ज़रूरी है",
-  "localNetworkAccessRecovery": "इस सर्वर तक पहुँचने के लिए, Android की सेटिंग में BusyMax को आस-पास के डिवाइस का ऐक्सेस दें, फिर दोबारा कोशिश करें।"
+  "localNetworkAccessRecovery": "इस सर्वर तक पहुँचने के लिए, Android की सेटिंग में BusyMax को आस-पास के डिवाइस का ऐक्सेस दें, फिर दोबारा कोशिश करें।",
+  "taskReminderRequiresAnchor": "शुरू होने का समय या समय सीमा हटाने से पहले सापेक्ष रिमाइंडर बदलें।"
 }

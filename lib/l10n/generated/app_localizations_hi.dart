@@ -4004,4 +4004,8 @@ class AppLocalizationsHi extends AppLocalizations {
   @override
   String get localNetworkAccessRecovery =>
       'इस सर्वर तक पहुँचने के लिए, Android की सेटिंग में BusyMax को आस-पास के डिवाइस का ऐक्सेस दें, फिर दोबारा कोशिश करें।';
+
+  @override
+  String get taskReminderRequiresAnchor =>
+      'शुरू होने का समय या समय सीमा हटाने से पहले सापेक्ष रिमाइंडर बदलें।';
 }

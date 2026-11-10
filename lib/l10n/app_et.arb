@@ -1581,5 +1581,6 @@
   "caldavHttpsHelp": "Sisesta serveri HTTPS-aadress või otsene CalDAV-aadress. Parool salvestatakse turvaliselt.",
   "davPermissionsUnknown": "Server pole õigusi teatanud. Server kontrollib taotletud muudatusi.",
   "localNetworkAccessRequired": "Vajalik on juurdepääs kohalikule võrgule",
-  "localNetworkAccessRecovery": "Selle serveriga ühenduse loomiseks luba BusyMaxile Androidi seadetes juurdepääs lähedalasuvatele seadmetele ja proovi uuesti."
+  "localNetworkAccessRecovery": "Selle serveriga ühenduse loomiseks luba BusyMaxile Androidi seadetes juurdepääs lähedalasuvatele seadmetele ja proovi uuesti.",
+  "taskReminderRequiresAnchor": "Muuda suhtelist meeldetuletust enne selle alguse või tähtaja eemaldamist."
 }

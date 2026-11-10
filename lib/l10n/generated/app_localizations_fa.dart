@@ -4044,4 +4044,8 @@ class AppLocalizationsFa extends AppLocalizations {
   @override
   String get localNetworkAccessRecovery =>
       'برای دسترسی به این سرور، در تنظیمات Android به BusyMax اجازهٔ دسترسی به دستگاه‌های اطراف را بدهید و دوباره تلاش کنید.';
+
+  @override
+  String get taskReminderRequiresAnchor =>
+      'پیش از حذف زمان شروع یا مهلت، یادآور نسبی را تنظیم کنید.';
 }

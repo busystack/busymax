@@ -1985,6 +1985,62 @@ void main() {
     });
   }
 
+  for (final related in ['START', 'END', 'ABSOLUTE']) {
+    test(
+      'RFC10051 duration-only task requires an anchor only for $related reminders',
+      () async {
+        final trigger = related == 'ABSOLUTE'
+            ? 'TRIGGER;VALUE=DATE-TIME:20260809T080000Z'
+            : 'TRIGGER;RELATED=$related:-PT15M';
+        final raw = [
+          'BEGIN:VCALENDAR',
+          'VERSION:2.0',
+          'PRODID:-//Task anchor regression//EN',
+          'BEGIN:VTODO',
+          'UID:duration-alarm',
+          'DTSTAMP:20260808T120000Z',
+          'DURATION:PT1H',
+          'SUMMARY:Task',
+          'BEGIN:VALARM',
+          'ACTION:DISPLAY',
+          trigger,
+          'DESCRIPTION:Preserve this reminder',
+          'END:VALARM',
+          'END:VTODO',
+          'END:VCALENDAR',
+          '',
+        ].join('\r\n');
+        final future = queue.enqueueCreate(
+          accountId: 'account',
+          collectionId: 'collection',
+          object: DavNewObject(
+            uid: 'duration-alarm',
+            initialMemberName: 'duration-alarm.ics',
+            rawIcs: raw,
+            componentType: 'VTODO',
+          ),
+        );
+        if (related == 'ABSOLUTE') {
+          await future;
+          final op = await database.select(database.pendingOps).getSingle();
+          expect((jsonDecode(op.requestJson) as Map)['rawIcs'], raw);
+        } else {
+          await expectLater(
+            future,
+            throwsA(
+              isA<DavException>().having(
+                (e) => e.code,
+                'code',
+                'DavTaskReminderRequiresAnchor',
+              ),
+            ),
+          );
+          expect(await database.select(database.pendingOps).get(), isEmpty);
+        }
+      },
+    );
+  }
+
   test('queue rejects mixed all-day and timed VTODO ranges', () async {
     await expectLater(
       queue.enqueueCreate(

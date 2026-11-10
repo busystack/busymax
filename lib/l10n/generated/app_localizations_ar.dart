@@ -4056,4 +4056,8 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get localNetworkAccessRecovery =>
       'للوصول إلى هذا الخادم، اسمح لتطبيق BusyMax بالوصول إلى الأجهزة القريبة في إعدادات Android، ثم حاول مرة أخرى.';
+
+  @override
+  String get taskReminderRequiresAnchor =>
+      'عدّل التذكير النسبي قبل إزالة وقت البدء أو الموعد النهائي المرتبط به.';
 }

@@ -1365,6 +1365,9 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                     error is TaskOccurrenceChangedException
                 ? context.l10n.taskDraftConflict
                 : error is DavException &&
+                      error.code == 'DavTaskReminderRequiresAnchor'
+                ? context.l10n.taskReminderRequiresAnchor
+                : error is DavException &&
                       error.code == 'DavTaskDurationRequiresStart'
                 ? context.l10n.taskDurationRequiresStart
                 : context.l10n.operationFailed,

@@ -4032,6 +4032,10 @@ class AppLocalizationsPt extends AppLocalizations {
   @override
   String get localNetworkAccessRecovery =>
       'To reach this server, allow BusyMax access to nearby devices in Android Settings, then try again.';
+
+  @override
+  String get taskReminderRequiresAnchor =>
+      'Ajuste o lembrete relativo antes de remover o início ou o prazo associado.';
 }
 
 /// The translations for Portuguese, as used in Portugal (`pt_PT`).
@@ -8067,4 +8071,8 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
   @override
   String get localNetworkAccessRecovery =>
       'Para aceder a este servidor, permita que o BusyMax aceda a dispositivos próximos nas definições do Android e tente novamente.';
+
+  @override
+  String get taskReminderRequiresAnchor =>
+      'Ajuste o lembrete relativo antes de remover o início ou o prazo associado.';
 }

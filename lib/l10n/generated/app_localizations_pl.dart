@@ -4190,4 +4190,8 @@ class AppLocalizationsPl extends AppLocalizations {
   @override
   String get localNetworkAccessRecovery =>
       'Aby połączyć się z tym serwerem, zezwól aplikacji BusyMax na dostęp do urządzeń w pobliżu w ustawieniach Androida, a następnie spróbuj ponownie.';
+
+  @override
+  String get taskReminderRequiresAnchor =>
+      'Zmień przypomnienie względne przed usunięciem jego początku lub terminu.';
 }

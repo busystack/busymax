@@ -4022,4 +4022,8 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get localNetworkAccessRecovery =>
       'Erlaube BusyMax in den Android-Einstellungen den Zugriff auf Geräte in der Nähe, um diesen Server zu erreichen, und versuche es erneut.';
+
+  @override
+  String get taskReminderRequiresAnchor =>
+      'Passe die relative Erinnerung an, bevor du ihren Beginn oder ihre Frist entfernst.';
 }

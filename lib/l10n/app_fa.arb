@@ -1493,5 +1493,6 @@
   "caldavHttpsHelp": "نشانی HTTPS سرور یا نشانی مستقیم CalDAV را وارد کنید. گذرواژه به‌صورت امن ذخیره می‌شود.",
   "davPermissionsUnknown": "سرور مجوزها را اعلام نکرده است. تغییرات درخواستی توسط سرور بررسی می‌شوند.",
   "localNetworkAccessRequired": "دسترسی به شبکهٔ محلی لازم است",
-  "localNetworkAccessRecovery": "برای دسترسی به این سرور، در تنظیمات Android به BusyMax اجازهٔ دسترسی به دستگاه‌های اطراف را بدهید و دوباره تلاش کنید."
+  "localNetworkAccessRecovery": "برای دسترسی به این سرور، در تنظیمات Android به BusyMax اجازهٔ دسترسی به دستگاه‌های اطراف را بدهید و دوباره تلاش کنید.",
+  "taskReminderRequiresAnchor": "پیش از حذف زمان شروع یا مهلت، یادآور نسبی را تنظیم کنید."
 }

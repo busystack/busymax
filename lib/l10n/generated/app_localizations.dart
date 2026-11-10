@@ -6691,6 +6691,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'To reach this server, allow BusyMax access to nearby devices in Android Settings, then try again.'**
   String get localNetworkAccessRecovery;
+
+  /// No description provided for @taskReminderRequiresAnchor.
+  ///
+  /// In en, this message translates to:
+  /// **'Adjust the relative reminder before removing its start or deadline.'**
+  String get taskReminderRequiresAnchor;
 }
 
 class _AppLocalizationsDelegate

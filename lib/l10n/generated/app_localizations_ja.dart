@@ -3903,4 +3903,8 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get localNetworkAccessRecovery =>
       'このサーバーに接続するには、Android の設定で BusyMax に付近のデバイスへのアクセスを許可してから、もう一度お試しください。';
+
+  @override
+  String get taskReminderRequiresAnchor =>
+      '開始日時や期限を削除する前に、それを基準とするリマインダーを変更してください。';
 }

@@ -4043,4 +4043,8 @@ class AppLocalizationsFi extends AppLocalizations {
   @override
   String get localNetworkAccessRecovery =>
       'Salli BusyMaxin käyttää lähellä olevia laitteita Androidin asetuksissa, jotta tähän palvelimeen voidaan muodostaa yhteys, ja yritä uudelleen.';
+
+  @override
+  String get taskReminderRequiresAnchor =>
+      'Muuta suhteellista muistutusta ennen sen aloituksen tai määräajan poistamista.';
 }

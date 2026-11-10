@@ -4000,4 +4000,8 @@ class AppLocalizationsVi extends AppLocalizations {
   @override
   String get localNetworkAccessRecovery =>
       'Để kết nối với máy chủ này, hãy cho phép BusyMax truy cập các thiết bị ở gần trong phần Cài đặt Android, rồi thử lại.';
+
+  @override
+  String get taskReminderRequiresAnchor =>
+      'Điều chỉnh lời nhắc tương đối trước khi xóa thời gian bắt đầu hoặc hạn chót của lời nhắc.';
 }

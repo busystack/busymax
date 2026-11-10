@@ -3751,95 +3751,80 @@ void main() {
     );
   }
 
-  test(
-    'task timing edits retain an undated duration or replace it with due',
-    () async {
-      final baseline = _taskResource(
-        uid: 'duration-task',
-        summary: 'Duration task',
-        extra: const [
-          'DTSTART:20260808T090000Z',
-          'DURATION:PT2H',
-          'X-KEEP:opaque',
-          'BEGIN:VALARM',
-          'ACTION:DISPLAY',
-          'TRIGGER:-PT15M',
-          'DESCRIPTION:Reminder',
-          'END:VALARM',
-        ],
-      );
-      await _commitObjects(objectRepository, [
-        _prepared(
-          href: '${_collectionHref}duration.ics',
-          etag: '"duration"',
-          body: baseline,
-        ),
-      ]);
-      final task = await database.select(database.tasks).getSingle();
-      await tasksRepository.patchTask(
+  test('task timing edits retain relative alarm anchors or replace duration with due', () async {
+    final baseline = _taskResource(
+      uid: 'duration-task',
+      summary: 'Duration task',
+      extra: const [
+        'DTSTART:20260808T090000Z',
+        'DURATION:PT2H',
+        'X-KEEP:opaque',
+        'BEGIN:VALARM',
+        'ACTION:DISPLAY',
+        'TRIGGER:-PT15M',
+        'DESCRIPTION:Reminder',
+        'END:VALARM',
+      ],
+    );
+    await _commitObjects(objectRepository, [
+      _prepared(
+        href: '${_collectionHref}duration.ics',
+        etag: '"duration"',
+        body: baseline,
+      ),
+    ]);
+    final task = await database.select(database.tasks).getSingle();
+    await expectLater(
+      tasksRepository.patchTask(
         _taskListId,
         task.id,
         const TaskPatchInput({'microsoftStartDateTime': null}),
-      );
-      final undated = await database.select(database.tasks).getSingle();
-      expect(undated.microsoftStartDateTime, isNull);
-      expect(undated.microsoftDueDateTime, isNull);
-      expect(undated.dueUtc, isNull);
-      final undatedCandidate = await _serializedPendingDavMutation(
-        database,
-        baseline,
-      );
-      expect(undatedCandidate, contains('DURATION:PT2H'));
-      expect(undatedCandidate, isNot(contains('DTSTART:')));
-      expect(undatedCandidate, isNot(contains('DUE:')));
-      await tasksRepository.patchTask(
-        _taskListId,
-        task.id,
-        const TaskPatchInput({
-          'microsoftStartDateTime': {
-            'dateTime': '2026-08-08T09:00:00',
-            'timeZone': 'UTC',
-          },
-          'microsoftStartTimeZone': 'UTC',
-        }),
-      );
-      expect(
-        (await database.select(database.davObjects).getSingle()).rawIcsBody,
-        baseline,
-      );
-      await tasksRepository.patchTask(
-        _taskListId,
-        task.id,
-        const TaskPatchInput({'title': 'Renamed'}),
-      );
-      var pending = await database.select(database.pendingOps).getSingle();
-      var candidate = DavMutationPatch.fromJsonString(
-        pending.mutationPatchJson!,
-      ).applyTo(pending.baselineRawIcs!, nowUtc: _now);
-      expect(candidate, contains('DURATION:PT2H'));
-      await tasksRepository.patchTask(
-        _taskListId,
-        task.id,
-        const TaskPatchInput({
-          'microsoftDueDateTime': {
-            'dateTime': '2026-08-08T12:00:00',
-            'timeZone': 'UTC',
-          },
-          'microsoftDueTimeZone': 'UTC',
-        }),
-      );
-      pending = await database.select(database.pendingOps).getSingle();
-      candidate = DavMutationPatch.fromJsonString(pending.mutationPatchJson!)
-          .applyTo(pending.baselineRawIcs!, nowUtc: _now);
-      expect(candidate, isNot(contains('DURATION:')));
-      final component = IcalSemanticDocument.parse(candidate).components.single;
-      expect(component.start?.rawValue, '20260808T090000Z');
-      expect(component.due?.rawValue, '20260808T120000Z');
-      expect(candidate, contains('UID:duration-task'));
-      expect(candidate, contains('X-KEEP:opaque'));
-      expect(candidate, contains('BEGIN:VALARM'));
-    },
-  );
+      ),
+      throwsA(
+        isA<DavException>().having(
+          (error) => error.code,
+          'code',
+          'DavTaskReminderRequiresAnchor',
+        ),
+      ),
+    );
+    expect(await database.select(database.tasks).getSingle(), task);
+    expect(await database.select(database.pendingOps).get(), isEmpty);
+    expect(
+      (await database.select(database.davObjects).getSingle()).rawIcsBody,
+      baseline,
+    );
+    await tasksRepository.patchTask(
+      _taskListId,
+      task.id,
+      const TaskPatchInput({'title': 'Renamed'}),
+    );
+    var pending = await database.select(database.pendingOps).getSingle();
+    var candidate = DavMutationPatch.fromJsonString(pending.mutationPatchJson!)
+        .applyTo(pending.baselineRawIcs!, nowUtc: _now);
+    expect(candidate, contains('DURATION:PT2H'));
+    await tasksRepository.patchTask(
+      _taskListId,
+      task.id,
+      const TaskPatchInput({
+        'microsoftDueDateTime': {
+          'dateTime': '2026-08-08T12:00:00',
+          'timeZone': 'UTC',
+        },
+        'microsoftDueTimeZone': 'UTC',
+      }),
+    );
+    pending = await database.select(database.pendingOps).getSingle();
+    candidate = DavMutationPatch.fromJsonString(pending.mutationPatchJson!)
+        .applyTo(pending.baselineRawIcs!, nowUtc: _now);
+    expect(candidate, isNot(contains('DURATION:')));
+    final component = IcalSemanticDocument.parse(candidate).components.single;
+    expect(component.start?.rawValue, '20260808T090000Z');
+    expect(component.due?.rawValue, '20260808T120000Z');
+    expect(candidate, contains('UID:duration-task'));
+    expect(candidate, contains('X-KEEP:opaque'));
+    expect(candidate, contains('BEGIN:VALARM'));
+  });
 
   test('task hierarchy resolves IDs and prevents cycles', () async {
     const parentHref = '${_collectionHref}parent.ics';

@@ -2181,5 +2181,6 @@
   "caldavHttpsHelp": "Enter the HTTPS server URL or a direct CalDAV endpoint. Your password is stored securely.",
   "davPermissionsUnknown": "The server has not advertised permissions. Requested changes will be checked by the server.",
   "localNetworkAccessRequired": "Local network access required",
-  "localNetworkAccessRecovery": "To reach this server, allow BusyMax access to nearby devices in Android Settings, then try again."
+  "localNetworkAccessRecovery": "To reach this server, allow BusyMax access to nearby devices in Android Settings, then try again.",
+  "taskReminderRequiresAnchor": "Adjust the relative reminder before removing its start or deadline."
 }

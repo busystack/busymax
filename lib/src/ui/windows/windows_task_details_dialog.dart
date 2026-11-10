@@ -2079,6 +2079,10 @@ Future<bool> showWindowsTaskDetailsDialog(
                                 ? l10n.taskDraftConflict
                                 : failure is DavException &&
                                       failure.code ==
+                                          'DavTaskReminderRequiresAnchor'
+                                ? l10n.taskReminderRequiresAnchor
+                                : failure is DavException &&
+                                      failure.code ==
                                           'DavTaskDurationRequiresStart'
                                 ? l10n.taskDurationRequiresStart
                                 : l10n.operationFailed;
@@ -2239,6 +2243,10 @@ Future<bool> showWindowsTaskDetailsDialog(
                                 failure is TaskDraftConflictException ||
                                     failure is TaskOccurrenceChangedException
                                 ? l10n.taskDraftConflict
+                                : failure is DavException &&
+                                      failure.code ==
+                                          'DavTaskReminderRequiresAnchor'
+                                ? l10n.taskReminderRequiresAnchor
                                 : failure is DavException &&
                                       failure.code ==
                                           'DavTaskDurationRequiresStart'

@@ -1403,5 +1403,6 @@
   "caldavHttpsHelp": "Inserisci l’URL HTTPS del server o un endpoint CalDAV diretto. La password viene archiviata in modo sicuro.",
   "davPermissionsUnknown": "Il server non ha indicato i permessi. Verificherà le modifiche richieste.",
   "localNetworkAccessRequired": "Accesso alla rete locale richiesto",
-  "localNetworkAccessRecovery": "Per raggiungere questo server, consenti a BusyMax di accedere ai dispositivi nelle vicinanze nelle impostazioni di Android, poi riprova."
+  "localNetworkAccessRecovery": "Per raggiungere questo server, consenti a BusyMax di accedere ai dispositivi nelle vicinanze nelle impostazioni di Android, poi riprova.",
+  "taskReminderRequiresAnchor": "Modifica il promemoria relativo prima di rimuoverne l’inizio o la scadenza."
 }

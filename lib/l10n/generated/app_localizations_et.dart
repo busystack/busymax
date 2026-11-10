@@ -3991,4 +3991,8 @@ class AppLocalizationsEt extends AppLocalizations {
   @override
   String get localNetworkAccessRecovery =>
       'Selle serveriga ühenduse loomiseks luba BusyMaxile Androidi seadetes juurdepääs lähedalasuvatele seadmetele ja proovi uuesti.';
+
+  @override
+  String get taskReminderRequiresAnchor =>
+      'Muuda suhtelist meeldetuletust enne selle alguse või tähtaja eemaldamist.';
 }

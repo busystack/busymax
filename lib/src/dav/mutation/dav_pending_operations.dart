@@ -2345,6 +2345,22 @@ void _validateTaskTemporalRange(IcalSemanticDocument document) {
           safeMessage: 'A task cannot contain both a deadline and a duration.',
         );
       }
+      if (start == null &&
+          component.alarms.any(
+            (alarm) => alarm
+                .propertiesNamed('TRIGGER')
+                .any(
+                  (trigger) =>
+                      trigger.parameterValue('VALUE')?.toUpperCase() !=
+                      'DATE-TIME',
+                ),
+          )) {
+        throw const DavException(
+          kind: DavErrorKind.invalidCalendarData,
+          code: 'DavTaskReminderRequiresAnchor',
+          safeMessage: 'Adjust the relative reminder before removing its start or deadline.',
+        );
+      }
       // RFC 10051 section 11.1 allows DURATION without DTSTART. Keep the
       // submitted duration; it supplies no implicit start or due timestamp.
     }

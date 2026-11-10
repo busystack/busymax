@@ -1403,5 +1403,6 @@
   "caldavHttpsHelp": "输入 HTTPS 服务器 URL 或直接 CalDAV 地址。密码将安全存储。",
   "davPermissionsUnknown": "服务器尚未提供权限信息。服务器将验证请求的更改。",
   "localNetworkAccessRequired": "需要本地网络访问权限",
-  "localNetworkAccessRecovery": "要连接此服务器，请在 Android 设置中允许 BusyMax 访问附近的设备，然后重试。"
+  "localNetworkAccessRecovery": "要连接此服务器，请在 Android 设置中允许 BusyMax 访问附近的设备，然后重试。",
+  "taskReminderRequiresAnchor": "移除开始时间或截止时间前，请先调整以其为基准的提醒。"
 }

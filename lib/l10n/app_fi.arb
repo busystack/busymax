@@ -1403,5 +1403,6 @@
   "caldavHttpsHelp": "Anna palvelimen HTTPS-osoite tai suora CalDAV-osoite. Salasana tallennetaan turvallisesti.",
   "davPermissionsUnknown": "Palvelin ei ole ilmoittanut oikeuksia. Palvelin tarkistaa pyydetyt muutokset.",
   "localNetworkAccessRequired": "Paikallisverkon käyttöoikeus tarvitaan",
-  "localNetworkAccessRecovery": "Salli BusyMaxin käyttää lähellä olevia laitteita Androidin asetuksissa, jotta tähän palvelimeen voidaan muodostaa yhteys, ja yritä uudelleen."
+  "localNetworkAccessRecovery": "Salli BusyMaxin käyttää lähellä olevia laitteita Androidin asetuksissa, jotta tähän palvelimeen voidaan muodostaa yhteys, ja yritä uudelleen.",
+  "taskReminderRequiresAnchor": "Muuta suhteellista muistutusta ennen sen aloituksen tai määräajan poistamista."
 }

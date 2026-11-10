@@ -4050,4 +4050,8 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get localNetworkAccessRecovery =>
       'Чтобы подключиться к этому серверу, разрешите BusyMax доступ к устройствам поблизости в настройках Android и повторите попытку.';
+
+  @override
+  String get taskReminderRequiresAnchor =>
+      'Измените относительное напоминание перед удалением связанного с ним начала или срока.';
 }

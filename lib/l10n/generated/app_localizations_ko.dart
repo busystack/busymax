@@ -3909,4 +3909,8 @@ class AppLocalizationsKo extends AppLocalizations {
   @override
   String get localNetworkAccessRecovery =>
       '이 서버에 연결하려면 Android 설정에서 BusyMax에 근처 기기 접근 권한을 허용한 다음 다시 시도하세요.';
+
+  @override
+  String get taskReminderRequiresAnchor =>
+      '시작 시간이나 기한을 삭제하기 전에 이를 기준으로 하는 알림을 변경하세요.';
 }

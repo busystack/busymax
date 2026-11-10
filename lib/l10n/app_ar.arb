@@ -1403,5 +1403,6 @@
   "caldavHttpsHelp": "أدخل عنوان HTTPS للخادم أو عنوان CalDAV المباشر. تُحفظ كلمة المرور بأمان.",
   "davPermissionsUnknown": "لم يعلن الخادم عن الأذونات. سيتحقق الخادم من التغييرات المطلوبة.",
   "localNetworkAccessRequired": "يلزم الوصول إلى الشبكة المحلية",
-  "localNetworkAccessRecovery": "للوصول إلى هذا الخادم، اسمح لتطبيق BusyMax بالوصول إلى الأجهزة القريبة في إعدادات Android، ثم حاول مرة أخرى."
+  "localNetworkAccessRecovery": "للوصول إلى هذا الخادم، اسمح لتطبيق BusyMax بالوصول إلى الأجهزة القريبة في إعدادات Android، ثم حاول مرة أخرى.",
+  "taskReminderRequiresAnchor": "عدّل التذكير النسبي قبل إزالة وقت البدء أو الموعد النهائي المرتبط به."
 }
