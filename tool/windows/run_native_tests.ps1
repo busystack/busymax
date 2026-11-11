@@ -29,12 +29,18 @@ $buildExitCode = $LASTEXITCODE
 if ($buildExitCode -ne 0) {
   throw "BusyMax native test compilation failed with exit code $buildExitCode."
 }
-$junitPath = [IO.Path]::GetFullPath(
-  (Join-Path $resultDirectory 'native-tests.xml'))
+$junitPath = Join-Path (Convert-Path -LiteralPath $resultDirectory) `
+  'native-tests.xml'
+if (Test-Path -LiteralPath $junitPath) {
+  Remove-Item -LiteralPath $junitPath
+}
 & ctest --test-dir $BuildDirectory -C $Configuration --output-on-failure `
   --output-junit $junitPath 2>&1 |
   Tee-Object -FilePath (Join-Path $resultDirectory 'native-tests.log')
 $testExitCode = $LASTEXITCODE
 if ($testExitCode -ne 0) {
   throw "BusyMax native tests failed with exit code $testExitCode."
+}
+if (-not (Test-Path -LiteralPath $junitPath -PathType Leaf)) {
+  throw "CTest did not produce a fresh native test report: $junitPath"
 }
