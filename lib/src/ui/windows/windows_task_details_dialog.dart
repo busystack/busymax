@@ -192,7 +192,10 @@ Future<bool> showWindowsTaskDetailsDialog(
     microsoftReminderTimeZone: reminderTimeZone,
     recurrenceJson: recurrenceJson,
     importance: importance,
-    categories: _categories(categories.text),
+    // The display separator may be part of an existing category value.
+    categories: categories.text == originalDraft.categories.join(', ')
+        ? originalDraft.categories
+        : _categories(categories.text),
     icalPriority: priority,
     percentComplete: progress,
     taskStatus: taskStatus.isEmpty ? null : taskStatus,

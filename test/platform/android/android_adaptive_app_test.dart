@@ -3141,6 +3141,51 @@ void main() {
     },
   );
 
+  for (final editCategories in [false, true]) {
+    testWidgets(
+      'Android DAV unrelated task title edit retains comma categories (edit categories: $editCategories)',
+      (tester) async {
+        final harness = await _pumpApp(tester, AppSettings.defaults());
+        addTearDown(harness.dispose);
+        final parent = await _seedAndroidDavTree(
+          harness.database,
+          categories: r'one\,two,雪',
+        );
+        await _openAndroidTaskEditor(tester, parent, BusyProvider.nextcloud);
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Title'),
+          'Unrelated task title',
+        );
+        if (editCategories) {
+          final categories = find.widgetWithText(TextField, 'Categories');
+          await _scrollUntilBuilt(tester, categories);
+          await tester.enterText(categories, 'Work, Personal');
+        }
+        await tester.tap(find.widgetWithText(TextButton, 'Save'));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(find.byType(AndroidTaskEditor), findsNothing);
+        final operations = await harness.database
+            .select(harness.database.pendingOps)
+            .get();
+        expect(operations, hasLength(1));
+        final operation = operations.single;
+        final queuedBody = DavMutationPatch.fromJsonString(
+          operation.mutationPatchJson!,
+        ).applyTo(operation.baselineRawIcs!, nowUtc: DateTime.now().toUtc());
+        expect(queuedBody, contains('SUMMARY:Unrelated task title'));
+        expect(
+          queuedBody,
+          contains(
+            editCategories
+                ? 'CATEGORIES:Work,Personal'
+                : r'CATEGORIES:one\,two,雪',
+          ),
+        );
+      },
+    );
+  }
+
   testWidgets(
     'Android Tasks reconciles an advancing recurring occurrence to its open master',
     (tester) async {
@@ -6604,7 +6649,7 @@ void main() {
   );
 
   for (final provider in [BusyProvider.caldav, BusyProvider.nextcloud]) {
-    for (final action in ['edit', 'add', 'delete']) {
+    for (final action in ['edit', 'add', 'delete', 'title']) {
       for (final blockedChannel in [false, true]) {
         testWidgets(
           'Android $provider $action reminder keeps sibling alarms (blocked channel: $blockedChannel)',
@@ -6647,6 +6692,7 @@ void main() {
                 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\n'
                 'UID:reminders@example.test\r\nDTSTART:${icsDate(start)}\r\n'
                 'DTEND:${icsDate(end)}\r\nSUMMARY:Reminders\r\n'
+                'CATEGORIES:one\\,two,雪\r\n'
                 'BEGIN:VALARM\r\nACTION:DISPLAY\r\nTRIGGER:-PT15M\r\n'
                 'DESCRIPTION:First\r\nX-KEEP:first\r\nEND:VALARM\r\n'
                 'BEGIN:VALARM\r\nACTION:DISPLAY\r\nTRIGGER:-PT30M\r\n'
@@ -6778,6 +6824,12 @@ void main() {
                 );
             await tester.pump();
             await tester.pump(const Duration(milliseconds: 400));
+            if (action == 'title') {
+              await tester.enterText(
+                find.byType(TextFormField).first,
+                'Unrelated title change',
+              );
+            }
             final second = find.byKey(
               const Key('android-event-dav-reminder-1'),
             );
@@ -6787,6 +6839,8 @@ void main() {
               findsOneWidget,
             );
             switch (action) {
+              case 'title':
+                break;
               case 'edit':
                 tester
                     .widget<DropdownButtonFormField<int>>(second)
@@ -6832,12 +6886,17 @@ void main() {
                     ? 'Android is blocking notifications or a notification category. Your reminders are saved. Review system notification settings.'
                     : 'Notification delivery status is unavailable. Review system settings.',
               ),
-              findsOneWidget,
+              action == 'title' ? findsNothing : findsOneWidget,
             );
             if (action == 'edit') {
               expect(queuedBody, contains('TRIGGER:-PT45M'));
             }
             if (action == 'add') expect(queuedBody, contains('TRIGGER:-PT10M'));
+            expect(
+              queuedBody,
+              contains(r'CATEGORIES:one\,two,雪'),
+              reason: 'Unchanged comma-containing categories retain their original values.',
+            );
             expect(queuedBody, contains('X-KEEP:first'));
             expect(
               queuedBody,
@@ -6857,6 +6916,7 @@ void main() {
             expect(editedRows.map((row) => row.minutes), switch (action) {
               'edit' => [15, 45],
               'add' => [15, 30, 10],
+              'title' => [15, 30],
               _ => [15],
             });
             expect(jsonEncode(updated.reminders), contains('X-KEEP'));
@@ -8036,6 +8096,7 @@ Future<TaskEntity> _seedAndroidDavTree(
   bool explicitParentStatus = true,
   bool recurringChild = false,
   bool readOnly = false,
+  String? categories,
 }) async {
   final task = await _seedAndroidEditorTask(database);
   await database.delete(database.tasks).go();
@@ -8083,6 +8144,7 @@ Future<TaskEntity> _seedAndroidDavTree(
           'BEGIN:VTODO',
           'UID:${title.toLowerCase()}-uid',
           'SUMMARY:$title',
+          if (categories != null) 'CATEGORIES:$categories',
           if (title != 'Parent' || explicitParentStatus) 'STATUS:NEEDS-ACTION',
           if (title != recurringTitle ||
               (recurringCount == null && recurringRule == null))

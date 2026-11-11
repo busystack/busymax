@@ -2928,11 +2928,14 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       notes: _notes.text,
       location: _location.text,
       taskUrl: _url.text,
-      categories: _categories.text
-          .split(',')
-          .map((e) => e.trim())
-          .where((e) => e.isNotEmpty)
-          .toList(),
+      // Keep category values containing commas when their display is unchanged.
+      categories: _categories.text == _draft.categories.join(', ')
+          ? _draft.categories
+          : _categories.text
+                .split(',')
+                .map((e) => e.trim())
+                .where((e) => e.isNotEmpty)
+                .toList(),
     );
   }
 

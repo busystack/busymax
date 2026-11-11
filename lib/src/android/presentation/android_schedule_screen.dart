@@ -3530,11 +3530,15 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
       ),
       _guestOptionalOverrides,
     );
-    final categories = _categories.text
-        .split(',')
-        .map((value) => value.trim())
-        .where((value) => value.isNotEmpty)
-        .toList();
+    // The display separator can also occur inside an existing category.
+    // Preserve the original values when this field was not edited.
+    final categories = _categories.text == widget.draft.categories.join(', ')
+        ? widget.draft.categories
+        : _categories.text
+              .split(',')
+              .map((value) => value.trim())
+              .where((value) => value.isNotEmpty)
+              .toList();
     var draft = _draft.copyWith(
       title: _title.text.trim(),
       location: _location.text.trim(),
