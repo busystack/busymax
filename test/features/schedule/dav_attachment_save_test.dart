@@ -84,7 +84,11 @@ void main() {
         throwsA(isA<FileSystemException>()),
       );
       expect(await originalFile.readAsString(), 'untouched');
-      expect(await link.target(), originalFile.path);
+      expect(await link.target(), File.fromUri(originalFile.uri).path);
+      expect(
+        await FileSystemEntity.type(link.path, followLinks: false),
+        FileSystemEntityType.link,
+      );
       expect(await directory.list().length, 2);
     },
   );
