@@ -31,12 +31,16 @@ void main() {
       );
     }
   });
-  for (final platform in ['Linux', 'Windows', 'Android']) {
+  for (final platform in ['Linux', 'Windows', 'Android', 'Android landscape']) {
+    final isAndroid = platform.startsWith('Android');
+    final landscape = platform == 'Android landscape';
     for (final component in ['VEVENT', 'VTODO']) {
       testWidgets(
         '$platform production $component conflict duplication cancel then approve',
         (tester) async {
-          tester.view.physicalSize = const Size(1400, 2400);
+          tester.view.physicalSize = landscape
+              ? const Size(823, 384)
+              : const Size(1400, 2400);
           tester.view.devicePixelRatio = 1;
           addTearDown(tester.view.resetPhysicalSize);
           addTearDown(tester.view.resetDevicePixelRatio);
@@ -50,7 +54,7 @@ void main() {
               notificationReconcilerProvider.overrideWithValue(
                 CallbackNotificationReconciler(() async {}),
               ),
-              if (platform == 'Android')
+              if (isAndroid)
                 androidNotificationServiceProvider.overrideWithValue(
                   AndroidNotificationService(
                     database: db,
@@ -69,7 +73,7 @@ void main() {
               signedInSyncRunnerProvider.overrideWithValue((id, full) async {
                 syncCalls.add(id);
               }),
-              if (platform == 'Android')
+              if (isAndroid)
                 buildConfigProvider.overrideWithValue(BuildConfig.forAndroid()),
             ],
           );
@@ -78,7 +82,7 @@ void main() {
             container.dispose();
             await complete(tester, fixture.close);
           });
-          final screen = platform == 'Android'
+          final screen = isAndroid
               ? const AndroidSettingsScreen(
                   notificationConflicts: true,
                   notificationAccountId: 'account',
@@ -95,7 +99,10 @@ void main() {
                         content: WindowsDavConflictReview(accountId: 'account'),
                       ),
                     )
-                  : localizedTestApp(child: screen),
+                  : localizedTestApp(
+                      child: screen,
+                      textScaler: landscape ? TextScaler.linear(1.2) : null,
+                    ),
             ),
           );
           await settle(tester);
@@ -107,7 +114,7 @@ void main() {
                 ),
               );
               await settle(tester);
-            } else if (platform == 'Android') {
+            } else if (isAndroid) {
               await tester.tap(find.text('Local title').first);
               await settle(tester);
             }

@@ -1925,38 +1925,43 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
     final resolution = await showModalBottomSheet<DavConflictResolution>(
       context: context,
       showDragHandle: true,
+      isScrollControlled: true,
       builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              title: Text(context.l10n.syncConflicts),
-              subtitle: Text(conflict.itemTitle),
-            ),
-            if (conflict.canKeepServer)
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
               ListTile(
-                leading: const Icon(Icons.cloud_done_outlined),
-                title: Text(context.l10n.keepServerVersion),
-                onTap: () =>
-                    Navigator.pop(context, DavConflictResolution.keepServer),
+                title: Text(context.l10n.syncConflicts),
+                subtitle: Text(conflict.itemTitle),
               ),
-            if (conflict.canReapplyLocal)
-              ListTile(
-                leading: const Icon(Icons.redo),
-                title: Text(context.l10n.reapplyLocalChange),
-                onTap: () =>
-                    Navigator.pop(context, DavConflictResolution.reapplyLocal),
-              ),
-            if (conflict.canDuplicate)
-              ListTile(
-                leading: const Icon(Icons.copy_outlined),
-                title: Text(context.l10n.duplicateLocalItem),
-                onTap: () => Navigator.pop(
-                  context,
-                  DavConflictResolution.duplicateLocal,
+              if (conflict.canKeepServer)
+                ListTile(
+                  leading: const Icon(Icons.cloud_done_outlined),
+                  title: Text(context.l10n.keepServerVersion),
+                  onTap: () =>
+                      Navigator.pop(context, DavConflictResolution.keepServer),
                 ),
-              ),
-          ],
+              if (conflict.canReapplyLocal)
+                ListTile(
+                  leading: const Icon(Icons.redo),
+                  title: Text(context.l10n.reapplyLocalChange),
+                  onTap: () => Navigator.pop(
+                    context,
+                    DavConflictResolution.reapplyLocal,
+                  ),
+                ),
+              if (conflict.canDuplicate)
+                ListTile(
+                  leading: const Icon(Icons.copy_outlined),
+                  title: Text(context.l10n.duplicateLocalItem),
+                  onTap: () => Navigator.pop(
+                    context,
+                    DavConflictResolution.duplicateLocal,
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
