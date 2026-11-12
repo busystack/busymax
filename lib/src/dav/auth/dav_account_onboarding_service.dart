@@ -563,6 +563,7 @@ final class DavAccountOnboardingService {
     required String accountId,
     required int expectedGeneration,
     required NextcloudTrustPolicy? policy,
+    bool revalidateConnection = false,
   }) async {
     final account = await _accountsRepository.accountById(accountId);
     final previous = await _persistence.readCurrentCredential(accountId);
@@ -581,7 +582,7 @@ final class DavAccountOnboardingService {
     // Removing private trust must take effect even while the old certificate
     // is still in use or the server is unreachable. Normal revalidation is
     // required before blocked work can resume.
-    if (policy == null) {
+    if (policy == null && !revalidateConnection) {
       await _serialized(
         accountId,
         () => _persistence.commit(

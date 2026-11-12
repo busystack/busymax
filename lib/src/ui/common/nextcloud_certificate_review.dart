@@ -298,6 +298,7 @@ Future<void> manageNextcloudCertificates(
             accountId: accountId,
             expectedGeneration: generation,
             policy: replacement,
+            revalidateConnection: action == CertificateReviewAction.revalidate,
           );
     } else {
       await ref

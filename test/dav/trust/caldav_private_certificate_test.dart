@@ -224,6 +224,28 @@ void main() {
           ) as CalDavSecretRecord).trustPolicy,
           isNull,
         );
+        final revokedGeneration = await persistence.generation(id);
+        await expectLater(
+          service().replaceCalDavTrust(
+            accountId: id,
+            expectedGeneration: revokedGeneration,
+            policy: null,
+            revalidateConnection: true,
+          ),
+          throwsA(isA<NextcloudCertificateException>()),
+        );
+        expect(
+          requests,
+          before,
+          reason: 'Standard revalidation must reject the unapproved peer before HTTP',
+        );
+        expect(await persistence.generation(id), revokedGeneration);
+        expect(
+          (await persistence.readCurrentCredential(
+            id,
+          ) as CalDavSecretRecord).trustPolicy,
+          isNull,
+        );
         await expectLater(
           service().replaceCalDavTrust(
             accountId: id,
