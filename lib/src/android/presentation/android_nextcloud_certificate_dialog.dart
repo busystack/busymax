@@ -30,6 +30,7 @@ Future<CertificateReviewAction?> showAndroidNextcloudCertificate(
     context: context,
     barrierDismissible: false,
     builder: (context) => AlertDialog(
+      scrollable: true,
       title: Text(l10n.privateServerCertificates),
       content: NextcloudCertificateReviewContent(data: data),
       actions: actions,

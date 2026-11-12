@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:busymax/src/android/presentation/android_nextcloud_certificate_dialog.dart';
 import 'package:busymax/src/dav/trust/nextcloud_certificate.dart';
+import 'package:busymax/src/dav/trust/nextcloud_trust_policy.dart';
 import 'package:busymax/src/dav/trust/nextcloud_http_client_factory.dart';
 import 'package:busymax/src/ui/common/nextcloud_certificate_review.dart';
 import 'package:busymax/src/ui/linux/nextcloud_certificate_dialog.dart';
@@ -68,13 +69,20 @@ void main() {
         );
   });
   for (final platform in ['Linux', 'Windows', 'Android']) {
-    for (final narrow in [false, true]) {
+    for (final layout in [
+      'wide',
+      'narrow',
+      if (platform == 'Android') 'landscape',
+    ]) {
+      final narrow = layout == 'narrow';
       for (final management in [false, true]) {
         testWidgets(
-          '$platform review is selectable and Enter rejects; narrow=$narrow management=$management',
+          '$platform review is selectable and Enter rejects; layout=$layout management=$management',
           (tester) async {
             tester.view.physicalSize = narrow
                 ? const Size(390, 844)
+                : layout == 'landscape'
+                ? const Size(823, 384)
                 : const Size(1000, 900);
             tester.view.devicePixelRatio = 1;
             addTearDown(tester.view.resetPhysicalSize);
@@ -82,7 +90,18 @@ void main() {
             CertificateReviewAction? result;
             final data = NextcloudCertificateReviewData(
               endpoint: Uri.parse('https://localhost:8443/nextcloud'),
-              certificates: [certificate],
+              certificates: management ? const [] : [certificate],
+              previous: management
+                  ? NextcloudTrustPolicy.approve(
+                      owner: 'account',
+                      installation: Uri.parse(
+                        'https://localhost:8443/nextcloud',
+                      ),
+                      mode: NextcloudTrustMode.pinnedLeaf,
+                      certificates: [certificate],
+                      generation: 'approved',
+                    )
+                  : null,
               canApprove: !management,
               management: management,
             );
@@ -108,7 +127,11 @@ void main() {
                     )
                   : localizedTestApp(
                       child: Scaffold(body: button),
-                      textScaler: narrow ? const TextScaler.linear(1.4) : null,
+                      textScaler: narrow
+                          ? const TextScaler.linear(1.4)
+                          : layout == 'landscape'
+                          ? const TextScaler.linear(1.3)
+                          : null,
                     ),
             );
             await tester.tap(find.text('open-synthetic-review'));
