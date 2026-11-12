@@ -2098,6 +2098,10 @@ void main() {
   testWidgets('event recovery preserves a recurring mutation scope', (
     tester,
   ) async {
+    tester.view.physicalSize = const Size(823, 384);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     final harness = await _pumpApp(tester, AppSettings.defaults());
     addTearDown(harness.dispose);
     final now = DateTime.now();
@@ -2145,6 +2149,8 @@ void main() {
     await tester.pump();
     await tester.tap(scopeAction);
     await tester.pumpAndSettle();
+    expect(find.text('Entire series').hitTestable(), findsOneWidget);
+    expect(tester.takeException(), isNull);
     await tester.tap(find.text('This event'));
     await tester.pump(const Duration(milliseconds: 1100));
     await tester.pumpAndSettle();

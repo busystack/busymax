@@ -3841,24 +3841,27 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
     final scope = await showModalBottomSheet<RecurringEventMutationScope>(
       context: context,
       showDragHandle: true,
+      isScrollControlled: true,
       builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(title: Text(context.l10n.chooseRecurringEventScope)),
-            for (final value in RecurringEventMutationScope.values)
-              if (value != RecurringEventMutationScope.thisAndFuture ||
-                  supportsThisAndFollowingEventMutation(_provider))
-                ListTile(
-                  leading: Icon(
-                    _draft.recurringMutationScope == value
-                        ? Icons.radio_button_checked
-                        : Icons.radio_button_unchecked,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(title: Text(context.l10n.chooseRecurringEventScope)),
+              for (final value in RecurringEventMutationScope.values)
+                if (value != RecurringEventMutationScope.thisAndFuture ||
+                    supportsThisAndFollowingEventMutation(_provider))
+                  ListTile(
+                    leading: Icon(
+                      _draft.recurringMutationScope == value
+                          ? Icons.radio_button_checked
+                          : Icons.radio_button_unchecked,
+                    ),
+                    title: Text(_scopeLabel(context, value)),
+                    onTap: () => Navigator.pop(context, value),
                   ),
-                  title: Text(_scopeLabel(context, value)),
-                  onTap: () => Navigator.pop(context, value),
-                ),
-          ],
+            ],
+          ),
         ),
       ),
     );
