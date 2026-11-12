@@ -1,14 +1,14 @@
-# Nextcloud private certificate transport and lifecycle
+# DAV private certificate transport and lifecycle
 
 This note maintains the security boundary and verification procedure for
-BusyMax's account-scoped private HTTPS support. See
+BusyMax's shared, account-scoped private HTTPS support for Nextcloud and generic CalDAV. See
 [user setup](nextcloud_setup.md) for enrollment and management.
 
 ## TLS enforcement
 
 `NextcloudHttpClientFactory` creates dedicated contexts and clients for a
 temporary onboarding session, persisted Nextcloud account, independent contacts
-account, or captured removal snapshot. It never changes `baseHttpClientProvider`,
+account, generic CalDAV account, or captured removal snapshot. It never changes `baseHttpClientProvider`,
 `SecurityContext.defaultContext`, an OS store, or browser trust. HTTPS is checked
 at the application boundary; Android cleartext remains disabled. Test-only
 loopback DAV fixtures and unrelated OAuth loopback callbacks remain separate.
@@ -203,3 +203,20 @@ through DocumentsUI, test rejection before approval, and remove only the
 certificate file and reverse mappings created by that run. These tests use
 real native sockets and encrypted storage with synthetic peers/credentials;
 they do not establish public-PKI onboarding or a real Nextcloud account session.
+
+## Generic CalDAV
+
+Generic CalDAV uses this same implementation for onboarding, persisted requests,
+background synchronization and certificate recovery on Linux, Windows and Android.
+The CA/leaf policy is stored in the existing secure CalDAV password record and
+participates in the existing authorization journal, generation and removal lease.
+Password replacement retains the policy; certificate changes retain the password.
+No Nextcloud Login Flow or new authentication method is used. Generic service
+URLs preserve escaped octets and significant trailing slashes in policy identity.
+Older records without a private policy continue to use normal trusted roots.
+Malformed configured policies remain explicit invalid states and fail closed.
+
+The certificate management action removes generic private trust locally when
+returning to standard HTTPS, including while offline. Subsequent requests must
+complete normal public-PKI validation. Explicit replacement approvals are checked
+against the account generation and verified through discovery before commitment.

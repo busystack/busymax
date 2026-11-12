@@ -123,6 +123,7 @@ Future<NextcloudTrustPolicy?> _importCa(
   String owner,
   CertificateReviewPresenter present, {
   NextcloudTrustPolicy? previous,
+  bool caldavService = false,
 }) async {
   try {
     final file = await openFile(
@@ -150,6 +151,7 @@ Future<NextcloudTrustPolicy?> _importCa(
     if (choice != CertificateReviewAction.approve) return null;
     return NextcloudTrustPolicy.approve(
       owner: owner,
+      caldavService: caldavService,
       installation: endpoint,
       mode: NextcloudTrustMode.privateCa,
       certificates: certs,
@@ -167,8 +169,9 @@ Future<NextcloudTrustPolicy?> _importCa(
 Future<NextcloudTrustPolicy?> reviewNextcloudCertificate(
   NextcloudCertificateException challenge,
   String owner,
-  CertificateReviewPresenter present,
-) async {
+  CertificateReviewPresenter present, {
+  bool caldavService = false,
+}) async {
   final certificate = challenge.observed;
   var eligible = false;
   try {
@@ -193,11 +196,13 @@ Future<NextcloudTrustPolicy?> reviewNextcloudCertificate(
       owner,
       present,
       previous: challenge.previous,
+      caldavService: caldavService,
     );
   }
   if (choice != CertificateReviewAction.approve || !eligible) return null;
   return NextcloudTrustPolicy.approve(
     owner: owner,
+    caldavService: caldavService,
     installation: challenge.endpoint,
     mode: NextcloudTrustMode.pinnedLeaf,
     certificates: [certificate!],
@@ -221,17 +226,17 @@ Future<void> manageNextcloudCertificates(
               .read(authorizationPersistenceProvider)
               .readCurrentSnapshot(accountId);
     final secret = snapshot?.$1;
-    if (!contactsOnly && secret is! NextcloudSecretRecord) return;
+    if (!contactsOnly && secret is! DavCertificateCredential) return;
     final contactSnapshot = contactsOnly
         ? await contacts.privateTrustSnapshot(accountId)
         : null;
     final previous = contactsOnly
         ? contactSnapshot!.$2
-        : (secret as NextcloudSecretRecord).trustPolicy;
+        : (secret as DavCertificateCredential).trustPolicy;
     activePolicy = previous;
     endpoint = contactsOnly
         ? contactSnapshot!.$1
-        : (secret as NextcloudSecretRecord).canonicalServer;
+        : (secret as DavCertificateCredential).certificateAuthority;
     final generation = contactsOnly ? contactSnapshot!.$3 : snapshot!.$2;
     final owner = contactsOnly ? 'contacts:$accountId' : accountId;
     final action = await present(
@@ -249,6 +254,7 @@ Future<void> manageNextcloudCertificates(
         owner,
         present,
         previous: previous,
+        caldavService: secret is CalDavSecretRecord,
       );
       if (replacement == null) return;
     } else if (action == CertificateReviewAction.replacePin) {
@@ -264,6 +270,7 @@ Future<void> manageNextcloudCertificates(
         ),
         owner,
         present,
+        caldavService: secret is CalDavSecretRecord,
       );
       if (replacement == null) return;
     } else if (action == CertificateReviewAction.revalidate) {
@@ -284,6 +291,14 @@ Future<void> manageNextcloudCertificates(
     }
     if (contactsOnly) {
       await contacts.replacePrivateTrust(accountId, generation, replacement);
+    } else if (secret is CalDavSecretRecord) {
+      await ref
+          .read(davAccountOnboardingServiceProvider)
+          .replaceCalDavTrust(
+            accountId: accountId,
+            expectedGeneration: generation,
+            policy: replacement,
+          );
     } else {
       await ref
           .read(davAccountOnboardingServiceProvider)

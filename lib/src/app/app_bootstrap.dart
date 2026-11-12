@@ -196,8 +196,17 @@ final davAccountHttpClientProvider = Provider.family<http.Client, String>((
               policy: credential.trustPolicy,
               reuseConnections: true,
             ),
-      AppleICloudSecretRecord() ||
-      CalDavSecretRecord() => ConnectivityAwareHttpClient(
+      CalDavSecretRecord() =>
+        ref
+            .read(nextcloudHttpClientFactoryProvider)
+            .create(
+              owner: id,
+              authority: credential.serviceAuthority,
+              caldavService: true,
+              policy: credential.trustPolicy,
+              reuseConnections: true,
+            ),
+      AppleICloudSecretRecord() => ConnectivityAwareHttpClient(
         inner: NativeTerminatingHttpClient(reuseConnections: true),
         requireNetwork: ref
             .read(networkConnectivityMonitorProvider)
@@ -221,6 +230,75 @@ davAccountOnboardingServiceProvider = Provider<DavAccountOnboardingService>((
   ref,
 ) {
   final client = ref.watch(baseHttpClientProvider);
+  DavOnboardingDiscovery certificateDiscovery(
+    DavCertificateCredential secret,
+    int generation,
+    bool requireExisting,
+  ) =>
+      ({
+        required accountId,
+        required provider,
+        required accountAuthority,
+        required credential,
+        cancellationToken,
+      }) async {
+        final raw = ref
+            .read(nextcloudHttpClientFactoryProvider)
+            .create(
+              owner: accountId,
+              authority: accountAuthority,
+              caldavService: secret is CalDavSecretRecord,
+              policy: secret.trustPolicy,
+            );
+        final scoped = AuthorizationLeasedHttpClient(
+          delegate: raw,
+          runLease: (work) => ref
+              .read(authorizationPersistenceProvider)
+              .runShared(accountId, work),
+          validate: () async {
+            final persistence = ref.read(authorizationPersistenceProvider);
+            final account = await ref
+                .read(accountsRepositoryProvider)
+                .accountById(accountId);
+            if (await persistence.generation(accountId) != generation ||
+                (account != null) != requireExisting) {
+              throw const DavException(
+                kind: DavErrorKind.cancelled,
+                code: 'NextcloudStaleDiscovery',
+                safeMessage:
+                    'The account changed during certificate validation.',
+              );
+            }
+          },
+        );
+        try {
+          final profile = davProviderProfile(
+            provider,
+            nextcloudServer: provider == BusyProvider.nextcloud
+                ? accountAuthority
+                : null,
+            caldavServer: provider == BusyProvider.caldav
+                ? accountAuthority
+                : null,
+          );
+          return await DavDiscoveryService(
+            transport: DavHttpTransport(
+              client: scoped,
+              profile: profile,
+              accountAuthority: accountAuthority,
+            ),
+            profile: profile,
+            accountAuthority: accountAuthority,
+            accountId: accountId,
+            credential: credential,
+          ).discover(
+            correlationId: const Uuid().v4(),
+            cancellationToken: cancellationToken,
+          );
+        } finally {
+          scoped.close();
+        }
+      };
   return DavAccountOnboardingService(
     database: ref.watch(databaseProvider),
     secretStore: ref.watch(secretStoreProvider),
@@ -248,65 +326,8 @@ davAccountOnboardingServiceProvider = Provider<DavAccountOnboardingService>((
     accountsRepository: ref.watch(accountsRepositoryProvider),
     nextcloudLoginFlow: ref.watch(nextcloudLoginFlowV2Provider),
     nextcloudClients: ref.watch(nextcloudHttpClientFactoryProvider),
-    nextcloudDiscovery: (secret, generation, requireExisting) =>
-        ({
-          required accountId,
-          required provider,
-          required accountAuthority,
-          required credential,
-          cancellationToken,
-        }) async {
-          final raw = ref
-              .read(nextcloudHttpClientFactoryProvider)
-              .create(
-                owner: accountId,
-                authority: accountAuthority,
-                policy: secret.trustPolicy,
-              );
-          final scoped = AuthorizationLeasedHttpClient(
-            delegate: raw,
-            runLease: (work) => ref
-                .read(authorizationPersistenceProvider)
-                .runShared(accountId, work),
-            validate: () async {
-              final persistence = ref.read(authorizationPersistenceProvider);
-              final account = await ref
-                  .read(accountsRepositoryProvider)
-                  .accountById(accountId);
-              if (await persistence.generation(accountId) != generation ||
-                  (account != null) != requireExisting) {
-                throw const DavException(
-                  kind: DavErrorKind.cancelled,
-                  code: 'NextcloudStaleDiscovery',
-                  safeMessage:
-                      'The account changed during certificate validation.',
-                );
-              }
-            },
-          );
-          try {
-            final profile = davProviderProfile(
-              provider,
-              nextcloudServer: accountAuthority,
-            );
-            return await DavDiscoveryService(
-              transport: DavHttpTransport(
-                client: scoped,
-                profile: profile,
-                accountAuthority: accountAuthority,
-              ),
-              profile: profile,
-              accountAuthority: accountAuthority,
-              accountId: accountId,
-              credential: credential,
-            ).discover(
-              correlationId: const Uuid().v4(),
-              cancellationToken: cancellationToken,
-            );
-          } finally {
-            scoped.close();
-          }
-        },
+    nextcloudDiscovery: certificateDiscovery,
+    caldavDiscovery: certificateDiscovery,
     discover:
         ({
           required accountId,

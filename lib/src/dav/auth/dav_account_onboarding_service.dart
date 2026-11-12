@@ -78,6 +78,7 @@ final class DavAccountOnboardingService {
     this.syncCoordinator,
     this.nextcloudClients,
     this.nextcloudDiscovery,
+    this.caldavDiscovery,
     this.onAccountRemovalStarting,
     this.onAccountRemoving,
     this.persistLinkedAccountRemoval,
@@ -135,6 +136,7 @@ final class DavAccountOnboardingService {
     required String serverUrl,
     required String username,
     required String password,
+    NextcloudTrustReviewer? reviewCertificate,
     DavCancellationToken? cancellationToken,
   }) {
     final credential = CalDavSecretRecord(
@@ -142,7 +144,8 @@ final class DavAccountOnboardingService {
       username: username,
       password: password,
     );
-    return _connect(
+    return _connectCalDav(
+      reviewCertificate: reviewCertificate,
       provider: BusyProvider.caldav,
       authority: credential.serviceAuthority,
       providerAccountId: credential.username,
@@ -161,6 +164,7 @@ final class DavAccountOnboardingService {
   Future<DavAccountConnectionResult> replaceCalDavPassword({
     required String accountId,
     required String password,
+    NextcloudTrustReviewer? reviewCertificate,
     DavCancellationToken? cancellationToken,
   }) async {
     await _persistence.recover();
@@ -181,8 +185,10 @@ final class DavAccountOnboardingService {
       serviceAuthority: previous.serviceAuthority,
       username: previous.username,
       password: password,
+      trustPolicy: previous.trustPolicy,
     );
-    return _connect(
+    return _connectCalDav(
+      reviewCertificate: reviewCertificate,
       provider: BusyProvider.caldav,
       authority: credential.serviceAuthority,
       providerAccountId: account.providerAccountId,
@@ -227,9 +233,56 @@ final class DavAccountOnboardingService {
     );
   }
 
+  Future<DavAccountConnectionResult> _connectCalDav({
+    required BusyProvider provider,
+    required Uri authority,
+    required String providerAccountId,
+    required CalDavSecretRecord credential,
+    required DavBasicCredential basicCredential,
+    required bool calendarsEnabled,
+    required bool tasksEnabled,
+    required String displayName,
+    String? expectedAccountId,
+    int? expectedGeneration,
+    bool activateAccount = true,
+    NextcloudTrustReviewer? reviewCertificate,
+    DavCancellationToken? cancellationToken,
+  }) async {
+    Future<DavAccountConnectionResult> attempt(CalDavSecretRecord candidate) =>
+        _connect(
+          provider: provider,
+          authority: authority,
+          providerAccountId: providerAccountId,
+          credential: candidate,
+          basicCredential: basicCredential,
+          calendarsEnabled: calendarsEnabled,
+          tasksEnabled: tasksEnabled,
+          displayName: displayName,
+          expectedAccountId: expectedAccountId,
+          expectedGeneration: expectedGeneration,
+          activateAccount: activateAccount,
+          cancellationToken: cancellationToken,
+        );
+    try {
+      return await attempt(credential);
+    } on NextcloudCertificateException catch (challenge) {
+      if (reviewCertificate == null) rethrow;
+      final owner = expectedAccountId ?? 'onboarding:${_idFactory()}';
+      cancellationToken?.throwIfCancelled();
+      final approved = await reviewCertificate(challenge, owner);
+      cancellationToken?.throwIfCancelled();
+      if (approved == null) rethrow;
+      approved.requireScope(owner, authority);
+      // One explicit decision, then one fresh, fully validated discovery.
+      return attempt(credential.withTrustPolicy(approved));
+    }
+  }
+
   final NextcloudHttpClientFactory? nextcloudClients;
   final DavOnboardingDiscovery Function(NextcloudSecretRecord, int, bool)?
   nextcloudDiscovery;
+  final DavOnboardingDiscovery Function(CalDavSecretRecord, int, bool)?
+  caldavDiscovery;
   NextcloudLoginFlowV2? _sessionFlow;
 
   Future<(NextcloudLoginFlowResult, NextcloudTrustPolicy?)> _login(
@@ -506,6 +559,60 @@ final class DavAccountOnboardingService {
     );
   }
 
+  Future<void> replaceCalDavTrust({
+    required String accountId,
+    required int expectedGeneration,
+    required NextcloudTrustPolicy? policy,
+  }) async {
+    final account = await _accountsRepository.accountById(accountId);
+    final previous = await _persistence.readCurrentCredential(accountId);
+    if (account?.provider != BusyProvider.caldav ||
+        previous is! CalDavSecretRecord ||
+        account!.authority != previous.serviceAuthority.toString() ||
+        account.providerAccountId != previous.username ||
+        await _persistence.generation(accountId) != expectedGeneration) {
+      throw const DavException(
+        kind: DavErrorKind.cancelled,
+        code: 'DavStaleCertificateApproval',
+        safeMessage: 'The account changed during certificate review.',
+      );
+    }
+    policy?.requireScope(accountId, previous.serviceAuthority);
+    // Removing private trust must take effect even while the old certificate
+    // is still in use or the server is unreachable. Normal revalidation is
+    // required before blocked work can resume.
+    if (policy == null) {
+      await _serialized(
+        accountId,
+        () => _persistence.commit(
+          accountId: accountId,
+          expectedGeneration: expectedGeneration,
+          candidate: previous.withTrustPolicy(null),
+          requireExisting: true,
+          activateAccount: false,
+          persistAccount: () async {},
+        ),
+      );
+      return;
+    }
+    await _connect(
+      provider: BusyProvider.caldav,
+      authority: previous.serviceAuthority,
+      providerAccountId: previous.username,
+      credential: previous.withTrustPolicy(policy),
+      basicCredential: DavBasicCredential(
+        username: previous.username,
+        password: previous.password,
+      ),
+      calendarsEnabled: account.calendarsEnabled,
+      tasksEnabled: account.tasksEnabled,
+      displayName: account.displayName ?? previous.username,
+      expectedAccountId: accountId,
+      expectedGeneration: expectedGeneration,
+      activateAccount: false,
+    );
+  }
+
   Future<DavAccountConnectionResult> replaceAppleAppSpecificPassword({
     required String accountId,
     required String appSpecificPassword,
@@ -756,12 +863,20 @@ final class DavAccountOnboardingService {
           trustPolicy: credential.trustPolicy!.bind(accountId),
         );
       }
+      if (credential is CalDavSecretRecord && credential.trustPolicy != null) {
+        final policy = credential.trustPolicy!;
+        if (existing != null) policy.requireScope(accountId, authority);
+        credential = credential.withTrustPolicy(policy.bind(accountId));
+      }
       final discover = credential is NextcloudSecretRecord
           ? nextcloudDiscovery?.call(
                   credential,
                   generation,
                   existing != null,
                 ) ??
+                _discover
+          : credential is CalDavSecretRecord
+          ? caldavDiscovery?.call(credential, generation, existing != null) ??
                 _discover
           : _discover;
       final discovery = await _waitForDiscovery(

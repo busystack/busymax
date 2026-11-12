@@ -531,7 +531,16 @@ final class AppleICloudSecretRecord extends SecretRecord {
   };
 }
 
-final class NextcloudSecretRecord extends SecretRecord {
+/// The existing private TLS boundary is shared by DAV password credentials.
+/// Authentication and provider identity remain in their original records.
+abstract interface class DavCertificateCredential {
+  Uri get certificateAuthority;
+  NextcloudTrustPolicy? get trustPolicy;
+  SecretRecord withTrustPolicy(NextcloudTrustPolicy? policy);
+}
+
+final class NextcloudSecretRecord extends SecretRecord
+    implements DavCertificateCredential {
   NextcloudSecretRecord({
     required Uri canonicalServer,
     required String loginName,
@@ -560,7 +569,20 @@ final class NextcloudSecretRecord extends SecretRecord {
   final Uri canonicalServer;
   final String loginName;
   final String appPassword;
+  @override
   final NextcloudTrustPolicy? trustPolicy;
+
+  @override
+  Uri get certificateAuthority => canonicalServer;
+
+  @override
+  NextcloudSecretRecord withTrustPolicy(NextcloudTrustPolicy? policy) =>
+      NextcloudSecretRecord(
+        canonicalServer: canonicalServer,
+        loginName: loginName,
+        appPassword: appPassword,
+        trustPolicy: policy,
+      );
 
   @override
   Map<String, Object?> toJson() => {
@@ -592,6 +614,9 @@ CalDavSecretRecord _decodeCalDavSecret(Map<String, Object?> json) {
       ),
       username: _requiredCalDavString(json, 'username'),
       password: _requiredCalDavString(json, 'password'),
+      trustPolicy: json.containsKey('trustPolicy')
+          ? NextcloudTrustPolicy.fromJson(json['trustPolicy'])
+          : null,
     );
   } on Object {
     throw const SecretStoreCorruptException(
@@ -600,11 +625,13 @@ CalDavSecretRecord _decodeCalDavSecret(Map<String, Object?> json) {
   }
 }
 
-final class CalDavSecretRecord extends SecretRecord {
+final class CalDavSecretRecord extends SecretRecord
+    implements DavCertificateCredential {
   CalDavSecretRecord({
     required Uri serviceAuthority,
     required this.username,
     required this.password,
+    this.trustPolicy,
   }) : serviceAuthority = Uri.parse(
          normalizeCalDavAuthority(serviceAuthority.toString()),
        ),
@@ -623,6 +650,20 @@ final class CalDavSecretRecord extends SecretRecord {
   final Uri serviceAuthority;
   final String username;
   final String password;
+  @override
+  final NextcloudTrustPolicy? trustPolicy;
+
+  @override
+  Uri get certificateAuthority => serviceAuthority;
+
+  @override
+  CalDavSecretRecord withTrustPolicy(NextcloudTrustPolicy? policy) =>
+      CalDavSecretRecord(
+        serviceAuthority: serviceAuthority,
+        username: username,
+        password: password,
+        trustPolicy: policy,
+      );
 
   @override
   Map<String, Object?> toJson() => {
@@ -632,6 +673,7 @@ final class CalDavSecretRecord extends SecretRecord {
     'serviceAuthority': serviceAuthority.toString(),
     'username': username,
     'password': password,
+    if (trustPolicy != null) 'trustPolicy': trustPolicy!.toJson(),
   };
 }
 

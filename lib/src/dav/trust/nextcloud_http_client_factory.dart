@@ -34,7 +34,7 @@ final class NextcloudCertificateException extends dav.DavException
   }) : super(
          kind: dav.DavErrorKind.tls,
          code: 'NextcloudCertificate${failure.name}',
-         safeMessage: 'Review the Nextcloud server certificate.',
+         safeMessage: 'Review the server certificate.',
        );
   final NextcloudCertificateFailure failure;
   final NextcloudCertificate? observed;
@@ -101,8 +101,12 @@ final class NextcloudHttpClientFactory {
     required Uri authority,
     NextcloudTrustPolicy? policy,
     bool reuseConnections = false,
+    bool caldavService = false,
   }) {
     try {
+      if (policy != null && policy.caldavService != caldavService) {
+        throw const FormatException('Certificate approval provider changed.');
+      }
       policy?.requireScope(owner, authority);
     } on Object {
       throw NextcloudCertificateException(
@@ -396,7 +400,7 @@ final class _ScopedClient extends http.BaseClient
       throw const dav.DavException(
         kind: dav.DavErrorKind.redirectRejected,
         code: 'NextcloudTrustDestinationRejected',
-        safeMessage: 'Use the approved Nextcloud HTTPS installation.',
+        safeMessage: 'Use the approved HTTPS server.',
       );
     }
     request.followRedirects =

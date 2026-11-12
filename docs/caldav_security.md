@@ -31,8 +31,17 @@ replaying PROPFIND across a 303. The pinned transport enforces bounded,
 same-origin HTTPS redirects; a selected installation must contain the resolved
 service endpoint.
 Principal, home, collection and member hrefs pass the existing DAV scope checks;
-a remote href cannot grant another origin access to a credential. Nextcloud's
-certificate trust and login extensions are not inherited by generic accounts.
+a remote href cannot grant another origin access to a credential.
+
+Generic CalDAV shares the existing account-scoped private certificate transport,
+inspection, fingerprint review and secure credential persistence with Nextcloud.
+Its Basic authentication remains independent of TLS approval. Private approval
+cannot authorize another account, origin, discovery redirect or server URL.
+Generic CalDAV policies preserve the exact entered service path and carry an
+explicit authority-kind discriminator; existing Nextcloud policies retain their
+installation normalization. Generic trust removal commits locally before any
+network revalidation and invalidates old clients under the authorization lease.
+Nextcloud login extensions are not inherited by generic accounts.
 
 Dedicated CalDAV secret records bind the username and password/app password to
 the validated service authority. Production platform secure storage, the

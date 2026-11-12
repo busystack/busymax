@@ -222,6 +222,14 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
           serverUrl: caldav!.serverUrl,
           username: caldav.username,
           password: caldav.password,
+          reviewCertificate: (challenge, owner) => reviewNextcloudCertificate(
+            challenge,
+            owner,
+            (data) => mounted
+                ? showWindowsNextcloudCertificate(context, data)
+                : Future.value(null),
+            caldavService: true,
+          ),
           cancellationToken: cancellation,
         );
         await ref.read(signedInSyncRunnerProvider)(result.accountId, true);
@@ -810,6 +818,18 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                                     .replaceCalDavPassword(
                                       accountId: account.id,
                                       password: input.password,
+                                      reviewCertificate: (challenge, owner) =>
+                                          reviewNextcloudCertificate(
+                                            challenge,
+                                            owner,
+                                            (data) => mounted
+                                                ? showWindowsNextcloudCertificate(
+                                                    context,
+                                                    data,
+                                                  )
+                                                : Future.value(null),
+                                            caldavService: true,
+                                          ),
                                       cancellationToken: cancellation,
                                     );
                                 await ref.read(signedInSyncRunnerProvider)(
@@ -830,7 +850,8 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                               }
                             },
                           ),
-                        if (values[index].provider == BusyProvider.nextcloud)
+                        if (values[index].provider == BusyProvider.nextcloud ||
+                            values[index].provider == BusyProvider.caldav)
                           MenuFlyoutItem(
                             text: Text(l10n.privateServerCertificates),
                             onPressed: () => unawaited(

@@ -326,7 +326,7 @@ final class AuthorizationPersistence {
             ),
           ),
         );
-    if (credential is NextcloudSecretRecord) _invalidateNextcloud(accountId);
+    if (credential is DavCertificateCredential) _invalidateNextcloud(accountId);
     try {
       await secrets.saveCredential(accountId, credential);
       final verified = await secrets.readCredential(accountId);
@@ -552,7 +552,7 @@ final class AuthorizationPersistence {
             ),
           ),
         );
-    if (previous is NextcloudSecretRecord) _invalidateNextcloud(id);
+    if (previous is DavCertificateCredential) _invalidateNextcloud(id);
     try {
       await secrets.deleteCredential(id);
       if (active == id) await secrets.clearActiveAccount();

@@ -16,7 +16,9 @@ final class NextcloudTrustPolicy {
     required this.approvedAt,
     required this.generation,
     this.invalidRecord,
+    this.caldavService = false,
   });
+  final bool caldavService;
   final String owner;
   final Uri installation;
   final NextcloudTrustMode mode;
@@ -31,9 +33,10 @@ final class NextcloudTrustPolicy {
     required NextcloudTrustMode mode,
     required List<NextcloudCertificate> certificates,
     required String generation,
+    bool caldavService = false,
   }) {
     final normalized = Uri.parse(
-      normalizeNextcloudServerAuthority(installation.toString()),
+      _normalize(installation.toString(), caldavService),
     );
     if (mode == NextcloudTrustMode.invalidConfiguration ||
         installation.scheme != 'https' ||
@@ -53,6 +56,7 @@ final class NextcloudTrustPolicy {
     }
     return NextcloudTrustPolicy._(
       owner: owner,
+      caldavService: caldavService,
       installation: normalized,
       mode: mode,
       certificates: List.unmodifiable(certificates),
@@ -63,6 +67,7 @@ final class NextcloudTrustPolicy {
 
   NextcloudTrustPolicy bind(String accountId) => NextcloudTrustPolicy._(
     owner: accountId,
+    caldavService: caldavService,
     installation: installation,
     mode: mode,
     certificates: certificates,
@@ -75,7 +80,7 @@ final class NextcloudTrustPolicy {
     if (mode == NextcloudTrustMode.invalidConfiguration ||
         owner != accountId ||
         installation.toString() !=
-            normalizeNextcloudServerAuthority(authority.toString())) {
+            _normalize(authority.toString(), caldavService)) {
       throw const FormatException(
         'Private certificate approval belongs to another account or installation.',
       );
@@ -92,6 +97,7 @@ final class NextcloudTrustPolicy {
       invalidRecord ??
       {
         'version': 1,
+        if (caldavService) 'authorityKind': 'caldav',
         'owner': owner,
         'installation': installation.toString(),
         'mode': mode.name,
@@ -107,6 +113,10 @@ final class NextcloudTrustPolicy {
     try {
       final json = (input as Map).cast<String, Object?>();
       if (json['version'] != 1) throw const FormatException();
+      final caldavService = json['authorityKind'] == 'caldav';
+      if (json.containsKey('authorityKind') && !caldavService) {
+        throw const FormatException();
+      }
       final mode = NextcloudTrustMode.values.byName(json['mode'] as String);
       if (mode == NextcloudTrustMode.invalidConfiguration) {
         throw const FormatException();
@@ -132,13 +142,14 @@ final class NextcloudTrustPolicy {
       if (owner.isEmpty ||
           generation.isEmpty ||
           installation.scheme != 'https' ||
-          normalizeNextcloudServerAuthority(installation.toString()) !=
+          _normalize(installation.toString(), caldavService) !=
               installation.toString() ||
           (mode == NextcloudTrustMode.pinnedLeaf && certificates.length != 1)) {
         throw const FormatException();
       }
       return NextcloudTrustPolicy._(
         owner: owner,
+        caldavService: caldavService,
         installation: installation,
         mode: mode,
         certificates: List.unmodifiable(certificates),
@@ -165,3 +176,7 @@ final class NextcloudTrustPolicy {
     }
   }
 }
+
+String _normalize(String value, bool caldavService) => caldavService
+    ? normalizeCalDavAuthority(value)
+    : normalizeNextcloudServerAuthority(value);

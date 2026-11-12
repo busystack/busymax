@@ -367,7 +367,9 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                     onTap: () => _selectCalDavCollection(collection.id),
                   ),
               for (final account in accounts.where(
-                (a) => a.provider == BusyProvider.nextcloud,
+                (a) =>
+                    a.provider == BusyProvider.nextcloud ||
+                    a.provider == BusyProvider.caldav,
               ))
                 ListTile(
                   leading: const Icon(Icons.verified_user_outlined),
@@ -1033,11 +1035,29 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                     serverUrl: server!,
                     username: email!,
                     password: password!,
+                    reviewCertificate: (challenge, owner) =>
+                        reviewNextcloudCertificate(
+                          challenge,
+                          owner,
+                          (data) => mounted
+                              ? showAndroidNextcloudCertificate(context, data)
+                              : Future.value(null),
+                          caldavService: true,
+                        ),
                     cancellationToken: davCancellation,
                   )).accountId
                 : (await service.replaceCalDavPassword(
                     accountId: reconnecting.id,
                     password: password!,
+                    reviewCertificate: (challenge, owner) =>
+                        reviewNextcloudCertificate(
+                          challenge,
+                          owner,
+                          (data) => mounted
+                              ? showAndroidNextcloudCertificate(context, data)
+                              : Future.value(null),
+                          caldavService: true,
+                        ),
                     cancellationToken: davCancellation,
                   )).accountId;
           case BusyProvider.webCal:

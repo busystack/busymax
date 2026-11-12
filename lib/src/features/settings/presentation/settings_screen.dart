@@ -1347,11 +1347,29 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     serverUrl: caldavInput!.serverUrl,
                     username: caldavInput.username,
                     password: caldavInput.password,
+                    reviewCertificate: (challenge, owner) =>
+                        reviewNextcloudCertificate(
+                          challenge,
+                          owner,
+                          (data) => mounted
+                              ? showLinuxNextcloudCertificate(context, data)
+                              : Future.value(null),
+                          caldavService: true,
+                        ),
                     cancellationToken: cancellation,
                   )).accountId
                 : (await onboarding.replaceCalDavPassword(
                     accountId: reconnecting.id,
                     password: caldavInput!.password,
+                    reviewCertificate: (challenge, owner) =>
+                        reviewNextcloudCertificate(
+                          challenge,
+                          owner,
+                          (data) => mounted
+                              ? showLinuxNextcloudCertificate(context, data)
+                              : Future.value(null),
+                          caldavService: true,
+                        ),
                     cancellationToken: cancellation,
                   )).accountId;
           case BusyProvider.webCal:
@@ -2302,7 +2320,8 @@ class _AccountManagementSection extends ConsumerWidget {
                   ],
                   onResolve: onResolveConflict,
                 ),
-              if (account.provider == BusyProvider.nextcloud)
+              if (account.provider == BusyProvider.nextcloud ||
+                  account.provider == BusyProvider.caldav)
                 BusyMaxGroupedList(
                   filled: true,
                   children: [
@@ -2317,9 +2336,10 @@ class _AccountManagementSection extends ConsumerWidget {
                             : Future.value(null),
                       ),
                     ),
-                    if (ref.watch(
-                      nextcloudFederationAvailableProvider(account.id),
-                    ))
+                    if (account.provider == BusyProvider.nextcloud &&
+                        ref.watch(
+                          nextcloudFederationAvailableProvider(account.id),
+                        ))
                       BusyMaxActionRow(
                         title:
                             '${context.l10n.nextcloudFederationInvitations} (${ref.watch(nextcloudPendingInvitationCountProvider(account.id)).valueOrNull ?? 0})',
@@ -2329,14 +2349,15 @@ class _AccountManagementSection extends ConsumerWidget {
                           accountId: account.id,
                         ),
                       ),
-                    BusyMaxActionRow(
-                      title: context.l10n.nextcloudTrash,
-                      leading: const Icon(YaruIcons.trash),
-                      onTap: () => showLinuxNextcloudTrashDialog(
-                        context,
-                        accountId: account.id,
+                    if (account.provider == BusyProvider.nextcloud)
+                      BusyMaxActionRow(
+                        title: context.l10n.nextcloudTrash,
+                        leading: const Icon(YaruIcons.trash),
+                        onTap: () => showLinuxNextcloudTrashDialog(
+                          context,
+                          accountId: account.id,
+                        ),
                       ),
-                    ),
                   ],
                 ),
 

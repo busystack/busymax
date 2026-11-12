@@ -97,8 +97,7 @@ reject it. Unknown privilege information is not a promise of write access.
 Explicit read-only restrictions disable mutations.
 
 Basic CalDAV does not imply invitation delivery. Generic accounts do not expose
-Nextcloud login, sharing, trash, federation, attachment services, certificate
-exceptions or scheduling controls. Scheduling metadata is preserved. Use the
+Nextcloud login, sharing, trash, federation, attachment services or scheduling controls. Scheduling metadata is preserved. Use the
 dedicated Nextcloud account type for its supported extensions.
 
 When importing a file containing attendees, review the explicit consent checkbox.
@@ -122,8 +121,17 @@ Leave the checkbox clear and cancel if you do not want those messages sent.
   request does not automatically clear an older failure with the same name.
   Pending reconciliation notices cannot be dismissed; synchronize to determine
   their remote outcome before attempting another creation.
-- For TLS errors, correct the certificate chain and hostname. Generic accounts
-  use normal platform validation; no certificate bypass is provided.
+- For private HTTPS servers, review the certificate during connection. Prefer
+  **Import private CA** and compare its SHA-256 fingerprint with your
+  administrator through an independently trusted channel. An eligible
+  self-signed server certificate can instead be explicitly pinned after
+  fingerprint verification. Expired certificates and incorrect hostnames remain
+  rejected. Each account keeps its own approval for the exact server URL.
+- Use **Private server certificates** in the account settings to review,
+  replace or remove approval. CA-signed leaf renewal works under the approved
+  CA; a changed pinned certificate requires a fresh review. Returning to
+  standard HTTPS immediately removes generic CalDAV's private approval, even
+  when the server is unavailable. Reconnect after restoring valid trust.
 - Removing the account removes local credentials, cached account data and
   queued work. It does not delete remote collections or revoke a server password.
   Rotate or revoke that password on the server separately when required.
