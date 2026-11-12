@@ -12,6 +12,7 @@ import 'dav_attachment_file_name.dart';
 Future<String?> saveDavInlineAttachmentToDesktop(
   IcalAttachment attachment, {
   void Function(String path, bool directory)? restrictPermissions,
+  Future<void> Function(File destination, List<int> bytes)? atomicWrite,
 }) async {
   final bytes = attachment.decode();
   final location = await getSaveLocation(
@@ -19,6 +20,10 @@ Future<String?> saveDavInlineAttachmentToDesktop(
   );
   if (location == null) return null;
   final destination = File(location.path);
+  if (atomicWrite != null) {
+    await atomicWrite(destination, bytes);
+    return destination.path;
+  }
   final staging = await destination.parent.createTemp('.busymax-attachment-');
   try {
     restrictPermissions?.call(staging.path, true);

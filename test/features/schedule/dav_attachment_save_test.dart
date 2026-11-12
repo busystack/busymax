@@ -108,6 +108,23 @@ void main() {
     },
   );
 
+  test(
+    'Linux save rejects a selected pipe without opening it or leaving staging',
+    () async {
+      final path = '${directory.path}/selected-pipe';
+      final result = await Process.run('mkfifo', [path]);
+      expect(result.exitCode, 0);
+      selector.path = path;
+      await expectLater(
+        saveDavInlineAttachment(_attachment()),
+        throwsA(isA<FileSystemException>()),
+      );
+      expect(FileSystemEntity.typeSync(path), FileSystemEntityType.pipe);
+      expect(await directory.list().length, 1);
+    },
+    skip: !Platform.isLinux,
+  );
+
   for (final name in [
     '../outside',
     r'..\outside',
