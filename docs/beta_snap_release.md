@@ -71,6 +71,15 @@ repositories and earlier worktrees remain untouched. Failed workspaces are
 retained for inspection; choose a new path for another attempt. No reset,
 forced worktree removal, or destructive cleanup is used.
 
+Command output is redacted incrementally, flushed to the terminal and
+`build.log`, and includes expanded Flutter test names. Each step records its
+command, PID, elapsed time and exit status. Every 30 seconds, diagnostics report
+the time since the last output and the owned processes' CPU time, memory,
+wait state and command lines. These heartbeats do not impose test deadlines.
+Use `tail -f /path/to/release-workspace/build.log` to inspect a running build.
+Ctrl-C or SIGTERM stops the command's owned process session, gives it five
+seconds to terminate, then kills remaining processes and retains the workspace.
+
 The command checks all five version files before compiling; it never rewrites
 them. v0.4.0 uses Android code **8**. It resolves the lockfile,
 generates/rechecks localization and Drift,

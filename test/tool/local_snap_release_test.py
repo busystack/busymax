@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -100,9 +101,10 @@ class LocalReleaseTest(unittest.TestCase):
 
     def test_secrets_redacted_in_build_output(self):
         log = self.root / 'build.log'
-        with patch.object(subprocess, 'run', return_value=subprocess.CompletedProcess([], 1, self.installed['client_secret'])):
+        with contextlib.redirect_stdout(io.StringIO()):
             with self.assertRaises(release.ReleaseError) as caught:
-                release.run(['flutter'], self.source, log=log, redactions=self.config().values())
+                release.run([sys.executable, '-c', 'import sys; print(sys.argv[1]); sys.exit(1)',
+                             self.installed['client_secret']], self.source, log=log, redactions=self.config().values())
         self.assertNotIn(self.installed['client_secret'], log.read_text() + str(caught.exception))
 
     def test_download_must_stay_outside_git(self):
@@ -241,6 +243,7 @@ class LocalReleaseTest(unittest.TestCase):
         self.assertFalse(list(workspace.glob('.oauth-*')))
         self.assertNotIn(self.installed['client_secret'], json.dumps(manifest))
         self.assertTrue(any('tool/checkout_shared_dependencies.py' in cmd for cmd in seen))
+        self.assertTrue(any(cmd[1:] == ['test', '--no-pub', '--reporter', 'expanded'] for cmd in seen))
         self.assertTrue(any(cmd[:2] == ['snapcraft','pack'] and '--use-lxd' in cmd for cmd in seen))
         packing = next(cmd for cmd in seen if cmd[:2] == ['snapcraft','pack'])
         self.assertEqual(packing[-1], 'build/snap-output')

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import base64
+import codecs
+import contextlib
 import hashlib
 import importlib.util
 import json
@@ -11,10 +13,14 @@ import os
 import platform
 from pathlib import Path
 import re
+import selectors
+import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
+import time
 import xml.etree.ElementTree as ET
 
 PRIVACY = 'https://busystack.org/privacy-busymax'
@@ -31,6 +37,25 @@ SYNTHETIC = {'managed.apps.googleusercontent.com','later.apps.googleusercontent.
 
 class ReleaseError(Exception):
     """Messages are fixed descriptions and never credential values."""
+
+
+class ReleaseInterrupted(BaseException):
+    def __init__(self, signum):
+        self.signum = signum
+
+
+@contextlib.contextmanager
+def release_signals():
+    def interrupt(signum, frame):
+        raise ReleaseInterrupted(signum)
+    previous = {}
+    try:
+        for signum in (signal.SIGINT, signal.SIGTERM):
+            previous[signum] = signal.signal(signum, interrupt)
+        yield
+    finally:
+        for signum, handler in previous.items():
+            signal.signal(signum, handler)
 
 
 def require(condition, message):
@@ -100,19 +125,173 @@ def public_configuration(path):
     return values
 
 
-def run(args, cwd, *, log=None, redactions=()):
-    # Capture output before printing. Build tools may repeat dart-defines on failure.
-    process = subprocess.run([str(a) for a in args], cwd=cwd, text=True,
-                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    output = process.stdout
-    for value in sorted(redactions, key=len, reverse=True):
-        for encoded in (value, base64.b64encode(value.encode()).decode()):
-            output = output.replace(encoded, '[redacted]')
-    if log is not None:
-        with log.open('a', encoding='utf-8') as stream:
-            stream.write(output)
-    require(process.returncode == 0, f'Release step failed: {Path(str(args[0])).name}. Review the redacted build log.')
-    return output.strip()
+class OutputRedactor:
+    """Retain any suffix that could become a credential in the next read."""
+    def __init__(self, values):
+        self.values = sorted({encoded for value in values if value
+                              for encoded in (value, base64.b64encode(value.encode()).decode())},
+                             key=len, reverse=True)
+        self.pattern = re.compile('|'.join(re.escape(value) for value in self.values)) if self.values else None
+        self.pending = ''
+
+    def feed(self, text, *, final=False):
+        text = self.pending + text
+        boundary = len(text)
+        if not final:
+            for value in self.values:
+                start = text.find(value[0], max(0, len(text) - len(value) + 1))
+                while start >= 0:
+                    if value.startswith(text[start:]):
+                        boundary = min(boundary, start)
+                        break
+                    start = text.find(value[0], start + 1)
+            # A complete shorter match may overlap the retained longer prefix.
+            if self.pattern:
+                for match in self.pattern.finditer(text):
+                    if match.start() < boundary < match.end():
+                        boundary = match.start()
+                        break
+        self.pending = text[boundary:]
+        safe = text[:boundary]
+        return self.pattern.sub('[redacted]', safe) if self.pattern else safe
+
+
+def owned_processes(process):
+    """Inspect only the session created for this command; never read its env."""
+    rows = []
+    for path in Path('/proc').glob('[0-9]*/stat'):
+        try:
+            fields = path.read_text().rsplit(')', 1)[1].split()
+            if int(fields[3]) != process.pid:  # session ID
+                continue
+            directory = path.parent
+            command = (directory / 'cmdline').read_bytes().replace(b'\0', b' ').decode('utf-8', 'replace').strip()
+            rows.append((int(directory.name), int(fields[2]),
+                         f'pid={directory.name} state={fields[0]} '
+                         f'cpu={(int(fields[11]) + int(fields[12])) / os.sysconf("SC_CLK_TCK"):.1f}s '
+                         f'rss={int(fields[21]) * os.sysconf("SC_PAGE_SIZE") // 1024}KiB '
+                         f'wait={(directory / "wchan").read_text().strip()} {command}'))
+        except (OSError, ValueError, IndexError):
+            continue  # Processes can exit during inspection.
+    return sorted(rows)
+
+
+def signal_owned(process, signum):
+    groups = {process.pid} | {group for _, group, _ in owned_processes(process)}
+    for group in groups:
+        try:
+            os.killpg(group, signum)
+        except ProcessLookupError:
+            pass
+
+
+def run(args, cwd, *, log=None, redactions=(), label=None, progress_interval=30):
+    """Stream only sanitized text; own and reap each command on every exit path.
+
+    progress_interval controls diagnostic heartbeats, never command deadlines.
+    The five-second grace period applies only after cancellation or runner error.
+    """
+    args = [str(a) for a in args]
+    redactions = tuple(redactions)
+    redactor = OutputRedactor(redactions)
+    decoder = codecs.getincrementaldecoder('utf-8')(errors='replace')
+    captured = []
+    started = last_output = time.monotonic()
+    # Redact before shell quoting can split a credential around quote escapes.
+    command = shlex.join([OutputRedactor(redactions).feed(arg, final=True) for arg in args])
+    title = OutputRedactor(redactions).feed(label or Path(args[0]).name, final=True)
+
+    with contextlib.ExitStack() as stack:
+        stream = stack.enter_context(log.open('a', encoding='utf-8')) if log is not None else None
+
+        def emit(safe):
+            if safe:
+                # This is the only disk/terminal sink. Callers supply redacted text.
+                if stream is not None:
+                    stream.write(safe)
+                    stream.flush()
+                sys.stdout.write(safe)
+                sys.stdout.flush()
+
+        def diagnostic(message):
+            emit(OutputRedactor(redactions).feed(message, final=True))
+
+        def output(data, *, final=False):
+            safe = redactor.feed(decoder.decode(data, final=final), final=final)
+            captured.append(safe)
+            emit(safe)
+
+        diagnostic(f'\n[release] Starting {title}: {command}\n')
+        process = subprocess.Popen(args, cwd=cwd, stdout=subprocess.PIPE,
+                                   stderr=subprocess.STDOUT, start_new_session=True)
+        try:
+            with selectors.DefaultSelector() as selector:
+                os.set_blocking(process.stdout.fileno(), False)
+                selector.register(process.stdout, selectors.EVENT_READ)
+
+                def drain(wait):
+                    nonlocal last_output
+                    for key, _ in selector.select(wait):
+                        data = os.read(key.fd, 65536)
+                        if data:
+                            last_output = time.monotonic()
+                            output(data)
+                        else:
+                            selector.unregister(key.fileobj)
+
+                diagnostic(f'[release] {title}: pid={process.pid}, session={process.pid}\n')
+                next_progress = started + progress_interval
+                try:
+                    while selector.get_map() or process.poll() is None:
+                        drain(min(0.25, max(0, next_progress - time.monotonic())))
+                        # A failed command cannot become successful by leaving a
+                        # descendant holding its output pipe open.
+                        if process.poll() not in (None, 0):
+                            raise ReleaseError(f'Release step failed: {title} (exit {process.returncode}). Review the redacted build log.')
+                        now = time.monotonic()
+                        if now >= next_progress:
+                            diagnostic(f'\n[release] {title}: pid={process.pid} elapsed={now-started:.1f}s '
+                                       f'last-output={now-last_output:.1f}s ago exit={process.poll()}\n')
+                            for _, _, description in owned_processes(process):
+                                diagnostic(f'[release] {description}\n')
+                            next_progress = now + progress_interval
+                    process.wait()
+                    output(b'', final=True)
+                except BaseException:
+                    # Ignore repeated interrupts while terminating and draining the
+                    # owned session. Never signal the caller's terminal/IDE session.
+                    previous = {sig: signal.signal(sig, signal.SIG_IGN)
+                                for sig in (signal.SIGINT, signal.SIGTERM)}
+                    try:
+                        signal_owned(process, signal.SIGTERM)
+                        with contextlib.suppress(OSError):
+                            diagnostic(f'\n[release] Stopping {title}: pid={process.pid}\n')
+                        deadline = time.monotonic() + 5
+                        while (selector.get_map() or process.poll() is None or owned_processes(process)) and time.monotonic() < deadline:
+                            with contextlib.suppress(OSError):
+                                drain(0.1)
+                    finally:
+                        signal_owned(process, signal.SIGKILL)
+                        process.wait()
+                        for sig, handler in previous.items():
+                            signal.signal(sig, handler)
+                    # Read what remains available without waiting for escaped,
+                    # unrelated daemons which might have inherited the pipe.
+                    with contextlib.suppress(OSError):
+                        while selector.get_map() and selector.select(0):
+                            drain(0)
+                        output(b'', final=True)
+                        diagnostic(f'\n[release] Stopped {title}: exit={process.returncode}\n')
+                    raise
+        finally:
+            if process.poll() is None:
+                signal_owned(process, signal.SIGKILL)
+                process.wait()
+            process.stdout.close()
+        diagnostic(f'\n[release] Finished {title}: pid={process.pid} exit={process.returncode} '
+                   f'elapsed={time.monotonic()-started:.1f}s\n')
+    require(process.returncode == 0, f'Release step failed: {title} (exit {process.returncode}). Review the redacted build log.')
+    return ''.join(captured).strip()
 
 
 def source_gate(source, revision, version):
@@ -186,11 +365,11 @@ def bundle_gate(bundle, configuration, version=None):
             not list(bundle.rglob('busymax-oauth*.json')), 'Downloaded/generated credential files reached the bundle.')
 
 
-def package_gate(artifact, output, version, configuration, source):
+def package_gate(artifact, output, version, configuration, source, *, log=None, redactions=()):
     require(artifact.is_file(), 'Snapcraft did not produce the final Snap.')
     require(list(output.glob('*.snap')) == [artifact], 'Unexpected package artifacts were produced.')
     unpacked = output / 'inspection'
-    run(['unsquashfs', '-no-progress', '-d', unpacked, artifact], source)
+    run(['unsquashfs', '-no-progress', '-d', unpacked, artifact], source, log=log, redactions=redactions)
     recipe = (unpacked / 'meta/snap.yaml').read_text()
     for field, value in {'name': 'busymax', 'version': version, 'base': 'core24',
                          'grade': 'devel', 'confinement': 'strict'}.items():
@@ -229,10 +408,9 @@ def build(options):
     log = workspace / 'build.log'
     redactions = tuple(configuration.values()) + tuple(f'{key}={value}' for key, value in configuration.items())
     def step(arguments, label):
-        print(label, flush=True)
-        return run(arguments, root, log=log, redactions=redactions)
-    run(['git', 'clone', '--no-hardlinks', '--no-checkout', source, root], workspace, log=log)
-    run(['git', 'checkout', '--detach', options.revision], root, log=log)
+        return run(arguments, root, log=log, redactions=redactions, label=label)
+    run(['git', 'clone', '--no-hardlinks', '--no-checkout', source, root], workspace, log=log, redactions=redactions)
+    run(['git', 'checkout', '--detach', options.revision], root, log=log, redactions=redactions)
     require(not (root / 'build').exists(), 'A stale Flutter bundle reached the isolated source checkout.')
     step(['python3', 'tool/checkout_shared_dependencies.py'], 'Materializing exact pinned sibling dependencies')
     step([options.flutter.resolve(), 'pub', 'get', '--enforce-lockfile'], 'Resolving locked Flutter dependencies')
@@ -242,7 +420,7 @@ def build(options):
     step([dart, 'format', '--output=none', '--set-exit-if-changed', '.'], 'Checking source formatting')
     step([options.flutter.resolve(), 'analyze', '--no-pub'], 'Analyzing source')
     step([dart, 'run', 'tool/check_platform_boundaries.dart'], 'Checking platform boundaries')
-    step([options.flutter.resolve(), 'test', '--no-pub'], 'Running Flutter regression tests')
+    step([options.flutter.resolve(), 'test', '--no-pub', '--reporter', 'expanded'], 'Running Flutter regression tests')
     step(['python3', '-m', 'unittest', 'discover', '-s', 'test/tool', '-p', '*_test.py'], 'Running tool regression tests')
     step(['bash', 'tool/release/check_linux_native.sh'], 'Running native Linux checks')
     step(['env', f'XDG_CONFIG_HOME={root / "build/linux/native-tests/gtk-config"}',
@@ -277,7 +455,7 @@ def build(options):
     require(packed.is_file(), 'Snapcraft did not produce the final Snap.')
     require(list(pack_output.iterdir()) == [packed], 'Unexpected package artifacts were produced.')
     shutil.move(packed, artifact)
-    package_gate(artifact, output, options.version, configuration, root)
+    package_gate(artifact, output, options.version, configuration, root, log=log, redactions=redactions)
     step(['bash', 'tool/release/verify_snap_runtime.sh', artifact, output / 'runtime.json'], 'Verifying a fresh isolated strict Snap installation')
     runtime = read_object(output / 'runtime.json')
     require(runtime.get('startup_x11') is True and runtime.get('startup_wayland') is True and
@@ -317,7 +495,11 @@ def main():
     parser.add_argument('--local-config', type=Path, help='Ignored local Microsoft public settings JSON')
     parser.add_argument('--flutter', type=Path, default=Path(shutil.which('flutter') or '/missing/flutter'))
     try:
-        build(parser.parse_args())
+        with release_signals():
+            build(parser.parse_args())
+    except (KeyboardInterrupt, ReleaseInterrupted) as error:
+        print('Release interrupted; owned subprocesses were stopped. Workspace retained.', file=sys.stderr)
+        return 128 + (error.signum if isinstance(error, ReleaseInterrupted) else signal.SIGINT)
     except (ReleaseError, OSError) as error:
         # OS failures can include filenames; no configuration contents are emitted.
         print(str(error) if isinstance(error, ReleaseError) else 'A required release file/tool could not be accessed.', file=sys.stderr)
