@@ -1,7 +1,7 @@
 name: busymax
 description: BusyMax calendar and task manager.
 publish_to: 'none'
-version: 0.3.2
+version: 0.4.0
 
 environment:
   sdk: ^3.13.4
@@ -21,6 +21,9 @@ dependencies:
   collection: ^1.19.0
   connectivity_plus: ^7.1.0
   crypto: ^3.0.0
+  asn1lib: ^1.6.5
+  pointycastle: ^4.0.0
+  x509: ^0.2.4+3
   cryptography: ^2.9.0
   dbus: ^0.7.14
   desktop_notifications: ^0.6.3
@@ -43,7 +46,7 @@ dependencies:
   sqlite3: ^3.3.0
   sqlite3_flutter_libs: ^0.6.0
   system_theme: ^3.3.0
-  timezone: ^0.11.1
+  timezone: ^0.11.2
   ubuntu_localizations: ^0.5.2+3
   url_launcher: ^6.3.0
   uuid: 4.6.0

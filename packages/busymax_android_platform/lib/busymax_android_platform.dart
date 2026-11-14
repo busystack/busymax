@@ -232,12 +232,19 @@ final class BusyMaxAndroidPlatform {
       }) ??
       false;
 
+  /// Null means route/DNS information was unavailable; callers retain recovery.
+  Future<bool?> requiresLocalNetworkAccess(String host) => _methodChannel
+      .invokeMethod<bool>('requiresLocalNetworkAccess', {'host': host});
+
   Future<bool> hasLocalNetworkAccess() async =>
       await _methodChannel.invokeMethod<bool>('hasLocalNetworkAccess') ?? true;
 
   Future<bool> requestLocalNetworkAccess() async =>
       await _methodChannel.invokeMethod<bool>('requestLocalNetworkAccess') ??
       false;
+
+  Future<void> openAppSettings() =>
+      _methodChannel.invokeMethod<void>('openAppSettings');
 
   Future<void> openNotificationSettings() =>
       _methodChannel.invokeMethod<void>('openNotificationSettings');
@@ -259,9 +266,11 @@ final class BusyMaxAndroidPlatform {
   Future<String> acquireAccountGate(
     String accountId, {
     Duration timeout = const Duration(seconds: 30),
+    bool shared = false,
   }) async => (await _methodChannel.invokeMethod<String>('acquireAccountGate', {
     'accountId': accountId,
     'timeoutMillis': timeout.inMilliseconds,
+    'shared': shared,
   }))!;
 
   Future<void> releaseAccountGate(String leaseId) => _methodChannel

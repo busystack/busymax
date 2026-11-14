@@ -21,7 +21,8 @@ import '../nextcloud/nextcloud_scheduling_policy.dart';
 import 'dav_collection_capabilities.dart';
 
 const davRawObjectParserVersion = 1;
-const davProjectionVersion = 6;
+// Reproject cached resources after the IANA 2026f update, even with an unchanged ETag.
+const davProjectionVersion = 7;
 const davSyncStateSchemaVersion = 1;
 
 /// Shared temporal projection for synchronized and queued DAV task resources.
@@ -560,14 +561,14 @@ final class DavObjectRepository {
       _database.accounts,
     )..where((r) => r.id.equals(accountId))).getSingle();
     if (collection.accountId != accountId ||
-        account.provider != BusyProvider.nextcloud.storageValue) {
+        !const {'nextcloud', 'caldav'}.contains(account.provider)) {
       throw ArgumentError('Invalid native import destination.');
     }
     final range = _projectionRange(await cursor(collectionId), nowUtc);
     final context = DavCollectionCommit(
       accountId: accountId,
       collectionId: collectionId,
-      provider: BusyProvider.nextcloud,
+      provider: BusyProviderCodec.requireStorageValue(account.provider),
       objects: const [],
       deletedHrefKeys: const {},
       completeMembership: false,
@@ -665,6 +666,7 @@ final class DavObjectRepository {
     required String accountId,
     required String sourceCollectionId,
     required String destinationCollectionId,
+    String? destinationAccountId,
     required BusyProvider provider,
     required String sourceHrefKey,
     required DavPreparedObject canonicalDestinationObject,
@@ -688,12 +690,20 @@ final class DavObjectRepository {
     final destination = collections
         .where((collection) => collection.id == destinationCollectionId)
         .firstOrNull;
+    final destinationAccount =
+        await (_database.select(
+              _database.accounts,
+            )..where((row) => row.id.equals(destinationAccountId ?? accountId)))
+            .getSingleOrNull();
     if (account == null ||
+        destinationAccount == null ||
+        !BusyProviderCodec.requireStorageValue(destinationAccount.provider)
+            .isDav ||
         account.provider != provider.storageValue ||
         source == null ||
         destination == null ||
         source.accountId != accountId ||
-        destination.accountId != accountId ||
+        destination.accountId != (destinationAccountId ?? accountId) ||
         !_hrefIsMemberOf(
           canonicalDestinationObject.hrefKey,
           destination.hrefKey,
@@ -725,9 +735,11 @@ final class DavObjectRepository {
       projectionRangeEndUtc: sourceRange.end,
     );
     final destinationContext = DavCollectionCommit(
-      accountId: accountId,
+      accountId: destination.accountId,
       collectionId: destinationCollectionId,
-      provider: provider,
+      provider: BusyProviderCodec.requireStorageValue(
+        destinationAccount.provider,
+      ),
       objects: const [],
       deletedHrefKeys: const {},
       completeMembership: false,
@@ -833,7 +845,7 @@ final class DavObjectRepository {
       affected.add(destinationObjectId);
       await resolutions.restore(
         remembered,
-        accountId: accountId,
+        accountId: destination.accountId,
         sourceId:
             canonicalDestinationObject
                     .semantic
@@ -1779,7 +1791,7 @@ final class DavObjectRepository {
                 (row) => row.id.equals(operation.destinationCollectionId!),
               ))
               .getSingleOrNull();
-      if (destination != null) {
+      if (destination != null && destination.accountId == operation.accountId) {
         eventChanges = eventChanges.copyWith(
           calendarSourceId: Value('dav-calendar-${destination.id}'),
           providerCalendarId: Value(destination.hrefKey),

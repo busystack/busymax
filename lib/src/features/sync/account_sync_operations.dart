@@ -25,6 +25,11 @@ abstract interface class CrossEngineAccountGate {
   Future<T> run<T>(String accountId, Future<T> Function() operation);
 }
 
+abstract interface class SharedCrossEngineAccountGate
+    implements CrossEngineAccountGate {
+  Future<T> runShared<T>(String accountId, Future<T> Function() operation);
+}
+
 final class InProcessAccountGate implements CrossEngineAccountGate {
   const InProcessAccountGate();
 
@@ -321,6 +326,7 @@ final class RoutingAccountSyncOperations implements AccountSyncOperations {
     switch (await _providerForAccount(accountId)) {
       case BusyProvider.appleICloud:
       case BusyProvider.nextcloud:
+      case BusyProvider.caldav:
         await _syncDav(accountId, full: full);
       case BusyProvider.webCal:
         await _syncWebCal(accountId, full: full);
@@ -351,6 +357,7 @@ final class RoutingAccountSyncOperations implements AccountSyncOperations {
     switch (await _providerForAccount(accountId)) {
       case BusyProvider.appleICloud:
       case BusyProvider.nextcloud:
+      case BusyProvider.caldav:
         await _syncDav(accountId, full: full);
       case BusyProvider.webCal:
         await _syncWebCal(accountId, full: full);
@@ -365,6 +372,7 @@ final class RoutingAccountSyncOperations implements AccountSyncOperations {
     switch (await _providerForAccount(accountId)) {
       case BusyProvider.appleICloud:
       case BusyProvider.nextcloud:
+      case BusyProvider.caldav:
         await _syncDav(accountId, full: full);
       case BusyProvider.webCal:
         return;

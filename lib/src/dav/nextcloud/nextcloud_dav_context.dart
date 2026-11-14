@@ -12,6 +12,7 @@ import '../dav_href.dart';
 import '../dav_provider_profile.dart';
 import '../discovery/dav_discovery_models.dart';
 import '../http/dav_http_transport.dart';
+import '../http/dav_account_http_client.dart';
 import '../xml/dav_xml.dart';
 
 /// Shared context for Nextcloud DAV administration. Authentication, redirect
@@ -26,6 +27,7 @@ final class NextcloudDavContext {
     this.service,
     this.features,
     this.principals,
+    this.authorizationGeneration,
   );
   final String accountId;
   final Uri authority;
@@ -35,6 +37,7 @@ final class NextcloudDavContext {
   final DavAccountService service;
   final Set<String> features;
   final List<DavPrincipalContext> principals;
+  final int authorizationGeneration;
 
   static Future<NextcloudDavContext> open({
     required AppDatabase database,
@@ -60,7 +63,21 @@ final class NextcloudDavContext {
     final service = await (database.select(
       database.davAccountServices,
     )..where((r) => r.accountId.equals(accountId))).getSingleOrNull();
-    if (service == null) {
+    final discoveryError = service?.lastDiscoveryErrorCode;
+    if (discoveryError?.startsWith('NextcloudCertificate') == true) {
+      throw DavException(
+        kind: DavErrorKind.tls,
+        code: discoveryError!,
+        safeMessage: 'Review the Nextcloud server certificate.',
+      );
+    }
+    if (discoveryError == 'DavCredentialsRevoked' ||
+        discoveryError == 'DavAuthRejected') {
+      throw nextcloudOperationError(401, discoveryError!);
+    }
+    if (service == null ||
+        service.capabilitiesSchemaVersion < davCapabilitiesSchemaVersion ||
+        service.lastDiscoveryErrorCode != null) {
       throw nextcloudOperationError(409, 'DavDiscoveryRequired');
     }
     final profile = davProviderProfile(
@@ -81,6 +98,9 @@ final class NextcloudDavContext {
       profile: profile,
       accountAuthority: authority!,
     )..setServerFeatures(features);
+    final generation = await (database.select(
+      database.authorizationGenerations,
+    )..where((r) => r.accountId.equals(accountId))).getSingleOrNull();
     return NextcloudDavContext._(
       accountId,
       authority,
@@ -93,6 +113,7 @@ final class NextcloudDavContext {
       service,
       features,
       List.unmodifiable(contexts),
+      generation?.generation ?? 0,
     );
   }
 
@@ -108,6 +129,7 @@ final class NextcloudDavContext {
     Uri uri, {
     String? xml,
     Map<String, String> headers = const {},
+    DavCancellationToken? cancellationToken,
   }) => transport.send(
     xml == null
         ? DavRequest(
@@ -115,7 +137,10 @@ final class NextcloudDavContext {
             uri: uri,
             accountId: accountId,
             correlationId: const Uuid().v4(),
-            headers: headers,
+            headers: {
+              ...headers,
+              davAuthorizationGenerationHeader: '$authorizationGeneration',
+            },
             retryClass: method == 'GET'
                 ? DavRetryClass.safeRead
                 : DavRetryClass.never,
@@ -126,18 +151,23 @@ final class NextcloudDavContext {
             accountId: accountId,
             correlationId: const Uuid().v4(),
             body: xml,
-            headers: headers,
+            headers: {
+              ...headers,
+              davAuthorizationGenerationHeader: '$authorizationGeneration',
+            },
             retryClass: method == 'PROPFIND' || method == 'REPORT'
                 ? DavRetryClass.safeRead
                 : DavRetryClass.never,
           ),
     credential: credential,
+    cancellationToken: cancellationToken,
   );
 
   Future<DavMultistatus> propfind(
     Uri uri,
     String properties, {
     String depth = '0',
+    DavCancellationToken? cancellationToken,
   }) async {
     final response = await send(
       'PROPFIND',
@@ -145,6 +175,7 @@ final class NextcloudDavContext {
       xml:
           '<d:propfind $nextcloudXmlNamespaces><d:prop>$properties</d:prop></d:propfind>',
       headers: {'depth': depth},
+      cancellationToken: cancellationToken,
     );
     if (response.statusCode != 207) {
       throw nextcloudOperationError(
@@ -160,15 +191,17 @@ const nextcloudXmlNamespaces =
     'xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:cs="http://calendarserver.org/ns/" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.com/ns" xmlns:a="http://apple.com/ns/ical/"';
 
 DavException nextcloudOperationError(int status, String code) => DavException(
-  kind: switch (status) {
-    401 => DavErrorKind.authentication,
-    403 => DavErrorKind.authorization,
-    404 || 410 => DavErrorKind.notFound,
-    409 || 412 => DavErrorKind.conflict,
-    429 => DavErrorKind.rateLimited,
-    >= 500 => DavErrorKind.server,
-    _ => DavErrorKind.protocol,
-  },
+  kind: code.endsWith('OutcomeUnknown')
+      ? DavErrorKind.unknownOutcome
+      : switch (status) {
+          401 => DavErrorKind.authentication,
+          403 => DavErrorKind.authorization,
+          404 || 410 => DavErrorKind.notFound,
+          409 || 412 => DavErrorKind.conflict,
+          429 => DavErrorKind.rateLimited,
+          >= 500 => DavErrorKind.server,
+          _ => DavErrorKind.protocol,
+        },
   code: code,
   statusCode: status,
   safeMessage: 'Nextcloud could not complete the requested operation.',

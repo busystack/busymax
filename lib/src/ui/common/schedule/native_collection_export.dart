@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:file_selector/file_selector.dart';
 
-import '../../../dav/nextcloud/nextcloud_native_import.dart';
+import '../../../dav/ical/dav_native_import.dart';
 
 /// Use a new directory and neutral filenames. Never overwrite user files or
 /// turn untrusted UIDs, titles or DAV hrefs into filesystem paths.

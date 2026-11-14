@@ -7,6 +7,8 @@ enum CalendarCollectionCreationOutcome {
   queued,
   created,
   createdRefreshPending,
+  reconciled,
+  reconciledRefreshPending,
 }
 
 final class CalendarCollectionCreationResult {
@@ -17,6 +19,10 @@ final class CalendarCollectionCreationResult {
 
   final CalendarCollectionCreationOutcome outcome;
   final String? localSourceId;
+
+  bool get refreshPending =>
+      outcome == CalendarCollectionCreationOutcome.createdRefreshPending ||
+      outcome == CalendarCollectionCreationOutcome.reconciledRefreshPending;
 }
 
 final class CalendarCollectionCreationException implements Exception {
@@ -76,7 +82,8 @@ final class CalendarCollectionCreationService
     return switch (mode) {
       CalendarCollectionCreationMode.cloudPendingOperation =>
         _createCloudCalendar(accountId, trimmedTitle),
-      CalendarCollectionCreationMode.nextcloudDav => _createNextcloudCalendar(
+      CalendarCollectionCreationMode.nextcloudDav ||
+      CalendarCollectionCreationMode.genericDav => _createDavCalendar(
         accountId,
         trimmedTitle,
       ),
@@ -102,16 +109,23 @@ final class CalendarCollectionCreationService
     );
   }
 
-  Future<CalendarCollectionCreationResult> _createNextcloudCalendar(
+  Future<CalendarCollectionCreationResult> _createDavCalendar(
     String accountId,
     String title,
   ) async {
     final result = await _davClientForAccount(accountId)
         .createEventCalendar(title);
     return CalendarCollectionCreationResult(
-      outcome: result.refreshPending
-          ? CalendarCollectionCreationOutcome.createdRefreshPending
-          : CalendarCollectionCreationOutcome.created,
+      outcome: switch (result.status) {
+        DavCalendarCollectionCreationStatus.created =>
+          CalendarCollectionCreationOutcome.created,
+        DavCalendarCollectionCreationStatus.createdRefreshPending =>
+          CalendarCollectionCreationOutcome.createdRefreshPending,
+        DavCalendarCollectionCreationStatus.reconciled =>
+          CalendarCollectionCreationOutcome.reconciled,
+        DavCalendarCollectionCreationStatus.reconciledRefreshPending =>
+          CalendarCollectionCreationOutcome.reconciledRefreshPending,
+      },
     );
   }
 }

@@ -16,6 +16,9 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.database.Cursor
 import android.net.Uri
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import java.net.InetAddress
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -77,16 +80,21 @@ internal fun microsoftSilentParameters(
 }
 
 internal object EngineOwnedAccountGateRegistry {
-    internal data class Lease(val ownerId: String, val semaphore: Semaphore)
+    internal data class Lease(val ownerId: String, val semaphore: Semaphore, val permits: Int)
+
+    private const val ALL_PERMITS = 1_000_000
 
     private val accountGates = ConcurrentHashMap<String, Semaphore>()
     private val leases = ConcurrentHashMap<String, Lease>()
 
-    fun acquire(accountId: String, ownerId: String, timeoutMillis: Long): String? {
-        val semaphore = accountGates.computeIfAbsent(accountId) { Semaphore(1, true) }
-        if (!semaphore.tryAcquire(timeoutMillis, TimeUnit.MILLISECONDS)) return null
+    fun acquire(accountId: String, ownerId: String, timeoutMillis: Long, shared: Boolean = false): String? {
+        // Fair multi-permit acquisition is independent of executor threads.
+        // A writer waiting for all permits blocks later readers in every engine.
+        val semaphore = accountGates.computeIfAbsent(accountId) { Semaphore(ALL_PERMITS, true) }
+        val permits = if (shared) 1 else ALL_PERMITS
+        if (!semaphore.tryAcquire(permits, timeoutMillis, TimeUnit.MILLISECONDS)) return null
         val leaseId = UUID.randomUUID().toString()
-        leases[leaseId] = Lease(ownerId, semaphore)
+        leases[leaseId] = Lease(ownerId, semaphore, permits)
         return leaseId
     }
 
@@ -95,7 +103,7 @@ internal object EngineOwnedAccountGateRegistry {
         var released = false
         leases.computeIfPresent(leaseId) { _, lease ->
             if (lease.ownerId == ownerId) {
-                lease.semaphore.release()
+                lease.semaphore.release(lease.permits)
                 released = true
                 null
             } else {
@@ -108,7 +116,7 @@ internal object EngineOwnedAccountGateRegistry {
     fun releaseOwned(ownerId: String) {
         for ((leaseId, lease) in leases.entries) {
             if (lease.ownerId == ownerId && leases.remove(leaseId, lease)) {
-                lease.semaphore.release()
+                lease.semaphore.release(lease.permits)
             }
         }
     }
@@ -382,8 +390,17 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
             "createDocument" -> createDocument(call, result)
             "exportDocumentTree" -> exportDocumentTree(call, result)
             "launchExternalUri" -> launchExternalUri(call, result)
+            "requiresLocalNetworkAccess" -> requiresLocalNetworkAccess(call, result)
             "hasLocalNetworkAccess" -> result.success(hasLocalNetworkAccess())
             "requestLocalNetworkAccess" -> requestLocalNetworkAccess(result)
+            "openAppSettings" -> {
+                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = Uri.fromParts("package", context.packageName, null)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
+                result.success(null)
+            }
             "openNotificationSettings" -> {
                 val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
                     putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
@@ -842,6 +859,35 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
         context.startActivity(intent); result.success(true)
     }
 
+    private fun requiresLocalNetworkAccess(call: MethodCall, result: MethodChannel.Result) {
+        if (Build.VERSION.SDK_INT < 37) return result.success(false)
+        val host = call.argument<String>("host").orEmpty().trim().removePrefix("[").removeSuffix("]").replace("%25", "%")
+        if (host.isEmpty()) return result.success(false)
+        executor.execute {
+            val required = runCatching {
+                val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+                val network = manager.activeNetwork ?: return@runCatching null
+                val capabilities = manager.getNetworkCapabilities(network) ?: return@runCatching null
+                val applicable = !capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN) &&
+                    !capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) &&
+                    (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                     capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) ||
+                     capabilities.hasTransport(NetworkCapabilities.TRANSPORT_LOWPAN) ||
+                     capabilities.hasTransport(NetworkCapabilities.TRANSPORT_THREAD))
+                if (!applicable) return@runCatching false
+                // .local resolution itself is permission gated. This is a
+                // contextual preflight, not multicast discovery or LAN scanning.
+                if (host.endsWith(".local", ignoreCase = true)) return@runCatching true
+                val properties = manager.getLinkProperties(network) ?: return@runCatching null
+                val routes = properties.routes.filter { !it.isDefaultRoute }.map {
+                    LocalNetworkRoute(it.destination.address.address, it.destination.prefixLength)
+                }
+                InetAddress.getAllByName(host).any { localNetworkAddress(it, applicable, routes) }
+            }.getOrNull()
+            postSuccess(result, required)
+        }
+    }
+
     private fun hasLocalNetworkAccess() = Build.VERSION.SDK_INT < 37 || ContextCompat.checkSelfPermission(context, ACCESS_LOCAL_NETWORK) == PackageManager.PERMISSION_GRANTED
     private fun requestLocalNetworkAccess(result: MethodChannel.Result) {
         if (hasLocalNetworkAccess()) return result.success(true)
@@ -859,11 +905,11 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
 
     private fun acquireAccountGate(call: MethodCall, result: MethodChannel.Result) {
         val accountId = call.argument<String>("accountId").orEmpty()
-        val timeout = (call.argument<Number>("timeoutMillis")?.toLong() ?: 30_000L).coerceIn(1_000L, 120_000L)
+        val timeout = (call.argument<Number>("timeoutMillis")?.toLong() ?: 30_000L).coerceIn(1_000L, 150_000L)
         if (accountId.isBlank()) return result.error("android/invalid-arguments", "Account id is required.", null)
         executor.execute {
             try {
-                val lease = EngineOwnedAccountGateRegistry.acquire(accountId, engineId, timeout)
+                val lease = EngineOwnedAccountGateRegistry.acquire(accountId, engineId, timeout, call.argument<Boolean>("shared") == true)
                     ?: return@execute postError(result, "android/account-busy", "This account is already synchronizing.", null)
                 if (detached) {
                     EngineOwnedAccountGateRegistry.release(lease, engineId)

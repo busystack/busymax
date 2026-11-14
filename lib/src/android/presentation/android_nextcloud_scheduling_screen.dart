@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/app_bootstrap.dart';
-import '../../dav/dav_errors.dart';
+import '../../l10n/nextcloud_collection_error_description.dart';
 import '../../dav/nextcloud/nextcloud_scheduling_controller.dart';
 import '../../dav/nextcloud/nextcloud_scheduling_service.dart';
 import '../../l10n/l10n.dart';
@@ -98,12 +98,7 @@ class _AndroidNextcloudSchedulingScreenState
             ],
             if (error != null) ...[
               const SizedBox(height: 16),
-              Text(
-                error is DavException &&
-                        error.kind == DavErrorKind.authorization
-                    ? context.l10n.nextcloudOperationDenied
-                    : context.l10n.nextcloudServerUnavailable,
-              ),
+              Text(localizedNextcloudCollectionError(context.l10n, error)),
             ],
             if (_model.loaded &&
                 !_model.busy &&
@@ -121,7 +116,13 @@ class _AndroidNextcloudSchedulingScreenState
                       ? null
                       : Text(message.method!),
                   trailing: TextButton(
-                    onPressed: _model.busy ? null : () => _acknowledge(message),
+                    key: ValueKey((
+                      'nextcloud-inbox-acknowledge',
+                      message.href.toString(),
+                    )),
+                    onPressed: _model.busy || !message.canAcknowledge
+                        ? null
+                        : () => _acknowledge(message),
                     child: Text(context.l10n.nextcloudAcknowledge),
                   ),
                 ),

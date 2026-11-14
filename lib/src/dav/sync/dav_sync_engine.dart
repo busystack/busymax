@@ -204,7 +204,16 @@ final class DavSyncEngine {
             safeMessage: 'The DAV server returned an incomplete object batch.',
           );
         }
+        final remaining = batch.map((member) => member.hrefKey).toSet();
         for (final object in fetched) {
+          cancellationToken?.throwIfCancelled(correlationId: correlationId);
+          if (!remaining.remove(object.hrefKey)) {
+            throw const DavException(
+              kind: DavErrorKind.protocol,
+              code: 'DavObjectFetchIdentityMismatch',
+              safeMessage: 'The DAV server returned an invalid object batch.',
+            );
+          }
           if (object.missing) {
             deleted.add(object.hrefKey);
             membership.remove(object.hrefKey);
@@ -229,6 +238,7 @@ final class DavSyncEngine {
         }
       }
 
+      cancellationToken?.throwIfCancelled(correlationId: correlationId);
       final completedAt = _nowUtc().toUtc();
       final finalCursorKind = supportsSyncCollection
           ? 'dav_sync_token'
@@ -302,6 +312,13 @@ final class DavSyncEngine {
         cancellationToken: cancellationToken,
       );
       pages += 1;
+      if (page.nextSyncToken.trim().isEmpty) {
+        throw const DavException(
+          kind: DavErrorKind.protocol,
+          code: 'DavSyncResponseMissingToken',
+          safeMessage: 'The DAV synchronization response omitted its token.',
+        );
+      }
       for (final member in page.changedMembers) {
         live[member.hrefKey] = member;
         deleted.remove(member.hrefKey);

@@ -5,7 +5,7 @@ Production key material is never tracked. Copy
 `storeFile` at the owner-controlled keystore, and fill its passwords and alias
 outside logs and shell history. Do not replace an established upload identity.
 
-The v0.3.2 package uses version code `7` in `android/app/build.gradle.kts`.
+The v0.4.0 package uses version code `8` in `android/app/build.gradle.kts`.
 Before choosing a subsequent code, check the distribution ledger and ensure it
 exceeds every previously distributed code, including ABI offsets from split
 APKs. Keep the public version in `pubspec.yaml` consistent with the release.
@@ -63,3 +63,15 @@ APK. Before release, test a fresh install and upgrade on physical hardware,
 then verify cold notification activation and a real calendar/task round trip.
 Publishing, Play enrollment, store disclosures, and production key use require
 the owner's authorization.
+
+## v0.4.0 local-network acceptance
+
+Keep target API 37 and versionCode 8. Run the
+[API 37 permission scenarios](android_setup.md#other-providers-and-android-permissions)
+on an isolated installation of the candidate, including independent contacts
+and retained-account background requests. Inspect ACCESS_LOCAL_NETWORK and
+ACCESS_NETWORK_STATE in the actual APK/AAB, and retain signing identity and
+source/hash evidence. Test signing qualifies only that QA identity; it does not
+establish production signing or OAuth configuration. Record software/hardware
+emulator startup failures separately from test results. An API 35 pass or a
+loopback-only workflow cannot close the API 37 local-network gate.

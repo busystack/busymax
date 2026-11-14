@@ -14,6 +14,47 @@ class AppLocalizationsEs extends AppLocalizations {
   AppLocalizationsEs([String locale = 'es']) : super(locale);
 
   @override
+  String get davCollectionRemovalPartial =>
+      'No se pudieron eliminar algunos elementos. La colección sigue existiendo. Actualiza antes de volver a intentarlo.';
+
+  @override
+  String get caldavConflictDuplicationSchedulingWarning =>
+      'Este elemento tiene asistentes. Al duplicarlo, el servidor CalDAV puede enviar invitaciones o actualizaciones. ¿Permitir la duplicación?';
+
+  @override
+  String get caldavTaskDuplicationSchedulingWarning =>
+      'Esta tarea o sus subtareas tienen participantes. Al duplicarlas, el servidor CalDAV podría enviar invitaciones o actualizaciones de tareas. ¿Permitir la duplicación?';
+
+  @override
+  String get caldavSchedulingWarning =>
+      'Este evento tiene asistentes. Al guardarlo o eliminarlo, tu servidor CalDAV puede notificar a los participantes cuando se sincronice el cambio.';
+
+  @override
+  String get caldavNativeImport =>
+      'Importar recursos completos de eventos y tareas. Para los elementos con asistentes, el servidor CalDAV puede enviar invitaciones o actualizaciones de reuniones. Se omiten los UID existentes a menos que elija crear nuevas copias. Los recursos no compatibles se notifican individualmente.';
+
+  @override
+  String get davInsufficientStorage =>
+      'El servidor no tiene suficiente espacio de almacenamiento para crear esta colección.';
+
+  @override
+  String get davCollectionPropertyRejected =>
+      'El servidor rechazó una propiedad solicitada de la colección.';
+
+  @override
+  String get davCollectionDiscoveryRequired =>
+      'Actualice esta cuenta para renovar las capacidades y los permisos del servidor.';
+
+  @override
+  String get caldavImportSchedulingWarning =>
+      'Este archivo contiene asistentes. Autorizo esta importación, que puede hacer que el servidor CalDAV envíe invitaciones o actualizaciones de reuniones.';
+
+  @override
+  String nextcloudCanonicalServerReview(String entered, String canonical) {
+    return 'Nextcloud devolvió $canonical para el servidor $entered. ¿Permites que BusyMax envíe la nueva contraseña de aplicación a esta dirección?';
+  }
+
+  @override
   String get contactsAccountsUnavailable =>
       'No se pudieron cargar las cuentas de contactos';
 
@@ -194,6 +235,18 @@ class AppLocalizationsEs extends AppLocalizations {
       'El cambio se guardó en Nextcloud. La actualización está pendiente; no repitas el cambio.';
 
   @override
+  String get davRefreshPending =>
+      'El cambio se guardó en el servidor CalDAV. La actualización está pendiente; no repitas el cambio.';
+
+  @override
+  String get davCollectionCreationPending =>
+      'La creación de la colección está pendiente. Sincroniza esta cuenta antes de volver a intentarlo; no repitas la operación.';
+
+  @override
+  String get davCollectionCreationDenied =>
+      'El servidor no permitió crear la colección.';
+
+  @override
   String get nextcloudOutcomeUnknown =>
       'No se pudo confirmar el resultado en el servidor. Actualiza antes de volver a intentarlo.';
 
@@ -245,6 +298,34 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get nextcloudPermanentDeleteWarning =>
       '¿Eliminar este elemento permanentemente? No podrá restaurarse desde la papelera de calendarios de Nextcloud.';
+
+  @override
+  String get nextcloudDiscoveryRequired =>
+      'Actualiza esta cuenta para renovar las funciones y los permisos de Nextcloud.';
+
+  @override
+  String get nextcloudConflict =>
+      'El elemento o sus permisos han cambiado. Actualiza y revísalo antes de volver a intentarlo.';
+
+  @override
+  String get nextcloudItemUnavailable =>
+      'Este elemento ya no está disponible. Actualiza para comprobar su estado.';
+
+  @override
+  String get nextcloudFederationInvitations =>
+      'Invitaciones a calendarios compartidos';
+
+  @override
+  String get nextcloudFederationEmpty =>
+      'No hay invitaciones pendientes a calendarios compartidos.';
+
+  @override
+  String get nextcloudFederationGrant =>
+      'Se ha creado el recurso compartido en este servidor. La aceptación y sincronización remotas no están confirmadas.';
+
+  @override
+  String get nextcloudTrashDisabled =>
+      'Este servidor no conserva los elementos eliminados del calendario.';
 
   @override
   String get nextcloudOperationDenied =>
@@ -3840,4 +3921,119 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get taskDurationRequiresStart =>
       'Establece una fecha límite antes de quitar el inicio de una tarea con duración.';
+
+  @override
+  String get privateServerCertificates => 'Certificados de servidores privados';
+
+  @override
+  String get reviewServerCertificate => 'Revisar certificado del servidor';
+
+  @override
+  String get certificateStandard => 'HTTPS estándar';
+
+  @override
+  String get certificatePrivateCa => 'Autoridad de certificación privada';
+
+  @override
+  String get certificatePinnedLeaf => 'Certificado autofirmado fijado';
+
+  @override
+  String get certificateImportCa => 'Importar CA privada';
+
+  @override
+  String get certificateReplacePin => 'Revisar certificado de sustitución';
+
+  @override
+  String get certificateUseStandard => 'Volver a HTTPS estándar';
+
+  @override
+  String get certificateApprove => 'Aprobar esta política de certificados';
+
+  @override
+  String get certificateReject => 'Rechazar';
+
+  @override
+  String get certificatePrevious => 'Certificados aprobados anteriormente';
+
+  @override
+  String get certificateInvalid =>
+      'Certificado o configuración de CA privada no válidos';
+
+  @override
+  String get certificateFirstUseWarning =>
+      'El cifrado por sí solo no confirma la identidad del servidor en el primer uso. Compare la huella SHA-256 con el administrador por un canal independiente de confianza antes de aprobar.';
+
+  @override
+  String get certificateRenewalHelp =>
+      'Se recomienda una CA privada: los certificados del servidor pueden renovarse bajo ella. Cada cambio de un certificado fijado requiere revisión, incluso con la misma clave. Los certificados públicos se renuevan normalmente.';
+
+  @override
+  String get certificateBrowserBoundary =>
+      'La autorización usa el navegador externo. La aprobación de BusyMax no configura su confianza; el navegador debe confiar en el servidor por separado.';
+
+  @override
+  String certificateDetails(
+    String subject,
+    String issuer,
+    String notBefore,
+    String notAfter,
+    String fingerprint,
+  ) {
+    return 'Sujeto: $subject\nEmisor: $issuer\nVálido desde: $notBefore\nVálido hasta: $notAfter\nHuella SHA-256: $fingerprint';
+  }
+
+  @override
+  String certificateFailure(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'approvalRequired': 'Se requiere aprobación',
+      'pinMismatch': 'El certificado fijado ha cambiado',
+      'expired': 'Certificado caducado',
+      'notYetValid': 'Certificado aún no válido',
+      'hostnameMismatch': 'El nombre del servidor no coincide',
+      'invalidPolicy': 'Configuración de CA privada no válida',
+      'ineligible': 'Certificado no apto',
+      'verificationFailed': 'Falló la verificación TLS',
+      'other': 'Falló la verificación TLS',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get addCalDavAccount => 'Añadir cuenta CalDAV';
+
+  @override
+  String get caldavServerUrl => 'URL del servidor';
+
+  @override
+  String get caldavUsername => 'Nombre de usuario';
+
+  @override
+  String get caldavPassword => 'Contraseña o contraseña de aplicación';
+
+  @override
+  String get caldavInvalidServerUrl =>
+      'Introduce una URL HTTPS sin credenciales, consulta ni fragmento.';
+
+  @override
+  String get caldavHttpsHelp =>
+      'Introduce la URL HTTPS del servidor o un punto de acceso CalDAV directo. La contraseña se guarda de forma segura.';
+
+  @override
+  String get davPermissionsUnknown =>
+      'El servidor no ha indicado los permisos. Comprobará los cambios solicitados.';
+
+  @override
+  String get localNetworkAccessRequired => 'Se requiere acceso a la red local';
+
+  @override
+  String get localNetworkAccessRecovery =>
+      'Para acceder a este servidor, permite que BusyMax acceda a los dispositivos cercanos en los ajustes de Android y vuelve a intentarlo.';
+
+  @override
+  String get taskReminderRequiresAnchor =>
+      'Ajusta el recordatorio relativo antes de eliminar su inicio o fecha límite.';
+
+  @override
+  String get attachmentInvalidOrTooLarge =>
+      'Este archivo adjunto no es válido o supera el límite de tamaño.';
 }

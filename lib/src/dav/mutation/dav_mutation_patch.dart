@@ -1,3 +1,5 @@
+import '../ical/ical_timezone.dart';
+
 import 'dart:convert';
 
 import '../dav_errors.dart';
@@ -402,7 +404,7 @@ final class DavMutationPatch {
     // The semantic parse is an invariant gate: no patch can emit a malformed
     // recurrence set or an invalid VEVENT/VTODO resource.
     IcalSemanticDocument.parse(serialized);
-    return serialized;
+    return completeIcalTimeZones(serialized);
   }
 }
 

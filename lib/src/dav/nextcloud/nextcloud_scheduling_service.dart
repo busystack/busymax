@@ -45,12 +45,18 @@ final class NextcloudInboxMessage {
     this.rawIcs,
     this.method,
     this.title,
+    this.accountId,
+    this.authorizationGeneration,
+    this.canAcknowledge,
   );
   final Uri href;
   final String etag;
   final String rawIcs;
   final String? method;
   final String title;
+  final String accountId;
+  final int authorizationGeneration;
+  final bool canAcknowledge;
 }
 
 /// Explicit outbox free/busy and inbox operations. Meeting writes themselves
@@ -206,22 +212,34 @@ final class NextcloudSchedulingService {
     for (final entry in root.childElements.where(
       (e) => e.name.local == 'response' && e.namespaceUri == caldavNamespace,
     )) {
-      final recipient = entry.childElements
+      final recipients = entry.childElements
           .where(
             (e) =>
                 e.name.local == 'recipient' &&
                 e.namespaceUri == caldavNamespace,
           )
-          .firstOrNull;
-      final href = recipient?.descendants
-          .whereType<XmlElement>()
-          .where(
-            (e) => e.name.local == 'href' && e.namespaceUri == davNamespace,
-          )
-          .firstOrNull
-          ?.innerText;
-      if (href == null) continue;
-      final address = normalizeCalendarAddress(href);
+          .toList();
+      final hrefs = [
+        for (final recipient in recipients)
+          for (final href in recipient.childElements)
+            if (href.name.local == 'href' && href.namespaceUri == davNamespace)
+              href.innerText,
+      ];
+      if (recipients.length != 1 || hrefs.length != 1) {
+        for (final href in hrefs) {
+          final address = normalizeCalendarAddress(href);
+          if (addresses.contains(address)) {
+            found[address] = NextcloudFreeBusyResult(
+              address,
+              NextcloudAvailability.unknown,
+              const [],
+              null,
+            );
+          }
+        }
+        continue;
+      }
+      final address = normalizeCalendarAddress(hrefs.single);
       if (!addresses.contains(address)) continue;
       if (found.containsKey(address)) {
         found[address] = NextcloudFreeBusyResult(
@@ -232,23 +250,28 @@ final class NextcloudSchedulingService {
         );
         continue;
       }
-      final status = entry.childElements
+      final statuses = entry.childElements
           .where(
             (e) =>
                 e.name.local == 'request-status' &&
                 e.namespaceUri == caldavNamespace,
           )
-          .firstOrNull
-          ?.innerText;
-      final raw = entry.childElements
+          .toList();
+      final status = statuses.length == 1
+          ? statuses.single.innerText.trim()
+          : null;
+      final data = entry.childElements
           .where(
             (e) =>
                 e.name.local == 'calendar-data' &&
                 e.namespaceUri == caldavNamespace,
           )
-          .firstOrNull
-          ?.innerText;
-      final intervals = status?.startsWith('2.') == true && raw != null
+          .toList();
+      final raw = data.length == 1 ? data.single.innerText : null;
+      final intervals =
+          status != null &&
+              RegExp(r'^2\.[0-9]+(?:\.[0-9]+)?(?:;.*)?$').hasMatch(status) &&
+              raw != null
           ? _busyIntervals(raw, startUtc, endUtc)
           : null;
       found[address] = NextcloudFreeBusyResult(
@@ -280,6 +303,7 @@ final class NextcloudSchedulingService {
       collection,
     );
     if (policy.inbox == null) throw schedulingDenied('DavInboxUnavailable');
+    if (!policy.canReadInbox) throw schedulingDenied('DavInboxReadDenied');
     final inbox = context.resolve(policy.inbox.toString(), context.authority);
     final response = await context.propfind(
       inbox,
@@ -334,6 +358,9 @@ final class NextcloudSchedulingService {
           raw,
           document.root.firstProperty('METHOD')?.rawValue,
           title,
+          context.accountId,
+          context.authorizationGeneration,
+          policy.canAcknowledgeInbox,
         ),
       );
     }
@@ -347,6 +374,11 @@ final class NextcloudSchedulingService {
       collection,
     );
     if (policy.inbox == null) return const [];
+    final generation =
+        await (collections.database.select(
+              collections.database.authorizationGenerations,
+            )..where((r) => r.accountId.equals(collections.accountId)))
+            .getSingleOrNull();
     final bins =
         await (collections.database.select(collections.database.davCollections)
               ..where(
@@ -380,6 +412,9 @@ final class NextcloudSchedulingService {
             Uri.parse(object.requestUri),
             object.etag!,
             object.rawIcsBody,
+            collections.accountId,
+            generation?.generation ?? 0,
+            policy.canAcknowledgeInbox,
           ),
     ];
   }
@@ -388,14 +423,26 @@ final class NextcloudSchedulingService {
     String collectionId,
     NextcloudInboxMessage message,
   ) async {
+    if (message.accountId != collections.accountId) {
+      throw schedulingDenied('DavInboxIdentityChanged');
+    }
     final current = (await inbox(collectionId))
         .where((m) => m.href == message.href)
         .firstOrNull;
     if (current == null) return;
+    if (current.authorizationGeneration != message.authorizationGeneration) {
+      throw schedulingDenied('DavInboxIdentityChanged');
+    }
+    if (!current.canAcknowledge) {
+      throw schedulingDenied('DavInboxAcknowledgeDenied');
+    }
     if (current.etag != message.etag) {
       throw nextcloudOperationError(412, 'DavInboxMessageChanged');
     }
     final context = await collections.openContext();
+    if (context.authorizationGeneration != current.authorizationGeneration) {
+      throw schedulingDenied('DavInboxIdentityChanged');
+    }
     // Only the discovered inbox member is deleted. No event projection or
     // calendar-object resource is touched by acknowledgement.
     final response = await context.send(
@@ -422,7 +469,14 @@ final class NextcloudSchedulingService {
   }
 }
 
-NextcloudInboxMessage _inboxMessage(Uri href, String etag, String raw) {
+NextcloudInboxMessage _inboxMessage(
+  Uri href,
+  String etag,
+  String raw,
+  String accountId,
+  int generation,
+  bool canAcknowledge,
+) {
   final document = IcalDocument.parse(raw);
   return NextcloudInboxMessage._(
     href,
@@ -435,6 +489,9 @@ NextcloudInboxMessage _inboxMessage(Uri href, String etag, String raw) {
             ?.firstProperty('SUMMARY')
             ?.decodedTextValue ??
         '',
+    accountId,
+    generation,
+    canAcknowledge,
   );
 }
 
@@ -474,11 +531,22 @@ List<NextcloudBusyInterval>? _busyIntervals(
           );
           final from = temporal(parts.first);
           if (from?.kind != IcalTemporalKind.utcDateTime) return null;
+          final end = temporal(parts.last);
           final to = parts.last.startsWith('P')
               ? from!.localValue.add(parseIcalDuration(parts.last)!.duration)
-              : temporal(parts.last)?.localValue;
+              : end?.kind == IcalTemporalKind.utcDateTime
+              ? end?.localValue
+              : null;
           if (to == null || !to.isAfter(from!.localValue)) return null;
           final type = property.parameterValue('FBTYPE') ?? 'BUSY';
+          if (!{
+            'FREE',
+            'BUSY',
+            'BUSY-UNAVAILABLE',
+            'BUSY-TENTATIVE',
+          }.contains(type)) {
+            return null;
+          }
           if (type != 'FREE') {
             result.add(NextcloudBusyInterval(from.localValue, to, type));
           }

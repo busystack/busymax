@@ -8,7 +8,7 @@ add telemetry or analytics.
 
 | Data | Local handling | Network or external destination |
 |---|---|---|
-| Google/Microsoft OAuth tokens, Apple app-specific password, Nextcloud app password, WebCal subscription secret | Operating-system credential storage on Android, unpackaged Linux, and Windows; the strict Snap uses an encrypted Secret portal file. Android Google/MSAL SDK caches are app-private. | Used only with the selected provider, Nextcloud server, or WebCal endpoint |
+| Google/Microsoft OAuth tokens, Apple app-specific password, Nextcloud app password, generic CalDAV username/password, WebCal subscription secret | Operating-system credential storage on Android, unpackaged Linux, and Windows; the strict Snap uses an encrypted Secret portal file. Android Google/MSAL SDK caches are app-private. | Used only with the selected provider, configured DAV origin, or WebCal endpoint |
 | OAuth authorization code, PKCE verifier, and state | Short-lived in memory during browser sign-in; callbacks are restricted to loopback and secrets are redacted from logs | Selected provider's authorization/token endpoints |
 | Account, calendar, task-list, event, task, attendee, reminder, recurrence, DAV resource, synchronization, pending-operation, and conflict data | Cached and projected in the Drift database under the platform application-support directory | Selected provider during discovery, synchronization, or a user-requested mutation |
 | Local settings | Platform application-support/settings storage | No provider destination |
@@ -29,6 +29,16 @@ directory is restricted to mode `0700` and the file to `0600`; the `posix`
 dependency applies and repairs those Linux file permissions. Account removal
 deletes the applicable local credential and account data. Remote revocation is
 provider-specific and can require a separate user action.
+
+Generic CalDAV has its own provider-bound credential record. Basic credentials
+are sent only over normally validated HTTPS to the explicitly configured
+origin. Nondefault ports and installation paths remain part of the validated
+account authority. A redirect does not authorize another origin, and HTTP
+downgrades are rejected. Generic accounts do not inherit Nextcloud private-CA
+or certificate-pin policies. Password replacement uses the existing durable
+credential journal and authorization-generation lease; interrupted writes must
+recover before use. Diagnostics redact secrets. Removing a generic account does
+not revoke the server password or invoke Nextcloud credential revocation.
 
 ## Locations and external applications
 
@@ -90,7 +100,7 @@ BusyMax requests internet and network-state access for provider sync. Android
 13+ notification permission is requested only when a notification feature is
 enabled. Exact-alarm access is optional: if unavailable, BusyMax clearly uses
 inexact Android scheduling. Android 17 local-network permission is requested
-contextually only when the user enters a local Nextcloud host; denial is kept
+contextually when the user enters a local Nextcloud or CalDAV host; denial is kept
 distinct from an authentication failure. No broad media or storage permission,
 contacts permission, device-calendar permission, location permission,
 advertising ID, analytics, Firebase, microphone, or camera access is used.

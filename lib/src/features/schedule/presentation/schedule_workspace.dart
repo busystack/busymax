@@ -5,6 +5,8 @@ import '../../../l10n/oauth_error_description.dart';
 
 import 'dart:async';
 
+import '../../../l10n/nextcloud_collection_error_description.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
@@ -1900,9 +1902,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
           rawICalendar = await repository.nativeEventExport(item.id);
         }
       }
-      if (item is TaskScheduleItem &&
-          (item.provider == BusyProvider.nextcloud ||
-              item.provider == BusyProvider.appleICloud)) {
+      if (item is TaskScheduleItem && (item.provider.isDav)) {
         rawICalendar = await ref
             .read(tasksRepositoryForAccountProvider(item.accountId))
             .nativeTaskExport(item.sourceId, item.id);
@@ -2417,11 +2417,24 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     }
     final savedDraft = result.draft;
     if (savedDraft != null) {
-      await _saveEvent(
-        savedDraft,
-        originalAccountId: draft.accountId,
-        guestUpdatePolicy: result.guestUpdatePolicy,
-      );
+      try {
+        await _saveEvent(
+          savedDraft,
+          originalAccountId: draft.accountId,
+          guestUpdatePolicy: result.guestUpdatePolicy,
+        );
+      } on Object catch (error) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              error is UnsupportedError
+                  ? error.message ?? context.l10n.operationFailed
+                  : localizedNextcloudCollectionError(context.l10n, error),
+            ),
+          ),
+        );
+      }
     }
   }
 
@@ -2458,8 +2471,10 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     }
     var guestUpdatePolicy = CalendarGuestUpdatePolicy.send;
     if (item is CalendarScheduleItem &&
-        item.isOrganizer == true &&
-        _calendarItemHasExternalGuests(item)) {
+        (item.mayNotifyParticipants ||
+            (item.provider != BusyProvider.caldav &&
+                item.isOrganizer == true &&
+                _calendarItemHasExternalGuests(item)))) {
       final choice = await showCalendarGuestDeliveryDialog(
         context,
         provider: item.provider,
@@ -2551,7 +2566,11 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            context.l10n.invitationResponseFailed(redactForLog(error)),
+            context.l10n.invitationResponseFailed(
+              item.provider == BusyProvider.nextcloud
+                  ? localizedNextcloudCollectionError(context.l10n, error)
+                  : redactForLog(error),
+            ),
           ),
         ),
       );

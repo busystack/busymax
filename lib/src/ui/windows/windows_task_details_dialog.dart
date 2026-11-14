@@ -1,6 +1,7 @@
 import 'package:busymax/src/core/auth/authorization_attempt.dart';
 
 import 'windows_time_picker.dart';
+import 'windows_dav_attachments_section.dart';
 
 import 'package:busymax/src/l10n/time_format_scope.dart';
 
@@ -74,7 +75,7 @@ Future<bool> showWindowsTaskDetailsDialog(
   if (loadedTask == null || account == null || !context.mounted) return false;
   var original = loadedTask;
   var capabilities = switch (account.provider) {
-    BusyProvider.nextcloud =>
+    BusyProvider.nextcloud || BusyProvider.caldav =>
       await ref.read(
             davTaskCollectionCapabilitiesProvider((
               accountId: task.accountId,
@@ -191,7 +192,10 @@ Future<bool> showWindowsTaskDetailsDialog(
     microsoftReminderTimeZone: reminderTimeZone,
     recurrenceJson: recurrenceJson,
     importance: importance,
-    categories: _categories(categories.text),
+    // The display separator may be part of an existing category value.
+    categories: categories.text == originalDraft.categories.join(', ')
+        ? originalDraft.categories
+        : _categories(categories.text),
     icalPriority: priority,
     percentComplete: progress,
     taskStatus: taskStatus.isEmpty ? null : taskStatus,
@@ -442,6 +446,16 @@ Future<bool> showWindowsTaskDetailsDialog(
                       maxLines: 5,
                     ),
                   ),
+                  if (account.provider.isDav &&
+                      original.icalUid != null &&
+                      original.davCollectionId != null)
+                    WindowsDavAttachmentsSection.task(
+                      target: (
+                        accountId: original.accountId,
+                        taskListId: original.taskListId,
+                        taskId: original.id,
+                      ),
+                    ),
                   if (account.provider == BusyProvider.google)
                     for (final link in original.googleSourceLinks) ...[
                       const SizedBox(height: 12),
@@ -1112,9 +1126,7 @@ Future<bool> showWindowsTaskDetailsDialog(
                                     value,
                                     due: due,
                                     start: start,
-                                    dav:
-                                        account.provider ==
-                                        BusyProvider.nextcloud,
+                                    dav: account.provider.isDav,
                                   );
                                 }),
                               ),
@@ -1810,10 +1822,58 @@ Future<bool> showWindowsTaskDetailsDialog(
                                 ? () async {
                                     setState(() => busy = true);
                                     try {
+                                      final needsConsent = await repository
+                                          .taskDuplicationRequiresSchedulingConsent(
+                                            original.taskListId,
+                                            original.id,
+                                          );
+                                      if (!context.mounted) return;
+                                      final allowed =
+                                          !needsConsent ||
+                                          await showDialog<bool>(
+                                                context: context,
+                                                builder: (dialog) => ContentDialog(
+                                                  title: Text(
+                                                    l10n.duplicateTask,
+                                                  ),
+                                                  content: Text(
+                                                    l10n.caldavTaskDuplicationSchedulingWarning,
+                                                  ),
+                                                  actions: [
+                                                    Button(
+                                                      autofocus: true,
+                                                      onPressed: () =>
+                                                          Navigator.pop(
+                                                            dialog,
+                                                            false,
+                                                          ),
+                                                      child: Text(l10n.cancel),
+                                                    ),
+                                                    FilledButton(
+                                                      onPressed: () =>
+                                                          Navigator.pop(
+                                                            dialog,
+                                                            true,
+                                                          ),
+                                                      child: Text(
+                                                        l10n.duplicateTask,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ) ==
+                                              true;
+                                      if (!context.mounted) return;
+                                      if (!allowed) {
+                                        setState(() => busy = false);
+                                        return;
+                                      }
                                       final duplicateId = await repository
                                           .duplicateTask(
                                             original.taskListId,
                                             original.id,
+                                            allowScheduling:
+                                                needsConsent && allowed,
                                           );
                                       report(
                                         onTaskMutationCommitted,
@@ -2033,6 +2093,10 @@ Future<bool> showWindowsTaskDetailsDialog(
                                 ? l10n.taskDraftConflict
                                 : failure is DavException &&
                                       failure.code ==
+                                          'DavTaskReminderRequiresAnchor'
+                                ? l10n.taskReminderRequiresAnchor
+                                : failure is DavException &&
+                                      failure.code ==
                                           'DavTaskDurationRequiresStart'
                                 ? l10n.taskDurationRequiresStart
                                 : l10n.operationFailed;
@@ -2193,6 +2257,10 @@ Future<bool> showWindowsTaskDetailsDialog(
                                 failure is TaskDraftConflictException ||
                                     failure is TaskOccurrenceChangedException
                                 ? l10n.taskDraftConflict
+                                : failure is DavException &&
+                                      failure.code ==
+                                          'DavTaskReminderRequiresAnchor'
+                                ? l10n.taskReminderRequiresAnchor
                                 : failure is DavException &&
                                       failure.code ==
                                           'DavTaskDurationRequiresStart'

@@ -29,6 +29,8 @@ final class DavCollectionSettingsEntity {
     required this.syncErrorCode,
     required this.capabilities,
     this.canRemoveCollection = false,
+    this.ownership = DavCollectionOwnership.unknown,
+    this.collectionRemovalPermissionKnown = true,
   });
 
   final String id;
@@ -41,6 +43,7 @@ final class DavCollectionSettingsEntity {
   final String? color;
   final bool readOnly;
   final bool shared;
+  final DavCollectionOwnership ownership;
   final bool supportsEvents;
   final bool supportsTasks;
   final bool eventsSelected;
@@ -49,10 +52,13 @@ final class DavCollectionSettingsEntity {
   final String? syncErrorCode;
   final CollectionCapabilities capabilities;
   final bool canRemoveCollection;
+  final bool collectionRemovalPermissionKnown;
 
   TaskCollectionCapabilities get taskCapabilities {
     if (!supportsTasks) return noTaskCollectionCapabilities;
-    final base = nextcloudTaskCollectionCapabilities;
+    final base = provider == BusyProvider.caldav
+        ? caldavTaskCollectionCapabilities
+        : nextcloudTaskCollectionCapabilities;
     return TaskCollectionCapabilities(
       supportsDueDate: base.supportsDueDate,
       supportsDueTime: base.supportsDueTime,
@@ -63,23 +69,30 @@ final class DavCollectionSettingsEntity {
       supportsCategories: base.supportsCategories,
       supportsTaskHierarchy: base.supportsTaskHierarchy,
       supportsTaskReparenting:
-          base.supportsTaskReparenting && capabilities.canUpdateTask,
+          base.supportsTaskReparenting && capabilities.canAttemptUpdateTask,
       supportsCrossListMove:
-          base.supportsCrossListMove && capabilities.canDeleteTask,
+          base.supportsCrossListMove &&
+          capabilities.canAttemptDeleteTask &&
+          (provider != BusyProvider.caldav || capabilities.supportsMove),
       supportsClearCompleted:
-          base.supportsClearCompleted && capabilities.canDeleteTask,
+          base.supportsClearCompleted && capabilities.canAttemptDeleteTask,
       supportsHiddenTasks: false,
       supportsAssignedTasks: false,
       supportsListRename:
-          base.supportsListRename && capabilities.canWriteProperties,
+          base.supportsListRename &&
+          (capabilities.canWriteProperties ||
+              provider == BusyProvider.caldav &&
+                  !capabilities.permissionsKnown),
       supportsListDelete:
           base.supportsListDelete &&
-          (provider == BusyProvider.nextcloud
-              ? canRemoveCollection
-              : (!capabilities.isReadOnly || shared)),
-      canCreateTasks: capabilities.canCreateTask,
-      canUpdateTasks: capabilities.canUpdateTask,
-      canDeleteTasks: capabilities.canDeleteTask,
+          (provider != BusyProvider.caldav ||
+              ownership == DavCollectionOwnership.owned) &&
+          (canRemoveCollection ||
+              provider == BusyProvider.caldav &&
+                  !collectionRemovalPermissionKnown),
+      canCreateTasks: capabilities.canAttemptCreateTask,
+      canUpdateTasks: capabilities.canAttemptUpdateTask,
+      canDeleteTasks: capabilities.canAttemptDeleteTask,
       supportsIcalPriority: base.supportsIcalPriority,
       supportsPercentComplete: base.supportsPercentComplete,
       supportsTaskStatus: base.supportsTaskStatus,
@@ -93,6 +106,7 @@ final class DavCollectionSettingsEntity {
       supportsSubtaskVisibility: base.supportsSubtaskVisibility,
       supportsDuplicate: base.supportsDuplicate,
       supportsNativeExport: base.supportsNativeExport,
+      supportsSharing: base.supportsSharing && capabilities.allowsItemMutations,
       canUpdateClassification: !shared,
     );
   }
@@ -138,6 +152,7 @@ final class DavSettingsRepository {
                 _database.accounts.provider.isIn(const [
                   'apple_icloud',
                   'nextcloud',
+                  'caldav',
                 ]),
           )
           ..orderBy([
@@ -296,6 +311,7 @@ DavCollectionSettingsEntity _fromRow(
   final capabilities = collectionCapabilitiesFromStored(collection);
   final provider = BusyProviderCodec.requireStorageValue(account.provider);
   final label = _accountLabel(account, provider);
+  final ownership = davCollectionOwnership(collection, service);
   return DavCollectionSettingsEntity(
     id: collection.id,
     accountId: account.id,
@@ -306,7 +322,10 @@ DavCollectionSettingsEntity _fromRow(
     name: collection.displayName,
     color: collection.color,
     readOnly: capabilities.isReadOnly,
-    shared: _isShared(collection, service),
+    shared: provider == BusyProvider.caldav
+        ? ownership == DavCollectionOwnership.shared
+        : davCollectionIsShared(collection, service),
+    ownership: ownership,
     supportsEvents: collection.eventProjectionEnabled,
     supportsTasks: collection.taskProjectionEnabled,
     eventsSelected: collection.eventsSelected,
@@ -314,7 +333,15 @@ DavCollectionSettingsEntity _fromRow(
     lastSyncAtUtc: DateTime.tryParse(collection.lastSyncAtUtc ?? '')?.toUtc(),
     syncErrorCode: cursor?.lastFailureCode ?? service?.lastDiscoveryErrorCode,
     capabilities: capabilities,
-    canRemoveCollection: _parentAllowsRemoval(collection),
+    canRemoveCollection:
+        _parentAllowsRemoval(collection) &&
+        (provider != BusyProvider.caldav ||
+            ownership == DavCollectionOwnership.owned),
+    collectionRemovalPermissionKnown:
+        provider != BusyProvider.caldav ||
+        (jsonDecode(collection.safeDisplayMetadataJson ?? '{}')
+                as Map)['parentPrivilegesKnown'] ==
+            'true',
   );
 }
 
@@ -340,33 +367,4 @@ String _accountLabel(Account account, BusyProvider provider) {
   final email = account.email?.trim();
   if (email != null && email.isNotEmpty) return email;
   return provider.displayName;
-}
-
-bool _isShared(DavCollection collection, DavAccountService? service) {
-  String? effectivePrincipal = service?.principalHref;
-  try {
-    final metadata = jsonDecode(collection.safeDisplayMetadataJson ?? '{}');
-    if (metadata is Map && metadata['principalHref'] is String) {
-      effectivePrincipal = metadata['principalHref'] as String;
-    }
-    if (metadata is Map && metadata['shared'] is bool) {
-      return metadata['shared']! as bool;
-    }
-  } on FormatException {
-    // Owner/principal comparison below remains a safe fallback.
-  }
-  final owner = _hrefPath(collection.ownerHref);
-  final principal = _hrefPath(effectivePrincipal);
-  return owner != null && principal != null && owner != principal;
-}
-
-String? _hrefPath(String? source) {
-  if (source == null || source.trim().isEmpty) return null;
-  final uri = Uri.tryParse(source.trim());
-  if (uri == null) return null;
-  var path = uri.path;
-  while (path.length > 1 && path.endsWith('/')) {
-    path = path.substring(0, path.length - 1);
-  }
-  return path;
 }

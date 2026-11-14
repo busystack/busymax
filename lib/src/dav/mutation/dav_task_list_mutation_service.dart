@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../core/secrets/secret_store.dart';
 import '../../db/app_database.dart';
+import '../../features/sync/account_sync_operations.dart';
 import '../../providers/busy_provider.dart';
 import '../dav_errors.dart';
 import '../nextcloud/nextcloud_collection_service.dart';
@@ -16,6 +17,7 @@ import '../http/dav_http_transport.dart';
 import '../storage/dav_collection_capabilities.dart';
 import '../xml/dav_xml.dart';
 import 'dav_collection_mutation_helpers.dart';
+import 'dav_collection_administration.dart';
 
 export 'dav_collection_mutation_helpers.dart'
     show nextcloudCollectionMemberName;
@@ -30,7 +32,7 @@ abstract interface class DavTaskListMutationClient {
   Future<void> deleteTaskList(String collectionId);
 }
 
-/// Applies Nextcloud Tasks list mutations to their backing CalDAV calendar
+/// Applies task-list mutations to their backing CalDAV calendar
 /// collections, then refreshes discovery so local projections remain
 /// authoritative to the server.
 final class DavTaskListMutationService implements DavTaskListMutationClient {
@@ -39,6 +41,7 @@ final class DavTaskListMutationService implements DavTaskListMutationClient {
     required SecretStore secretStore,
     required http.Client httpClient,
     required String accountId,
+    CrossEngineAccountGate creationGate = const InProcessAccountGate(),
     required Future<void> Function() refreshAfterMutation,
     Future<void> Function()? requireNetwork,
     DavTransportLimits transportLimits = const DavTransportLimits(),
@@ -48,6 +51,7 @@ final class DavTaskListMutationService implements DavTaskListMutationClient {
        _secretStore = secretStore,
        _httpClient = httpClient,
        _accountId = accountId,
+       _creationGate = creationGate,
        _refreshAfterMutation = refreshAfterMutation,
        _requireNetwork = requireNetwork ?? _noNetworkCheck,
        _transportLimits = transportLimits,
@@ -58,15 +62,43 @@ final class DavTaskListMutationService implements DavTaskListMutationClient {
   final SecretStore _secretStore;
   final http.Client _httpClient;
   final String _accountId;
+  final CrossEngineAccountGate _creationGate;
   final Future<void> Function() _refreshAfterMutation;
   final Future<void> Function() _requireNetwork;
   final DavTransportLimits _transportLimits;
   final DavXmlParser _xmlParser;
   final String Function() _correlationIdFactory;
 
+  Future<bool> get _generic async =>
+      (await (_database.select(
+        _database.accounts,
+      )..where((r) => r.id.equals(_accountId))).getSingleOrNull())?.provider ==
+      'caldav';
+  DavCollectionAdministration get _genericAdministration =>
+      DavCollectionAdministration(
+        database: _database,
+        creationGate: _creationGate,
+        secrets: _secretStore,
+        client: _httpClient,
+        accountId: _accountId,
+        refresh: _refreshAfterMutation,
+        requireNetwork: _requireNetwork,
+      );
+
   @override
   Future<void> createTaskList(String title) async {
     final displayName = _requiredTitle(title);
+    if (await _generic) {
+      final result = await _genericAdministration.create(displayName, const {
+        'VTODO',
+      });
+      if (result == DavCollectionAdministrationOutcome.refreshPending ||
+          result ==
+              DavCollectionAdministrationOutcome.reconciledRefreshPending) {
+        throw const DavRefreshPending();
+      }
+      return;
+    }
     await _requireNetwork();
     final context = await _loadContext(requireCalendarHome: true);
     final existing = await _activeCollections();
@@ -136,6 +168,20 @@ final class DavTaskListMutationService implements DavTaskListMutationClient {
 
   @override
   Future<void> renameTaskList(String collectionId, String title) async {
+    if (await _generic) {
+      await _requiredTaskCollection(collectionId);
+      final result = await _genericAdministration.update(collectionId, {
+        const DavPropertyName(davNamespace, 'displayname'): _requiredTitle(
+          title,
+        ),
+      });
+      if (result == DavCollectionAdministrationOutcome.refreshPending ||
+          result ==
+              DavCollectionAdministrationOutcome.reconciledRefreshPending) {
+        throw const DavRefreshPending();
+      }
+      return;
+    }
     final displayName = _requiredTitle(title);
     final collection = await _requiredTaskCollection(collectionId);
     final capabilities = collectionCapabilitiesFromStored(collection);
@@ -168,6 +214,20 @@ final class DavTaskListMutationService implements DavTaskListMutationClient {
     int? order,
   }) async {
     await _requiredTaskCollection(collectionId);
+    if (await _generic) {
+      final result = await _genericAdministration.update(collectionId, {
+        if (color != null)
+          const DavPropertyName(appleIcalNamespace, 'calendar-color'): color,
+        if (order != null)
+          const DavPropertyName(appleIcalNamespace, 'calendar-order'): '$order',
+      });
+      if (result == DavCollectionAdministrationOutcome.refreshPending ||
+          result ==
+              DavCollectionAdministrationOutcome.reconciledRefreshPending) {
+        throw const DavRefreshPending();
+      }
+      return NextcloudMutationOutcome.committed;
+    }
     return _administration.update(collectionId, {
       if (color != null)
         const DavPropertyName(appleIcalNamespace, 'calendar-color'): color,
@@ -179,7 +239,30 @@ final class DavTaskListMutationService implements DavTaskListMutationClient {
 
   @override
   Future<void> deleteTaskList(String collectionId) async {
-    await _requiredTaskCollection(collectionId);
+    final collection = await _requiredTaskCollection(collectionId);
+    if (await _generic) {
+      final service = await (_database.select(
+        _database.davAccountServices,
+      )..where((r) => r.accountId.equals(_accountId))).getSingleOrNull();
+      final ownership = davCollectionOwnership(collection, service);
+      if (ownership != DavCollectionOwnership.owned) {
+        throw DavException(
+          kind: DavErrorKind.authorization,
+          code: ownership == DavCollectionOwnership.shared
+              ? 'DavSharedCollectionRemovalUnsupported'
+              : 'DavCollectionOwnershipUnknown',
+          safeMessage:
+              'Only confirmed owned CalDAV collections can be deleted.',
+        );
+      }
+      final result = await _genericAdministration.remove(collectionId);
+      if (result == DavCollectionAdministrationOutcome.refreshPending ||
+          result ==
+              DavCollectionAdministrationOutcome.reconciledRefreshPending) {
+        throw const DavRefreshPending();
+      }
+      return;
+    }
     final result = await _administration.remove(collectionId);
     if (result == NextcloudMutationOutcome.refreshPending) {
       throw const NextcloudRefreshPending();

@@ -14,6 +14,45 @@ class AppLocalizationsJa extends AppLocalizations {
   AppLocalizationsJa([String locale = 'ja']) : super(locale);
 
   @override
+  String get davCollectionRemovalPartial =>
+      '一部の項目を削除できませんでした。コレクションは残っています。再試行する前に更新してください。';
+
+  @override
+  String get caldavConflictDuplicationSchedulingWarning =>
+      'この項目には参加者が含まれています。複製すると、CalDAV サーバーが招待や更新通知を送信する場合があります。複製を許可しますか？';
+
+  @override
+  String get caldavTaskDuplicationSchedulingWarning =>
+      'このタスクまたはサブタスクには参加者が含まれています。複製すると、CalDAVサーバーが招待やタスクの更新を送信する場合があります。複製を許可しますか？';
+
+  @override
+  String get caldavSchedulingWarning =>
+      'この予定には参加者がいます。保存や削除を行うと、変更の同期時にCalDAVサーバーが参加者に通知する場合があります。';
+
+  @override
+  String get caldavNativeImport =>
+      '予定とタスクの完全なリソースをインポートします。参加者がいる項目では、CalDAVサーバーが招待や会議の更新を送信する場合があります。新しいコピーを選択しない限り、既存のUIDはスキップされます。非対応のリソースは個別に報告されます。';
+
+  @override
+  String get davInsufficientStorage => 'このコレクションを作成するためのサーバーの保存容量が不足しています。';
+
+  @override
+  String get davCollectionPropertyRejected => 'コレクションに指定したプロパティがサーバーに拒否されました。';
+
+  @override
+  String get davCollectionDiscoveryRequired =>
+      'このアカウントを更新して、サーバーの機能と権限を更新してください。';
+
+  @override
+  String get caldavImportSchedulingWarning =>
+      'このファイルには参加者が含まれています。CalDAVサーバーから招待や会議の更新が送信される可能性があることを了承し、インポートを許可します。';
+
+  @override
+  String nextcloudCanonicalServerReview(String entered, String canonical) {
+    return 'Nextcloudがサーバー$enteredに対して$canonicalを返しました。このアドレスへの新しいアプリパスワードの送信をBusyMaxに許可しますか？';
+  }
+
+  @override
   String get contactsAccountsUnavailable => '連絡先アカウントを読み込めませんでした';
 
   @override
@@ -183,6 +222,17 @@ class AppLocalizationsJa extends AppLocalizations {
       '変更は Nextcloud に保存されました。再読み込み待ちです。同じ変更を繰り返さないでください。';
 
   @override
+  String get davRefreshPending =>
+      '変更は CalDAV サーバーに保存されました。再読み込み待ちです。同じ変更を繰り返さないでください。';
+
+  @override
+  String get davCollectionCreationPending =>
+      'コレクションの作成は保留中です。再試行する前にこのアカウントを同期してください。同じ操作を繰り返さないでください。';
+
+  @override
+  String get davCollectionCreationDenied => 'サーバーはコレクションの作成を許可しませんでした。';
+
+  @override
   String get nextcloudOutcomeUnknown =>
       'サーバーの結果を確認できませんでした。再読み込みしてから再試行してください。';
 
@@ -232,6 +282,29 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get nextcloudPermanentDeleteWarning =>
       'この項目を完全に削除しますか？Nextcloud のカレンダーのごみ箱からは復元できなくなります。';
+
+  @override
+  String get nextcloudDiscoveryRequired =>
+      'このアカウントを更新して、Nextcloud の機能と権限を更新してください。';
+
+  @override
+  String get nextcloudConflict => '項目または権限が変更されました。更新して確認してから再試行してください。';
+
+  @override
+  String get nextcloudItemUnavailable => 'この項目は利用できなくなりました。更新して現在の状態を確認してください。';
+
+  @override
+  String get nextcloudFederationInvitations => '共有カレンダーへの招待';
+
+  @override
+  String get nextcloudFederationEmpty => '保留中の共有カレンダーへの招待はありません。';
+
+  @override
+  String get nextcloudFederationGrant =>
+      'このサーバーで共有を作成しました。相手側の承認と同期は確認されていません。';
+
+  @override
+  String get nextcloudTrashDisabled => 'このサーバーではカレンダーのごみ箱への保存が無効です。';
 
   @override
   String get nextcloudOperationDenied => 'Nextcloud はこの操作を許可しませんでした。';
@@ -3725,4 +3798,116 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get taskDurationRequiresStart =>
       '期間が設定されたタスクの開始日時を削除する前に、期限を設定してください。';
+
+  @override
+  String get privateServerCertificates => 'プライベートサーバーの証明書';
+
+  @override
+  String get reviewServerCertificate => 'サーバー証明書を確認';
+
+  @override
+  String get certificateStandard => '標準のHTTPS';
+
+  @override
+  String get certificatePrivateCa => 'プライベート認証局';
+
+  @override
+  String get certificatePinnedLeaf => '固定した自己署名証明書';
+
+  @override
+  String get certificateImportCa => 'プライベートCAをインポート';
+
+  @override
+  String get certificateReplacePin => '置き換える証明書を確認';
+
+  @override
+  String get certificateUseStandard => '標準のHTTPSに戻す';
+
+  @override
+  String get certificateApprove => 'この証明書ポリシーを承認';
+
+  @override
+  String get certificateReject => '拒否';
+
+  @override
+  String get certificatePrevious => '以前に承認した証明書';
+
+  @override
+  String get certificateInvalid => '証明書またはプライベートCAの設定が無効です';
+
+  @override
+  String get certificateFirstUseWarning =>
+      '初回接続時、暗号化だけではサーバーの身元を確認できません。承認する前に、独立した信頼できる管理者の連絡経路でSHA-256フィンガープリントを比較してください。';
+
+  @override
+  String get certificateRenewalHelp =>
+      'プライベートCAを推奨します。その配下でサーバー証明書を更新できます。固定した証明書は、同じ鍵でも証明書が変わるたびに明示的な確認が必要です。公開証明書は通常どおり更新されます。';
+
+  @override
+  String get certificateBrowserBoundary =>
+      '認証には外部ブラウザーを使います。BusyMaxの承認はブラウザーの信頼設定を変更しません。ブラウザーでも別途サーバーを信頼する必要があります。';
+
+  @override
+  String certificateDetails(
+    String subject,
+    String issuer,
+    String notBefore,
+    String notAfter,
+    String fingerprint,
+  ) {
+    return '主体: $subject\n発行者: $issuer\n有効期間の開始: $notBefore\n有効期限: $notAfter\nSHA-256フィンガープリント: $fingerprint';
+  }
+
+  @override
+  String certificateFailure(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'approvalRequired': '承認が必要です',
+      'pinMismatch': '固定した証明書が変更されました',
+      'expired': '証明書の期限切れ',
+      'notYetValid': '証明書はまだ有効ではありません',
+      'hostnameMismatch': '証明書のホスト名が一致しません',
+      'invalidPolicy': 'プライベートCAの設定が無効です',
+      'ineligible': '証明書は使用できません',
+      'verificationFailed': 'TLS検証に失敗しました',
+      'other': 'TLS検証に失敗しました',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get addCalDavAccount => 'CalDAVアカウントを追加';
+
+  @override
+  String get caldavServerUrl => 'サーバーURL';
+
+  @override
+  String get caldavUsername => 'ユーザー名';
+
+  @override
+  String get caldavPassword => 'パスワードまたはアプリ用パスワード';
+
+  @override
+  String get caldavInvalidServerUrl =>
+      '認証情報、クエリ、フラグメントを含まないHTTPS URLを入力してください。';
+
+  @override
+  String get caldavHttpsHelp =>
+      'HTTPSサーバーURLまたはCalDAVの直接URLを入力してください。パスワードは安全に保存されます。';
+
+  @override
+  String get davPermissionsUnknown => 'サーバーは権限を通知していません。要求された変更はサーバーで確認されます。';
+
+  @override
+  String get localNetworkAccessRequired => 'ローカルネットワークへのアクセスが必要です';
+
+  @override
+  String get localNetworkAccessRecovery =>
+      'このサーバーに接続するには、Android の設定で BusyMax に付近のデバイスへのアクセスを許可してから、もう一度お試しください。';
+
+  @override
+  String get taskReminderRequiresAnchor =>
+      '開始日時や期限を削除する前に、それを基準とするリマインダーを変更してください。';
+
+  @override
+  String get attachmentInvalidOrTooLarge => 'この添付ファイルは無効か、サイズの上限を超えています。';
 }

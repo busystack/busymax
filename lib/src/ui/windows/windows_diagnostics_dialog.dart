@@ -289,9 +289,37 @@ class WindowsDavConflictReview extends ConsumerWidget {
       ),
     );
     if (resolution == null || !context.mounted) return;
+    final needsConsent =
+        resolution == DavConflictResolution.duplicateLocal &&
+        conflict.duplicationRequiresSchedulingConsent;
+    if (needsConsent) {
+      final allowed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => ContentDialog(
+          title: Text(l10n.duplicateLocalItem),
+          content: Text(l10n.caldavConflictDuplicationSchedulingWarning),
+          actions: [
+            Button(
+              autofocus: true,
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text(l10n.cancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: Text(l10n.duplicateLocalItem),
+            ),
+          ],
+        ),
+      );
+      if (allowed != true || !context.mounted) return;
+    }
     final service = ref.read(davConflictResolutionServiceProvider);
     try {
-      await service.resolve(conflict.id, resolution);
+      await service.resolve(
+        conflict.id,
+        resolution,
+        allowScheduling: needsConsent,
+      );
       await ref.read(signedInSyncRunnerProvider)(conflict.accountId, false);
     } on Object catch (error) {
       if (!context.mounted) return;

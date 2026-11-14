@@ -1,9 +1,12 @@
+import '../../dav/http/dav_http_transport.dart';
+
 import 'dart:async';
 
 import '../../l10n/nextcloud_collection_error_description.dart';
 
 import '../common/schedule/native_collection_export.dart';
 import 'windows_nextcloud_scheduling_dialog.dart';
+import '../../dav/nextcloud/nextcloud_federation_controller.dart';
 
 import 'dart:math' as math;
 
@@ -15,7 +18,6 @@ import 'package:busymax/src/dav/nextcloud/nextcloud_collection_controller.dart';
 import 'package:busymax/src/dav/nextcloud/nextcloud_collection_service.dart';
 import 'package:busymax/src/dav/nextcloud/nextcloud_dav_context.dart';
 import 'package:busymax/src/dav/nextcloud/nextcloud_trash_service.dart';
-import 'package:busymax/src/dav/dav_errors.dart';
 import 'package:busymax/src/dav/xml/dav_xml.dart';
 
 Future<void> showWindowsNextcloudCollectionDialog(
@@ -268,6 +270,8 @@ class _WindowsNextcloudCollectionDialogState
                         crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           Text(share.recipient.label),
+                          if (share.recipient.federated)
+                            Text(l10n.nextcloudFederationGrant),
                           Button(
                             onPressed: !model.busy && state.canShare
                                 ? () => model.share(
@@ -419,6 +423,13 @@ class _WindowsNextcloudTrashDialog extends ConsumerStatefulWidget {
 
 class _WindowsNextcloudTrashState
     extends ConsumerState<_WindowsNextcloudTrashDialog> {
+  final _loadCancellation = DavCancellationToken();
+  @override
+  void dispose() {
+    _loadCancellation.cancel();
+    super.dispose();
+  }
+
   NextcloudTrashListing? listing;
   bool busy = false, failed = false, refreshPending = false;
   Object? error;
@@ -428,7 +439,47 @@ class _WindowsNextcloudTrashState
     unawaited(_load());
   }
 
+  int _listingEpoch = 0;
+  final _loadingDetails = <Uri>{};
+
+  Future<void> _details(
+    NextcloudTrashItem item, {
+    bool automatic = false,
+  }) async {
+    if (!_loadingDetails.add(item.href)) return;
+    final epoch = _listingEpoch;
+    setState(() {});
+    try {
+      final detailed = await ref
+          .read(nextcloudTrashServiceProvider(widget.accountId))
+          .details(item, cancellationToken: _loadCancellation);
+      if (mounted && _listingEpoch == epoch) {
+        setState(
+          () => listing = NextcloudTrashListing(
+            List.unmodifiable(
+              listing!.items.map(
+                (row) => row.href == item.href ? detailed : row,
+              ),
+            ),
+            listing!.retentionSeconds,
+          ),
+        );
+      }
+    } on Object catch (caught) {
+      if (!automatic && mounted && _listingEpoch == epoch) {
+        setState(() {
+          failed = true;
+          error = caught;
+        });
+      }
+    } finally {
+      _loadingDetails.remove(item.href);
+      if (mounted) setState(() {});
+    }
+  }
+
   Future<void> _load() async {
+    final epoch = ++_listingEpoch;
     setState(() {
       busy = true;
       failed = false;
@@ -436,22 +487,33 @@ class _WindowsNextcloudTrashState
     try {
       final result = await ref
           .read(nextcloudTrashServiceProvider(widget.accountId))
-          .list();
-      if (mounted) {
+          .list(cancellationToken: _loadCancellation);
+      if (mounted && _listingEpoch == epoch) {
         setState(() {
           listing = result;
           refreshPending = false;
         });
       }
     } on Object catch (caught) {
-      if (mounted) {
+      if (mounted && _listingEpoch == epoch) {
         setState(() {
           failed = true;
           error = caught;
         });
       }
     }
-    if (mounted) setState(() => busy = false);
+    if (mounted && _listingEpoch == epoch) {
+      setState(() => busy = false);
+      // Metadata is visible before these optional, bounded identity previews.
+      if (failed) return;
+      final previews =
+          listing?.items.where((item) => item.canPreview).take(5).toList() ??
+          const <NextcloudTrashItem>[];
+      for (final item in previews) {
+        if (!mounted || _listingEpoch != epoch || busy) break;
+        await _details(item, automatic: true);
+      }
+    }
   }
 
   Future<void> _mutate(NextcloudTrashItem item, bool permanent) async {
@@ -518,69 +580,94 @@ class _WindowsNextcloudTrashState
       content: SizedBox(
         width: 620,
         height: math.min(460.0, MediaQuery.sizeOf(context).height * .6),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (busy) Center(child: const ProgressRing()),
-              if (failed)
-                Text(
-                  error is DavException &&
-                          (error! as DavException).code == 'DavTrashUnsupported'
-                      ? l10n.nextcloudUnsupported
-                      : l10n.nextcloudServerUnavailable,
-                ),
-              if (refreshPending) Text(l10n.nextcloudRefreshPending),
-              if (listing?.retentionSeconds != null)
-                Text(
-                  l10n.nextcloudTrashRetention(
-                    (listing!.retentionSeconds! / 86400).ceil(),
-                  ),
-                ),
-              if (listing?.items.isEmpty == true)
-                Text(l10n.nextcloudTrashEmpty),
-              for (final item in listing?.items ?? const <NextcloudTrashItem>[])
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+        child: ListView.builder(
+          itemCount: (listing?.items.length ?? 0) + 1,
+          itemBuilder: (context, index) {
+            if (index == 0) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (busy) Center(child: const ProgressRing()),
+                  if (failed)
+                    Text(localizedNextcloudCollectionError(l10n, error)),
+                  if (refreshPending) Text(l10n.nextcloudRefreshPending),
+                  if (listing?.retentionSeconds != null)
+                    Text(
+                      listing!.retentionSeconds == 0
+                          ? l10n.nextcloudTrashDisabled
+                          : l10n.nextcloudTrashRetention(
+                              (listing!.retentionSeconds! / 86400).ceil(),
+                            ),
+                    ),
+                  if (listing?.items.isEmpty == true)
+                    Text(l10n.nextcloudTrashEmpty),
+                ],
+              );
+            }
+            final item = listing!.items[index - 1];
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(item.title),
+                  if (item.deletedAt != null) Text(item.deletedAt!),
+                  Text(switch (item.kind) {
+                    NextcloudTrashKind.unknownObject => 'iCalendar',
+                    NextcloudTrashKind.event => l10n.calendarEvents,
+                    NextcloudTrashKind.task => l10n.calendarTasks,
+                    NextcloudTrashKind.calendar => l10n.calendar,
+                    NextcloudTrashKind.taskList => l10n.taskLists,
+                    NextcloudTrashKind.mixedCollection =>
+                      l10n.collectionSupportsEventsAndTasks,
+                  }),
+                  Wrap(
+                    spacing: 8,
                     children: [
-                      Text(item.title),
-                      if (item.deletedAt != null) Text(item.deletedAt!),
-                      Text(switch (item.kind) {
-                        NextcloudTrashKind.event => l10n.calendarEvents,
-                        NextcloudTrashKind.task => l10n.calendarTasks,
-                        NextcloudTrashKind.calendar => l10n.calendar,
-                        NextcloudTrashKind.taskList => l10n.taskLists,
-                        NextcloudTrashKind.mixedCollection =>
-                          l10n.collectionSupportsEventsAndTasks,
-                      }),
-                      Wrap(
-                        spacing: 8,
-                        children: [
-                          Button(
-                            onPressed:
-                                busy || refreshPending || !item.canRestore
-                                ? null
-                                : () => _mutate(item, false),
-                            child: Text(l10n.nextcloudRestore),
-                          ),
-                          Button(
-                            onPressed:
-                                busy ||
-                                    refreshPending ||
-                                    !item.canPermanentlyDelete
-                                ? null
-                                : () => _mutate(item, true),
-                            child: Text(l10n.nextcloudPermanentDelete),
-                          ),
-                        ],
+                      if (item.isObject && !item.contentLoaded)
+                        Button(
+                          key: ValueKey((
+                            'nextcloud-trash-details',
+                            item.href.toString(),
+                          )),
+                          onPressed: busy || _loadingDetails.contains(item.href)
+                              ? null
+                              : () => _details(item),
+                          child: _loadingDetails.contains(item.href)
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: ProgressRing(),
+                                )
+                              : Text(l10n.show),
+                        ),
+                      Button(
+                        key: ValueKey((
+                          'nextcloud-trash-restore',
+                          item.href.toString(),
+                        )),
+                        onPressed: busy || refreshPending || !item.canRestore
+                            ? null
+                            : () => _mutate(item, false),
+                        child: Text(l10n.nextcloudRestore),
+                      ),
+                      Button(
+                        key: ValueKey((
+                          'nextcloud-trash-delete',
+                          item.href.toString(),
+                        )),
+                        onPressed:
+                            busy || refreshPending || !item.canPermanentlyDelete
+                            ? null
+                            : () => _mutate(item, true),
+                        child: Text(l10n.nextcloudPermanentDelete),
                       ),
                     ],
                   ),
-                ),
-            ],
-          ),
+                ],
+              ),
+            );
+          },
         ),
       ),
       actions: [
@@ -590,6 +677,123 @@ class _WindowsNextcloudTrashState
           child: Text(l10n.close),
         ),
       ],
+    );
+  }
+}
+
+Future<void> showWindowsNextcloudFederationDialog(
+  BuildContext context, {
+  required String accountId,
+}) => showDialog<void>(
+  context: context,
+  barrierDismissible: false,
+  builder: (_) => WindowsNextcloudFederationDialog(accountId: accountId),
+);
+
+class WindowsNextcloudFederationDialog extends ConsumerStatefulWidget {
+  const WindowsNextcloudFederationDialog({super.key, required this.accountId});
+  final String accountId;
+  @override
+  ConsumerState<WindowsNextcloudFederationDialog> createState() =>
+      _WindowsNextcloudFederationDialogState();
+}
+
+class _WindowsNextcloudFederationDialogState
+    extends ConsumerState<WindowsNextcloudFederationDialog> {
+  late final NextcloudFederationController model;
+  @override
+  void initState() {
+    super.initState();
+    model = NextcloudFederationController(
+      ref.read(nextcloudFederationServiceProvider(widget.accountId)),
+    )..addListener(_changed);
+    unawaited(model.load());
+  }
+
+  void _changed() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    model.removeListener(_changed);
+    model.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final enabled = !model.busy && model.error == null && !model.refreshPending;
+    return PopScope(
+      canPop: !model.busy,
+      child: ContentDialog(
+        key: const ValueKey('nextcloud-federation-dialog'),
+        title: Text(l10n.nextcloudFederationInvitations),
+        content: SizedBox(
+          width: 560,
+          height: math.min(460.0, MediaQuery.sizeOf(context).height * .6),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (model.busy) const Center(child: ProgressRing()),
+                if (model.error != null)
+                  Text(localizedNextcloudCollectionError(l10n, model.error)),
+                if (model.refreshPending) Text(l10n.nextcloudRefreshPending),
+                if (model.invitations?.isEmpty == true)
+                  Text(l10n.nextcloudFederationEmpty),
+                for (final invitation in model.invitations ?? [])
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(invitation.displayName),
+                        Text(invitation.sharedBy),
+                        Wrap(
+                          spacing: 8,
+                          children: [
+                            Button(
+                              key: ValueKey(
+                                'nextcloud-federation-accept-${invitation.id}',
+                              ),
+                              onPressed: enabled
+                                  ? () =>
+                                        model.respond(invitation, accept: true)
+                                  : null,
+                              child: Text(l10n.acceptInvitation),
+                            ),
+                            Button(
+                              key: ValueKey(
+                                'nextcloud-federation-decline-${invitation.id}',
+                              ),
+                              onPressed: enabled
+                                  ? () =>
+                                        model.respond(invitation, accept: false)
+                                  : null,
+                              child: Text(l10n.declineInvitation),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          Button(
+            onPressed: model.busy ? null : model.load,
+            child: Text(l10n.refresh),
+          ),
+          Button(
+            onPressed: model.busy ? null : () => Navigator.pop(context),
+            child: Text(l10n.close),
+          ),
+        ],
+      ),
     );
   }
 }

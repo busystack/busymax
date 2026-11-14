@@ -1,4 +1,24 @@
 {
+  "davCollectionRemovalPartial": "Some items could not be deleted. The collection remains. Refresh before trying again.",
+  "caldavConflictDuplicationSchedulingWarning": "This item contains attendees. Duplicating it may cause the CalDAV server to send invitations or updates. Allow duplication?",
+  "caldavTaskDuplicationSchedulingWarning": "This task or its subtasks contain attendees. Duplicating them may cause the CalDAV server to send invitations or task updates. Allow duplication?",
+  "caldavSchedulingWarning": "This event has attendees. Saving or deleting it may cause your CalDAV server to notify participants when the change synchronizes.",
+  "caldavNativeImport": "Import complete event and task resources. For items with attendees, the CalDAV server may send invitations or meeting updates. Existing UIDs are skipped unless you choose new copies. Unsupported resources are reported individually.",
+  "davInsufficientStorage": "The server has insufficient storage to create this collection.",
+  "davCollectionPropertyRejected": "The server rejected a requested collection property.",
+  "davCollectionDiscoveryRequired": "Refresh this account to update its server capabilities and permissions.",
+  "caldavImportSchedulingWarning": "This file contains attendees. I allow this import, which may cause the CalDAV server to send invitations or meeting updates.",
+  "nextcloudCanonicalServerReview": "Nextcloud returned {canonical} for the server {entered}. Allow BusyMax to send the new app password to this address?",
+  "@nextcloudCanonicalServerReview": {
+    "placeholders": {
+      "entered": {
+        "type": "String"
+      },
+      "canonical": {
+        "type": "String"
+      }
+    }
+  },
   "contactsAccountsUnavailable": "Could not load contact accounts",
   "launchAtLoginManagedExternally": "BusyMax was launched by your desktop's startup settings. Remove its entry there, then quit and reopen BusyMax to use this switch.",
   "timeFormat": "Time format",
@@ -70,6 +90,9 @@
   "nextcloudAvailability": "Include this collection in availability",
   "nextcloudCalendarTimezone": "Calendar timezone (VTIMEZONE document)",
   "nextcloudRefreshPending": "The change was saved on Nextcloud. Refresh is pending; do not repeat the change.",
+  "davRefreshPending": "The change was saved on the CalDAV server. Refresh is pending; do not repeat the change.",
+  "davCollectionCreationPending": "Collection creation is pending. Synchronize this account before trying again; do not repeat the operation.",
+  "davCollectionCreationDenied": "The server did not allow collection creation.",
   "nextcloudOutcomeUnknown": "The server outcome could not be confirmed. Refresh before trying again.",
   "nextcloudRemoveShared": "Remove shared calendar/list",
   "nextcloudRemoveMixed": "This collection contains events and tasks. Deleting it removes both its events and tasks.",
@@ -86,6 +109,13 @@
   "nextcloudRestore": "Restore",
   "nextcloudPermanentDelete": "Permanently delete",
   "nextcloudPermanentDeleteWarning": "Permanently delete this item? It cannot be restored from Nextcloud's calendar trash.",
+  "nextcloudDiscoveryRequired": "Refresh this account to update its Nextcloud capabilities and permissions.",
+  "nextcloudConflict": "The item or its permissions changed. Refresh and review it before trying again.",
+  "nextcloudItemUnavailable": "This item is no longer available. Refresh to check its current state.",
+  "nextcloudFederationInvitations": "Shared calendar invitations",
+  "nextcloudFederationEmpty": "No pending shared calendar invitations.",
+  "nextcloudFederationGrant": "Share created on this server. Remote acceptance and synchronization are not confirmed.",
+  "nextcloudTrashDisabled": "Calendar trash retention is disabled on this server.",
   "nextcloudOperationDenied": "Nextcloud did not allow this operation.",
   "nextcloudUnsupported": "The server does not support this operation.",
   "nextcloudPendingChanges": "Save or discard collection changes before closing.",
@@ -2070,11 +2100,88 @@
   "notificationsSystemBlocked": "System notification settings are blocking BusyMax. Your reminders are saved.",
   "notificationItemUnavailable": "This reminder is no longer available. The item may have changed or been removed.",
   "clearCompletedGoogleConfirmation": "Clear completed tasks in “{list}” ({account})?\n\nGoogle Tasks will clear or hide completed items. Currently completed: {count}.",
-  "@clearCompletedGoogleConfirmation": {"placeholders": {"list": {"type": "String"}, "account": {"type": "String"}, "count": {"type": "int"}}},
+  "@clearCompletedGoogleConfirmation": {
+    "placeholders": {
+      "list": {
+        "type": "String"
+      },
+      "account": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "clearCompletedNextcloudConfirmation": "Delete {count} closed root task trees from “{list}” ({account})?\n\nTheir descendants will also be deleted.",
-  "@clearCompletedNextcloudConfirmation": {"placeholders": {"list": {"type": "String"}, "account": {"type": "String"}, "count": {"type": "int"}}},
+  "@clearCompletedNextcloudConfirmation": {
+    "placeholders": {
+      "list": {
+        "type": "String"
+      },
+      "account": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "taskMoveAfterSaveFailed": "Your edits were saved, but the task could not be moved. Retry the move.",
   "taskDraftConflict": "This task changed since you opened it. Your edits are retained. Review the latest task before retrying.",
   "taskUnavailableDraftRetained": "This task is unavailable. Your unsaved changes are retained.",
-  "taskDurationRequiresStart": "Set a deadline before removing the start of a task with a duration."
+  "taskDurationRequiresStart": "Set a deadline before removing the start of a task with a duration.",
+  "privateServerCertificates": "Private server certificates",
+  "reviewServerCertificate": "Review server certificate",
+  "certificateStandard": "Standard HTTPS",
+  "certificatePrivateCa": "Private certificate authority",
+  "certificatePinnedLeaf": "Pinned self-signed certificate",
+  "certificateImportCa": "Import private CA",
+  "certificateReplacePin": "Review a replacement pin",
+  "certificateUseStandard": "Return to standard HTTPS",
+  "certificateApprove": "Approve this certificate policy",
+  "certificateReject": "Reject",
+  "certificatePrevious": "Previously approved certificates",
+  "certificateInvalid": "Invalid certificate or private CA configuration",
+  "certificateFirstUseWarning": "Encryption alone does not establish server identity on first use. Compare the SHA-256 fingerprint through an independently trusted administrator channel before approval.",
+  "certificateRenewalHelp": "Prefer a private CA: server certificates may renew under it. A pinned leaf requires explicit review for every certificate change, even with the same key. Public certificates renew normally.",
+  "certificateBrowserBoundary": "Browser authorization remains external. BusyMax approval does not configure browser trust; your browser must trust the server separately.",
+  "certificateDetails": "Subject: {subject}\nIssuer: {issuer}\nValid from: {notBefore}\nValid until: {notAfter}\nSHA-256 fingerprint: {fingerprint}",
+  "certificateFailure": "{reason, select, approvalRequired{Approval required} pinMismatch{Pinned certificate changed} expired{Certificate expired} notYetValid{Certificate not yet valid} hostnameMismatch{Certificate hostname mismatch} invalidPolicy{Invalid private CA configuration} ineligible{Certificate is ineligible} verificationFailed{TLS verification failed} other{TLS verification failed}}",
+  "@certificateDetails": {
+    "description": "Plain text certificate details derived from X.509; dates are UTC.",
+    "placeholders": {
+      "subject": {
+        "type": "String"
+      },
+      "issuer": {
+        "type": "String"
+      },
+      "notBefore": {
+        "type": "String"
+      },
+      "notAfter": {
+        "type": "String"
+      },
+      "fingerprint": {
+        "type": "String"
+      }
+    }
+  },
+  "@certificateFailure": {
+    "placeholders": {
+      "reason": {}
+    }
+  },
+  "addCalDavAccount": "Add CalDAV account",
+  "caldavServerUrl": "Server URL",
+  "caldavUsername": "Username",
+  "caldavPassword": "Password or app password",
+  "caldavInvalidServerUrl": "Enter an HTTPS URL without credentials, query, or fragment.",
+  "caldavHttpsHelp": "Enter the HTTPS server URL or a direct CalDAV endpoint. Your password is stored securely.",
+  "davPermissionsUnknown": "The server has not advertised permissions. Requested changes will be checked by the server.",
+  "localNetworkAccessRequired": "Local network access required",
+  "localNetworkAccessRecovery": "To reach this server, allow BusyMax access to nearby devices in Android Settings, then try again.",
+  "taskReminderRequiresAnchor": "Adjust the relative reminder before removing its start or deadline.",
+  "attachmentInvalidOrTooLarge": "This attachment is invalid or exceeds the size limit."
 }

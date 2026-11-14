@@ -55,7 +55,19 @@ android {
     }
 
     defaultConfig {
-        applicationId = "io.busystack.busymax"
+        // Keep real device QA isolated from the installed user's app/data.
+        // This opt-in is accepted only with the existing explicit test signer.
+        val nextcloudQa = providers.gradleProperty("busymaxNextcloudQa").orNull == "true"
+        val caldavQa = providers.gradleProperty("busymaxCalDavQa").orNull == "true"
+        check(!(nextcloudQa && caldavQa)) { "Select one isolated QA package" }
+        check(!(nextcloudQa || caldavQa) || providers.gradleProperty("busymaxTestSigning").orNull == "true") {
+            "DAV QA requires busymaxTestSigning=true"
+        }
+        applicationId = when {
+            nextcloudQa -> "io.busystack.busymax.nextcloudqa"
+            caldavQa -> "io.busystack.busymax.caldavqa"
+            else -> "io.busystack.busymax"
+        }
         minSdk = 24
         targetSdk = 37
         // Keep Android's required monotonic package code separate from the
@@ -65,7 +77,7 @@ android {
         // (https://developer.android.com/studio/build/configure-apk-splits#configure-APK-versions)
         // You can force using the value of versionCode by specifying the `-P force-version-code-ignoring-abi=true`
         // flag during build.
-        versionCode = 7
+        versionCode = 8
         versionName = flutter.versionName
         manifestPlaceholders["busymaxMsalRedirectHost"] = applicationId!!
         manifestPlaceholders["busymaxMsalSignatureHash"] = msalSignatureHash

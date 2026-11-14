@@ -19,6 +19,8 @@ import '../../support/memory_settings_store.dart';
 import '../../test_localized_app.dart';
 import 'nextcloud_admin_fixture.dart';
 
+import 'package:busymax/src/dav/nextcloud/nextcloud_federation_service.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -44,6 +46,59 @@ void main() {
           null,
         );
   });
+
+  for (final platform in ['Linux', 'Windows', 'Android']) {
+    testWidgets(
+      '$platform accepts and declines account-owned federation invitations',
+      (tester) async {
+        final fixture = NextcloudAdminFixture();
+        await tester.runAsync(fixture.seed);
+        addTearDown(fixture.close);
+        Map<String, Object?> invitation(int id) => {
+          'id': id,
+          'displayName': 'Remote calendar $id',
+          'sharedBy': 'owner@cloud.test/subpath',
+          'sharedByDisplayName': 'Owner',
+          'remoteUrl': 'https://untrusted.test/never-send-credentials',
+          'permissions': 31,
+          'components': 'VEVENT,VTODO',
+        };
+        fixture.federationInvitations.add(invitation(1));
+        await _pumpFederation(tester, fixture, platform);
+        expect(find.text('Remote calendar 1'), findsOneWidget);
+        await tester.tap(
+          find.byKey(const ValueKey('nextcloud-federation-accept-1')),
+        );
+        await _settle(tester);
+        expect(fixture.requests.where((r) => r.method == 'POST'), hasLength(1));
+        expect(
+          find.text('No pending shared calendar invitations.'),
+          findsOneWidget,
+        );
+        fixture.federationInvitations.add(invitation(2));
+        final refresh = platform == 'Android'
+            ? find.byTooltip('Refresh')
+            : find.text('Refresh');
+        await tester.tap(refresh);
+        await _settle(tester);
+        expect(find.text('Remote calendar 2'), findsOneWidget);
+        await tester.tap(
+          find.byKey(const ValueKey('nextcloud-federation-decline-2')),
+        );
+        await _settle(tester);
+        expect(
+          fixture.requests.where((r) => r.method == 'DELETE'),
+          hasLength(1),
+        );
+        expect(
+          fixture.requests.every((r) => r.url.host == 'cloud.example.test'),
+          isTrue,
+        );
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+  }
 
   for (final (property, invalid, valid, message) in [
     ('displayname', ' ', 'Repaired QA collection', 'This field is required.'),
@@ -379,16 +434,169 @@ void main() {
     );
   });
 
+  for (final platform in ['Linux', 'Windows', 'Android']) {
+    testWidgets(
+      '$platform bounds automatic identification of small unnamed trash items',
+      (tester) async {
+        final fixture = NextcloudAdminFixture()..trashObjectCount = 20;
+        await tester.runAsync(fixture.seed);
+        addTearDown(fixture.close);
+        await _pumpTrash(tester, fixture, platform: platform);
+        await _settle(tester);
+        expect(fixture.requests.where((r) => r.method == 'GET'), hasLength(5));
+        expect(
+          fixture.requests.where((r) => r.body.contains('calendar-data')),
+          isEmpty,
+        );
+        expect(find.text('Deleted event'), findsWidgets);
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+  }
+
+  for (final platform in ['Linux', 'Windows', 'Android']) {
+    testWidgets(
+      '$platform shows trash metadata before an on-demand detail read completes',
+      (tester) async {
+        final fixture = NextcloudAdminFixture()
+          ..trashDescriptionBytes = 65 * 1024;
+        await tester.runAsync(fixture.seed);
+        addTearDown(fixture.close);
+        await _pumpTrash(tester, fixture, platform: platform);
+        expect(find.text('41.ics'), findsOneWidget);
+        expect(find.text('42.ics'), findsOneWidget);
+        expect(
+          fixture.requests.where(
+            (r) => r.method == 'GET' || r.body.contains('calendar-data'),
+          ),
+          isEmpty,
+        );
+        final started = Completer<void>();
+        final release = Completer<void>();
+        addTearDown(() {
+          if (!release.isCompleted) release.complete();
+        });
+        fixture.beforeResponse = (request) async {
+          if (request.method == 'GET') {
+            started.complete();
+            await release.future;
+          }
+        };
+        final href =
+            '${NextcloudAdminFixture.origin}${NextcloudAdminFixture.bin}objects/41.ics';
+        if (platform == 'Android') {
+          await tester.tap(
+            find.byKey(ValueKey(('nextcloud-trash-menu', href))),
+          );
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('Show'));
+        } else {
+          await tester.tap(
+            find.byKey(ValueKey(('nextcloud-trash-details', href))),
+          );
+        }
+        for (var i = 0; i < 30 && !started.isCompleted; i++) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 10)),
+          );
+          await tester.pump(const Duration(milliseconds: 20));
+        }
+        expect(started.isCompleted, isTrue);
+        expect(find.text('42.ics'), findsOneWidget);
+        expect(find.text('Deleted event'), findsNothing);
+        release.complete();
+        await _settle(tester);
+        expect(find.text('Deleted event'), findsOneWidget);
+        expect(find.text('42.ics'), findsOneWidget);
+        expect(find.text('Deleted task'), findsNothing);
+        expect(fixture.requests.where((r) => r.method == 'GET'), hasLength(1));
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+  }
+
+  testWidgets(
+    'trash keeps the newest listing when refreshes finish in reverse order',
+    (tester) async {
+      final fixture = NextcloudAdminFixture()
+        ..trashDescriptionBytes = 65 * 1024;
+      await tester.runAsync(fixture.seed);
+      addTearDown(fixture.close);
+      await _pumpTrash(tester, fixture, platform: 'Android');
+      expect(find.text('42.ics'), findsOneWidget);
+      final olderStarted = Completer<void>();
+      final releaseOlder = Completer<void>();
+      addTearDown(() {
+        if (!releaseOlder.isCompleted) releaseOlder.complete();
+      });
+      fixture.beforeResponse = (request) async {
+        // Hold the older listing after its object inventory has been captured.
+        if (request.method == 'PROPFIND' &&
+            request.url.path == NextcloudAdminFixture.home &&
+            request.headers['depth'] == '1' &&
+            !olderStarted.isCompleted) {
+          olderStarted.complete();
+          await releaseOlder.future;
+        }
+      };
+      final refresh = tester
+          .widget<RefreshIndicator>(find.byType(RefreshIndicator))
+          .onRefresh;
+      Future<void> until(bool Function() done) async {
+        for (var i = 0; i < 50 && !done(); i++) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 10)),
+          );
+          await tester.pump(const Duration(milliseconds: 20));
+        }
+        expect(done(), isTrue);
+      }
+
+      var olderDone = false, newerDone = false;
+      final older = refresh().whenComplete(() => olderDone = true);
+      await until(() => olderStarted.isCompleted);
+      fixture.restored.add('${NextcloudAdminFixture.bin}objects/42.ics');
+      final newer = refresh().whenComplete(() => newerDone = true);
+      await until(() => newerDone);
+      await newer;
+      await tester.pump();
+      expect(find.text('41.ics'), findsOneWidget);
+      expect(find.text('42.ics'), findsNothing);
+      releaseOlder.complete();
+      await until(() => olderDone);
+      await older;
+      await tester.pump();
+      expect(find.text('41.ics'), findsOneWidget);
+      expect(find.text('42.ics'), findsNothing);
+      expect(find.byType(LinearProgressIndicator), findsNothing);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
   testWidgets('trash uses shared rows and confirms permanent deletion', (
     tester,
   ) async {
-    final fixture = NextcloudAdminFixture();
+    final fixture = NextcloudAdminFixture()..trashDescriptionBytes = 65 * 1024;
     await tester.runAsync(fixture.seed);
     addTearDown(fixture.close);
     await _pumpTrash(tester, fixture);
 
     expect(find.byType(BusyMaxDialogShell), findsOneWidget);
-    expect(find.byType(BusyMaxGroupedList), findsOneWidget);
+    expect(find.byType(BusyMaxGroupedList), findsWidgets);
+    for (final id in [41, 42]) {
+      final action = find.byKey(
+        ValueKey((
+          'nextcloud-trash-details',
+          '${NextcloudAdminFixture.origin}${NextcloudAdminFixture.bin}objects/$id.ics',
+        )),
+      );
+      await tester.ensureVisible(action);
+      await tester.tap(action);
+      await _settle(tester);
+    }
     expect(find.text('Deleted event'), findsOneWidget);
     expect(find.text('Deleted task'), findsOneWidget);
     expect(find.textContaining('30'), findsOneWidget);
@@ -508,7 +716,7 @@ void main() {
 }
 
 Future<void> _settle(WidgetTester tester) async {
-  for (var i = 0; i < 5; i++) {
+  for (var i = 0; i < 20; i++) {
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 20)),
     );
@@ -597,10 +805,28 @@ Future<void> _pump(
 
 Future<void> _pumpTrash(
   WidgetTester tester,
-  NextcloudAdminFixture fixture,
-) async {
-  await tester.binding.setSurfaceSize(const Size(760, 700));
+  NextcloudAdminFixture fixture, {
+  String platform = 'Linux',
+}) async {
+  await tester.binding.setSurfaceSize(const Size(760, 850));
   addTearDown(() => tester.binding.setSurfaceSize(null));
+  final home = Builder(
+    builder: (context) => Center(
+      child: platform == 'Windows'
+          ? fluent.Button(
+              onPressed: () => showWindowsNextcloudTrashDialog(
+                context,
+                accountId: 'account',
+              ),
+              child: const Text('Open trash'),
+            )
+          : BusyMaxPushButton.standard(
+              onPressed: () =>
+                  showLinuxNextcloudTrashDialog(context, accountId: 'account'),
+              child: const Text('Open trash'),
+            ),
+    ),
+  );
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -608,27 +834,86 @@ Future<void> _pumpTrash(
         nextcloudTrashServiceProvider('account')
             .overrideWithValue(fixture.trash),
       ],
-      child: localizedTestApp(
-        theme: BusyMaxYaruTheme.build(
-          brightness: Brightness.dark,
-          accentColor: YaruColors.orange,
-        ),
-        child: Scaffold(
-          body: Builder(
-            builder: (context) => Center(
-              child: BusyMaxPushButton.standard(
-                onPressed: () => showLinuxNextcloudTrashDialog(
-                  context,
-                  accountId: 'account',
-                ),
-                child: const Text('Open trash'),
+      child: platform == 'Windows'
+          ? fluent.FluentApp(
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: home,
+            )
+          : localizedTestApp(
+              theme: BusyMaxYaruTheme.build(
+                brightness: Brightness.dark,
+                accentColor: YaruColors.orange,
               ),
+              child: platform == 'Android'
+                  ? const AndroidNextcloudTrashScreen(accountId: 'account')
+                  : Scaffold(body: home),
             ),
-          ),
-        ),
-      ),
     ),
   );
-  await tester.tap(find.text('Open trash'));
+  if (platform != 'Android') await tester.tap(find.text('Open trash'));
+  await _settle(tester);
+}
+
+Future<void> _pumpFederation(
+  WidgetTester tester,
+  NextcloudAdminFixture fixture,
+  String platform,
+) async {
+  await tester.binding.setSurfaceSize(const Size(760, 700));
+  addTearDown(() => tester.binding.setSurfaceSize(null));
+  final home = Builder(
+    builder: (context) => Center(
+      child: platform == 'Windows'
+          ? fluent.Button(
+              onPressed: () => showWindowsNextcloudFederationDialog(
+                context,
+                accountId: 'account',
+              ),
+              child: const Text('Open invitations'),
+            )
+          : TextButton(
+              onPressed: () {
+                if (platform == 'Windows') {
+                  showWindowsNextcloudFederationDialog(
+                    context,
+                    accountId: 'account',
+                  );
+                } else {
+                  showLinuxNextcloudFederationDialog(
+                    context,
+                    accountId: 'account',
+                  );
+                }
+              },
+              child: const Text('Open invitations'),
+            ),
+    ),
+  );
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        localSettingsStoreProvider.overrideWithValue(MemorySettingsStore()),
+        nextcloudFederationServiceProvider('account')
+            .overrideWithValue(NextcloudFederationService(fixture.collections)),
+      ],
+      child: platform == 'Windows'
+          ? fluent.FluentApp(
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: home,
+            )
+          : localizedTestApp(
+              theme: BusyMaxYaruTheme.build(
+                brightness: Brightness.dark,
+                accentColor: YaruColors.orange,
+              ),
+              child: platform == 'Android'
+                  ? const AndroidNextcloudFederationScreen(accountId: 'account')
+                  : Scaffold(body: home),
+            ),
+    ),
+  );
+  if (platform != 'Android') await tester.tap(find.text('Open invitations'));
   await _settle(tester);
 }

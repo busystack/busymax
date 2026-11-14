@@ -58,12 +58,14 @@ class CalendarManagementCapabilities {
     required this.supportsRename,
     required this.supportsDelete,
     required this.supportsColor,
+    this.supportsNativeExport = false,
   });
 
   final bool supportsCreate;
   final bool supportsRename;
   final bool supportsDelete;
   final bool supportsColor;
+  final bool supportsNativeExport;
 }
 
 const googleCalendarProviderCapabilities = CalendarProviderCapabilities(
@@ -103,12 +105,13 @@ const microsoftCalendarProviderCapabilities = CalendarProviderCapabilities(
 CalendarManagementCapabilities calendarManagementCapabilities(
   BusyProvider provider,
 ) {
-  if (provider == BusyProvider.nextcloud) {
+  if (provider == BusyProvider.nextcloud || provider == BusyProvider.caldav) {
     return const CalendarManagementCapabilities(
       supportsCreate: true,
       supportsRename: true,
       supportsDelete: true,
       supportsColor: true,
+      supportsNativeExport: true,
     );
   }
   final cloudCapabilities = switch (provider) {
@@ -116,6 +119,7 @@ CalendarManagementCapabilities calendarManagementCapabilities(
     BusyProvider.microsoft => microsoftCalendarProviderCapabilities,
     BusyProvider.appleICloud ||
     BusyProvider.nextcloud ||
+    BusyProvider.caldav ||
     BusyProvider.webCal => null,
   };
   return CalendarManagementCapabilities(

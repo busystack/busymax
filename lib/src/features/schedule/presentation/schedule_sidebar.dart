@@ -29,7 +29,6 @@ import '../../../schedule/schedule_sidebar_sources.dart';
 import '../../../webcal/webcal_subscription_service.dart';
 import '../../accounts/data/accounts_repository.dart';
 import '../../accounts/domain/account_collection_creation_capabilities.dart';
-import '../../calendar/data/calendar_collection_creation_service.dart';
 import '../../calendar/data/calendar_repository.dart';
 import '../../connectivity/network_connectivity_service.dart';
 import '../../calendar/presentation/calendar_color_dialog.dart';
@@ -744,7 +743,7 @@ class _SubscriptionSourceRow extends ConsumerWidget {
   }
 }
 
-class _AccountHeaderRow extends StatelessWidget {
+class _AccountHeaderRow extends ConsumerWidget {
   const _AccountHeaderRow({
     required this.account,
     required this.expanded,
@@ -762,7 +761,13 @@ class _AccountHeaderRow extends StatelessWidget {
   final ValueChanged<AccountHeaderCollectionAction> onActionSelected;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pending = account.provider == BusyProvider.nextcloud
+        ? ref
+                  .watch(nextcloudPendingInvitationCountProvider(account.id))
+                  .valueOrNull ??
+              0
+        : 0;
     final colorScheme = Theme.of(context).colorScheme;
     final secondaryLabel = _accountHeaderSecondaryLabel(account);
     final hasSecondaryLabel =
@@ -772,6 +777,8 @@ class _AccountHeaderRow extends StatelessWidget {
       providerName,
       account.displayLabel,
       if (hasSecondaryLabel) secondaryLabel,
+      if (pending > 0)
+        '${context.l10n.nextcloudFederationInvitations} ($pending)',
     ].join(', ');
     return Padding(
       padding: const EdgeInsetsDirectional.only(
@@ -798,6 +805,13 @@ class _AccountHeaderRow extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.labelLarge,
+                      ),
+                    if (pending > 0)
+                      Text(
+                        '${context.l10n.nextcloudFederationInvitations} ($pending)',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall,
                       ),
                     Row(
                       children: [
@@ -980,6 +994,7 @@ String _accountProviderLetter(BusyProvider provider) => switch (provider) {
   BusyProvider.nextcloud => 'N',
   BusyProvider.appleICloud => 'A',
   BusyProvider.webCal => 'W',
+  BusyProvider.caldav => 'C',
 };
 
 String _accountProviderName(BuildContext context, BusyProvider provider) =>
@@ -989,6 +1004,7 @@ String _accountProviderName(BuildContext context, BusyProvider provider) =>
       BusyProvider.nextcloud => context.l10n.nextcloudProvider,
       BusyProvider.appleICloud => context.l10n.appleICloudProvider,
       BusyProvider.webCal => 'WebCal',
+      BusyProvider.caldav => 'CalDAV',
     };
 
 class _AccountCalendarSources extends ConsumerWidget {
@@ -1150,7 +1166,7 @@ class _TaskListScheduleRow extends ConsumerWidget {
               case 'toggle-reminders':
                 unawaited(_setTaskListRemindersEnabled(context, ref, list));
               case 'rename':
-                unawaited(_renameTaskList(context, ref, list));
+                if (canRename) unawaited(_renameTaskList(context, ref, list));
               case 'collection-settings':
                 unawaited(
                   showLinuxNextcloudCollectionDialog(
@@ -1160,7 +1176,7 @@ class _TaskListScheduleRow extends ConsumerWidget {
                   ),
                 );
               case 'delete':
-                unawaited(_deleteTaskList(context, ref, list));
+                if (canDelete) unawaited(_deleteTaskList(context, ref, list));
             }
           },
           entries: [
@@ -1250,6 +1266,7 @@ Uri? scheduleCalendarProviderWebUri(
     BusyProvider.appleICloud => null,
     BusyProvider.nextcloud => _safeAccountWebUri(account.authority),
     BusyProvider.webCal => null,
+    BusyProvider.caldav => null,
   };
 }
 
@@ -1261,6 +1278,7 @@ Uri? scheduleTaskProviderWebUri(AccountEntity account) {
     BusyProvider.appleICloud => null,
     BusyProvider.nextcloud => _safeAccountWebUri(account.authority),
     BusyProvider.webCal => null,
+    BusyProvider.caldav => null,
   };
 }
 
@@ -1395,6 +1413,10 @@ bool _canDeleteTaskList(
   TaskListEntity list,
   TaskCollectionCapabilities? davCapabilities,
 ) {
+  if (account.provider == BusyProvider.caldav &&
+      (list.isShared == true || list.davCollectionId == null)) {
+    return false;
+  }
   if (account.provider == BusyProvider.microsoft) {
     return list.canRenameOrDeleteForMicrosoft;
   }
@@ -1543,9 +1565,7 @@ Future<void> _createAccountCalendar(
     final result = await ref
         .read(calendarCollectionCreationServiceProvider)
         .createCalendar(accountId: account.id, title: title);
-    if (context.mounted &&
-        result.outcome ==
-            CalendarCollectionCreationOutcome.createdRefreshPending) {
+    if (context.mounted && result.refreshPending) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(context.l10n.calendarCreatedRefreshPending)),
       );
@@ -1582,6 +1602,10 @@ Future<void> _createAccountTaskList(
     await ref
         .read(taskListsRepositoryForAccountProvider(account.id))
         .createTaskList(title);
+  } on DavRefreshPending {
+    if (context.mounted) {
+      _showCalendarMutationFailure(context, context.l10n.davRefreshPending);
+    }
   } on Object catch (error) {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1650,6 +1674,10 @@ Future<void> _changeCalendarColor(
         .read(calendarRepositoryProvider)
         .setSourceColor(source.id, choice);
     _requestCalendarMutationSync(ref, source.accountId);
+  } on DavRefreshPending {
+    if (context.mounted) {
+      _showCalendarMutationFailure(context, context.l10n.davRefreshPending);
+    }
   } on NextcloudRefreshPending {
     if (context.mounted) {
       _showCalendarMutationFailure(
@@ -1700,6 +1728,10 @@ Future<void> _renameCalendar(
         .read(calendarRepositoryProvider)
         .renameLocalSource(source.id, title.trim());
     _requestCalendarMutationSync(ref, source.accountId);
+  } on DavRefreshPending {
+    if (context.mounted) {
+      _showCalendarMutationFailure(context, context.l10n.davRefreshPending);
+    }
   } on NextcloudRefreshPending {
     if (context.mounted) {
       _showCalendarMutationFailure(
@@ -1739,8 +1771,7 @@ Future<void> _deleteCalendar(
         : context.l10n.delete,
     message: removeFromList
         ? context.l10n.removeCalendarConfirmation(source.summary)
-        : source.provider == BusyProvider.nextcloud &&
-              source.davEffectivePermissions['supportedComponentMask'] == 3
+        : source.isMixedDavCollection
         ? context.l10n.nextcloudRemoveMixed
         : context.l10n.deleteCalendarConfirmation(source.summary),
     confirmLabel: removeFromList
@@ -1754,6 +1785,10 @@ Future<void> _deleteCalendar(
   try {
     await ref.read(calendarRepositoryProvider).deleteLocalSource(source.id);
     _requestCalendarMutationSync(ref, source.accountId);
+  } on DavRefreshPending {
+    if (context.mounted) {
+      _showCalendarMutationFailure(context, context.l10n.davRefreshPending);
+    }
   } on NextcloudRefreshPending {
     if (context.mounted) {
       _showCalendarMutationFailure(
@@ -1813,6 +1848,10 @@ Future<void> _renameTaskList(
     await ref
         .read(taskListsRepositoryForAccountProvider(list.accountId))
         .renameTaskList(list.id, title.trim());
+  } on DavRefreshPending {
+    if (context.mounted) {
+      _showCalendarMutationFailure(context, context.l10n.davRefreshPending);
+    }
   } on Object catch (error) {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1861,6 +1900,10 @@ Future<void> _deleteTaskList(
     await ref
         .read(taskListsRepositoryForAccountProvider(list.accountId))
         .deleteTaskList(list.id);
+  } on DavRefreshPending {
+    if (context.mounted) {
+      _showCalendarMutationFailure(context, context.l10n.davRefreshPending);
+    }
   } on Object catch (error) {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

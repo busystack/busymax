@@ -20,7 +20,7 @@ import 'package:uuid/uuid.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:timezone/data/latest.dart' as tz_data;
+import 'package:busymax/src/core/time/iana_time_zone_data.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 
 import '../app/app_settings.dart';
@@ -28,6 +28,7 @@ import '../db/app_database.dart';
 import '../features/accounts/data/accounts_repository.dart';
 import '../features/notifications/notification_reconciler.dart';
 import 'android_notification_gate.dart';
+import 'android_runtime_resources.dart';
 import 'android_settings_store.dart';
 
 const androidReminderChannelId = 'busymax_reminders_v1';
@@ -225,37 +226,40 @@ Future<void> busyMaxNotificationBackgroundResponse(
     return;
   }
   final platform = BusyMaxAndroidPlatform.instance;
-  final lease = await platform.acquireAccountGate('__notifications__');
-  final database = AppDatabase.open();
-  var changed = false;
+  final resources = AndroidRuntimeResources();
+  Object? failure;
   try {
-    changed = await applyAndroidReminderAction(
-      database: database,
-      activation: _publicActivation(payload)!,
-      actionId: response.actionId!,
-      nowUtc: DateTime.now().toUtc(),
-    );
-  } finally {
-    await database.close();
-    await platform.releaseAccountGate(lease);
-  }
-  if (changed) {
-    final store = AndroidSettingsStore(platform: platform);
-    final settings = AppSettings.fromJson(await store.load());
-    final reconcileDatabase = AppDatabase.open();
-    final service = AndroidNotificationService(
-      database: reconcileDatabase,
-      settings: () => settings,
-      policyStore: store,
-      platform: platform,
-    );
-    try {
+    final changed = await AndroidNotificationGate(platform).run(() async {
+      final database = resources.own(AppDatabase.open(), (db) => db.close());
+      return applyAndroidReminderAction(
+        database: database,
+        activation: _publicActivation(payload)!,
+        actionId: response.actionId!,
+        nowUtc: DateTime.now().toUtc(),
+      );
+    });
+    if (changed) {
+      final store = AndroidSettingsStore(platform: platform);
+      final settings = AppSettings.fromJson(await store.load());
+      final database = resources.own(AppDatabase.open(), (db) => db.close());
+      final service = resources.own(
+        AndroidNotificationService(
+          database: database,
+          settings: () => settings,
+          policyStore: store,
+          platform: platform,
+        ),
+        (service) => service.dispose(),
+      );
       await service.initialize(timeZoneId: await platform.currentTimeZoneId());
       await service.reconcile();
       await platform.notifyDataChanged();
-    } finally {
-      await reconcileDatabase.close();
     }
+  } catch (error) {
+    failure = error;
+    rethrow;
+  } finally {
+    await resources.close(preserveFailure: failure != null);
   }
 }
 
@@ -267,58 +271,60 @@ Future<bool> applyAndroidReminderAction({
   required AndroidReminderActivation activation,
   required String actionId,
   required DateTime nowUtc,
-}) => database.transaction(() async {
-  if (!const {
-    androidNotificationActionSnooze,
-    androidNotificationActionDismiss,
-  }.contains(actionId)) {
-    return false;
-  }
-  final row =
-      await (database.select(database.notificationSchedule)..where(
-            (table) =>
-                table.id.equals(activation.scheduleId) &
-                table.generation.equals(activation.generation) &
-                table.accountId.equals(activation.accountId) &
-                table.sourceType.equals(activation.sourceType) &
-                table.dismissedAtUtc.isNull() &
-                table.expiredAtUtc.isNull(),
-          ))
-          .getSingleOrNull();
-  if (row == null ||
-      !await NotificationScheduleService(
-        database: database,
-        nowUtc: () => nowUtc,
-      ).validateAndReconcileReminder(row)) {
-    return false;
-  }
-  final now = nowUtc.millisecondsSinceEpoch;
-  final update = actionId == androidNotificationActionSnooze
-      ? NotificationScheduleCompanion(
-          generation: Value(const Uuid().v4()),
-          snoozedUntilUtc: Value(
-            now + defaultReminderSnoozeDuration.inMilliseconds,
-          ),
-          sentAtUtc: const Value(null),
-          deferredUntilUtc: const Value(null),
-          updatedAtLocal: Value(now),
-        )
-      : NotificationScheduleCompanion(
-          dismissedAtUtc: Value(now),
-          snoozedUntilUtc: const Value(null),
-          deferredUntilUtc: const Value(null),
-          updatedAtLocal: Value(now),
-        );
-  return await (database.update(database.notificationSchedule)..where(
-            (table) =>
-                table.id.equals(row.id) &
-                table.generation.equals(row.generation) &
-                table.dismissedAtUtc.isNull() &
-                table.expiredAtUtc.isNull(),
-          ))
-          .write(update) !=
-      0;
-});
+}) => database.synchronizeNotifications(
+  () => database.transaction(() async {
+    if (!const {
+      androidNotificationActionSnooze,
+      androidNotificationActionDismiss,
+    }.contains(actionId)) {
+      return false;
+    }
+    final row =
+        await (database.select(database.notificationSchedule)..where(
+              (table) =>
+                  table.id.equals(activation.scheduleId) &
+                  table.generation.equals(activation.generation) &
+                  table.accountId.equals(activation.accountId) &
+                  table.sourceType.equals(activation.sourceType) &
+                  table.dismissedAtUtc.isNull() &
+                  table.expiredAtUtc.isNull(),
+            ))
+            .getSingleOrNull();
+    if (row == null ||
+        !await NotificationScheduleService(
+          database: database,
+          nowUtc: () => nowUtc,
+        ).validateAndReconcileReminder(row)) {
+      return false;
+    }
+    final now = nowUtc.millisecondsSinceEpoch;
+    final update = actionId == androidNotificationActionSnooze
+        ? NotificationScheduleCompanion(
+            generation: Value(const Uuid().v4()),
+            snoozedUntilUtc: Value(
+              now + defaultReminderSnoozeDuration.inMilliseconds,
+            ),
+            sentAtUtc: const Value(null),
+            deferredUntilUtc: const Value(null),
+            updatedAtLocal: Value(now),
+          )
+        : NotificationScheduleCompanion(
+            dismissedAtUtc: Value(now),
+            snoozedUntilUtc: const Value(null),
+            deferredUntilUtc: const Value(null),
+            updatedAtLocal: Value(now),
+          );
+    return await (database.update(database.notificationSchedule)..where(
+              (table) =>
+                  table.id.equals(row.id) &
+                  table.generation.equals(row.generation) &
+                  table.dismissedAtUtc.isNull() &
+                  table.expiredAtUtc.isNull(),
+            ))
+            .write(update) !=
+        0;
+  }),
+);
 
 final class AndroidReminderActivation {
   const AndroidReminderActivation({
@@ -415,6 +421,7 @@ final class AndroidNotificationService
     required AppSettings Function() settings,
     LocalSettingsStore? policyStore,
     BusyMaxAndroidPlatform? platform,
+    AndroidNotificationGate? gate,
     AndroidNotificationStrings Function()? strings,
     FlutterLocalNotificationsPlugin? plugin,
     AndroidNotificationBackend? backend,
@@ -424,6 +431,9 @@ final class AndroidNotificationService
        _settingsReader = settings,
        _policyStore = policyStore,
        _platform = platform ?? BusyMaxAndroidPlatform.instance,
+       _gate =
+           gate ??
+           AndroidNotificationGate(platform ?? BusyMaxAndroidPlatform.instance),
        _stringsOverride = strings,
        _notifications = backend ?? FlutterAndroidNotificationBackend(plugin),
        _exactAlarmCapability = exactAlarmCapability,
@@ -435,6 +445,7 @@ final class AndroidNotificationService
   final LocalSettingsStore? _policyStore;
   AppSettings? _currentPolicy;
   final BusyMaxAndroidPlatform _platform;
+  final AndroidNotificationGate _gate;
   final AndroidNotificationStrings Function()? _stringsOverride;
   final AndroidNotificationBackend _notifications;
   final Future<bool> Function()? _exactAlarmCapability;
@@ -451,7 +462,7 @@ final class AndroidNotificationService
       : AppSettings.fromJson(await _policyStore.load());
 
   Future<void> synchronize(Future<void> Function() operation) =>
-      AndroidNotificationGate(_platform).run(operation);
+      _gate.run(operation);
 
   Future<bool> _policyStillCurrent(
     AppSettings snapshot, {
@@ -485,6 +496,8 @@ final class AndroidNotificationService
       StreamController<AndroidReminderActivation>.broadcast(sync: true);
   AndroidReminderActivation? _initialActivation;
   bool _initialized = false;
+  bool _disposed = false;
+  Future<void>? _disposal;
   bool _reconciling = false;
   bool _reconcileAgain = false;
   String _precisionDiagnostic = 'Alarm precision has not been checked.';
@@ -494,18 +507,37 @@ final class AndroidNotificationService
     const AndroidNotificationReadiness(),
   );
 
+  Future<void> dispose() => _disposal ??= _dispose();
+
+  Future<void> _dispose() async {
+    _disposed = true;
+    _initialized = false;
+    // Drain only this engine's notification work through its normal lease.
+    // Do not withdraw durable/native reminders on runtime shutdown.
+    try {
+      await _gate.drain();
+    } finally {
+      await _activations.close();
+      readiness.dispose();
+    }
+  }
+
   Future<void> refreshReadiness() async {
+    if (_disposed) return;
     try {
       final capabilities = await _platform.notificationCapabilities();
+      final exact = await canScheduleExactly();
+      if (_disposed) return;
       readiness.value = AndroidNotificationReadiness(
         initialized: _initialized,
         notificationsAllowed: capabilities['notifications'] as bool?,
         remindersAllowed: capabilities['reminders'] as bool?,
         summariesAllowed: capabilities['summaries'] as bool?,
         statusAllowed: capabilities['status'] as bool?,
-        exactAlarms: await canScheduleExactly(),
+        exactAlarms: exact,
       );
     } on Object {
+      if (_disposed) return;
       readiness.value = AndroidNotificationReadiness(
         initialized: _initialized,
         failed: true,
@@ -522,6 +554,7 @@ final class AndroidNotificationService
   }
 
   Future<void> initialize({required String timeZoneId}) async {
+    if (_disposed) throw StateError('Notification service disposed.');
     if (_initialized) {
       updateTimeZone(timeZoneId);
       return;
@@ -687,6 +720,7 @@ final class AndroidNotificationService
     final message = kind == 'conflict'
         ? l10n.blockedPendingOperations
         : switch (revision.split(':').first) {
+            'certificateReviewRequired' => l10n.reviewServerCertificate,
             'reconnectRequired' => strings.reconnectRequired,
             'permissionChanged' => strings.permissionChanged,
             'unsupportedProvider' => strings.unsupportedProvider,
@@ -772,34 +806,37 @@ final class AndroidNotificationService
 
   @override
   Future<void> reconcile() async {
-    if (!_initialized) return;
-    if (_reconciling) {
-      _reconcileAgain = true;
-      return;
-    }
-    _reconciling = true;
-    try {
-      await synchronize(() async {
+    if (!_initialized || _disposed) return;
+    // Acquire before coalescing: a caller already holding the gate (startup
+    // observation + rebuild) must not skip observation behind a queued scan.
+    await synchronize(() async {
+      if (!_initialized || _disposed) return;
+      if (_reconciling) {
+        _reconcileAgain = true;
+        return;
+      }
+      _reconciling = true;
+      try {
         do {
           _reconcileAgain = false;
           await _reconcileOnce();
         } while (_reconcileAgain);
-      });
-    } on Object {
-      final status = readiness.value;
-      readiness.value = AndroidNotificationReadiness(
-        initialized: _initialized,
-        notificationsAllowed: status.notificationsAllowed,
-        remindersAllowed: status.remindersAllowed,
-        summariesAllowed: status.summariesAllowed,
-        statusAllowed: status.statusAllowed,
-        exactAlarms: status.exactAlarms,
-        failed: true,
-      );
-      rethrow;
-    } finally {
-      _reconciling = false;
-    }
+      } catch (_) {
+        final status = readiness.value;
+        readiness.value = AndroidNotificationReadiness(
+          initialized: _initialized,
+          notificationsAllowed: status.notificationsAllowed,
+          remindersAllowed: status.remindersAllowed,
+          summariesAllowed: status.summariesAllowed,
+          statusAllowed: status.statusAllowed,
+          exactAlarms: status.exactAlarms,
+          failed: true,
+        );
+        rethrow;
+      } finally {
+        _reconciling = false;
+      }
+    });
   }
 
   Future<void> _reconcileOnce() async {
@@ -1552,6 +1589,7 @@ final class AndroidNotificationService
   }
 
   Future<void> _foregroundResponse(NotificationResponse response) async {
+    if (_disposed) return;
     if (response.actionId != null &&
         !const {
           androidNotificationActionOpen,
@@ -1564,24 +1602,21 @@ final class AndroidNotificationService
         response.actionId == androidNotificationActionDismiss) {
       final payload = parseAndroidReminderActivation(response.payload);
       if (payload == null) return;
-      final lease = await _platform.acquireAccountGate('__notifications__');
-      try {
+      await synchronize(() async {
         await applyAndroidReminderAction(
           database: _database,
           activation: payload,
           actionId: response.actionId!,
           nowUtc: _now().toUtc(),
         );
-      } finally {
-        await _platform.releaseAccountGate(lease);
-      }
+      });
       await reconcile();
       return;
     }
     final activation = _publicActivation(
       _AndroidReminderPayload.tryParse(response.payload),
     );
-    if (activation != null) _activations.add(activation);
+    if (activation != null && !_disposed) _activations.add(activation);
   }
 }
 

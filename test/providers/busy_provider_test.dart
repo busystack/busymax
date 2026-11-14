@@ -13,6 +13,7 @@ void main() {
       BusyProvider.appleICloud,
       BusyProvider.nextcloud,
       BusyProvider.webCal,
+      BusyProvider.caldav,
     ]);
     expect(BusyProvider.values.map((provider) => provider.storageValue), [
       'google',
@@ -20,6 +21,7 @@ void main() {
       'apple_icloud',
       'nextcloud',
       'webcal',
+      'caldav',
     ]);
   });
 
@@ -37,7 +39,7 @@ void main() {
       isA<UnsupportedStoredProvider>(),
     );
     expect(
-      BusyProviderCodec.parseStorageValue('caldav'),
+      BusyProviderCodec.parseStorageValue('invalid-provider'),
       isA<UnsupportedStoredProvider>(),
     );
     expect(

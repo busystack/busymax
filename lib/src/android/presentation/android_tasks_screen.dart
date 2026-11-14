@@ -1,5 +1,7 @@
 import 'package:busymax/src/core/auth/authorization_attempt.dart';
 
+import 'android_dav_attachments_section.dart';
+
 import 'dart:async';
 import 'dart:convert';
 
@@ -147,6 +149,19 @@ class _AndroidTasksScreenState extends ConsumerState<AndroidTasksScreen> {
       _accountId = null;
       _listId = null;
     }
+    final selectedCapabilities = selectedAccount == null || _listId == null
+        ? noTaskCollectionCapabilities
+        : selectedAccount.provider.isDav
+        ? ref
+                  .watch(
+                    davTaskCollectionCapabilitiesProvider((
+                      accountId: selectedAccount.id,
+                      taskListId: _listId!,
+                    )),
+                  )
+                  .valueOrNull ??
+              noTaskCollectionCapabilities
+        : adapterDefaultTaskCapabilities(selectedAccount.provider);
     final taskQuery = (
       query: _query,
       accountId: _accountId,
@@ -205,8 +220,7 @@ class _AndroidTasksScreenState extends ConsumerState<AndroidTasksScreen> {
                   child: Text(context.l10n.noDate),
                 ),
                 if (_listId != null &&
-                    (selectedAccount?.provider == BusyProvider.google ||
-                        selectedAccount?.provider == BusyProvider.nextcloud))
+                    selectedCapabilities.supportsClearCompleted)
                   PopupMenuItem(
                     value: 'clear-completed',
                     child: Text(context.l10n.clearCompleted),
@@ -1002,7 +1016,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   late RecurrenceFrequency _recurrenceFrequency = _taskRecurrence().frequency;
 
   TaskCollectionCapabilities get _capabilities => switch (widget.provider) {
-    BusyProvider.appleICloud || BusyProvider.nextcloud =>
+    BusyProvider.appleICloud || BusyProvider.nextcloud || BusyProvider.caldav =>
       ref
               .read(
                 davTaskCollectionCapabilitiesProvider((
@@ -1099,8 +1113,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.provider == BusyProvider.appleICloud ||
-        widget.provider == BusyProvider.nextcloud) {
+    if (widget.provider.isDav) {
       ref.watch(
         davTaskCollectionCapabilitiesProvider((
           accountId: widget.accountId,
@@ -1173,6 +1186,17 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
                     }
                   },
                 ),
+            if (widget.provider.isDav &&
+                widget.task != null &&
+                (_observedTask ?? widget.task!).icalUid != null &&
+                (_observedTask ?? widget.task!).davCollectionId != null)
+              AndroidDavAttachmentsSection.task(
+                target: (
+                  accountId: widget.accountId,
+                  taskListId: (_observedTask ?? widget.task!).taskListId,
+                  taskId: (_observedTask ?? widget.task!).id,
+                ),
+              ),
             if (widget.provider == BusyProvider.microsoft &&
                 widget.task != null)
               Column(
@@ -2904,11 +2928,14 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       notes: _notes.text,
       location: _location.text,
       taskUrl: _url.text,
-      categories: _categories.text
-          .split(',')
-          .map((e) => e.trim())
-          .where((e) => e.isNotEmpty)
-          .toList(),
+      // Keep category values containing commas when their display is unchanged.
+      categories: _categories.text == _draft.categories.join(', ')
+          ? _draft.categories
+          : _categories.text
+                .split(',')
+                .map((e) => e.trim())
+                .where((e) => e.isNotEmpty)
+                .toList(),
     );
   }
 
@@ -3075,7 +3102,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       return EventRecurrenceCodec.decode(
         widget.provider,
         jsonDecode(raw),
-        baseDate: widget.provider == BusyProvider.nextcloud
+        baseDate: widget.provider.isDav
             ? _recurrenceReference?.dateTime
             : DateTime.tryParse(_draft.dueDate ?? ''),
       );
@@ -3213,11 +3240,50 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
     if (!_canWrite) return;
     setState(() => _saving = true);
     try {
+      final repository = ref.read(
+        tasksRepositoryForAccountProvider(widget.accountId),
+      );
+      final taskId = _observedTask?.id ?? widget.task!.id;
+      final needsConsent = await repository
+          .taskDuplicationRequiresSchedulingConsent(_draft.taskListId, taskId);
+      if (!mounted) return;
+      final allowed =
+          !needsConsent ||
+          await showDialog<bool>(
+                context: context,
+                builder: (dialog) => AlertDialog(
+                  title: Text(context.l10n.duplicateTask),
+                  content: Text(
+                    context.l10n.caldavTaskDuplicationSchedulingWarning,
+                  ),
+                  actions: [
+                    TextButton(
+                      autofocus: true,
+                      onPressed: () => Navigator.pop(dialog, false),
+                      child: Text(context.l10n.cancel),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(dialog, true),
+                      child: Text(context.l10n.duplicateTask),
+                    ),
+                  ],
+                ),
+              ) ==
+              true;
+      if (!allowed ||
+          !mounted ||
+          !_capabilities.canCreateTasks ||
+          !_recoveryLoaded ||
+          _hierarchyNavigationPending ||
+          taskId != (_observedTask?.id ?? widget.task!.id)) {
+        return;
+      }
       final duplicateId = await ref
           .read(tasksRepositoryForAccountProvider(widget.accountId))
           .duplicateTask(
             _draft.taskListId,
             (_observedTask?.id ?? widget.task!.id),
+            allowScheduling: needsConsent && allowed,
           );
       widget.onMutationCommitted?.call(
         AndroidTaskEditorResult(

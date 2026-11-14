@@ -105,6 +105,69 @@ void main() {
           tester.view.devicePixelRatio = 1;
           addTearDown(tester.view.resetPhysicalSize);
           addTearDown(tester.view.resetDevicePixelRatio);
+          Future<void> permissionDialog() async {
+            final dialog = find.descendant(
+              of: find.byType(AlertDialog),
+              matching: find.text('Local network access required'),
+            );
+            for (
+              var attempt = 0;
+              attempt < 40 && dialog.evaluate().isEmpty;
+              attempt++
+            ) {
+              await tester.pump(const Duration(milliseconds: 20));
+              await tester.runAsync(
+                () => Future<void>.delayed(const Duration(milliseconds: 20)),
+              );
+            }
+            await tester.pump(const Duration(milliseconds: 400));
+            expect(dialog, findsOneWidget);
+          }
+
+          Future<void> tapRetainedAction(Finder target) async {
+            await Scrollable.ensureVisible(
+              tester.element(target),
+              alignment: 0.5,
+            );
+            await tester.pump(const Duration(milliseconds: 400));
+            await tester.tap(target.hitTestable());
+          }
+
+          var localPermission = false;
+          var requestAllowed = false;
+          var permissionRequests = 0;
+          var settingsOpened = 0;
+          if (!windows) {
+            final messenger = TestDefaultBinaryMessengerBinding
+                .instance
+                .defaultBinaryMessenger;
+            messenger.setMockMethodCallHandler(
+              const MethodChannel('io.busystack.busymax/android'),
+              (call) async {
+                switch (call.method) {
+                  case 'requiresLocalNetworkAccess':
+                    return true;
+                  case 'hasLocalNetworkAccess':
+                    return localPermission;
+                  case 'requestLocalNetworkAccess':
+                    permissionRequests++;
+                    localPermission = requestAllowed;
+                    return localPermission;
+                  case 'openAppSettings':
+                    settingsOpened++;
+                    return null;
+                  default:
+                    return null;
+                }
+              },
+            );
+            addTearDown(
+              () => messenger.setMockMethodCallHandler(
+                const MethodChannel('io.busystack.busymax/android'),
+                null,
+              ),
+            );
+          }
           final f = ContactsFixture(
             AppDatabase.memoryForTests(),
             realDav: true,
@@ -223,6 +286,38 @@ void main() {
               .asyncMap((_) => f.store.read((tx) => tx.count()))
               .firstWhere((count) => count > 0);
           await tester.tap(find.text('Connect').last);
+          if (!windows) {
+            await permissionDialog();
+            expect(
+              await complete(tester, () => f.store.read((tx) => tx.accounts())),
+              isEmpty,
+            );
+            expect(f.davSecrets, isEmpty);
+            expect(permissionRequests, 1);
+            await tester.tap(find.text('Settings').last);
+            await settle(tester);
+            expect(settingsOpened, 1);
+            requestAllowed = true;
+            await tester.ensureVisible(add);
+            await tester.tap(add);
+            await tester.pump(const Duration(milliseconds: 400));
+            await tester.enterText(
+              find.byType(TextField).at(0),
+              'Independent fixture',
+            );
+            await tester.enterText(
+              find.byType(TextField).at(1),
+              server.toString(),
+            );
+            if (!nextcloud) {
+              await tester.enterText(
+                find.byType(TextField).at(2),
+                'actual-user',
+              );
+              await tester.enterText(find.byType(TextField).at(3), 'fixture');
+            }
+            await tester.tap(find.text('Connect').last);
+          }
           await complete(tester, () => enrolled);
           await settle(tester);
           final account = (await complete(
@@ -273,6 +368,45 @@ void main() {
             findsWidgets,
           );
           await contactActionsReady(tester, windows);
+          if (!windows) {
+            final secretBefore = Map<String, String>.from(f.davSecrets);
+            final before = await complete(
+              tester,
+              () => f.store.read((tx) => tx.account(account.id)),
+            );
+            final requestsBefore = f.requests.length;
+            localPermission = false;
+            requestAllowed = false;
+            final retry = find.text('Retry contacts sync');
+            await tapRetainedAction(retry);
+            await permissionDialog();
+            await tester.tap(find.text('Cancel').last);
+            await settle(tester);
+            expect(f.requests.length, requestsBefore);
+            expect(f.davSecrets, secretBefore);
+            expect(
+              (await complete(
+                tester,
+                () => f.store.read((tx) => tx.account(account.id)),
+              ))!.generation,
+              before!.generation,
+            );
+            // Retained-account reconnect also asks before browser or DAV work.
+            await tester.ensureVisible(
+              find.text('Reconnect this account').first,
+            );
+            await tester.tap(find.text('Reconnect this account').first);
+            await permissionDialog();
+            await tester.tap(find.text('Cancel').last);
+            await settle(tester);
+            expect(f.requests.length, requestsBefore);
+            localPermission = true;
+            requestAllowed = true;
+            await tapRetainedAction(retry);
+            await settle(tester);
+            expect(f.requests.length, greaterThan(requestsBefore));
+            expect(f.davSecrets, secretBefore);
+          }
           await tester.ensureVisible(find.text('Remove').first);
           await tester.pumpAndSettle();
           await tester.tap(find.text('Remove').first);

@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:busymax/src/dav/nextcloud/nextcloud_scheduling_policy.dart';
 import 'package:busymax/src/dav/dav_provider_profile.dart';
 import 'package:busymax/src/dav/dav_errors.dart';
 import 'package:busymax/src/dav/storage/dav_collection_capabilities.dart';
@@ -14,6 +17,197 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  test('Nextcloud refreshes subtree features and persists matching outbox authority', () async {
+    final db = AppDatabase.memoryForTests();
+    addTearDown(db.close);
+    await db
+        .into(db.accounts)
+        .insert(
+          AccountsCompanion.insert(
+            id: 'account',
+            provider: 'nextcloud',
+            authority: 'https://cloud.example.test/nextcloud',
+            providerAccountId: 'alex',
+            credentialKind: 'nextcloud_app_password',
+            createdAtUtc: 'now',
+            updatedAtUtc: 'now',
+          ),
+        );
+    final repository = DavDiscoveryRepository(database: db);
+    await repository.commitSuccessfulInventory(await _discoverFixture());
+    final original = (await db.select(db.davCollections).get()).first;
+    await db
+        .into(db.pendingOps)
+        .insert(
+          PendingOpsCompanion.insert(
+            id: 'offline-edit',
+            accountId: 'account',
+            entityType: 'event',
+            operation: 'update',
+            requestJson: '{}',
+            createdAtUtc: 'now',
+            updatedAtUtc: 'now',
+          ),
+        );
+    final requests = <http.Request>[];
+    final result = await _discoverFixture(
+      features: '1, 3, extended-mkcol',
+      endpointFeatures: 'calendar-access, calendar-auto-schedule, nc-calendar-trashbin, nc-calendar-webcal-cache',
+      requests: requests,
+      inventory: _inventoryResponse.replaceFirst(
+        '</d:multistatus>',
+        '<d:response><d:href>/nextcloud/remote.php/dav/calendars/alex/trash-bin/</d:href>'
+            '<d:propstat><d:prop><d:resourcetype><d:collection/><nc:trash-bin/></d:resourcetype>'
+            '</d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>',
+      ),
+      outboxPrivilege: '{urn:ietf:params:xml:ns:caldav}schedule-send-reply',
+    );
+    expect(
+      result.collections.any((c) => c.kind == DavCollectionKind.trashBin),
+      isTrue,
+    );
+    expect(
+      result.service.capabilities.serverFeatures,
+      contains('nc-calendar-trashbin'),
+    );
+    expect(
+      result.service.capabilities.serverFeatures.any(
+        (f) => f.startsWith('allow:'),
+      ),
+      isFalse,
+    );
+    expect(
+      result.service.capabilities.supportedReports,
+      isNot(contains('REPORT')),
+    );
+    expect(
+      result
+          .service
+          .principalContexts
+          .single
+          .endpointCapabilities
+          .last
+          .allowedMethods,
+      contains('REPORT'),
+    );
+    expect(
+      requests.any(
+        (r) =>
+            r.method == 'PROPFIND' &&
+            r.url.path.endsWith('/outbox/') &&
+            r.headers['depth'] == '0',
+      ),
+      isTrue,
+    );
+    expect(
+      requests
+          .firstWhere((r) => r.headers['depth'] == '1')
+          .headers['x-nc-caldav-webcal-caching'],
+      'On',
+    );
+    await repository.commitSuccessfulInventory(result);
+    final stored = await (db.select(
+      db.davCollections,
+    )..where((r) => r.id.equals(original.id))).getSingle();
+    final policy = await NextcloudSchedulingPolicy.load(db, stored);
+    expect(policy.canReply, isTrue);
+    expect(policy.canInvite, isFalse);
+    expect(policy.canQueryFreeBusy, isFalse);
+    expect(policy.addresses, contains('mailto:alex@example.test'));
+    expect((await db.select(db.pendingOps).get()).single.id, 'offline-edit');
+    final saved = await db.select(db.davAccountServices).getSingle();
+    expect(saved.capabilitiesSchemaVersion, davCapabilitiesSchemaVersion);
+    expect(jsonDecode(saved.capabilitiesJson)['principalContexts'], isNotEmpty);
+    await expectLater(
+      _discoverFixture(endpointStatus: 503),
+      throwsA(isA<DavException>()),
+    );
+    await repository.recordDiscoveryFailure('account', 'DavServerUnavailable');
+    expect(
+      (await db.select(db.davCollections).get()).every((c) => !c.serverMissing),
+      isTrue,
+    );
+    expect(
+      (await db.select(db.davAccountServices).getSingle()).capabilitiesJson,
+      saved.capabilitiesJson,
+    );
+    expect(
+      (await NextcloudSchedulingPolicy.load(db, stored)).canReply,
+      isFalse,
+    );
+    await repository.commitSuccessfulInventory(result);
+    expect((await NextcloudSchedulingPolicy.load(db, stored)).canReply, isTrue);
+  });
+
+  test('initial-endpoint scheduling features retain v0.3.2 behavior with principal ACLs', () async {
+    final db = AppDatabase.memoryForTests();
+    addTearDown(db.close);
+    await db
+        .into(db.accounts)
+        .insert(
+          AccountsCompanion.insert(
+            id: 'account',
+            provider: 'nextcloud',
+            providerAccountId: 'alex',
+            authority: 'https://cloud.example.test/nextcloud',
+            credentialKind: 'nextcloud_app_password',
+            createdAtUtc: 'now',
+            updatedAtUtc: 'now',
+          ),
+        );
+    final repository = DavDiscoveryRepository(database: db);
+    for (final privilege in ['schedule-send', 'schedule-send-reply']) {
+      final discovered = await _discoverFixture(
+        features: 'calendar-access, calendar-auto-schedule',
+        endpointFeatures: 'calendar-access',
+        outboxPrivilege: '{urn:ietf:params:xml:ns:caldav}$privilege',
+      );
+      expect(
+        discovered.service.principalContexts.single.serverFeatures,
+        isNot(contains('calendar-auto-schedule')),
+      );
+      // v0.3.2 checked this union before checking the same outbox ACL.
+      expect(
+        discovered.service.capabilities.serverFeatures,
+        contains('calendar-auto-schedule'),
+      );
+      await repository.commitSuccessfulInventory(discovered);
+      final collection = (await db.select(db.davCollections).get()).firstWhere(
+        (c) => c.eventProjectionEnabled,
+      );
+      final policy = await NextcloudSchedulingPolicy.load(db, collection);
+      expect(policy.canReply, isTrue);
+      expect(policy.canInvite, privilege == 'schedule-send');
+      expect(policy.canQueryFreeBusy, privilege == 'schedule-send');
+      expect(policy.canReadInbox, isTrue); // Inbox ACL property was omitted.
+      expect(policy.canAcknowledgeInbox, isFalse);
+    }
+  });
+
+  test(
+    'discovery persists unknown and explicitly denied inbox ACLs separately',
+    () async {
+      final unknown =
+          (await _discoverFixture()).service.principalContexts.single;
+      final denied = (await _discoverFixture(
+        inventory: _inventoryResponse.replaceFirst(
+          '<d:displayname>Inbox</d:displayname>',
+          '<d:displayname>Inbox</d:displayname><d:current-user-privilege-set/>',
+        ),
+      )).service.principalContexts.single;
+      expect(
+        DavPrincipalContext.fromJson(unknown.toJson()).inboxPrivilegesKnown,
+        isFalse,
+      );
+      expect(
+        DavPrincipalContext.fromJson(denied.toJson()).inboxPrivilegesKnown,
+        isTrue,
+      );
+      expect(unknown.inboxPrivileges, isEmpty);
+      expect(denied.inboxPrivileges, isEmpty);
+    },
+  );
+
   test(
     'subscribed-only resources use advertised cache without content writes',
     () async {
@@ -112,8 +306,22 @@ void main() {
         'mailto:delegate@example.test',
       );
       expect(result.collections.where((c) => c.delegated), hasLength(3));
-      expect(requests[4].url.path, endsWith('/principals/users/delegate/'));
-      expect(requests[5].url.path, endsWith('/calendars/delegate/'));
+      expect(
+        requests.any(
+          (r) =>
+              r.method == 'PROPFIND' &&
+              r.url.path.endsWith('/principals/users/delegate/'),
+        ),
+        isTrue,
+      );
+      expect(
+        requests.any(
+          (r) =>
+              r.method == 'PROPFIND' &&
+              r.url.path.endsWith('/calendars/delegate/'),
+        ),
+        isTrue,
+      );
     },
   );
 
@@ -163,6 +371,22 @@ void main() {
       var requestIndex = 0;
       final client = MockClient((request) async {
         requests.add(request);
+        if (request.method == 'OPTIONS' && requestIndex > 0) {
+          return http.Response(
+            '',
+            200,
+            headers: {
+              'dav': 'calendar-access',
+              'allow': 'OPTIONS, PROPFIND, REPORT',
+            },
+          );
+        }
+        if (request.url.path.endsWith('/outbox/')) {
+          return _outboxResponse(
+            request.url.path,
+            '{urn:ietf:params:xml:ns:caldav}schedule-send',
+          );
+        }
         final response = switch (requestIndex) {
           0 => http.Response(
             '',
@@ -216,12 +440,15 @@ void main() {
         'OPTIONS',
         'PROPFIND',
         'PROPFIND',
+        'OPTIONS',
+        'OPTIONS',
+        'PROPFIND',
         'PROPFIND',
       ]);
       expect(requests.first.url.path, '/.well-known/caldav');
       expect(requests[1].headers['depth'], '0');
       expect(requests[2].headers['depth'], '0');
-      expect(requests[3].headers['depth'], '1');
+      expect(requests[5].headers['depth'], '1');
       expect(
         requests,
         everyElement(
@@ -358,10 +585,27 @@ Future<DavDiscoveryResult> _discoverFixture({
   String features = 'calendar-access',
   List<http.Request>? requests,
   bool delegated = false,
+  String? endpointFeatures,
+  String outboxPrivilege = '{urn:ietf:params:xml:ns:caldav}schedule-send',
+  int endpointStatus = 200,
+  BusyProvider provider = BusyProvider.nextcloud,
 }) {
   var index = 0;
   final client = MockClient((request) async {
     requests?.add(request);
+    if (request.method == 'OPTIONS' && index > 0) {
+      return http.Response(
+        '',
+        endpointStatus,
+        headers: {
+          'dav': endpointFeatures ?? features,
+          'allow': 'OPTIONS, PROPFIND, REPORT',
+        },
+      );
+    }
+    if (request.url.path.endsWith('/outbox/')) {
+      return _outboxResponse(request.url.path, outboxPrivilege);
+    }
     return switch (index++) {
       0 => http.Response('', 200, headers: {'dav': features}),
       1 => _multistatus(_currentPrincipalResponse),
@@ -384,8 +628,8 @@ Future<DavDiscoveryResult> _discoverFixture({
   addTearDown(client.close);
   final authority = Uri.parse('https://cloud.example.test/nextcloud');
   final profile = davProviderProfile(
-    BusyProvider.nextcloud,
-    nextcloudServer: authority,
+    provider,
+    nextcloudServer: provider == BusyProvider.nextcloud ? authority : null,
   );
   return DavDiscoveryService(
     transport: DavHttpTransport(
@@ -533,3 +777,12 @@ const _inventoryResponse = '''<?xml version="1.0"?>
    <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
  </d:response>
 </d:multistatus>''';
+
+http.Response _outboxResponse(String path, String privilege) {
+  final end = privilege.indexOf('}');
+  final namespace = privilege.substring(1, end);
+  final name = privilege.substring(end + 1);
+  return _multistatus(
+    '<d:multistatus xmlns:d="DAV:"><d:response><d:href>$path</d:href><d:propstat><d:prop><d:current-user-privilege-set><d:privilege><p:$name xmlns:p="$namespace"/></d:privilege></d:current-user-privilege-set></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>',
+  );
+}

@@ -139,6 +139,14 @@ final class DavEventMutationInput {
   final DateTime? mutationAtUtc;
 }
 
+DavNewObject _completeObjectTimeZones(DavNewObject object) => DavNewObject(
+  uid: object.uid,
+  initialMemberName: object.initialMemberName,
+  rawIcs: completeIcalTimeZones(object.rawIcs),
+  componentType: object.componentType,
+  suppressScheduling: object.suppressScheduling,
+);
+
 DavNewObject buildDavEventObject(
   DavEventMutationInput input, {
   String Function()? idFactory,
@@ -184,7 +192,7 @@ DavNewObject buildDavEventObject(
     ..._recurrenceOperations(input.recurrence),
     ..._eventAlarmOperations(input.reminders, startIndex: 0),
   ];
-  if (operations.isEmpty) return initial;
+  if (operations.isEmpty) return _completeObjectTimeZones(initial);
   final patch = DavMutationPatch(
     target: IcalComponentKey(componentType: 'VEVENT', uid: initial.uid),
     scope: DavMutationScope.object,
@@ -948,7 +956,7 @@ DavNewObject buildDavTaskObject(
     else if (_taskReminder(fields) case final alarm?)
       DavPatchOperation.replaceAlarm(alarmIndex: 0, alarm: alarm),
   ];
-  if (operations.isEmpty) return initial;
+  if (operations.isEmpty) return _completeObjectTimeZones(initial);
   final patch = DavMutationPatch(
     target: target,
     scope: DavMutationScope.object,
@@ -1760,35 +1768,40 @@ List<DavPatchOperation> _eventAlarmUpdateOperations(
   final editableAlarms = _editableDisplayAlarms(current);
   final currentReminders = [for (final alarm in editableAlarms) alarm.minutes];
   if (_sameIntegers(currentReminders, desiredReminders)) return const [];
-  return [
-    for (
-      var index = 0;
-      index < editableAlarms.length && index < desiredReminders.length;
-      index += 1
-    )
-      DavPatchOperation.replaceAlarm(
-        alarmIndex: editableAlarms[index].index,
-        alarm: _displayAlarm(desiredReminders[index]),
-      ),
-    for (
-      var index = editableAlarms.length - 1;
-      index >= desiredReminders.length;
-      index -= 1
-    )
-      DavPatchOperation.replaceAlarm(
-        alarmIndex: editableAlarms[index].index,
-        alarm: null,
-      ),
-    for (
-      var index = editableAlarms.length;
-      index < desiredReminders.length;
-      index += 1
-    )
-      DavPatchOperation.replaceAlarm(
-        alarmIndex: current.alarms.length + index - editableAlarms.length,
-        alarm: _displayAlarm(desiredReminders[index]),
-      ),
-  ];
+  // Older callers have only minute lists. Match unchanged alarms first, then
+  // update remaining identities in place, retaining descriptions/extensions.
+  // Editors that know identities use davEditableRows directly (including
+  // distinct alarms sharing the same minute value).
+  final retained = <int>{};
+  final matched = <int, int>{};
+  for (var i = 0; i < desiredReminders.length; i++) {
+    final unchanged = editableAlarms
+        .where(
+          (alarm) =>
+              alarm.minutes == desiredReminders[i] &&
+              !retained.contains(alarm.index),
+        )
+        .firstOrNull;
+    if (unchanged != null) {
+      matched[i] = unchanged.index;
+      retained.add(unchanged.index);
+    }
+  }
+  final remaining = editableAlarms
+      .where((alarm) => !retained.contains(alarm.index))
+      .iterator;
+  return _eventAlarmUpdateOperations(current, {
+    'davEditableRows': [
+      for (var i = 0; i < desiredReminders.length; i++)
+        {
+          'minutes': desiredReminders[i],
+          if (matched[i] case final index?)
+            'originalIndex': index
+          else if (remaining.moveNext())
+            'originalIndex': remaining.current.index,
+        },
+    ],
+  });
 }
 
 List<IcalComponent> _eventAlarmComponents(Object? reminders) {

@@ -1,3 +1,5 @@
+import '../support/persistence_test_directory.dart';
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -1059,7 +1061,7 @@ void main() {
       test(
         '$provider failed removal preserves settings and provider binding after disk restart enabled=$enabled',
         () async {
-          final profile = await Directory.systemTemp.createTemp(
+          final profile = await createPersistenceTestDirectory(
             'busymax-removal-restart-',
           );
           addTearDown(() => profile.delete(recursive: true));

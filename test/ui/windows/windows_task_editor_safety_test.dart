@@ -22,6 +22,42 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  for (final editCategories in [false, true]) {
+    testWidgets(
+      'Windows task details preserve category values during unrelated edits; categories edited=$editCategories',
+      (tester) async {
+        final db = await _mount(
+          tester,
+          existing: true,
+          existingProvider: 'microsoft',
+          existingCategories: const ['one,two', '雪'],
+        );
+        await tester.enterText(find.byType(TextBox).first, 'Unrelated title');
+        if (editCategories) {
+          final categories = find.byWidgetPredicate(
+            (widget) =>
+                widget is TextBox && widget.controller?.text == 'one,two, 雪',
+          );
+          await tester.ensureVisible(categories);
+          await tester.enterText(categories, 'changed, new');
+        }
+        final save = find.widgetWithText(FilledButton, 'Save');
+        await tester.ensureVisible(save);
+        await tester.runAsync(() async {
+          await tester.tap(save);
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+        });
+        await tester.pumpAndSettle();
+        expect(find.byType(ContentDialog), findsNothing);
+        final task = await db.select(db.tasks).getSingle();
+        expect(task.title, 'Unrelated title');
+        expect(
+          jsonDecode(task.categoriesJson!),
+          editCategories ? ['changed', 'new'] : ['one,two', '雪'],
+        );
+      },
+    );
+  }
   for (final exclusion in ['read-only', 'pending-deletion']) {
     testWidgets(
       'Windows task editor validates $exclusion initial destination',
@@ -400,6 +436,7 @@ Future<AppDatabase> _mount(
   bool existing = false,
   bool assigned = false,
   String existingProvider = 'google',
+  List<String> existingCategories = const [],
   MicrosoftTodoApiClient? todoClient,
   AttachmentUploadCoordinator? uploadCoordinator,
   String initialAccount = 'nextcloud',
@@ -451,6 +488,7 @@ Future<AppDatabase> _mount(
         taskListId: 'list',
         id: 'task',
         title: 'Existing task',
+        categoriesJson: Value(jsonEncode(existingCategories)),
         assignmentInfoJson: assigned
             ? const Value(
                 '{"surfaceType":"DOCUMENT","linkToTask":"https://docs.google.com/document/d/example"}',

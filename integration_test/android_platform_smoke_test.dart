@@ -12,5 +12,12 @@ void main() {
     expect(await platform.uses24HourFormat(), isA<bool>());
     expect(await platform.googleAuthorizationAvailable(), isA<bool>());
     expect(await platform.microsoftAuthorizationAvailable(), isA<bool>());
+    expect(await platform.hasLocalNetworkAccess(), isA<bool>());
+    // Loopback is never an Android local-network destination. Null means that
+    // route information was unavailable; it must not become a positive grant.
+    expect(
+      await platform.requiresLocalNetworkAccess('127.0.0.1'),
+      anyOf(isNull, isFalse),
+    );
   });
 }

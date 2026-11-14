@@ -14,6 +14,47 @@ class AppLocalizationsVi extends AppLocalizations {
   AppLocalizationsVi([String locale = 'vi']) : super(locale);
 
   @override
+  String get davCollectionRemovalPartial =>
+      'Không thể xóa một số mục. Bộ sưu tập vẫn còn. Hãy làm mới trước khi thử lại.';
+
+  @override
+  String get caldavConflictDuplicationSchedulingWarning =>
+      'Mục này có người tham dự. Việc nhân bản có thể khiến máy chủ CalDAV gửi lời mời hoặc thông báo cập nhật. Cho phép nhân bản?';
+
+  @override
+  String get caldavTaskDuplicationSchedulingWarning =>
+      'Tác vụ này hoặc các tác vụ con có người tham gia. Việc nhân bản có thể khiến máy chủ CalDAV gửi lời mời hoặc cập nhật tác vụ. Cho phép nhân bản?';
+
+  @override
+  String get caldavSchedulingWarning =>
+      'Sự kiện này có người tham dự. Khi lưu hoặc xóa, máy chủ CalDAV có thể thông báo cho họ lúc thay đổi được đồng bộ.';
+
+  @override
+  String get caldavNativeImport =>
+      'Nhập tài nguyên đầy đủ của sự kiện và công việc. Với các mục có người tham dự, máy chủ CalDAV có thể gửi lời mời hoặc cập nhật cuộc họp. Các UID hiện có sẽ bị bỏ qua trừ khi bạn chọn tạo bản sao mới. Tài nguyên không được hỗ trợ sẽ được báo cáo riêng.';
+
+  @override
+  String get davInsufficientStorage =>
+      'Máy chủ không đủ dung lượng lưu trữ để tạo bộ sưu tập này.';
+
+  @override
+  String get davCollectionPropertyRejected =>
+      'Máy chủ đã từ chối một thuộc tính được yêu cầu của bộ sưu tập.';
+
+  @override
+  String get davCollectionDiscoveryRequired =>
+      'Làm mới tài khoản này để cập nhật khả năng và quyền của máy chủ.';
+
+  @override
+  String get caldavImportSchedulingWarning =>
+      'Tệp này có người tham dự. Tôi cho phép nhập tệp, thao tác có thể khiến máy chủ CalDAV gửi lời mời hoặc cập nhật cuộc họp.';
+
+  @override
+  String nextcloudCanonicalServerReview(String entered, String canonical) {
+    return 'Nextcloud trả về $canonical cho máy chủ $entered. Cho phép BusyMax gửi mật khẩu ứng dụng mới đến địa chỉ này?';
+  }
+
+  @override
   String get contactsAccountsUnavailable =>
       'Không thể tải các tài khoản danh bạ';
 
@@ -191,6 +232,18 @@ class AppLocalizationsVi extends AppLocalizations {
       'Đã lưu thay đổi trên Nextcloud. Đang chờ làm mới; không lặp lại thay đổi.';
 
   @override
+  String get davRefreshPending =>
+      'Đã lưu thay đổi trên máy chủ CalDAV. Đang chờ làm mới; không lặp lại thay đổi.';
+
+  @override
+  String get davCollectionCreationPending =>
+      'Đang chờ tạo bộ sưu tập. Hãy đồng bộ hóa tài khoản này trước khi thử lại; không lặp lại thao tác.';
+
+  @override
+  String get davCollectionCreationDenied =>
+      'Máy chủ không cho phép tạo bộ sưu tập.';
+
+  @override
   String get nextcloudOutcomeUnknown =>
       'Không thể xác nhận kết quả trên máy chủ. Làm mới trước khi thử lại.';
 
@@ -241,6 +294,33 @@ class AppLocalizationsVi extends AppLocalizations {
   @override
   String get nextcloudPermanentDeleteWarning =>
       'Xóa vĩnh viễn mục này? Không thể khôi phục từ thùng rác lịch của Nextcloud.';
+
+  @override
+  String get nextcloudDiscoveryRequired =>
+      'Làm mới tài khoản này để cập nhật các tính năng và quyền Nextcloud.';
+
+  @override
+  String get nextcloudConflict =>
+      'Mục hoặc quyền của mục đã thay đổi. Hãy làm mới và kiểm tra trước khi thử lại.';
+
+  @override
+  String get nextcloudItemUnavailable =>
+      'Mục này không còn khả dụng. Làm mới để kiểm tra trạng thái hiện tại.';
+
+  @override
+  String get nextcloudFederationInvitations => 'Lời mời lịch được chia sẻ';
+
+  @override
+  String get nextcloudFederationEmpty =>
+      'Không có lời mời lịch được chia sẻ đang chờ.';
+
+  @override
+  String get nextcloudFederationGrant =>
+      'Đã tạo chia sẻ trên máy chủ này. Chưa xác nhận việc chấp nhận và đồng bộ ở máy chủ từ xa.';
+
+  @override
+  String get nextcloudTrashDisabled =>
+      'Máy chủ này không lưu các mục lịch đã xóa.';
 
   @override
   String get nextcloudOperationDenied =>
@@ -3813,4 +3893,119 @@ class AppLocalizationsVi extends AppLocalizations {
   @override
   String get taskDurationRequiresStart =>
       'Đặt thời hạn trước khi xóa thời điểm bắt đầu của công việc có thời lượng.';
+
+  @override
+  String get privateServerCertificates => 'Chứng chỉ máy chủ riêng';
+
+  @override
+  String get reviewServerCertificate => 'Xem xét chứng chỉ máy chủ';
+
+  @override
+  String get certificateStandard => 'HTTPS tiêu chuẩn';
+
+  @override
+  String get certificatePrivateCa => 'Cơ quan chứng thực riêng';
+
+  @override
+  String get certificatePinnedLeaf => 'Chứng chỉ tự ký được ghim';
+
+  @override
+  String get certificateImportCa => 'Nhập CA riêng';
+
+  @override
+  String get certificateReplacePin => 'Xem xét chứng chỉ thay thế';
+
+  @override
+  String get certificateUseStandard => 'Trở về HTTPS tiêu chuẩn';
+
+  @override
+  String get certificateApprove => 'Phê duyệt chính sách chứng chỉ này';
+
+  @override
+  String get certificateReject => 'Từ chối';
+
+  @override
+  String get certificatePrevious => 'Chứng chỉ đã phê duyệt trước đây';
+
+  @override
+  String get certificateInvalid =>
+      'Chứng chỉ hoặc cấu hình CA riêng không hợp lệ';
+
+  @override
+  String get certificateFirstUseWarning =>
+      'Chỉ mã hóa không xác minh được danh tính máy chủ trong lần dùng đầu. Trước khi phê duyệt, hãy so sánh dấu vân tay SHA-256 qua kênh quản trị viên độc lập đáng tin cậy.';
+
+  @override
+  String get certificateRenewalHelp =>
+      'Ưu tiên CA riêng: chứng chỉ máy chủ có thể được gia hạn dưới CA đó. Mỗi thay đổi chứng chỉ được ghim đều cần xem xét rõ ràng, kể cả khi dùng cùng khóa. Chứng chỉ công khai được gia hạn bình thường.';
+
+  @override
+  String get certificateBrowserBoundary =>
+      'Việc ủy quyền dùng trình duyệt bên ngoài. Phê duyệt trong BusyMax không cấu hình độ tin cậy của trình duyệt; trình duyệt phải tin máy chủ riêng biệt.';
+
+  @override
+  String certificateDetails(
+    String subject,
+    String issuer,
+    String notBefore,
+    String notAfter,
+    String fingerprint,
+  ) {
+    return 'Chủ thể: $subject\nNhà phát hành: $issuer\nCó hiệu lực từ: $notBefore\nHết hạn: $notAfter\nDấu vân tay SHA-256: $fingerprint';
+  }
+
+  @override
+  String certificateFailure(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'approvalRequired': 'Cần phê duyệt',
+      'pinMismatch': 'Chứng chỉ được ghim đã thay đổi',
+      'expired': 'Chứng chỉ đã hết hạn',
+      'notYetValid': 'Chứng chỉ chưa có hiệu lực',
+      'hostnameMismatch': 'Tên máy chủ không khớp',
+      'invalidPolicy': 'Cấu hình CA riêng không hợp lệ',
+      'ineligible': 'Chứng chỉ không đủ điều kiện',
+      'verificationFailed': 'Xác minh TLS thất bại',
+      'other': 'Xác minh TLS thất bại',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get addCalDavAccount => 'Thêm tài khoản CalDAV';
+
+  @override
+  String get caldavServerUrl => 'URL máy chủ';
+
+  @override
+  String get caldavUsername => 'Tên người dùng';
+
+  @override
+  String get caldavPassword => 'Mật khẩu hoặc mật khẩu ứng dụng';
+
+  @override
+  String get caldavInvalidServerUrl =>
+      'Nhập URL HTTPS không chứa thông tin đăng nhập, truy vấn hoặc đoạn định danh.';
+
+  @override
+  String get caldavHttpsHelp =>
+      'Nhập URL HTTPS của máy chủ hoặc địa chỉ CalDAV trực tiếp. Mật khẩu được lưu trữ an toàn.';
+
+  @override
+  String get davPermissionsUnknown =>
+      'Máy chủ chưa thông báo quyền. Máy chủ sẽ kiểm tra các thay đổi được yêu cầu.';
+
+  @override
+  String get localNetworkAccessRequired => 'Cần quyền truy cập mạng cục bộ';
+
+  @override
+  String get localNetworkAccessRecovery =>
+      'Để kết nối với máy chủ này, hãy cho phép BusyMax truy cập các thiết bị ở gần trong phần Cài đặt Android, rồi thử lại.';
+
+  @override
+  String get taskReminderRequiresAnchor =>
+      'Điều chỉnh lời nhắc tương đối trước khi xóa thời gian bắt đầu hoặc hạn chót của lời nhắc.';
+
+  @override
+  String get attachmentInvalidOrTooLarge =>
+      'Tệp đính kèm này không hợp lệ hoặc vượt quá giới hạn kích thước.';
 }

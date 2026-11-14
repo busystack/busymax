@@ -29,6 +29,7 @@ import '../data/tasks_repository.dart';
 import '../domain/task_source_links.dart';
 import '../../schedule/presentation/schedule_event_details_format.dart';
 import '../../schedule/presentation/attachment_download.dart';
+import '../../schedule/presentation/dav_attachments_section.dart';
 import '../../schedule/presentation/attachment_upload_coordinator.dart';
 import '../../../microsoft_todo/api/microsoft_todo_api_client.dart';
 import '../../../microsoft_todo/api/microsoft_todo_api_models.dart';
@@ -284,6 +285,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                       children: [
                         YaruListTile.square(
                           title: TextField(
+                            key: const Key('task-title-field'),
                             controller: _titleController,
                             autofocus: widget.isCreate,
                             enabled: _canWrite,
@@ -297,6 +299,17 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                         ),
                       ],
                     ),
+                    if (widget.provider?.isDav == true &&
+                        !widget.isCreate &&
+                        _editingTask.icalUid != null &&
+                        _editingTask.davCollectionId != null)
+                      DavAttachmentsSection.task(
+                        target: (
+                          accountId: _editingTask.accountId,
+                          taskListId: _editingTask.taskListId,
+                          taskId: _editingTask.id,
+                        ),
+                      ),
                     if (_editingTask.googleSourceLinks.isNotEmpty)
                       BusyMaxGroupedList(
                         filled: true,
@@ -1363,6 +1376,9 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
             error is TaskDraftConflictException ||
                     error is TaskOccurrenceChangedException
                 ? context.l10n.taskDraftConflict
+                : error is DavException &&
+                      error.code == 'DavTaskReminderRequiresAnchor'
+                ? context.l10n.taskReminderRequiresAnchor
                 : error is DavException &&
                       error.code == 'DavTaskDurationRequiresStart'
                 ? context.l10n.taskDurationRequiresStart

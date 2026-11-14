@@ -182,7 +182,9 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
       return const SizedBox.shrink();
     }
     final davCapabilities = switch (account.provider) {
-      BusyProvider.appleICloud || BusyProvider.nextcloud =>
+      BusyProvider.appleICloud ||
+      BusyProvider.nextcloud ||
+      BusyProvider.caldav =>
         ref
             .watch(
               davTaskCollectionCapabilitiesProvider((
@@ -197,7 +199,8 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
     };
     final capabilities = switch (account.provider) {
       BusyProvider.appleICloud ||
-      BusyProvider.nextcloud => davCapabilities ?? noTaskCollectionCapabilities,
+      BusyProvider.nextcloud ||
+      BusyProvider.caldav => davCapabilities ?? noTaskCollectionCapabilities,
       BusyProvider.google || BusyProvider.microsoft =>
         adapterDefaultTaskCapabilities(account.provider),
       BusyProvider.webCal => noTaskCollectionCapabilities,
@@ -698,9 +701,27 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
     TaskEntity task,
   ) async {
     try {
+      final needsConsent = await repository
+          .taskDuplicationRequiresSchedulingConsent(task.taskListId, task.id);
+      if (!mounted) return;
+      final allowed =
+          !needsConsent ||
+          await showBusyMaxConfirm(
+            context,
+            title: context.l10n.duplicateTask,
+            message: context.l10n.caldavTaskDuplicationSchedulingWarning,
+            confirmLabel: context.l10n.duplicateTask,
+          );
+      if (!allowed ||
+          !mounted ||
+          _effectiveTaskId != task.id ||
+          _effectiveAccountId != task.accountId) {
+        return;
+      }
       final duplicateId = await repository.duplicateTask(
         task.taskListId,
         task.id,
+        allowScheduling: needsConsent && allowed,
       );
       await widget.onTaskMutationCommitted?.call(
         TaskMutationResult(
@@ -976,6 +997,7 @@ String _providerEditorLabel(BuildContext context, BusyProvider provider) {
     BusyProvider.microsoft => l10n.microsoftTodoProvider,
     BusyProvider.appleICloud => 'Apple iCloud',
     BusyProvider.nextcloud => 'Nextcloud Tasks',
+    BusyProvider.caldav => 'CalDAV',
     BusyProvider.webCal => 'WebCal',
   };
 }

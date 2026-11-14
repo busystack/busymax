@@ -30,6 +30,7 @@ final class DavConflictEntity {
     required this.canKeepServer,
     required this.canReapplyLocal,
     required this.canDuplicate,
+    this.duplicationRequiresSchedulingConsent = false,
   });
 
   final String id;
@@ -45,6 +46,7 @@ final class DavConflictEntity {
   final bool canKeepServer;
   final bool canReapplyLocal;
   final bool canDuplicate;
+  final bool duplicationRequiresSchedulingConsent;
 }
 
 final class DavConflictRepository {
@@ -117,11 +119,18 @@ final class DavConflictResolutionService {
   final String Function() _idFactory;
   final DateTime Function() _nowUtc;
 
-  Future<void> resolve(String snapshotId, DavConflictResolution resolution) {
+  Future<void> resolve(
+    String snapshotId,
+    DavConflictResolution resolution, {
+    bool allowScheduling = false,
+  }) {
     return switch (resolution) {
       DavConflictResolution.keepServer => _keepServer(snapshotId),
       DavConflictResolution.reapplyLocal => _reapplyLocal(snapshotId),
-      DavConflictResolution.duplicateLocal => _duplicateLocal(snapshotId),
+      DavConflictResolution.duplicateLocal => _duplicateLocal(
+        snapshotId,
+        allowScheduling: allowScheduling,
+      ),
     };
   }
 
@@ -435,7 +444,10 @@ final class DavConflictResolutionService {
     });
   }
 
-  Future<void> _duplicateLocal(String snapshotId) async {
+  Future<void> _duplicateLocal(
+    String snapshotId, {
+    required bool allowScheduling,
+  }) async {
     final context = await _context(snapshotId);
     final moveOutcome = _moveConflictOutcome(
       context.operation,
@@ -458,6 +470,7 @@ final class DavConflictResolutionService {
       await _pendingQueue.enqueueCreate(
         accountId: context.snapshot.accountId,
         collectionId: context.collection.id,
+        allowScheduling: allowScheduling,
         object: DavNewObject(
           uid: uid,
           initialMemberName: '${_idFactory()}.ics',
@@ -974,6 +987,10 @@ DavConflictEntity _entity(
     canDuplicate:
         snapshot.localCandidateRawIcs.isNotEmpty &&
         moveOutcome != _MoveConflictOutcome.unavailable,
+    duplicationRequiresSchedulingConsent:
+        provider == BusyProvider.caldav &&
+        snapshot.localCandidateRawIcs.isNotEmpty &&
+        icalHasAttendees(snapshot.localCandidateRawIcs),
   );
 }
 

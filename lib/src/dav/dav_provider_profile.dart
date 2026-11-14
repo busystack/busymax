@@ -2,7 +2,7 @@ import 'package:busystack_dav/busystack_dav.dart' as shared;
 
 import '../providers/busy_provider.dart';
 
-const davProviderProfileVersion = 4;
+const davProviderProfileVersion = 5;
 
 final class DavProviderProfile {
   const DavProviderProfile({
@@ -40,6 +40,7 @@ final class DavProviderProfile {
         _sameOrigin(destination, accountAuthority) &&
             (_preservesInstallationPath(destination, accountAuthority) ||
                 _isNextcloudOriginWellKnown(destination)),
+      BusyProvider.caldav => _sameOrigin(destination, accountAuthority),
       BusyProvider.google ||
       BusyProvider.microsoft ||
       BusyProvider.webCal => false,
@@ -54,6 +55,9 @@ shared.DavProviderProfile sharedDavProviderProfile(
 ) => switch (profile.provider) {
   BusyProvider.appleICloud => const shared.DavProviderProfile.iCloudCalDav(),
   BusyProvider.nextcloud => shared.DavProviderProfile.nextcloud(
+    allowInsecureLoopback: profile.allowInsecureLoopbackForTesting,
+  ),
+  BusyProvider.caldav => shared.DavProviderProfile(
     allowInsecureLoopback: profile.allowInsecureLoopbackForTesting,
   ),
   BusyProvider.google ||
@@ -74,6 +78,7 @@ bool _isInsecureLoopbackUri(Uri uri) =>
 DavProviderProfile davProviderProfile(
   BusyProvider provider, {
   Uri? nextcloudServer,
+  Uri? caldavServer,
 }) => switch (provider) {
   BusyProvider.appleICloud => DavProviderProfile(
     provider: provider,
@@ -99,6 +104,16 @@ DavProviderProfile davProviderProfile(
     allowSchedulingMutations: true,
     allowMove: true,
   ),
+  BusyProvider.caldav => DavProviderProfile(
+    provider: provider,
+    bootstrapUri:
+        caldavServer ?? (throw ArgumentError('CalDAV requires a server URL.')),
+    calendarEnabled: true,
+    tasksEnabled: true,
+    allowCollectionMutations: true,
+    allowSchedulingMutations: false,
+    allowMove: true,
+  ),
   BusyProvider.google ||
   BusyProvider.microsoft ||
   BusyProvider.webCal => throw ArgumentError.value(
@@ -111,7 +126,8 @@ DavProviderProfile davProviderProfile(
 Uri davWellKnownUri(DavProviderProfile profile) {
   final bootstrap = profile.bootstrapUri;
   if (profile.provider == BusyProvider.appleICloud ||
-      profile.provider == BusyProvider.nextcloud) {
+      profile.provider == BusyProvider.nextcloud ||
+      profile.provider == BusyProvider.caldav) {
     return bootstrap.replace(
       path: '/.well-known/caldav',
       query: null,

@@ -14,6 +14,47 @@ class AppLocalizationsHi extends AppLocalizations {
   AppLocalizationsHi([String locale = 'hi']) : super(locale);
 
   @override
+  String get davCollectionRemovalPartial =>
+      'कुछ आइटम हटाए नहीं जा सके। संग्रह अभी मौजूद है। दोबारा कोशिश करने से पहले रीफ़्रेश करें।';
+
+  @override
+  String get caldavConflictDuplicationSchedulingWarning =>
+      'इस आइटम में सहभागी हैं। इसकी प्रतिलिपि बनाने से CalDAV सर्वर निमंत्रण या अपडेट भेज सकता है। प्रतिलिपि बनाने की अनुमति दें?';
+
+  @override
+  String get caldavTaskDuplicationSchedulingWarning =>
+      'इस कार्य या इसके उपकार्यों में प्रतिभागी हैं। उनकी प्रतिलिपि बनाने पर CalDAV सर्वर आमंत्रण या कार्य अपडेट भेज सकता है। प्रतिलिपि बनाने की अनुमति दें?';
+
+  @override
+  String get caldavSchedulingWarning =>
+      'इस इवेंट में प्रतिभागी हैं। इसे सहेजने या मिटाने पर, बदलाव सिंक होने के समय आपका CalDAV सर्वर प्रतिभागियों को सूचना भेज सकता है।';
+
+  @override
+  String get caldavNativeImport =>
+      'इवेंट और कार्यों के पूरे संसाधन आयात करें। उपस्थित लोगों वाले आइटम के लिए CalDAV सर्वर आमंत्रण या मीटिंग अपडेट भेज सकता है। जब तक आप नई प्रतियाँ नहीं चुनते, मौजूदा UID छोड़ दिए जाते हैं। असमर्थित संसाधनों की सूचना अलग-अलग दी जाती है।';
+
+  @override
+  String get davInsufficientStorage =>
+      'यह संग्रह बनाने के लिए सर्वर पर पर्याप्त संग्रहण स्थान नहीं है।';
+
+  @override
+  String get davCollectionPropertyRejected =>
+      'सर्वर ने संग्रह की अनुरोधित प्रॉपर्टी अस्वीकार कर दी।';
+
+  @override
+  String get davCollectionDiscoveryRequired =>
+      'सर्वर की क्षमताएँ और अनुमतियाँ अपडेट करने के लिए यह खाता रीफ़्रेश करें।';
+
+  @override
+  String get caldavImportSchedulingWarning =>
+      'इस फ़ाइल में प्रतिभागी हैं। मैं इस आयात की अनुमति देता हूँ, जिससे CalDAV सर्वर निमंत्रण या मीटिंग के अपडेट भेज सकता है।';
+
+  @override
+  String nextcloudCanonicalServerReview(String entered, String canonical) {
+    return 'Nextcloud ने सर्वर $entered के लिए $canonical लौटाया। क्या BusyMax को इस पते पर नया ऐप पासवर्ड भेजने की अनुमति दें?';
+  }
+
+  @override
   String get contactsAccountsUnavailable => 'संपर्क खाते लोड नहीं किए जा सके';
 
   @override
@@ -189,6 +230,18 @@ class AppLocalizationsHi extends AppLocalizations {
       'बदलाव Nextcloud पर सहेजा गया। रीफ़्रेश होना बाकी है; बदलाव न दोहराएँ।';
 
   @override
+  String get davRefreshPending =>
+      'बदलाव CalDAV सर्वर पर सहेजा गया। रीफ़्रेश होना बाकी है; बदलाव न दोहराएँ।';
+
+  @override
+  String get davCollectionCreationPending =>
+      'संग्रह बनना बाकी है। फिर से कोशिश करने से पहले इस खाते को सिंक करें; कार्रवाई न दोहराएँ।';
+
+  @override
+  String get davCollectionCreationDenied =>
+      'सर्वर ने संग्रह बनाने की अनुमति नहीं दी।';
+
+  @override
   String get nextcloudOutcomeUnknown =>
       'सर्वर के परिणाम की पुष्टि नहीं हो सकी। फिर कोशिश करने से पहले रीफ़्रेश करें।';
 
@@ -239,6 +292,33 @@ class AppLocalizationsHi extends AppLocalizations {
   @override
   String get nextcloudPermanentDeleteWarning =>
       'यह आइटम हमेशा के लिए हटाएँ? इसे Nextcloud के कैलेंडर कूड़ेदान से पुनर्स्थापित नहीं किया जा सकेगा।';
+
+  @override
+  String get nextcloudDiscoveryRequired =>
+      'Nextcloud की सुविधाएँ और अनुमतियाँ अपडेट करने के लिए इस खाते को रीफ़्रेश करें।';
+
+  @override
+  String get nextcloudConflict =>
+      'आइटम या उसकी अनुमतियाँ बदल गई हैं। दोबारा कोशिश करने से पहले रीफ़्रेश करके जाँचें।';
+
+  @override
+  String get nextcloudItemUnavailable =>
+      'यह आइटम अब उपलब्ध नहीं है। इसकी मौजूदा स्थिति जाँचने के लिए रीफ़्रेश करें।';
+
+  @override
+  String get nextcloudFederationInvitations => 'साझा कैलेंडर के निमंत्रण';
+
+  @override
+  String get nextcloudFederationEmpty =>
+      'साझा कैलेंडर का कोई निमंत्रण लंबित नहीं है।';
+
+  @override
+  String get nextcloudFederationGrant =>
+      'इस सर्वर पर साझाकरण बनाया गया। दूरस्थ स्वीकृति और सिंक की पुष्टि नहीं हुई है।';
+
+  @override
+  String get nextcloudTrashDisabled =>
+      'इस सर्वर पर हटाए गए कैलेंडर आइटम रखना बंद है।';
 
   @override
   String get nextcloudOperationDenied =>
@@ -3817,4 +3897,119 @@ class AppLocalizationsHi extends AppLocalizations {
   @override
   String get taskDurationRequiresStart =>
       'अवधि वाले कार्य की शुरुआत हटाने से पहले समय-सीमा निर्धारित करें।';
+
+  @override
+  String get privateServerCertificates => 'निजी सर्वर प्रमाणपत्र';
+
+  @override
+  String get reviewServerCertificate => 'सर्वर प्रमाणपत्र की समीक्षा करें';
+
+  @override
+  String get certificateStandard => 'मानक HTTPS';
+
+  @override
+  String get certificatePrivateCa => 'निजी प्रमाणपत्र प्राधिकरण';
+
+  @override
+  String get certificatePinnedLeaf => 'पिन किया गया स्व-हस्ताक्षरित प्रमाणपत्र';
+
+  @override
+  String get certificateImportCa => 'निजी CA आयात करें';
+
+  @override
+  String get certificateReplacePin => 'बदले हुए प्रमाणपत्र की समीक्षा करें';
+
+  @override
+  String get certificateUseStandard => 'मानक HTTPS पर लौटें';
+
+  @override
+  String get certificateApprove => 'यह प्रमाणपत्र नीति स्वीकृत करें';
+
+  @override
+  String get certificateReject => 'अस्वीकार करें';
+
+  @override
+  String get certificatePrevious => 'पहले स्वीकृत प्रमाणपत्र';
+
+  @override
+  String get certificateInvalid => 'अमान्य प्रमाणपत्र या निजी CA कॉन्फ़िगरेशन';
+
+  @override
+  String get certificateFirstUseWarning =>
+      'पहली बार उपयोग करते समय केवल एन्क्रिप्शन से सर्वर की पहचान प्रमाणित नहीं होती। स्वीकृति से पहले किसी स्वतंत्र विश्वसनीय व्यवस्थापक माध्यम से SHA-256 फ़िंगरप्रिंट की तुलना करें।';
+
+  @override
+  String get certificateRenewalHelp =>
+      'निजी CA को प्राथमिकता दें: उसके अंतर्गत सर्वर प्रमाणपत्र नवीनीकृत हो सकते हैं। पिन किए गए प्रमाणपत्र में हर बदलाव पर स्पष्ट समीक्षा आवश्यक है, भले ही कुंजी वही हो। सार्वजनिक प्रमाणपत्र सामान्य रूप से नवीनीकृत होते हैं।';
+
+  @override
+  String get certificateBrowserBoundary =>
+      'प्राधिकरण बाहरी ब्राउज़र में होता है। BusyMax की स्वीकृति ब्राउज़र का भरोसा सेट नहीं करती; ब्राउज़र को सर्वर पर अलग से भरोसा करना होगा।';
+
+  @override
+  String certificateDetails(
+    String subject,
+    String issuer,
+    String notBefore,
+    String notAfter,
+    String fingerprint,
+  ) {
+    return 'विषय: $subject\nजारीकर्ता: $issuer\nमान्य आरंभ: $notBefore\nमान्य अंत: $notAfter\nSHA-256 फ़िंगरप्रिंट: $fingerprint';
+  }
+
+  @override
+  String certificateFailure(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'approvalRequired': 'स्वीकृति आवश्यक है',
+      'pinMismatch': 'पिन किया गया प्रमाणपत्र बदल गया',
+      'expired': 'प्रमाणपत्र की अवधि समाप्त',
+      'notYetValid': 'प्रमाणपत्र अभी मान्य नहीं',
+      'hostnameMismatch': 'प्रमाणपत्र का होस्टनाम मेल नहीं खाता',
+      'invalidPolicy': 'निजी CA कॉन्फ़िगरेशन अमान्य',
+      'ineligible': 'प्रमाणपत्र योग्य नहीं है',
+      'verificationFailed': 'TLS सत्यापन विफल',
+      'other': 'TLS सत्यापन विफल',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get addCalDavAccount => 'CalDAV खाता जोड़ें';
+
+  @override
+  String get caldavServerUrl => 'सर्वर URL';
+
+  @override
+  String get caldavUsername => 'उपयोगकर्ता नाम';
+
+  @override
+  String get caldavPassword => 'पासवर्ड या ऐप पासवर्ड';
+
+  @override
+  String get caldavInvalidServerUrl =>
+      'बिना क्रेडेंशियल, क्वेरी या फ़्रैगमेंट वाला HTTPS URL दर्ज करें।';
+
+  @override
+  String get caldavHttpsHelp =>
+      'HTTPS सर्वर URL या सीधा CalDAV पता दर्ज करें। आपका पासवर्ड सुरक्षित रूप से संग्रहीत होता है।';
+
+  @override
+  String get davPermissionsUnknown =>
+      'सर्वर ने अनुमतियाँ नहीं बताई हैं। अनुरोधित बदलावों की जाँच सर्वर करेगा।';
+
+  @override
+  String get localNetworkAccessRequired =>
+      'स्थानीय नेटवर्क का ऐक्सेस ज़रूरी है';
+
+  @override
+  String get localNetworkAccessRecovery =>
+      'इस सर्वर तक पहुँचने के लिए, Android की सेटिंग में BusyMax को आस-पास के डिवाइस का ऐक्सेस दें, फिर दोबारा कोशिश करें।';
+
+  @override
+  String get taskReminderRequiresAnchor =>
+      'शुरू होने का समय या समय सीमा हटाने से पहले सापेक्ष रिमाइंडर बदलें।';
+
+  @override
+  String get attachmentInvalidOrTooLarge =>
+      'यह अटैचमेंट अमान्य है या आकार सीमा से बड़ा है।';
 }

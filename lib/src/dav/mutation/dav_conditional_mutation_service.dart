@@ -5,6 +5,7 @@ import '../dav_errors.dart';
 import '../http/dav_http_transport.dart';
 import '../ical/ical_document.dart';
 import '../ical/ical_semantics.dart';
+import '../ical/ical_timezone.dart';
 import '../sync/dav_collection_remote_client.dart';
 import '../xml/dav_xml.dart';
 import 'dav_conflict_analyzer.dart';
@@ -70,12 +71,14 @@ final class DavMutationHttpClient
     required DavBasicCredential credential,
     DavXmlParser xmlParser = const DavXmlParser(),
     bool suppressScheduling = false,
+    bool useScheduleTags = false,
   }) : _transport = transport,
        _accountId = accountId,
        _collectionId = collectionId,
        _credential = credential,
        _xmlParser = xmlParser,
-       _suppressScheduling = suppressScheduling;
+       _suppressScheduling = suppressScheduling,
+       _useScheduleTags = useScheduleTags;
 
   final DavHttpTransport _transport;
   final String _accountId;
@@ -83,6 +86,13 @@ final class DavMutationHttpClient
   final DavBasicCredential _credential;
   final DavXmlParser _xmlParser;
   final bool _suppressScheduling;
+  final bool _useScheduleTags;
+  final _schedulingVersions = <Uri, ({String etag, String tag})>{};
+
+  String? _scheduleTag(Uri uri, String? etag) {
+    final version = _schedulingVersions[uri];
+    return _useScheduleTags && version?.etag == etag ? version?.tag : null;
+  }
 
   @override
   DavMutationRemoteClient withoutScheduling() => DavMutationHttpClient(
@@ -118,6 +128,8 @@ final class DavMutationHttpClient
         headers: {
           if (ifNoneMatch) 'if-none-match': '*',
           if (ifMatch != null) 'if-match': ifMatch,
+          if (_scheduleTag(uri, ifMatch) case final tag?)
+            'if-schedule-tag-match': tag,
           if (_suppressScheduling) 'x-nc-scheduling': 'false',
         },
       ),
@@ -142,7 +154,11 @@ final class DavMutationHttpClient
         accountId: _accountId,
         collectionId: _collectionId,
         correlationId: correlationId,
-        headers: {'if-match': ifMatch},
+        headers: {
+          'if-match': ifMatch,
+          if (_scheduleTag(uri, ifMatch) case final tag?)
+            'if-schedule-tag-match': tag,
+        },
         retryClass: DavRetryClass.conditionalMutation,
       ),
       credential: _credential,
@@ -186,6 +202,15 @@ final class DavMutationHttpClient
       ),
       credential: _credential,
     );
+    if (response.statusCode == 405 || response.statusCode == 501) {
+      throw DavException(
+        kind: DavErrorKind.protocol,
+        code: 'DavMoveUnsupported',
+        categoryOverride: DavErrorCategory.davUnsupportedServer,
+        statusCode: response.statusCode,
+        safeMessage: 'The server does not support moving this resource.',
+      );
+    }
     return _conditionalResponse(response, operation: 'move the object');
   }
 
@@ -221,6 +246,12 @@ final class DavMutationHttpClient
         safeMessage: 'The DAV object response omitted its ETag.',
         correlationId: correlationId,
       );
+    }
+    final scheduleTag = response.headers['schedule-tag'];
+    if (scheduleTag != null && scheduleTag.trim().isNotEmpty) {
+      _schedulingVersions[uri] = (etag: etag, tag: scheduleTag);
+    } else {
+      _schedulingVersions.remove(uri);
     }
     return DavFetchedMember.live(
       hrefKey: hrefKey,
@@ -278,19 +309,28 @@ final class DavMutationHttpClient
         conditions.contains(DavPropertyName(namespace, local));
     final mapped = switch (response.statusCode) {
       401 => (DavErrorKind.authentication, 'DavAuthRejected'),
-      403 => (DavErrorKind.authorization, 'DavPermissionDenied'),
-      409 when has(caldavNamespace, 'no-uid-conflict') => (
+      403 || 409 when has(caldavNamespace, 'no-uid-conflict') => (
         DavErrorKind.uidConflict,
         'DavUidConflict',
       ),
+      403 when has(caldavNamespace, 'valid-calendar-data') => (
+        DavErrorKind.invalidCalendarData,
+        'DavMalformedResource',
+      ),
+      403 when has(caldavNamespace, 'supported-calendar-component') => (
+        DavErrorKind.unsupportedComponent,
+        'DavUnsupportedComponent',
+      ),
+      413 => (DavErrorKind.maximumResourceSize, 'DavMaximumResourceSize'),
+      403 || 507 when has(caldavNamespace, 'max-resource-size') => (
+        DavErrorKind.maximumResourceSize,
+        'DavMaximumResourceSize',
+      ),
+      403 => (DavErrorKind.authorization, 'DavPermissionDenied'),
       409 => (DavErrorKind.conflict, 'DavResourceConflict'),
       423 => (DavErrorKind.conflict, 'DavResourceLocked'),
       429 => (DavErrorKind.rateLimited, 'DavRateLimited'),
       415 => (DavErrorKind.invalidCalendarData, 'DavMalformedResource'),
-      507 when has(caldavNamespace, 'max-resource-size') => (
-        DavErrorKind.maximumResourceSize,
-        'DavMaximumResourceSize',
-      ),
       507 => (DavErrorKind.limitExceeded, 'DavQuotaOrSizeLimit'),
       >= 500 => (DavErrorKind.server, 'DavServerUnavailable'),
       _ when has(caldavNamespace, 'valid-calendar-data') => (
@@ -494,11 +534,13 @@ final class DavConditionalMutationService {
     required CollectionCapabilities capabilities,
     required String correlationId,
     bool reconcileFirst = false,
+    Future<void> Function(Uri uri)? beforeCreateDispatch,
+    bool requireContentPreservation = false,
   }) async {
     final allowed = object.componentType == 'VEVENT'
-        ? capabilities.canCreateEvent
+        ? capabilities.canAttemptCreateEvent
         : object.componentType == 'VTODO'
-        ? capabilities.canCreateTask
+        ? capabilities.canAttemptCreateTask
         : false;
     if (!allowed) throw _readOnlyError(correlationId);
     if (!object.suppressScheduling) {
@@ -538,6 +580,9 @@ final class DavConditionalMutationService {
     for (var attempt = 0; attempt < maximumConditionalAttempts; attempt += 1) {
       final uri = _memberUri(collectionUri, memberName);
       final hrefKey = uri.path;
+      // The queue must durably reserve each replacement filename before PUT.
+      // A failed reservation must never transmit the request.
+      await beforeCreateDispatch?.call(uri);
       try {
         final response = await remote.conditionalPut(
           uri: uri,
@@ -557,7 +602,8 @@ final class DavConditionalMutationService {
         );
         if (!canonical.missing &&
             (_matchesCreatedCanonical(object.rawIcs, canonical.rawIcsBody!) ||
-                (implicitScheduling &&
+                (!requireContentPreservation &&
+                    implicitScheduling &&
                     _sameResourceIdentity(
                       object.rawIcs,
                       canonical.rawIcsBody!,
@@ -611,14 +657,20 @@ final class DavConditionalMutationService {
   }) async {
     final event = patch.target.componentType.toUpperCase() == 'VEVENT';
     if (baselineEtag.isEmpty ||
-        (event ? !capabilities.canUpdateEvent : !capabilities.canUpdateTask)) {
+        (event
+            ? !capabilities.canAttemptUpdateEvent
+            : !capabilities.canAttemptUpdateTask)) {
       throw _readOnlyError(correlationId);
     }
     var expectedEtag = baselineEtag;
     var comparisonBaseline = baselineRawIcs;
     var candidate = patch.applyTo(baselineRawIcs, nowUtc: _nowUtc());
     DavFetchedMember? lastCurrent;
-    if (reconcileFirst) {
+    // Always reconcile scheduling objects against a fresh representation and
+    // Schedule-Tag before writing. ETag remains an exact precondition too;
+    // an old local attendee list must never overwrite a concurrent reply.
+    if (reconcileFirst ||
+        (implicitScheduling && _hasMeetingParticipants(baselineRawIcs))) {
       final current = await _remoteClient.fetch(
         hrefKey: hrefKey,
         uri: uri,
@@ -732,14 +784,14 @@ final class DavConditionalMutationService {
     bool reconcileFirst = false,
   }) async {
     final canDelete = isEvent
-        ? sourceCapabilities.canDeleteEvent
-        : sourceCapabilities.canDeleteTask;
+        ? sourceCapabilities.canAttemptDeleteEvent
+        : sourceCapabilities.canAttemptDeleteTask;
     final canCreate = isEvent
-        ? destinationCapabilities.canCreateEvent
-        : destinationCapabilities.canCreateTask;
+        ? destinationCapabilities.canAttemptCreateEvent
+        : destinationCapabilities.canAttemptCreateTask;
     final canUpdate = isEvent
-        ? destinationCapabilities.canUpdateEvent
-        : destinationCapabilities.canUpdateTask;
+        ? destinationCapabilities.canAttemptUpdateEvent
+        : destinationCapabilities.canAttemptUpdateTask;
     if (baselineEtag.isEmpty ||
         !canDelete ||
         !canCreate ||
@@ -954,13 +1006,34 @@ final class DavConditionalMutationService {
   }) async {
     if (baselineEtag.isEmpty ||
         (isEvent
-            ? !capabilities.canDeleteEvent
-            : !capabilities.canDeleteTask)) {
+            ? !capabilities.canAttemptDeleteEvent
+            : !capabilities.canAttemptDeleteTask)) {
       throw _readOnlyError(correlationId);
     }
     var expectedEtag = baselineEtag;
     var comparisonBaseline = baselineRawIcs;
     DavFetchedMember? lastCurrent;
+    if (implicitScheduling && _hasMeetingParticipants(baselineRawIcs)) {
+      final current = await _remoteClient.fetch(
+        hrefKey: hrefKey,
+        uri: uri,
+        correlationId: correlationId,
+      );
+      if (current.missing) return const DavMutationResult.succeeded(null);
+      final analysis = _conflictAnalyzer.analyzeDelete(
+        baselineRawIcs: baselineRawIcs,
+        currentRemoteRawIcs: current.rawIcsBody!,
+      );
+      if (!analysis.canRetryWithRemoteEtag) {
+        return DavMutationResult.conflict(
+          analysis,
+          remoteObject: current,
+          localCandidateRawIcs: baselineRawIcs,
+        );
+      }
+      expectedEtag = current.etag!;
+      comparisonBaseline = current.rawIcsBody!;
+    }
     for (var attempt = 0; attempt < maximumConditionalAttempts; attempt += 1) {
       schedulingValidator?.call(baseline: comparisonBaseline);
       try {
@@ -1054,8 +1127,19 @@ bool _sameSemanticObject(
 
     final intendedSemantic = IcalSemanticDocument.parse(normalized(intended));
     final currentSemantic = IcalSemanticDocument.parse(normalized(current));
-    return intendedSemantic.primaryUid == currentSemantic.primaryUid &&
-        intendedSemantic.semanticHash == currentSemantic.semanticHash;
+    if (intendedSemantic.primaryUid != currentSemantic.primaryUid) return false;
+    if (intendedSemantic.semanticHash == currentSemantic.semanticHash) {
+      return true;
+    }
+    // A server can return UTC observance cutoffs for equivalent local cutoffs.
+    // Compare their actual instants, retaining every other field in the hash.
+    final intendedZones = IcalSemanticDocument.parse(
+      canonicalIcalObservanceCutoffs(normalized(intended)),
+    );
+    final currentZones = IcalSemanticDocument.parse(
+      canonicalIcalObservanceCutoffs(normalized(current)),
+    );
+    return intendedZones.semanticHash == currentZones.semanticHash;
   } on DavException {
     return false;
   }
@@ -1212,3 +1296,12 @@ String _utcIcal(DateTime value) {
   return '${utc.year.toString().padLeft(4, '0')}${two(utc.month)}'
       '${two(utc.day)}T${two(utc.hour)}${two(utc.minute)}${two(utc.second)}Z';
 }
+
+bool _hasMeetingParticipants(String raw) => IcalSemanticDocument.parse(raw)
+    .components
+    .any(
+      (c) =>
+          c.componentType == 'VEVENT' &&
+          c.organizers.isNotEmpty &&
+          c.attendees.isNotEmpty,
+    );

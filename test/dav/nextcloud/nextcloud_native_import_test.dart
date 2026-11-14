@@ -1,13 +1,14 @@
 import 'dart:convert';
 
 import 'package:busymax/src/dav/ical/ical_document.dart';
+import 'package:busymax/src/dav/dav_errors.dart';
 import 'package:busymax/src/dav/ical/ical_semantics.dart';
 import 'package:busymax/src/dav/http/dav_http_transport.dart';
 import 'package:busymax/src/dav/mutation/dav_conditional_mutation_service.dart';
 import 'package:busymax/src/dav/mutation/dav_mutation_patch.dart';
 import 'package:busymax/src/dav/mutation/dav_pending_operations.dart';
-import 'package:busymax/src/dav/nextcloud/nextcloud_native_import.dart';
-import 'package:busymax/src/dav/nextcloud/nextcloud_native_export.dart';
+import 'package:busymax/src/dav/ical/dav_native_import.dart';
+import 'package:busymax/src/dav/ical/dav_native_export.dart';
 import 'package:busymax/src/dav/storage/dav_object_repository.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
@@ -26,7 +27,7 @@ import 'nextcloud_admin_fixture.dart';
 
 void main() {
   late NextcloudAdminFixture fixture;
-  late NextcloudNativeImportService importer;
+  late DavNativeImportService importer;
   late NextcloudNativeImportPreview preview;
   final now = DateTime.utc(2026, 9, 5);
   setUp(() async {
@@ -76,7 +77,7 @@ void main() {
           ),
         );
     var id = 0;
-    importer = NextcloudNativeImportService(
+    importer = DavNativeImportService(
       db,
       nowUtc: () => now,
       idFactory: () => 'import-${id++}',
@@ -94,6 +95,100 @@ void main() {
             ? NativeImportDuplicates.newCopies
             : NativeImportDuplicates.skip,
       );
+  for (final status in ['PENDING', 'FAILED']) {
+    test(
+      'RFC10051 duration-only $status task imports without invented dates',
+      () async {
+        final db = fixture.database;
+        await db
+            .update(db.accounts)
+            .write(
+              const AccountsCompanion(
+                provider: Value('caldav'),
+                credentialKind: Value('caldav_password'),
+              ),
+            );
+        final raw = [
+          'BEGIN:VCALENDAR',
+          'VERSION:2.0',
+          'PRODID:-//Qualification//EN',
+          'BEGIN:VTODO',
+          'UID:duration-only-$status',
+          'DTSTAMP:20261109T000000Z',
+          'DURATION:PT1H',
+          'STATUS:$status',
+          'SUMMARY:Duration only',
+          'ESTIMATED-DURATION:PT2H',
+          'X-KEEP;X-PARAM=one^nTwo:opaque',
+          'END:VTODO',
+          'END:VCALENDAR',
+          '',
+        ].join('\r\n');
+        final result = await importer.import(
+          accountId: 'account',
+          collectionId: 'collection',
+          preview: NextcloudNativeImportPreview.parse(IcalDocument.parse(raw)),
+        );
+        expect(result.single.status, NativeImportItemStatus.queued);
+        final task = await db.select(db.tasks).getSingle();
+        expect(task.providerStatus, status);
+        expect(task.dueUtc, isNull);
+        expect(task.microsoftStartDateTime, isNull);
+        expect(task.microsoftDueDateTime, isNull);
+        final object = await db.select(db.davObjects).getSingle();
+        expect(object.rawIcsBody, contains('DURATION:PT1H'));
+        expect(object.rawIcsBody, isNot(contains('DTSTART:')));
+        expect(object.rawIcsBody, isNot(contains('DUE:')));
+        expect(await db.select(db.pendingOps).get(), hasLength(1));
+      },
+    );
+  }
+
+  test('generic attendee import without METHOD requires explicit consent before local or remote changes', () async {
+    final db = fixture.database;
+    await db
+        .update(db.accounts)
+        .write(
+          const AccountsCompanion(
+            provider: Value('caldav'),
+            credentialKind: Value('caldav_password'),
+          ),
+        );
+    final stored = NextcloudNativeImportPreview.parse(
+      IcalDocument.parse(_raw.replaceAll('METHOD:PUBLISH\n', '')),
+    );
+    expect(stored.schedulingMethod, isNull);
+    expect(stored.hasAttendees, isTrue);
+    await expectLater(
+      importer.import(
+        accountId: 'account',
+        collectionId: 'collection',
+        preview: stored,
+      ),
+      throwsA(
+        isA<DavException>().having(
+          (e) => e.code,
+          'code',
+          'IcalSchedulingConsentRequired',
+        ),
+      ),
+    );
+    expect(await db.select(db.pendingOps).get(), isEmpty);
+    expect(await db.select(db.davObjects).get(), isEmpty);
+    final result = await importer.import(
+      accountId: 'account',
+      collectionId: 'collection',
+      preview: stored,
+      allowScheduling: true,
+    );
+    expect(
+      result.any((r) => r.status == NativeImportItemStatus.queued),
+      isTrue,
+    );
+    final operations = await db.select(db.pendingOps).get();
+    expect(operations.any((op) => op.requestJson.contains('ATTENDEE')), isTrue);
+  });
+
   Future<List<http.Request>> permanentlyRejectPendingMutation() async {
     final requests = <http.Request>[];
     final client = MockClient((request) async {
@@ -216,7 +311,7 @@ void main() {
     await import();
     final db = fixture.database;
     final before = await db.select(db.pendingOps).get();
-    final snapshot = await NextcloudNativeExportService(db)
+    final snapshot = await DavNativeExportService(db)
         .collection('account', 'collection');
     expect(snapshot, hasLength(3));
     expect(
@@ -234,8 +329,7 @@ void main() {
     expect(await db.select(db.pendingOps).get(), before);
     expect(fixture.requests, isEmpty);
     await expectLater(
-      NextcloudNativeExportService(db)
-          .collection('another-account', 'collection'),
+      DavNativeExportService(db).collection('another-account', 'collection'),
       throwsStateError,
     );
   });
@@ -308,9 +402,9 @@ void main() {
       final tasksBefore = await db.select(db.tasks).get();
       final objectsBefore = await db.select(db.davObjects).get();
 
-      final source = await NextcloudNativeExportService(db)
+      final source = await DavNativeExportService(db)
           .collection('account', 'collection');
-      final destination = await NextcloudNativeExportService(db)
+      final destination = await DavNativeExportService(db)
           .collection('account', 'destination');
 
       expect(source, isEmpty);
@@ -359,7 +453,7 @@ void main() {
     expect(failedBefore.lastErrorCode, 'DavMalformedResource');
     expect(providerRequests, hasLength(1));
 
-    final snapshot = await NextcloudNativeExportService(db)
+    final snapshot = await DavNativeExportService(db)
         .collection('account', 'collection');
 
     final resource = snapshot.single;
@@ -404,7 +498,7 @@ void main() {
       expect(failedBefore.lastErrorCode, 'DavMalformedResource');
       expect(providerRequests, hasLength(1));
 
-      final snapshot = await NextcloudNativeExportService(db)
+      final snapshot = await DavNativeExportService(db)
           .collection('account', 'collection');
 
       final resource = snapshot.single;
@@ -443,7 +537,7 @@ void main() {
     );
 
     await expectLater(
-      NextcloudNativeExportService(db).collection('account', 'collection'),
+      DavNativeExportService(db).collection('account', 'collection'),
       throwsA(
         isA<StateError>().having(
           (error) => error.message,
@@ -494,7 +588,7 @@ void main() {
             collectionId: 'collection',
             objectId: objectBefore.id,
           );
-      final collection = await NextcloudNativeExportService(db)
+      final collection = await DavNativeExportService(db)
           .collection('account', 'collection');
 
       expect(
@@ -556,7 +650,7 @@ void main() {
             collectionId: 'collection',
             objectId: objectBefore.id,
           );
-      final collection = await NextcloudNativeExportService(db)
+      final collection = await DavNativeExportService(db)
           .collection('account', 'collection');
 
       expect(

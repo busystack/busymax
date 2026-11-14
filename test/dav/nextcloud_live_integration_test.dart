@@ -1,3 +1,7 @@
+import 'package:busymax/src/core/secrets/secret_store.dart';
+
+import 'support/nextcloud_live_trust.dart';
+
 import 'dart:io';
 
 import 'support/nextcloud_live_versions.dart';
@@ -35,7 +39,7 @@ void main() {
   test(
     'exact Nextcloud server preserves DAV calendar and task semantics',
     () async {
-      final fixture = _LiveNextcloudFixture.fromEnvironment();
+      final fixture = DavLiveFixture.fromEnvironment();
       addTearDown(fixture.close);
 
       await recordNextcloudLiveVersions(fixture.client, fixture.authority);
@@ -94,7 +98,7 @@ void main() {
   test(
     'large Nextcloud collection synchronizes and deletes without truncation',
     () async {
-      final fixture = _LiveNextcloudFixture.fromEnvironment();
+      final fixture = DavLiveFixture.fromEnvironment();
       addTearDown(fixture.close);
       final discovery = await fixture.discover('live-large-discovery');
       final suffix = DateTime.now().microsecondsSinceEpoch.toString();
@@ -127,7 +131,7 @@ void main() {
   test(
     'prepare a durable Nextcloud object for server restart',
     () async {
-      final fixture = _LiveNextcloudFixture.fromEnvironment();
+      final fixture = DavLiveFixture.fromEnvironment();
       addTearDown(fixture.close);
       final slug = _requiredEnvironment('BUSYMAX_NEXTCLOUD_LIVE_RESTART_ID');
       final discovery = await fixture.discover(
@@ -158,7 +162,7 @@ void main() {
   test(
     'rediscover and mutate the durable object after server restart',
     () async {
-      final fixture = _LiveNextcloudFixture.fromEnvironment();
+      final fixture = DavLiveFixture.fromEnvironment();
       addTearDown(fixture.close);
       final slug = _requiredEnvironment('BUSYMAX_NEXTCLOUD_LIVE_RESTART_ID');
       final collection = _collectionBySlug(
@@ -175,8 +179,8 @@ void main() {
   );
 }
 
-final class _LiveNextcloudFixture {
-  _LiveNextcloudFixture({
+final class DavLiveFixture {
+  DavLiveFixture({
     required this.authority,
     required this.profile,
     required this.credential,
@@ -184,7 +188,7 @@ final class _LiveNextcloudFixture {
     required this.transport,
   });
 
-  factory _LiveNextcloudFixture.fromEnvironment() {
+  factory DavLiveFixture.fromEnvironment() {
     final url = _requiredEnvironment('BUSYMAX_NEXTCLOUD_LIVE_URL');
     final username = _requiredEnvironment('BUSYMAX_NEXTCLOUD_LIVE_USERNAME');
     final password = _requiredEnvironment('BUSYMAX_NEXTCLOUD_LIVE_PASSWORD');
@@ -205,8 +209,36 @@ final class _LiveNextcloudFixture {
       allowMove: false,
       allowInsecureLoopbackForTesting: insecureLoopback,
     );
-    final client = http.Client();
-    return _LiveNextcloudFixture(
+    final client = nextcloudLiveClient(
+      authority: authority,
+      prefix: 'BUSYMAX_NEXTCLOUD_LIVE',
+      identity: 'nextcloud-live',
+      allowInsecureLoopbackForTesting: true,
+    );
+    return DavLiveFixture(
+      authority: authority,
+      profile: profile,
+      credential: DavBasicCredential(username: username, password: password),
+      client: client,
+      transport: DavHttpTransport(
+        client: client,
+        profile: profile,
+        accountAuthority: authority,
+      ),
+    );
+  }
+
+  factory DavLiveFixture.generic({
+    required Uri authority,
+    required String username,
+    required String password,
+    required http.Client client,
+  }) {
+    final profile = davProviderProfile(
+      BusyProvider.caldav,
+      caldavServer: authority,
+    );
+    return DavLiveFixture(
       authority: authority,
       profile: profile,
       credential: DavBasicCredential(username: username, password: password),
@@ -256,7 +288,6 @@ final class _LiveNextcloudFixture {
             '''<?xml version="1.0" encoding="utf-8"?>
 <c:mkcalendar xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:a="http://apple.com/ns/ical/">
   <d:set><d:prop>
-    <d:resourcetype><d:collection/><c:calendar/></d:resourcetype>
     <d:displayname>$displayName</d:displayname>
     <c:supported-calendar-component-set><c:comp name="$component"/></c:supported-calendar-component-set>
     <a:calendar-color>$color</a:calendar-color>
@@ -496,7 +527,7 @@ final class _LiveNextcloudFixture {
   }
 
   Future<void> verifyTransientReadRecovery(DavDiscoveryResult discovery) async {
-    for (final statusCode in const [429, 503, 500]) {
+    for (final statusCode in const [429, 500, 502, 503, 504]) {
       final injected = _InjectedStatusClient(
         delegate: client,
         statusCode: statusCode,
@@ -605,7 +636,10 @@ final class _LiveNextcloudFixture {
       final semantic = IcalSemanticDocument.parse(child.rawIcsBody!)
           .components
           .single;
-      expect(semantic.percentComplete, percent);
+      // BusyMax's existing reopen patch removes PERCENT-COMPLETE at zero.
+      // Verify the same contract as the mutation-patch unit suite.
+      expect(semantic.percentComplete, percent == 0 ? isNull : percent);
+      if (percent == 0) expect(semantic.status, 'NEEDS-ACTION');
       if (percent == 100) {
         expect(semantic.status, 'COMPLETED');
         expect(semantic.completed, isNotNull);
@@ -730,10 +764,11 @@ final class _LiveNextcloudFixture {
           .insert(
             AccountsCompanion.insert(
               id: discovery.accountId,
-              provider: BusyProvider.nextcloud.storageValue,
+              provider: profile.provider.storageValue,
               authority: authority.toString(),
               providerAccountId: credential.username,
-              credentialKind: 'nextcloud_app_password',
+              credentialKind: credentialKindForProvider(profile.provider)
+                  .storageValue,
               authState: const Value('signed_in'),
               createdAtUtc: seededAt,
               updatedAtUtc: seededAt,
@@ -764,7 +799,7 @@ final class _LiveNextcloudFixture {
         remoteClient: delegate,
         accountId: discovery.accountId,
         collectionId: storedCollection.id,
-        provider: BusyProvider.nextcloud,
+        provider: profile.provider,
         onNotificationsNeedRebuild: (_) async => notificationRebuilds += 1,
       ).synchronize(correlationId: 'live-engine-initial');
       expect(initial.initialOrRebaseline, isTrue);
@@ -809,7 +844,7 @@ final class _LiveNextcloudFixture {
         remoteClient: observingRemote,
         accountId: discovery.accountId,
         collectionId: storedCollection.id,
-        provider: BusyProvider.nextcloud,
+        provider: profile.provider,
         onNotificationsNeedRebuild: (_) async => notificationRebuilds += 1,
       ).synchronize(correlationId: 'live-engine-rebaseline');
       expect(observingRemote.requestedTokens.first, invalidToken);
@@ -845,7 +880,7 @@ final class _LiveNextcloudFixture {
           remoteClient: failingRemote,
           accountId: discovery.accountId,
           collectionId: storedCollection.id,
-          provider: BusyProvider.nextcloud,
+          provider: profile.provider,
           limits: const DavSyncLimits(maximumMembersPerMultiget: 1),
         ).synchronize(correlationId: 'live-engine-interrupted-fetch'),
         throwsA(
@@ -1287,6 +1322,7 @@ Future<DavException> _captureDavError(Future<Object?> operation) async {
 void _expectEventPreservation(String rawIcs) {
   expect(rawIcs, contains('RRULE:FREQ=WEEKLY;COUNT=3'));
   expect(rawIcs, contains('EXDATE;TZID=America/Vancouver:20260816T090000'));
+  expect(rawIcs, contains('RDATE;TZID=America/Vancouver:20260906T090000'));
   expect(rawIcs, contains('RECURRENCE-ID;TZID=America/Vancouver'));
   expect(rawIcs, contains('X-BUSYMAX-QA;X-PARAM="alpha,beta":opaque'));
   expect('BEGIN:VALARM'.allMatches(rawIcs), hasLength(2));
@@ -1331,6 +1367,7 @@ DTSTAMP:20260808T120000Z\r
 DTSTART;TZID=America/Vancouver:20260809T090000\r
 DTEND;TZID=America/Vancouver:20260809T100000\r
 RRULE:FREQ=WEEKLY;COUNT=3\r
+RDATE;TZID=America/Vancouver:20260906T090000\r
 EXDATE;TZID=America/Vancouver:20260816T090000\r
 SUMMARY:BusyMax live event\r
 CATEGORIES:BusyMax,CalDAV\r

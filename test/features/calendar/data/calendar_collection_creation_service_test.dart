@@ -81,6 +81,24 @@ void main() {
     );
   });
 
+  for (final status in DavCalendarCollectionCreationStatus.values) {
+    test(
+      'generic CalDAV preserves creation versus reconciliation: ${status.name}',
+      () async {
+        await _seedAccount(database, BusyProvider.caldav);
+        davClient.result = DavCalendarCollectionCreationResult(status);
+        final result = await _service(
+          database,
+          davClient,
+          syncRequests,
+        ).createCalendar(accountId: 'account', title: 'Operation-owned result');
+        expect(result.outcome.name, status.name);
+        expect(result.refreshPending, status.name.endsWith('RefreshPending'));
+        expect(await database.select(database.pendingOps).get(), isEmpty);
+      },
+    );
+  }
+
   for (final provider in [BusyProvider.appleICloud, BusyProvider.webCal]) {
     test('${provider.displayName} is rejected before local mutation', () async {
       await _seedAccount(database, provider);
@@ -160,6 +178,8 @@ Future<void> _seedAccount(
               ? 'nextcloud_app_password'
               : provider == BusyProvider.appleICloud
               ? 'apple_app_specific_password'
+              : provider == BusyProvider.caldav
+              ? 'caldav_password'
               : 'oauth',
           authState: const Value(accountAuthStateSignedIn),
           calendarsEnabled: Value(calendarsEnabled),

@@ -1,0 +1,21 @@
+# Use upstream rules. Exceptions cover exact synthetic values and checksum rows.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Dependency file integrity hashes (not credentials)"
+condition = "AND"
+paths = ['''^tool/upstream_packages\.json$''']
+regexTarget = "line"
+regexes = ['''^\s*"[A-Za-z0-9_./@+-]+"\s*:\s*"[a-f0-9]{64}"[,]?\s*$''']
+
+[[allowlists]]
+description = "Named public elliptic curves"
+condition = "AND"
+paths = ['''^lib/src/dav/trust/nextcloud_certificate\.dart$''']
+regexTarget = "line"
+regexes = ['''^\s*(?:[: ]*)?(key\.curve == x509\.curves\.p(256|384)|\? 'secp(256|384)r1')\s*$''']
+
+[[allowlists]]
+description = "Literal synthetic OAuth client ID used by release-tooling tests"
+regexes = ['''01234567-89ab-cdef-0123-456789abcdef''']

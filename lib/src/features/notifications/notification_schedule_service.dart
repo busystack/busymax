@@ -27,14 +27,16 @@ class NotificationScheduleService {
   final bool preserveLifecycle;
 
   Future<void> rebuildUpcomingEventNotifications(String accountId) =>
-      _database.transaction(() async {
-        final desired = await _eventNotifications(accountId);
-        await _reconcileNotifications(
-          accountId: accountId,
-          sourceType: 'event',
-          notifications: desired.values,
-        );
-      });
+      _database.synchronizeNotifications(
+        () => _database.transaction(() async {
+          final desired = await _eventNotifications(accountId);
+          await _reconcileNotifications(
+            accountId: accountId,
+            sourceType: 'event',
+            notifications: desired.values,
+          );
+        }),
+      );
 
   Future<Map<String, _PendingNotification>> _eventNotifications(
     String accountId, {
@@ -122,14 +124,16 @@ class NotificationScheduleService {
   }
 
   Future<void> rebuildUpcomingTaskNotifications(String accountId) =>
-      _database.transaction(() async {
-        final desired = await _taskNotifications(accountId);
-        await _reconcileNotifications(
-          accountId: accountId,
-          sourceType: 'task',
-          notifications: desired.values,
-        );
-      });
+      _database.synchronizeNotifications(
+        () => _database.transaction(() async {
+          final desired = await _taskNotifications(accountId);
+          await _reconcileNotifications(
+            accountId: accountId,
+            sourceType: 'task',
+            notifications: desired.values,
+          );
+        }),
+      );
 
   Future<Map<String, _PendingNotification>> _taskNotifications(
     String accountId, {
@@ -154,9 +158,7 @@ class NotificationScheduleService {
     final provider = account == null
         ? null
         : BusyProviderCodec.requireStorageValue(account.provider);
-    final isDav =
-        provider == BusyProvider.appleICloud ||
-        provider == BusyProvider.nextcloud;
+    final isDav = provider?.isDav == true;
     final reminderEnabledTaskListIds = {
       for (final list
           in await (_database.select(_database.taskLists)..where(
@@ -232,57 +234,61 @@ class NotificationScheduleService {
   Future<bool> validateAndReconcileReminder(
     NotificationScheduleData row, {
     bool forOpen = false,
-  }) => _database.transaction(() async {
-    final current = await (_database.select(
-      _database.notificationSchedule,
-    )..where((table) => table.id.equals(row.id))).getSingleOrNull();
-    if (current == null ||
-        current.generation != row.generation ||
-        current.scheduledAtUtc != row.scheduledAtUtc ||
-        !forOpen &&
-            (current.dismissedAtUtc != null || current.expiredAtUtc != null)) {
-      return false;
-    }
-    final account = await (_database.select(
-      _database.accounts,
-    )..where((table) => table.id.equals(row.accountId))).getSingleOrNull();
-    final eligible =
-        account != null &&
-        accountLocalReminderEligibleStates.contains(account.authState);
-    final desired = !eligible
-        ? <String, _PendingNotification>{}
-        : switch (row.sourceType) {
-            'event' => await _eventNotifications(
-              row.accountId,
-              sourceId: row.sourceId,
-            ),
-            'task' => await _taskNotifications(
-              row.accountId,
-              sourceId: row.sourceId,
-            ),
-            _ => <String, _PendingNotification>{},
-          };
-    final reminder = desired[row.id];
-    await _reconcileNotifications(
-      accountId: row.accountId,
-      sourceType: row.sourceType,
-      sourceId: row.sourceId,
-      notifications: desired.values,
-    );
-    if (reminder != null &&
-        reminder.sourceId == row.sourceId &&
-        reminder.scheduledAtUtc.millisecondsSinceEpoch == row.scheduledAtUtc) {
-      final reconciled = await (_database.select(
+  }) => _database.synchronizeNotifications(
+    () => _database.transaction(() async {
+      final current = await (_database.select(
         _database.notificationSchedule,
       )..where((table) => table.id.equals(row.id))).getSingleOrNull();
-      // Android auto-cancels a body-clicked post before cold reconciliation.
-      // Open may reveal its valid source without clearing terminal delivery
-      // state. Snooze, Dismiss and delivery still require an actionable row.
-      return reconciled != null &&
-          (forOpen || !reminderHasExpired(reconciled, _nowUtc()));
-    }
-    return false;
-  });
+      if (current == null ||
+          current.generation != row.generation ||
+          current.scheduledAtUtc != row.scheduledAtUtc ||
+          !forOpen &&
+              (current.dismissedAtUtc != null ||
+                  current.expiredAtUtc != null)) {
+        return false;
+      }
+      final account = await (_database.select(
+        _database.accounts,
+      )..where((table) => table.id.equals(row.accountId))).getSingleOrNull();
+      final eligible =
+          account != null &&
+          accountLocalReminderEligibleStates.contains(account.authState);
+      final desired = !eligible
+          ? <String, _PendingNotification>{}
+          : switch (row.sourceType) {
+              'event' => await _eventNotifications(
+                row.accountId,
+                sourceId: row.sourceId,
+              ),
+              'task' => await _taskNotifications(
+                row.accountId,
+                sourceId: row.sourceId,
+              ),
+              _ => <String, _PendingNotification>{},
+            };
+      final reminder = desired[row.id];
+      await _reconcileNotifications(
+        accountId: row.accountId,
+        sourceType: row.sourceType,
+        sourceId: row.sourceId,
+        notifications: desired.values,
+      );
+      if (reminder != null &&
+          reminder.sourceId == row.sourceId &&
+          reminder.scheduledAtUtc.millisecondsSinceEpoch ==
+              row.scheduledAtUtc) {
+        final reconciled = await (_database.select(
+          _database.notificationSchedule,
+        )..where((table) => table.id.equals(row.id))).getSingleOrNull();
+        // Android auto-cancels a body-clicked post before cold reconciliation.
+        // Open may reveal its valid source without clearing terminal delivery
+        // state. Snooze, Dismiss and delivery still require an actionable row.
+        return reconciled != null &&
+            (forOpen || !reminderHasExpired(reconciled, _nowUtc()));
+      }
+      return false;
+    }),
+  );
 
   Future<void> rebuildUpcomingNotifications(String accountId) async {
     await rebuildUpcomingEventNotifications(accountId);
@@ -726,6 +732,7 @@ List<_EventReminder> _eventReminders(
   }
   if ((provider == BusyProvider.appleICloud ||
           provider == BusyProvider.nextcloud ||
+          provider == BusyProvider.caldav ||
           provider == BusyProvider.webCal) &&
       decoded is Map) {
     return _davEventReminders(

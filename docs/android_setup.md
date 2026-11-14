@@ -1,7 +1,7 @@
 # Android setup and provider registration
 
 BusyMax Android is a beta application with package ID
-`io.busystack.busymax`, version `0.3.0`, minimum API 24, and compile/target
+`io.busystack.busymax`, version `0.4.0`, minimum API 24, and compile/target
 API 37. The supported toolchain is Flutter 3.47.5, its bundled Dart 3.13.4,
 JDK 17, Android platform 37, and Build Tools 37.x.
 
@@ -70,8 +70,26 @@ exact ID for silent foreground and WorkManager token requests.
 
 Apple iCloud Calendar continues to require an app-specific password. Nextcloud
 uses Login Flow v2 and stores the returned app password in secure storage.
-WebCal is read-only. On Android 17, a local Nextcloud hostname causes a
-contextual local-network permission request; a public HTTPS server does not.
+WebCal is read-only. Target API 37 requires ACCESS_LOCAL_NETWORK for applicable
+local-network traffic. Foreground Nextcloud/CalDAV and independent
+Nextcloud/CardDAV contacts enrollment, reconnect and retry use the shared
+contextual permission flow. Native ConnectivityManager/LinkProperties data
+checks applicable interfaces and non-default IPv6 routes, with VPN/cellular
+excluded. CGNAT 100.64.0.0/10 is included on applicable interfaces; an arbitrary
+global IPv6 address is not assumed local. DNS/address hints are a fallback when
+route evidence is unavailable. These checks do not scan the network.
+Account **Sync** and **Sync all** also check this permission for existing local
+CalDAV and Nextcloud accounts. If denied, the recovery dialog opens the app's
+Android settings, where Nearby devices access can be allowed before retrying.
+No account removal or reconnection is required. Background work never opens a
+permission prompt. Contacts also check before request dispatch without showing
+UI, so revocation between foreground preflight and connection preserves the
+account, credentials, trust and cache. A denied account does not stop unrelated
+permitted accounts. For a route not identifiable beforehand, contacts exposes
+local-network recovery in its account actions; use Android app settings and
+retry. DNS, TLS and ordinary connectivity errors retain their own classification.
+See Android's [permission guidance](https://developer.android.com/privacy-and-security/local-network-permission)
+and [network definition](https://developer.android.com/privacy-and-security/local-network-definition).
 Notification permission is requested when creating reminders or from Settings;
 exact-alarm access is requested from Settings. Exact access improves reminder
 precision but is not required for synchronization or for inexact reminders.
@@ -97,3 +115,20 @@ tool/android/verify.sh
 It enforces the lockfile, regenerates localization and Drift output, checks
 generated consistency and formatting, runs analysis, platform boundaries, the
 complete Flutter suite, native plugin unit tests, and Android lint.
+
+Android 17/API 37 acceptance must include an upgrade that preserves an existing
+local-server account and its queued edits. Deny Nearby devices access, then
+verify account Sync and Sync all offer recovery without dispatching local-server
+requests. Approve the next permission request and verify synchronization resumes
+with the same account. Revoke access in Android settings, run background sync,
+and verify the account and queued edits remain and no permission UI appears.
+The next foreground account Sync must offer recovery again. Also verify that a
+permanently denied request offers the working app-settings action and that
+granting access there allows the next Sync to succeed. Repeat for CalDAV and
+Nextcloud, independent Nextcloud contacts and independent CardDAV contacts.
+Include first grant, denial, permanent denial, later grant, revocation between
+preflight and dispatch, retained accounts after process restart, and background
+work with a different permitted account. Use an actual routed LAN endpoint;
+loopback/adb reverse alone does not qualify the local-network restriction.
+API 37 acceptance remains a separate gate in the dated qualification record. Widget and plugin unit
+tests do not qualify Android 17's native permission behavior.

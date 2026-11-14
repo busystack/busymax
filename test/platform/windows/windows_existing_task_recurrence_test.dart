@@ -19,8 +19,58 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../support/dav_task_inventory_fixture.dart';
 
 void main() {
+  testWidgets('Windows can remove the start of a valid duration-only task', (
+    tester,
+  ) async {
+    final fixture = await _open(
+      tester,
+      startOnlyDuration: true,
+      withAlarm: false,
+      rule: '',
+    );
+    final title = find.byWidgetPredicate(
+      (widget) =>
+          widget is TextBox &&
+          widget.controller?.text == 'Existing recurring task',
+    );
+    await tester.enterText(title, 'Valid duration-only task');
+    final l10n = AppLocalizations.of(
+      tester.element(find.byType(ContentDialog)),
+    );
+    final start = find.byWidgetPredicate(
+      (widget) =>
+          widget is InfoLabel &&
+          widget.label.toPlainText() == l10n.startDateTime,
+    );
+    final clear = find
+        .descendant(of: start, matching: find.byType(IconButton))
+        .last;
+    await tester.ensureVisible(clear);
+    await tester.tap(clear);
+    await tester.pumpAndSettle();
+    await _save(tester);
+    expect(find.byType(ContentDialog), findsNothing);
+    final operation = await fixture.database
+        .select(fixture.database.pendingOps)
+        .getSingle();
+    final candidate = DavMutationPatch.fromJsonString(
+      operation.mutationPatchJson!,
+    ).applyTo(operation.baselineRawIcs!, nowUtc: _now);
+    expect(candidate, contains('SUMMARY:Valid duration-only task'));
+    expect(candidate, contains('DURATION:PT2H'));
+    expect(candidate, contains('X-KEEP:opaque'));
+    expect(candidate, isNot(contains('DTSTART:')));
+    expect(candidate, isNot(contains('DUE:')));
+    final task = await fixture.database
+        .select(fixture.database.tasks)
+        .getSingle();
+    expect(task.microsoftStartDateTime, isNull);
+    expect(task.microsoftDueDateTime, isNull);
+    expect(task.dueUtc, isNull);
+  });
+
   testWidgets(
-    'Windows duration validation retains the draft and explains the start transition',
+    'Windows relative reminder validation retains the draft and explains the missing anchor',
     (tester) async {
       final fixture = await _open(tester, startOnlyDuration: true);
       final title = find.byWidgetPredicate(
@@ -44,7 +94,7 @@ void main() {
       await tester.tap(clear);
       await tester.pumpAndSettle();
       await _save(tester);
-      expect(find.text(l10n.taskDurationRequiresStart), findsOneWidget);
+      expect(find.text(l10n.taskReminderRequiresAnchor), findsOneWidget);
       expect(find.byType(ContentDialog), findsOneWidget);
       expect(
         find.byWidgetPredicate(
@@ -238,6 +288,7 @@ Future<({AppDatabase database, String raw})> _open(
   WidgetTester tester, {
   String rule = 'FREQ=DAILY;INTERVAL=2;COUNT=5',
   bool startOnlyDuration = false,
+  bool withAlarm = true,
 }) async {
   tester.view
     ..physicalSize = const Size(1400, 1100)
@@ -263,13 +314,15 @@ Future<({AppDatabase database, String raw})> _open(
       'DURATION:PT2H',
     ] else
       'DUE:20260808T090000Z',
-    'RRULE:$rule',
+    if (rule.isNotEmpty) 'RRULE:$rule',
     'X-KEEP:opaque',
-    'BEGIN:VALARM',
-    'ACTION:DISPLAY',
-    'TRIGGER;RELATED=END:-PT15M',
-    'DESCRIPTION:Reminder',
-    'END:VALARM',
+    if (withAlarm) ...[
+      'BEGIN:VALARM',
+      'ACTION:DISPLAY',
+      'TRIGGER;RELATED=END:-PT15M',
+      'DESCRIPTION:Reminder',
+      'END:VALARM',
+    ],
     'END:VTODO',
     'END:VCALENDAR',
     '',

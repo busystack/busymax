@@ -148,6 +148,7 @@ class TaskListsRepository {
     final mode = await _taskListCreationMode();
     switch (mode) {
       case TaskListCreationMode.nextcloudDav:
+      case TaskListCreationMode.genericDav:
         await _requiredDavMutationClient().createTaskList(trimmedTitle);
         return;
       case TaskListCreationMode.unavailable:

@@ -4,8 +4,8 @@ import '../xml/dav_xml.dart';
 import 'nextcloud_collection_service.dart';
 import 'nextcloud_dav_context.dart';
 import 'nextcloud_sharing_service.dart';
-import 'nextcloud_native_export.dart';
-import 'nextcloud_native_import.dart';
+import '../ical/dav_native_export.dart';
+import '../ical/dav_native_import.dart';
 
 /// Shared presentation state. Network requests start from explicit actions,
 /// never widget builds; disposal prevents stale completion from reviving UI.
@@ -98,9 +98,8 @@ final class NextcloudCollectionController extends ChangeNotifier {
   Future<void> exportTo(
     Future<void> Function(List<NativeImportResource>) save,
   ) => _run(() async {
-    final snapshot = await NextcloudNativeExportService(
-      service.collections.database,
-    ).collection(service.collections.accountId, collectionId);
+    final snapshot = await DavNativeExportService(service.collections.database)
+        .collection(service.collections.accountId, collectionId);
     if (!_disposed) await save(snapshot);
   });
   Future<void> _refreshAfterCommit() async {

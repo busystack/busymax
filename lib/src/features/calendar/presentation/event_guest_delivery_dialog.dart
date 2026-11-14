@@ -13,6 +13,17 @@ Future<CalendarGuestUpdatePolicy?> showCalendarGuestDeliveryDialog(
   required BusyProvider provider,
   required CalendarGuestDeliveryAction action,
 }) async {
+  if (provider == BusyProvider.caldav) {
+    final saving = action == CalendarGuestDeliveryAction.save;
+    final confirmed = await showBusyMaxConfirm(
+      context,
+      title: context.l10n.notifyGuestsTitle,
+      message: context.l10n.caldavSchedulingWarning,
+      confirmLabel: saving ? context.l10n.save : context.l10n.delete,
+      destructive: !saving,
+    );
+    return confirmed ? CalendarGuestUpdatePolicy.send : null;
+  }
   if (provider == BusyProvider.nextcloud) {
     final saving = action == CalendarGuestDeliveryAction.save;
     final confirmed = await showBusyMaxConfirm(

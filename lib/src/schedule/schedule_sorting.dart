@@ -26,7 +26,7 @@ int compareScheduleItems(ScheduleItem a, ScheduleItem b) {
     final parent = (a.parentId ?? '').compareTo(b.parentId ?? '');
     if (parent != 0) return parent;
     final int order;
-    if (a.provider == BusyProvider.nextcloud) {
+    if (a.provider.isDav) {
       order = (a.sortOrder ?? 0).compareTo(b.sortOrder ?? 0);
     } else {
       order = (a.position ?? '').compareTo(b.position ?? '');

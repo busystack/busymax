@@ -14,6 +14,47 @@ class AppLocalizationsAr extends AppLocalizations {
   AppLocalizationsAr([String locale = 'ar']) : super(locale);
 
   @override
+  String get davCollectionRemovalPartial =>
+      'تعذر حذف بعض العناصر. ما زالت المجموعة موجودة. حدّث قبل المحاولة مجددًا.';
+
+  @override
+  String get caldavConflictDuplicationSchedulingWarning =>
+      'يحتوي هذا العنصر على مشاركين. قد يؤدي تكراره إلى إرسال خادم CalDAV دعوات أو تحديثات. هل تسمح بالتكرار؟';
+
+  @override
+  String get caldavTaskDuplicationSchedulingWarning =>
+      'تحتوي هذه المهمة أو مهامها الفرعية على مشاركين. قد يؤدي تكرارها إلى إرسال خادم CalDAV دعوات أو تحديثات للمهام. هل تسمح بالتكرار؟';
+
+  @override
+  String get caldavSchedulingWarning =>
+      'لهذا الحدث مشاركون. قد يؤدي حفظه أو حذفه إلى إرسال خادم CalDAV إشعارًا إليهم عند مزامنة التغيير.';
+
+  @override
+  String get caldavNativeImport =>
+      'استيراد موارد الأحداث والمهام كاملة. بالنسبة للعناصر التي تضم حاضرين، قد يرسل خادم CalDAV دعوات أو تحديثات للاجتماعات. يتم تخطي معرّفات UID الموجودة ما لم تختر نسخًا جديدة. يُبلّغ عن الموارد غير المدعومة كلٌّ على حدة.';
+
+  @override
+  String get davInsufficientStorage =>
+      'لا تتوفر على الخادم مساحة تخزين كافية لإنشاء هذه المجموعة.';
+
+  @override
+  String get davCollectionPropertyRejected =>
+      'رفض الخادم إحدى الخصائص المطلوبة للمجموعة.';
+
+  @override
+  String get davCollectionDiscoveryRequired =>
+      'حدّث هذا الحساب لتحديث إمكانات الخادم وأذوناته.';
+
+  @override
+  String get caldavImportSchedulingWarning =>
+      'يحتوي هذا الملف على مشاركين. أسمح بهذا الاستيراد الذي قد يجعل خادم CalDAV يرسل دعوات أو تحديثات للاجتماعات.';
+
+  @override
+  String nextcloudCanonicalServerReview(String entered, String canonical) {
+    return 'أعاد Nextcloud العنوان ⁨$canonical⁩ للخادم ⁨$entered⁩. هل تسمح لـ BusyMax بإرسال كلمة مرور التطبيق الجديدة إلى هذا العنوان؟';
+  }
+
+  @override
   String get contactsAccountsUnavailable => 'تعذّر تحميل حسابات جهات الاتصال';
 
   @override
@@ -189,6 +230,17 @@ class AppLocalizationsAr extends AppLocalizations {
       'حُفظ التغيير في Nextcloud. التحديث معلّق؛ لا تكرر التغيير.';
 
   @override
+  String get davRefreshPending =>
+      'حُفظ التغيير على خادم CalDAV. التحديث معلّق؛ لا تكرر التغيير.';
+
+  @override
+  String get davCollectionCreationPending =>
+      'إنشاء المجموعة معلّق. زامن هذا الحساب قبل المحاولة مجددًا؛ لا تكرر العملية.';
+
+  @override
+  String get davCollectionCreationDenied => 'لم يسمح الخادم بإنشاء المجموعة.';
+
+  @override
   String get nextcloudOutcomeUnknown =>
       'تعذّر تأكيد النتيجة لدى الخادم. حدّث قبل المحاولة مجددًا.';
 
@@ -239,6 +291,33 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get nextcloudPermanentDeleteWarning =>
       'حذف هذا العنصر نهائيًا؟ لن يمكن استعادته من مهملات تقويم Nextcloud.';
+
+  @override
+  String get nextcloudDiscoveryRequired =>
+      'حدّث هذا الحساب لتحديث ميزات Nextcloud والأذونات.';
+
+  @override
+  String get nextcloudConflict =>
+      'تغيّر العنصر أو أذوناته. حدّث البيانات وراجعها قبل المحاولة مجددًا.';
+
+  @override
+  String get nextcloudItemUnavailable =>
+      'لم يعد هذا العنصر متاحًا. حدّث البيانات للتحقق من حالته الحالية.';
+
+  @override
+  String get nextcloudFederationInvitations => 'دعوات التقويمات المشتركة';
+
+  @override
+  String get nextcloudFederationEmpty =>
+      'لا توجد دعوات معلّقة لتقويمات مشتركة.';
+
+  @override
+  String get nextcloudFederationGrant =>
+      'تم إنشاء المشاركة على هذا الخادم. لم يتم تأكيد القبول والمزامنة عن بُعد.';
+
+  @override
+  String get nextcloudTrashDisabled =>
+      'تم تعطيل الاحتفاظ بعناصر التقويم المحذوفة على هذا الخادم.';
 
   @override
   String get nextcloudOperationDenied => 'لم يسمح Nextcloud بهذه العملية.';
@@ -3871,4 +3950,118 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get taskDurationRequiresStart =>
       'حدّد موعدًا نهائيًا قبل إزالة بداية مهمة لها مدة.';
+
+  @override
+  String get privateServerCertificates => 'شهادات الخوادم الخاصة';
+
+  @override
+  String get reviewServerCertificate => 'مراجعة شهادة الخادم';
+
+  @override
+  String get certificateStandard => 'HTTPS قياسي';
+
+  @override
+  String get certificatePrivateCa => 'جهة إصدار شهادات خاصة';
+
+  @override
+  String get certificatePinnedLeaf => 'شهادة موقعة ذاتيًا ومثبّتة';
+
+  @override
+  String get certificateImportCa => 'استيراد جهة إصدار خاصة';
+
+  @override
+  String get certificateReplacePin => 'مراجعة شهادة بديلة';
+
+  @override
+  String get certificateUseStandard => 'العودة إلى HTTPS القياسي';
+
+  @override
+  String get certificateApprove => 'الموافقة على سياسة الشهادة هذه';
+
+  @override
+  String get certificateReject => 'رفض';
+
+  @override
+  String get certificatePrevious => 'الشهادات المعتمدة سابقًا';
+
+  @override
+  String get certificateInvalid => 'شهادة أو إعداد جهة إصدار خاصة غير صالح';
+
+  @override
+  String get certificateFirstUseWarning =>
+      'التشفير وحده لا يثبت هوية الخادم عند الاستخدام الأول. قارن بصمة SHA-256 عبر قناة مستقلة وموثوقة مع مسؤول الخادم قبل الموافقة.';
+
+  @override
+  String get certificateRenewalHelp =>
+      'يُفضّل استخدام جهة إصدار خاصة: يمكن تجديد شهادات الخادم تحتها. كل تغيير في الشهادة المثبّتة يتطلب مراجعة صريحة، حتى بالمفتاح نفسه. تتجدد الشهادات العامة كالمعتاد.';
+
+  @override
+  String get certificateBrowserBoundary =>
+      'يتم التفويض في المتصفح الخارجي. موافقة BusyMax لا تضبط ثقة المتصفح؛ يجب أن يثق المتصفح بالخادم بشكل منفصل.';
+
+  @override
+  String certificateDetails(
+    String subject,
+    String issuer,
+    String notBefore,
+    String notAfter,
+    String fingerprint,
+  ) {
+    return 'صاحب الشهادة: ⁨$subject⁩\nجهة الإصدار: ⁨$issuer⁩\nصالح من: ⁨$notBefore⁩\nصالح حتى: ⁨$notAfter⁩\nبصمة SHA-256: ⁨$fingerprint⁩';
+  }
+
+  @override
+  String certificateFailure(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'approvalRequired': 'الموافقة مطلوبة',
+      'pinMismatch': 'تغيّرت الشهادة المثبّتة',
+      'expired': 'انتهت صلاحية الشهادة',
+      'notYetValid': 'الشهادة غير صالحة بعد',
+      'hostnameMismatch': 'اسم المضيف لا يطابق الشهادة',
+      'invalidPolicy': 'إعداد جهة الإصدار الخاصة غير صالح',
+      'ineligible': 'الشهادة غير مؤهلة',
+      'verificationFailed': 'فشل التحقق من TLS',
+      'other': 'فشل التحقق من TLS',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get addCalDavAccount => 'إضافة حساب CalDAV';
+
+  @override
+  String get caldavServerUrl => 'عنوان URL للخادم';
+
+  @override
+  String get caldavUsername => 'اسم المستخدم';
+
+  @override
+  String get caldavPassword => 'كلمة المرور أو كلمة مرور التطبيق';
+
+  @override
+  String get caldavInvalidServerUrl =>
+      'أدخل عنوان HTTPS دون بيانات اعتماد أو استعلام أو جزء.';
+
+  @override
+  String get caldavHttpsHelp =>
+      'أدخل عنوان HTTPS للخادم أو عنوان CalDAV المباشر. تُحفظ كلمة المرور بأمان.';
+
+  @override
+  String get davPermissionsUnknown =>
+      'لم يعلن الخادم عن الأذونات. سيتحقق الخادم من التغييرات المطلوبة.';
+
+  @override
+  String get localNetworkAccessRequired => 'يلزم الوصول إلى الشبكة المحلية';
+
+  @override
+  String get localNetworkAccessRecovery =>
+      'للوصول إلى هذا الخادم، اسمح لتطبيق BusyMax بالوصول إلى الأجهزة القريبة في إعدادات Android، ثم حاول مرة أخرى.';
+
+  @override
+  String get taskReminderRequiresAnchor =>
+      'عدّل التذكير النسبي قبل إزالة وقت البدء أو الموعد النهائي المرتبط به.';
+
+  @override
+  String get attachmentInvalidOrTooLarge =>
+      'هذا المرفق غير صالح أو يتجاوز الحد الأقصى للحجم.';
 }

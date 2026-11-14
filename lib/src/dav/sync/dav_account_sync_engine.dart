@@ -7,15 +7,18 @@ import 'package:uuid/uuid.dart';
 
 import '../../core/secrets/secret_store.dart';
 import '../../db/app_database.dart';
+import '../../features/sync/account_sync_operations.dart';
 import '../../features/accounts/domain/account_connection_state.dart';
 import '../../providers/busy_provider.dart';
 import '../dav_errors.dart';
 import '../dav_provider_profile.dart';
 import '../discovery/dav_discovery_repository.dart';
+import '../discovery/dav_discovery_models.dart';
 import '../discovery/dav_discovery_service.dart';
 import '../http/dav_http_transport.dart';
 import '../mutation/dav_conditional_mutation_service.dart';
 import '../mutation/dav_pending_operations.dart';
+import '../mutation/dav_collection_administration.dart';
 import '../storage/dav_object_repository.dart';
 import '../storage/dav_collection_capabilities.dart';
 import '../nextcloud/nextcloud_scheduling_policy.dart';
@@ -42,8 +45,12 @@ final class DavAccountSyncResult {
     required this.conflictsCreated,
     required this.followUpCollectionsSynchronized,
     required this.affectedObjectIds,
+    this.collectionCreationFailures = const {},
   });
 
+  /// Nonblocking administration failures keyed by their durable operation ID.
+  /// These never masquerade as failed calendar/task synchronization.
+  final Map<String, DavException> collectionCreationFailures;
   final bool discoveryRefreshed;
   final int collectionsSynchronized;
   final int pendingOperationsApplied;
@@ -72,6 +79,7 @@ final class DavAccountSyncEngine {
     required SecretStore secretStore,
     required http.Client httpClient,
     required String accountId,
+    CrossEngineAccountGate creationGate = const InProcessAccountGate(),
     DavAccountSyncPolicy policy = const DavAccountSyncPolicy(),
     DavTransportLimits transportLimits = const DavTransportLimits(),
     DavSyncLimits syncLimits = const DavSyncLimits(),
@@ -85,6 +93,7 @@ final class DavAccountSyncEngine {
        _secretStore = secretStore,
        _httpClient = httpClient,
        _accountId = accountId,
+       _creationGate = creationGate,
        _policy = policy,
        _transportLimits = transportLimits,
        _syncLimits = syncLimits,
@@ -97,6 +106,7 @@ final class DavAccountSyncEngine {
   final SecretStore _secretStore;
   final http.Client _httpClient;
   final String _accountId;
+  final CrossEngineAccountGate _creationGate;
   final DavAccountSyncPolicy _policy;
   final DavTransportLimits _transportLimits;
   final DavSyncLimits _syncLimits;
@@ -142,12 +152,23 @@ final class DavAccountSyncEngine {
       );
     }
     final provider = BusyProviderCodec.requireStorageValue(account.provider);
-    if (provider != BusyProvider.appleICloud &&
-        provider != BusyProvider.nextcloud) {
+    if (!provider.isDav) {
       throw const DavException(
         kind: DavErrorKind.protocol,
         code: 'DavUnsupportedAccountProvider',
         safeMessage: 'This account does not use the DAV transport.',
+      );
+    }
+    final certificateState = await (_database.select(
+      _database.davAccountServices,
+    )..where((r) => r.accountId.equals(_accountId))).getSingleOrNull();
+    final certificateCode = certificateState?.lastDiscoveryErrorCode;
+    if (provider == BusyProvider.nextcloud &&
+        certificateCode?.startsWith('NextcloudCertificate') == true) {
+      throw DavException(
+        kind: DavErrorKind.tls,
+        code: certificateCode!,
+        safeMessage: 'Review the Nextcloud server certificate.',
       );
     }
     late final _DavCredentialContext loaded;
@@ -167,6 +188,7 @@ final class DavAccountSyncEngine {
       nextcloudServer: provider == BusyProvider.nextcloud
           ? loaded.authority
           : null,
+      caldavServer: provider == BusyProvider.caldav ? loaded.authority : null,
     );
     final transport = DavHttpTransport(
       client: _httpClient,
@@ -203,8 +225,17 @@ final class DavAccountSyncEngine {
       // Permissions and delegated scheduling identities can change while
       // edits are offline. Refresh the complete inventory before replay; a
       // failed discovery keeps every queued operation and cached source.
-      final pendingNextcloud =
-          provider == BusyProvider.nextcloud &&
+      final pendingCreations = provider == BusyProvider.caldav
+          ? await (_database.select(_database.davCollectionCreations)..where(
+                  (r) =>
+                      r.accountId.equals(_accountId) &
+                      r.state.isIn(const ['prepared', 'dispatched']),
+                ))
+                .get()
+          : <DavCollectionCreation>[];
+      final pendingDav =
+          (provider == BusyProvider.nextcloud ||
+              provider == BusyProvider.caldav) &&
           (await (_database.select(_database.pendingOps)
                     ..where(
                       (r) =>
@@ -214,12 +245,16 @@ final class DavAccountSyncEngine {
                             'pending',
                             'retry',
                             'in_progress',
+                            'permission_blocked',
                           ]),
                     )
                     ..limit(1))
                   .get())
               .isNotEmpty;
-      if (full || pendingNextcloud || await _discoveryIsDue()) {
+      if (full ||
+          pendingDav ||
+          pendingCreations.isNotEmpty ||
+          await _discoveryIsDue()) {
         discoveryRefreshed = true;
         final discovery =
             await DavDiscoveryService(
@@ -229,12 +264,69 @@ final class DavAccountSyncEngine {
               accountId: _accountId,
               credential: loaded.basic,
               nowUtc: _nowUtc,
+              collectionMethodCache: await discoveryRepository
+                  .collectionMethodCache(_accountId),
             ).discover(
               correlationId: _correlationIdFactory(),
               cancellationToken: cancellationToken,
             );
         notificationProjectionsChanged = await discoveryRepository
             .commitSuccessfulInventory(discovery);
+      }
+
+      var recoveredCreation = false;
+      final creationFailures = <String, DavException>{};
+      for (final operation in pendingCreations) {
+        if (DavCollectionAdministration.creationIsActive(
+          _accountId,
+          operation.id,
+        )) {
+          continue;
+        }
+        try {
+          await DavCollectionAdministration(
+            database: _database,
+            creationGate: _creationGate,
+            secrets: _secretStore,
+            client: _httpClient,
+            accountId: _accountId,
+            refresh: () async {},
+            requireNetwork: () async {
+              cancellationToken.throwIfCancelled();
+            },
+          ).resumeCreation(operation.id, cancellation: cancellationToken);
+          recoveredCreation = true;
+        } on DavException catch (error) {
+          // A denied/unsupported creation is scoped to this operation, not
+          // to readable collections. Authentication, TLS and cancellation are
+          // account/network boundaries and must still abort authoritatively.
+          if (error.kind == DavErrorKind.authentication ||
+              error.kind == DavErrorKind.tls ||
+              error.kind == DavErrorKind.cancelled) {
+            rethrow;
+          }
+          creationFailures[operation.id] = error;
+        }
+      }
+      if (recoveredCreation) {
+        final discovery =
+            await DavDiscoveryService(
+              transport: transport,
+              profile: profile,
+              accountAuthority: loaded.authority,
+              accountId: _accountId,
+              credential: loaded.basic,
+              nowUtc: _nowUtc,
+              collectionMethodCache: await discoveryRepository
+                  .collectionMethodCache(_accountId),
+            ).discover(
+              correlationId: _correlationIdFactory(),
+              cancellationToken: cancellationToken,
+            );
+        notificationProjectionsChanged =
+            await discoveryRepository.commitSuccessfulInventory(discovery) ||
+            notificationProjectionsChanged;
+        discoveryRefreshed = true;
       }
 
       final collections = await _selectedCollections();
@@ -254,15 +346,7 @@ final class DavAccountSyncEngine {
       }
       failures.addAll(initialResults.failures);
 
-      final hasBlockingFailure = failures.any(
-        (failure) => switch (failure.category) {
-          DavErrorCategory.davAuthRejected ||
-          DavErrorCategory.davCredentialsRevoked ||
-          DavErrorCategory.davPermissionDenied ||
-          DavErrorCategory.davReadOnly => true,
-          _ => false,
-        },
-      );
+      final hasBlockingFailure = failures.any(_blocksAccountReplay);
       DavReplaySummary replay = const DavReplaySummary(
         appliedCount: 0,
         conflictCount: 0,
@@ -272,7 +356,7 @@ final class DavAccountSyncEngine {
         paused: false,
       );
       if (!hasBlockingFailure) {
-        replay = await DavPendingOperationsReplayer(
+        final replayer = DavPendingOperationsReplayer(
           database: _database,
           accountId: _accountId,
           objectRepository: objectRepository,
@@ -285,10 +369,15 @@ final class DavAccountSyncEngine {
             final policy = provider == BusyProvider.nextcloud
                 ? await NextcloudSchedulingPolicy.load(_database, collection)
                 : null;
+            final implicitScheduling =
+                provider == BusyProvider.nextcloud ||
+                (provider == BusyProvider.caldav &&
+                    transport.supportsImplicitScheduling);
             return DavConditionalMutationService(
-              implicitScheduling: provider == BusyProvider.nextcloud,
+              implicitScheduling: implicitScheduling,
               schedulingValidator: policy?.validateChange,
               remoteClient: DavMutationHttpClient(
+                useScheduleTags: implicitScheduling,
                 transport: transport,
                 accountId: _accountId,
                 collectionId: collection.id,
@@ -297,7 +386,17 @@ final class DavAccountSyncEngine {
               nowUtc: _nowUtc,
             );
           },
-        ).replayDueOperations();
+        );
+        if ((provider == BusyProvider.caldav ||
+                provider == BusyProvider.nextcloud) &&
+            discoveryRefreshed) {
+          await replayer.revalidatePermissionsAfterDiscovery(
+            blockedCollectionIds: initialResults.failedCollectionIds,
+          );
+        }
+        replay = await replayer.replayDueOperations(
+          blockedCollectionIds: initialResults.failedCollectionIds,
+        );
         affected.addAll(replay.affectedObjectIds);
       }
 
@@ -329,18 +428,78 @@ final class DavAccountSyncEngine {
         failures.addAll(followUpResults.failures);
       }
 
+      if (replay.paused && provider == BusyProvider.nextcloud) {
+        final certificateState = await (_database.select(
+          _database.davAccountServices,
+        )..where((r) => r.accountId.equals(_accountId))).getSingleOrNull();
+        final code = certificateState?.lastDiscoveryErrorCode;
+        if (code?.startsWith('NextcloudCertificate') == true) {
+          failures.add(
+            DavException(
+              kind: DavErrorKind.tls,
+              code: code!,
+              safeMessage: 'Review the Nextcloud server certificate.',
+            ),
+          );
+        }
+      }
+      if (replay.paused && provider == BusyProvider.caldav) {
+        final current = await (_database.select(
+          _database.accounts,
+        )..where((r) => r.id.equals(_accountId))).getSingleOrNull();
+        final state = AccountConnectionStateCodec.parse(
+          current?.authState ?? 'signed_out',
+        );
+        if (state == AccountConnectionState.permissionChanged ||
+            state == AccountConnectionState.reauthenticationRequired) {
+          final denied = state == AccountConnectionState.permissionChanged;
+          failures.add(
+            DavException(
+              kind: denied
+                  ? DavErrorKind.authorization
+                  : DavErrorKind.authentication,
+              code: denied ? 'DavPermissionDenied' : 'DavAuthRejected',
+              statusCode: denied ? 403 : 401,
+              safeMessage: 'Queued CalDAV changes require account authorization before they can synchronize.',
+            ),
+          );
+        }
+      }
       if (failures.isNotEmpty) {
         if (affected.isNotEmpty || notificationProjectionsChanged) {
-          await _rebuildNotifications?.call(_accountId, affected);
+          await rebuildDavAffectedAccountNotifications(
+            database: _database,
+            accountId: _accountId,
+            affectedObjectIds: affected,
+            rebuild: _rebuildNotifications,
+          );
         }
-        await _recordFailureState(failures.first, discoveryRepository);
+        final accountFailure = failures.where(_blocksAccountReplay).firstOrNull;
+        if (accountFailure != null) {
+          await _recordFailureState(accountFailure, discoveryRepository);
+        } else {
+          await _setConnectionState(
+            failures.any(
+                  (e) =>
+                      e.category == DavErrorCategory.davPermissionDenied ||
+                      e.category == DavErrorCategory.davReadOnly,
+                )
+                ? AccountConnectionState.permissionChanged
+                : AccountConnectionState.temporarilyUnavailable,
+          );
+        }
         throw DavAccountSyncException(failures);
       }
       if (!replay.paused) {
         await _markSuccessful(full: full);
       }
       if (affected.isNotEmpty || notificationProjectionsChanged) {
-        await _rebuildNotifications?.call(_accountId, affected);
+        await rebuildDavAffectedAccountNotifications(
+          database: _database,
+          accountId: _accountId,
+          affectedObjectIds: affected,
+          rebuild: _rebuildNotifications,
+        );
       }
       return DavAccountSyncResult(
         discoveryRefreshed: discoveryRefreshed,
@@ -349,6 +508,7 @@ final class DavAccountSyncEngine {
         conflictsCreated: replay.conflictCount,
         followUpCollectionsSynchronized: followUpCount,
         affectedObjectIds: Set.unmodifiable(affected),
+        collectionCreationFailures: Map.unmodifiable(creationFailures),
       );
     } on DavAccountSyncException {
       rethrow;
@@ -386,6 +546,25 @@ final class DavAccountSyncEngine {
         basic: DavBasicCredential(
           username: secret.username,
           password: secret.appSpecificPassword,
+        ),
+      );
+    }
+    if (provider == BusyProvider.caldav && secret is CalDavSecretRecord) {
+      final authority = Uri.parse(account.authority);
+      if (secret.serviceAuthority != authority ||
+          secret.username != account.providerAccountId) {
+        throw SecretStoreCredentialMismatchException(
+          accountId: _accountId,
+          expectedProvider: provider,
+          actualProvider: secret.provider,
+          actualKind: secret.kind,
+        );
+      }
+      return _DavCredentialContext(
+        authority: authority,
+        basic: DavBasicCredential(
+          username: secret.username,
+          password: secret.password,
         ),
       );
     }
@@ -436,6 +615,7 @@ final class DavAccountSyncEngine {
       _database.davAccountServices,
     )..where((row) => row.accountId.equals(_accountId))).getSingleOrNull();
     if (service == null ||
+        service.capabilitiesSchemaVersion < davCapabilitiesSchemaVersion ||
         service.providerProfileVersion != davProviderProfileVersion ||
         service.lastDiscoveryErrorCode != null) {
       return true;
@@ -509,6 +689,7 @@ final class DavAccountSyncEngine {
     var nextIndex = 0;
     final results = <DavCollectionSyncResult>[];
     final failures = <DavException>[];
+    final failedCollectionIds = <String>{};
 
     Future<void> worker() async {
       while (true) {
@@ -544,6 +725,7 @@ final class DavAccountSyncEngine {
           results.add(result);
         } on DavException catch (error) {
           failures.add(error);
+          failedCollectionIds.add(collection.id);
         }
       }
     }
@@ -553,7 +735,11 @@ final class DavAccountSyncEngine {
         ? collections.length
         : _policy.maximumConcurrentCollections;
     await Future.wait([for (var i = 0; i < workerCount; i += 1) worker()]);
-    return _CollectionBatchResult(results: results, failures: failures);
+    return _CollectionBatchResult(
+      results: results,
+      failures: failures,
+      failedCollectionIds: failedCollectionIds,
+    );
   }
 
   Future<void> _recordFailureState(
@@ -576,13 +762,26 @@ final class DavAccountSyncEngine {
     await _setConnectionState(state);
   }
 
-  Future<void> _markSuccessful({required bool full}) {
+  Future<void> _markSuccessful({required bool full}) async {
+    final blocked =
+        await (_database.select(_database.pendingOps)
+              ..where(
+                (r) =>
+                    r.accountId.equals(_accountId) &
+                    r.state.equals('permission_blocked'),
+              )
+              ..limit(1))
+            .get();
     final now = _nowUtc().toUtc().toIso8601String();
-    return (_database.update(
+    await (_database.update(
       _database.accounts,
     )..where((row) => row.id.equals(_accountId))).write(
       AccountsCompanion(
-        authState: Value(AccountConnectionState.connected.storageValue),
+        authState: Value(
+          blocked.isEmpty
+              ? AccountConnectionState.connected.storageValue
+              : AccountConnectionState.permissionChanged.storageValue,
+        ),
         lastSuccessfulSyncAtUtc: Value(now),
         lastFullSyncAtUtc: full ? Value(now) : const Value.absent(),
         updatedAtUtc: Value(now),
@@ -623,8 +822,36 @@ final class _CollectionBatchResult {
   const _CollectionBatchResult({
     this.results = const [],
     this.failures = const [],
+    this.failedCollectionIds = const {},
   });
 
+  final Set<String> failedCollectionIds;
   final List<DavCollectionSyncResult> results;
   final List<DavException> failures;
+}
+
+bool _blocksAccountReplay(DavException failure) =>
+    _requiresReconnect(failure) ||
+    failure.kind == DavErrorKind.tls ||
+    failure.kind == DavErrorKind.cancelled;
+
+/// A confirmed native MOVE can project a destination owned by another local
+/// account. Rebuild its reminders as well as those of the account doing sync.
+Future<void> rebuildDavAffectedAccountNotifications({
+  required AppDatabase database,
+  required String accountId,
+  required Set<String> affectedObjectIds,
+  required Future<void> Function(String, Set<String>)? rebuild,
+}) async {
+  if (rebuild == null) return;
+  final accounts = <String>{accountId};
+  if (affectedObjectIds.isNotEmpty) {
+    final objects = await (database.select(
+      database.davObjects,
+    )..where((row) => row.id.isIn(affectedObjectIds))).get();
+    accounts.addAll(objects.map((object) => object.accountId));
+  }
+  for (final id in accounts) {
+    await rebuild(id, affectedObjectIds);
+  }
 }

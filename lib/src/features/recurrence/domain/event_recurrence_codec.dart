@@ -96,6 +96,7 @@ abstract final class EventRecurrenceCodec {
       BusyProvider.google ||
       BusyProvider.appleICloud ||
       BusyProvider.nextcloud ||
+      BusyProvider.caldav ||
       BusyProvider.webCal => _decodeIcalendar(value, baseDate: baseDate),
     };
   }
@@ -124,7 +125,9 @@ abstract final class EventRecurrenceCodec {
         'RRULE:${rule.toRrule()}',
         ..._googleAncillaryLines(original),
       ],
-      BusyProvider.appleICloud || BusyProvider.nextcloud => {
+      BusyProvider.appleICloud ||
+      BusyProvider.nextcloud ||
+      BusyProvider.caldav => {
         'rules': [rule.toRrule()],
         'dates': const <String>[],
         'excludedDates': const <String>[],

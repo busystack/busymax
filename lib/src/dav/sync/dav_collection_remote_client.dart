@@ -5,6 +5,7 @@ import '../dav_href.dart';
 import '../dav_provider_profile.dart';
 import '../http/dav_http_transport.dart';
 import '../xml/dav_xml.dart';
+import '../xml/dav_propfind_inventory.dart';
 
 final class DavRemoteMember {
   const DavRemoteMember({
@@ -112,8 +113,10 @@ final class DavCollectionHttpClient implements DavCollectionRemoteClient {
     required String collectionId,
     required Uri collectionUri,
     required DavBasicCredential credential,
+    this.maximumSyncResults,
     DavXmlParser xmlParser = const DavXmlParser(),
-  }) : _transport = transport,
+  }) : assert(maximumSyncResults == null || maximumSyncResults > 0),
+       _transport = transport,
        _profile = profile,
        _accountAuthority = accountAuthority,
        _accountId = accountId,
@@ -129,6 +132,9 @@ final class DavCollectionHttpClient implements DavCollectionRemoteClient {
   final String _collectionId;
   final Uri _collectionUri;
   final DavBasicCredential _credential;
+
+  /// Optional RFC 6578 request bound; omitted by default for existing callers.
+  final int? maximumSyncResults;
   final DavXmlParser _xmlParser;
 
   @override
@@ -144,88 +150,185 @@ final class DavCollectionHttpClient implements DavCollectionRemoteClient {
         accountId: _accountId,
         collectionId: _collectionId,
         correlationId: correlationId,
-        // RFC 6578 section 3.6 requires Depth: 0 here.  The sync-level in
+        // RFC 6578 section 3.2 requires Depth: 0 here. The sync-level in
         // the REPORT body selects direct collection members; Depth must not.
         headers: const {'depth': '0'},
-        body: _syncCollectionBody(syncToken),
+        body: _syncCollectionBody(syncToken, maximumSyncResults),
       ),
       credential: _credential,
       cancellationToken: cancellationToken,
     );
-    if (response.statusCode != 207 && response.statusCode != 507) {
+    if (response.statusCode != 207) {
       throw _statusException(response, operation: 'synchronize');
+    }
+    // RFC 6578 response grammar is stricter than a general DAV multistatus.
+    // Keep bounded, entity-safe decoding in the shared parser while validating
+    // protocol-specific cardinality here, before its first-property accessors.
+    final root = _xmlParser
+        .parseDocument(response.bodyBytes, correlationId: correlationId)
+        .rootElement;
+    final tokens = root.childElements
+        .where(
+          (e) =>
+              e.name.namespaceUri == davNamespace &&
+              e.name.local == 'sync-token',
+        )
+        .toList();
+    if (tokens.length != 1 || tokens.single.childElements.isNotEmpty) {
+      throw _syncProtocol('DavSyncResponseMissingToken', correlationId);
+    }
+    for (final element in root.childElements.where(
+      (e) => e.name.namespaceUri == davNamespace && e.name.local == 'response',
+    )) {
+      int count(String name) => element.childElements
+          .where(
+            (e) => e.name.namespaceUri == davNamespace && e.name.local == name,
+          )
+          .length;
+      if (count('href') != 1 ||
+          count('status') > 1 ||
+          count('error') > 1 ||
+          (count('status') != 0 && count('propstat') != 0)) {
+        throw _syncProtocol('DavSyncInvalidResponse', correlationId);
+      }
+      for (final stat in element.childElements.where(
+        (e) =>
+            e.name.namespaceUri == davNamespace && e.name.local == 'propstat',
+      )) {
+        int statCount(String name) => stat.childElements
+            .where(
+              (e) =>
+                  e.name.namespaceUri == davNamespace && e.name.local == name,
+            )
+            .length;
+        if (statCount('status') != 1 ||
+            statCount('prop') != 1 ||
+            statCount('error') > 1) {
+          throw _syncProtocol('DavSyncInvalidResponse', correlationId);
+        }
+      }
     }
     final multistatus = _xmlParser.parseMultistatus(
       response.bodyBytes,
       correlationId: correlationId,
     );
-    if (multistatus.hasCondition(davNamespace, 'valid-sync-token')) {
-      throw DavException(
-        kind: DavErrorKind.invalidSyncToken,
-        code: 'DavSyncTokenInvalid',
-        safeMessage: 'The DAV synchronization token is no longer valid.',
-        statusCode: response.statusCode,
-        correlationId: correlationId,
-      );
+    if (multistatus.errorConditions.isNotEmpty) {
+      if (multistatus.errorConditions.length == 1 &&
+          multistatus.errorConditions.contains(
+            const DavPropertyName(davNamespace, 'valid-sync-token'),
+          )) {
+        throw _invalidSyncToken(response.statusCode, correlationId);
+      }
+      throw _syncProtocol('DavSyncInvalidResponse', correlationId);
     }
     final nextToken = multistatus.syncToken;
     if (nextToken == null || nextToken.isEmpty) {
-      throw DavException(
-        kind: DavErrorKind.protocol,
-        code: 'DavSyncResponseMissingToken',
-        safeMessage: 'The DAV synchronization response omitted its token.',
-        correlationId: correlationId,
-      );
+      throw _syncProtocol('DavSyncResponseMissingToken', correlationId);
+    }
+    final tokenUri = Uri.tryParse(nextToken);
+    if (tokenUri == null ||
+        !tokenUri.hasScheme ||
+        RegExp(r'[\x00-\x20\x7f]').hasMatch(nextToken) ||
+        RegExp(r'%(?![0-9a-fA-F]{2})').hasMatch(nextToken)) {
+      throw _syncProtocol('DavSyncResponseInvalidToken', correlationId);
     }
     final changed = <DavRemoteMember>[];
     final deleted = <String>{};
-    var truncated =
-        response.statusCode == 507 ||
-        multistatus.hasCondition(
-          davNamespace,
-          'number-of-matches-within-limits',
-        );
+    final seen = <String>{};
+    final collectionKey = normalizedDavHrefKey(
+      _profile.provider,
+      _collectionUri,
+    );
+    var collectionSeen = false;
+    var truncated = false;
     for (final entry in multistatus.responses) {
-      final target = _resolveMember(entry.href, response, correlationId);
-      if (target == null) continue;
-      final hasLimitStatus =
-          entry.statusCode == 507 ||
-          entry.propstats.any((propstat) => propstat.statusCode == 507);
-      if (hasLimitStatus) {
-        truncated = true;
+      final target = _resolveTarget(entry.href, response, correlationId);
+      if (_sameCollectionTarget(target.hrefKey, collectionKey)) {
+        if (collectionSeen) {
+          throw _syncProtocol('DavSyncDuplicateResponse', correlationId);
+        }
+        collectionSeen = true;
+        if (entry.statusCode == 507) {
+          if (entry.propstats.isNotEmpty ||
+              entry.errorConditions.any(
+                (e) =>
+                    e !=
+                    const DavPropertyName(
+                      davNamespace,
+                      'number-of-matches-within-limits',
+                    ),
+              )) {
+            throw _syncProtocol('DavSyncInvalidTruncation', correlationId);
+          }
+          // The 507 on the request URI is mandatory; its DAV:error condition
+          // is only SHOULD, so absence of that optional condition is valid.
+          truncated = true;
+          continue;
+        }
+        if (entry.statusCode == 403 &&
+            entry.errorConditions.contains(
+              const DavPropertyName(davNamespace, 'valid-sync-token'),
+            )) {
+          throw _invalidSyncToken(403, correlationId);
+        }
+        if (entry.errorConditions.isNotEmpty) {
+          throw _syncProtocol('DavSyncInvalidTruncation', correlationId);
+        }
+        if (entry.statusCode case final status?
+            when status < 200 || status >= 300) {
+          throw _memberStatusException(status, correlationId);
+        }
+        for (final stat in entry.propstats) {
+          if (!stat.isSuccessful || stat.errorConditions.isNotEmpty) {
+            throw _syncProtocol('DavSyncInvalidResponse', correlationId);
+          }
+        }
         continue;
       }
-      final resourceMissing =
-          entry.statusCode == 404 ||
-          (entry.statusCode == null &&
-              entry.propstats.isNotEmpty &&
-              entry.propstats.every((propstat) => propstat.statusCode == 404));
-      if (resourceMissing) {
+      _requireDirectMember(target.hrefKey, collectionKey, correlationId);
+      if (!seen.add(target.hrefKey)) {
+        throw _syncProtocol('DavSyncDuplicateResponse', correlationId);
+      }
+      if (entry.statusCode == 404 &&
+          entry.propstats.isEmpty &&
+          entry.errorConditions.isEmpty) {
         deleted.add(target.hrefKey);
         continue;
       }
-      if (entry.statusCode case final status? when status >= 400) {
-        throw _memberStatusException(status, correlationId);
+      if (entry.statusCode != null) {
+        // A member-level 507 is an error, never a pagination marker.
+        throw _memberStatusException(entry.statusCode!, correlationId);
       }
-      final etag = entry
-          .successfulProperty(davNamespace, 'getetag')
-          ?.text
-          .trim();
-      if (etag == null || etag.isEmpty) {
-        throw DavException(
-          kind: DavErrorKind.protocol,
-          code: 'DavSyncMemberMissingEtag',
-          safeMessage: 'A changed DAV object did not contain an ETag.',
-          correlationId: correlationId,
-        );
+      if (entry.errorConditions.isNotEmpty || entry.propstats.isEmpty) {
+        throw _syncProtocol('DavSyncInvalidMemberResponse', correlationId);
+      }
+      for (final stat in entry.propstats) {
+        if (!stat.isSuccessful) {
+          throw _memberStatusException(stat.statusCode, correlationId);
+        }
+        if (stat.errorConditions.isNotEmpty) {
+          throw _syncProtocol('DavSyncInvalidMemberResponse', correlationId);
+        }
+      }
+      final etags = entry.propstats
+          .expand((s) => s.properties)
+          .where(
+            (p) => p.name == const DavPropertyName(davNamespace, 'getetag'),
+          )
+          .toList();
+      if (etags.length != 1 || etags.single.text.trim().isEmpty) {
+        throw _syncProtocol('DavSyncMemberMissingEtag', correlationId);
       }
       changed.add(
         DavRemoteMember(
           hrefKey: target.hrefKey,
           requestUri: target.uri,
-          etag: etag,
+          etag: etags.single.text.trim(),
         ),
       );
+    }
+    if (truncated && nextToken == syncToken) {
+      throw _syncProtocol('DavSyncPaginationTokenLoop', correlationId);
     }
     return DavSyncPage(
       changedMembers: List.unmodifiable(changed),
@@ -256,15 +359,60 @@ final class DavCollectionHttpClient implements DavCollectionRemoteClient {
     if (response.statusCode != 207) {
       throw _statusException(response, operation: 'list members');
     }
-    final multistatus = _xmlParser.parseMultistatus(
+    final multistatus = parseDavPropfindInventory(
+      _xmlParser,
       response.bodyBytes,
       correlationId: correlationId,
     );
     final members = <DavRemoteMember>[];
+    final seen = <String>{};
+    var foundCollection = false;
+    final collectionKey = normalizedDavHrefKey(
+      _profile.provider,
+      _collectionUri,
+    );
     for (final entry in multistatus.responses) {
+      if (entry.statusCode case final status?) {
+        if (status >= 400) throw _memberStatusException(status, correlationId);
+        throw _syncProtocol('DavInventoryInvalidResourceStatus', correlationId);
+      }
+      final uri = resolveDavHref(
+        href: entry.href,
+        responseRequestUri: response.requestUri,
+        profile: _profile,
+        accountAuthority: _accountAuthority,
+        correlationId: correlationId,
+      );
+      final key = normalizedDavHrefKey(_profile.provider, uri);
+      if (_sameCollectionTarget(key, collectionKey)) {
+        if (foundCollection) {
+          throw _syncProtocol('DavInventoryDuplicateCollection', correlationId);
+        }
+        foundCollection = true;
+        // getetag is optional on collections. A property-level 404 means the
+        // property is unavailable, not that the collection is missing.
+        for (final stat in entry.propstats) {
+          if (!stat.isSuccessful && stat.statusCode != 404) {
+            throw _memberStatusException(stat.statusCode, correlationId);
+          }
+          if (stat.properties.isEmpty) {
+            throw _syncProtocol('DavInventoryInvalidCollection', correlationId);
+          }
+        }
+        continue;
+      }
+      if (!seen.add(key)) {
+        throw _syncProtocol('DavInventoryDuplicateMember', correlationId);
+      }
       final target = _resolveMember(entry.href, response, correlationId);
-      if (target == null) continue;
-      if (entry.statusCode == 404) continue;
+      if (target == null) {
+        throw _syncProtocol('DavInventoryInvalidMember', correlationId);
+      }
+      for (final stat in entry.propstats) {
+        if (!stat.isSuccessful) {
+          throw _memberStatusException(stat.statusCode, correlationId);
+        }
+      }
       if (entry.statusCode case final status? when status >= 400) {
         throw _memberStatusException(status, correlationId);
       }
@@ -288,6 +436,9 @@ final class DavCollectionHttpClient implements DavCollectionRemoteClient {
         ),
       );
     }
+    if (!foundCollection) {
+      throw _syncProtocol('DavInventoryMissingCollection', correlationId);
+    }
     return DavMemberInventory(members: List.unmodifiable(members));
   }
 
@@ -309,28 +460,51 @@ final class DavCollectionHttpClient implements DavCollectionRemoteClient {
           ),
       ]);
     }
-    final response = await _transport.send(
-      DavRequest.xml(
-        method: 'REPORT',
-        uri: _collectionUri,
-        accountId: _accountId,
-        collectionId: _collectionId,
+    late DavResponse response;
+    late DavMultistatus multistatus;
+    try {
+      response = await _transport.send(
+        DavRequest.xml(
+          method: 'REPORT',
+          uri: _collectionUri,
+          accountId: _accountId,
+          collectionId: _collectionId,
+          correlationId: correlationId,
+          headers: const {'depth': '1'},
+          body: _calendarMultigetBody(members),
+        ),
+        credential: _credential,
+        cancellationToken: cancellationToken,
+      );
+      if (response.statusCode != 207) {
+        throw _statusException(response, operation: 'fetch members');
+      }
+      multistatus = _xmlParser.parseMultistatus(
+        response.bodyBytes,
         correlationId: correlationId,
-        headers: const {'depth': '1'},
-        body: _calendarMultigetBody(members),
-      ),
-      credential: _credential,
-      cancellationToken: cancellationToken,
-    );
-    if (response.statusCode != 207) {
-      throw _statusException(response, operation: 'fetch members');
+      );
+    } on DavException catch (error) {
+      // Discard oversized aggregate XML; individual GETs retain transport and
+      // resource bounds. Sequential reads avoid a burst of large responses.
+      if (error.kind != DavErrorKind.responseTooLarge &&
+          error.code != 'DavXmlTextLimitExceeded') {
+        rethrow;
+      }
+      final recovered = <DavFetchedMember>[];
+      for (final member in members) {
+        recovered.add(
+          await _getMember(
+            member,
+            correlationId: correlationId,
+            cancellationToken: cancellationToken,
+          ),
+        );
+      }
+      return recovered;
     }
-    final multistatus = _xmlParser.parseMultistatus(
-      response.bodyBytes,
-      correlationId: correlationId,
-    );
     final requested = {for (final member in members) member.hrefKey: member};
     final returned = <String, DavFetchedMember>{};
+    final seen = <String>{};
     for (final entry in multistatus.responses) {
       final target = _resolveMember(entry.href, response, correlationId);
       if (target == null || !requested.containsKey(target.hrefKey)) {
@@ -340,6 +514,17 @@ final class DavCollectionHttpClient implements DavCollectionRemoteClient {
           safeMessage: 'The DAV server returned an unexpected object.',
           correlationId: correlationId,
         );
+      }
+      // Duplicate members cannot supply authoritative evidence. Reject even
+      // identical duplicates rather than allowing response order to decide.
+      if (!seen.add(target.hrefKey)) {
+        throw _syncProtocol('DavMultigetDuplicateMember', correlationId);
+      }
+      if (entry.statusCode != null && entry.propstats.isNotEmpty) {
+        throw _syncProtocol('DavMultigetInvalidMember', correlationId);
+      }
+      if (entry.errorConditions.isNotEmpty) {
+        throw _syncProtocol('DavMultigetInvalidMember', correlationId);
       }
       if (entry.statusCode == 404) {
         returned[target.hrefKey] = DavFetchedMember.missing(
@@ -360,22 +545,10 @@ final class DavCollectionHttpClient implements DavCollectionRemoteClient {
         'calendar-data',
       );
       if (etag == null || etag.isEmpty || calendarData == null) {
-        final onlyMissingPropstats =
-            entry.propstats.isNotEmpty &&
-            entry.propstats.every((propstat) => propstat.statusCode == 404);
-        if (onlyMissingPropstats) {
-          returned[target.hrefKey] = DavFetchedMember.missing(
-            hrefKey: target.hrefKey,
-            requestUri: target.uri,
-          );
-          continue;
-        }
-        throw DavException(
-          kind: DavErrorKind.protocol,
-          code: 'DavMultigetMemberDataMissing',
-          safeMessage: 'A DAV object response omitted calendar data or ETag.',
-          correlationId: correlationId,
-        );
+        // RFC 4918 section 13: propstat describes properties, not resource
+        // existence. Missing mandatory properties require safe GET just like
+        // an omitted response. No deletion is inferred from property failures.
+        continue;
       }
       returned[target.hrefKey] = DavFetchedMember.live(
         hrefKey: target.hrefKey,
@@ -386,7 +559,7 @@ final class DavCollectionHttpClient implements DavCollectionRemoteClient {
       );
     }
 
-    // An omitted multiget member is ambiguous, so resolve it with a safe GET
+    // An omitted or incomplete multiget member is ambiguous; use a safe GET
     // rather than treating an incomplete response as deletion.
     for (final member in members) {
       returned[member.hrefKey] ??= await _getMember(
@@ -422,7 +595,7 @@ final class DavCollectionHttpClient implements DavCollectionRemoteClient {
         requestUri: response.requestUri,
       );
     }
-    if (response.statusCode < 200 || response.statusCode >= 300) {
+    if (response.statusCode != 200) {
       throw _statusException(response, operation: 'fetch object');
     }
     final etag = response.etag;
@@ -448,6 +621,21 @@ final class DavCollectionHttpClient implements DavCollectionRemoteClient {
     DavResponse response,
     String correlationId,
   ) {
+    final target = _resolveTarget(href, response, correlationId);
+    final collectionKey = normalizedDavHrefKey(
+      _profile.provider,
+      _collectionUri,
+    );
+    if (_sameCollectionTarget(target.hrefKey, collectionKey)) return null;
+    _requireDirectMember(target.hrefKey, collectionKey, correlationId);
+    return target;
+  }
+
+  ({String hrefKey, Uri uri}) _resolveTarget(
+    String href,
+    DavResponse response,
+    String correlationId,
+  ) {
     final uri = resolveDavHref(
       href: href,
       responseRequestUri: response.requestUri,
@@ -455,22 +643,17 @@ final class DavCollectionHttpClient implements DavCollectionRemoteClient {
       accountAuthority: _accountAuthority,
       correlationId: correlationId,
     );
-    final key = normalizedDavHrefKey(_profile.provider, uri);
-    final collectionKey = normalizedDavHrefKey(
-      _profile.provider,
-      _collectionUri,
-    );
-    if (_sameCollectionTarget(key, collectionKey)) return null;
+    return (hrefKey: normalizedDavHrefKey(_profile.provider, uri), uri: uri);
+  }
+
+  void _requireDirectMember(
+    String key,
+    String collectionKey,
+    String correlationId,
+  ) {
     if (!_isDirectMember(key, collectionKey)) {
-      throw DavException(
-        kind: DavErrorKind.protocol,
-        code: 'DavObjectOutsideCollection',
-        safeMessage:
-            'A DAV response referenced an object outside its collection.',
-        correlationId: correlationId,
-      );
+      throw _syncProtocol('DavObjectOutsideCollection', correlationId);
     }
-    return (hrefKey: key, uri: uri);
   }
 
   DavException _statusException(
@@ -527,7 +710,9 @@ final class DavCollectionHttpClient implements DavCollectionRemoteClient {
 
 DavException _memberStatusException(int status, String correlationId) =>
     DavException(
-      kind: status == 403
+      kind: status == 401
+          ? DavErrorKind.authentication
+          : status == 403
           ? DavErrorKind.authorization
           : status >= 500
           ? DavErrorKind.server
@@ -561,11 +746,12 @@ String _xmlText(String value) => value
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&apos;');
 
-String _syncCollectionBody(String token) =>
+String _syncCollectionBody(String token, int? maximumResults) =>
     '''<?xml version="1.0" encoding="utf-8"?>
 <d:sync-collection xmlns:d="DAV:">
   <d:sync-token>${_xmlText(token)}</d:sync-token>
   <d:sync-level>1</d:sync-level>
+  ${maximumResults == null ? '' : '<d:limit><d:nresults>$maximumResults</d:nresults></d:limit>'}
   <d:prop><d:getetag/></d:prop>
 </d:sync-collection>''';
 
@@ -578,3 +764,19 @@ String _calendarMultigetBody(List<DavRemoteMember> members) =>
 
 const _memberEtagPropfind = '''<?xml version="1.0" encoding="utf-8"?>
 <d:propfind xmlns:d="DAV:"><d:prop><d:getetag/></d:prop></d:propfind>''';
+
+DavException _syncProtocol(String code, String correlationId) => DavException(
+  kind: DavErrorKind.protocol,
+  code: code,
+  safeMessage: 'The DAV synchronization response is incomplete or invalid.',
+  correlationId: correlationId,
+);
+
+DavException _invalidSyncToken(int status, String correlationId) =>
+    DavException(
+      kind: DavErrorKind.invalidSyncToken,
+      code: 'DavSyncTokenInvalid',
+      safeMessage: 'The DAV synchronization token is no longer valid.',
+      statusCode: status,
+      correlationId: correlationId,
+    );

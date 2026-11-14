@@ -1,3 +1,5 @@
+import '../http/dav_http_transport.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -7,11 +9,11 @@ import 'package:yaru/yaru.dart';
 import '../../app/app_bootstrap.dart';
 import '../../app/busymax_design.dart';
 import '../../app/busymax_dialogs.dart';
-import '../../dav/dav_errors.dart';
 import '../../dav/nextcloud/nextcloud_collection_controller.dart';
 import '../../dav/nextcloud/nextcloud_collection_service.dart';
 import '../../dav/nextcloud/nextcloud_dav_context.dart';
 import '../../dav/nextcloud/nextcloud_trash_service.dart';
+import '../nextcloud/nextcloud_federation_controller.dart';
 import '../../dav/xml/dav_xml.dart';
 import '../../l10n/l10n.dart';
 import '../../l10n/nextcloud_collection_error_description.dart';
@@ -293,7 +295,9 @@ class _LinuxNextcloudCollectionDialogState
                   YaruListTile.square(
                     leading: const Icon(Icons.person_outline),
                     title: Text(share.recipient.label),
-                    subtitle: share.status.isEmpty ? null : Text(share.status),
+                    subtitle: share.recipient.federated
+                        ? Text(l10n.nextcloudFederationGrant)
+                        : (share.status.isEmpty ? null : Text(share.status)),
                   ),
                   BusyMaxActionRow(
                     title: share.writable
@@ -446,6 +450,13 @@ class _LinuxNextcloudTrashDialog extends ConsumerStatefulWidget {
 
 class _LinuxNextcloudTrashState
     extends ConsumerState<_LinuxNextcloudTrashDialog> {
+  final _loadCancellation = DavCancellationToken();
+  @override
+  void dispose() {
+    _loadCancellation.cancel();
+    super.dispose();
+  }
+
   NextcloudTrashListing? listing;
   bool busy = false, failed = false, refreshPending = false;
   Object? error;
@@ -455,7 +466,47 @@ class _LinuxNextcloudTrashState
     unawaited(_load());
   }
 
+  int _listingEpoch = 0;
+  final _loadingDetails = <Uri>{};
+
+  Future<void> _details(
+    NextcloudTrashItem item, {
+    bool automatic = false,
+  }) async {
+    if (!_loadingDetails.add(item.href)) return;
+    final epoch = _listingEpoch;
+    setState(() {});
+    try {
+      final detailed = await ref
+          .read(nextcloudTrashServiceProvider(widget.accountId))
+          .details(item, cancellationToken: _loadCancellation);
+      if (mounted && _listingEpoch == epoch) {
+        setState(
+          () => listing = NextcloudTrashListing(
+            List.unmodifiable(
+              listing!.items.map(
+                (row) => row.href == item.href ? detailed : row,
+              ),
+            ),
+            listing!.retentionSeconds,
+          ),
+        );
+      }
+    } on Object catch (caught) {
+      if (!automatic && mounted && _listingEpoch == epoch) {
+        setState(() {
+          failed = true;
+          error = caught;
+        });
+      }
+    } finally {
+      _loadingDetails.remove(item.href);
+      if (mounted) setState(() {});
+    }
+  }
+
   Future<void> _load() async {
+    final epoch = ++_listingEpoch;
     setState(() {
       busy = true;
       failed = false;
@@ -463,22 +514,33 @@ class _LinuxNextcloudTrashState
     try {
       final result = await ref
           .read(nextcloudTrashServiceProvider(widget.accountId))
-          .list();
-      if (mounted) {
+          .list(cancellationToken: _loadCancellation);
+      if (mounted && _listingEpoch == epoch) {
         setState(() {
           listing = result;
           refreshPending = false;
         });
       }
     } on Object catch (caught) {
-      if (mounted) {
+      if (mounted && _listingEpoch == epoch) {
         setState(() {
           failed = true;
           error = caught;
         });
       }
     }
-    if (mounted) setState(() => busy = false);
+    if (mounted && _listingEpoch == epoch) {
+      setState(() => busy = false);
+      // Metadata is visible before these optional, bounded identity previews.
+      if (failed) return;
+      final previews =
+          listing?.items.where((item) => item.canPreview).take(5).toList() ??
+          const <NextcloudTrashItem>[];
+      for (final item in previews) {
+        if (!mounted || _listingEpoch != epoch || busy) break;
+        await _details(item, automatic: true);
+      }
+    }
   }
 
   Future<void> _mutate(NextcloudTrashItem item, bool permanent) async {
@@ -540,65 +602,198 @@ class _LinuxNextcloudTrashState
         ),
         children: [
           if (busy) const Center(child: YaruCircularProgressIndicator()),
-          if (failed)
-            Text(
-              error is DavException &&
-                      (error! as DavException).code == 'DavTrashUnsupported'
-                  ? l10n.nextcloudUnsupported
-                  : l10n.nextcloudServerUnavailable,
-            ),
+          if (failed) Text(localizedNextcloudCollectionError(l10n, error)),
           if (refreshPending) Text(l10n.nextcloudRefreshPending),
           if (listing?.retentionSeconds != null)
             Text(
-              l10n.nextcloudTrashRetention(
-                (listing!.retentionSeconds! / 86400).ceil(),
-              ),
+              listing!.retentionSeconds == 0
+                  ? l10n.nextcloudTrashDisabled
+                  : l10n.nextcloudTrashRetention(
+                      (listing!.retentionSeconds! / 86400).ceil(),
+                    ),
             ),
           if (listing?.items.isEmpty == true) Text(l10n.nextcloudTrashEmpty),
           if (listing?.items.isNotEmpty == true)
+            SizedBox(
+              height: MediaQuery.sizeOf(context).height * .5,
+              child: ListView.builder(
+                itemCount: listing!.items.length,
+                itemBuilder: (context, index) {
+                  final item = listing!.items[index];
+                  return BusyMaxGroupedList(
+                    filled: true,
+                    children: [
+                      YaruListTile.square(
+                        leading: Icon(switch (item.kind) {
+                          NextcloudTrashKind.unknownObject =>
+                            Icons.description_outlined,
+                          NextcloudTrashKind.event => YaruIcons.calendar,
+                          NextcloudTrashKind.task => Icons.task_alt,
+                          NextcloudTrashKind.calendar => YaruIcons.calendar,
+                          NextcloudTrashKind.taskList => Icons.checklist,
+                          NextcloudTrashKind.mixedCollection =>
+                            Icons.view_agenda_outlined,
+                        }),
+                        title: Text(item.title),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (item.deletedAt != null) Text(item.deletedAt!),
+                            Text(switch (item.kind) {
+                              NextcloudTrashKind.unknownObject => 'iCalendar',
+                              NextcloudTrashKind.event => l10n.calendarEvents,
+                              NextcloudTrashKind.task => l10n.calendarTasks,
+                              NextcloudTrashKind.calendar => l10n.calendar,
+                              NextcloudTrashKind.taskList => l10n.taskLists,
+                              NextcloudTrashKind.mixedCollection =>
+                                l10n.collectionSupportsEventsAndTasks,
+                            }),
+                          ],
+                        ),
+                      ),
+                      if (item.isObject && !item.contentLoaded)
+                        BusyMaxActionRow(
+                          key: ValueKey((
+                            'nextcloud-trash-details',
+                            item.href.toString(),
+                          )),
+                          title: l10n.show,
+                          leading: _loadingDetails.contains(item.href)
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: YaruCircularProgressIndicator(),
+                                )
+                              : const Icon(Icons.description_outlined),
+                          enabled:
+                              !busy && !_loadingDetails.contains(item.href),
+                          onTap: () => _details(item),
+                        ),
+                      BusyMaxActionRow(
+                        key: ValueKey((
+                          'nextcloud-trash-restore',
+                          item.href.toString(),
+                        )),
+                        title: l10n.nextcloudRestore,
+                        leading: const Icon(Icons.restore),
+                        enabled: !busy && !refreshPending && item.canRestore,
+                        onTap: () => _mutate(item, false),
+                      ),
+                      BusyMaxActionRow(
+                        key: ValueKey((
+                          'nextcloud-trash-delete',
+                          item.href.toString(),
+                        )),
+                        title: l10n.nextcloudPermanentDelete,
+                        leading: const Icon(YaruIcons.trash),
+                        enabled:
+                            !busy &&
+                            !refreshPending &&
+                            item.canPermanentlyDelete,
+                        onTap: () => _mutate(item, true),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+Future<void> showLinuxNextcloudFederationDialog(
+  BuildContext context, {
+  required String accountId,
+}) => showBusyMaxModalDialog<void>(
+  context,
+  barrierDismissible: false,
+  builder: (_) => LinuxNextcloudFederationDialog(accountId: accountId),
+);
+
+class LinuxNextcloudFederationDialog extends ConsumerStatefulWidget {
+  const LinuxNextcloudFederationDialog({super.key, required this.accountId});
+  final String accountId;
+  @override
+  ConsumerState<LinuxNextcloudFederationDialog> createState() =>
+      _LinuxNextcloudFederationDialogState();
+}
+
+class _LinuxNextcloudFederationDialogState
+    extends ConsumerState<LinuxNextcloudFederationDialog> {
+  late final NextcloudFederationController model;
+  @override
+  void initState() {
+    super.initState();
+    model = NextcloudFederationController(
+      ref.read(nextcloudFederationServiceProvider(widget.accountId)),
+    )..addListener(_changed);
+    unawaited(model.load());
+  }
+
+  void _changed() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    model.removeListener(_changed);
+    model.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final enabled = !model.busy && model.error == null && !model.refreshPending;
+    return PopScope(
+      canPop: !model.busy,
+      child: BusyMaxDialogShell(
+        key: const ValueKey('nextcloud-federation-dialog'),
+        title: l10n.nextcloudFederationInvitations,
+        maxWidth: 680,
+        header: BusyMaxEditorHeader(
+          title: l10n.nextcloudFederationInvitations,
+          cancelLabel: l10n.close,
+          saveLabel: l10n.refresh,
+          onCancel: () => Navigator.pop(context),
+          cancelEnabled: !model.busy,
+          onSave: model.busy ? null : model.load,
+        ),
+        children: [
+          if (model.busy) const Center(child: YaruCircularProgressIndicator()),
+          if (model.error != null)
+            Text(localizedNextcloudCollectionError(l10n, model.error)),
+          if (model.refreshPending) Text(l10n.nextcloudRefreshPending),
+          if (model.invitations?.isEmpty == true)
+            Text(l10n.nextcloudFederationEmpty),
+          for (final invitation in model.invitations ?? [])
             BusyMaxGroupedList(
               filled: true,
               children: [
-                for (final item in listing!.items) ...[
-                  YaruListTile.square(
-                    leading: Icon(switch (item.kind) {
-                      NextcloudTrashKind.event => YaruIcons.calendar,
-                      NextcloudTrashKind.task => Icons.task_alt,
-                      NextcloudTrashKind.calendar => YaruIcons.calendar,
-                      NextcloudTrashKind.taskList => Icons.checklist,
-                      NextcloudTrashKind.mixedCollection =>
-                        Icons.view_agenda_outlined,
-                    }),
-                    title: Text(item.title),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (item.deletedAt != null) Text(item.deletedAt!),
-                        Text(switch (item.kind) {
-                          NextcloudTrashKind.event => l10n.calendarEvents,
-                          NextcloudTrashKind.task => l10n.calendarTasks,
-                          NextcloudTrashKind.calendar => l10n.calendar,
-                          NextcloudTrashKind.taskList => l10n.taskLists,
-                          NextcloudTrashKind.mixedCollection =>
-                            l10n.collectionSupportsEventsAndTasks,
-                        }),
-                      ],
-                    ),
+                YaruListTile.square(
+                  title: Text(invitation.displayName),
+                  subtitle: Text(invitation.sharedBy),
+                ),
+                BusyMaxActionRow(
+                  key: ValueKey('nextcloud-federation-accept-${invitation.id}'),
+                  title: l10n.acceptInvitation,
+                  leading: const Icon(Icons.check),
+                  onTap: enabled
+                      ? () => model.respond(invitation, accept: true)
+                      : null,
+                ),
+                BusyMaxActionRow(
+                  key: ValueKey(
+                    'nextcloud-federation-decline-${invitation.id}',
                   ),
-                  BusyMaxActionRow(
-                    title: l10n.nextcloudRestore,
-                    leading: const Icon(Icons.restore),
-                    enabled: !busy && !refreshPending && item.canRestore,
-                    onTap: () => _mutate(item, false),
-                  ),
-                  BusyMaxActionRow(
-                    title: l10n.nextcloudPermanentDelete,
-                    leading: const Icon(YaruIcons.trash),
-                    enabled:
-                        !busy && !refreshPending && item.canPermanentlyDelete,
-                    onTap: () => _mutate(item, true),
-                  ),
-                ],
+                  title: l10n.declineInvitation,
+                  leading: const Icon(Icons.close),
+                  onTap: enabled
+                      ? () => model.respond(invitation, accept: false)
+                      : null,
+                ),
               ],
             ),
         ],

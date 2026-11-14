@@ -54,8 +54,11 @@ Future<void> showIcsImportFlow(
       preview: preview,
       destination: selection.destination,
       nativeDuplicates: selection.duplicatePolicy,
-      normalizeNativeSchedulingMethod:
-          selection.destination.provider == BusyProvider.nextcloud,
+      allowScheduling: selection.allowScheduling,
+      normalizeNativeSchedulingMethod: const {
+        BusyProvider.nextcloud,
+        BusyProvider.caldav,
+      }.contains(selection.destination.provider),
     );
     if (!context.mounted) return;
     await showBusyMaxModalDialog<void>(
@@ -110,6 +113,7 @@ class _IcalImportPreviewDialog extends StatefulWidget {
 class _IcalImportPreviewDialogState extends State<_IcalImportPreviewDialog> {
   CalendarSourceEntity? _destination;
   bool _newCopies = false;
+  bool _allowScheduling = false;
 
   @override
   void initState() {
@@ -120,7 +124,13 @@ class _IcalImportPreviewDialogState extends State<_IcalImportPreviewDialog> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final native = _destination?.provider == BusyProvider.nextcloud;
+    final native = const {
+      BusyProvider.nextcloud,
+      BusyProvider.caldav,
+    }.contains(_destination?.provider);
+    final schedulingConsentRequired =
+        _destination?.provider == BusyProvider.caldav &&
+        widget.preview.nativePreview.hasAttendees;
     final omitted = native
         ? <String>[]
         : (widget.preview.fieldsThatWillBeOmitted.toList()..sort());
@@ -134,10 +144,16 @@ class _IcalImportPreviewDialogState extends State<_IcalImportPreviewDialog> {
         ),
         BusyMaxPushButton.suggested(
           key: const ValueKey('confirm-ics-import'),
-          onPressed: _destination == null
+          onPressed:
+              _destination == null ||
+                  (schedulingConsentRequired && !_allowScheduling)
               ? null
               : () => Navigator.of(context).pop(
-                  IcalImportSelection(_destination!, newCopies: _newCopies),
+                  IcalImportSelection(
+                    _destination!,
+                    newCopies: _newCopies,
+                    allowScheduling: _allowScheduling,
+                  ),
                 ),
           child: Text(l10n.importIcsConfirm),
         ),
@@ -151,7 +167,11 @@ class _IcalImportPreviewDialogState extends State<_IcalImportPreviewDialog> {
               : l10n.importEventsFound(widget.preview.eventCount),
         ),
         if (native) ...[
-          Text(l10n.nextcloudNativeImport),
+          Text(
+            _destination?.provider == BusyProvider.nextcloud
+                ? l10n.nextcloudNativeImport
+                : l10n.caldavNativeImport,
+          ),
           if (widget.preview.nativePreview.schedulingMethod != null)
             Text(l10n.nextcloudImportMethod),
           BusyMaxGroupedList(
@@ -180,6 +200,27 @@ class _IcalImportPreviewDialogState extends State<_IcalImportPreviewDialog> {
             ],
           ),
         ],
+        if (schedulingConsentRequired)
+          BusyMaxYaruFocusBorder(
+            borderStrokeAlign: BorderSide.strokeAlignInside,
+            builder: (context, rowFocusNode) => YaruCheckboxListTile(
+              key: const ValueKey('caldav-import-scheduling-consent'),
+              title: Text(l10n.caldavImportSchedulingWarning),
+              value: _allowScheduling,
+              onChanged: _onSchedulingConsentChanged,
+              focusNode: rowFocusNode,
+              control: BusyMaxYaruFocusBorder(
+                builder: (context, controlFocusNode) => YaruCheckbox(
+                  value: _allowScheduling,
+                  onChanged: _onSchedulingConsentChanged,
+                  focusNode: controlFocusNode,
+                  hasFocusBorder: false,
+                ),
+              ),
+              shape: const RoundedRectangleBorder(),
+              hasFocusBorder: false,
+            ),
+          ),
         if (widget.preview.invalidEventCount > 0)
           Text(l10n.importInvalidEvents(widget.preview.invalidEventCount)),
         if (omitted.isNotEmpty)
@@ -195,7 +236,10 @@ class _IcalImportPreviewDialogState extends State<_IcalImportPreviewDialog> {
             selected: _destination!,
             labelFor: (source) =>
                 '${widget.accountLabels[source.accountId] ?? source.provider.displayName} · ${source.summary}',
-            onSelected: (value) => setState(() => _destination = value),
+            onSelected: (value) => setState(() {
+              _destination = value;
+              _allowScheduling = false;
+            }),
           ),
       ],
     );
@@ -203,6 +247,10 @@ class _IcalImportPreviewDialogState extends State<_IcalImportPreviewDialog> {
 
   void _onNewCopiesChanged(bool? value) {
     setState(() => _newCopies = value == true);
+  }
+
+  void _onSchedulingConsentChanged(bool? value) {
+    setState(() => _allowScheduling = value == true);
   }
 }
 

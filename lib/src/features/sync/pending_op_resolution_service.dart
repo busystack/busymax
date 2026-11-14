@@ -7,6 +7,7 @@ import '../../calendar_providers/calendar_mutation.dart';
 import '../../dav/mutation/dav_pending_operation_selection.dart';
 import '../../dav/mutation/dav_pending_operations.dart';
 import '../../db/app_database.dart';
+import '../../providers/busy_provider.dart';
 import '../accounts/data/accounts_repository.dart';
 import '../calendar/data/calendar_repository.dart';
 import '../notifications/notification_schedule_service.dart';
@@ -91,7 +92,10 @@ class PendingOpResolutionService {
       return;
     }
     _requireOwnedOperation(op);
-    await _requireAccountSyncEligible();
+    await _requireAccountSyncEligible(
+      allowDavPermissionDiscard:
+          isDavPendingOperation(op) && !isDavPartiallyCompletedMove(op),
+    );
 
     if (isDavPendingOperation(op)) {
       final partiallyCompletedMove = isDavPartiallyCompletedMove(op);
@@ -109,7 +113,11 @@ class PendingOpResolutionService {
             partialMoveReconciledAfterUtc: reconciliationStartedAtUtc,
           );
       await _rebuildNotificationSchedule();
-      if (syncAfterDiscard && !partiallyCompletedMove) {
+      final account = await AccountsRepository(database: _database)
+          .accountById(_accountId);
+      if (syncAfterDiscard &&
+          !partiallyCompletedMove &&
+          account?.isSyncEligible == true) {
         await _syncAfterResolution(op);
       }
       return;
@@ -1038,10 +1046,15 @@ class PendingOpResolutionService {
     await _syncTasks();
   }
 
-  Future<void> _requireAccountSyncEligible() async {
+  Future<void> _requireAccountSyncEligible({
+    bool allowDavPermissionDiscard = false,
+  }) async {
     final account = await AccountsRepository(database: _database)
         .accountById(_accountId);
-    if (account?.isSyncEligible == true) {
+    if (account?.isSyncEligible == true ||
+        (allowDavPermissionDiscard &&
+            account?.provider.isDav == true &&
+            account?.authState == accountAuthStatePermissionChanged)) {
       return;
     }
     throw AccountNotSyncEligibleException(

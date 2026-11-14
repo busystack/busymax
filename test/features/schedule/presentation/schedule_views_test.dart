@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
+import 'package:busymax/src/features/attachments/dav_attachment_providers.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/schedule/schedule_repository.dart';
 import 'package:busymax/src/schedule/schedule_filters.dart';
@@ -1811,16 +1812,22 @@ void main() {
       capabilities: ScheduleItemCapabilities.readOnly,
     );
     await tester.pumpWidget(
-      localizedTestApp(
-        child: Scaffold(
-          body: Builder(
-            builder: (context) => TextButton(
-              onPressed: () => showScheduleItemDetailsPopover(
-                context: context,
-                anchorContext: context,
-                item: event,
+      ProviderScope(
+        overrides: [
+          davEventAttachmentsProvider(event.id)
+              .overrideWith((ref) => Stream.value(const [])),
+        ],
+        child: localizedTestApp(
+          child: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () => showScheduleItemDetailsPopover(
+                  context: context,
+                  anchorContext: context,
+                  item: event,
+                ),
+                child: const Text('Open details'),
               ),
-              child: const Text('Open details'),
             ),
           ),
         ),

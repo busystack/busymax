@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:busymax/src/app/app_settings.dart';
@@ -29,10 +30,13 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../support/persistence_test_directory.dart';
+
 void main() {
   late AppDatabase database;
   late DavObjectRepository objectRepository;
   late DavPendingOperationQueue queue;
+  Directory? recoveryDirectory;
 
   setUp(() async {
     database = AppDatabase(NativeDatabase.memory());
@@ -49,7 +53,338 @@ void main() {
     );
   });
 
-  tearDown(() => database.close());
+  tearDown(() async {
+    await database.close();
+    await recoveryDirectory?.delete(recursive: true);
+    recoveryDirectory = null;
+  });
+
+  test(
+    'denial, discard and rediscovery allow a subsequent CalDAV update',
+    () async {
+      await database
+          .update(database.accounts)
+          .write(
+            const AccountsCompanion(
+              provider: Value('caldav'),
+              credentialKind: Value('caldav_password'),
+            ),
+          );
+      final object = await database.select(database.davObjects).getSingle();
+      var denied = true;
+      var remoteBody = object.rawIcsBody;
+      final remote = _FakeMutationRemote(
+        put: ({required rawIcs, required ifMatch, required ifNoneMatch}) async {
+          if (denied) {
+            throw const DavException(
+              kind: DavErrorKind.authorization,
+              code: 'DavPermissionDenied',
+              safeMessage: 'Denied',
+              statusCode: 403,
+            );
+          }
+          remoteBody = rawIcs;
+          return _success;
+        },
+        fetcher: (href) async => _live(href, '"v2"', remoteBody),
+      );
+      final replayer = _replayer(database, objectRepository, remote);
+      await queue.enqueueUpdate(
+        accountId: 'account',
+        collectionId: 'collection',
+        objectId: object.id,
+        patch: _patch('SUMMARY', 'Denied edit'),
+      );
+      await replayer.replayDueOperations();
+      final blocked = await database.select(database.pendingOps).getSingle();
+      expect(blocked.state, 'permission_blocked');
+      expect(
+        (await database.select(database.accounts).getSingle()).authState,
+        'permission_changed',
+      );
+      await PendingOpResolutionService(
+        database: database,
+        accountId: 'account',
+        syncTasks: () async {},
+        syncCalendar: () async {},
+        nowUtc: () => _now,
+      ).discard(blocked.id);
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+      await replayer.revalidatePermissionsAfterDiscovery();
+      expect(
+        (await database.select(database.accounts).getSingle()).authState,
+        'signed_in',
+      );
+      denied = false;
+      await queue.enqueueUpdate(
+        accountId: 'account',
+        collectionId: 'collection',
+        objectId: object.id,
+        patch: _patch('SUMMARY', 'Subsequent edit'),
+      );
+      expect((await replayer.replayDueOperations()).appliedCount, 1);
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+    },
+  );
+
+  for (final scenario in [
+    'restored',
+    'readonly',
+    'unknown',
+    'missing',
+    'auth_blocked',
+  ]) {
+    test(
+      'fresh permission recovery: $scenario preserves intent and requires explicit grants',
+      () async {
+        final object = await database.select(database.davObjects).getSingle();
+        await queue.enqueueUpdate(
+          accountId: 'account',
+          collectionId: 'collection',
+          objectId: object.id,
+          patch: _patch('SUMMARY', 'Retained permission edit'),
+        );
+        await database
+            .update(database.accounts)
+            .write(
+              AccountsCompanion(
+                authState: Value(
+                  scenario == 'auth_blocked'
+                      ? 'reauth_required'
+                      : 'permission_changed',
+                ),
+              ),
+            );
+        await database
+            .update(database.pendingOps)
+            .write(
+              const PendingOpsCompanion(
+                state: Value('permission_blocked'),
+                retryClassification: Value('permission'),
+              ),
+            );
+        await database
+            .update(database.davCollections)
+            .write(
+              DavCollectionsCompanion(
+                currentUserPrivilegesJson: Value(
+                  jsonEncode(
+                    scenario == 'unknown'
+                        ? []
+                        : [
+                            '{DAV:}read',
+                            if (scenario != 'readonly') '{DAV:}write',
+                          ],
+                  ),
+                ),
+                safeDisplayMetadataJson: Value(
+                  jsonEncode({
+                    'privilegesKnown': scenario == 'unknown' ? 'false' : 'true',
+                  }),
+                ),
+                serverMissing: Value(scenario == 'missing'),
+              ),
+            );
+        final before = await database.select(database.pendingOps).getSingle();
+        final replayer = DavPendingOperationsReplayer(
+          database: database,
+          accountId: 'account',
+          objectRepository: objectRepository,
+          nowUtc: () => _now,
+          serviceFactory: ({required account, required collection}) async =>
+              throw StateError('Recovery must not send a mutation'),
+        );
+        await replayer.revalidatePermissionsAfterDiscovery();
+        final after = await database.select(database.pendingOps).getSingle();
+        expect(after.requestJson, before.requestJson);
+        expect(after.mutationPatchJson, before.mutationPatchJson);
+        expect(after.baselineEtag, before.baselineEtag);
+        expect(after.baselineRawIcs, before.baselineRawIcs);
+        expect(
+          after.state,
+          scenario == 'restored' ? 'retry' : 'permission_blocked',
+        );
+        expect(
+          (await database.select(database.accounts).getSingle()).authState,
+          scenario == 'restored'
+              ? 'signed_in'
+              : scenario == 'auth_blocked'
+              ? 'reauth_required'
+              : 'permission_changed',
+        );
+      },
+    );
+  }
+
+  for (final blocked in ['collection', 'destination']) {
+    test(
+      'sync read barrier for $blocked preserves cross-collection MOVE unchanged',
+      () async {
+        await _seedDestination(database);
+        final object = await database.select(database.davObjects).getSingle();
+        final id = await queue.enqueueMove(
+          accountId: 'account',
+          sourceCollectionId: 'collection',
+          destinationCollectionId: 'destination',
+          objectId: object.id,
+          target: _target,
+        );
+        final original = await database.pendingOpsDao.getOp(id);
+        var dispatches = 0;
+        final replayer = DavPendingOperationsReplayer(
+          database: database,
+          accountId: 'account',
+          nowUtc: () => _now,
+          serviceFactory: ({required account, required collection}) async {
+            dispatches++;
+            throw StateError('Blocked operation must not dispatch');
+          },
+        );
+        final result = await replayer.replayDueOperations(
+          blockedCollectionIds: {blocked},
+        );
+        expect(result.paused, isFalse);
+        expect(dispatches, 0);
+        expect(await database.pendingOpsDao.getOp(id), original);
+      },
+    );
+  }
+
+  test(
+    'failed collection reads cannot release a durable permission barrier',
+    () async {
+      await _seedDestination(database);
+      final source = await database.select(database.davObjects).getSingle();
+      final id = await queue.enqueueMove(
+        accountId: 'account',
+        sourceCollectionId: 'collection',
+        destinationCollectionId: 'destination',
+        objectId: source.id,
+        target: _target,
+      );
+      await database
+          .update(database.pendingOps)
+          .write(const PendingOpsCompanion(state: Value('permission_blocked')));
+      await database
+          .update(database.accounts)
+          .write(
+            const AccountsCompanion(authState: Value('permission_changed')),
+          );
+      final original = await database.pendingOpsDao.getOp(id);
+      final replayer = DavPendingOperationsReplayer(
+        database: database,
+        accountId: 'account',
+        nowUtc: () => _now,
+        serviceFactory: ({required account, required collection}) async =>
+            throw StateError('No replay'),
+      );
+      await replayer.revalidatePermissionsAfterDiscovery(
+        blockedCollectionIds: {'destination'},
+      );
+      expect(await database.pendingOpsDao.getOp(id), original);
+    },
+  );
+
+  test('permission denial isolates collections across replays and partial recovery', () async {
+    await _seedDestination(database);
+    var sequence = 0;
+    final independentQueue = DavPendingOperationQueue(
+      database: database,
+      idFactory: () => 'isolated-${++sequence}',
+      nowUtc: () => _now,
+    );
+    Future<String> create(String collection, String uid) =>
+        independentQueue.enqueueCreate(
+          accountId: 'account',
+          collectionId: collection,
+          object: DavNewObject(
+            uid: uid,
+            initialMemberName: '$uid.ics',
+            rawIcs: _eventWithUid(uid, uid),
+            componentType: 'VEVENT',
+          ),
+        );
+    await create('collection', 'denied');
+    await create('collection', 'same-collection');
+    await create('destination', 'allowed');
+    var deniedWrites = 0;
+    var allowedWrites = 0;
+    var destinationDenied = false;
+    final bodies = <String, String>{};
+    final replayer = DavPendingOperationsReplayer(
+      database: database,
+      accountId: 'account',
+      objectRepository: objectRepository,
+      nowUtc: () => _now,
+      serviceFactory: ({required account, required collection}) async =>
+          DavConditionalMutationService(
+            remoteClient: _FakeMutationRemote(
+              put:
+                  ({
+                    required rawIcs,
+                    required ifMatch,
+                    required ifNoneMatch,
+                  }) async {
+                    if (collection.id == 'collection' || destinationDenied) {
+                      deniedWrites++;
+                      throw const DavException(
+                        kind: DavErrorKind.authorization,
+                        code: 'DavPermissionDenied',
+                        safeMessage: 'Denied',
+                        statusCode: 403,
+                      );
+                    }
+                    allowedWrites++;
+                    bodies[collection.id] = rawIcs;
+                    return _success;
+                  },
+              fetcher: (href) async =>
+                  _live(href, '"created"', bodies[collection.id]!),
+            ),
+          ),
+    );
+    final first = await replayer.replayDueOperations();
+    expect(first.appliedCount, 1);
+    expect(first.paused, isFalse);
+    expect(deniedWrites, 1);
+    expect(allowedWrites, 1);
+    await create('destination', 'later');
+    expect((await replayer.replayDueOperations()).appliedCount, 1);
+    expect(deniedWrites, 1);
+
+    // Give the second collection a denial too, then restore only its grant.
+    destinationDenied = true;
+    await create('destination', 'restore-me');
+    await replayer.replayDueOperations();
+    final original = (await database.select(database.pendingOps).get())
+        .singleWhere(
+          (op) =>
+              op.state == 'permission_blocked' &&
+              op.davCollectionId == 'collection',
+        );
+    await (database.update(
+      database.davCollections,
+    )..where((r) => r.id.equals('collection'))).write(
+      const DavCollectionsCompanion(
+        currentUserPrivilegesJson: Value('[]'),
+        safeDisplayMetadataJson: Value('{"privilegesKnown":"false"}'),
+      ),
+    );
+    await replayer.revalidatePermissionsAfterDiscovery();
+    final operations = await database.select(database.pendingOps).get();
+    expect(operations.singleWhere((op) => op.id == original.id), original);
+    expect(
+      operations.singleWhere((op) => op.davCollectionId == 'destination').state,
+      'retry',
+    );
+    expect(
+      (await database.select(database.accounts).getSingle()).authState,
+      'permission_changed',
+    );
+    destinationDenied = false;
+    expect((await replayer.replayDueOperations()).appliedCount, 1);
+    expect(deniedWrites, 2);
+  });
 
   test(
     'queue retains exact baseline and safely coalesces unsent patches',
@@ -945,7 +1280,7 @@ void main() {
       remote,
     ).replayDueOperations();
 
-    expect(result.paused, isTrue);
+    expect(result.paused, isFalse);
     expect(writes, 0);
     expect(
       (await database.select(database.accounts).getSingle()).authState,
@@ -1063,6 +1398,147 @@ void main() {
       );
     },
   );
+
+  for (final boundary in [
+    'before-send',
+    'after-send',
+    'readback',
+    'projection',
+    'acknowledgment',
+  ]) {
+    test('replacement filename survives restart at $boundary', () async {
+      await database.close();
+      recoveryDirectory = await createPersistenceTestDirectory(
+        'busymax-collision-',
+      );
+      final file = File('${recoveryDirectory!.path}/state.sqlite');
+      database = AppDatabase(NativeDatabase(file));
+      objectRepository = DavObjectRepository(database: database);
+      await _seed(database, objectRepository);
+      queue = DavPendingOperationQueue(
+        database: database,
+        idFactory: () => 'pending-op',
+        nowUtc: () => _now,
+      );
+      const uid = 'collision-recovery@example.test';
+      final raw = _eventWithUid('Collision recovery', uid);
+      final localObjectId = await objectRepository.projectPendingImport(
+        accountId: 'account',
+        collectionId: 'collection',
+        nowUtc: _now,
+        object: DavPreparedObject.parse(
+          hrefKey: '${_collectionHref}occupied.ics',
+          requestUri: Uri.parse(
+            'https://cloud.example.test${_collectionHref}occupied.ics',
+          ),
+          etag: null,
+          contentType: 'text/calendar',
+          rawIcsBody: raw,
+        ),
+      );
+      await queue.enqueueCreate(
+        localObjectId: localObjectId,
+        accountId: 'account',
+        collectionId: 'collection',
+        object: DavNewObject(
+          uid: uid,
+          initialMemberName: 'occupied.ics',
+          rawIcs: raw,
+          componentType: 'VEVENT',
+        ),
+      );
+      var puts = 0;
+      var interrupted = true;
+      var remoteCreated = false;
+      final fetched = <String>[];
+      final remote = _FakeMutationRemote(
+        put: ({required rawIcs, required ifMatch, required ifNoneMatch}) async {
+          puts++;
+          if (puts == 1) return _precondition;
+          final durable = await database
+              .select(database.pendingOps)
+              .getSingle();
+          expect(durable.davMemberHref, '${_collectionHref}replacement.ics');
+          expect(
+            jsonDecode(durable.requestJson)['initialMemberName'],
+            'replacement.ics',
+          );
+          final draft = (await database.select(database.davObjects).get())
+              .singleWhere((o) => o.id == localObjectId);
+          expect(draft.hrefKey, durable.davMemberHref);
+          expect(Uri.parse(draft.requestUri).path, durable.davMemberHref);
+          expect(ifNoneMatch, isTrue);
+          if (interrupted && boundary == 'before-send') {
+            throw StateError('Process stopped before replacement PUT');
+          }
+          remoteCreated = true;
+          if (interrupted && boundary == 'after-send') {
+            throw StateError('Process stopped after replacement PUT');
+          }
+          return _success;
+        },
+        fetcher: (href) async {
+          fetched.add(href);
+          if (interrupted && boundary == 'readback') {
+            throw StateError('Process stopped during readback');
+          }
+          if (!remoteCreated) return _missing(href);
+          return _live(href, '"created"', raw);
+        },
+      );
+      DavPendingOperationsReplayer replayer() => DavPendingOperationsReplayer(
+        database: database,
+        accountId: 'account',
+        objectRepository: objectRepository,
+        serviceFactory: ({required account, required collection}) async =>
+            DavConditionalMutationService(
+              remoteClient: remote,
+              memberIdFactory: () => 'replacement',
+            ),
+        nowUtc: () => _now,
+      );
+      if (boundary == 'projection') {
+        await database.customStatement(
+          "CREATE TRIGGER interrupt_recovery BEFORE INSERT ON dav_objects WHEN NEW.primary_uid = 'collision-recovery@example.test' BEGIN SELECT RAISE(ABORT, 'Interrupted projection'); END",
+        );
+      } else if (boundary == 'acknowledgment') {
+        await database.customStatement(
+          "CREATE TRIGGER interrupt_recovery BEFORE DELETE ON pending_ops WHEN OLD.id = 'pending-op' BEGIN SELECT RAISE(ABORT, 'Interrupted acknowledgment'); END",
+        );
+      }
+      expect((await replayer().replayDueOperations()).retryCount, 1);
+      final pending = await database.select(database.pendingOps).getSingle();
+      expect(pending.state, 'retry');
+      expect(pending.davMemberHref, '${_collectionHref}replacement.ics');
+      await database.close();
+      database = AppDatabase(NativeDatabase(file));
+      objectRepository = DavObjectRepository(database: database);
+      queue = DavPendingOperationQueue(database: database, nowUtc: () => _now);
+      interrupted = false;
+      await database.customStatement(
+        'DROP TRIGGER IF EXISTS interrupt_recovery',
+      );
+      await queue.retryBlockedOperation(
+        accountId: 'account',
+        operationId: 'pending-op',
+      );
+      expect((await replayer().replayDueOperations()).appliedCount, 1);
+      expect(puts, boundary == 'before-send' ? 3 : 2);
+      expect(fetched.toSet(), {'${_collectionHref}replacement.ics'});
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+      expect(
+        (await objectRepository.liveObjects('collection'))
+            .singleWhere((o) => o.primaryUid == uid)
+            .id,
+        localObjectId,
+      );
+      expect(
+        (await objectRepository.liveObjects('collection'))
+            .where((o) => o.primaryUid == uid),
+        hasLength(1),
+      );
+    });
+  }
 
   test(
     'Diagnostics retry reconciles a created DAV resource before another PUT',
@@ -1406,7 +1882,6 @@ void main() {
       due: 'DUE:20260809T100000Z',
       code: 'DavTaskDueAndDuration',
     ),
-    (start: '', due: '', code: 'DavTaskDurationRequiresStart'),
   ]) {
     test('queue rejects invalid duration relationship ${invalid.code}', () async {
       final raw = _task(
@@ -1437,6 +1912,133 @@ void main() {
       expect(await database.select(database.pendingOps).get(), isEmpty);
       expect(await database.select(database.tasks).get(), isEmpty);
     });
+  }
+
+  for (final duration in [
+    'P',
+    'PT',
+    'not-a-duration',
+    '-PT1H',
+    'PT0S',
+    'P1W1D',
+    'P0W1D',
+    'P1DT',
+  ]) {
+    for (final dated in [false, true]) {
+      test(
+        'RFC10051 rejects invalid duration $duration (dated $dated) atomically',
+        () async {
+          final raw = _task(
+            uid: 'invalid-duration',
+            start: dated ? 'DTSTART:20260809T090000Z' : '',
+            due: '',
+          ).replaceFirst('SUMMARY:Task', 'DURATION:$duration\r\nSUMMARY:Task');
+          await expectLater(
+            queue.enqueueCreate(
+              accountId: 'account',
+              collectionId: 'collection',
+              object: DavNewObject(
+                uid: 'invalid-duration',
+                initialMemberName: 'invalid-duration.ics',
+                rawIcs:
+                    '${raw.split('\r\n').where((line) => line.isNotEmpty).join('\r\n')}\r\n',
+                componentType: 'VTODO',
+              ),
+            ),
+            throwsA(
+              isA<DavException>().having(
+                (e) => e.code,
+                'code',
+                isIn(['IcalInvalidDuration', 'DavTaskInvalidDuration']),
+              ),
+            ),
+          );
+          expect(await database.select(database.pendingOps).get(), isEmpty);
+        },
+      );
+    }
+  }
+
+  for (final duration in ['PT1H', '+PT1H', 'P1W', 'P1DT2H']) {
+    test('RFC10051 accepts positive undated duration $duration without dates', () async {
+      final raw = _task(
+        uid: 'valid-duration',
+        start: '',
+        due: '',
+      ).replaceFirst('SUMMARY:Task', 'DURATION:$duration\r\nSUMMARY:Task');
+      final normalized =
+          '${raw.split('\r\n').where((line) => line.isNotEmpty).join('\r\n')}\r\n';
+      await queue.enqueueCreate(
+        accountId: 'account',
+        collectionId: 'collection',
+        object: DavNewObject(
+          uid: 'valid-duration',
+          initialMemberName: 'valid-duration.ics',
+          rawIcs: normalized,
+          componentType: 'VTODO',
+        ),
+      );
+      final op = await database.select(database.pendingOps).getSingle();
+      expect((jsonDecode(op.requestJson) as Map)['rawIcs'], normalized);
+      expect(normalized, isNot(contains('DTSTART:')));
+      expect(normalized, isNot(contains('DUE:')));
+    });
+  }
+
+  for (final related in ['START', 'END', 'ABSOLUTE']) {
+    test(
+      'RFC10051 duration-only task requires an anchor only for $related reminders',
+      () async {
+        final trigger = related == 'ABSOLUTE'
+            ? 'TRIGGER;VALUE=DATE-TIME:20260809T080000Z'
+            : 'TRIGGER;RELATED=$related:-PT15M';
+        final raw = [
+          'BEGIN:VCALENDAR',
+          'VERSION:2.0',
+          'PRODID:-//Task anchor regression//EN',
+          'BEGIN:VTODO',
+          'UID:duration-alarm',
+          'DTSTAMP:20260808T120000Z',
+          'DURATION:PT1H',
+          'SUMMARY:Task',
+          'BEGIN:VALARM',
+          'ACTION:DISPLAY',
+          trigger,
+          'DESCRIPTION:Preserve this reminder',
+          'END:VALARM',
+          'END:VTODO',
+          'END:VCALENDAR',
+          '',
+        ].join('\r\n');
+        final future = queue.enqueueCreate(
+          accountId: 'account',
+          collectionId: 'collection',
+          object: DavNewObject(
+            uid: 'duration-alarm',
+            initialMemberName: 'duration-alarm.ics',
+            rawIcs: raw,
+            componentType: 'VTODO',
+          ),
+        );
+        if (related == 'ABSOLUTE') {
+          await future;
+          final op = await database.select(database.pendingOps).getSingle();
+          expect((jsonDecode(op.requestJson) as Map)['rawIcs'], raw);
+        } else {
+          await expectLater(
+            future,
+            throwsA(
+              isA<DavException>().having(
+                (e) => e.code,
+                'code',
+                'DavTaskReminderRequiresAnchor',
+              ),
+            ),
+          );
+          expect(await database.select(database.pendingOps).get(), isEmpty);
+        }
+      },
+    );
   }
 
   test('queue rejects mixed all-day and timed VTODO ranges', () async {

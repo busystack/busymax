@@ -1,3 +1,5 @@
+import '../../features/calendar/presentation/dav_event_reminders.dart';
+import 'android_dav_attachments_section.dart';
 import '../../features/recurrence/presentation/recurrence_summary.dart';
 
 import 'package:busymax/src/core/auth/authorization_attempt.dart';
@@ -32,6 +34,7 @@ import '../../features/tasks/data/tasks_repository.dart';
 import '../../features/recurrence/domain/event_recurrence_codec.dart';
 import '../../features/recurrence/domain/recurrence_rule.dart';
 import '../../l10n/l10n.dart';
+import '../../l10n/nextcloud_collection_error_description.dart';
 import '../../l10n/time_format_scope.dart';
 import '../../l10n/week_preferences_scope.dart';
 import '../../microsoft_calendar/microsoft_calendar_models.dart';
@@ -722,6 +725,8 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
                     ),
                   ),
                 if (item is CalendarScheduleItem) ...[
+                  if (item.mayNotifyParticipants)
+                    Text(context.l10n.caldavSchedulingWarning),
                   for (final line in googleStatusDetailLines(
                     context.l10n,
                     item.eventType,
@@ -754,6 +759,11 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
                       title: Text(
                         scheduleEventAttendeeLabel(context, attendee),
                       ),
+                      subtitle: attendee['scheduleStatus'] == null
+                          ? null
+                          : Text(
+                              '${context.l10n.nextcloudSchedulingStatus}: ${attendee['scheduleStatus']}',
+                            ),
                     ),
                   if (item.joinMeetingUrl case final meetingLink?)
                     FilledButton.icon(
@@ -794,6 +804,13 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
                         Navigator.pop(sheetContext);
                         unawaited(_openEventWebLink(attachment.url));
                       },
+                    ),
+                  if (item.provider.isDav && item.attachmentsLoaded)
+                    AndroidDavAttachmentsSection.event(
+                      eventId: item.id,
+                      showHeading:
+                          !item.attachmentsMayExist &&
+                          item.attachmentLinks.isEmpty,
                     ),
                   if (item.attachmentsMayExist && !item.attachmentsLoaded)
                     Text(context.l10n.attachmentsNotLoaded),
@@ -1149,7 +1166,11 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            context.l10n.invitationResponseFailed(redactForLog(error)),
+            context.l10n.invitationResponseFailed(
+              item.provider == BusyProvider.nextcloud
+                  ? localizedNextcloudCollectionError(context.l10n, error)
+                  : redactForLog(error),
+            ),
           ),
         ),
       );
@@ -2486,6 +2507,18 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
+              if ((_draft.attendees.isNotEmpty ||
+                      widget.draft.attendees.isNotEmpty) &&
+                  (_source?.usesImplicitScheduling == true ||
+                      widget.sources.any(
+                        (s) =>
+                            s.id == widget.draft.sourceId &&
+                            s.usesImplicitScheduling,
+                      )))
+                Text(
+                  context.l10n.caldavSchedulingWarning,
+                  key: const ValueKey('caldav-scheduling-warning'),
+                ),
               TextFormField(
                 controller: _title,
                 enabled: _canEdit,
@@ -2684,7 +2717,8 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
               const SizedBox(height: 12),
               if (_provider == BusyProvider.google)
                 ..._googleReminderRows()
-              else if (_provider == BusyProvider.nextcloud)
+              else if (_provider == BusyProvider.nextcloud ||
+                  _provider == BusyProvider.caldav)
                 ..._nextcloudReminderRows()
               else ...[
                 DropdownButtonFormField<int>(
@@ -2793,7 +2827,10 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
               const SizedBox(height: 12),
               TextFormField(
                 controller: _guests,
-                enabled: _canEdit && _draft.canManageAttendees,
+                enabled:
+                    _canEdit &&
+                    _provider != BusyProvider.caldav &&
+                    _draft.canManageAttendees,
                 decoration: InputDecoration(
                   labelText: context.l10n.guests,
                   hintText: context.l10n.addGuestEmail,
@@ -3493,11 +3530,15 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
       ),
       _guestOptionalOverrides,
     );
-    final categories = _categories.text
-        .split(',')
-        .map((value) => value.trim())
-        .where((value) => value.isNotEmpty)
-        .toList();
+    // The display separator can also occur inside an existing category.
+    // Preserve the original values when this field was not edited.
+    final categories = _categories.text == widget.draft.categories.join(', ')
+        ? widget.draft.categories
+        : _categories.text
+              .split(',')
+              .map((value) => value.trim())
+              .where((value) => value.isNotEmpty)
+              .toList();
     var draft = _draft.copyWith(
       title: _title.text.trim(),
       location: _location.text.trim(),
@@ -3523,8 +3564,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
         remindersChanged: true,
       );
     }
-    if (_provider == BusyProvider.nextcloud &&
-        _editedNextcloudReminders != null) {
+    if (_provider.isDav && _editedNextcloudReminders != null) {
       draft = draft.copyWith(
         reminders: {
           'davEditableRows': [
@@ -3650,13 +3690,13 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
       } else {
         await ref.read(calendarRepositoryProvider).updateLocalEvent(draft);
       }
-      ref
-          .read(
-            pendingCalendarMutationSyncRequesterForAccountProvider(
-              draft.accountId,
-            ),
-          )
-          .request();
+      for (final accountId in {draft.accountId, widget.draft.accountId}) {
+        ref
+            .read(
+              pendingCalendarMutationSyncRequesterForAccountProvider(accountId),
+            )
+            .request();
+      }
       if (mounted) {
         await _clearRecovery(finalCleanup: true);
         if (!mounted) return;
@@ -3665,8 +3705,16 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
       }
     } on Object catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('$error')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              (_provider == BusyProvider.nextcloud ||
+                      _provider == BusyProvider.caldav)
+                  ? localizedNextcloudCollectionError(context.l10n, error)
+                  : '$error',
+            ),
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -3733,7 +3781,11 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text(context.l10n.deleteEvent),
-        content: Text(draft.title),
+        content: Text(
+          _source?.usesImplicitScheduling == true && draft.attendees.isNotEmpty
+              ? '${draft.title}\n\n${context.l10n.caldavSchedulingWarning}'
+              : draft.title,
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -3770,8 +3822,15 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
       }
     } on Object catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('$error')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _provider == BusyProvider.nextcloud
+                  ? localizedNextcloudCollectionError(context.l10n, error)
+                  : '$error',
+            ),
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -3782,24 +3841,27 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
     final scope = await showModalBottomSheet<RecurringEventMutationScope>(
       context: context,
       showDragHandle: true,
+      isScrollControlled: true,
       builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(title: Text(context.l10n.chooseRecurringEventScope)),
-            for (final value in RecurringEventMutationScope.values)
-              if (value != RecurringEventMutationScope.thisAndFuture ||
-                  supportsThisAndFollowingEventMutation(_provider))
-                ListTile(
-                  leading: Icon(
-                    _draft.recurringMutationScope == value
-                        ? Icons.radio_button_checked
-                        : Icons.radio_button_unchecked,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(title: Text(context.l10n.chooseRecurringEventScope)),
+              for (final value in RecurringEventMutationScope.values)
+                if (value != RecurringEventMutationScope.thisAndFuture ||
+                    supportsThisAndFollowingEventMutation(_provider))
+                  ListTile(
+                    leading: Icon(
+                      _draft.recurringMutationScope == value
+                          ? Icons.radio_button_checked
+                          : Icons.radio_button_unchecked,
+                    ),
+                    title: Text(_scopeLabel(context, value)),
+                    onTap: () => Navigator.pop(context, value),
                   ),
-                  title: Text(_scopeLabel(context, value)),
-                  onTap: () => Navigator.pop(context, value),
-                ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -4377,112 +4439,11 @@ Object? _eventReminders(BusyProvider provider, int minutes) {
         };
 }
 
-final class AndroidNextcloudReminderRow {
-  const AndroidNextcloudReminderRow({
-    required this.minutes,
-    this.originalIndex,
-  });
+typedef AndroidNextcloudReminderRow = DavEventReminderRow;
 
-  final int minutes;
-  final int? originalIndex;
-
-  AndroidNextcloudReminderRow copyWith({required int minutes}) =>
-      AndroidNextcloudReminderRow(
-        minutes: minutes,
-        originalIndex: originalIndex,
-      );
-
-  Map<String, Object?> toJson() => {
-    if (originalIndex != null) 'originalIndex': originalIndex,
-    'minutes': minutes,
-  };
-
-  static AndroidNextcloudReminderRow fromJson(Object? value) {
-    if (value is! Map ||
-        value['minutes'] is! int ||
-        (value['minutes'] as int) < 0 ||
-        (value['originalIndex'] != null && value['originalIndex'] is! int)) {
-      throw const FormatException('Invalid recovered DAV reminder.');
-    }
-    return AndroidNextcloudReminderRow(
-      minutes: value['minutes'] as int,
-      originalIndex: value['originalIndex'] as int?,
-    );
-  }
-}
-
-List<AndroidNextcloudReminderRow>? androidNextcloudEditableReminderRows(
+List<DavEventReminderRow>? androidNextcloudEditableReminderRows(
   Object? value,
-) {
-  if (value == null) return const [];
-  if (value is! Map) return null;
-  if (value['davEditableRows'] is List) {
-    try {
-      return [
-        for (final row in value['davEditableRows'] as List)
-          AndroidNextcloudReminderRow.fromJson(row),
-      ];
-    } on FormatException {
-      return null;
-    }
-  }
-  if (value['alarms'] case final List alarms) {
-    final rows = <AndroidNextcloudReminderRow>[];
-    for (var index = 0; index < alarms.length; index++) {
-      final alarm = alarms[index];
-      if (alarm is! Map || alarm['properties'] is! List) return null;
-      final properties = alarm['properties'] as List;
-      String? property(String name) {
-        for (final item in properties) {
-          if (item is Map && item['name'] == name) {
-            return item['value']?.toString();
-          }
-        }
-        return null;
-      }
-
-      if (property('ACTION')?.toUpperCase() != 'DISPLAY') continue;
-      final triggerProperty = properties
-          .whereType<Map>()
-          .where((item) => item['name']?.toString().toUpperCase() == 'TRIGGER')
-          .firstOrNull;
-      final triggerParameters = triggerProperty?['parameters'];
-      if (triggerParameters is List &&
-          triggerParameters.whereType<Map>().any((parameter) {
-            if (parameter['name']?.toString().toUpperCase() != 'RELATED') {
-              return false;
-            }
-            final values = parameter['values'];
-            return values is! List ||
-                values.length != 1 ||
-                values.single.toString().toUpperCase() != 'START';
-          })) {
-        continue;
-      }
-      final trigger = property('TRIGGER')?.toUpperCase();
-      final match = trigger == null
-          ? null
-          : RegExp(r'^-PT([0-9]+)M$').firstMatch(trigger);
-      if (match != null) {
-        rows.add(
-          AndroidNextcloudReminderRow(
-            minutes: int.parse(match.group(1)!),
-            originalIndex: index,
-          ),
-        );
-      }
-    }
-    return rows;
-  }
-  if (value['minutes'] case final List minutes) {
-    if (minutes.any((minute) => minute is! int || minute < 0)) return null;
-    return [
-      for (final minute in minutes)
-        AndroidNextcloudReminderRow(minutes: minute as int),
-    ];
-  }
-  return null;
-}
+) => davEventEditableReminderRows(value);
 
 bool androidNextcloudHasUnsupportedAlarms(Object? value) {
   if (value is! Map || value['alarms'] is! List) return false;

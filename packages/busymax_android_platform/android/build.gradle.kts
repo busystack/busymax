@@ -79,6 +79,6 @@ dependencies {
     implementation("com.google.android.gms:play-services-auth:21.5.0")
     implementation("com.microsoft.identity.client:msal:8.4.1")
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
-    testImplementation("org.mockito:mockito-core:5.0.0")
+    testImplementation("org.mockito:mockito-core:5.24.0")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.11.4")
 }
