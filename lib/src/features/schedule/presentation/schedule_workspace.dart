@@ -1,3 +1,5 @@
+import '../../../schedule/schedule_agenda_query.dart';
+
 import 'package:intl/intl.dart';
 
 import '../../sync/account_recovery_feedback.dart';
@@ -1132,7 +1134,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         ),
       );
     }
-    final currentItems = repository.listItems(
+    Future<List<ScheduleItem>> currentItems() => repository.listItems(
       range: range,
       filters: ScheduleFilters(
         query: _searchQuery,
@@ -1148,72 +1150,31 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       ),
     );
     if (searchActive || _mode != ScheduleViewMode.agenda) {
-      return _ScheduleItemsResult(items: await currentItems);
+      return _ScheduleItemsResult(items: await currentItems());
     }
 
-    final overdueTasks = repository.listOverdueTasks(
-      before: range.start,
-      limit: _agendaOverdueTaskLimit,
-      filters: ScheduleFilters(
-        accountIds: accountIds,
-        taskListKeys: taskListKeys,
-        taskListFilterActive: true,
-        includeTasks: _scope != ScheduleScope.events,
-        taskCompletion: ScheduleTaskCompletion.open,
-      ),
-    );
-    final noDateTasks = repository.listNoDateTasks(
-      limit: _agendaNoDateTaskLimit,
-      filters: ScheduleFilters(
-        accountIds: accountIds,
-        taskListKeys: taskListKeys,
-        taskListFilterActive: true,
-        includeTasks: _scope != ScheduleScope.events,
-        taskCompletion: ScheduleTaskCompletion.all,
-      ),
-    );
-    final datedItems = await currentItems;
-    final overduePage = await overdueTasks;
-    final noDatePage = await noDateTasks;
-    final items = await repository.includeTaskAncestors(
-      [...datedItems, ...overduePage.items, ...noDatePage.items],
-      filters: ScheduleFilters(
-        accountIds: accountIds,
-        taskListKeys: taskListKeys,
-        taskListFilterActive: true,
-        includeTasks: _scope != ScheduleScope.events,
-      ),
+    final page = await queryScheduleAgenda(
+      repository,
+      range: range,
+      accountIds: accountIds,
+      sourceIds: sourceIds,
+      taskListKeys: taskListKeys,
+      includeEvents: _scope != ScheduleScope.tasks,
+      includeTasks: _scope != ScheduleScope.events,
+      overdueLimit: _agendaOverdueTaskLimit,
+      noDateLimit: _agendaNoDateTaskLimit,
     );
     return _ScheduleItemsResult(
-      items: items,
-      hasMoreOverdueTasks: overduePage.hasMore,
-      hasMoreNoDateTasks: noDatePage.hasMore,
+      items: page.items,
+      hasMoreOverdueTasks: page.hasMoreOverdueTasks,
+      hasMoreNoDateTasks: page.hasMoreNoDateTasks,
     );
   }
 
   List<ScheduleItem> _agendaItems(
     List<ScheduleItem> items,
     ScheduleRange range,
-  ) {
-    final startDay = ScheduleProjection.day(range.start);
-    return items.where((item) {
-      final start = item.start;
-      if (start == null) {
-        return true;
-      }
-      if (item is CalendarScheduleItem) {
-        return ScheduleProjection.intersects(item, range);
-      }
-      if (item is TaskScheduleItem) {
-        final itemDay = ScheduleProjection.day(start);
-        if (itemDay.isBefore(startDay)) {
-          return !item.completed;
-        }
-        return start.isBefore(range.end);
-      }
-      return ScheduleProjection.intersects(item, range);
-    }).toList();
-  }
+  ) => scheduleAgendaItems(items, range);
 
   Future<List<TaskListEntity>> _taskListsForAccounts(
     List<AccountEntity> accounts,

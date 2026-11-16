@@ -4198,4 +4198,10 @@ class AppLocalizationsPl extends AppLocalizations {
   @override
   String get attachmentInvalidOrTooLarge =>
       'Ten załącznik jest nieprawidłowy lub przekracza limit rozmiaru.';
+
+  @override
+  String get moveEvent => 'Przenieś wydarzenie';
+
+  @override
+  String get agendaLoadMoreDays => 'Wczytaj więcej dni';
 }

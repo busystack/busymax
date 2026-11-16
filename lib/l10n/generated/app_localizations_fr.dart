@@ -4044,4 +4044,10 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get attachmentInvalidOrTooLarge =>
       'Cette pièce jointe est invalide ou dépasse la taille limite.';
+
+  @override
+  String get moveEvent => 'Déplacer l’événement';
+
+  @override
+  String get agendaLoadMoreDays => 'Charger plus de jours';
 }

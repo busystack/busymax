@@ -15,8 +15,22 @@ import '../../providers/busy_provider.dart';
 
 import 'package:flutter/material.dart';
 
+final _androidLinkedContactsProvider = FutureProvider.autoDispose
+    .family<Set<String>, String>((ref, accountId) async {
+      final accounts = await ref.watch(busyMaxContactAccountsProvider.future);
+      final store = ref.watch(busyMaxContactsControllerProvider).store;
+      final ids = <String>{};
+      for (final account in accounts) {
+        if (await store.linkedBusyMaxAccount(account.id) == accountId) {
+          ids.add(account.id);
+        }
+      }
+      return ids;
+    });
+
 class AndroidContactsSettings extends ConsumerStatefulWidget {
-  const AndroidContactsSettings({super.key});
+  const AndroidContactsSettings({super.key, this.accountId});
+  final String? accountId;
   @override
   ConsumerState<AndroidContactsSettings> createState() =>
       _AndroidContactsSettingsState();
@@ -137,13 +151,29 @@ class _AndroidContactsSettingsState
 
   @override
   Widget build(BuildContext context) {
+    final accountsState = ref.watch(busyMaxContactAccountsProvider);
+    final sourcesState = ref.watch(busyMaxContactSourceSettingsProvider);
     final parents =
-        ref.watch(accountManagementStreamProvider).valueOrNull ?? const [];
-    final accounts =
-        ref.watch(busyMaxContactAccountsProvider).valueOrNull ??
-        const <ContactAccount>[];
-    final sources =
-        ref.watch(busyMaxContactSourceSettingsProvider).valueOrNull ?? const [];
+        (ref.watch(accountManagementStreamProvider).valueOrNull ?? const [])
+            .where((a) => widget.accountId == null || a.id == widget.accountId)
+            .toList();
+    final linked = widget.accountId == null
+        ? null
+        : ref.watch(_androidLinkedContactsProvider(widget.accountId!));
+    final accounts = (accountsState.valueOrNull ?? const <ContactAccount>[])
+        .where(
+          (a) =>
+              widget.accountId == null ||
+              linked?.valueOrNull?.contains(a.id) == true,
+        )
+        .toList();
+    final sources = (sourcesState.valueOrNull ?? const [])
+        .where(
+          (s) =>
+              widget.accountId == null ||
+              linked?.valueOrNull?.contains(s.source.accountId) == true,
+        )
+        .toList();
     final controller = ref.read(busyMaxContactsControllerProvider);
     return Card(
       child: Padding(
@@ -152,10 +182,42 @@ class _AndroidContactsSettingsState
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(context.l10n.contactsTitle),
+            if (accountsState.isLoading ||
+                sourcesState.isLoading ||
+                linked?.isLoading == true)
+              const LinearProgressIndicator(),
+            if (accountsState.hasError ||
+                sourcesState.hasError ||
+                linked?.hasError == true)
+              ListTile(
+                title: Text(context.l10n.collectionsLoadFailed),
+                subtitle: Text(
+                  localizedContactsError(
+                    context.l10n,
+                    accountsState.error ?? sourcesState.error ?? linked!.error!,
+                  ),
+                ),
+                trailing: TextButton(
+                  onPressed: () {
+                    ref.invalidate(busyMaxContactAccountsProvider);
+                    ref.invalidate(busyMaxContactSourceSettingsProvider);
+                    if (widget.accountId != null) {
+                      ref.invalidate(
+                        _androidLinkedContactsProvider(widget.accountId!),
+                      );
+                    }
+                  },
+                  child: Text(context.l10n.retry),
+                ),
+              ),
             _action(context.l10n.localNetworkAccessRequired, () async {
               await ensureAndroidLocalNetworkAccess(context, '', review: true);
             }),
-            if (accounts.isEmpty) Text(context.l10n.contactsLinkedDescription),
+            if (accounts.isEmpty &&
+                !accountsState.isLoading &&
+                !accountsState.hasError &&
+                linked?.isLoading != true)
+              Text(context.l10n.contactsLinkedDescription),
             for (final parent in parents.where(
               (p) => [
                 BusyProvider.google,
@@ -186,13 +248,14 @@ class _AndroidContactsSettingsState
                     : controller.enableLinkedContacts(parent.id),
               ),
             ],
-            Wrap(
-              spacing: 8,
-              children: [
-                _action(context.l10n.contactsAddCardDav, () => _add(false)),
-                _action(context.l10n.contactsAddNextcloud, () => _add(true)),
-              ],
-            ),
+            if (widget.accountId == null)
+              Wrap(
+                spacing: 8,
+                children: [
+                  _action(context.l10n.contactsAddCardDav, () => _add(false)),
+                  _action(context.l10n.contactsAddNextcloud, () => _add(true)),
+                ],
+              ),
             for (final account in accounts) ...[
               Text(
                 '${account.displayName} · ${context.l10n.contactsReadOnlyUse} · ${account.enabled ? context.l10n.contactsSuggestionsEnabled : context.l10n.off}',

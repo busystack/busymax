@@ -3916,4 +3916,10 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get attachmentInvalidOrTooLarge => '이 첨부 파일은 유효하지 않거나 크기 제한을 초과합니다.';
+
+  @override
+  String get moveEvent => '일정 이동';
+
+  @override
+  String get agendaLoadMoreDays => '날짜 더 불러오기';
 }

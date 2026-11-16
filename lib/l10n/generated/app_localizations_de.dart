@@ -4030,4 +4030,10 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get attachmentInvalidOrTooLarge =>
       'Dieser Anhang ist ungültig oder überschreitet die Größenbegrenzung.';
+
+  @override
+  String get moveEvent => 'Termin verschieben';
+
+  @override
+  String get agendaLoadMoreDays => 'Weitere Tage laden';
 }

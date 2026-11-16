@@ -98,7 +98,7 @@ class AndroidScheduleSearchFilters extends StatelessWidget {
           Padding(
             padding: const EdgeInsetsDirectional.only(top: 12, bottom: 4),
             child: Text(
-              account.displayLabel,
+              account.selectorLabel,
               style: Theme.of(context).textTheme.labelLarge,
             ),
           ),

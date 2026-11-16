@@ -4052,4 +4052,10 @@ class AppLocalizationsFa extends AppLocalizations {
   @override
   String get attachmentInvalidOrTooLarge =>
       'این پیوست نامعتبر است یا از محدودیت اندازه فراتر می‌رود.';
+
+  @override
+  String get moveEvent => 'جابجایی رویداد';
+
+  @override
+  String get agendaLoadMoreDays => 'بارگذاری روزهای بیشتر';
 }

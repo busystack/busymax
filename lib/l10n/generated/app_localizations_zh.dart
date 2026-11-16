@@ -3833,6 +3833,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get attachmentInvalidOrTooLarge => '此附件无效或超过大小限制。';
+
+  @override
+  String get moveEvent => '移动日程';
+
+  @override
+  String get agendaLoadMoreDays => '加载更多日期';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -7659,6 +7665,12 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get attachmentInvalidOrTooLarge => '此附件无效或超过大小限制。';
+
+  @override
+  String get moveEvent => '移动日程';
+
+  @override
+  String get agendaLoadMoreDays => '加载更多日期';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -11486,4 +11498,10 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get attachmentInvalidOrTooLarge => '此附件無效或超過大小限制。';
+
+  @override
+  String get moveEvent => '移動行程';
+
+  @override
+  String get agendaLoadMoreDays => '載入更多日期';
 }

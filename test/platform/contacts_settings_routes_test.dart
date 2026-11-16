@@ -252,7 +252,11 @@ void main() {
                       supportedLocales: AppLocalizations.supportedLocales,
                       home: WindowsSettingsPage(),
                     )
-                  : localizedTestApp(child: const AndroidSettingsScreen()),
+                  : localizedTestApp(
+                      child: const AndroidSettingsScreen(
+                        category: AndroidSettingsCategory.accounts,
+                      ),
+                    ),
             ),
           );
           await settle(tester);
@@ -497,7 +501,11 @@ void main() {
                       supportedLocales: AppLocalizations.supportedLocales,
                       home: WindowsSettingsPage(),
                     )
-                  : localizedTestApp(child: const AndroidSettingsScreen()),
+                  : localizedTestApp(
+                      child: const AndroidSettingsScreen(
+                        category: AndroidSettingsCategory.accounts,
+                      ),
+                    ),
             ),
           );
           await settle(tester);

@@ -1,3 +1,5 @@
+import '../../../schedule/schedule_provider_links.dart';
+export '../../../schedule/schedule_provider_links.dart';
 import '../../sync/account_recovery_feedback.dart';
 import '../../../l10n/oauth_error_description.dart';
 import '../../../core/http/request_dispatch_exception.dart';
@@ -1245,54 +1247,6 @@ Color? _colorFromHex(String? value) {
   final hex = value.replaceFirst('#', '');
   final parsed = int.tryParse(hex, radix: 16);
   return parsed == null ? null : Color(0xff000000 | parsed);
-}
-
-@visibleForTesting
-Uri? scheduleCalendarProviderWebUri(
-  AccountEntity account,
-  CalendarSourceEntity source,
-) {
-  if (source.accountId != account.id || source.provider != account.provider) {
-    return null;
-  }
-  return switch (account.provider) {
-    BusyProvider.google => Uri.https('calendar.google.com', '/calendar/u/0/r', {
-      'cid': source.providerCalendarId,
-    }),
-    BusyProvider.microsoft => Uri.https(
-      'outlook.live.com',
-      '/calendar/0/view/month',
-    ),
-    BusyProvider.appleICloud => null,
-    BusyProvider.nextcloud => _safeAccountWebUri(account.authority),
-    BusyProvider.webCal => null,
-    BusyProvider.caldav => null,
-  };
-}
-
-@visibleForTesting
-Uri? scheduleTaskProviderWebUri(AccountEntity account) {
-  return switch (account.provider) {
-    BusyProvider.google => Uri.https('tasks.google.com', '/'),
-    BusyProvider.microsoft => Uri.https('to-do.office.com', '/tasks/'),
-    BusyProvider.appleICloud => null,
-    BusyProvider.nextcloud => _safeAccountWebUri(account.authority),
-    BusyProvider.webCal => null,
-    BusyProvider.caldav => null,
-  };
-}
-
-Uri? _safeAccountWebUri(String authority) {
-  final uri = Uri.tryParse(authority.trim());
-  if (uri == null ||
-      uri.scheme.toLowerCase() != 'https' ||
-      uri.host.isEmpty ||
-      uri.userInfo.isNotEmpty ||
-      uri.hasQuery ||
-      uri.hasFragment) {
-    return null;
-  }
-  return uri;
 }
 
 Future<void> _openProviderWeb(Uri uri) async {

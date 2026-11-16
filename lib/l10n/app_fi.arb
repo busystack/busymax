@@ -1405,5 +1405,7 @@
   "localNetworkAccessRequired": "Paikallisverkon käyttöoikeus tarvitaan",
   "localNetworkAccessRecovery": "Salli BusyMaxin käyttää lähellä olevia laitteita Androidin asetuksissa, jotta tähän palvelimeen voidaan muodostaa yhteys, ja yritä uudelleen.",
   "taskReminderRequiresAnchor": "Muuta suhteellista muistutusta ennen sen aloituksen tai määräajan poistamista.",
-  "attachmentInvalidOrTooLarge": "Tämä liite on virheellinen tai ylittää kokorajan."
+  "attachmentInvalidOrTooLarge": "Tämä liite on virheellinen tai ylittää kokorajan.",
+  "moveEvent": "Siirrä tapahtuma",
+  "agendaLoadMoreDays": "Lataa lisää päiviä"
 }

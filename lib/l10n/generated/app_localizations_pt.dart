@@ -4040,6 +4040,12 @@ class AppLocalizationsPt extends AppLocalizations {
   @override
   String get attachmentInvalidOrTooLarge =>
       'This attachment is invalid or exceeds the size limit.';
+
+  @override
+  String get moveEvent => 'Move event';
+
+  @override
+  String get agendaLoadMoreDays => 'Load more days';
 }
 
 /// The translations for Portuguese, as used in Portugal (`pt_PT`).
@@ -8083,4 +8089,10 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
   @override
   String get attachmentInvalidOrTooLarge =>
       'Este anexo é inválido ou excede o limite de tamanho.';
+
+  @override
+  String get moveEvent => 'Mover evento';
+
+  @override
+  String get agendaLoadMoreDays => 'Carregar mais dias';
 }

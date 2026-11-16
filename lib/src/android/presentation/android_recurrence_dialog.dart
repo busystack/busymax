@@ -1,3 +1,5 @@
+import 'android_date_picker.dart';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -18,6 +20,7 @@ Future<RecurrenceRule?> showAndroidRecurrenceDialog(
   required String? timeZone,
   required RecurrenceRuleLimits limits,
   required String providerLabel,
+  bool floating = false,
 }) {
   var rule = initial;
   var end = rule.count != null
@@ -100,7 +103,8 @@ Future<RecurrenceRule?> showAndroidRecurrenceDialog(
                       onChanged: (text) {
                         final value = int.tryParse(text);
                         setState(() {
-                          intervalInputValid = value != null && value > 0;
+                          intervalInputValid =
+                              value != null && value > 0 && value <= 366;
                           if (intervalInputValid) {
                             rule = rule.copyWith(interval: value);
                           }
@@ -144,8 +148,148 @@ Future<RecurrenceRule?> showAndroidRecurrenceDialog(
                         ],
                       ),
                     ],
+                    if (rule.frequency == RecurrenceFrequency.monthly ||
+                        rule.frequency == RecurrenceFrequency.yearly) ...[
+                      const SizedBox(height: 12),
+                      Text(l10n.repeatDayOfMonth),
+                      Wrap(
+                        spacing: 4,
+                        children: [
+                          for (var day = 1; day <= 31; day++)
+                            FilterChip(
+                              label: Text('$day'),
+                              selected: rule.byMonthDay.contains(day),
+                              onSelected: rule.bySetPosition != null
+                                  ? null
+                                  : (selected) => setState(() {
+                                      final days = limits.allowMultipleMonthDays
+                                          ? [...rule.byMonthDay]
+                                          : <int>[];
+                                      if (selected ||
+                                          !limits.allowMultipleMonthDays) {
+                                        days.add(day);
+                                      } else if (days.length > 1) {
+                                        days.remove(day);
+                                      }
+                                      days.sort();
+                                      rule = rule.copyWith(
+                                        byMonthDay: days,
+                                        byDay: const [],
+                                        bySetPosition: null,
+                                      );
+                                    }),
+                            ),
+                        ],
+                      ),
+                      DropdownButtonFormField<int>(
+                        key: ValueKey('ordinal-${rule.bySetPosition}'),
+                        initialValue: rule.bySetPosition ?? 0,
+                        decoration: InputDecoration(
+                          labelText: l10n.repeatOrdinal,
+                        ),
+                        items: [
+                          DropdownMenuItem(
+                            value: 0,
+                            child: Text(l10n.repeatSpecificDays),
+                          ),
+                          for (final position in [1, 2, 3, 4, 5, -2, -1])
+                            if (limits.ordinalPositions.contains(position))
+                              DropdownMenuItem(
+                                value: position,
+                                child: Text(switch (position) {
+                                  1 => l10n.repeatFirst,
+                                  2 => l10n.repeatSecond,
+                                  3 => l10n.repeatThird,
+                                  4 => l10n.repeatFourth,
+                                  5 => l10n.repeatFifth,
+                                  -2 => l10n.repeatSecondToLast,
+                                  _ => l10n.repeatLast,
+                                }),
+                              ),
+                        ],
+                        onChanged: (position) => setState(() {
+                          rule = position == 0
+                              ? rule.copyWith(
+                                  bySetPosition: null,
+                                  byDay: const [],
+                                  byMonthDay: [baseDate.day],
+                                )
+                              : rule.copyWith(
+                                  bySetPosition: position,
+                                  byDay: rule.byDay.isEmpty
+                                      ? [rfcWeekdays[baseDate.weekday - 1]]
+                                      : rule.byDay,
+                                  byMonthDay: const [],
+                                  byMonth: rule.byMonth.length > 1
+                                      ? [rule.byMonth.first]
+                                      : rule.byMonth,
+                                );
+                        }),
+                      ),
+                      if (rule.bySetPosition != null)
+                        Wrap(
+                          spacing: 4,
+                          children: [
+                            for (
+                              var index = 0;
+                              index < rfcWeekdays.length;
+                              index++
+                            )
+                              FilterChip(
+                                label: Text(
+                                  DateFormat.E().format(
+                                    DateTime(2024, 1, index + 1),
+                                  ),
+                                ),
+                                selected: rule.byDay.contains(
+                                  rfcWeekdays[index],
+                                ),
+                                onSelected: (selected) => setState(() {
+                                  final days = [...rule.byDay];
+                                  if (selected) {
+                                    days.add(rfcWeekdays[index]);
+                                  } else if (days.length > 1) {
+                                    days.remove(rfcWeekdays[index]);
+                                  }
+                                  rule = rule.copyWith(byDay: days);
+                                }),
+                              ),
+                          ],
+                        ),
+                    ],
+                    if (rule.frequency == RecurrenceFrequency.yearly) ...[
+                      const SizedBox(height: 12),
+                      Text(l10n.repeatMonths),
+                      Wrap(
+                        spacing: 4,
+                        children: [
+                          for (var month = 1; month <= 12; month++)
+                            FilterChip(
+                              label: Text(
+                                DateFormat.MMM().format(DateTime(2024, month)),
+                              ),
+                              selected: rule.byMonth.contains(month),
+                              onSelected: (selected) => setState(() {
+                                final months =
+                                    limits.allowMultipleMonths &&
+                                        rule.bySetPosition == null
+                                    ? [...rule.byMonth]
+                                    : <int>[];
+                                if (selected || months.isEmpty) {
+                                  months.add(month);
+                                } else if (months.length > 1) {
+                                  months.remove(month);
+                                }
+                                months.sort();
+                                rule = rule.copyWith(byMonth: months);
+                              }),
+                            ),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: 12),
                     DropdownButtonFormField<_RecurrenceEnd>(
+                      key: const ValueKey('android-recurrence-end'),
                       isExpanded: true,
                       initialValue: end,
                       decoration: InputDecoration(labelText: l10n.repeatEnd),
@@ -179,6 +323,7 @@ Future<RecurrenceRule?> showAndroidRecurrenceDialog(
                                   .withUntilDate(
                                     _dateValue(until ?? baseDate),
                                     allDay: allDay,
+                                    floating: floating,
                                     baseDate: baseDate,
                                     timeZone: timeZone,
                                   ),
@@ -192,6 +337,7 @@ Future<RecurrenceRule?> showAndroidRecurrenceDialog(
                     ),
                     if (end == _RecurrenceEnd.date)
                       TextButton.icon(
+                        key: const ValueKey('android-recurrence-until'),
                         icon: const Icon(Icons.calendar_today_outlined),
                         label: Text(
                           DateFormat.yMd(
@@ -199,7 +345,7 @@ Future<RecurrenceRule?> showAndroidRecurrenceDialog(
                           ).format(until ?? baseDate),
                         ),
                         onPressed: () async {
-                          final date = await showDatePicker(
+                          final date = await showBusyMaxDatePicker(
                             context: context,
                             initialDate: (until ?? baseDate).isBefore(baseDate)
                                 ? baseDate
@@ -213,6 +359,7 @@ Future<RecurrenceRule?> showAndroidRecurrenceDialog(
                             rule = rule.withUntilDate(
                               _dateValue(date),
                               allDay: allDay,
+                              floating: floating,
                               baseDate: baseDate,
                               timeZone: timeZone,
                             );
@@ -232,7 +379,8 @@ Future<RecurrenceRule?> showAndroidRecurrenceDialog(
                         onChanged: (text) {
                           final value = int.tryParse(text);
                           setState(() {
-                            countInputValid = value != null && value > 0;
+                            countInputValid =
+                                value != null && value > 0 && value <= 3500;
                             if (countInputValid) {
                               rule = rule.copyWith(count: value);
                             }

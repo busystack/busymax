@@ -812,8 +812,12 @@ void main() {
       await tester.tap(find.byIcon(Icons.tune));
       await tester.pumpAndSettle();
       expect(find.byType(AndroidScheduleSearchFilters), findsNothing);
-      expect(find.byType(CheckboxListTile), findsWidgets);
-      Navigator.of(tester.element(find.byType(CheckboxListTile).first)).pop();
+      expect(find.byType(Checkbox), findsWidgets);
+      expect(
+        tester.widget<Checkbox>(find.byType(Checkbox).first).value,
+        isTrue,
+      );
+      Navigator.of(tester.element(find.byType(Checkbox).first)).pop();
       await tester.pumpAndSettle();
       await tester.tap(find.byIcon(Icons.search));
       await tester.pumpAndSettle();

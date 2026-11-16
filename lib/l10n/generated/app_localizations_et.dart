@@ -3999,4 +3999,10 @@ class AppLocalizationsEt extends AppLocalizations {
   @override
   String get attachmentInvalidOrTooLarge =>
       'See manus on vigane või ületab suurusepiirangu.';
+
+  @override
+  String get moveEvent => 'Teisalda sündmus';
+
+  @override
+  String get agendaLoadMoreDays => 'Laadi rohkem päevi';
 }

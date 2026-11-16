@@ -4051,4 +4051,10 @@ class AppLocalizationsFi extends AppLocalizations {
   @override
   String get attachmentInvalidOrTooLarge =>
       'Tämä liite on virheellinen tai ylittää kokorajan.';
+
+  @override
+  String get moveEvent => 'Siirrä tapahtuma';
+
+  @override
+  String get agendaLoadMoreDays => 'Lataa lisää päiviä';
 }

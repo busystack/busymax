@@ -6703,6 +6703,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This attachment is invalid or exceeds the size limit.'**
   String get attachmentInvalidOrTooLarge;
+
+  /// No description provided for @moveEvent.
+  ///
+  /// In en, this message translates to:
+  /// **'Move event'**
+  String get moveEvent;
+
+  /// No description provided for @agendaLoadMoreDays.
+  ///
+  /// In en, this message translates to:
+  /// **'Load more days'**
+  String get agendaLoadMoreDays;
 }
 
 class _AppLocalizationsDelegate

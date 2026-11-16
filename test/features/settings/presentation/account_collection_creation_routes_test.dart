@@ -173,7 +173,9 @@ void main() {
                         ? const SettingsScreen(
                             initialPage: SettingsPage.accounts,
                           )
-                        : const AndroidSettingsScreen(),
+                        : const AndroidSettingsScreen(
+                            category: AndroidSettingsCategory.accounts,
+                          ),
                   ),
           );
           await tester.pumpWidget(host());

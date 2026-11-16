@@ -68,12 +68,9 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(
-        find.descendant(
-          of: find.byType(NavigationBar),
-          matching: find.text('Tasks'),
-        ),
-      );
+      await tester.tap(find.byTooltip('Schedule display'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('All tasks').last);
       await _waitFor(tester, find.widgetWithText(ListTile, 'Native parent'));
       await tester.pumpAndSettle();
       final storage = runtime.container.read(secureStorageProvider);
@@ -94,6 +91,8 @@ void main() {
         return;
       }
       await tester.tap(find.widgetWithText(ListTile, 'Native parent'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Edit Task').last);
       await _waitFor(tester, find.byType(AndroidTaskEditor));
       await tester.pumpAndSettle();
       if (phase == 'prepare') {
@@ -300,6 +299,8 @@ void main() {
       expect(row.notes, _notes);
       expect(repository.calls, 2);
       await tester.tap(find.widgetWithText(ListTile, 'Native parent'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Edit Task').last);
       await _waitFor(tester, find.byType(AndroidTaskEditor));
       await tester.pumpAndSettle();
       await _waitWritable(tester);

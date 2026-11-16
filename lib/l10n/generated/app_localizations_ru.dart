@@ -4058,4 +4058,10 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get attachmentInvalidOrTooLarge =>
       'Это вложение недействительно или превышает допустимый размер.';
+
+  @override
+  String get moveEvent => 'Переместить событие';
+
+  @override
+  String get agendaLoadMoreDays => 'Загрузить следующие дни';
 }

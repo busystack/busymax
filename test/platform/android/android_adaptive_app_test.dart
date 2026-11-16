@@ -1,3 +1,5 @@
+import '../../support/schedule_parity_fixture.dart';
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -5,11 +7,15 @@ import 'dart:io';
 import 'package:drift/native.dart';
 
 import 'package:busymax/src/android/android_app.dart';
+import 'package:busymax/src/android/android_workspace_navigation.dart';
+import 'package:busymax/src/schedule/schedule_search_criteria.dart';
+import 'package:intl/intl.dart' show DateFormat;
 import 'package:busymax/src/android/android_notifications.dart';
 import 'package:busymax/src/android/presentation/android_availability_dialog.dart';
 import 'package:busymax/src/android/presentation/android_diagnostics_screen.dart';
 import 'package:busymax/src/android/presentation/android_feedback_screen.dart';
 import 'package:busymax/src/android/presentation/android_schedule_screen.dart';
+import 'package:busymax/src/android/presentation/android_schedule_search_filters.dart';
 import 'package:busymax/src/android/presentation/android_settings_screen.dart';
 import 'package:busymax/src/android/presentation/android_tasks_screen.dart';
 import 'package:busymax/src/android/presentation/android_task_motion.dart';
@@ -50,7 +56,7 @@ import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/schedule/schedule_repository.dart';
 import 'package:busymax/src/schedule/schedule_range.dart';
 import 'package:busymax/src/schedule/schedule_view_mode.dart';
-import 'package:drift/drift.dart' hide isNull;
+import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -179,10 +185,7 @@ void main() {
           }),
         );
 
-        harness.container
-                .read(androidSelectedDestinationProvider.notifier)
-                .state =
-            2;
+        await _openAndroidSettings(tester);
         await tester.pumpAndSettle();
         final noticeSubscription = harness.container.listen(
           accountCollectionCreationFailuresProvider('caldav'),
@@ -298,8 +301,546 @@ void main() {
       },
     );
   }
+  testWidgets('clean Android workspace uses the Linux view default', (
+    tester,
+  ) async {
+    final settings = AppSettings.defaults();
+    final harness = await _pumpApp(tester, settings);
+    addTearDown(harness.dispose);
+    expect(settings.scheduleViewMode, ScheduleViewMode.week);
+    expect(
+      find.byKey(const ValueKey('android-week-time-grid')),
+      findsOneWidget,
+    );
+    await harness.container
+        .read(appSettingsControllerProvider.notifier)
+        .setAndroidScheduleViewMode(ScheduleViewMode.month);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('android-month-grid')), findsOneWidget);
+    await harness.container
+        .read(appSettingsControllerProvider.notifier)
+        .reload();
+    await tester.pumpAndSettle();
+    expect(
+      harness.container
+          .read(appSettingsControllerProvider)
+          .androidScheduleViewMode,
+      ScheduleViewMode.month,
+    );
+  });
+
   testWidgets(
-    'compact Android shell uses bottom navigation and accessible taps',
+    'all-time task search includes hidden lists and restores the workspace',
+    (tester) async {
+      final settings = AppSettings.defaults().copyWith(
+        androidScheduleViewMode: ScheduleViewMode.month,
+        taskListScheduleVisibility: {'google:populated::hidden-list': false},
+      );
+      final harness = await _pumpApp(tester, settings, populated: true);
+      addTearDown(harness.dispose);
+      expect(find.text('Hidden task'), findsNothing);
+      await _openAndroidScheduleScreen(tester);
+      expect(find.text('Hidden task'), findsOneWidget);
+      await tester.tap(find.byTooltip('Filters'));
+      await tester.pumpAndSettle();
+      final filters = tester.widget<AndroidScheduleSearchFilters>(
+        find.byType(AndroidScheduleSearchFilters),
+      );
+      expect(filters.value.type, ScheduleSearchType.tasks);
+      expect(filters.value.date, ScheduleSearchDate.any);
+      expect(
+        filters.value.taskListKeys,
+        contains(
+          const ScheduleTaskListKey(
+            accountId: 'google:populated',
+            taskListId: 'hidden-list',
+          ),
+        ),
+      );
+      filters.onChanged(filters.value.copyWith(taskListKeys: {}));
+      await tester.pumpAndSettle();
+      expect(
+        harness.container
+            .read(appSettingsControllerProvider)
+            .taskListScheduleVisibility,
+        settings.taskListScheduleVisibility,
+      );
+      tester
+          .widget<AndroidScheduleSearchFilters>(
+            find.byType(AndroidScheduleSearchFilters),
+          )
+          .onClear();
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<AndroidScheduleSearchFilters>(
+              find.byType(AndroidScheduleSearchFilters),
+            )
+            .value
+            .taskListKeys,
+        filters.value.taskListKeys,
+      );
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('android-month-grid')), findsOneWidget);
+      expect(find.text('Hidden task'), findsNothing);
+    },
+  );
+
+  testWidgets('daily summary opens task scope in the retained workspace', (
+    tester,
+  ) async {
+    final harness = await _pumpApp(
+      tester,
+      AppSettings.defaults(),
+      seedDatabase: seedScheduleParityStress,
+    );
+    addTearDown(harness.dispose);
+    harness.container.read(androidWorkspaceRequestProvider.notifier).state =
+        AndroidWorkspaceRequest(date: DateTime.now(), summary: true);
+    await tester.pumpAndSettle();
+    expect(find.byType(AndroidScheduleScreen), findsOneWidget);
+    expect(find.byType(AndroidTaskEditor), findsNothing);
+    expect(find.byType(NavigationBar), findsNothing);
+    expect(find.text('Date-only task'), findsOneWidget);
+    expect(find.text('Overdue follow-up 0'), findsNothing);
+    expect(find.text('Hidden task'), findsOneWidget);
+    await tester.tap(find.byTooltip('Filters'));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<AndroidScheduleSearchFilters>(
+            find.byType(AndroidScheduleSearchFilters),
+          )
+          .value
+          .type,
+      ScheduleSearchType.tasks,
+    );
+  });
+
+  testWidgets('item deep link previews then edits one task in the workspace', (
+    tester,
+  ) async {
+    final harness = await _pumpApp(
+      tester,
+      AppSettings.defaults(),
+      populated: true,
+    );
+    addTearDown(harness.dispose);
+    harness.container
+        .read(androidWorkspaceRequestProvider.notifier)
+        .state = AndroidWorkspaceRequest(
+      date: DateTime.now(),
+      itemId: 'date-only-task',
+      accountId: 'google:populated',
+      task: true,
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('android-schedule-details-scroll')),
+      findsOneWidget,
+    );
+    expect(find.byType(AndroidTaskEditor), findsNothing);
+    final details = find.byKey(
+      const ValueKey('android-schedule-details-scroll'),
+    );
+    expect(
+      find.descendant(of: details, matching: find.textContaining(' · All day')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: details, matching: find.textContaining('12:00 AM')),
+      findsNothing,
+    );
+    await _pumpUntilFound(tester, find.byType(AndroidTaskEditor));
+    expect(
+      find.byType(AndroidScheduleScreen, skipOffstage: false),
+      findsOneWidget,
+    );
+    expect(find.byType(AndroidTaskEditor, skipOffstage: false), findsOneWidget);
+  });
+
+  testWidgets('event activation leaves all-time task search for its Day view', (
+    tester,
+  ) async {
+    final harness = await _pumpApp(
+      tester,
+      AppSettings.defaults().copyWith(
+        androidScheduleViewMode: ScheduleViewMode.month,
+        taskListScheduleVisibility: {'google:populated::hidden-list': false},
+      ),
+      seedDatabase: seedScheduleParityStress,
+    );
+    addTearDown(harness.dispose);
+    await tester.tap(find.byKey(const ValueKey('android-workspace-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('All tasks').last);
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Filters'), findsOneWidget);
+    harness.container
+        .read(androidWorkspaceRequestProvider.notifier)
+        .state = AndroidWorkspaceRequest(
+      date: DateTime.now().add(const Duration(days: 40)),
+      itemId: 'meeting-0',
+      accountId: 'google:populated',
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('android-schedule-details-scroll')),
+      findsOneWidget,
+    );
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Calendars and task lists'), findsOneWidget);
+    expect(find.byTooltip('Filters'), findsNothing);
+    expect(find.text('Day'), findsOneWidget);
+    final settings = harness.container.read(appSettingsControllerProvider);
+    expect(settings.androidScheduleViewMode, ScheduleViewMode.day);
+    expect(
+      settings.taskListScheduleVisibility['google:populated::hidden-list'],
+      isFalse,
+    );
+  });
+
+  testWidgets('Agenda has a stable heading without date or period paging', (
+    tester,
+  ) async {
+    final harness = await _pumpApp(
+      tester,
+      AppSettings.defaults().copyWith(
+        androidScheduleViewMode: ScheduleViewMode.month,
+      ),
+      seedDatabase: seedScheduleParityStress,
+    );
+    addTearDown(harness.dispose);
+    await tester.tap(find.byTooltip('Previous period'));
+    await tester.pumpAndSettle();
+    await harness.container
+        .read(appSettingsControllerProvider.notifier)
+        .setAndroidScheduleViewMode(ScheduleViewMode.agenda);
+    await tester.pumpAndSettle();
+    final heading = find.descendant(
+      of: find.byType(AppBar),
+      matching: find.text('Agenda'),
+    );
+    expect(heading, findsOneWidget);
+    expect(find.byTooltip('Previous period'), findsNothing);
+    expect(find.byTooltip('Next period'), findsNothing);
+    await tester.tap(heading, warnIfMissed: false);
+    await tester.pumpAndSettle();
+    expect(find.byType(DatePickerDialog), findsNothing);
+    expect(find.text('Overdue follow-up 0'), findsOneWidget);
+  });
+
+  testWidgets('Month displays task titles and completes a task from its cell', (
+    tester,
+  ) async {
+    final harness = await _pumpApp(
+      tester,
+      AppSettings.defaults().copyWith(
+        androidScheduleViewMode: ScheduleViewMode.month,
+      ),
+      seedDatabase: (db) async {
+        await seedScheduleParityFixture(db);
+        await db.delete(db.calendarEvents).go();
+      },
+    );
+    addTearDown(harness.dispose);
+    final completion = find.byTooltip('In progress: Date-only task');
+    await tester.ensureVisible(completion);
+    await tester.pumpAndSettle();
+    expect(find.text('Date-only task'), findsWidgets);
+    await tester.tap(completion);
+    await tester.pumpAndSettle();
+    final row = (await harness.database.tasksDao.listTasks(
+      'google:populated',
+      'visible-list',
+    )).single;
+    expect(row.status, 'completed');
+    expect(find.byTooltip('Completed: Date-only task'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'Year day, week and month controls keep their distinct meanings',
+    (tester) async {
+      final harness = await _pumpApp(
+        tester,
+        AppSettings.defaults().copyWith(
+          androidScheduleViewMode: ScheduleViewMode.year,
+        ),
+      );
+      addTearDown(harness.dispose);
+      final day = DateTime(DateTime.now().year, 1, 14);
+      final date = find.byWidgetPredicate(
+        (widget) =>
+            widget is Semantics &&
+            widget.properties.label == DateFormat.yMMMMEEEEd().format(day),
+      );
+      await tester.ensureVisible(date);
+      await tester.pumpAndSettle();
+      await tester.tap(date);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('android-day-time-grid')),
+        findsOneWidget,
+      );
+      expect(find.text(DateFormat.yMMMMd().format(day)), findsOneWidget);
+      await harness.container
+          .read(appSettingsControllerProvider.notifier)
+          .setAndroidScheduleViewMode(ScheduleViewMode.year);
+      await tester.pumpAndSettle();
+      await Scrollable.ensureVisible(
+        tester.element(find.byIcon(Icons.view_week_outlined).first),
+        alignment: .5,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.view_week_outlined).first);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('android-week-time-grid')),
+        findsOneWidget,
+      );
+      await harness.container
+          .read(appSettingsControllerProvider.notifier)
+          .setAndroidScheduleViewMode(ScheduleViewMode.year);
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'January').first);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('android-month-grid')), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'default task destination and editor changes retain the new draft',
+    (tester) async {
+      final harness = await _pumpApp(
+        tester,
+        AppSettings.defaults().copyWith(
+          defaultTaskList: const CreationDestination(
+            accountId: 'google:populated',
+            id: 'hidden-list',
+          ),
+        ),
+        populated: true,
+      );
+      addTearDown(harness.dispose);
+      await tester.tap(find.byTooltip('Create'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ListTile, 'New task'));
+      await _pumpUntilFound(tester, find.byType(AndroidTaskEditor));
+      expect(find.widgetWithText(ListTile, 'Hidden tasks'), findsOneWidget);
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Title'),
+        'Retained across destinations',
+      );
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.widgetWithText(ListTile, 'Hidden tasks'));
+      await tester.tap(find.widgetWithText(ListTile, 'Hidden tasks'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Visible tasks').last);
+      await tester.pumpAndSettle();
+      expect(find.text('Retained across destinations'), findsOneWidget);
+      expect(find.widgetWithText(ListTile, 'Visible tasks'), findsOneWidget);
+      expect(
+        harness.container
+            .read(appSettingsControllerProvider)
+            .defaultTaskList
+            ?.id,
+        'hidden-list',
+      );
+    },
+  );
+
+  testWidgets(
+    'Android event calendar movement queues the supported native move',
+    (tester) async {
+      final harness = await _pumpApp(
+        tester,
+        AppSettings.defaults(),
+        populated: true,
+        onCalendarSync: (_) async {},
+      );
+      addTearDown(harness.dispose);
+      final sources = await harness.container.read(
+        calendarSourcesStreamProvider.future,
+      );
+      await (harness.database.update(
+        harness.database.calendarEvents,
+      )..where((event) => event.id.equals('overnight'))).write(
+        const CalendarEventsCompanion(
+          organizerJson: Value('{"email":"me@example.com","self":true}'),
+          rawJson: Value(
+            '{"organizer":{"email":"me@example.com","self":true},"eventType":"default"}',
+          ),
+        ),
+      );
+      final detail = await harness.container
+          .read(calendarRepositoryProvider)
+          .loadEventDetail('overnight');
+      expect(detail, isNotNull);
+      tester
+          .state<NavigatorState>(find.byType(Navigator).first)
+          .push<void>(
+            MaterialPageRoute(
+              builder: (_) => AndroidEventEditor(
+                sources: sources,
+                draft: EventEditorDraft.fromEventDetail(detail!),
+              ),
+            ),
+          );
+      await tester.pumpAndSettle();
+      final calendar = find.widgetWithText(
+        DropdownButtonFormField<String>,
+        'Calendar',
+      );
+      expect(
+        tester.widget<DropdownButtonFormField<String>>(calendar).onChanged,
+        isNotNull,
+      );
+      tester.widget<DropdownButtonFormField<String>>(calendar).onChanged!(
+        'hidden-calendar',
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Title'),
+        'Moved from Android',
+      );
+      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AndroidEventEditor), findsNothing);
+      final operations = await harness.database
+          .select(harness.database.pendingOps)
+          .get();
+      expect(
+        operations.where((op) => op.operationType == 'event.move'),
+        hasLength(1),
+      );
+      final move = jsonDecode(
+        operations
+            .singleWhere((op) => op.operationType == 'event.move')
+            .requestJson,
+      ) as Map;
+      expect(move.values, contains('hidden-calendar'));
+      expect(move.values, contains('send'));
+    },
+  );
+
+  testWidgets(
+    'Agenda loads additional task buckets and completes checklist steps inline',
+    (tester) async {
+      final harness = await _pumpApp(
+        tester,
+        AppSettings.defaults().copyWith(
+          androidScheduleViewMode: ScheduleViewMode.agenda,
+        ),
+        seedDatabase: seedScheduleParityStress,
+        taskRepository: (db, id) => TasksRepository(
+          database: db,
+          accountId: id,
+          apiClient: id.startsWith('microsoft:')
+              ? _AndroidChecklistClient()
+              : null,
+        ),
+      );
+      addTearDown(harness.dispose);
+      expect(find.byTooltip('Previous'), findsNothing);
+      expect(find.text('Overdue follow-up 0'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.text('Load more overdue tasks'),
+        400,
+        maxScrolls: 50,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.tap(find.text('Load more overdue tasks'));
+      await tester.pumpAndSettle();
+      expect(find.text('Load more overdue tasks'), findsNothing);
+      await tester.scrollUntilVisible(
+        find.text('Load more no-date tasks'),
+        400,
+        maxScrolls: 50,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.tap(find.text('Load more no-date tasks'));
+      await tester.pumpAndSettle();
+      expect(find.text('Load more no-date tasks'), findsNothing);
+      final step = find.widgetWithText(
+        CheckboxListTile,
+        'Review task hierarchy',
+      );
+      await tester.scrollUntilVisible(
+        step,
+        -400,
+        maxScrolls: 40,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.pumpAndSettle();
+      final position = tester
+          .state<ScrollableState>(find.byType(Scrollable).last)
+          .position;
+      final beforeCompletion = position.pixels;
+      await tester.tap(step);
+      await tester.pumpAndSettle();
+      expect(position.pixels, closeTo(beforeCompletion, 1));
+      expect(tester.widget<CheckboxListTile>(step).value, isTrue);
+      final operations = await harness.database
+          .select(harness.database.pendingOps)
+          .get();
+      expect(
+        operations.where((op) => op.operation.contains('checklist')),
+        hasLength(1),
+      );
+    },
+  );
+
+  testWidgets(
+    'Day scrolling stays inert and a deliberate duration opens the complete event editor',
+    (tester) async {
+      final harness = await _pumpApp(
+        tester,
+        AppSettings.defaults().copyWith(
+          androidScheduleViewMode: ScheduleViewMode.day,
+          defaultCalendar: const CreationDestination(
+            accountId: 'google:populated',
+            id: 'calendar',
+          ),
+        ),
+        populated: true,
+      );
+      addTearDown(harness.dispose);
+      final column = find.byWidgetPredicate(
+        (w) =>
+            w is Semantics &&
+            (w.properties.label?.startsWith('Create: Event:') ?? false),
+      );
+      expect(column, findsOneWidget);
+      Offset point() => tester.getTopLeft(column) + const Offset(40, 630 * .9);
+      await tester.dragFrom(point(), const Offset(0, -40));
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(ListTile, 'New event'), findsNothing);
+      final gesture = await tester.startGesture(point());
+      await tester.pump(const Duration(milliseconds: 600));
+      await gesture.moveBy(const Offset(0, 54));
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ListTile, 'New event'));
+      await tester.pumpAndSettle();
+      final draft = tester
+          .widget<AndroidEventEditor>(find.byType(AndroidEventEditor))
+          .draft;
+      expect(draft.start?.hour, 10);
+      expect(draft.start?.minute, 30);
+      expect(draft.end!.difference(draft.start!), const Duration(minutes: 75));
+      expect(draft.sourceId, 'calendar');
+    },
+  );
+
+  testWidgets(
+    'compact Android shell retains one workspace and accessible taps',
     (tester) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1;
@@ -309,16 +850,16 @@ void main() {
       final harness = await _pumpApp(tester, AppSettings.defaults());
       addTearDown(harness.dispose);
 
-      expect(find.byType(NavigationBar), findsOneWidget);
+      expect(find.byType(NavigationBar), findsNothing);
       expect(find.byType(NavigationRail), findsNothing);
-      expect(find.text('Schedule'), findsWidgets);
+      expect(find.byType(AndroidScheduleScreen), findsOneWidget);
       expect(tester.takeException(), isNull);
       await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
       await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
     },
   );
 
-  testWidgets('wide Android shell uses a rail in dark RTL mode', (
+  testWidgets('wide Android workspace keeps sources in dark RTL mode', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1000, 800);
@@ -334,7 +875,7 @@ void main() {
     final harness = await _pumpApp(tester, settings);
     addTearDown(harness.dispose);
 
-    expect(find.byType(NavigationRail), findsOneWidget);
+    expect(find.byType(NavigationRail), findsNothing);
     expect(find.byType(NavigationBar), findsNothing);
     expect(
       Directionality.of(tester.element(find.byType(AndroidHomeShell))),
@@ -360,7 +901,7 @@ void main() {
     final harness = await _pumpApp(tester, AppSettings.defaults());
     addTearDown(harness.dispose);
 
-    expect(find.byType(NavigationBar), findsOneWidget);
+    expect(find.byType(NavigationBar), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -374,7 +915,15 @@ void main() {
     final harness = await _pumpApp(tester, AppSettings.defaults());
     addTearDown(harness.dispose);
 
-    await tester.tap(find.text('Settings').last);
+    tester
+        .state<NavigatorState>(find.byType(Navigator).first)
+        .push<void>(
+          MaterialPageRoute(
+            builder: (_) => const AndroidSettingsScreen(
+              category: AndroidSettingsCategory.system,
+            ),
+          ),
+        );
     await tester.pumpAndSettle();
     final label = find.text('First day of the week');
     await _scrollUntilBuilt(tester, label);
@@ -425,20 +974,10 @@ void main() {
             'destination 0 at ${size.width}x${size.height} '
             'and text scale $textScale',
       );
-      for (final destination in <int>[1, 2]) {
-        harness.container
-                .read(androidSelectedDestinationProvider.notifier)
-                .state =
-            destination;
-        await tester.pumpAndSettle();
-        expect(
-          tester.takeException(),
-          isNull,
-          reason:
-              'destination $destination at ${size.width}x${size.height} '
-              'and text scale $textScale',
-        );
-      }
+      await _openAndroidScheduleScreen(tester);
+      expect(tester.takeException(), isNull);
+      await _openAndroidSettings(tester);
+      expect(tester.takeException(), isNull);
       await harness.dispose();
     }
   });
@@ -548,7 +1087,7 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
       final destination = Completer<void>();
-      DateTime? initialRangeStart;
+      DateTime? initialRangeEnd;
       final harness = await _pumpApp(
         tester,
         AppSettings.defaults().copyWith(
@@ -556,8 +1095,8 @@ void main() {
         ),
         populated: true,
         scheduleProjectionCoverage: (range, _) async {
-          initialRangeStart ??= range.start;
-          if (range.start != initialRangeStart) await destination.future;
+          initialRangeEnd ??= range.end;
+          if (range.end != initialRangeEnd) await destination.future;
         },
       );
       addTearDown(harness.dispose);
@@ -618,7 +1157,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     final destination = Completer<void>();
-    DateTime? initialRangeStart;
+    DateTime? initialRangeEnd;
     final harness = await _pumpApp(
       tester,
       AppSettings.defaults().copyWith(
@@ -630,14 +1169,14 @@ void main() {
         await database.delete(database.tasks).go();
       },
       scheduleProjectionCoverage: (range, _) async {
-        initialRangeStart ??= range.start;
-        if (range.start != initialRangeStart) await destination.future;
+        initialRangeEnd ??= range.end;
+        if (range.end != initialRangeEnd) await destination.future;
       },
     );
     addTearDown(harness.dispose);
 
     expect(find.text('No events or tasks'), findsOneWidget);
-    await tester.tap(find.byIcon(Icons.chevron_right));
+    await tester.tap(find.text('Load more days'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 220));
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
@@ -1414,8 +1953,7 @@ void main() {
     );
     final harness = await _pumpApp(tester, AppSettings.defaults());
     addTearDown(harness.dispose);
-    harness.container.read(androidSelectedDestinationProvider.notifier).state =
-        2;
+    await _openAndroidSettings(tester);
     await tester.pumpAndSettle();
 
     final nextcloud = find.text('Add Nextcloud account');
@@ -1442,7 +1980,18 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
     await tester.pumpAndSettle();
 
-    final diagnostics = find.text('Diagnostics');
+    tester.state<NavigatorState>(find.byType(Navigator).first).pop();
+    tester
+        .state<NavigatorState>(find.byType(Navigator).first)
+        .push<void>(
+          MaterialPageRoute(
+            builder: (_) => const AndroidSettingsScreen(
+              category: AndroidSettingsCategory.diagnostics,
+            ),
+          ),
+        );
+    await tester.pumpAndSettle();
+    final diagnostics = find.widgetWithText(ListTile, 'Diagnostics');
     await _scrollUntilBuilt(tester, diagnostics);
     await Scrollable.ensureVisible(
       tester.element(diagnostics),
@@ -1456,6 +2005,17 @@ void main() {
     tester.state<NavigatorState>(find.byType(Navigator).first).pop();
     await tester.pumpAndSettle();
 
+    tester.state<NavigatorState>(find.byType(Navigator).first).pop();
+    tester
+        .state<NavigatorState>(find.byType(Navigator).first)
+        .push<void>(
+          MaterialPageRoute(
+            builder: (_) => const AndroidSettingsScreen(
+              category: AndroidSettingsCategory.privacy,
+            ),
+          ),
+        );
+    await tester.pumpAndSettle();
     final about = find.text('About BusyMax');
     await _scrollUntilBuilt(tester, about);
     await tester.tap(about);
@@ -1923,7 +2483,9 @@ void main() {
       await _scrollUntilBuilt(tester, labelText);
       final field = find.ancestor(
         of: labelText,
-        matching: find.byType(TextFormField),
+        matching: label == 'Description'
+            ? find.byType(TextField)
+            : find.byType(TextFormField),
       );
       await tester.ensureVisible(field);
       await tester.enterText(field, 'Edited $label');
@@ -2089,8 +2651,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1100));
     final rewritten = (jsonDecode(secureStorage[key]!) as Map)
         .cast<String, Object?>();
-    expect(rewritten['showAs'], isNull);
-    expect(rewritten['visibility'], isNull);
+    expect(rewritten['showAs'], initial.showAs);
+    expect(rewritten['visibility'], initial.visibilityOrSensitivity);
     expect(rewritten['start'], initial.start!.toIso8601String());
     expect(tester.takeException(), isNull);
   });
@@ -2162,7 +2724,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('B synced occurrence hides recurrence-rule editor', (
+  testWidgets('synced occurrence retains recurrence and scope controls', (
     tester,
   ) async {
     final harness = await _pumpApp(tester, AppSettings.defaults());
@@ -2206,7 +2768,7 @@ void main() {
     await _scrollUntilBuilt(tester, scopeAction);
     expect(
       find.byKey(const ValueKey('android-event-recurrence')),
-      findsNothing,
+      findsOneWidget,
     );
     expect(scopeAction, findsOneWidget);
   });
@@ -2746,7 +3308,7 @@ void main() {
       await _scrollUntilBuilt(tester, recurrence);
       await tester.tap(recurrence);
       await tester.pumpAndSettle();
-      expect(find.text('2026-08-12'), findsOneWidget);
+      expect(find.text('8/12/2026'), findsOneWidget);
       await tester.tap(find.widgetWithText(FilledButton, 'Save'));
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(TextButton, 'Save'));
@@ -2787,14 +3349,12 @@ void main() {
         await _scrollUntilBuilt(tester, recurrence);
         await tester.tap(recurrence);
         await tester.pumpAndSettle();
-        await tester.tap(
-          find.byKey(const ValueKey('android-task-recurrence-end')),
-        );
+        await tester.tap(find.byKey(const ValueKey('android-recurrence-end')));
         await tester.pumpAndSettle();
         await tester.tap(find.text('On date').last);
         await tester.pumpAndSettle();
         await tester.tap(
-          find.byKey(const ValueKey('android-task-recurrence-until')),
+          find.byKey(const ValueKey('android-recurrence-until')),
         );
         await tester.pumpAndSettle();
         await tester.tap(find.byTooltip('Switch to input'));
@@ -2835,13 +3395,26 @@ void main() {
       await (harness.database.update(harness.database.tasks)
             ..where((row) => row.id.equals('move-task')))
           .write(const TasksCompanion(status: Value('completed')));
-      await _openAndroidTasksScreen(tester);
-      await tester.tap(find.text('All tasks').last);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Source list · Move account').last);
-      await tester.pumpAndSettle();
-      await tester.tap(find.byIcon(Icons.filter_list));
-      await tester.pumpAndSettle();
+      await _openAndroidScheduleScreen(tester);
+      final list = (await harness.container.read(
+        scheduleTaskListsProvider.future,
+      )).firstWhere((l) => l.id == 'source-list');
+      Future<void> openActions() async {
+        final screen = tester.state<ConsumerState<AndroidScheduleScreen>>(
+          find.byType(AndroidScheduleScreen),
+        );
+        unawaited(
+          showAndroidTaskListActions(
+            screen.context,
+            screen.ref,
+            list,
+            await harness.container.read(accountsStreamProvider.future),
+          ),
+        );
+        await tester.pumpAndSettle();
+      }
+
+      await openActions();
       await tester.tap(find.text('Clear completed'));
       await tester.pumpAndSettle();
       expect(
@@ -2860,8 +3433,7 @@ void main() {
         await harness.database.select(harness.database.pendingOps).get(),
         isEmpty,
       );
-      await tester.tap(find.byIcon(Icons.filter_list));
-      await tester.pumpAndSettle();
+      await openActions();
       await tester.tap(find.text('Clear completed'));
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(FilledButton, 'Clear completed'));
@@ -2928,12 +3500,21 @@ void main() {
           ),
         );
       }
-      await _openAndroidTasksScreen(tester);
-      await tester.tap(find.text('All tasks').last);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Editor tasks · Editor account').last);
-      await tester.pumpAndSettle();
-      await tester.tap(find.byIcon(Icons.filter_list));
+      await _openAndroidScheduleScreen(tester);
+      final list = (await harness.container.read(
+        scheduleTaskListsProvider.future,
+      )).single;
+      final screen = tester.state<ConsumerState<AndroidScheduleScreen>>(
+        find.byType(AndroidScheduleScreen),
+      );
+      unawaited(
+        showAndroidTaskListActions(
+          screen.context,
+          screen.ref,
+          list,
+          await harness.container.read(accountsStreamProvider.future),
+        ),
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.text('Clear completed'));
       await tester.pumpAndSettle();
@@ -3131,7 +3712,7 @@ void main() {
       );
       addTearDown(harness.dispose);
       await _seedMovableTask(harness.database);
-      await _openAndroidTasksScreen(tester);
+      await _openAndroidScheduleScreen(tester);
       expect(
         find.text(
           'Collections could not be loaded. Cached data is retained; retry synchronization.',
@@ -3201,7 +3782,7 @@ void main() {
         harness.database,
         recurringCount: 3,
       );
-      await _openAndroidTasksScreen(tester);
+      await _openAndroidScheduleScreen(tester);
       final tile = _androidMutationTile(parent);
       final staleToggle = tester
           .widget<IconButton>(
@@ -3349,7 +3930,7 @@ void main() {
         harness.database,
         recurringCount: 3,
       );
-      await _openAndroidTasksScreen(tester);
+      await _openAndroidScheduleScreen(tester);
       final toggle = find
           .descendant(
             of: find.widgetWithText(ListTile, 'Parent'),
@@ -3478,7 +4059,7 @@ void main() {
         final remote = StatefulTaskDavRemote(
           await harness.database.select(harness.database.davObjects).get(),
         );
-        if (surface != 'Schedule') await _openAndroidTasksScreen(tester);
+        if (surface != 'Schedule') await _openAndroidScheduleScreen(tester);
         VoidCallback? staleToggle;
         if (surface == 'editor' || surface == 'hierarchy') {
           await tester.tap(_androidMutationTile(parent));
@@ -3656,7 +4237,7 @@ void main() {
           );
         }
 
-        await _openAndroidTasksScreen(tester);
+        await _openAndroidScheduleScreen(tester);
         await tester.tap(_androidMutationTile(parent));
         await _pumpUntilFound(tester, find.byType(AndroidTaskEditor));
         if (notesOnly) {
@@ -3767,7 +4348,7 @@ void main() {
         final remoteBeforeSave = Map.of(remote.resources);
         await tester.pumpAndSettle();
         final movedTile = find.descendant(
-          of: find.byType(AndroidTasksScreen, skipOffstage: false).last,
+          of: find.byType(AndroidScheduleScreen, skipOffstage: false).last,
           matching: _androidMutationTile(moved, skipOffstage: false),
           skipOffstage: false,
         );
@@ -4074,16 +4655,21 @@ void main() {
       final harness = await _pumpApp(tester, AppSettings.defaults());
       addTearDown(harness.dispose);
       await _seedAndroidEditorTask(harness.database);
-      await _openAndroidTasksScreen(tester);
-      final create = tester
-          .widget<FloatingActionButton>(
-            find.byWidgetPredicate(
-              (widget) =>
-                  widget is FloatingActionButton &&
-                  widget.heroTag == 'android-tasks-add',
-            ),
-          )
-          .onPressed!;
+      await _openAndroidScheduleScreen(tester);
+      final screen = tester.state<ConsumerState<AndroidScheduleScreen>>(
+        find.byType(AndroidScheduleScreen),
+      );
+      final list = (await harness.container.read(
+        scheduleTaskListsProvider.future,
+      )).single;
+      void create() => unawaited(
+        showAndroidTaskEditor(
+          screen.context,
+          screen.ref,
+          creationList: list,
+          creationProvider: BusyProvider.nextcloud,
+        ),
+      );
       create();
       await _pumpUntilFound(tester, find.byType(AndroidTaskEditor));
       await tester.enterText(
@@ -4117,24 +4703,23 @@ void main() {
       final harness = await _pumpApp(tester, AppSettings.defaults());
       addTearDown(harness.dispose);
       final task = await _seedAndroidEditorTask(harness.database);
-      await _openAndroidTasksScreen(tester);
-      final screen = tester.state<ConsumerState<AndroidTasksScreen>>(
-        find.byType(AndroidTasksScreen),
+      await _openAndroidScheduleScreen(tester);
+      final screen = tester.state<ConsumerState<AndroidScheduleScreen>>(
+        find.byType(AndroidScheduleScreen),
       );
       final list =
           (await harness.container
                   .read(taskListsRepositoryForAccountProvider(task.accountId))
                   .listTaskLists())
               .single;
-      final create = tester
-          .widget<FloatingActionButton>(
-            find.byWidgetPredicate(
-              (widget) =>
-                  widget is FloatingActionButton &&
-                  widget.heroTag == 'android-tasks-add',
-            ),
-          )
-          .onPressed!;
+      void create() => unawaited(
+        showAndroidTaskEditor(
+          screen.context,
+          screen.ref,
+          creationList: list,
+          creationProvider: BusyProvider.nextcloud,
+        ),
+      );
       create();
       await _pumpUntilFound(tester, find.byType(AndroidTaskEditor));
       await tester.enterText(
@@ -4231,11 +4816,15 @@ void main() {
       );
       addTearDown(harness.dispose);
       await _seedMovableTask(harness.database);
-      await _openAndroidTasksScreen(tester);
+      await _openAndroidScheduleScreen(tester);
       final task = find.widgetWithText(ListTile, 'Original move task');
       await tester.tap(task);
-      await tester.pump();
-      await tester.tap(task);
+      await tester.pumpAndSettle();
+      final edit = tester
+          .widget<FilledButton>(find.widgetWithText(FilledButton, 'Edit Task'))
+          .onPressed!;
+      edit();
+      edit();
       await tester.pump();
       release.complete();
       await _pumpUntilFound(tester, find.byType(AndroidTaskEditor));
@@ -4289,7 +4878,7 @@ void main() {
         'source-list',
         const TaskCreateInput(title: 'Acknowledged owner'),
       );
-      await _openAndroidTasksScreen(tester);
+      await _openAndroidScheduleScreen(tester);
       final tile = find.widgetWithText(ListTile, 'Acknowledged owner');
       final oldOpen = tester.widget<ListTile>(tile).onTap!;
       client.releaseCreation.complete();
@@ -4310,9 +4899,14 @@ void main() {
         TaskEntity.fromRow(acknowledged).matchesIdentity(temporaryId),
         isTrue,
       );
+      final acknowledgedOpen = tester.widget<ListTile>(tile).onTap!;
       oldOpen();
+      await tester.pumpAndSettle();
+      final edit = find.widgetWithText(FilledButton, 'Edit Task');
+      await tester.ensureVisible(edit);
+      await tester.tap(edit);
       await tester.pump();
-      await tester.tap(tile);
+      acknowledgedOpen();
       await tester.pump();
       release.complete();
       await _pumpUntilFound(tester, find.byType(AndroidTaskEditor));
@@ -4352,7 +4946,7 @@ void main() {
       final harness = await _pumpApp(tester, AppSettings.defaults());
       addTearDown(harness.dispose);
       await _seedAndroidDavTree(harness.database);
-      await _openAndroidTasksScreen(tester);
+      await _openAndroidScheduleScreen(tester);
       final parent = find.widgetWithText(ListTile, 'Parent');
       final reopenParent = tester.widget<ListTile>(parent).onTap!;
       await tester.tap(parent);
@@ -4413,7 +5007,7 @@ void main() {
       );
       addTearDown(harness.dispose);
       await _seedMovableTask(harness.database);
-      await _openAndroidTasksScreen(tester);
+      await _openAndroidScheduleScreen(tester);
       await tester.tap(find.widgetWithText(ListTile, 'Original move task'));
       await _pumpUntilFound(tester, find.byType(AndroidTaskEditor));
       await tester.enterText(
@@ -4447,7 +5041,7 @@ void main() {
       expect(await _taskRow(harness.database, 'source-list'), isNull);
       await tester.pumpAndSettle();
       final movedRow = find.descendant(
-        of: find.byType(AndroidTasksScreen, skipOffstage: false).last,
+        of: find.byType(AndroidScheduleScreen, skipOffstage: false).last,
         matching: find.widgetWithText(
           ListTile,
           'Original move task',
@@ -4546,7 +5140,7 @@ void main() {
             updatedLocalAtUtc: '2026-08-01T00:00:00Z',
           ),
         );
-        await _openAndroidTasksScreen(tester);
+        await _openAndroidScheduleScreen(tester);
         final openOther = tester
             .widget<ListTile>(find.widgetWithText(ListTile, 'Independent task'))
             .onTap!;
@@ -4697,7 +5291,7 @@ void main() {
           updatedLocalAtUtc: '2026-08-01T00:00:00Z',
         ),
       );
-      await _openAndroidTasksScreen(tester);
+      await _openAndroidScheduleScreen(tester);
       await tester.tap(find.widgetWithText(ListTile, 'Independent task'));
       await _pumpUntilFound(tester, find.byType(AndroidTaskEditor));
       expect(find.text('Restore'), findsNothing);
@@ -4777,7 +5371,7 @@ void main() {
         seedDatabase: seed,
       );
       addTearDown(harness.dispose);
-      await _openAndroidTasksScreen(tester);
+      await _openAndroidScheduleScreen(tester);
       final openOther = tester
           .widget<ListTile>(find.widgetWithText(ListTile, 'Independent task'))
           .onTap!;
@@ -4828,7 +5422,7 @@ void main() {
         seedDatabase: seed,
       );
       addTearDown(restarted.dispose);
-      await _openAndroidTasksScreen(tester);
+      await _openAndroidScheduleScreen(tester);
       await tester.tap(find.widgetWithText(ListTile, 'Original move task'));
       await _pumpUntilFound(tester, find.text('Restore'));
       await tester.tap(find.text('Restore'));
@@ -4888,7 +5482,7 @@ void main() {
       );
       addTearDown(harness.dispose);
       await _seedAndroidDavTree(harness.database);
-      await _openAndroidTasksScreen(tester);
+      await _openAndroidScheduleScreen(tester);
       final openChild = tester
           .widget<ListTile>(find.widgetWithText(ListTile, 'Child'))
           .onTap!;
@@ -5285,7 +5879,7 @@ void main() {
       final harness = await _pumpApp(tester, AppSettings.defaults());
       addTearDown(harness.dispose);
       final parent = await _seedAndroidDavTree(harness.database);
-      await _openAndroidTasksScreen(tester);
+      await _openAndroidScheduleScreen(tester);
       final parentTile = find.widgetWithText(ListTile, 'Parent');
       await tester.tap(
         find
@@ -5625,14 +6219,28 @@ void main() {
       );
       addTearDown(harness.dispose);
       await _seedMovableTask(harness.database);
-      await _openAndroidTasksScreen(tester);
-      await tester.tap(find.text('All tasks').last);
+      await _openAndroidScheduleScreen(tester);
+      await tester.tap(find.byTooltip('Filters'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Source list · Move account').last);
+      final filter = tester.widget<AndroidScheduleSearchFilters>(
+        find.byType(AndroidScheduleSearchFilters),
+      );
+      filter.onChanged(
+        filter.value.copyWith(
+          taskListKeys: {
+            const ScheduleTaskListKey(
+              accountId: 'google:move',
+              taskListId: 'source-list',
+            ),
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
       await tester.enterText(
         find.descendant(
-          of: find.byType(SearchBar),
+          of: find.byType(AppBar),
           matching: find.byType(TextField),
         ),
         'Original',
@@ -5645,15 +6253,35 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Original move task'), findsOneWidget);
       expect(find.text('Retry'), findsOneWidget);
-      expect(find.text('Source list · Move account'), findsOneWidget);
+      expect(find.textContaining('Source list · Move account'), findsOneWidget);
       expect(find.text('Original'), findsOneWidget);
       schedule.fail = false;
       await tester.tap(find.text('Retry'));
       await tester.pumpAndSettle();
       expect(find.text('Original move task'), findsOneWidget);
       expect(find.text('Retry'), findsNothing);
-      expect(find.text('Source list · Move account'), findsOneWidget);
+      expect(find.textContaining('Source list · Move account'), findsOneWidget);
       expect(find.text('Original'), findsOneWidget);
+      await tester.tap(find.byTooltip('Filters'));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<AndroidScheduleSearchFilters>(
+              find.byType(AndroidScheduleSearchFilters),
+            )
+            .value
+            .taskListKeys,
+        filter.value
+            .copyWith(
+              taskListKeys: {
+                const ScheduleTaskListKey(
+                  accountId: 'google:move',
+                  taskListId: 'source-list',
+                ),
+              },
+            )
+            .taskListKeys,
+      );
     },
   );
 
@@ -6186,7 +6814,7 @@ void main() {
       await _scrollUntilBuilt(tester, recurrence);
       await tester.tap(recurrence);
       await tester.pumpAndSettle();
-      expect(find.text('2026-08-12'), findsOneWidget);
+      expect(find.text('8/12/2026'), findsOneWidget);
       expect(find.text('2026-08-13'), findsNothing);
       await tester.tap(find.widgetWithText(FilledButton, 'Save'));
       await tester.pumpAndSettle();
@@ -6279,7 +6907,7 @@ void main() {
           harness.database,
           provider: provider,
         );
-        await _openAndroidTasksScreen(tester);
+        await _openAndroidScheduleScreen(tester);
         final tile = find.widgetWithText(ListTile, 'Editable task');
         await tester.tap(
           find.descendant(of: tile, matching: find.byType(IconButton)).first,
@@ -6410,6 +7038,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(AndroidTaskEditor), findsOneWidget);
+    await tester.drag(find.byType(ListView).last, const Offset(0, 1200));
+    await tester.pumpAndSettle();
     expect(find.text('Unsaved move edit'), findsOneWidget);
     final row = await (harness.database.select(
       harness.database.tasks,
@@ -6456,6 +7086,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(AndroidTaskEditor), findsOneWidget);
+    await tester.drag(find.byType(ListView).last, const Offset(0, 1200));
+    await tester.pumpAndSettle();
     expect(find.text('Recover after move failure'), findsOneWidget);
     expect(secureStorage, contains(recoveryKey));
     expect(find.byType(SnackBar), findsOneWidget);
@@ -6476,7 +7108,11 @@ void main() {
     tester
         .state<NavigatorState>(find.byType(Navigator).first)
         .push<void>(
-          MaterialPageRoute(builder: (_) => const AndroidSettingsScreen()),
+          MaterialPageRoute(
+            builder: (_) => const AndroidSettingsScreen(
+              category: AndroidSettingsCategory.accounts,
+            ),
+          ),
         );
     await tester.pumpAndSettle();
 
@@ -6499,6 +7135,7 @@ void main() {
     await _scrollUntilBuilt(tester, renamed);
     await tester.tap(renamed);
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Calendar color'));
     await tester.tap(find.text('Calendar color'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Color 1'));
@@ -6513,6 +7150,7 @@ void main() {
     await _scrollUntilBuilt(tester, renamed);
     await tester.tap(renamed);
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.widgetWithText(ListTile, 'Delete'));
     await tester.tap(find.text('Delete'));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
@@ -6554,7 +7192,11 @@ void main() {
     tester
         .state<NavigatorState>(find.byType(Navigator).first)
         .push<void>(
-          MaterialPageRoute(builder: (_) => const AndroidSettingsScreen()),
+          MaterialPageRoute(
+            builder: (_) => const AndroidSettingsScreen(
+              category: AndroidSettingsCategory.accounts,
+            ),
+          ),
         );
     await tester.pumpAndSettle();
     final entry = find.byKey(
@@ -6610,7 +7252,11 @@ void main() {
       tester
           .state<NavigatorState>(find.byType(Navigator).first)
           .push<void>(
-            MaterialPageRoute(builder: (_) => const AndroidSettingsScreen()),
+            MaterialPageRoute(
+              builder: (_) => const AndroidSettingsScreen(
+                category: AndroidSettingsCategory.accounts,
+              ),
+            ),
           );
       await tester.pumpAndSettle();
       await _scrollUntilBuilt(tester, find.text('Owner calendar'));
@@ -7245,17 +7891,30 @@ Future<void> _openMovableTaskEditor(
 }
 
 Future<void> _scrollUntilBuilt(WidgetTester tester, Finder target) async {
+  FocusManager.instance.primaryFocus?.unfocus();
+  await tester.pumpAndSettle();
   for (var attempt = 0; attempt < 12 && target.evaluate().isEmpty; attempt++) {
     await tester.drag(find.byType(ListView).last, const Offset(0, -260));
     await tester.pump();
   }
   expect(target, findsOneWidget);
   await tester.ensureVisible(target);
-  await tester.pump();
+  await tester.pumpAndSettle();
 }
 
 Future<void> _pumpUntilFound(WidgetTester tester, Finder target) async {
+  await tester.pumpAndSettle();
   for (var attempt = 0; attempt < 20 && target.evaluate().isEmpty; attempt++) {
+    final edit = find.widgetWithText(
+      FilledButton,
+      tester.element(find.byType(Scaffold).last).l10n.editTask,
+    );
+    if (edit.evaluate().isNotEmpty) {
+      await tester.ensureVisible(edit.last);
+      await tester.pumpAndSettle();
+      await tester.tap(edit.last);
+      await tester.pumpAndSettle();
+    }
     await tester.pump(const Duration(milliseconds: 10));
     await tester.runAsync(() => Future<void>.delayed(Duration.zero));
   }
@@ -7385,217 +8044,8 @@ Future<_AndroidAppHarness> _pumpApp(
   return _AndroidAppHarness(tester, container, database);
 }
 
-Future<void> _seedPopulatedSchedule(AppDatabase database) async {
-  final today = DateTime.now();
-  final start = DateTime(today.year, today.month, today.day - 1, 23);
-  final end = DateTime(today.year, today.month, today.day, 1);
-  const timestamp = '2026-09-14T00:00:00.000Z';
-  await database
-      .into(database.accounts)
-      .insert(
-        AccountsCompanion.insert(
-          id: 'google:populated',
-          provider: 'google',
-          authority: 'https://accounts.google.com',
-          providerAccountId: 'populated',
-          credentialKind: 'oauth',
-          authState: const Value('signed_in'),
-          displayName: const Value('Calendar Account'),
-          createdAtUtc: timestamp,
-          updatedAtUtc: timestamp,
-        ),
-      );
-  await database
-      .into(database.calendarSources)
-      .insert(
-        CalendarSourcesCompanion.insert(
-          id: 'calendar',
-          accountId: 'google:populated',
-          provider: 'google',
-          providerCalendarId: 'calendar',
-          summary: 'Populated calendar',
-          selected: const Value(true),
-          createdAtLocal: 1,
-          updatedAtLocal: 1,
-        ),
-      );
-  await database.taskListsDao.upsertTaskList(
-    TaskListsCompanion.insert(
-      accountId: 'google:populated',
-      id: 'visible-list',
-      title: 'Visible tasks',
-      rawJson: '{}',
-      createdLocalAtUtc: timestamp,
-      updatedLocalAtUtc: timestamp,
-    ),
-  );
-  await database.tasksDao.upsertTask(
-    TasksCompanion.insert(
-      accountId: 'google:populated',
-      taskListId: 'visible-list',
-      id: 'date-only-task',
-      title: 'Date-only task',
-      notes: Value(_longScheduleDetailsNotes),
-      dueUtc: Value(
-        '${today.year.toString().padLeft(4, '0')}-'
-        '${today.month.toString().padLeft(2, '0')}-'
-        '${today.day.toString().padLeft(2, '0')}',
-      ),
-      status: const Value('needsAction'),
-      rawJson: '{}',
-      createdLocalAtUtc: timestamp,
-      updatedLocalAtUtc: timestamp,
-    ),
-  );
-  await database
-      .into(database.calendarEvents)
-      .insert(
-        CalendarEventsCompanion.insert(
-          id: 'overnight',
-          accountId: 'google:populated',
-          calendarSourceId: 'calendar',
-          provider: 'google',
-          providerCalendarId: 'calendar',
-          providerEventId: 'overnight',
-          title: 'Overnight event',
-          startDateTime: Value(start.toIso8601String()),
-          endDateTime: Value(end.toIso8601String()),
-          rawJson: const Value('{}'),
-          createdAtLocal: 1,
-          updatedAtLocal: 1,
-        ),
-      );
-  await database
-      .into(database.calendarEvents)
-      .insert(
-        CalendarEventsCompanion.insert(
-          id: 'invitation',
-          accountId: 'google:populated',
-          calendarSourceId: 'calendar',
-          provider: 'google',
-          providerCalendarId: 'calendar',
-          providerEventId: 'invitation',
-          title: 'Invitation event',
-          allDay: const Value(true),
-          startDate: Value(
-            DateTime(
-              today.year,
-              today.month,
-              today.day,
-            ).toIso8601String().substring(0, 10),
-          ),
-          endDate: Value(
-            DateTime(
-              today.year,
-              today.month,
-              today.day + 1,
-            ).toIso8601String().substring(0, 10),
-          ),
-          attendeesJson: const Value(
-            '[{"email":"me@example.com","self":true,"responseStatus":"needsAction"}]',
-          ),
-          organizerJson: const Value(
-            '{"email":"organizer@example.com","self":false}',
-          ),
-          rawJson: const Value('{}'),
-          createdAtLocal: 1,
-          updatedAtLocal: 1,
-        ),
-      );
-  for (var index = 1; index <= 4; index++) {
-    await database
-        .into(database.calendarEvents)
-        .insert(
-          CalendarEventsCompanion.insert(
-            id: 'all-day-$index',
-            accountId: 'google:populated',
-            calendarSourceId: 'calendar',
-            provider: 'google',
-            providerCalendarId: 'calendar',
-            providerEventId: 'all-day-$index',
-            title: 'All-day event $index',
-            allDay: const Value(true),
-            startDate: Value(
-              '${today.year.toString().padLeft(4, '0')}-'
-              '${today.month.toString().padLeft(2, '0')}-'
-              '${today.day.toString().padLeft(2, '0')}',
-            ),
-            endDate: Value(
-              DateTime(
-                today.year,
-                today.month,
-                today.day + 1,
-              ).toIso8601String().substring(0, 10),
-            ),
-            rawJson: const Value('{}'),
-            createdAtLocal: 1,
-            updatedAtLocal: 1,
-          ),
-        );
-  }
-  await database
-      .into(database.calendarSources)
-      .insert(
-        CalendarSourcesCompanion.insert(
-          id: 'hidden-calendar',
-          accountId: 'google:populated',
-          provider: 'google',
-          providerCalendarId: 'hidden-calendar',
-          summary: 'Hidden calendar',
-          selected: const Value(false),
-          createdAtLocal: 1,
-          updatedAtLocal: 1,
-        ),
-      );
-  await database
-      .into(database.calendarEvents)
-      .insert(
-        CalendarEventsCompanion.insert(
-          id: 'hidden-event',
-          accountId: 'google:populated',
-          calendarSourceId: 'hidden-calendar',
-          provider: 'google',
-          providerCalendarId: 'hidden-calendar',
-          providerEventId: 'hidden-event',
-          title: 'Hidden event',
-          startDateTime: Value(start.toIso8601String()),
-          endDateTime: Value(end.toIso8601String()),
-          rawJson: const Value('{}'),
-          createdAtLocal: 1,
-          updatedAtLocal: 1,
-        ),
-      );
-  await database.taskListsDao.upsertTaskList(
-    TaskListsCompanion.insert(
-      accountId: 'google:populated',
-      id: 'hidden-list',
-      title: 'Hidden tasks',
-      rawJson: '{}',
-      createdLocalAtUtc: timestamp,
-      updatedLocalAtUtc: timestamp,
-    ),
-  );
-  await database.tasksDao.upsertTask(
-    TasksCompanion.insert(
-      accountId: 'google:populated',
-      taskListId: 'hidden-list',
-      id: 'hidden-task',
-      title: 'Hidden task',
-      dueUtc: Value(
-        DateTime(
-          today.year,
-          today.month,
-          today.day,
-          12,
-        ).toUtc().toIso8601String(),
-      ),
-      status: const Value('needsAction'),
-      rawJson: '{}',
-      createdLocalAtUtc: timestamp,
-      updatedLocalAtUtc: timestamp,
-    ),
-  );
-}
+Future<void> _seedPopulatedSchedule(AppDatabase database) =>
+    seedScheduleParityFixture(database, notes: _longScheduleDetailsNotes);
 
 Future<void> _seedMovableTask(
   AppDatabase database, {
@@ -7948,11 +8398,26 @@ Future<void> _openAndroidTaskEditor(
   await tester.pumpAndSettle();
 }
 
-Future<void> _openAndroidTasksScreen(WidgetTester tester) async {
+Future<void> _openAndroidScheduleScreen(WidgetTester tester) async {
+  await tester.tap(find.byKey(const ValueKey('android-workspace-menu')));
+  await tester.pumpAndSettle();
+  await tester.tap(
+    find.byWidgetPredicate(
+      (widget) => widget is PopupMenuItem<String> && widget.value == 'tasks',
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
+Future<void> _openAndroidSettings(WidgetTester tester) async {
   tester
       .state<NavigatorState>(find.byType(Navigator).first)
       .push<void>(
-        MaterialPageRoute(builder: (_) => const AndroidTasksScreen()),
+        MaterialPageRoute(
+          builder: (_) => const AndroidSettingsScreen(
+            category: AndroidSettingsCategory.accounts,
+          ),
+        ),
       );
   await tester.pumpAndSettle();
 }
@@ -8081,6 +8546,15 @@ class _AndroidChecklistClient
 class _AndroidRetryScheduleRepository extends ScheduleRepository {
   _AndroidRetryScheduleRepository(super.database);
   var fail = false;
+
+  @override
+  Future<List<ScheduleItem>> listItems({
+    required ScheduleRange range,
+    ScheduleFilters filters = const ScheduleFilters(),
+  }) {
+    if (fail) return Future.error(StateError('test task query failure'));
+    return super.listItems(range: range, filters: filters);
+  }
 
   @override
   Future<List<TaskScheduleItem>> listAllTasks({

@@ -4064,4 +4064,10 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get attachmentInvalidOrTooLarge =>
       'هذا المرفق غير صالح أو يتجاوز الحد الأقصى للحجم.';
+
+  @override
+  String get moveEvent => 'نقل الحدث';
+
+  @override
+  String get agendaLoadMoreDays => 'تحميل المزيد من الأيام';
 }

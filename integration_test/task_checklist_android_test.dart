@@ -83,16 +83,15 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(
-        find.descendant(
-          of: find.byType(NavigationBar),
-          matching: find.text('Tasks'),
-        ),
-      );
+      await tester.tap(find.byTooltip('Schedule display'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('All tasks').last);
       await tester.pumpAndSettle();
       final parent = find.widgetWithText(ListTile, 'Native checklist parent');
       await _wait(tester, () => parent.evaluate().isNotEmpty);
       await tester.tap(parent);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Edit Task').last);
       await _wait(
         tester,
         () => find.byType(AndroidTaskEditor).evaluate().isNotEmpty,

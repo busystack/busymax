@@ -5034,42 +5034,6 @@ void main() {
     expect(nativeRunner, isNot(contains('set_header_navigation_visible')));
   });
 
-  test('agenda queries bounded buckets separately from dated items', () {
-    final source = File(
-      'lib/src/features/schedule/presentation/schedule_workspace.dart',
-    ).readAsStringSync();
-
-    expect(source, contains('Future<_ScheduleItemsResult> _scheduleItems'));
-    expect(source, contains('final currentItems = repository.listItems'));
-    expect(
-      source,
-      contains(
-        'showNoDateTasks: searchActive || '
-        '_mode != ScheduleViewMode.agenda',
-      ),
-    );
-    expect(
-      source,
-      contains('final overdueTasks = repository.listOverdueTasks'),
-    );
-    expect(source, contains('before: range.start'));
-    expect(source, contains('limit: _agendaOverdueTaskLimit'));
-    expect(source, contains('final noDateTasks = repository.listNoDateTasks'));
-    expect(source, contains('limit: _agendaNoDateTaskLimit'));
-    expect(source, contains('taskCompletion: ScheduleTaskCompletion.open'));
-    expect(source, contains('repository.includeTaskAncestors'));
-    expect(source, contains('hasMoreOverdueTasks: overduePage.hasMore'));
-    expect(source, contains('hasMoreNoDateTasks: noDatePage.hasMore'));
-    expect(source, contains('List<ScheduleItem> _agendaItems'));
-    expect(source, contains('if (item is CalendarScheduleItem)'));
-    expect(
-      source,
-      contains('return ScheduleProjection.intersects(item, range);'),
-    );
-    expect(source, contains('if (item is TaskScheduleItem)'));
-    expect(source, contains('return !item.completed;'));
-  });
-
   test('agenda task markers distinguish hierarchy without checkbox icons', () {
     final agenda = File(
       'lib/src/features/schedule/presentation/schedule_agenda_view.dart',

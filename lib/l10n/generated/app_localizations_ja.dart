@@ -3910,4 +3910,10 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get attachmentInvalidOrTooLarge => 'この添付ファイルは無効か、サイズの上限を超えています。';
+
+  @override
+  String get moveEvent => '予定を移動';
+
+  @override
+  String get agendaLoadMoreDays => 'さらに日付を読み込む';
 }

@@ -11,7 +11,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/generated/app_localizations.dart';
 import '../app/app_bootstrap.dart';
-import '../app/common/busymax_motion_widgets.dart';
 import '../l10n/app_locale.dart';
 import '../l10n/locale_resolution.dart';
 import '../l10n/l10n.dart';
@@ -22,9 +21,7 @@ import 'android_notifications.dart';
 import 'presentation/android_schedule_screen.dart';
 import 'presentation/android_settings_screen.dart';
 import 'presentation/android_diagnostics_screen.dart';
-import 'presentation/android_tasks_screen.dart';
-
-final androidSelectedDestinationProvider = StateProvider<int>((ref) => 0);
+import 'android_workspace_navigation.dart';
 
 class AndroidBusyMaxApp extends ConsumerStatefulWidget {
   const AndroidBusyMaxApp({super.key});
@@ -61,6 +58,7 @@ class _AndroidBusyMaxAppState extends ConsumerState<AndroidBusyMaxApp> {
     final settings = ref.watch(appSettingsControllerProvider);
     return MaterialApp(
       restorationScopeId: 'busymax_android',
+      navigatorObservers: [androidWorkspaceRouteObserver],
       debugShowCheckedModeBanner: false,
       onGenerateTitle: (_) => 'BusyMax',
       locale: settings.locale,
@@ -261,11 +259,8 @@ class _AndroidHomeShellState extends ConsumerState<AndroidHomeShell>
     if (activation.sourceType == 'summary') {
       final date = parseNotificationDate(activation.itemId);
       if (date == null || !mounted) return;
-      await Navigator.of(context).push<void>(
-        MaterialPageRoute(
-          builder: (_) => AndroidTasksScreen(notificationDate: date),
-        ),
-      );
+      ref.read(androidWorkspaceRequestProvider.notifier).state =
+          AndroidWorkspaceRequest(date: date, summary: true);
       return;
     }
     if (activation.sourceType == 'sync-failure' ||
@@ -321,93 +316,21 @@ class _AndroidHomeShellState extends ConsumerState<AndroidHomeShell>
       );
       return;
     }
-    ref.read(androidSelectedDestinationProvider.notifier).state = 0;
-    if (activation.sourceType == 'event') {
-      await showAndroidEventEditor(context, ref, eventId: row.sourceId);
-    } else if (activation.sourceType == 'task') {
-      await showAndroidTaskById(
-        context,
-        ref,
-        accountId: activation.accountId,
-        taskId: row.sourceId,
-      );
-    }
+    ref
+        .read(androidWorkspaceRequestProvider.notifier)
+        .state = AndroidWorkspaceRequest(
+      date: DateTime.now(),
+      itemId: row.sourceId,
+      accountId: activation.accountId,
+      task: activation.sourceType == 'task',
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final selected = ref.watch(androidSelectedDestinationProvider);
-    final destinations = <NavigationDestination>[
-      NavigationDestination(
-        icon: const Icon(Icons.calendar_today_outlined),
-        selectedIcon: const Icon(Icons.calendar_today),
-        label: context.l10n.scheduleSection,
-      ),
-      NavigationDestination(
-        icon: const Icon(Icons.checklist_outlined),
-        selectedIcon: const Icon(Icons.checklist),
-        label: context.l10n.tasks,
-      ),
-      NavigationDestination(
-        icon: const Icon(Icons.settings_outlined),
-        selectedIcon: const Icon(Icons.settings),
-        label: context.l10n.settings,
-      ),
-    ];
-    final pages = const [
-      AndroidScheduleScreen(),
-      AndroidTasksScreen(),
-      AndroidSettingsScreen(),
-    ];
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final useRail = constraints.maxWidth >= 840;
-        final content = BusyMaxRetainedCrossfade(
-          index: selected,
-          children: pages,
-        );
-        if (useRail) {
-          return Scaffold(
-            body: SafeArea(
-              child: Row(
-                children: [
-                  NavigationRail(
-                    selectedIndex: selected,
-                    extended: constraints.maxWidth >= 1200,
-                    onDestinationSelected: (value) =>
-                        ref
-                                .read(
-                                  androidSelectedDestinationProvider.notifier,
-                                )
-                                .state =
-                            value,
-                    destinations: [
-                      for (final destination in destinations)
-                        NavigationRailDestination(
-                          icon: destination.icon,
-                          selectedIcon: destination.selectedIcon,
-                          label: Text(destination.label),
-                        ),
-                    ],
-                  ),
-                  const VerticalDivider(width: 1),
-                  Expanded(child: content),
-                ],
-              ),
-            ),
-          );
-        }
-        return Scaffold(
-          body: SafeArea(child: content),
-          bottomNavigationBar: NavigationBar(
-            selectedIndex: selected,
-            onDestinationSelected: (value) =>
-                ref.read(androidSelectedDestinationProvider.notifier).state =
-                    value,
-            destinations: destinations,
-          ),
-        );
-      },
+    return ColoredBox(
+      color: Theme.of(context).colorScheme.surface,
+      child: const SafeArea(child: AndroidScheduleScreen()),
     );
   }
 }

@@ -4048,4 +4048,10 @@ class AppLocalizationsIt extends AppLocalizations {
   @override
   String get attachmentInvalidOrTooLarge =>
       'Questo allegato non è valido o supera il limite di dimensione.';
+
+  @override
+  String get moveEvent => 'Sposta evento';
+
+  @override
+  String get agendaLoadMoreDays => 'Carica altri giorni';
 }

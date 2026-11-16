@@ -1405,5 +1405,7 @@
   "localNetworkAccessRequired": "需要區域網路存取權限",
   "localNetworkAccessRecovery": "若要連線至此伺服器，請在 Android 設定中允許 BusyMax 存取附近的裝置，然後再試一次。",
   "taskReminderRequiresAnchor": "移除開始時間或截止時間前，請先調整以其為基準的提醒。",
-  "attachmentInvalidOrTooLarge": "此附件無效或超過大小限制。"
+  "attachmentInvalidOrTooLarge": "此附件無效或超過大小限制。",
+  "moveEvent": "移動行程",
+  "agendaLoadMoreDays": "載入更多日期"
 }

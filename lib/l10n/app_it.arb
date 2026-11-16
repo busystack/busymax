@@ -1405,5 +1405,7 @@
   "localNetworkAccessRequired": "Accesso alla rete locale richiesto",
   "localNetworkAccessRecovery": "Per raggiungere questo server, consenti a BusyMax di accedere ai dispositivi nelle vicinanze nelle impostazioni di Android, poi riprova.",
   "taskReminderRequiresAnchor": "Modifica il promemoria relativo prima di rimuoverne l’inizio o la scadenza.",
-  "attachmentInvalidOrTooLarge": "Questo allegato non è valido o supera il limite di dimensione."
+  "attachmentInvalidOrTooLarge": "Questo allegato non è valido o supera il limite di dimensione.",
+  "moveEvent": "Sposta evento",
+  "agendaLoadMoreDays": "Carica altri giorni"
 }

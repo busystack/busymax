@@ -4008,4 +4008,10 @@ class AppLocalizationsVi extends AppLocalizations {
   @override
   String get attachmentInvalidOrTooLarge =>
       'Tệp đính kèm này không hợp lệ hoặc vượt quá giới hạn kích thước.';
+
+  @override
+  String get moveEvent => 'Di chuyển sự kiện';
+
+  @override
+  String get agendaLoadMoreDays => 'Tải thêm ngày';
 }

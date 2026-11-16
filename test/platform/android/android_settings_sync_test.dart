@@ -260,6 +260,7 @@ void main() {
       final syncedAccounts = <String>[];
       final harness = await _pumpAndroidSettings(
         tester,
+        category: AndroidSettingsCategory.diagnostics,
         provider: BusyProvider.caldav,
         authority: 'https://192.168.1.20/',
         signedInSyncRunner: (id, full) async {
@@ -358,7 +359,10 @@ void main() {
         () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
             .setMockMethodCallHandler(platform, null),
       );
-      final harness = await _pumpAndroidSettings(tester);
+      final harness = await _pumpAndroidSettings(
+        tester,
+        category: AndroidSettingsCategory.notifications,
+      );
       addTearDown(harness.dispose);
       harness.container
           .read(androidNotificationServiceProvider)
@@ -508,6 +512,28 @@ void main() {
     },
   );
 
+  testWidgets(
+    'Force full resync explicitly requests every eligible account in full',
+    (tester) async {
+      final calls = <(String, bool)>[];
+      final harness = await _pumpAndroidSettings(
+        tester,
+        category: AndroidSettingsCategory.diagnostics,
+        signedInSyncRunner: (id, full) async => calls.add((id, full)),
+      );
+      addTearDown(harness.dispose);
+      final action = find.widgetWithText(ListTile, 'Force full resync');
+      await tester.scrollUntilVisible(
+        action,
+        400,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(action);
+      await tester.pumpAndSettle();
+      expect(calls, [('google:g', true)]);
+    },
+  );
+
   testWidgets('Android Sync All uses the canonical safe failure message', (
     tester,
   ) async {
@@ -522,6 +548,7 @@ void main() {
     );
     final harness = await _pumpAndroidSettings(
       tester,
+      category: AndroidSettingsCategory.diagnostics,
       allAccountsSyncRunner: () async => throw failure,
     );
     addTearDown(harness.dispose);
@@ -549,6 +576,7 @@ void main() {
 
 Future<_AndroidSettingsHarness> _pumpAndroidSettings(
   WidgetTester tester, {
+  AndroidSettingsCategory category = AndroidSettingsCategory.accounts,
   BusyProvider provider = BusyProvider.google,
   String? authority,
   CalendarCollectionCreator? creator,
@@ -618,7 +646,7 @@ Future<_AndroidSettingsHarness> _pumpAndroidSettings(
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
-      child: localizedTestApp(child: const AndroidSettingsScreen()),
+      child: localizedTestApp(child: AndroidSettingsScreen(category: category)),
     ),
   );
   await tester.pumpAndSettle();
