@@ -344,6 +344,12 @@ void main() {
             ),
             isNotEmpty,
           );
+          if (!windows) {
+            final entry = find.widgetWithText(ListTile, account.displayName);
+            await tester.ensureVisible(entry);
+            await tester.tap(entry);
+            await settle(tester);
+          }
           final setting = (await complete(
             tester,
             f.controller.sourceSettings,
@@ -373,6 +379,13 @@ void main() {
           );
           await contactActionsReady(tester, windows);
           if (!windows) {
+            await tester.ensureVisible(
+              find.widgetWithText(ExpansionTile, 'Advanced').last,
+            );
+            await tester.tap(
+              find.widgetWithText(ExpansionTile, 'Advanced').last,
+            );
+            await settle(tester);
             final secretBefore = Map<String, String>.from(f.davSecrets);
             final before = await complete(
               tester,
@@ -509,6 +522,12 @@ void main() {
             ),
           );
           await settle(tester);
+          if (!windows) {
+            final entry = find.byKey(ValueKey('account-entry-${parents!.id}'));
+            await tester.ensureVisible(entry);
+            await tester.tap(entry);
+            await settle(tester);
+          }
           expect(
             find.text(
               'Use cached contacts from this account when adding event guests.',

@@ -133,49 +133,18 @@ loopback/adb reverse alone does not qualify the local-network restriction.
 API 37 acceptance remains a separate gate in the dated qualification record. Widget and plugin unit
 tests do not qualify Android 17's native permission behavior.
 
-## Android workspace parity implementation map
+## Linux-referenced Android rework
 
-The reference is the reachable Linux application in the checkout based on
-`d2d10e2831d98417fec0b1e79fdf7cd58ee84d0a` (0.4.1). Both comparison targets use
-`test/support/schedule_parity_fixture.dart`; the stress fixture includes old
-overdue tasks, undated tasks, overlapping events, task parents and children,
-Microsoft checklist steps, hidden sources, and duplicate list names in different
-accounts. No fixture sends provider mutations or invitations.
+The current reference is the reachable Linux UI at
+`3e27eca0578dd2c1c182b5346b8290eb90bc8ed6`, followed by the explicitly recorded
+working-tree changes. The former implementation map described substitutions
+such as a visible zoom slider, picker-only resizing, a separate All tasks entry
+and an all-day overflow sheet. Those descriptions were not parity acceptance.
 
-The implementation locations below are relative to `lib/src/`. The existing
-`android_tasks_screen.dart` filename now contains task editors and their draft,
-attachment and hierarchy helpers; its separate workspace was removed.
-
-| Linux reference / required behavior | Android entry point and implementation | Automated coverage |
-| --- | --- | --- |
-| Schedule workspace, Today, date navigation, five view meanings | `android/android_app.dart` → retained `AndroidScheduleScreen`; view menu and date toolbar in `android/presentation/android_schedule_screen.dart` | Adaptive application tests; viewport matrix |
-| Clean-install view and saved Android preference | Same screen uses shared Linux default unless an Android view preference exists | Clean-default and preference reload tests |
-| Former Tasks all-time/list browsing, completed and undated filters | Workspace menu **All tasks**, source task-list tap → temporary search with Tasks / Any; full search filters sheet | Hidden-list, filter isolation, cached-error and restoration tests |
-| Notification item/date/scope and daily summary | `android/android_workspace_navigation.dart`; validated activations in `android/android_app.dart` enter the retained workspace; event activation leaves temporary task search | Deep-link, summary and task-search → event transition tests; existing notification validation suite |
-| Day / seven-day Week items, all-day overflow, source colors and task completion | `_AndroidTimeGrid`, `_AndroidTimedDayColumn`, `_AndroidCalendarChip`; all-day overflow sheet | Populated view tests, task mutation tests, viewport matrix |
-| Date/time creation and duration selection; event move/resize | Deliberate long press on empty grid; event timing action sheet in `android/presentation/android_event_actions.dart`; existing rescheduling coordinator | Existing shared planner policy/gesture suite; Android movement test |
-| Displayed day boundaries, initial positioning, off-hours, zoom | Shared settings values in `_AndroidTimeGrid`; touch zoom slider | Settings persistence, populated view and viewport tests |
-| Item-bearing Month, task checkboxes, overflow and creation | `_AndroidMonthView`, `_AndroidMonthGrid`, `_AndroidMonthDay`; horizontally scrollable cells | Month title/completion and month-range tests |
-| Twelve-month Year with distinct day/week/month navigation | `_AndroidYearGrid`; date cells, week buttons, month headers; long press creates at a date | Year navigation test; viewport matrix |
-| Agenda today-forward items, overdue and undated buckets, hierarchy, checklists, pagination | Shared `schedule/schedule_agenda_query.dart`; `_AgendaList` in Android screen; stable Agenda heading without date/period paging | Old-overdue and bucket pagination query tests; Android navigation, pagination and checklist tests; Linux schedule suite |
-| Search type/date/custom range/completion/due/person/location/account-qualified sources/reset | Existing `android/presentation/android_schedule_search_filters.dart`; temporary criteria and retained normal presentation | Search query/filter suite; Android isolation/restoration and refresh-recovery tests |
-| Mini calendar and grouped account/calendar/list/subscription sources; order and local visibility | Compact source sheet or persistent pane at wider widths in `AndroidScheduleScreen`; shared sidebar ordering | Adaptive RTL/wide tests; shared source/order tests |
-| Source refresh/provider/reminders/color/rename/sharing/export/removal/Clear completed | `android/presentation/android_source_actions.dart`, reused by source context and Settings | Existing collection administration, sharing, permissions and Clear completed tests |
-| Local visibility vs Google provider visibility vs DAV projection enablement | Local source checkboxes; `AndroidCalendarProviderVisibility`; DAV collection selection dialog | Shared collection/visibility/pending-operation tests; Android collection tests |
-| Nextcloud metadata, grants/publishing/scheduling/trash/federation | `android_nextcloud_collection_screen.dart`, existing sharing/scheduling/trash/federation screens | Existing Nextcloud controller and Android route tests |
-| Event/task preview → Edit, direct confirmed Delete, read-only inspection, links, attachments and export | Details sheet in `AndroidScheduleScreen`; retained provider attachment helpers; projected task ICS fallback | Preview, invitation, export, read-only, attachment and upload-reconciliation tests |
-| Complete event editor, destinations/movement, zones and validation | `AndroidEventEditor` in schedule screen, `android_time_zone_picker.dart`; existing move policies and repository mutation | Android move/recovery/validation tests; shared calendar provider/recurrence/move tests |
-| Provider event fields, formatted Microsoft description, guests and meeting operations | `AndroidEventEditor`, `android_event_description_editor.dart`, existing attendee/availability/meeting helpers | Android attendee/availability/category/status tests; shared description and provider payload tests |
-| Provider-specific guest decisions and recurring scope/timing confirmations | `android_event_actions.dart`, editor save/delete and existing rescheduling coordinator | Android guest-decision tests; shared guest-delivery and recurring mutation tests |
-| Task destinations, dates/date-only/timed modes/zones, reminders, priority/status/progress/location and hierarchy | Retained `AndroidTaskEditor` in `android_tasks_screen.dart`; reminder editing and shared labels | Existing validation, recurrence, reminder metadata, task lifecycle, hierarchy and recovery suite |
-| Full recurrence patterns and readable summaries | `android_recurrence_dialog.dart` with existing provider limits and recurrence summaries | Recurrence dialog and shared codec/editor tests |
-| Dirty close, recovery, failed save/move, conflict and hierarchy ownership | Existing task editor reservation/recovery lifecycle; event recovery extended to new fields and destinations | Dirty Back, failed-move/retry, identity acknowledgment, recovery and conflict tests |
-| System / Accounts / Schedule / Notifications / Privacy / Diagnostics | Category navigation in `android_settings_screen.dart`; account overview opens account details | Android settings, contacts, authentication and sync tests |
-| Defaults including Last used; day start/end; existing preferences | Shared settings controller/store, Schedule category | Settings persistence and creation-destination tests |
-| Contacts and connection/reconnection/certificate/removal flows | Existing Android account screens plus account-filtered `AndroidContactsSettings` | Existing enrollment, local-network, authorization and registration tests |
-| WebCal color/refresh mode/health; ICS preview and results | Subscription context/settings and existing Android import/export dialog | Shared subscription/import tests; Android document integration tests |
-| Sync all, per-account full sync, explicit Force full resync, per-domain refresh | Diagnostics category, account menu/details; redundant one-off background row removed | Android sync/full-resync and native background/authorization tests |
-| Notifications/readiness/system settings, privacy, conflicts, retry/discard, feedback | Retained Settings categories, diagnostics and system platform integrations | Existing notification, runtime lifecycle, diagnostics and feedback tests |
+The concrete source/behavior mapping, exercised flows, runtime identity and
+remaining acceptance work are maintained in
+[Android Linux reference](android_linux_reference.md). The rework is incomplete;
+provider capabilities and large regression totals alone do not qualify it.
 
 For comparison captures and interaction checks, run
 `integration_test/android_workspace_parity_test.dart` with

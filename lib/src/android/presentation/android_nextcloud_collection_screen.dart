@@ -1,13 +1,21 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:busymax_android_platform/busymax_android_platform.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/app_bootstrap.dart';
 import '../../dav/nextcloud/nextcloud_collection_controller.dart';
+import '../../dav/nextcloud/nextcloud_collection_service.dart';
 import '../../dav/xml/dav_xml.dart';
 import '../../l10n/l10n.dart';
 import '../../l10n/nextcloud_collection_error_description.dart';
+import 'android_settings_screen.dart' show AndroidNextcloudSharingScreen;
+import 'android_nextcloud_scheduling_screen.dart';
+import 'android_editor_group.dart';
 
 class AndroidNextcloudCollectionScreen extends ConsumerStatefulWidget {
   const AndroidNextcloudCollectionScreen({
@@ -36,7 +44,9 @@ class _AndroidNextcloudCollectionScreenState
   }
 
   void _changed() {
-    if (mounted) setState(() {});
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   @override
@@ -47,7 +57,9 @@ class _AndroidNextcloudCollectionScreenState
   }
 
   Future<void> _close() async {
-    if (model.busy) return;
+    if (model.busy) {
+      return;
+    }
     if (model.dirty) {
       final discard = await showDialog<bool>(
         context: context,
@@ -65,7 +77,9 @@ class _AndroidNextcloudCollectionScreenState
           ],
         ),
       );
-      if (discard != true || !mounted) return;
+      if (discard != true || !mounted) {
+        return;
+      }
     }
     setState(() => _allowPop = true);
     Navigator.pop(context);
@@ -97,7 +111,9 @@ class _AndroidNextcloudCollectionScreenState
   Widget build(BuildContext context) => PopScope(
     canPop: _allowPop || (!model.dirty && !model.busy),
     onPopInvokedWithResult: (didPop, _) {
-      if (!didPop) unawaited(_close());
+      if (!didPop) {
+        unawaited(_close());
+      }
     },
     child: Scaffold(
       appBar: AppBar(
@@ -128,7 +144,13 @@ class _AndroidNextcloudCollectionScreenState
                 localizedNextcloudCollectionError(context.l10n, model.error!),
               ),
               trailing: TextButton(
-                onPressed: model.load,
+                onPressed: model.busy
+                    ? null
+                    : model.state == null
+                    ? model.load
+                    : model.dirty
+                    ? model.save
+                    : null,
                 child: Text(context.l10n.retry),
               ),
             ),
@@ -136,73 +158,183 @@ class _AndroidNextcloudCollectionScreenState
             ListTile(
               title: Text(context.l10n.davRefreshPending),
               trailing: TextButton(
-                onPressed: model.load,
+                onPressed: model.dirty || model.busy ? null : model.load,
                 child: Text(context.l10n.refresh),
               ),
             ),
           if (model.state != null) ...[
-            _field(
-              const DavPropertyName(davNamespace, 'displayname'),
-              context.l10n.title,
+            ListTile(
+              title: Text(model.state!.collection.collection.displayName),
+              subtitle: Text(switch (model.state!.collection.role) {
+                NextcloudCollectionRole.owned => context.l10n.nextcloudOwned,
+                NextcloudCollectionRole.shared => context.l10n.nextcloudShared,
+                NextcloudCollectionRole.delegated =>
+                  context.l10n.nextcloudDelegated,
+                NextcloudCollectionRole.subscription =>
+                  context.l10n.nextcloudSubscription,
+                NextcloudCollectionRole.deleted =>
+                  context.l10n.nextcloudDeleted,
+              }),
             ),
-            _field(
-              const DavPropertyName(appleIcalNamespace, 'calendar-color'),
-              context.l10n.calendarColor,
-            ),
-            _field(
-              const DavPropertyName(appleIcalNamespace, 'calendar-order'),
-              context.l10n.nextcloudServerOrder,
-            ),
-            _field(
-              const DavPropertyName(caldavNamespace, 'calendar-description'),
-              context.l10n.description,
-              multiline: true,
-            ),
-            ExpansionTile(
-              title: Text(context.l10n.advancedSection),
+            if (model.state!.collection.collection.readOnly &&
+                model.state!.collection.canWriteMetadata)
+              Text(context.l10n.nextcloudMetadataEditable),
+            AndroidEditorGroup(
+              title: context.l10n.metadata,
               children: [
                 _field(
-                  const DavPropertyName(caldavNamespace, 'calendar-timezone'),
-                  context.l10n.nextcloudCalendarTimezone,
+                  const DavPropertyName(davNamespace, 'displayname'),
+                  context.l10n.title,
+                ),
+                _field(
+                  const DavPropertyName(appleIcalNamespace, 'calendar-color'),
+                  context.l10n.calendarColor,
+                ),
+                _field(
+                  const DavPropertyName(appleIcalNamespace, 'calendar-order'),
+                  context.l10n.nextcloudServerOrder,
+                ),
+                _field(
+                  const DavPropertyName(
+                    caldavNamespace,
+                    'calendar-description',
+                  ),
+                  context.l10n.description,
                   multiline: true,
+                ),
+                ExpansionTile(
+                  title: Text(context.l10n.advancedSection),
+                  initiallyExpanded: model.fieldErrors.keys.any(
+                    (property) => property.localName == 'calendar-timezone',
+                  ),
+                  children: [
+                    if (model.state!.collection.collection.ownerHref
+                        case final owner?)
+                      ListTile(
+                        leading: const Icon(Icons.person_outline),
+                        title: SelectableText(owner),
+                      ),
+                    _field(
+                      const DavPropertyName(
+                        caldavNamespace,
+                        'calendar-timezone',
+                      ),
+                      context.l10n.nextcloudCalendarTimezone,
+                      multiline: true,
+                    ),
+                  ],
+                ),
+                SwitchListTile(
+                  title: Text(context.l10n.nextcloudCalendarEnabled),
+                  value:
+                      model.values[const DavPropertyName(
+                        owncloudNamespace,
+                        'calendar-enabled',
+                      )] ==
+                      '1',
+                  onChanged:
+                      model.busy || !model.state!.collection.canWriteMetadata
+                      ? null
+                      : (value) => model.change(
+                          const DavPropertyName(
+                            owncloudNamespace,
+                            'calendar-enabled',
+                          ),
+                          value ? '1' : '0',
+                        ),
+                ),
+                SwitchListTile(
+                  title: Text(context.l10n.nextcloudAvailability),
+                  value:
+                      model.values[const DavPropertyName(
+                        caldavNamespace,
+                        'schedule-calendar-transp',
+                      )] !=
+                      'transparent',
+                  onChanged:
+                      model.busy || !model.state!.collection.canWriteMetadata
+                      ? null
+                      : (value) => model.change(
+                          const DavPropertyName(
+                            caldavNamespace,
+                            'schedule-calendar-transp',
+                          ),
+                          value ? 'opaque' : 'transparent',
+                        ),
                 ),
               ],
             ),
-            SwitchListTile(
-              title: Text(context.l10n.nextcloudCalendarEnabled),
-              value:
-                  model.values[const DavPropertyName(
-                    owncloudNamespace,
-                    'calendar-enabled',
-                  )] ==
-                  '1',
-              onChanged: model.busy || !model.state!.collection.canWriteMetadata
-                  ? null
-                  : (value) => model.change(
-                      const DavPropertyName(
-                        owncloudNamespace,
-                        'calendar-enabled',
-                      ),
-                      value ? '1' : '0',
+            AndroidEditorGroup(
+              title: context.l10n.nextcloudSharing,
+              children: [
+                for (final share in model.state!.shares)
+                  ListTile(
+                    leading: const Icon(Icons.person_outline),
+                    title: Text(share.recipient.label),
+                    subtitle: Text(
+                      share.writable
+                          ? context.l10n.nextcloudWriteAccess
+                          : context.l10n.nextcloudReadAccess,
                     ),
+                  ),
+                TextButton(
+                  onPressed: model.busy
+                      ? null
+                      : () => Navigator.of(context).push<void>(
+                          MaterialPageRoute(
+                            builder: (_) => AndroidNextcloudSharingScreen(
+                              accountId: widget.accountId,
+                              collectionId: widget.collectionId,
+                              title: model
+                                  .state!
+                                  .collection
+                                  .collection
+                                  .displayName,
+                            ),
+                          ),
+                        ),
+                  child: Text(context.l10n.nextcloudSharing),
+                ),
+              ],
             ),
-            SwitchListTile(
-              title: Text(context.l10n.nextcloudAvailability),
-              value:
-                  model.values[const DavPropertyName(
-                    caldavNamespace,
-                    'schedule-calendar-transp',
-                  )] !=
-                  'transparent',
-              onChanged: model.busy || !model.state!.collection.canWriteMetadata
-                  ? null
-                  : (value) => model.change(
-                      const DavPropertyName(
-                        caldavNamespace,
-                        'schedule-calendar-transp',
+            AndroidEditorGroup(
+              title: context.l10n.actionsSection,
+              children: [
+                if (model.state!.collection.collection.eventProjectionEnabled)
+                  ListTile(
+                    leading: const Icon(Icons.inbox_outlined),
+                    title: Text(context.l10n.nextcloudSchedulingInbox),
+                    enabled: !model.busy,
+                    onTap: () => Navigator.of(context).push<void>(
+                      MaterialPageRoute(
+                        builder: (_) => AndroidNextcloudSchedulingScreen(
+                          accountId: widget.accountId,
+                          collectionId: widget.collectionId,
+                        ),
                       ),
-                      value ? 'opaque' : 'transparent',
                     ),
+                  ),
+                ListTile(
+                  leading: const Icon(Icons.file_download_outlined),
+                  title: Text(context.l10n.nextcloudExportCollection),
+                  enabled: !model.busy,
+                  onTap: () => model.exportTo((resources) async {
+                    await BusyMaxAndroidPlatform.instance.exportDocumentTree(
+                      folderName:
+                          'BusyMax-export-${DateTime.now().toUtc().millisecondsSinceEpoch}',
+                      resources: [
+                        for (var index = 0; index < resources.length; index++)
+                          AndroidExportResource(
+                            name: 'resource-${index + 1}.ics',
+                            bytes: Uint8List.fromList(
+                              utf8.encode(resources[index].rawIcs),
+                            ),
+                          ),
+                      ],
+                    );
+                  }),
+                ),
+              ],
             ),
           ],
         ],

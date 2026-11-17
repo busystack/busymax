@@ -14,6 +14,8 @@ import shutil
 import subprocess
 import time
 
+from parity_source_identity import parity_source_identity
+
 p = argparse.ArgumentParser()
 p.add_argument('--device', required=True)
 p.add_argument('--output', required=True)
@@ -24,6 +26,8 @@ if not a.phone and not a.device.startswith('emulator-'):
 out = Path(a.output).resolve()
 out.mkdir(parents=True, exist_ok=True)
 root = Path(__file__).resolve().parents[2]
+source_identity = parity_source_identity(root)
+(out / 'source-identity.json').write_text(json.dumps(source_identity, indent=2) + '\n')
 sdk = os.environ.get('ANDROID_SDK_ROOT') or os.environ.get('ANDROID_HOME')
 adb = str(Path(sdk) / 'platform-tools/adb') if sdk else shutil.which('adb')
 if not adb:
@@ -44,6 +48,9 @@ env.update(ORG_GRADLE_PROJECT_busymaxCalDavQa='true',
 command = [flutter, 'test', '--no-pub', '--no-uninstall',
            'integration_test/android_workspace_parity_test.dart', '-d', a.device,
            '--dart-define=BUSYMAX_PARITY_QA=true',
+           '--dart-define=BUSYMAX_PARITY_TIME_ZONE=Etc/GMT+7',
+           f"--dart-define=BUSYMAX_PARITY_BASE_REVISION={source_identity['base_revision']}",
+           f"--dart-define=BUSYMAX_PARITY_SOURCE_SHA256={source_identity['source_sha256']}",
            '--dart-define=BUSYMAX_PARITY_NATIVE_VIEWPORTS=true',
            f'--dart-define=BUSYMAX_PARITY_RUN_ID={run_id}',
            f'--dart-define=BUSYMAX_PARITY_PHONE={str(a.phone).lower()}', '--reporter', 'expanded']

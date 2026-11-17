@@ -1,3 +1,8 @@
+import 'dart:async';
+
+import 'package:busymax/src/android/presentation/android_schedule_screen.dart';
+import 'package:busymax/src/features/connectivity/network_connectivity_service.dart';
+import 'package:busymax/src/schedule/schedule_sidebar_sources.dart';
 import 'package:busymax/src/dav/dav_errors.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
@@ -49,6 +54,7 @@ void main() {
         provider: BusyProvider.caldav,
         sources: [source],
         calendarRepository: repository,
+        workspaceSources: true,
       );
       addTearDown(harness.dispose);
       final row = find.widgetWithText(ListTile, 'Surviving collection');
@@ -57,7 +63,9 @@ void main() {
         400,
         scrollable: find.byType(Scrollable).first,
       );
-      await tester.tap(row);
+      await tester.tap(
+        find.descendant(of: row, matching: find.byTooltip('Options')),
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(ListTile, 'Delete'));
       await tester.pumpAndSettle();
@@ -86,6 +94,7 @@ void main() {
           provider: provider,
           authority: 'https://cloud.example.test/',
           taskCapabilities: caps,
+          workspaceSources: true,
           lists: const [
             TaskListEntity(
               accountId: 'google:g',
@@ -105,7 +114,9 @@ void main() {
           400,
           scrollable: find.byType(Scrollable).first,
         );
-        await tester.tap(row);
+        await tester.tap(
+          find.descendant(of: row, matching: find.byTooltip('Options')),
+        );
         await tester.pumpAndSettle();
         expect(find.widgetWithText(ListTile, 'Export'), findsOneWidget);
         expect(
@@ -124,6 +135,7 @@ void main() {
           tester,
           provider: provider,
           authority: 'https://cloud.example.test/',
+          workspaceSources: true,
           sources: [
             CalendarSourceEntity(
               id: 'calendar',
@@ -146,7 +158,9 @@ void main() {
           400,
           scrollable: find.byType(Scrollable).first,
         );
-        await tester.tap(row);
+        await tester.tap(
+          find.descendant(of: row, matching: find.byTooltip('Options')),
+        );
         await tester.pumpAndSettle();
         expect(find.widgetWithText(ListTile, 'Export'), findsOneWidget);
         expect(
@@ -194,8 +208,9 @@ void main() {
         );
         addTearDown(harness.dispose);
         Future<void> sync() async {
-          await _openAccountMenu(tester);
-          await tester.tap(_popupEntry('sync'));
+          await tester.tap(
+            find.byKey(const ValueKey('account-recovery-google:g')),
+          );
           await tester.pumpAndSettle();
         }
 
@@ -423,9 +438,7 @@ void main() {
     );
     addTearDown(harness.dispose);
 
-    await _openAccountMenu(tester);
-    expect(_popupValues(tester), contains('sync'));
-    await tester.tap(_popupEntry('sync'));
+    await tester.tap(find.byKey(const ValueKey('account-recovery-google:g')));
     await tester.pumpAndSettle();
 
     expect(calls, ['google:g']);
@@ -448,10 +461,18 @@ void main() {
     );
     expect(find.textContaining('reauth_required'), findsNothing);
 
-    await _openAccountMenu(tester);
-
-    expect(_popupValues(tester), isNot(contains('sync')));
-    expect(_popupValues(tester), contains('reconnect'));
+    expect(
+      tester
+          .widget<ListTile>(
+            find.byKey(const ValueKey('account-recovery-google:g')),
+          )
+          .title,
+      isA<Text>().having(
+        (t) => t.data,
+        'recovery label',
+        'Reconnect this account',
+      ),
+    );
     expect(calls, isEmpty);
   });
 
@@ -465,10 +486,13 @@ void main() {
     );
     addTearDown(harness.dispose);
 
-    await _openAccountMenu(tester);
-    expect(_popupEntry('sync'), findsOneWidget);
+    final action = tester
+        .widget<ListTile>(
+          find.byKey(const ValueKey('account-recovery-google:g')),
+        )
+        .onTap!;
     await harness.accounts.markReconnectRequired('google:g');
-    await tester.tap(_popupEntry('sync'));
+    action();
     await tester.pumpAndSettle();
 
     expect(calls, isEmpty);
@@ -497,8 +521,7 @@ void main() {
       );
       addTearDown(harness.dispose);
 
-      await _openAccountMenu(tester);
-      await tester.tap(_popupEntry('sync'));
+      await tester.tap(find.byKey(const ValueKey('account-recovery-google:g')));
       await tester.pumpAndSettle();
 
       expect(
@@ -585,6 +608,7 @@ Future<_AndroidSettingsHarness> _pumpAndroidSettings(
   List<TaskListEntity> lists = const [],
   TaskCollectionCapabilities? taskCapabilities,
   bool reconnectRequired = false,
+  bool workspaceSources = false,
   SignedInSyncRunner? signedInSyncRunner,
   AllAccountsSyncRunner? allAccountsSyncRunner,
 }) async {
@@ -608,12 +632,26 @@ Future<_AndroidSettingsHarness> _pumpAndroidSettings(
   }
   final container = ProviderContainer(
     overrides: [
+      networkAvailabilityProvider.overrideWith(
+        (ref) => Stream.value(NetworkAvailability.unknown),
+      ),
+      networkConnectivityMonitorProvider.overrideWith((ref) {
+        final monitor = NetworkConnectivityMonitor.withoutPlatformObservation();
+        ref.onDispose(() => unawaited(monitor.dispose()));
+        return monitor;
+      }),
       if (calendarRepository != null)
         calendarRepositoryProvider.overrideWithValue(calendarRepository),
       if (creator != null)
         calendarCollectionCreationServiceProvider.overrideWithValue(creator),
       buildConfigProvider.overrideWithValue(BuildConfig.forAndroid()),
       databaseProvider.overrideWithValue(database),
+      if (workspaceSources) ...[
+        sidebarCalendarSourcesProvider.overrideWith(
+          (ref, id) => Stream.value(sources),
+        ),
+        sidebarTaskListsProvider.overrideWith((ref, id) => Stream.value(lists)),
+      ],
       initialAppSettingsProvider.overrideWithValue(AppSettings.defaults()),
       localSettingsStoreProvider.overrideWithValue(MemorySettingsStore()),
       calendarSourcesStreamProvider.overrideWith(
@@ -646,26 +684,20 @@ Future<_AndroidSettingsHarness> _pumpAndroidSettings(
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
-      child: localizedTestApp(child: AndroidSettingsScreen(category: category)),
+      child: localizedTestApp(
+        child: workspaceSources
+            ? const AndroidScheduleScreen()
+            : AndroidSettingsScreen(category: category),
+      ),
     ),
   );
   await tester.pumpAndSettle();
+  if (!workspaceSources && category == AndroidSettingsCategory.accounts) {
+    await tester.tap(find.byKey(const ValueKey('account-entry-google:g')));
+    await tester.pumpAndSettle();
+  }
   return _AndroidSettingsHarness(tester, container, database, accounts);
 }
-
-Future<void> _openAccountMenu(WidgetTester tester) async {
-  await tester.tap(find.byType(PopupMenuButton<String>).first);
-  await tester.pumpAndSettle();
-}
-
-List<String?> _popupValues(WidgetTester tester) => tester
-    .widgetList<PopupMenuItem<String>>(find.byType(PopupMenuItem<String>))
-    .map((item) => item.value)
-    .toList();
-
-Finder _popupEntry(String value) => find.byWidgetPredicate(
-  (widget) => widget is PopupMenuItem<String> && widget.value == value,
-);
 
 final class _AndroidSettingsHarness {
   const _AndroidSettingsHarness(

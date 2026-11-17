@@ -158,7 +158,7 @@ void main() {
             ),
           );
           await settle(tester);
-          if (platform == 'linux') {
+          if (platform == 'linux' || platform == 'android') {
             final entry = find.byKey(const ValueKey('account-entry-account'));
             await tester.ensureVisible(entry);
             await tester.tap(entry);

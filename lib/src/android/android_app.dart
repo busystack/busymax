@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/generated/app_localizations.dart';
 import '../app/app_bootstrap.dart';
+import '../app/busymax_surface_colors.dart';
 import '../l10n/app_locale.dart';
 import '../l10n/locale_resolution.dart';
 import '../l10n/l10n.dart';
@@ -42,7 +43,9 @@ class _AndroidBusyMaxAppState extends ConsumerState<AndroidBusyMaxApp> {
   }
 
   void _platformChanged() {
-    if (mounted) setState(() {});
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   @override
@@ -99,19 +102,47 @@ class _AndroidBusyMaxAppState extends ConsumerState<AndroidBusyMaxApp> {
   }
 
   ThemeData _theme(Brightness brightness) {
+    final surfaces = busyMaxFallbackSurfaceColors(brightness);
     final scheme = ColorScheme.fromSeed(
       seedColor: const Color(0xff6d28d9),
       brightness: brightness,
     );
     return ThemeData(
       useMaterial3: true,
-      colorScheme: scheme,
+      colorScheme: scheme.copyWith(
+        surface: surfaces.window,
+        onSurface: surfaces.foreground,
+        onSurfaceVariant: surfaces.mutedForeground,
+        outlineVariant: surfaces.divider,
+        surfaceContainer: surfaces.card,
+        surfaceContainerLowest: surfaces.view,
+        surfaceContainerLow: surfaces.sidebar,
+        surfaceContainerHigh: surfaces.dialog,
+        surfaceContainerHighest: surfaces.popover,
+      ),
+      extensions: [surfaces],
       visualDensity: VisualDensity.standard,
-      scaffoldBackgroundColor: scheme.surface,
+      scaffoldBackgroundColor: surfaces.window,
+      appBarTheme: AppBarTheme(
+        backgroundColor: surfaces.headerbarFlat,
+        surfaceTintColor: Colors.transparent,
+      ),
       inputDecorationTheme: const InputDecorationTheme(
         border: OutlineInputBorder(),
       ),
-      cardTheme: const CardThemeData(margin: EdgeInsets.zero),
+      cardTheme: CardThemeData(
+        margin: EdgeInsets.zero,
+        color: surfaces.card,
+        surfaceTintColor: Colors.transparent,
+      ),
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: surfaces.sidebar,
+        surfaceTintColor: Colors.transparent,
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: surfaces.dialog,
+        surfaceTintColor: Colors.transparent,
+      ),
     );
   }
 }
@@ -163,7 +194,9 @@ class _AndroidHomeShellState extends ConsumerState<AndroidHomeShell>
 
   Future<void> _refresh() async {
     await ref.read(appSettingsControllerProvider.notifier).reload();
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
     await ref.read(androidNotificationServiceProvider).refreshReadiness();
     try {
       await ref.read(allAccountsSyncRunnerProvider)();
@@ -176,12 +209,18 @@ class _AndroidHomeShellState extends ConsumerState<AndroidHomeShell>
   Future<void> _consumeInitialActivations() async {
     final document = await BusyMaxAndroidPlatform.instance
         .takeInitialActivation();
-    if (document != null) await _openDocumentActivation(document);
-    if (!mounted) return;
+    if (document != null) {
+      await _openDocumentActivation(document);
+    }
+    if (!mounted) {
+      return;
+    }
     final reminder = ref
         .read(androidNotificationServiceProvider)
         .takeInitialActivation();
-    if (reminder != null) await _openReminder(reminder);
+    if (reminder != null) {
+      await _openReminder(reminder);
+    }
   }
 
   Future<void> _handlePlatformEvent(AndroidPlatformEvent event) async {
@@ -239,12 +278,16 @@ class _AndroidHomeShellState extends ConsumerState<AndroidHomeShell>
 
   Future<void> _openDocumentActivation(AndroidActivation activation) async {
     final uri = activation.uri;
-    if (!mounted || activation.kind != 'document' || uri == null) return;
+    if (!mounted || activation.kind != 'document' || uri == null) {
+      return;
+    }
     try {
       final document = await BusyMaxAndroidPlatform.instance.readDocumentUri(
         uri,
       );
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       await showAndroidIcsImport(context, ref, document: document);
     } on Object catch (error) {
       if (mounted) {
@@ -258,7 +301,9 @@ class _AndroidHomeShellState extends ConsumerState<AndroidHomeShell>
   Future<void> _openReminder(AndroidReminderActivation activation) async {
     if (activation.sourceType == 'summary') {
       final date = parseNotificationDate(activation.itemId);
-      if (date == null || !mounted) return;
+      if (date == null || !mounted) {
+        return;
+      }
       ref.read(androidWorkspaceRequestProvider.notifier).state =
           AndroidWorkspaceRequest(date: date, summary: true);
       return;
@@ -271,7 +316,9 @@ class _AndroidHomeShellState extends ConsumerState<AndroidHomeShell>
           : await (database.select(database.accounts)
                   ..where((row) => row.id.equals(activation.accountId)))
                 .getSingleOrNull();
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       if (activation.accountId != 'all' && account == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(context.l10n.notificationItemUnavailable)),
@@ -309,7 +356,9 @@ class _AndroidHomeShellState extends ConsumerState<AndroidHomeShell>
         row != null &&
         await NotificationScheduleService(database: database)
             .validateAndReconcileReminder(row, forOpen: true);
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
     if (!valid) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(context.l10n.notificationItemUnavailable)),

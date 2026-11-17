@@ -1,3 +1,5 @@
+import '../domain/recurrence_ordinal_choices.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:yaru/yaru.dart';
@@ -232,16 +234,18 @@ class _RecurrenceEditorDialogState extends State<RecurrenceEditorDialog> {
               if (_value.bySetPosition != null)
                 BusyMaxComboRow<String>(
                   title: l10n.repeatOn,
-                  values: [for (final choice in _ordinalDayChoices) choice.key],
-                  selected: _ordinalDayChoiceKey(_value.byDay),
+                  values: [
+                    for (final choice in recurrenceOrdinalChoices) choice.key,
+                  ],
+                  selected: recurrenceOrdinalChoiceKey(_value.byDay),
                   labelFor: (value) => _localizedOrdinalDayChoice(
                     context,
-                    _ordinalDayChoices
+                    recurrenceOrdinalChoices
                         .firstWhere((choice) => choice.key == value)
                         .days,
                   ),
                   onSelected: (value) {
-                    final days = _ordinalDayChoices
+                    final days = recurrenceOrdinalChoices
                         .firstWhere((choice) => choice.key == value)
                         .days;
                     setState(() => _value = _value.copyWith(byDay: days));
@@ -326,9 +330,13 @@ class _RecurrenceEditorDialogState extends State<RecurrenceEditorDialog> {
   }
 
   bool get _isValid {
-    if (!_value.repeats) return true;
+    if (!_value.repeats) {
+      return true;
+    }
     final interval = int.tryParse(_intervalController.text);
-    if (interval == null || interval < 1 || interval > 366) return false;
+    if (interval == null || interval < 1 || interval > 366) {
+      return false;
+    }
     if (_value.frequency == RecurrenceFrequency.weekly &&
         _value.byDay.isEmpty) {
       return false;
@@ -343,10 +351,14 @@ class _RecurrenceEditorDialogState extends State<RecurrenceEditorDialog> {
         _value.byMonth.isEmpty) {
       return false;
     }
-    if (_end == _RecurrenceEnd.until && _value.untilRaw == null) return false;
+    if (_end == _RecurrenceEnd.until && _value.untilRaw == null) {
+      return false;
+    }
     if (_end == _RecurrenceEnd.count) {
       final count = int.tryParse(_countController.text);
-      if (count == null || count < 1 || count > 3500) return false;
+      if (count == null || count < 1 || count > 3500) {
+        return false;
+      }
     }
     return widget.limits.supports(_value);
   }
@@ -399,7 +411,9 @@ class _RecurrenceEditorDialogState extends State<RecurrenceEditorDialog> {
   void _toggleWeekday(String day, bool selected) {
     final values = [..._value.byDay];
     if (selected) {
-      if (!values.contains(day)) values.add(day);
+      if (!values.contains(day)) {
+        values.add(day);
+      }
     } else if (values.length > 1) {
       values.remove(day);
     }
@@ -415,7 +429,9 @@ class _RecurrenceEditorDialogState extends State<RecurrenceEditorDialog> {
     if (!widget.limits.allowMultipleMonthDays) {
       values = [day];
     } else if (selected) {
-      if (!values.contains(day)) values.add(day);
+      if (!values.contains(day)) {
+        values.add(day);
+      }
     } else if (values.length > 1) {
       values.remove(day);
     }
@@ -434,7 +450,9 @@ class _RecurrenceEditorDialogState extends State<RecurrenceEditorDialog> {
     if (!widget.limits.allowMultipleMonths || _value.bySetPosition != null) {
       values = [month];
     } else if (selected) {
-      if (!values.contains(month)) values.add(month);
+      if (!values.contains(month)) {
+        values.add(month);
+      }
     } else if (values.length > 1) {
       values.remove(month);
     }
@@ -495,13 +513,17 @@ class _RecurrenceEditorDialogState extends State<RecurrenceEditorDialog> {
 
   void _setUntilDate(String value) {
     final date = DateTime.tryParse(value);
-    if (date == null) return;
+    if (date == null) {
+      return;
+    }
     final firstDate = DateTime(
       widget.minimumDate.year,
       widget.minimumDate.month,
       widget.minimumDate.day,
     );
-    if (date.isBefore(firstDate)) return;
+    if (date.isBefore(firstDate)) {
+      return;
+    }
     setState(() {
       _value = _value.withUntilDate(
         _dateString(date),
@@ -524,33 +546,13 @@ class _RecurrenceEditorDialogState extends State<RecurrenceEditorDialog> {
 
 const _ordinalPositions = [1, 2, 3, 4, 5, -2, -1];
 
-typedef _OrdinalDayChoice = ({String key, List<String> days});
-
-const _ordinalDayChoices = <_OrdinalDayChoice>[
-  (key: 'MO', days: ['MO']),
-  (key: 'TU', days: ['TU']),
-  (key: 'WE', days: ['WE']),
-  (key: 'TH', days: ['TH']),
-  (key: 'FR', days: ['FR']),
-  (key: 'SA', days: ['SA']),
-  (key: 'SU', days: ['SU']),
-  (key: 'day', days: ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']),
-  (key: 'weekday', days: ['MO', 'TU', 'WE', 'TH', 'FR']),
-  (key: 'weekend', days: ['SA', 'SU']),
-];
-
 String _weekdayCode(int weekday) => rfcWeekdays[(weekday - 1).clamp(0, 6)];
-
-String _ordinalDayChoiceKey(List<String> days) {
-  for (final choice in _ordinalDayChoices) {
-    if (_sameDaySet(choice.days, days)) return choice.key;
-  }
-  return days.firstOrNull ?? 'MO';
-}
 
 DateTime? _weekdayDate(String day) {
   final index = rfcWeekdays.indexOf(day);
-  if (index < 0) return null;
+  if (index < 0) {
+    return null;
+  }
   return DateTime(2024, 1, 1 + index);
 }
 
@@ -560,13 +562,17 @@ String _localizedStandaloneWeekday(
   required bool abbreviated,
 }) {
   final date = _weekdayDate(day);
-  if (date == null) return day;
+  if (date == null) {
+    return day;
+  }
   final locale = Localizations.localeOf(context).toLanguageTag();
   return localizedWeekdayLabel(locale, date, abbreviated: abbreviated);
 }
 
 String _localizedStandaloneMonth(BuildContext context, int month) {
-  if (month < 1 || month > 12) return '$month';
+  if (month < 1 || month > 12) {
+    return '$month';
+  }
   final locale = Localizations.localeOf(context).toLanguageTag();
   return localizedMonthLabel(locale, DateTime(2024, month), abbreviated: true);
 }
@@ -582,7 +588,9 @@ String _localizedRecurrenceList(
   required String Function(String first, String rest) start,
 }) {
   assert(values.isNotEmpty);
-  if (values.length == 1) return values.single;
+  if (values.length == 1) {
+    return values.single;
+  }
 
   var result = pair(values[values.length - 2], values.last);
   for (var index = values.length - 3; index >= 0; index -= 1) {
@@ -610,13 +618,13 @@ String _localizedOrdinalDayChoice(BuildContext context, List<String> days) {
       abbreviated: false,
     );
   }
-  if (_sameDaySet(days, _ordinalDayChoices[7].days)) {
+  if (_sameDaySet(days, recurrenceOrdinalChoices[7].days)) {
     return context.l10n.repeatAnyDay;
   }
-  if (_sameDaySet(days, _ordinalDayChoices[8].days)) {
+  if (_sameDaySet(days, recurrenceOrdinalChoices[8].days)) {
     return context.l10n.repeatWeekday;
   }
-  if (_sameDaySet(days, _ordinalDayChoices[9].days)) {
+  if (_sameDaySet(days, recurrenceOrdinalChoices[9].days)) {
     return context.l10n.repeatWeekendDay;
   }
   final dayValues = days
@@ -632,7 +640,9 @@ String _localizedOrdinalDayChoice(BuildContext context, List<String> days) {
 }
 
 bool _sameDaySet(List<String> left, List<String> right) {
-  if (left.length != right.length) return false;
+  if (left.length != right.length) {
+    return false;
+  }
   final leftValues = {...left};
   return leftValues.length == left.length && leftValues.containsAll(right);
 }

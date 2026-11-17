@@ -771,7 +771,7 @@ class _AccountHeaderRow extends ConsumerWidget {
               0
         : 0;
     final colorScheme = Theme.of(context).colorScheme;
-    final secondaryLabel = _accountHeaderSecondaryLabel(account);
+    final secondaryLabel = scheduleAccountSecondaryLabel(account);
     final hasSecondaryLabel =
         secondaryLabel != null && secondaryLabel.isNotEmpty;
     final providerName = _accountProviderName(context, account.provider);
@@ -925,28 +925,6 @@ class _AccountHeaderRow extends ConsumerWidget {
       ),
     );
   }
-}
-
-String? _accountHeaderSecondaryLabel(AccountEntity account) {
-  final secondaryLabel = account.secondaryLabel;
-  if (secondaryLabel != null && secondaryLabel.isNotEmpty) {
-    return secondaryLabel;
-  }
-  if (account.provider != BusyProvider.nextcloud) return null;
-
-  final authority = Uri.tryParse(account.authority);
-  if (authority == null || authority.host.isEmpty) return null;
-
-  final scheme = authority.scheme.toLowerCase();
-  final hasDefaultPort =
-      (scheme == 'https' && authority.port == 443) ||
-      (scheme == 'http' && authority.port == 80);
-  if (!authority.hasPort || hasDefaultPort) return authority.host;
-
-  final host = authority.host.contains(':')
-      ? '[${authority.host}]'
-      : authority.host;
-  return '$host:${authority.port}';
 }
 
 class _AccountProviderIndicator extends StatelessWidget {

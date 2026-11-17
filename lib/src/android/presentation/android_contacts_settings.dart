@@ -1,4 +1,7 @@
 import '../android_local_network_access.dart';
+import 'android_editor_group.dart';
+import '../../contacts/busymax_contacts_controller.dart'
+    show BusyMaxContactSourceSetting;
 import 'android_nextcloud_certificate_dialog.dart';
 import '../../ui/common/nextcloud_certificate_review.dart';
 import '../../l10n/l10n.dart';
@@ -28,9 +31,27 @@ final _androidLinkedContactsProvider = FutureProvider.autoDispose
       return ids;
     });
 
+final _androidIndependentContactsProvider =
+    FutureProvider.autoDispose<Set<String>>((ref) async {
+      final accounts = await ref.watch(busyMaxContactAccountsProvider.future);
+      final store = ref.watch(busyMaxContactsControllerProvider).store;
+      final ids = <String>{};
+      for (final account in accounts) {
+        if (await store.linkedBusyMaxAccount(account.id) == null) {
+          ids.add(account.id);
+        }
+      }
+      return ids;
+    });
+
 class AndroidContactsSettings extends ConsumerStatefulWidget {
-  const AndroidContactsSettings({super.key, this.accountId});
+  const AndroidContactsSettings({
+    super.key,
+    this.accountId,
+    this.independentAccountId,
+  });
   final String? accountId;
+  final String? independentAccountId;
   @override
   ConsumerState<AndroidContactsSettings> createState() =>
       _AndroidContactsSettingsState();
@@ -39,9 +60,13 @@ class AndroidContactsSettings extends ConsumerStatefulWidget {
 class _AndroidContactsSettingsState
     extends ConsumerState<AndroidContactsSettings> {
   bool _pending = false;
+  final _servers = <String, Future<Uri?>>{};
+  final _nextcloud = <String, Future<bool>>{};
   String? _error;
   Future<void> _run(Future<void> Function() action) async {
-    if (_pending) return;
+    if (_pending) {
+      return;
+    }
     setState(() {
       _pending = true;
       _error = null;
@@ -53,7 +78,9 @@ class _AndroidContactsSettingsState
         setState(() => _error = localizedContactsError(context.l10n, error));
       }
     } finally {
-      if (mounted) setState(() => _pending = false);
+      if (mounted) {
+        setState(() => _pending = false);
+      }
     }
   }
 
@@ -67,7 +94,9 @@ class _AndroidContactsSettingsState
       context: context,
       builder: (_) => _DavDialog(nextcloud: nextcloud),
     );
-    if (!mounted || input == null) return;
+    if (!mounted || input == null) {
+      return;
+    }
     if (!await ensureAndroidLocalNetworkAccess(context, input.server) ||
         !mounted) {
       return;
@@ -117,7 +146,9 @@ class _AndroidContactsSettingsState
 
   Future<void> _reconnect(ContactAccount account) async {
     final controller = ref.read(busyMaxContactsControllerProvider);
-    if (!await _ensureAccountAccess(account) || !mounted) return;
+    if (!await _ensureAccountAccess(account) || !mounted) {
+      return;
+    }
     final parent = await controller.store.linkedBusyMaxAccount(account.id);
     if (parent != null ||
         account.provider != ContactProviderKind.carddav ||
@@ -125,17 +156,23 @@ class _AndroidContactsSettingsState
       await controller.reconnectContactsAccount(account.id);
       return;
     }
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
     final password = await showDialog<String>(
       context: context,
       builder: (_) => const _DavReconnectDialog(),
     );
-    if (!mounted || password == null) return;
+    if (!mounted || password == null) {
+      return;
+    }
     await controller.reconnectDavContactsOnly(account.id, password: password);
   }
 
   Future<bool> _ensureAccountAccess(ContactAccount account) async {
-    if (account.provider != ContactProviderKind.carddav) return true;
+    if (account.provider != ContactProviderKind.carddav) {
+      return true;
+    }
     final controller = ref.read(busyMaxContactsControllerProvider);
     final parentId = await controller.store.linkedBusyMaxAccount(account.id);
     final parent = parentId == null
@@ -155,26 +192,77 @@ class _AndroidContactsSettingsState
     final sourcesState = ref.watch(busyMaxContactSourceSettingsProvider);
     final parents =
         (ref.watch(accountManagementStreamProvider).valueOrNull ?? const [])
-            .where((a) => widget.accountId == null || a.id == widget.accountId)
+            .where((a) => widget.accountId != null && a.id == widget.accountId)
             .toList();
     final linked = widget.accountId == null
         ? null
         : ref.watch(_androidLinkedContactsProvider(widget.accountId!));
     final accounts = (accountsState.valueOrNull ?? const <ContactAccount>[])
         .where(
-          (a) =>
-              widget.accountId == null ||
-              linked?.valueOrNull?.contains(a.id) == true,
+          (a) => widget.independentAccountId != null
+              ? a.id == widget.independentAccountId
+              : linked?.valueOrNull?.contains(a.id) == true,
         )
         .toList();
     final sources = (sourcesState.valueOrNull ?? const [])
         .where(
-          (s) =>
-              widget.accountId == null ||
-              linked?.valueOrNull?.contains(s.source.accountId) == true,
+          (s) => widget.independentAccountId != null
+              ? s.source.accountId == widget.independentAccountId
+              : linked?.valueOrNull?.contains(s.source.accountId) == true,
         )
         .toList();
     final controller = ref.read(busyMaxContactsControllerProvider);
+    if (widget.accountId == null && widget.independentAccountId == null) {
+      final ids = ref.watch(_androidIndependentContactsProvider);
+      return Card(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ListTile(title: Text(context.l10n.contactsTitle)),
+            if (accountsState.isLoading || ids.isLoading)
+              const LinearProgressIndicator(),
+            for (final account
+                in accountsState.valueOrNull ?? <ContactAccount>[])
+              if (ids.valueOrNull?.contains(account.id) == true)
+                ListTile(
+                  leading: const Icon(Icons.contacts_outlined),
+                  title: Text(account.displayName),
+                  subtitle: Text(
+                    account.errorCode != null
+                        ? localizedContactsStatus(
+                            context.l10n,
+                            account.errorCode!,
+                          )
+                        : account.enabled
+                        ? context.l10n.contactsSuggestionsEnabled
+                        : context.l10n.off,
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push<void>(
+                    MaterialPageRoute(
+                      builder: (_) => Scaffold(
+                        appBar: AppBar(title: Text(account.displayName)),
+                        body: SingleChildScrollView(
+                          child: AndroidContactsSettings(
+                            independentAccountId: account.id,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            Wrap(
+              spacing: 8,
+              children: [
+                _action(context.l10n.contactsAddCardDav, () => _add(false)),
+                _action(context.l10n.contactsAddNextcloud, () => _add(true)),
+              ],
+            ),
+            if (_error != null) Text(_error!),
+          ],
+        ),
+      );
+    }
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -210,9 +298,6 @@ class _AndroidContactsSettingsState
                   child: Text(context.l10n.retry),
                 ),
               ),
-            _action(context.l10n.localNetworkAccessRequired, () async {
-              await ensureAndroidLocalNetworkAccess(context, '', review: true);
-            }),
             if (accounts.isEmpty &&
                 !accountsState.isLoading &&
                 !accountsState.hasError &&
@@ -248,70 +333,74 @@ class _AndroidContactsSettingsState
                     : controller.enableLinkedContacts(parent.id),
               ),
             ],
-            if (widget.accountId == null)
-              Wrap(
-                spacing: 8,
-                children: [
-                  _action(context.l10n.contactsAddCardDav, () => _add(false)),
-                  _action(context.l10n.contactsAddNextcloud, () => _add(true)),
-                ],
+            for (final account in accounts)
+              _contactDetails(
+                account,
+                sources.where((s) => s.source.accountId == account.id).toList(),
               ),
-            for (final account in accounts) ...[
-              Text(
-                '${account.displayName} · ${context.l10n.contactsReadOnlyUse} · ${account.enabled ? context.l10n.contactsSuggestionsEnabled : context.l10n.off}',
+            if (_pending) const CircularProgressIndicator(),
+            if (_error != null) Text(_error!),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _contactDetails(
+    ContactAccount account,
+    List<BusyMaxContactSourceSetting> sources,
+  ) {
+    final controller = ref.read(busyMaxContactsControllerProvider);
+    final independent = widget.independentAccountId != null;
+    Future<void> sync() async {
+      if (await _ensureAccountAccess(account) && mounted) {
+        await controller.synchronizeAccount(account.id);
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AndroidEditorGroup(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.contacts_outlined),
+              title: Text(account.displayName),
+              subtitle: Text(
+                '${context.l10n.contactsReadOnlyUse} · ${account.enabled ? context.l10n.contactsSuggestionsEnabled : context.l10n.off}',
               ),
-              if (account.errorCode != null)
-                Text(localizedContactsStatus(context.l10n, account.errorCode!)),
-              Wrap(
-                spacing: 8,
-                children: [
-                  if (account.provider == ContactProviderKind.carddav)
-                    FutureBuilder<bool>(
-                      future: controller.isIndependentNextcloud(account.id),
-                      builder: (context, snapshot) => snapshot.data == true
-                          ? _action(
-                              context.l10n.privateServerCertificates,
-                              () async {
-                                if (!await _ensureAccountAccess(account) ||
-                                    !mounted) {
-                                  return;
-                                }
-                                await manageNextcloudCertificates(
-                                  ref,
-                                  account.id,
-                                  (data) => mounted
-                                      ? showAndroidNextcloudCertificate(
-                                          context,
-                                          data,
-                                        )
-                                      : Future.value(null),
-                                  contactsOnly: true,
-                                );
-                              },
-                            )
-                          : const SizedBox.shrink(),
-                    ),
-                  if (account.enabled)
-                    _action(context.l10n.contactsRetrySync, () async {
-                      if (await _ensureAccountAccess(account) && mounted) {
-                        await controller.synchronizeAccount(account.id);
-                      }
-                    }),
-                  _action(
-                    context.l10n.reconnectAccount,
-                    () => _reconnect(account),
-                  ),
-                  _action(
-                    context.l10n.contactsDisableForAccount,
-                    () => controller.disableContactsAccount(account.id),
-                  ),
-                  _action(
-                    context.l10n.removeAction,
-                    () => controller.removeContactsAccount(account.id),
-                  ),
-                ],
+            ),
+            if (independent && account.provider == ContactProviderKind.carddav)
+              FutureBuilder<Uri?>(
+                future: _servers.putIfAbsent(
+                  account.id,
+                  () => controller.independentServer(account.id),
+                ),
+                builder: (context, snapshot) => snapshot.data == null
+                    ? const SizedBox.shrink()
+                    : ListTile(
+                        title: Text(context.l10n.contactsServerUrlLabel),
+                        subtitle: Text(snapshot.data.toString()),
+                      ),
               ),
+            if (account.errorCode != null) ...[
+              ListTile(
+                title: Text(
+                  localizedContactsStatus(context.l10n, account.errorCode!),
+                ),
+              ),
+              _action(context.l10n.contactsRetrySync, sync),
             ],
+            _action(
+              context.l10n.contactsDisableForAccount,
+              () => controller.disableContactsAccount(account.id),
+            ),
+          ],
+        ),
+        AndroidEditorGroup(
+          title: context.l10n.contactsTitle,
+          children: [
+            Text(context.l10n.contactsUseForAttendees),
             for (final setting in sources)
               SwitchListTile(
                 key: ValueKey('contacts-source:${setting.source.key}'),
@@ -329,11 +418,56 @@ class _AndroidContactsSettingsState
                         ),
                       ),
               ),
-            if (_pending) const CircularProgressIndicator(),
-            if (_error != null) Text(_error!),
           ],
         ),
-      ),
+        AndroidEditorGroup(
+          title: context.l10n.advancedSection,
+          expanded: false,
+          children: [
+            if (account.provider == ContactProviderKind.carddav) ...[
+              _action(context.l10n.localNetworkAccessRequired, () async {
+                await ensureAndroidLocalNetworkAccess(
+                  context,
+                  '',
+                  review: true,
+                );
+              }),
+              FutureBuilder<bool>(
+                future: _nextcloud.putIfAbsent(
+                  account.id,
+                  () => controller.isIndependentNextcloud(account.id),
+                ),
+                builder: (context, snapshot) => snapshot.data == true
+                    ? _action(context.l10n.privateServerCertificates, () async {
+                        if (!await _ensureAccountAccess(account) || !mounted) {
+                          return;
+                        }
+                        await manageNextcloudCertificates(
+                          ref,
+                          account.id,
+                          (data) => mounted
+                              ? showAndroidNextcloudCertificate(context, data)
+                              : Future.value(null),
+                          contactsOnly: true,
+                        );
+                      })
+                    : const SizedBox.shrink(),
+              ),
+            ],
+            _action(context.l10n.reconnectAccount, () => _reconnect(account)),
+            if (account.enabled && account.errorCode == null)
+              _action(context.l10n.contactsRetrySync, sync),
+          ],
+        ),
+        AndroidEditorGroup(
+          children: [
+            _action(context.l10n.removeAction, () async {
+              await controller.removeContactsAccount(account.id);
+              if (mounted && independent) Navigator.pop(context);
+            }),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -477,7 +611,9 @@ class _DavReconnectDialogState extends State<_DavReconnectDialog> {
       ),
       TextButton(
         onPressed: () {
-          if (_password.text.isNotEmpty) Navigator.pop(context, _password.text);
+          if (_password.text.isNotEmpty) {
+            Navigator.pop(context, _password.text);
+          }
         },
         child: Text(context.l10n.connectAccountAction),
       ),

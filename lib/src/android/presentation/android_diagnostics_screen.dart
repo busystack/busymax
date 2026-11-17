@@ -12,8 +12,13 @@ import '../android_background.dart';
 import '../android_notifications.dart';
 
 class AndroidDiagnosticsScreen extends ConsumerWidget {
-  const AndroidDiagnosticsScreen({super.key, this.accountId});
+  const AndroidDiagnosticsScreen({
+    super.key,
+    this.accountId,
+    this.embedded = false,
+  });
   final String? accountId;
+  final bool embedded;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -24,119 +29,126 @@ class AndroidDiagnosticsScreen extends ConsumerWidget {
     final redact = ref
         .watch(appSettingsControllerProvider)
         .redactTaskContentInDiagnostics;
-    return Scaffold(
-      appBar: AppBar(title: Text(context.l10n.diagnostics)),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 40),
-        children: [
-          Card(
-            child: Column(
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.notifications_outlined),
-                  title: Text(context.l10n.reminders),
-                  subtitle: Text(
-                    ref
-                        .read(androidNotificationServiceProvider)
-                        .precisionDiagnostic,
-                  ),
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Card(
+          child: Column(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.notifications_outlined),
+                title: Text(context.l10n.reminders),
+                subtitle: Text(
+                  ref
+                      .read(androidNotificationServiceProvider)
+                      .precisionDiagnostic,
                 ),
+              ),
+              if (!embedded)
                 ListTile(
                   leading: const Icon(Icons.sync),
                   title: Text(context.l10n.sync),
                   onTap: () => unawaited(enqueueImmediateBusyMaxSync()),
                 ),
-              ],
-            ),
+            ],
           ),
-          for (final account in accounts)
-            Card(
-              child: ListTile(
-                leading: const Icon(Icons.account_circle_outlined),
-                title: Text(account.displayLabel),
-                subtitle: Text(
-                  '${account.provider.displayName} · ${account.authState}'
-                  '${account.lastSuccessfulSyncAtUtc == null ? '' : '\n${account.lastSuccessfulSyncAtUtc!.toLocal()}'}',
-                ),
+        ),
+        for (final account in accounts.where(
+          (a) => accountId == null || a.id == accountId,
+        ))
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.account_circle_outlined),
+              title: Text(account.displayLabel),
+              subtitle: Text(
+                '${account.provider.displayName} · ${account.authState}'
+                '${account.lastSuccessfulSyncAtUtc == null ? '' : '\n${account.lastSuccessfulSyncAtUtc!.toLocal()}'}',
               ),
             ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(4, 20, 4, 8),
-            child: Text(
-              context.l10n.blockedPendingOperations,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
           ),
-          StreamBuilder<List<PendingOp>>(
-            stream: ref
-                .watch(databaseProvider)
-                .pendingOpsDao
-                .watchAllBlockedOps(),
-            builder: (context, snapshot) {
-              final operations = (snapshot.data ?? const <PendingOp>[])
-                  .where(
-                    (operation) =>
-                        accountId == null || operation.accountId == accountId,
-                  )
-                  .toList();
-              if (operations.isEmpty) {
-                return ListTile(
-                  leading: const Icon(Icons.check_circle_outline),
-                  title: Text(context.l10n.noBlockedPendingOperations),
-                );
-              }
-              return Column(
-                children: [
-                  for (final operation in operations)
-                    Card(
-                      child: ListTile(
-                        leading: const Icon(Icons.report_problem_outlined),
-                        title: Text(
-                          '${operation.entityType}: ${operation.operation}',
-                        ),
-                        subtitle: Text(
-                          [
-                            labels[operation.accountId] ?? operation.accountId,
-                            if (operation.taskListId != null)
-                              context.l10n.pendingOpListId(
-                                operation.taskListId!,
-                              ),
-                            context.l10n.pendingOpAttempts(
-                              operation.attemptCount,
-                            ),
-                            if (operation.lastErrorCode != null)
-                              operation.lastErrorCode!,
-                            if (operation.lastErrorMessage != null)
-                              redact
-                                  ? redactForLog(operation.lastErrorMessage)
-                                  : operation.lastErrorMessage!,
-                          ].join('\n'),
-                        ),
-                        isThreeLine: true,
-                        trailing: PopupMenuButton<String>(
-                          onSelected: (action) => unawaited(
-                            _resolve(context, ref, operation, action),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(4, 20, 4, 8),
+          child: Text(
+            context.l10n.blockedPendingOperations,
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+        ),
+        StreamBuilder<List<PendingOp>>(
+          stream: ref
+              .watch(databaseProvider)
+              .pendingOpsDao
+              .watchAllBlockedOps(),
+          builder: (context, snapshot) {
+            final operations = (snapshot.data ?? const <PendingOp>[])
+                .where(
+                  (operation) =>
+                      accountId == null || operation.accountId == accountId,
+                )
+                .toList();
+            if (operations.isEmpty) {
+              return ListTile(
+                leading: const Icon(Icons.check_circle_outline),
+                title: Text(context.l10n.noBlockedPendingOperations),
+              );
+            }
+            return Column(
+              children: [
+                for (final operation in operations)
+                  Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.report_problem_outlined),
+                      title: Text(
+                        '${operation.entityType}: ${operation.operation}',
+                      ),
+                      subtitle: Text(
+                        [
+                          labels[operation.accountId] ?? operation.accountId,
+                          if (operation.taskListId != null)
+                            context.l10n.pendingOpListId(operation.taskListId!),
+                          context.l10n.pendingOpAttempts(
+                            operation.attemptCount,
                           ),
-                          itemBuilder: (context) => [
-                            PopupMenuItem(
-                              value: 'retry',
-                              child: Text(context.l10n.retry),
-                            ),
-                            PopupMenuItem(
-                              value: 'discard',
-                              child: Text(context.l10n.discard),
-                            ),
-                          ],
+                          if (operation.lastErrorCode != null)
+                            operation.lastErrorCode!,
+                          if (operation.lastErrorMessage != null)
+                            redact
+                                ? redactForLog(operation.lastErrorMessage)
+                                : operation.lastErrorMessage!,
+                        ].join('\n'),
+                      ),
+                      isThreeLine: true,
+                      trailing: PopupMenuButton<String>(
+                        onSelected: (action) => unawaited(
+                          _resolve(context, ref, operation, action),
                         ),
+                        itemBuilder: (context) => [
+                          PopupMenuItem(
+                            value: 'retry',
+                            child: Text(context.l10n.retry),
+                          ),
+                          PopupMenuItem(
+                            value: 'discard',
+                            child: Text(context.l10n.discard),
+                          ),
+                        ],
                       ),
                     ),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
+                  ),
+              ],
+            );
+          },
+        ),
+      ],
     );
+    return embedded
+        ? content
+        : Scaffold(
+            appBar: AppBar(title: Text(context.l10n.diagnostics)),
+            body: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 40),
+              child: content,
+            ),
+          );
   }
 
   Future<void> _resolve(
@@ -169,7 +181,9 @@ class AndroidDiagnosticsScreen extends ConsumerWidget {
             ],
           ),
         );
-        if (confirmed != true) return;
+        if (confirmed != true) {
+          return;
+        }
         await service.discard(operation.id);
       }
       if (context.mounted) {

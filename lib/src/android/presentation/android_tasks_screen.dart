@@ -1,3 +1,9 @@
+import 'android_editor_group.dart';
+import '../../features/accounts/data/accounts_repository.dart';
+
+import '../../features/maps/application/external_location_launcher.dart';
+import '../../features/maps/application/location_destination_resolver.dart';
+import '../../features/maps/domain/location_result.dart';
 import '../../schedule/schedule_filters.dart';
 import '../../features/schedule/presentation/schedule_item_exporter.dart';
 import 'android_time_zone_picker.dart';
@@ -41,6 +47,13 @@ import '../android_notifications.dart';
 import 'android_date_picker.dart';
 import 'android_task_motion.dart';
 
+final _androidTaskCategorySuggestionsProvider = StreamProvider.autoDispose
+    .family<List<String>, String>(
+      (ref, accountId) => ref
+          .watch(tasksRepositoryForAccountProvider(accountId))
+          .watchCategorySuggestions(),
+    );
+
 enum AndroidTaskEditorAction { created, updated, deleted, moved }
 
 class AndroidTaskEditorResult {
@@ -70,7 +83,9 @@ Future<TaskListEntity?> selectAndroidTaskList(
   Map<String, String> accountLabels = const {},
   bool alwaysPrompt = false,
 }) {
-  if (lists.length == 1 && !alwaysPrompt) return Future.value(lists.single);
+  if (lists.length == 1 && !alwaysPrompt) {
+    return Future.value(lists.single);
+  }
   return showModalBottomSheet<TaskListEntity>(
     context: context,
     showDragHandle: true,
@@ -152,7 +167,9 @@ Future<AndroidTaskEditorResult?> _reuseTaskEditor(
               editor._draft.taskListId == task.sourceId &&
               existing.matchesIdentity(task.id);
   }).firstOrNull;
-  if (target != null) await _revealTaskEditor(sessions, target);
+  if (target != null) {
+    await _revealTaskEditor(sessions, target);
+  }
   return opening.result!;
 }
 
@@ -178,7 +195,9 @@ Future<_AndroidTaskEditorState?> _findTaskEditor(
   final exact = sessions.editors
       .where((editor) => editor._matchesTask(task) && !editor._allowPop)
       .firstOrNull;
-  if (exact != null) return exact;
+  if (exact != null) {
+    return exact;
+  }
   for (final editor in List.of(sessions.editors)) {
     final observed = editor._observedTask ?? editor.widget.task;
     final oldListId = editor._draft.taskListId;
@@ -242,7 +261,9 @@ Future<AndroidTaskEditorResult?> showAndroidTaskEditor(
       ? 'new\u0000$creationIntentKey'
       : _taskEditorKey(task.accountId, task.sourceId, task.id);
   final active = sessions.openings[key];
-  if (active != null) return _reuseTaskEditor(sessions, active, task);
+  if (active != null) {
+    return _reuseTaskEditor(sessions, active, task);
+  }
   final opening = _TaskEditorOpen(
     ++sessions.generation,
     creationIntentKey: creationIntentKey,
@@ -290,7 +311,9 @@ Future<AndroidTaskEditorResult?> _showAndroidTaskEditor(
         .read(tasksRepositoryForAccountProvider(task.accountId))
         .watchTask(task.sourceId, task.id)
         .first;
-    if (!context.mounted || entity == null) return null;
+    if (!context.mounted || entity == null) {
+      return null;
+    }
     opening.task = entity;
     final keys = entity.identityIds
         .map((id) => _taskEditorKey(entity!.accountId, entity.taskListId, id))
@@ -313,10 +336,14 @@ Future<AndroidTaskEditorResult?> _showAndroidTaskEditor(
       sessions.openings[key] = opening;
     }
     final active = await _findTaskEditor(sessions, entity);
-    if (!context.mounted) return null;
+    if (!context.mounted) {
+      return null;
+    }
     if (active != null) {
       await _revealTaskEditor(sessions, active);
-      if (!active.mounted) return null;
+      if (!active.mounted) {
+        return null;
+      }
       final result = await ModalRoute.of(active.context)!.popped;
       return result is AndroidTaskEditorResult ? result : null;
     }
@@ -330,7 +357,9 @@ Future<AndroidTaskEditorResult?> _showAndroidTaskEditor(
   final account = await ref
       .read(accountsRepositoryProvider)
       .accountById(task?.accountId ?? creationList!.accountId);
-  if (!context.mounted) return null;
+  if (!context.mounted) {
+    return null;
+  }
   if (entity != null) {
     // A hierarchy editor may have claimed this task while the list/account
     // reads were in flight. Its reservation exists before its route builds.
@@ -348,12 +377,18 @@ Future<AndroidTaskEditorResult?> _showAndroidTaskEditor(
         .where((candidate) => !identical(candidate, opening))
         .firstOrNull;
     final owner = otherOwner();
-    if (owner != null) return _reuseTaskEditor(sessions, owner, task);
+    if (owner != null) {
+      return _reuseTaskEditor(sessions, owner, task);
+    }
     final active = await _findTaskEditor(sessions, entity);
-    if (!context.mounted) return null;
+    if (!context.mounted) {
+      return null;
+    }
     if (active != null) {
       await _revealTaskEditor(sessions, active);
-      if (!active.mounted) return null;
+      if (!active.mounted) {
+        return null;
+      }
       final result = await ModalRoute.of(active.context)!.popped;
       return result is AndroidTaskEditorResult ? result : null;
     }
@@ -430,6 +465,7 @@ class _TaskHierarchyEditors extends InheritedWidget {
 }
 
 class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
+  Future<ExternalLocationDestination?>? _savedLocation;
   late String _creationAccountId = widget.accountId;
   late BusyProvider _creationProvider = widget.provider;
   String get _accountId =>
@@ -548,10 +584,68 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   @override
   void initState() {
     super.initState();
+    _resolveSavedLocation();
     unawaited(_restoreRecovery());
     _recoveryTimer = Timer.periodic(
       const Duration(seconds: 1),
       (_) => unawaited(_persistRecovery()),
+    );
+  }
+
+  void _resolveSavedLocation() {
+    final task = _observedTask ?? widget.task;
+    if (task == null || !_provider.isDav) {
+      return;
+    }
+    _savedLocation =
+        LocationDestinationResolver(
+          ref.read(locationResolutionRepositoryProvider),
+        ).resolveSaved(
+          location: task.taskLocation ?? '',
+          nativePoint: task.locationPoint,
+          identity: LocationItemIdentity(
+            kind: LocationItemKind.task,
+            accountId: task.accountId,
+            sourceId: task.taskListId,
+            itemId: task.id,
+          ),
+        );
+  }
+
+  Widget _savedLocationAction() {
+    final task = _observedTask ?? widget.task;
+    if (task == null || _draft.location != (task.taskLocation ?? '')) {
+      return const SizedBox.shrink();
+    }
+    return FutureBuilder<ExternalLocationDestination?>(
+      future: _savedLocation,
+      builder: (context, snapshot) {
+        final destination = snapshot.data;
+        if (destination == null) {
+          return const SizedBox.shrink();
+        }
+        return TextButton.icon(
+          icon: const Icon(Icons.map_outlined),
+          label: Text(
+            destination.kind == ExternalLocationDestinationKind.link
+                ? context.l10n.openLink
+                : context.l10n.mapsShow,
+          ),
+          onPressed: () async {
+            final result = await const ExternalLocationLauncher(
+              platform: _taskLocationPlatform,
+            ).open(destination);
+            if (result != ExternalLocationLaunchResult.opened &&
+                context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(context.l10n.externalLocationOpenFailed),
+                ),
+              );
+            }
+          },
+        );
+      },
     );
   }
 
@@ -590,6 +684,98 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
     super.dispose();
   }
 
+  List<Widget> _taskDestinationRows() {
+    final accounts = ref.watch(accountsStreamProvider).valueOrNull ?? [];
+    final account = accounts.where((a) => a.id == _accountId).firstOrNull;
+    final canSelect =
+        !_saving &&
+        _recoveryLoaded &&
+        (widget.task == null ||
+            (_canWrite && _capabilities.supportsCrossListMove));
+    return [
+      if (widget.task == null)
+        ListTile(
+          title: Text(context.l10n.account),
+          subtitle: Text(
+            account?.selectorLabel ?? widget.accountLabel ?? _accountId,
+          ),
+          leading: const Icon(Icons.account_circle_outlined),
+          enabled: canSelect,
+          onTap: canSelect ? _selectCreationAccount : null,
+          trailing: const Icon(Icons.expand_more),
+        ),
+      ListTile(
+        title: Text(context.l10n.list),
+        subtitle: Text(
+          _taskListLabel(_pendingMoveDestinationId ?? _draft.taskListId),
+        ),
+        leading: const Icon(Icons.checklist_outlined),
+        enabled: canSelect,
+        onTap: canSelect
+            ? (widget.task == null
+                  ? _selectCreationDestination
+                  : _selectMoveDestination)
+            : null,
+        trailing: canSelect ? const Icon(Icons.expand_more) : null,
+      ),
+      if (widget.task != null && !_capabilities.supportsCrossListMove)
+        Text(context.l10n.microsoftMoveUnsupported),
+    ];
+  }
+
+  Future<void> _selectMoveDestination() async {
+    if (!_canWrite || !_capabilities.supportsCrossListMove) {
+      return;
+    }
+    try {
+      final candidates = await ref
+          .read(taskListsRepositoryForAccountProvider(_accountId))
+          .listTaskLists();
+      final lists = <TaskListEntity>[];
+      for (final list in candidates) {
+        if (list.pendingDelete) {
+          continue;
+        }
+        final capabilities = _provider.isDav
+            ? await ref.read(
+                davTaskCollectionCapabilitiesProvider((
+                  accountId: _accountId,
+                  taskListId: list.id,
+                )).future,
+              )
+            : adapterDefaultTaskCapabilities(_provider);
+        if (list.id == _draft.taskListId ||
+            capabilities?.canCreateTasks == true) {
+          lists.add(list);
+        }
+      }
+      if (!mounted) {
+        return;
+      }
+      final destination = await selectAndroidTaskList(
+        context,
+        lists,
+        title: context.l10n.list,
+        alwaysPrompt: true,
+        accountLabels: {_accountId: widget.accountLabel ?? _accountId},
+      );
+      if (destination == null || !mounted || !_canWrite) {
+        return;
+      }
+      setState(
+        () => _pendingMoveDestinationId = destination.id == _draft.taskListId
+            ? null
+            : destination.id,
+      );
+      await _persistRecovery();
+    } on Object catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(_taskMutationError(error))));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_provider.isDav) {
@@ -606,13 +792,19 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
     return PopScope<void>(
       canPop: _allowPop || (!_saving && !_hasPendingEdits),
       onPopInvokedWithResult: (didPop, _) async {
-        if (didPop || _saving || _allowPop) return;
+        if (didPop || _saving || _allowPop) {
+          return;
+        }
         if (await _confirmDiscardChanges() && mounted) {
           await _clearRecovery(finalCleanup: true);
-          if (!mounted) return;
+          if (!mounted) {
+            return;
+          }
           setState(() => _allowPop = true);
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) Navigator.pop(context);
+            if (mounted) {
+              Navigator.pop(context);
+            }
           });
         }
       },
@@ -633,883 +825,1166 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
             ),
           ],
         ),
-        body: ListView(
+        body: SingleChildScrollView(
           controller: _formScroll,
           padding: const EdgeInsets.all(16),
-          children: [
-            Card(
-              child: ListTile(
-                leading: const Icon(Icons.account_circle_outlined),
-                title: Text(_taskListLabel(_draft.taskListId)),
-                subtitle: Text(
-                  (ref.watch(accountsStreamProvider).valueOrNull ?? [])
-                          .where((a) => a.id == _accountId)
-                          .firstOrNull
-                          ?.selectorLabel ??
-                      widget.accountLabel ??
-                      _accountId,
-                ),
-                trailing: widget.task == null
-                    ? const Icon(Icons.expand_more)
-                    : null,
-                onTap: widget.task == null && !_saving && _recoveryLoaded
-                    ? _selectCreationDestination
-                    : null,
-              ),
-            ),
-            if (_provider == BusyProvider.google && widget.task != null)
-              for (final link in widget.task!.googleSourceLinks)
-                ListTile(
-                  leading: const Icon(Icons.open_in_new),
-                  title: Text(
-                    link.label?.isNotEmpty == true
-                        ? link.label!
-                        : context.l10n.openInProvider,
-                  ),
-                  subtitle: Text(link.url),
-                  onTap: () async {
-                    if (!await openScheduleWebLink(link.url) &&
-                        context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(context.l10n.eventLinkOpenFailed),
-                        ),
-                      );
-                    }
-                  },
-                ),
-            if (_provider.isDav &&
-                widget.task != null &&
-                (_observedTask ?? widget.task!).icalUid != null &&
-                (_observedTask ?? widget.task!).davCollectionId != null)
-              AndroidDavAttachmentsSection.task(
-                target: (
-                  accountId: _accountId,
-                  taskListId: (_observedTask ?? widget.task!).taskListId,
-                  taskId: (_observedTask ?? widget.task!).id,
-                ),
-              ),
-            if (_provider == BusyProvider.microsoft && widget.task != null)
-              Column(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AndroidEditorGroup(
                 children: [
-                  TextButton(
-                    onPressed: () => setState(() {
-                      final key = (
-                        accountId: _accountId,
-                        taskListId: _draft.taskListId,
-                        taskId: (_observedTask?.id ?? widget.task!.id),
-                      );
-                      ref.invalidate(microsoftTaskLinkedResourcesProvider(key));
-                      _linkedResourcesFuture = ref.read(
-                        microsoftTaskLinkedResourcesProvider(key).future,
-                      );
-                    }),
-                    child: Text(context.l10n.linkedResources),
+                  TextField(
+                    key: _titleFieldKey,
+                    controller: _title,
+                    focusNode: _titleFocus,
+                    enabled: canWrite,
+                    autofocus: widget.task == null,
+                    decoration: InputDecoration(
+                      labelText: context.l10n.title,
+                      errorText: _showValidation && _draft.title.trim().isEmpty
+                          ? context.l10n.invalidCollectionValue
+                          : null,
+                    ),
+                    onChanged: (v) =>
+                        setState(() => _draft = _draft.copyWith(title: v)),
                   ),
-                  if (_linkedResourcesFuture case final future?)
-                    FutureBuilder<List<TaskSourceLink>>(
-                      future: future,
-                      builder: (context, snapshot) {
-                        if (snapshot.hasError) {
-                          return Text(context.l10n.operationFailed);
-                        }
-                        if (!snapshot.hasData) {
-                          return const LinearProgressIndicator();
-                        }
-                        if (snapshot.data!.isEmpty) {
-                          return Text(context.l10n.noLinkedResources);
-                        }
-                        return Column(
-                          children: [
-                            for (final link in snapshot.data!)
-                              ListTile(
-                                leading: const Icon(Icons.open_in_new),
-                                title: Text(
-                                  link.label?.isNotEmpty == true
-                                      ? link.label!
-                                      : context.l10n.openInProvider,
-                                ),
-                                subtitle: Text(link.url),
-                                onTap: () async {
-                                  if (!await openScheduleWebLink(link.url) &&
-                                      context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          context.l10n.eventLinkOpenFailed,
-                                        ),
-                                      ),
-                                    );
-                                  }
-                                },
+                ],
+              ),
+              AndroidEditorGroup(
+                children: [
+                  if (_provider == BusyProvider.google && widget.task != null)
+                    for (final link in widget.task!.googleSourceLinks)
+                      ListTile(
+                        leading: const Icon(Icons.open_in_new),
+                        title: Text(
+                          link.label?.isNotEmpty == true
+                              ? link.label!
+                              : context.l10n.openInProvider,
+                        ),
+                        subtitle: Text(link.url),
+                        onTap: () async {
+                          if (!await openScheduleWebLink(link.url) &&
+                              context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(context.l10n.eventLinkOpenFailed),
                               ),
+                            );
+                          }
+                        },
+                      ),
+                  if (_provider.isDav &&
+                      widget.task != null &&
+                      (_observedTask ?? widget.task!).icalUid != null &&
+                      (_observedTask ?? widget.task!).davCollectionId != null)
+                    AndroidDavAttachmentsSection.task(
+                      target: (
+                        accountId: _accountId,
+                        taskListId: (_observedTask ?? widget.task!).taskListId,
+                        taskId: (_observedTask ?? widget.task!).id,
+                      ),
+                    ),
+                  if (_provider == BusyProvider.microsoft &&
+                      widget.task != null)
+                    Column(
+                      children: [
+                        TextButton(
+                          onPressed: () => setState(() {
+                            final key = (
+                              accountId: _accountId,
+                              taskListId: _draft.taskListId,
+                              taskId: (_observedTask?.id ?? widget.task!.id),
+                            );
+                            ref.invalidate(
+                              microsoftTaskLinkedResourcesProvider(key),
+                            );
+                            _linkedResourcesFuture = ref.read(
+                              microsoftTaskLinkedResourcesProvider(key).future,
+                            );
+                          }),
+                          child: Text(context.l10n.linkedResources),
+                        ),
+                        if (_linkedResourcesFuture case final future?)
+                          FutureBuilder<List<TaskSourceLink>>(
+                            future: future,
+                            builder: (context, snapshot) {
+                              if (snapshot.hasError) {
+                                return Text(context.l10n.operationFailed);
+                              }
+                              if (!snapshot.hasData) {
+                                return const LinearProgressIndicator();
+                              }
+                              if (snapshot.data!.isEmpty) {
+                                return Text(context.l10n.noLinkedResources);
+                              }
+                              return Column(
+                                children: [
+                                  for (final link in snapshot.data!)
+                                    ListTile(
+                                      leading: const Icon(Icons.open_in_new),
+                                      title: Text(
+                                        link.label?.isNotEmpty == true
+                                            ? link.label!
+                                            : context.l10n.openInProvider,
+                                      ),
+                                      subtitle: Text(link.url),
+                                      onTap: () async {
+                                        if (!await openScheduleWebLink(
+                                              link.url,
+                                            ) &&
+                                            context.mounted) {
+                                          ScaffoldMessenger.of(context)
+                                              .showSnackBar(
+                                                SnackBar(
+                                                  content: Text(
+                                                    context
+                                                        .l10n
+                                                        .eventLinkOpenFailed,
+                                                  ),
+                                                ),
+                                              );
+                                        }
+                                      },
+                                    ),
+                                ],
+                              );
+                            },
+                          ),
+                      ],
+                    ),
+                  if (_provider == BusyProvider.microsoft &&
+                      widget.task != null)
+                    Column(
+                      children: [
+                        TextButton(
+                          key: const Key('task-attachments-load'),
+                          onPressed: () => setState(() {
+                            final key = (
+                              accountId: _accountId,
+                              taskListId: _draft.taskListId,
+                              taskId: (_observedTask?.id ?? widget.task!.id),
+                            );
+                            ref.invalidate(
+                              microsoftTaskAttachmentsProvider(key),
+                            );
+                            _attachmentsFuture = ref.read(
+                              microsoftTaskAttachmentsProvider(key).future,
+                            );
+                          }),
+                          child: Text(context.l10n.attachments),
+                        ),
+                        if (canWrite &&
+                            !widget.task!.pendingDelete &&
+                            !(_observedTask?.id ?? widget.task!.id).startsWith(
+                              'local-task-',
+                            ))
+                          TextButton.icon(
+                            onPressed:
+                                _attachmentBusy ||
+                                    !ref
+                                        .watch(
+                                          attachmentUploadCoordinatorProvider,
+                                        )
+                                        .canSubmit(
+                                          AttachmentUploadCoordinator.taskKey(
+                                            _accountId,
+                                            _draft.taskListId,
+                                            (_observedTask?.id ??
+                                                widget.task!.id),
+                                          ),
+                                        )
+                                ? null
+                                : _uploadTaskAttachment,
+                            icon: const Icon(Icons.add),
+                            label: Text(context.l10n.attachments),
+                          ),
+                        if (ref
+                                .watch(attachmentUploadCoordinatorProvider)
+                                .retryAfter(
+                                  AttachmentUploadCoordinator.taskKey(
+                                    _accountId,
+                                    _draft.taskListId,
+                                    (_observedTask?.id ?? widget.task!.id),
+                                  ),
+                                ) !=
+                            null)
+                          Text(context.l10n.attachmentUploadRateLimited),
+                        if (ref
+                            .watch(attachmentUploadCoordinatorProvider)
+                            .needsReconciliation(
+                              AttachmentUploadCoordinator.taskKey(
+                                _accountId,
+                                _draft.taskListId,
+                                (_observedTask?.id ?? widget.task!.id),
+                              ),
+                            )) ...[
+                          Text(
+                            ref
+                                        .watch(
+                                          attachmentUploadCoordinatorProvider,
+                                        )
+                                        .confirmedId(
+                                          AttachmentUploadCoordinator.taskKey(
+                                            _accountId,
+                                            _draft.taskListId,
+                                            (_observedTask?.id ??
+                                                widget.task!.id),
+                                          ),
+                                        ) ==
+                                    null
+                                ? context.l10n.attachmentUploadUnresolved
+                                : context.l10n.completed,
+                          ),
+                          TextButton(
+                            onPressed: _attachmentBusy
+                                ? null
+                                : _reconcileTaskUpload,
+                            child: Text(context.l10n.refresh),
+                          ),
+                          if (ref
+                              .watch(attachmentUploadCoordinatorProvider)
+                              .hasResumableSession(
+                                AttachmentUploadCoordinator.taskKey(
+                                  _accountId,
+                                  _draft.taskListId,
+                                  (_observedTask?.id ?? widget.task!.id),
+                                ),
+                              ))
+                            TextButton(
+                              onPressed: _attachmentBusy
+                                  ? null
+                                  : _cancelTaskUpload,
+                              child: Text(context.l10n.cancel),
+                            ),
+                          if (ref
+                              .watch(attachmentUploadCoordinatorProvider)
+                              .canResolveManually(
+                                AttachmentUploadCoordinator.taskKey(
+                                  _accountId,
+                                  _draft.taskListId,
+                                  (_observedTask?.id ?? widget.task!.id),
+                                ),
+                              )) ...[
+                            TextButton(
+                              onPressed: _attachmentBusy
+                                  ? null
+                                  : () => _resolveTaskUpload(exists: true),
+                              child: Text(context.l10n.completed),
+                            ),
+                            TextButton(
+                              onPressed: _attachmentBusy
+                                  ? null
+                                  : () => _resolveTaskUpload(exists: false),
+                              child: Text(context.l10n.retry),
+                            ),
                           ],
-                        );
-                      },
+                        ],
+                        if (_attachmentsFuture case final future?)
+                          FutureBuilder<List<MicrosoftTodoAttachmentDto>>(
+                            future: future,
+                            builder: (context, snapshot) {
+                              if (snapshot.hasError) {
+                                return Text(context.l10n.attachmentsNotLoaded);
+                              }
+                              if (!snapshot.hasData) {
+                                return const LinearProgressIndicator();
+                              }
+                              if (snapshot.data!.isEmpty) {
+                                return Text(context.l10n.noneValue);
+                              }
+                              return Column(
+                                children: [
+                                  for (final attachment in snapshot.data!)
+                                    ListTile(
+                                      leading: const Icon(Icons.attach_file),
+                                      title: Text(attachment.name),
+                                      subtitle: attachment.size == null
+                                          ? null
+                                          : Text('${attachment.size} B'),
+                                      trailing:
+                                          canWrite &&
+                                              !widget.task!.pendingDelete &&
+                                              !(_observedTask?.id ??
+                                                      widget.task!.id)
+                                                  .startsWith('local-task-')
+                                          ? IconButton(
+                                              tooltip: context.l10n.delete,
+                                              onPressed: _attachmentBusy
+                                                  ? null
+                                                  : () => _deleteTaskAttachment(
+                                                      attachment,
+                                                    ),
+                                              icon: const Icon(
+                                                Icons.delete_outline,
+                                              ),
+                                            )
+                                          : null,
+                                      onTap: attachment.isFile
+                                          ? () => _downloadTaskAttachment(
+                                              attachment,
+                                            )
+                                          : null,
+                                    ),
+                                ],
+                              );
+                            },
+                          ),
+                      ],
                     ),
                 ],
               ),
-            if (_provider == BusyProvider.microsoft && widget.task != null)
-              Column(
-                children: [
-                  TextButton(
-                    key: const Key('task-attachments-load'),
-                    onPressed: () => setState(() {
-                      final key = (
-                        accountId: _accountId,
-                        taskListId: _draft.taskListId,
-                        taskId: (_observedTask?.id ?? widget.task!.id),
-                      );
-                      ref.invalidate(microsoftTaskAttachmentsProvider(key));
-                      _attachmentsFuture = ref.read(
-                        microsoftTaskAttachmentsProvider(key).future,
-                      );
-                    }),
-                    child: Text(context.l10n.attachments),
+              AndroidEditorGroup(children: [..._taskDestinationRows()]),
+              if (_showValidation &&
+                  _draft.scheduleIssueFor(capabilities) !=
+                      TaskScheduleIssue.none)
+                Padding(
+                  key: _timingFeedbackKey,
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Text(
+                    _draft.scheduleIssueFor(capabilities) ==
+                            TaskScheduleIssue.dueBeforeStart
+                        ? context.l10n.taskDueBeforeStart
+                        : context.l10n.taskStartDueTimeModeMismatch,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
                   ),
-                  if (canWrite &&
-                      !widget.task!.pendingDelete &&
-                      !(_observedTask?.id ?? widget.task!.id).startsWith(
-                        'local-task-',
-                      ))
-                    TextButton.icon(
-                      onPressed:
-                          _attachmentBusy ||
-                              !ref
-                                  .watch(attachmentUploadCoordinatorProvider)
-                                  .canSubmit(
-                                    AttachmentUploadCoordinator.taskKey(
-                                      _accountId,
-                                      _draft.taskListId,
-                                      (_observedTask?.id ?? widget.task!.id),
-                                    ),
-                                  )
+                ),
+              AndroidEditorGroup(
+                title: context.l10n.dueGroup,
+                children: [
+                  if (capabilities.supportsDueTime ||
+                      capabilities.supportsStartDateTime)
+                    SwitchListTile(
+                      title: Text(context.l10n.allDay),
+                      value: _scheduledAllDay,
+                      onChanged: !canWrite
                           ? null
-                          : _uploadTaskAttachment,
-                      icon: const Icon(Icons.add),
-                      label: Text(context.l10n.attachments),
+                          : (allDay) => setState(() {
+                              _scheduledAllDay = allDay;
+                              _draft = _draft.copyWith(
+                                microsoftDueTime: allDay
+                                    ? null
+                                    : _draft.dueDate == null
+                                    ? null
+                                    : _draft.microsoftDueTime ?? '09:00',
+                                microsoftStartTime: allDay
+                                    ? null
+                                    : _draft.microsoftStartDate == null
+                                    ? null
+                                    : _draft.microsoftStartTime ?? '09:00',
+                              );
+                            }),
                     ),
-                  if (ref
-                          .watch(attachmentUploadCoordinatorProvider)
-                          .retryAfter(
-                            AttachmentUploadCoordinator.taskKey(
-                              _accountId,
-                              _draft.taskListId,
-                              (_observedTask?.id ?? widget.task!.id),
+                  if (capabilities.supportsDueDate)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.event),
+                      title: Text(context.l10n.dueDate),
+                      subtitle: Text(_draft.dueDate ?? context.l10n.noDate),
+                      trailing: _draft.dueDate == null
+                          ? null
+                          : IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: !canWrite
+                                  ? null
+                                  : () => _clearScheduledDate(due: true),
                             ),
-                          ) !=
-                      null)
-                    Text(context.l10n.attachmentUploadRateLimited),
-                  if (ref
-                      .watch(attachmentUploadCoordinatorProvider)
-                      .needsReconciliation(
-                        AttachmentUploadCoordinator.taskKey(
-                          _accountId,
-                          _draft.taskListId,
-                          (_observedTask?.id ?? widget.task!.id),
+                      enabled: canWrite,
+                      onTap: canWrite ? _pickDue : null,
+                    ),
+                  if (capabilities.supportsDueTime &&
+                      _draft.dueDate != null &&
+                      !_scheduledAllDay)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.schedule),
+                      title: Text(context.l10n.dueTime),
+                      subtitle: Text(
+                        _draft.microsoftDueTime ?? context.l10n.allDay,
+                      ),
+                      enabled: canWrite,
+                      onTap: canWrite ? _pickDueTime : null,
+                    ),
+                  if (_draft.dueDate != null && _draft.microsoftDueTime != null)
+                    ListTile(
+                      leading: const Icon(Icons.public),
+                      title: Text(context.l10n.selectTimeZone),
+                      subtitle: Text(
+                        _draft.microsoftDueTimeZone ??
+                            ref.read(localTimeZoneProvider),
+                      ),
+                      onTap: !canWrite
+                          ? null
+                          : () async {
+                              final zone = await showAndroidTimeZonePicker(
+                                context,
+                                _draft.microsoftDueTimeZone,
+                              );
+                              if (zone != null && mounted) {
+                                setState(
+                                  () => _draft = _draft.copyWith(
+                                    microsoftDueTimeZone: zone,
+                                  ),
+                                );
+                              }
+                            },
+                    ),
+                ],
+              ),
+              AndroidEditorGroup(
+                title: context.l10n.startGroup,
+                children: [
+                  if (capabilities.supportsStartDateTime)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.play_arrow_outlined),
+                      title: Text(context.l10n.startDate),
+                      subtitle: Text(
+                        _draft.microsoftStartDate ?? context.l10n.noDate,
+                      ),
+                      trailing: _draft.microsoftStartDate == null
+                          ? null
+                          : IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: !canWrite
+                                  ? null
+                                  : () => _clearScheduledDate(due: false),
+                            ),
+                      enabled: canWrite,
+                      onTap: canWrite ? _pickStartDate : null,
+                    ),
+                  if (capabilities.supportsStartDateTime &&
+                      _draft.microsoftStartDate != null &&
+                      !_scheduledAllDay)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.schedule),
+                      title: Text(context.l10n.startTime),
+                      subtitle: Text(
+                        _draft.microsoftStartTime ?? context.l10n.allDay,
+                      ),
+                      enabled: canWrite,
+                      onTap: canWrite ? _pickStartTime : null,
+                    ),
+                  if (_draft.microsoftStartDate != null &&
+                      _draft.microsoftStartTime != null)
+                    ListTile(
+                      leading: const Icon(Icons.public),
+                      title: Text(context.l10n.selectTimeZone),
+                      subtitle: Text(
+                        _draft.microsoftStartTimeZone ??
+                            ref.read(localTimeZoneProvider),
+                      ),
+                      onTap: !canWrite
+                          ? null
+                          : () async {
+                              final zone = await showAndroidTimeZonePicker(
+                                context,
+                                _draft.microsoftStartTimeZone,
+                              );
+                              if (zone != null && mounted) {
+                                setState(
+                                  () => _draft = _draft.copyWith(
+                                    microsoftStartTimeZone: zone,
+                                  ),
+                                );
+                              }
+                            },
+                    ),
+                ],
+              ),
+              AndroidEditorGroup(
+                children: [
+                  TextField(
+                    controller: _notes,
+                    enabled:
+                        canWrite &&
+                        !(widget.task?.googleAssignment.isFromDocument ??
+                            false),
+                    minLines: 3,
+                    maxLines: 8,
+                    decoration: InputDecoration(labelText: context.l10n.notes),
+                    onChanged: (v) =>
+                        setState(() => _draft = _draft.copyWith(notes: v)),
+                  ),
+                ],
+              ),
+              if (capabilities.supportsTaskStatus ||
+                  capabilities.supportsPercentComplete ||
+                  capabilities.supportsCompletedDateTime)
+                AndroidEditorGroup(
+                  title: context.l10n.statusSection,
+                  expanded: _draft.hasDetailedProgress,
+                  key: const ValueKey('android-task-status'),
+                  children: [
+                    if (capabilities.supportsTaskStatus)
+                      DropdownButtonFormField<String?>(
+                        isExpanded: true,
+                        initialValue: _draft.taskStatus,
+                        decoration: InputDecoration(
+                          labelText: context.l10n.taskStatus,
                         ),
-                      )) ...[
-                    Text(
-                      ref
-                                  .watch(attachmentUploadCoordinatorProvider)
-                                  .confirmedId(
-                                    AttachmentUploadCoordinator.taskKey(
-                                      _accountId,
-                                      _draft.taskListId,
-                                      (_observedTask?.id ?? widget.task!.id),
-                                    ),
-                                  ) ==
-                              null
-                          ? context.l10n.attachmentUploadUnresolved
-                          : context.l10n.completed,
-                    ),
-                    TextButton(
-                      onPressed: _attachmentBusy ? null : _reconcileTaskUpload,
-                      child: Text(context.l10n.refresh),
-                    ),
-                    if (ref
-                        .watch(attachmentUploadCoordinatorProvider)
-                        .hasResumableSession(
-                          AttachmentUploadCoordinator.taskKey(
-                            _accountId,
-                            _draft.taskListId,
-                            (_observedTask?.id ?? widget.task!.id),
+                        items: [
+                          DropdownMenuItem(
+                            value: null,
+                            child: Text(context.l10n.repeatNone),
                           ),
-                        ))
-                      TextButton(
-                        onPressed: _attachmentBusy ? null : _cancelTaskUpload,
-                        child: Text(context.l10n.cancel),
-                      ),
-                    if (ref
-                        .watch(attachmentUploadCoordinatorProvider)
-                        .canResolveManually(
-                          AttachmentUploadCoordinator.taskKey(
-                            _accountId,
-                            _draft.taskListId,
-                            (_observedTask?.id ?? widget.task!.id),
+                          DropdownMenuItem(
+                            value: 'NEEDS-ACTION',
+                            child: Text(context.l10n.taskStatusNeedsAction),
                           ),
-                        )) ...[
-                      TextButton(
-                        onPressed: _attachmentBusy
+                          DropdownMenuItem(
+                            value: 'IN-PROCESS',
+                            child: Text(context.l10n.taskStatusInProcess),
+                          ),
+                          DropdownMenuItem(
+                            value: 'COMPLETED',
+                            child: Text(context.l10n.taskStatusCompleted),
+                          ),
+                          DropdownMenuItem(
+                            value: 'CANCELLED',
+                            child: Text(context.l10n.taskStatusCancelled),
+                          ),
+                        ],
+                        onChanged: !canWrite
                             ? null
-                            : () => _resolveTaskUpload(exists: true),
-                        child: Text(context.l10n.completed),
+                            : (value) => _setTaskStatus(value),
                       ),
-                      TextButton(
-                        onPressed: _attachmentBusy
+                    if (capabilities.supportsPercentComplete)
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            context.l10n.completionPercent(
+                              _draft.percentComplete,
+                            ),
+                          ),
+                          Slider(
+                            value: _draft.percentComplete.toDouble(),
+                            max: 100,
+                            divisions: 100,
+                            onChanged: !canWrite
+                                ? null
+                                : (v) => _setTaskProgress(v.round()),
+                          ),
+                        ],
+                      ),
+                    if (capabilities.supportsCompletedDateTime &&
+                        (_draft.taskStatus == 'COMPLETED' ||
+                            _draft.percentComplete == 100 ||
+                            _draft.completedDate != null)) ...[
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.event_available_outlined),
+                        title: Text(context.l10n.completionDate),
+                        subtitle: Text(
+                          _draft.completedDate ?? context.l10n.noDate,
+                        ),
+                        trailing: _draft.completedDate == null
                             ? null
-                            : () => _resolveTaskUpload(exists: false),
-                        child: Text(context.l10n.retry),
+                            : IconButton(
+                                icon: const Icon(Icons.clear),
+                                onPressed: canWrite
+                                    ? _clearCompletionDate
+                                    : null,
+                              ),
+                        enabled: canWrite,
+                        onTap: canWrite ? _pickCompletionDate : null,
+                      ),
+                      if (_draft.completedDate != null)
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.schedule),
+                          title: Text(context.l10n.completed),
+                          subtitle: Text(
+                            _draft.completedTime ?? context.l10n.noDate,
+                          ),
+                          enabled: canWrite,
+                          onTap: canWrite ? _pickCompletionTime : null,
+                        ),
+                    ],
+                  ],
+                ),
+              if (capabilities.supportsIcalPriority)
+                AndroidEditorGroup(
+                  title: context.l10n.priority,
+                  expanded: _draft.icalPriority != 0,
+                  key: const ValueKey('android-task-priority'),
+                  children: [
+                    if (capabilities.supportsIcalPriority)
+                      DropdownButtonFormField<int>(
+                        isExpanded: true,
+                        key: ValueKey(
+                          'android-task-priority-band-${_draft.icalPriority}',
+                        ),
+                        initialValue: _draft.icalPriority == 0
+                            ? 0
+                            : _draft.icalPriority <= 4
+                            ? 1
+                            : _draft.icalPriority == 5
+                            ? 5
+                            : 9,
+                        decoration: InputDecoration(
+                          labelText: context.l10n.priority,
+                        ),
+                        items: [
+                          DropdownMenuItem(
+                            value: 0,
+                            child: Text(context.l10n.priorityNone),
+                          ),
+                          DropdownMenuItem(
+                            value: 1,
+                            child: Text(context.l10n.priorityHighValue(1)),
+                          ),
+                          DropdownMenuItem(
+                            value: 5,
+                            child: Text(context.l10n.priorityMediumValue(5)),
+                          ),
+                          DropdownMenuItem(
+                            value: 9,
+                            child: Text(context.l10n.priorityLowValue(9)),
+                          ),
+                        ],
+                        onChanged: canWrite
+                            ? (value) => setState(
+                                () => _draft = _draft.copyWith(
+                                  icalPriority: value,
+                                ),
+                              )
+                            : null,
+                      ),
+                    if (capabilities.supportsIcalPriority)
+                      DropdownButtonFormField<int>(
+                        isExpanded: true,
+                        initialValue: _draft.icalPriority,
+                        decoration: InputDecoration(
+                          labelText: context.l10n.priority,
+                        ),
+                        items: [
+                          for (var value = 0; value <= 9; value++)
+                            DropdownMenuItem(
+                              value: value,
+                              child: Text(value == 0 ? '0 · —' : '$value'),
+                            ),
+                        ],
+                        onChanged: !canWrite
+                            ? null
+                            : (value) => setState(
+                                () => _draft = _draft.copyWith(
+                                  icalPriority: value,
+                                ),
+                              ),
+                      ),
+                  ],
+                ),
+              AndroidEditorGroup(
+                children: [
+                  if (capabilities.supportsLocation) ...[
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _location,
+                      enabled: canWrite,
+                      decoration: InputDecoration(
+                        labelText: context.l10n.location,
+                      ),
+                      onChanged: (v) =>
+                          setState(() => _draft = _draft.copyWith(location: v)),
+                    ),
+                  ],
+                  if (capabilities.supportsLocation) _savedLocationAction(),
+                  if (capabilities.supportsUrl) ...[
+                    const SizedBox(height: 12),
+                    TextField(
+                      key: _urlFieldKey,
+                      controller: _url,
+                      focusNode: _urlFocus,
+                      enabled: canWrite,
+                      keyboardType: TextInputType.url,
+                      decoration: InputDecoration(
+                        labelText: context.l10n.taskUrl,
+                        errorText:
+                            _showValidation &&
+                                !_draft.hasValidTaskUrlFor(capabilities)
+                            ? context.l10n.invalidTaskUrl
+                            : null,
+                      ),
+                      onChanged: (value) => setState(
+                        () => _draft = _draft.copyWith(taskUrl: value),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              if (capabilities.supportsClassification ||
+                  capabilities.supportsPinning ||
+                  capabilities.supportsSubtaskVisibility)
+                AndroidEditorGroup(
+                  title: context.l10n.organizationSection,
+                  expanded:
+                      _draft.classification != 'PUBLIC' ||
+                      _draft.pinned ||
+                      _draft.hideSubtasks ||
+                      _draft.hideCompletedSubtasks,
+                  key: const ValueKey('android-task-ical-organization'),
+                  children: [
+                    if (capabilities.supportsClassification)
+                      DropdownButtonFormField<String>(
+                        isExpanded: true,
+                        initialValue: _draft.classification,
+                        decoration: InputDecoration(
+                          labelText: context.l10n.classification,
+                        ),
+                        items: [
+                          DropdownMenuItem(
+                            value: 'PUBLIC',
+                            child: Text(context.l10n.classificationPublic),
+                          ),
+                          DropdownMenuItem(
+                            value: 'CONFIDENTIAL',
+                            child: Text(
+                              context.l10n.classificationConfidential,
+                            ),
+                          ),
+                          DropdownMenuItem(
+                            value: 'PRIVATE',
+                            child: Text(context.l10n.classificationPrivate),
+                          ),
+                        ],
+                        onChanged:
+                            !canWrite || !capabilities.canUpdateClassification
+                            ? null
+                            : (value) => setState(
+                                () => _draft = _draft.copyWith(
+                                  classification: value,
+                                ),
+                              ),
+                      ),
+                    if (capabilities.supportsPinning)
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(context.l10n.pinTask),
+                        value: _draft.pinned,
+                        onChanged: !canWrite
+                            ? null
+                            : (value) => setState(
+                                () => _draft = _draft.copyWith(pinned: value),
+                              ),
+                      ),
+                    if (capabilities.supportsSubtaskVisibility) ...[
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(context.l10n.hideSubtasks),
+                        value: _draft.hideSubtasks,
+                        onChanged: !canWrite
+                            ? null
+                            : (value) => setState(
+                                () => _draft = _draft.copyWith(
+                                  hideSubtasks: value,
+                                ),
+                              ),
+                      ),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(context.l10n.hideClosedSubtasks),
+                        value: _draft.hideCompletedSubtasks,
+                        onChanged: !canWrite
+                            ? null
+                            : (value) => setState(
+                                () => _draft = _draft.copyWith(
+                                  hideCompletedSubtasks: value,
+                                ),
+                              ),
                       ),
                     ],
                   ],
-                  if (_attachmentsFuture case final future?)
-                    FutureBuilder<List<MicrosoftTodoAttachmentDto>>(
-                      future: future,
-                      builder: (context, snapshot) {
-                        if (snapshot.hasError) {
-                          return Text(context.l10n.attachmentsNotLoaded);
-                        }
-                        if (!snapshot.hasData) {
-                          return const LinearProgressIndicator();
-                        }
-                        if (snapshot.data!.isEmpty) {
-                          return Text(context.l10n.noneValue);
-                        }
-                        return Column(
-                          children: [
-                            for (final attachment in snapshot.data!)
-                              ListTile(
-                                leading: const Icon(Icons.attach_file),
-                                title: Text(attachment.name),
-                                subtitle: attachment.size == null
-                                    ? null
-                                    : Text('${attachment.size} B'),
-                                trailing:
-                                    canWrite &&
-                                        !widget.task!.pendingDelete &&
-                                        !(_observedTask?.id ?? widget.task!.id)
-                                            .startsWith('local-task-')
-                                    ? IconButton(
-                                        tooltip: context.l10n.delete,
-                                        onPressed: _attachmentBusy
-                                            ? null
-                                            : () => _deleteTaskAttachment(
-                                                attachment,
-                                              ),
-                                        icon: const Icon(Icons.delete_outline),
-                                      )
-                                    : null,
-                                onTap: attachment.isFile
-                                    ? () => _downloadTaskAttachment(attachment)
-                                    : null,
-                              ),
-                          ],
-                        );
-                      },
-                    ),
-                ],
-              ),
-            const SizedBox(height: 12),
-            TextField(
-              key: _titleFieldKey,
-              controller: _title,
-              focusNode: _titleFocus,
-              enabled: canWrite,
-              autofocus: widget.task == null,
-              decoration: InputDecoration(
-                labelText: context.l10n.title,
-                errorText: _showValidation && _draft.title.trim().isEmpty
-                    ? context.l10n.invalidCollectionValue
-                    : null,
-              ),
-              onChanged: (v) =>
-                  setState(() => _draft = _draft.copyWith(title: v)),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _notes,
-              enabled:
-                  canWrite &&
-                  !(widget.task?.googleAssignment.isFromDocument ?? false),
-              minLines: 3,
-              maxLines: 8,
-              decoration: InputDecoration(labelText: context.l10n.notes),
-              onChanged: (v) =>
-                  setState(() => _draft = _draft.copyWith(notes: v)),
-            ),
-            if (_showValidation &&
-                _draft.scheduleIssueFor(capabilities) != TaskScheduleIssue.none)
-              Padding(
-                key: _timingFeedbackKey,
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Text(
-                  _draft.scheduleIssueFor(capabilities) ==
-                          TaskScheduleIssue.dueBeforeStart
-                      ? context.l10n.taskDueBeforeStart
-                      : context.l10n.taskStartDueTimeModeMismatch,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
-              ),
-            if (capabilities.supportsDueTime ||
-                capabilities.supportsStartDateTime)
-              SwitchListTile(
-                title: Text(context.l10n.allDay),
-                value: _scheduledAllDay,
-                onChanged: !canWrite
-                    ? null
-                    : (allDay) => setState(() {
-                        _scheduledAllDay = allDay;
-                        _draft = _draft.copyWith(
-                          microsoftDueTime: allDay
-                              ? null
-                              : _draft.dueDate == null
-                              ? null
-                              : _draft.microsoftDueTime ?? '09:00',
-                          microsoftStartTime: allDay
-                              ? null
-                              : _draft.microsoftStartDate == null
-                              ? null
-                              : _draft.microsoftStartTime ?? '09:00',
-                        );
-                      }),
-              ),
-            if (capabilities.supportsDueDate)
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.event),
-                title: Text(context.l10n.dueDate),
-                subtitle: Text(_draft.dueDate ?? context.l10n.noDate),
-                trailing: _draft.dueDate == null
-                    ? null
-                    : IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: !canWrite
-                            ? null
-                            : () => _clearScheduledDate(due: true),
-                      ),
-                enabled: canWrite,
-                onTap: canWrite ? _pickDue : null,
-              ),
-            if (capabilities.supportsDueTime &&
-                _draft.dueDate != null &&
-                !_scheduledAllDay)
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.schedule),
-                title: Text(context.l10n.endTime),
-                subtitle: Text(_draft.microsoftDueTime ?? context.l10n.allDay),
-                enabled: canWrite,
-                onTap: canWrite ? _pickDueTime : null,
-              ),
-            if (_draft.dueDate != null && _draft.microsoftDueTime != null)
-              ListTile(
-                leading: const Icon(Icons.public),
-                title: Text(context.l10n.selectTimeZone),
-                subtitle: Text(
-                  _draft.microsoftDueTimeZone ??
-                      ref.read(localTimeZoneProvider),
-                ),
-                onTap: !canWrite
-                    ? null
-                    : () async {
-                        final zone = await showAndroidTimeZonePicker(
-                          context,
-                          _draft.microsoftDueTimeZone,
-                        );
-                        if (zone != null && mounted) {
-                          setState(
-                            () => _draft = _draft.copyWith(
-                              microsoftDueTimeZone: zone,
-                            ),
-                          );
-                        }
-                      },
-              ),
-            if (capabilities.supportsStartDateTime)
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.play_arrow_outlined),
-                title: Text(context.l10n.startDate),
-                subtitle: Text(
-                  _draft.microsoftStartDate ?? context.l10n.noDate,
-                ),
-                trailing: _draft.microsoftStartDate == null
-                    ? null
-                    : IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: !canWrite
-                            ? null
-                            : () => _clearScheduledDate(due: false),
-                      ),
-                enabled: canWrite,
-                onTap: canWrite ? _pickStartDate : null,
-              ),
-            if (capabilities.supportsStartDateTime &&
-                _draft.microsoftStartDate != null &&
-                !_scheduledAllDay)
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.schedule),
-                title: Text(context.l10n.startTime),
-                subtitle: Text(
-                  _draft.microsoftStartTime ?? context.l10n.allDay,
-                ),
-                enabled: canWrite,
-                onTap: canWrite ? _pickStartTime : null,
-              ),
-            if (_draft.microsoftStartDate != null &&
-                _draft.microsoftStartTime != null)
-              ListTile(
-                leading: const Icon(Icons.public),
-                title: Text(context.l10n.selectTimeZone),
-                subtitle: Text(
-                  _draft.microsoftStartTimeZone ??
-                      ref.read(localTimeZoneProvider),
-                ),
-                onTap: !canWrite
-                    ? null
-                    : () async {
-                        final zone = await showAndroidTimeZonePicker(
-                          context,
-                          _draft.microsoftStartTimeZone,
-                        );
-                        if (zone != null && mounted) {
-                          setState(
-                            () => _draft = _draft.copyWith(
-                              microsoftStartTimeZone: zone,
-                            ),
-                          );
-                        }
-                      },
-              ),
-            if (capabilities.supportsReminderDateTime &&
-                !capabilities.supportsMultipleReminders)
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(context.l10n.reminder),
-                value: _draft.microsoftReminderEnabled,
-                onChanged: !canWrite
-                    ? null
-                    : (value) => _setReminderEnabled(value),
-              ),
-            if (capabilities.supportsReminderDateTime &&
-                !capabilities.supportsMultipleReminders &&
-                _draft.microsoftReminderEnabled) ...[
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.event_outlined),
-                title: Text(context.l10n.reminderDate),
-                subtitle: Text(
-                  _draft.microsoftReminderDate ?? context.l10n.noDate,
-                ),
-                enabled: canWrite,
-                onTap: canWrite ? _pickReminderDate : null,
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.alarm_outlined),
-                title: Text(context.l10n.reminderTime),
-                subtitle: Text(
-                  _draft.microsoftReminderTime ?? context.l10n.noDate,
-                ),
-                enabled: canWrite,
-                onTap: canWrite ? _pickReminderTime : null,
-              ),
-            ],
-            if (capabilities.supportsReminderDateTime &&
-                !capabilities.supportsMultipleReminders &&
-                _draft.microsoftReminderEnabled)
-              ListTile(
-                leading: const Icon(Icons.public),
-                title: Text(context.l10n.selectTimeZone),
-                subtitle: Text(
-                  _draft.microsoftReminderTimeZone ??
-                      ref.read(localTimeZoneProvider),
-                ),
-                onTap: !canWrite
-                    ? null
-                    : () async {
-                        final zone = await showAndroidTimeZonePicker(
-                          context,
-                          _draft.microsoftReminderTimeZone,
-                        );
-                        if (zone != null && mounted) {
-                          setState(
-                            () => _draft = _draft.copyWith(
-                              microsoftReminderTimeZone: zone,
-                            ),
-                          );
-                        }
-                      },
-              ),
-            if (capabilities.supportsImportance &&
-                !capabilities.supportsIcalPriority)
-              DropdownButtonFormField<String>(
-                initialValue: _draft.importance,
-                decoration: InputDecoration(labelText: context.l10n.importance),
-                items: [
-                  DropdownMenuItem(
-                    value: 'low',
-                    child: Text(context.l10n.importanceLow),
-                  ),
-                  DropdownMenuItem(
-                    value: 'normal',
-                    child: Text(context.l10n.importanceNormal),
-                  ),
-                  DropdownMenuItem(
-                    value: 'high',
-                    child: Text(context.l10n.importanceHigh),
-                  ),
-                ],
-                onChanged: !canWrite
-                    ? null
-                    : (v) => setState(
-                        () => _draft = _draft.copyWith(importance: v),
-                      ),
-              ),
-            if (capabilities.supportsIcalPriority)
-              DropdownButtonFormField<int>(
-                initialValue: _draft.icalPriority,
-                decoration: InputDecoration(labelText: context.l10n.priority),
-                items: [
-                  for (var value = 0; value <= 9; value++)
-                    DropdownMenuItem(
-                      value: value,
-                      child: Text(value == 0 ? '0 · —' : '$value'),
-                    ),
-                ],
-                onChanged: !canWrite
-                    ? null
-                    : (value) => setState(
-                        () => _draft = _draft.copyWith(icalPriority: value),
-                      ),
-              ),
-            if (capabilities.supportsTaskStatus)
-              DropdownButtonFormField<String?>(
-                initialValue: _draft.taskStatus,
-                decoration: InputDecoration(labelText: context.l10n.taskStatus),
-                items: [
-                  DropdownMenuItem(
-                    value: null,
-                    child: Text(context.l10n.repeatNone),
-                  ),
-                  DropdownMenuItem(
-                    value: 'NEEDS-ACTION',
-                    child: Text(context.l10n.taskStatusNeedsAction),
-                  ),
-                  DropdownMenuItem(
-                    value: 'IN-PROCESS',
-                    child: Text(context.l10n.taskStatusInProcess),
-                  ),
-                  DropdownMenuItem(
-                    value: 'COMPLETED',
-                    child: Text(context.l10n.taskStatusCompleted),
-                  ),
-                  DropdownMenuItem(
-                    value: 'CANCELLED',
-                    child: Text(context.l10n.taskStatusCancelled),
-                  ),
-                ],
-                onChanged: !canWrite ? null : (value) => _setTaskStatus(value),
-              ),
-            if (capabilities.supportsRecurrence) ...[
-              const SizedBox(height: 12),
-              if (capabilities.supportsAdvancedRecurrence)
-                ListTile(
-                  key: const ValueKey('android-task-advanced-recurrence'),
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.repeat),
-                  title: Text(context.l10n.repeat),
-                  subtitle: Text(
-                    _taskRecurrence().isSupported
-                        ? recurrenceRuleSummary(
-                            context,
-                            _taskRecurrence(),
-                            timeZone: _recurrenceReference?.timeZone,
-                          )
-                        : context.l10n.unsupportedRecurrencePreserved,
-                  ),
-                  trailing: Icon(
-                    _taskRecurrence().isSupported
-                        ? Icons.chevron_right
-                        : Icons.lock_outline,
-                  ),
-                  enabled: canWrite && _taskRecurrence().isSupported,
-                  onTap: canWrite && _taskRecurrence().isSupported
-                      ? _editAdvancedRecurrence
-                      : null,
-                )
-              else
-                DropdownButtonFormField<RecurrenceFrequency>(
-                  initialValue: _recurrenceFrequency,
-                  decoration: InputDecoration(labelText: context.l10n.repeat),
-                  items: [
-                    for (final frequency in RecurrenceFrequency.values)
-                      DropdownMenuItem(
-                        value: frequency,
-                        child: Text(_recurrenceLabel(context, frequency)),
-                      ),
-                  ],
-                  onChanged: canWrite ? _setRecurrence : null,
-                ),
-            ],
-            if (capabilities.supportsCategories) ...[
-              const SizedBox(height: 12),
-              TextField(
-                controller: _categories,
-                enabled: canWrite,
-                decoration: InputDecoration(labelText: context.l10n.categories),
-                onChanged: (v) => setState(
-                  () => _draft = _draft.copyWith(
-                    categories: v
-                        .split(',')
-                        .map((e) => e.trim())
-                        .where((e) => e.isNotEmpty)
-                        .toList(),
-                  ),
-                ),
-              ),
-              if (_provider == BusyProvider.microsoft)
-                _microsoftCategories(canWrite),
-            ],
-            if (capabilities.supportsLocation) ...[
-              const SizedBox(height: 12),
-              TextField(
-                controller: _location,
-                enabled: canWrite,
-                decoration: InputDecoration(labelText: context.l10n.location),
-                onChanged: (v) =>
-                    setState(() => _draft = _draft.copyWith(location: v)),
-              ),
-            ],
-            if (capabilities.supportsUrl) ...[
-              const SizedBox(height: 12),
-              TextField(
-                key: _urlFieldKey,
-                controller: _url,
-                focusNode: _urlFocus,
-                enabled: canWrite,
-                keyboardType: TextInputType.url,
-                decoration: InputDecoration(
-                  labelText: context.l10n.taskUrl,
-                  errorText:
-                      _showValidation &&
-                          !_draft.hasValidTaskUrlFor(capabilities)
-                      ? context.l10n.invalidTaskUrl
-                      : null,
-                ),
-                onChanged: (value) =>
-                    setState(() => _draft = _draft.copyWith(taskUrl: value)),
-              ),
-            ],
-            if (capabilities.supportsClassification)
-              DropdownButtonFormField<String>(
-                initialValue: _draft.classification,
-                decoration: InputDecoration(
-                  labelText: context.l10n.classification,
-                ),
-                items: [
-                  DropdownMenuItem(
-                    value: 'PUBLIC',
-                    child: Text(context.l10n.classificationPublic),
-                  ),
-                  DropdownMenuItem(
-                    value: 'CONFIDENTIAL',
-                    child: Text(context.l10n.classificationConfidential),
-                  ),
-                  DropdownMenuItem(
-                    value: 'PRIVATE',
-                    child: Text(context.l10n.classificationPrivate),
-                  ),
-                ],
-                onChanged: !canWrite || !capabilities.canUpdateClassification
-                    ? null
-                    : (value) => setState(
-                        () => _draft = _draft.copyWith(classification: value),
-                      ),
-              ),
-            if (capabilities.supportsPinning)
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(context.l10n.pinTask),
-                value: _draft.pinned,
-                onChanged: !canWrite
-                    ? null
-                    : (value) => setState(
-                        () => _draft = _draft.copyWith(pinned: value),
-                      ),
-              ),
-            if (capabilities.supportsSubtaskVisibility) ...[
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(context.l10n.hideSubtasks),
-                value: _draft.hideSubtasks,
-                onChanged: !canWrite
-                    ? null
-                    : (value) => setState(
-                        () => _draft = _draft.copyWith(hideSubtasks: value),
-                      ),
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(context.l10n.hideClosedSubtasks),
-                value: _draft.hideCompletedSubtasks,
-                onChanged: !canWrite
-                    ? null
-                    : (value) => setState(
-                        () => _draft = _draft.copyWith(
-                          hideCompletedSubtasks: value,
+              if (capabilities.supportsMultipleReminders)
+                AndroidEditorGroup(
+                  title: context.l10n.reminderGroup,
+                  expanded: _draft.alarms.isNotEmpty,
+                  key: const ValueKey('android-task-reminders'),
+                  children: [
+                    if (capabilities.supportsMultipleReminders) ...[
+                      const Divider(height: 32),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.notifications_outlined),
+                        title: Text(context.l10n.reminderGroup),
+                        trailing: IconButton(
+                          tooltip: context.l10n.addReminder,
+                          onPressed: canWrite ? _addAlarm : null,
+                          icon: const Icon(Icons.add),
                         ),
                       ),
-              ),
-            ],
-            if (capabilities.supportsMultipleReminders) ...[
-              const Divider(height: 32),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.notifications_outlined),
-                title: Text(context.l10n.reminderGroup),
-                trailing: IconButton(
-                  tooltip: context.l10n.addReminder,
-                  onPressed: canWrite ? _addAlarm : null,
-                  icon: const Icon(Icons.add),
-                ),
-              ),
-              for (var index = 0; index < _draft.alarms.length; index++)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(_alarmLabel(_draft.alarms[index])),
-                  onTap: canWrite && _canEditAlarm(_draft.alarms[index])
-                      ? () => _addAlarm(index: index)
-                      : null,
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete_outline),
-                    onPressed: !canWrite
-                        ? null
-                        : () => setState(
-                            () => _draft = _draft.copyWith(
-                              alarms: [
-                                for (var i = 0; i < _draft.alarms.length; i++)
-                                  if (i != index) _draft.alarms[i],
-                              ],
-                            ),
+                      if (_draft.alarms.isEmpty) Text(context.l10n.noReminders),
+                      for (var index = 0; index < _draft.alarms.length; index++)
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(_alarmLabel(_draft.alarms[index])),
+                          subtitle: !_canEditAlarm(_draft.alarms[index])
+                              ? Text(context.l10n.unsupportedReminder)
+                              : _draft.alarms[index].action.isEmpty ||
+                                    _draft.alarms[index].action == 'DISPLAY'
+                              ? null
+                              : Text(_draft.alarms[index].action),
+                          onTap: canWrite && _canEditAlarm(_draft.alarms[index])
+                              ? () => _addAlarm(index: index)
+                              : null,
+                          trailing: IconButton(
+                            icon: const Icon(Icons.delete_outline),
+                            onPressed: !canWrite
+                                ? null
+                                : () => setState(
+                                    () => _draft = _draft.copyWith(
+                                      alarms: [
+                                        for (
+                                          var i = 0;
+                                          i < _draft.alarms.length;
+                                          i++
+                                        )
+                                          if (i != index) _draft.alarms[i],
+                                      ],
+                                    ),
+                                  ),
                           ),
-                  ),
+                        ),
+                    ],
+                  ],
                 ),
-            ],
-            if (widget.task != null && capabilities.supportsDuplicate)
-              OutlinedButton.icon(
-                onPressed: _saving || !capabilities.canCreateTasks
-                    ? null
-                    : _duplicate,
-                icon: const Icon(Icons.copy_outlined),
-                label: Text(context.l10n.duplicateTask),
-              ),
-            if (widget.task != null && capabilities.supportsCrossListMove)
-              OutlinedButton.icon(
-                onPressed: _saving || !capabilities.canUpdateTasks
-                    ? null
-                    : _moveToList,
-                icon: const Icon(Icons.drive_file_move_outline),
-                label: Text(context.l10n.list),
-              ),
-            if (widget.task != null)
-              OutlinedButton.icon(
-                onPressed: _saving ? null : _export,
-                icon: const Icon(Icons.file_download_outlined),
-                label: Text(context.l10n.export),
-              ),
-            if (capabilities.supportsPercentComplete)
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              if (capabilities.supportsAdvancedRecurrence &&
+                  (_draft.dueDate != null || _draft.microsoftStartDate != null))
+                AndroidEditorGroup(
+                  children: [
+                    if (capabilities.supportsRecurrence &&
+                        (!capabilities.supportsAdvancedRecurrence ||
+                            _draft.dueDate != null ||
+                            _draft.microsoftStartDate != null)) ...[
+                      const SizedBox(height: 12),
+                      if (capabilities.supportsAdvancedRecurrence)
+                        ListTile(
+                          key: const ValueKey(
+                            'android-task-advanced-recurrence',
+                          ),
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.repeat),
+                          title: Text(context.l10n.repeat),
+                          subtitle: Text(
+                            _taskRecurrence().isSupported
+                                ? recurrenceRuleSummary(
+                                    context,
+                                    _taskRecurrence(),
+                                    timeZone: _recurrenceReference?.timeZone,
+                                  )
+                                : context.l10n.unsupportedRecurrencePreserved,
+                          ),
+                          trailing: Icon(
+                            _taskRecurrence().isSupported
+                                ? Icons.chevron_right
+                                : Icons.lock_outline,
+                          ),
+                          enabled: canWrite && _taskRecurrence().isSupported,
+                          onTap: canWrite && _taskRecurrence().isSupported
+                              ? _editAdvancedRecurrence
+                              : null,
+                        )
+                      else
+                        DropdownButtonFormField<RecurrenceFrequency>(
+                          isExpanded: true,
+                          initialValue: _recurrenceFrequency,
+                          decoration: InputDecoration(
+                            labelText: context.l10n.repeat,
+                          ),
+                          items: [
+                            for (final frequency in RecurrenceFrequency.values)
+                              DropdownMenuItem(
+                                value: frequency,
+                                child: Text(
+                                  _recurrenceLabel(context, frequency),
+                                ),
+                              ),
+                          ],
+                          onChanged: canWrite ? _setRecurrence : null,
+                        ),
+                    ],
+                  ],
+                ),
+              if (capabilities.supportsReminderDateTime &&
+                  !capabilities.supportsMultipleReminders)
+                AndroidEditorGroup(
+                  title: context.l10n.reminderGroup,
+                  children: [
+                    if (!_draft.microsoftReminderEnabled)
+                      ListTile(
+                        leading: const Icon(Icons.add_alarm_outlined),
+                        title: Text(context.l10n.addReminder),
+                        onTap: canWrite
+                            ? () => _setReminderEnabled(true)
+                            : null,
+                      ),
+                    if (capabilities.supportsReminderDateTime &&
+                        !capabilities.supportsMultipleReminders &&
+                        _draft.microsoftReminderEnabled) ...[
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.event_outlined),
+                        title: Text(context.l10n.reminderDate),
+                        subtitle: Text(
+                          _draft.microsoftReminderDate ?? context.l10n.noDate,
+                        ),
+                        enabled: canWrite,
+                        onTap: canWrite ? _pickReminderDate : null,
+                      ),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.alarm_outlined),
+                        title: Text(context.l10n.reminderTime),
+                        subtitle: Text(
+                          _draft.microsoftReminderTime ?? context.l10n.noDate,
+                        ),
+                        enabled: canWrite,
+                        onTap: canWrite ? _pickReminderTime : null,
+                      ),
+                    ],
+                    if (capabilities.supportsReminderDateTime &&
+                        !capabilities.supportsMultipleReminders &&
+                        _draft.microsoftReminderEnabled)
+                      ListTile(
+                        leading: const Icon(Icons.public),
+                        title: Text(context.l10n.selectTimeZone),
+                        subtitle: Text(
+                          _draft.microsoftReminderTimeZone ??
+                              ref.read(localTimeZoneProvider),
+                        ),
+                        onTap: !canWrite
+                            ? null
+                            : () async {
+                                final zone = await showAndroidTimeZonePicker(
+                                  context,
+                                  _draft.microsoftReminderTimeZone,
+                                );
+                                if (zone != null && mounted) {
+                                  setState(
+                                    () => _draft = _draft.copyWith(
+                                      microsoftReminderTimeZone: zone,
+                                    ),
+                                  );
+                                }
+                              },
+                      ),
+                    if (_draft.microsoftReminderEnabled)
+                      TextButton.icon(
+                        onPressed: canWrite
+                            ? () => _setReminderEnabled(false)
+                            : null,
+                        icon: const Icon(Icons.remove_circle_outline),
+                        label: Text(context.l10n.removeReminder),
+                      ),
+                  ],
+                ),
+              if (capabilities.supportsRecurrence &&
+                  !capabilities.supportsAdvancedRecurrence)
+                AndroidEditorGroup(
+                  children: [
+                    if (capabilities.supportsRecurrence &&
+                        (!capabilities.supportsAdvancedRecurrence ||
+                            _draft.dueDate != null ||
+                            _draft.microsoftStartDate != null)) ...[
+                      const SizedBox(height: 12),
+                      if (capabilities.supportsAdvancedRecurrence)
+                        ListTile(
+                          key: const ValueKey(
+                            'android-task-advanced-recurrence',
+                          ),
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.repeat),
+                          title: Text(context.l10n.repeat),
+                          subtitle: Text(
+                            _taskRecurrence().isSupported
+                                ? recurrenceRuleSummary(
+                                    context,
+                                    _taskRecurrence(),
+                                    timeZone: _recurrenceReference?.timeZone,
+                                  )
+                                : context.l10n.unsupportedRecurrencePreserved,
+                          ),
+                          trailing: Icon(
+                            _taskRecurrence().isSupported
+                                ? Icons.chevron_right
+                                : Icons.lock_outline,
+                          ),
+                          enabled: canWrite && _taskRecurrence().isSupported,
+                          onTap: canWrite && _taskRecurrence().isSupported
+                              ? _editAdvancedRecurrence
+                              : null,
+                        )
+                      else
+                        DropdownButtonFormField<RecurrenceFrequency>(
+                          isExpanded: true,
+                          initialValue: _recurrenceFrequency,
+                          decoration: InputDecoration(
+                            labelText: context.l10n.repeat,
+                          ),
+                          items: [
+                            for (final frequency in RecurrenceFrequency.values)
+                              DropdownMenuItem(
+                                value: frequency,
+                                child: Text(
+                                  _recurrenceLabel(context, frequency),
+                                ),
+                              ),
+                          ],
+                          onChanged: canWrite ? _setRecurrence : null,
+                        ),
+                    ],
+                  ],
+                ),
+              if ((capabilities.supportsImportance &&
+                      !capabilities.supportsIcalPriority) ||
+                  capabilities.supportsCategories)
+                AndroidEditorGroup(
+                  title: context.l10n.organizationSection,
+                  expanded:
+                      _draft.importance != 'normal' ||
+                      _draft.categories.isNotEmpty,
+                  key: const ValueKey('android-task-provider-organization'),
+                  children: [
+                    if (capabilities.supportsImportance &&
+                        !capabilities.supportsIcalPriority)
+                      DropdownButtonFormField<String>(
+                        isExpanded: true,
+                        initialValue: _draft.importance,
+                        decoration: InputDecoration(
+                          labelText: context.l10n.importance,
+                        ),
+                        items: [
+                          DropdownMenuItem(
+                            value: 'low',
+                            child: Text(context.l10n.importanceLow),
+                          ),
+                          DropdownMenuItem(
+                            value: 'normal',
+                            child: Text(context.l10n.importanceNormal),
+                          ),
+                          DropdownMenuItem(
+                            value: 'high',
+                            child: Text(context.l10n.importanceHigh),
+                          ),
+                        ],
+                        onChanged: !canWrite
+                            ? null
+                            : (v) => setState(
+                                () => _draft = _draft.copyWith(importance: v),
+                              ),
+                      ),
+                    if (capabilities.supportsCategories)
+                      AndroidCategoryEditor(
+                        suggestions:
+                            ref
+                                .watch(
+                                  _androidTaskCategorySuggestionsProvider(
+                                    _accountId,
+                                  ),
+                                )
+                                .valueOrNull ??
+                            const [],
+                        values: _draft.categories,
+                        onChanged: canWrite
+                            ? (values) => setState(() {
+                                _draft = _draft.copyWith(categories: values);
+                                _categories.text = values.join(', ');
+                              })
+                            : null,
+                      ),
+                    if (_provider == BusyProvider.microsoft &&
+                        capabilities.supportsCategories)
+                      _microsoftCategories(canWrite),
+                  ],
+                ),
+              AndroidEditorGroup(
                 children: [
-                  Text(context.l10n.completionPercent(_draft.percentComplete)),
-                  Slider(
-                    value: _draft.percentComplete.toDouble(),
-                    max: 100,
-                    divisions: 100,
-                    onChanged: !canWrite
-                        ? null
-                        : (v) => _setTaskProgress(v.round()),
-                  ),
+                  if (widget.task != null &&
+                      capabilities.supportsTaskHierarchy) ...[
+                    const Divider(height: 32),
+                    StreamBuilder<TaskHierarchySnapshot>(
+                      stream: ref
+                          .read(tasksRepositoryForAccountProvider(_accountId))
+                          .watchTaskHierarchy(
+                            _draft.taskListId,
+                            (_observedTask?.id ?? widget.task!.id),
+                          ),
+                      builder: (context, snapshot) => _taskHierarchySection(
+                        snapshot.data ??
+                            const TaskHierarchySnapshot(
+                              parent: null,
+                              subtasks: [],
+                            ),
+                        capabilities,
+                      ),
+                    ),
+                  ],
                 ],
               ),
-            if (capabilities.supportsCompletedDateTime &&
-                (_draft.taskStatus == 'COMPLETED' ||
-                    _draft.percentComplete == 100 ||
-                    _draft.completedDate != null)) ...[
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.event_available_outlined),
-                title: Text(context.l10n.completionDate),
-                subtitle: Text(_draft.completedDate ?? context.l10n.noDate),
-                trailing: _draft.completedDate == null
-                    ? null
-                    : IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: canWrite ? _clearCompletionDate : null,
-                      ),
-                enabled: canWrite,
-                onTap: canWrite ? _pickCompletionDate : null,
-              ),
-              if (_draft.completedDate != null)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.schedule),
-                  title: Text(context.l10n.completed),
-                  subtitle: Text(_draft.completedTime ?? context.l10n.noDate),
-                  enabled: canWrite,
-                  onTap: canWrite ? _pickCompletionTime : null,
-                ),
-            ],
-            if (widget.task != null && capabilities.supportsTaskHierarchy) ...[
-              const Divider(height: 32),
-              StreamBuilder<TaskHierarchySnapshot>(
-                stream: ref
-                    .read(tasksRepositoryForAccountProvider(_accountId))
-                    .watchTaskHierarchy(
-                      _draft.taskListId,
-                      (_observedTask?.id ?? widget.task!.id),
+              AndroidEditorGroup(
+                title: context.l10n.advancedSection,
+                children: [
+                  if (widget.task != null &&
+                      capabilities.supportsTaskReparenting)
+                    OutlinedButton.icon(
+                      onPressed: _saving || !capabilities.canUpdateTasks
+                          ? null
+                          : _moveToTop,
+                      icon: const Icon(Icons.vertical_align_top),
+                      label: Text(context.l10n.moveToTop),
                     ),
-                builder: (context, snapshot) => _taskHierarchySection(
-                  snapshot.data ??
-                      const TaskHierarchySnapshot(parent: null, subtasks: []),
-                  capabilities,
-                ),
+                  if (widget.task != null && capabilities.supportsDuplicate)
+                    OutlinedButton.icon(
+                      onPressed: _saving || !capabilities.canCreateTasks
+                          ? null
+                          : _duplicate,
+                      icon: const Icon(Icons.copy_outlined),
+                      label: Text(context.l10n.duplicateTask),
+                    ),
+                  if (widget.task != null)
+                    OutlinedButton.icon(
+                      onPressed: _saving ? null : _export,
+                      icon: const Icon(Icons.file_download_outlined),
+                      label: Text(context.l10n.export),
+                    ),
+                ],
               ),
+              AndroidEditorGroup(
+                children: [
+                  if (widget.task != null && capabilities.canDeleteTasks) ...[
+                    const SizedBox(height: 24),
+                    OutlinedButton.icon(
+                      onPressed: _saving ? null : _delete,
+                      icon: const Icon(Icons.delete_outline),
+                      label: Text(context.l10n.deleteTask),
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 40),
             ],
-            if (widget.task != null && capabilities.supportsTaskReparenting)
-              OutlinedButton.icon(
-                onPressed: _saving || !capabilities.canUpdateTasks
-                    ? null
-                    : _moveToTop,
-                icon: const Icon(Icons.vertical_align_top),
-                label: Text(context.l10n.moveToTop),
-              ),
-            if (widget.task != null && capabilities.canDeleteTasks) ...[
-              const SizedBox(height: 24),
-              OutlinedButton.icon(
-                onPressed: _saving ? null : _delete,
-                icon: const Icon(Icons.delete_outline),
-                label: Text(context.l10n.deleteTask),
-              ),
-            ],
-            const SizedBox(height: 40),
-          ],
+          ),
         ),
       ),
     );
   }
 
-  Future<void> _selectCreationDestination() async {
+  Future<List<TaskListEntity>> _writableCreationLists() async {
     final lists = await ref.read(scheduleTaskListsProvider.future);
     final accounts = await ref.read(accountsStreamProvider.future);
-    if (!mounted) return;
     final allowed = <TaskListEntity>[];
     for (final list in lists) {
+      if (list.pendingDelete) {
+        continue;
+      }
       final account = accounts.where((a) => a.id == list.accountId).firstOrNull;
-      if (account == null) continue;
+      if (account == null || !account.isTaskCapable) {
+        continue;
+      }
       final capabilities = account.provider.isDav
           ? await ref.read(
               davTaskCollectionCapabilitiesProvider((
@@ -1518,21 +1993,71 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
               )).future,
             )
           : adapterDefaultTaskCapabilities(account.provider);
-      if (capabilities?.canCreateTasks == true) allowed.add(list);
+      if (capabilities?.canCreateTasks == true) {
+        allowed.add(list);
+      }
     }
-    if (!mounted) return;
+    return allowed;
+  }
+
+  Future<void> _selectCreationAccount() async {
+    final lists = await _writableCreationLists();
+    final accounts = (await ref.read(accountsStreamProvider.future))
+        .where((a) => lists.any((l) => l.accountId == a.id))
+        .toList();
+    if (!mounted) {
+      return;
+    }
+    final account = await showModalBottomSheet<AccountEntity>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            ListTile(title: Text(context.l10n.account)),
+            for (final account in accounts)
+              ListTile(
+                title: Text(account.selectorLabel),
+                subtitle: Text(account.provider.displayName),
+                selected: account.id == _accountId,
+                onTap: () => Navigator.pop(context, account),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (account == null || !mounted || account.id == _accountId) {
+      return;
+    }
+    final choices = lists.where((l) => l.accountId == account.id).toList()
+      ..sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+    await _setCreationDestination(choices.first, account.provider);
+  }
+
+  Future<void> _selectCreationDestination() async {
+    final lists = (await _writableCreationLists())
+        .where((l) => l.accountId == _accountId)
+        .toList();
+    if (!mounted) {
+      return;
+    }
     final selected = await selectAndroidTaskList(
       context,
-      allowed,
-      title: context.l10n.newTask,
-      accountLabels: {
-        for (final account in accounts) account.id: account.selectorLabel,
-      },
+      lists,
+      title: context.l10n.list,
+      alwaysPrompt: true,
     );
-    if (selected == null || !mounted) return;
-    final provider = accounts
-        .firstWhere((a) => a.id == selected.accountId)
-        .provider;
+    if (selected == null || !mounted) {
+      return;
+    }
+    await _setCreationDestination(selected, _provider);
+  }
+
+  Future<void> _setCreationDestination(
+    TaskListEntity selected,
+    BusyProvider provider,
+  ) async {
     setState(() {
       _creationAccountId = selected.accountId;
       _creationProvider = provider;
@@ -1583,7 +2108,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
           ],
         ),
       );
-      if (keep == null || !mounted) return;
+      if (keep == null || !mounted) {
+        return;
+      }
       alarms = [
         for (var i = 0; i < alarms.length; i++)
           if (!indexes.contains(i))
@@ -1621,7 +2148,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   }
 
   Future<void> _pickDue() async {
-    if (!_canWrite) return;
+    if (!_canWrite) {
+      return;
+    }
     final current = DateTime.tryParse(_draft.dueDate ?? '') ?? DateTime.now();
     final value = await showBusyMaxDatePicker(
       context: context,
@@ -1731,7 +2260,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
         .valueOrNull
         ?.where((list) => list.accountId == _accountId && list.id == taskListId)
         .firstOrNull;
-    if (current != null) return current.title;
+    if (current != null) {
+      return current.title;
+    }
     final originalListId = widget.task?.taskListId ?? widget.creationList?.id;
     return (taskListId == originalListId ? widget.listLabel : null) ??
         taskListId;
@@ -1780,10 +2311,14 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   }
 
   Future<void> _returnToEditor(_AndroidTaskEditorState target) async {
-    if (!_canNavigateHierarchy) return;
+    if (!_canNavigateHierarchy) {
+      return;
+    }
     final editors = [..._hierarchyAncestors, this];
     final existingIndex = editors.indexOf(target);
-    if (existingIndex < 0) return;
+    if (existingIndex < 0) {
+      return;
+    }
     final closing = editors.skip(existingIndex + 1).toList().reversed;
     if (closing.any((editor) => editor._saving || !editor._recoveryLoaded)) {
       return;
@@ -1794,23 +2329,33 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
         if (editor._hasPendingEdits && !await editor._confirmDiscardChanges()) {
           return;
         }
-        if (!mounted || !editor.mounted || !target.mounted) return;
+        if (!mounted || !editor.mounted || !target.mounted) {
+          return;
+        }
       }
       for (final editor in closing) {
         await editor._clearRecovery(finalCleanup: true);
-        if (!mounted || !editor.mounted || !target.mounted) return;
+        if (!mounted || !editor.mounted || !target.mounted) {
+          return;
+        }
         editor.setState(() => editor._allowPop = true);
       }
-      if (!mounted || !target.mounted) return;
+      if (!mounted || !target.mounted) {
+        return;
+      }
       final targetRoute = ModalRoute.of(target.context);
       Navigator.of(context).popUntil((route) => route == targetRoute);
     } finally {
-      if (mounted) setState(() => _hierarchyNavigationPending = false);
+      if (mounted) {
+        setState(() => _hierarchyNavigationPending = false);
+      }
     }
   }
 
   Future<void> _openHierarchyTask(TaskEntity task) async {
-    if (!_canNavigateHierarchy) return;
+    if (!_canNavigateHierarchy) {
+      return;
+    }
     final editors = [..._hierarchyAncestors, this];
     final existing = editors
         .where((editor) => editor._matchesTask(task))
@@ -1821,7 +2366,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
     }
     final sessions = _taskEditorNavigator(Navigator.of(context));
     final active = await _findTaskEditor(sessions, task);
-    if (!mounted || !_canNavigateHierarchy) return;
+    if (!mounted || !_canNavigateHierarchy) {
+      return;
+    }
     if (active != null) {
       await _revealTaskEditor(sessions, active);
       return;
@@ -1857,12 +2404,16 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       sessions.openings.removeWhere(
         (_, candidate) => identical(candidate, opening),
       );
-      if (mounted) setState(() => _hierarchyNavigationPending = false);
+      if (mounted) {
+        setState(() => _hierarchyNavigationPending = false);
+      }
     }
   }
 
   Future<void> _toggleSubtask(TaskSubtaskEntity subtask) async {
-    if (!_canWrite) return;
+    if (!_canWrite) {
+      return;
+    }
     setState(() => _saving = true);
     try {
       final repository = ref.read(
@@ -1900,12 +2451,16 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
         );
       }
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) {
+        setState(() => _saving = false);
+      }
     }
   }
 
   Future<void> _editChecklistSubtask(TaskSubtaskEntity subtask) async {
-    if (!_canWrite) return;
+    if (!_canWrite) {
+      return;
+    }
     final controller = TextEditingController(text: subtask.title);
     var busy = false;
     String? error;
@@ -1915,7 +2470,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) {
           Future<void> save() async {
-            if (busy) return;
+            if (busy) {
+              return;
+            }
             final title = controller.text.trim();
             if (title.isEmpty) {
               setDialogState(() => error = context.l10n.invalidCollectionValue);
@@ -1936,7 +2493,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
                     observedItem: subtask.checklistItem,
                     title: title,
                   );
-              if (dialogContext.mounted) Navigator.pop(dialogContext);
+              if (dialogContext.mounted) {
+                Navigator.pop(dialogContext);
+              }
             } on Object catch (failure) {
               if (dialogContext.mounted) {
                 setDialogState(() {
@@ -1945,7 +2504,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
                 });
               }
             } finally {
-              if (mounted) setState(() => _saving = false);
+              if (mounted) {
+                setState(() => _saving = false);
+              }
             }
           }
 
@@ -1986,7 +2547,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   }
 
   Future<void> _deleteChecklistSubtask(TaskSubtaskEntity subtask) async {
-    if (!_canWrite) return;
+    if (!_canWrite) {
+      return;
+    }
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -2004,7 +2567,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
         ],
       ),
     );
-    if (confirmed != true || !mounted || !_canWrite) return;
+    if (confirmed != true || !mounted || !_canWrite) {
+      return;
+    }
     setState(() => _saving = true);
     try {
       await ref
@@ -2021,13 +2586,19 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
             .showSnackBar(SnackBar(content: Text('$error')));
       }
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) {
+        setState(() => _saving = false);
+      }
     }
   }
 
   Future<void> _createSubtask() async {
-    if (!_canWrite) return;
-    if (widget.task?.googleAssignment.isAssigned ?? false) return;
+    if (!_canWrite) {
+      return;
+    }
+    if (widget.task?.googleAssignment.isAssigned ?? false) {
+      return;
+    }
     final controller = TextEditingController();
     final route = DialogRoute<String>(
       context: context,
@@ -2039,7 +2610,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
           textInputAction: TextInputAction.done,
           decoration: InputDecoration(labelText: context.l10n.title),
           onSubmitted: (value) {
-            if (value.trim().isNotEmpty) Navigator.pop(dialogContext, value);
+            if (value.trim().isNotEmpty) {
+              Navigator.pop(dialogContext, value);
+            }
           },
         ),
         actions: [
@@ -2061,7 +2634,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
     final title = await Navigator.of(context, rootNavigator: true).push(route);
     await route.completed;
     controller.dispose();
-    if (title == null || !mounted || !_canWrite) return;
+    if (title == null || !mounted || !_canWrite) {
+      return;
+    }
     try {
       await ref
           .read(tasksRepositoryForAccountProvider(_accountId))
@@ -2079,7 +2654,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   }
 
   Future<void> _pickDueTime() async {
-    if (!_canWrite) return;
+    if (!_canWrite) {
+      return;
+    }
     final parts = (_draft.microsoftDueTime ?? '09:00').split(':');
     final value = await showTimePicker(
       context: context,
@@ -2099,7 +2676,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   }
 
   Future<void> _pickStartDate() async {
-    if (!_canWrite) return;
+    if (!_canWrite) {
+      return;
+    }
     final current =
         DateTime.tryParse(_draft.microsoftStartDate ?? '') ?? DateTime.now();
     final value = await showBusyMaxDatePicker(
@@ -2121,7 +2700,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   }
 
   Future<void> _pickStartTime() async {
-    if (!_canWrite) return;
+    if (!_canWrite) {
+      return;
+    }
     final value = await _pickTime(_draft.microsoftStartTime);
     if (value != null && mounted && _canWrite) {
       setState(() => _draft = _draft.copyWith(microsoftStartTime: value));
@@ -2147,7 +2728,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   }
 
   Future<void> _pickReminderDate() async {
-    if (!_canWrite) return;
+    if (!_canWrite) {
+      return;
+    }
     final current =
         DateTime.tryParse(_draft.microsoftReminderDate ?? '') ?? DateTime.now();
     final value = await showBusyMaxDatePicker(
@@ -2164,7 +2747,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   }
 
   Future<void> _pickReminderTime() async {
-    if (!_canWrite) return;
+    if (!_canWrite) {
+      return;
+    }
     final value = await _pickTime(_draft.microsoftReminderTime);
     if (value != null && mounted && _canWrite) {
       setState(() => _draft = _draft.copyWith(microsoftReminderTime: value));
@@ -2246,7 +2831,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   }
 
   Future<void> _pickCompletionDate() async {
-    if (!_canWrite) return;
+    if (!_canWrite) {
+      return;
+    }
     final current =
         DateTime.tryParse(_draft.completedDate ?? '') ?? DateTime.now();
     final value = await showBusyMaxDatePicker(
@@ -2255,7 +2842,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       firstDate: DateTime(1970),
       lastDate: DateTime(2200),
     );
-    if (value == null || !mounted || !_canWrite) return;
+    if (value == null || !mounted || !_canWrite) {
+      return;
+    }
     setState(
       () => _draft = _draft.copyWith(
         completedDate: _date(value),
@@ -2267,7 +2856,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   }
 
   Future<void> _pickCompletionTime() async {
-    if (!_canWrite) return;
+    if (!_canWrite) {
+      return;
+    }
     final value = await _pickTime(_draft.completedTime);
     if (value != null && mounted && _canWrite) {
       setState(() => _draft = _draft.copyWith(completedTime: value));
@@ -2288,43 +2879,44 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   );
 
   Future<void> _addAlarm({int? index}) async {
-    if (!_canWrite) return;
+    if (!_canWrite) {
+      return;
+    }
     final initialAlarm = index == null ? null : _draft.alarms[index];
-    final mode = initialAlarm != null
-        ? initialAlarm.absoluteUtc != null
-              ? 'absolute'
-              : initialAlarm.isRelatedToDue
-              ? 'due'
-              : 'start'
-        : await showModalBottomSheet<String>(
-            context: context,
-            showDragHandle: true,
-            builder: (sheetContext) => SafeArea(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ListTile(
-                    leading: const Icon(Icons.event_outlined),
-                    title: Text(context.l10n.absoluteReminder),
-                    onTap: () => Navigator.pop(sheetContext, 'absolute'),
-                  ),
-                  if (_draft.microsoftStartDate != null)
-                    ListTile(
-                      leading: const Icon(Icons.play_arrow_outlined),
-                      title: Text(context.l10n.beforeTaskStarts),
-                      onTap: () => Navigator.pop(sheetContext, 'start'),
-                    ),
-                  if (_draft.dueDate != null)
-                    ListTile(
-                      leading: const Icon(Icons.flag_outlined),
-                      title: Text(context.l10n.beforeTaskDue),
-                      onTap: () => Navigator.pop(sheetContext, 'due'),
-                    ),
-                ],
-              ),
+    if (initialAlarm != null && !_canEditAlarm(initialAlarm)) {
+      return;
+    }
+    final mode = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.event_outlined),
+              title: Text(context.l10n.absoluteReminder),
+              onTap: () => Navigator.pop(sheetContext, 'absolute'),
             ),
-          );
-    if (mode == null || !mounted || !_canWrite) return;
+            if (_draft.microsoftStartDate != null)
+              ListTile(
+                leading: const Icon(Icons.play_arrow_outlined),
+                title: Text(context.l10n.beforeTaskStarts),
+                onTap: () => Navigator.pop(sheetContext, 'start'),
+              ),
+            if (_draft.dueDate != null)
+              ListTile(
+                leading: const Icon(Icons.flag_outlined),
+                title: Text(context.l10n.beforeTaskDue),
+                onTap: () => Navigator.pop(sheetContext, 'due'),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (mode == null || !mounted || !_canWrite) {
+      return;
+    }
     IcalTaskAlarm? alarm;
     if (mode == 'absolute') {
       final initial =
@@ -2336,48 +2928,66 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
         firstDate: DateTime(1970),
         lastDate: DateTime(2200),
       );
-      if (date == null || !mounted || !_canWrite) return;
+      if (date == null || !mounted || !_canWrite) {
+        return;
+      }
       final time = await showTimePicker(
         context: context,
         initialTime: TimeOfDay.fromDateTime(initial),
       );
-      if (time == null || !mounted || !_canWrite) return;
+      if (time == null || !mounted || !_canWrite) {
+        return;
+      }
+      final unchanged =
+          initialAlarm?.absoluteUtc != null &&
+          DateUtils.isSameDay(initial, date) &&
+          initial.hour == time.hour &&
+          initial.minute == time.minute;
       alarm = IcalTaskAlarm.displayAbsolute(
-        DateTime(
-          date.year,
-          date.month,
-          date.day,
-          time.hour,
-          time.minute,
-        ).toUtc(),
+        unchanged
+            ? initialAlarm!.absoluteUtc!
+            : DateTime(
+                date.year,
+                date.month,
+                date.day,
+                time.hour,
+                time.minute,
+              ).toUtc(),
       );
     } else {
       final allDay =
           _draft.microsoftDueTime == null && _draft.microsoftStartTime == null;
       final selection =
-          await showDialog<({int amount, String unit, TimeOfDay? time})>(
+          await showDialog<
+            ({int amount, String unit, TimeOfDay? time, Duration? original})
+          >(
             context: context,
             builder: (_) => _AndroidRelativeAlarmDialog(
               allDay: allDay,
               initialOffset: initialAlarm?.relativeOffset,
             ),
           );
-      if (selection == null || !mounted || !_canWrite) return;
-      final duration = allDay
-          ? IcalAllDayAlarmOffset(
-              amount: selection.amount,
-              unit: selection.unit == 'weeks'
-                  ? IcalAllDayAlarmUnit.weeks
-                  : IcalAllDayAlarmUnit.days,
-              hour: selection.time?.hour ?? 9,
-              minute: selection.time?.minute ?? 0,
-            ).toDuration()
-          : -switch (selection.unit) {
-              'weeks' => Duration(days: selection.amount * 7),
-              'days' => Duration(days: selection.amount),
-              'hours' => Duration(hours: selection.amount),
-              _ => Duration(minutes: selection.amount),
-            };
+      if (selection == null || !mounted || !_canWrite) {
+        return;
+      }
+      final duration =
+          selection.original ??
+          (allDay
+              ? IcalAllDayAlarmOffset(
+                  amount: selection.amount,
+                  unit: selection.unit == 'weeks'
+                      ? IcalAllDayAlarmUnit.weeks
+                      : IcalAllDayAlarmUnit.days,
+                  hour: selection.time?.hour ?? 9,
+                  minute: selection.time?.minute ?? 0,
+                ).toDuration()
+              : -switch (selection.unit) {
+                  'weeks' => Duration(days: selection.amount * 7),
+                  'days' => Duration(days: selection.amount),
+                  'hours' => Duration(hours: selection.amount),
+                  'seconds' => Duration(seconds: selection.amount),
+                  _ => Duration(minutes: selection.amount),
+                });
       alarm = IcalTaskAlarm.displayRelative(
         duration,
         relatedToDue: mode == 'due',
@@ -2405,10 +3015,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   }
 
   bool _canEditAlarm(IcalTaskAlarm alarm) =>
-      alarm.absoluteUtc != null ||
-      (alarm.relativeOffset != null &&
-          alarm.relativeOffset! <=
-              (_scheduledAllDay ? const Duration(days: 1) : Duration.zero));
+      alarm.canEditTriggerFor(allDay: _scheduledAllDay);
 
   String _alarmLabel(IcalTaskAlarm alarm) => taskAlarmLabel(context, alarm);
 
@@ -2426,7 +3033,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
               await ref
                   .read(microsoftCategoryAuthorizationProvider)
                   ?.authorizeCategoryAccess(_accountId, cancellation: consent);
-              if (!mounted || consent.isCancelled) return;
+              if (!mounted || consent.isCancelled) {
+                return;
+              }
               if (mounted) {
                 ref.invalidate(microsoftMasterCategoriesProvider(_accountId));
               }
@@ -2487,9 +3096,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   }
 
   Future<void> _save() async {
-    if (!_canWrite) return;
-    if (_pendingMoveDestinationId != null) {
-      await _moveToList(retryPending: true);
+    if (!_canWrite) {
       return;
     }
     if (_draft.hasNewPastReminder(
@@ -2504,9 +3111,15 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       return;
     }
     setState(_syncDraftFromControllers);
-    if (!_validateDraft()) return;
+    if (!_validateDraft()) {
+      return;
+    }
     if (_recoveryBaselineUnavailable && _hasDraftEdits) {
       _showRecoveryBaselineReview();
+      return;
+    }
+    if (_pendingMoveDestinationId != null) {
+      await _commitDraftMovement();
       return;
     }
     setState(() => _saving = true);
@@ -2539,7 +3152,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       widget.onMutationCommitted?.call(result);
       if (mounted) {
         await _clearRecovery(finalCleanup: true);
-        if (!mounted) return;
+        if (!mounted) {
+          return;
+        }
         setState(() => _allowPop = true);
         Navigator.pop(context, result);
       }
@@ -2562,7 +3177,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
         );
       }
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) {
+        setState(() => _saving = false);
+      }
     }
   }
 
@@ -2590,7 +3207,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       final latest = await ref
           .read(tasksRepositoryForAccountProvider(_accountId))
           .readTask(_draft.taskListId, _draft.taskId);
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       if (latest == null || latest.localDirty) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -2625,7 +3244,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
             .showSnackBar(SnackBar(content: Text(_taskMutationError(error))));
       }
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) {
+        setState(() => _saving = false);
+      }
     }
   }
 
@@ -2639,7 +3260,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
 
   bool? get _draftCompletion {
     final original = widget.task;
-    if (original == null) return null;
+    if (original == null) {
+      return null;
+    }
     final originalCompleted =
         original.status?.toLowerCase() == 'completed' ||
         original.status?.toUpperCase() == 'COMPLETED' ||
@@ -2681,7 +3304,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       _draft.scheduleIssueFor(_capabilities) == TaskScheduleIssue.none;
 
   bool _validateDraft() {
-    if (_draftIsValid) return true;
+    if (_draftIsValid) {
+      return true;
+    }
     setState(() => _showValidation = true);
     if (_draft.title.trim().isEmpty) {
       unawaited(_revealInvalidField(_titleFieldKey, _titleFocus));
@@ -2697,7 +3322,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
     final generation = ++_validationGeneration;
     bool active() => mounted && !_saving && generation == _validationGeneration;
     await WidgetsBinding.instance.endOfFrame;
-    if (!active() || !_formScroll.hasClients) return;
+    if (!active() || !_formScroll.hasClients) {
+      return;
+    }
     if (key.currentContext == null) {
       _formScroll.jumpTo(0);
       await WidgetsBinding.instance.endOfFrame;
@@ -2713,11 +3340,15 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       final next = (position.pixels + 400)
           .clamp(0, position.maxScrollExtent)
           .toDouble();
-      if (next <= position.pixels) break;
+      if (next <= position.pixels) {
+        break;
+      }
       _formScroll.jumpTo(next);
       await WidgetsBinding.instance.endOfFrame;
     }
-    if (!active()) return;
+    if (!active()) {
+      return;
+    }
     final field = key.currentContext;
     if (field != null && field.mounted) {
       await Scrollable.ensureVisible(
@@ -2725,7 +3356,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
         alignment: 0.1,
         duration: const Duration(milliseconds: 150),
       );
-      if (active()) focus?.requestFocus();
+      if (active()) {
+        focus?.requestFocus();
+      }
     }
   }
 
@@ -2826,9 +3459,13 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
 
   RecurrenceRule _taskRecurrence() {
     final creation = _draft.creationRecurrence;
-    if (creation != null) return creation.rule;
+    if (creation != null) {
+      return creation.rule;
+    }
     final raw = _draft.recurrenceJson;
-    if (raw == null) return const RecurrenceRule.none();
+    if (raw == null) {
+      return const RecurrenceRule.none();
+    }
     try {
       return EventRecurrenceCodec.decode(
         _provider,
@@ -2843,7 +3480,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   }
 
   void _setRecurrence(RecurrenceFrequency? frequency) {
-    if (frequency == null) return;
+    if (frequency == null) {
+      return;
+    }
     final base = DateTime.tryParse(_draft.dueDate ?? '') ?? DateTime.now();
     final rule = _simpleTaskRecurrenceRule(frequency, base);
     _applyRecurrence(rule, base);
@@ -2856,9 +3495,13 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       );
 
   Future<void> _editAdvancedRecurrence() async {
-    if (!_canWrite) return;
+    if (!_canWrite) {
+      return;
+    }
     final initial = _taskRecurrence();
-    if (!initial.isSupported) return;
+    if (!initial.isSupported) {
+      return;
+    }
     final reference = _recurrenceReference;
     final base = reference?.dateTime ?? DateTime.now();
     final result = await showAndroidRecurrenceDialog(
@@ -2907,7 +3550,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   }
 
   Future<void> _delete() async {
-    if (!_canWrite) return;
+    if (!_canWrite) {
+      return;
+    }
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -2929,7 +3574,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
         ],
       ),
     );
-    if (confirmed != true || !mounted || !_canWrite) return;
+    if (confirmed != true || !mounted || !_canWrite) {
+      return;
+    }
     setState(() => _saving = true);
     final result = AndroidTaskEditorResult(
       action: AndroidTaskEditorAction.deleted,
@@ -2952,23 +3599,31 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       widget.onMutationCommitted?.call(result);
       if (mounted) {
         await _clearRecovery(finalCleanup: true);
-        if (!mounted) return;
+        if (!mounted) {
+          return;
+        }
         setState(() => _allowPop = true);
         Navigator.pop(context, result);
       }
     } on Object catch (error) {
-      if (!mutationPersisted) widget.onMutationFailed?.call();
+      if (!mutationPersisted) {
+        widget.onMutationFailed?.call();
+      }
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('$error')));
       }
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) {
+        setState(() => _saving = false);
+      }
     }
   }
 
   Future<void> _duplicate() async {
-    if (!_canWrite) return;
+    if (!_canWrite) {
+      return;
+    }
     setState(() => _saving = true);
     try {
       final repository = ref.read(
@@ -2977,7 +3632,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       final taskId = _observedTask?.id ?? widget.task!.id;
       final needsConsent = await repository
           .taskDuplicationRequiresSchedulingConsent(_draft.taskListId, taskId);
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       final allowed =
           !needsConsent ||
           await showDialog<bool>(
@@ -3034,95 +3691,23 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
             .showSnackBar(SnackBar(content: Text('$error')));
       }
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) {
+        setState(() => _saving = false);
+      }
     }
   }
 
-  Future<void> _moveToList({bool retryPending = false}) async {
-    if (!_canWrite) return;
-    late final List<TaskListEntity> lists;
-    try {
-      lists =
-          (await ref
-                  .read(taskListsRepositoryForAccountProvider(_accountId))
-                  .listTaskLists())
-              .where(
-                (list) =>
-                    list.id != _draft.taskListId ||
-                    (!retryPending && _pendingMoveDestinationId != null),
-              )
-              .toList();
-    } on Object catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('$error')));
-      }
+  Future<void> _commitDraftMovement() async {
+    final destinationId = _pendingMoveDestinationId;
+    if (!_canWrite || destinationId == null) {
       return;
     }
-    if (!mounted || !_canWrite || lists.isEmpty) return;
-    final previousDestination = lists
-        .where((list) => list.id == _pendingMoveDestinationId)
-        .firstOrNull;
-    final destination =
-        (retryPending ? previousDestination : null) ??
-        await selectAndroidTaskList(
-          context,
-          lists,
-          title: context.l10n.list,
-          alwaysPrompt: !retryPending && _pendingMoveDestinationId != null,
-          accountLabels: {_accountId: widget.accountLabel ?? _accountId},
-        );
-    if (destination == null || !mounted || !_canWrite) return;
-    if (destination.id == _draft.taskListId) {
-      setState(() => _pendingMoveDestinationId = null);
-      if (_hasDraftEdits) {
-        await _persistRecovery();
-      } else {
-        await _clearRecovery();
-      }
-      return;
-    }
-    setState(_syncDraftFromControllers);
-    var saveEdits = false;
-    if (_hasDraftEdits) {
-      final decision = await showDialog<bool>(
-        context: context,
-        barrierDismissible: false,
-        builder: (dialogContext) => AlertDialog(
-          title: Text(context.l10n.discardChanges),
-          content: Text(context.l10n.discardChangesConfirmation),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: Text(context.l10n.cancel),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: Text(context.l10n.discardChangesAction),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: Text(context.l10n.save),
-            ),
-          ],
-        ),
-      );
-      if (decision == null || !mounted) return;
-      saveEdits = decision;
-      if (saveEdits && !_validateDraft()) return;
-      if (saveEdits && _recoveryBaselineUnavailable) {
-        _showRecoveryBaselineReview();
-        return;
-      }
-    }
-    setState(() {
-      _pendingMoveDestinationId = destination.id;
-      _saving = true;
-    });
+    final saveEdits = _hasDraftEdits;
+    setState(() => _saving = true);
     final result = AndroidTaskEditorResult(
       action: AndroidTaskEditorAction.moved,
       accountId: _accountId,
-      taskListId: destination.id,
+      taskListId: destinationId,
       taskId: (_observedTask?.id ?? widget.task!.id),
       previousTaskListId: _draft.taskListId,
     );
@@ -3141,7 +3726,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       await repository.moveTask(
         TaskMoveInput(
           sourceTaskListId: _draft.taskListId,
-          destinationTaskListId: destination.id,
+          destinationTaskListId: destinationId,
           taskId: (_observedTask?.id ?? widget.task!.id),
         ),
       );
@@ -3155,11 +3740,15 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       );
       widget.onMutationCommitted?.call(committedResult);
       await _clearRecovery(finalCleanup: true);
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       setState(() => _allowPop = true);
       Navigator.pop(context, committedResult);
     } on Object catch (error) {
-      if (!mutationPersisted) widget.onMutationFailed?.call();
+      if (!mutationPersisted) {
+        widget.onMutationFailed?.call();
+      }
       await _persistRecovery();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -3173,12 +3762,16 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
         );
       }
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) {
+        setState(() => _saving = false);
+      }
     }
   }
 
   Future<void> _moveToTop() async {
-    if (!_canWrite) return;
+    if (!_canWrite) {
+      return;
+    }
     setState(() => _saving = true);
     try {
       await ref
@@ -3199,7 +3792,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
             .showSnackBar(SnackBar(content: Text('$error')));
       }
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) {
+        setState(() => _saving = false);
+      }
     }
   }
 
@@ -3214,7 +3809,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       mimeTypes: const ['*/*'],
       maximumBytes: 25 * 1024 * 1024,
     );
-    if (document == null || !mounted) return;
+    if (document == null || !mounted) {
+      return;
+    }
     final name = safeAttachmentFileName(document.name ?? '');
     if (name == null) {
       _attachmentError(const FormatException('Invalid attachment name.'));
@@ -3244,19 +3841,25 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       _reloadTaskAttachments();
       _attachmentError(error);
     } finally {
-      if (mounted) setState(() => _attachmentBusy = false);
+      if (mounted) {
+        setState(() => _attachmentBusy = false);
+      }
     }
   }
 
   Future<void> _reconcileTaskUpload() async {
     final task = widget.task;
-    if (task == null) return;
+    if (task == null) {
+      return;
+    }
     setState(() => _attachmentBusy = true);
     try {
       final client = ref.read(
         microsoftTodoApiClientForAccountProvider(_accountId),
       );
-      if (client is! MicrosoftTodoAttachmentsApiClient) return;
+      if (client is! MicrosoftTodoAttachmentsApiClient) {
+        return;
+      }
       await ref
           .read(attachmentUploadCoordinatorProvider)
           .reconcileTask(
@@ -3269,19 +3872,25 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
     } on Object catch (error) {
       _attachmentError(error);
     } finally {
-      if (mounted) setState(() => _attachmentBusy = false);
+      if (mounted) {
+        setState(() => _attachmentBusy = false);
+      }
     }
   }
 
   Future<void> _cancelTaskUpload() async {
     final task = widget.task;
-    if (task == null) return;
+    if (task == null) {
+      return;
+    }
     setState(() => _attachmentBusy = true);
     try {
       final client = ref.read(
         microsoftTodoApiClientForAccountProvider(_accountId),
       );
-      if (client is! MicrosoftTodoAttachmentsApiClient) return;
+      if (client is! MicrosoftTodoAttachmentsApiClient) {
+        return;
+      }
       await ref
           .read(attachmentUploadCoordinatorProvider)
           .cancelTask(
@@ -3294,13 +3903,17 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
     } on Object catch (error) {
       _attachmentError(error);
     } finally {
-      if (mounted) setState(() => _attachmentBusy = false);
+      if (mounted) {
+        setState(() => _attachmentBusy = false);
+      }
     }
   }
 
   Future<void> _resolveTaskUpload({required bool exists}) async {
     final task = widget.task;
-    if (task == null) return;
+    if (task == null) {
+      return;
+    }
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -3318,7 +3931,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
         ],
       ),
     );
-    if (confirmed != true || !mounted) return;
+    if (confirmed != true || !mounted) {
+      return;
+    }
     ref
         .read(attachmentUploadCoordinatorProvider)
         .resolveUncertainManually(
@@ -3368,13 +3983,17 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
     } on Object catch (error) {
       _attachmentError(error);
     } finally {
-      if (mounted) setState(() => _attachmentBusy = false);
+      if (mounted) {
+        setState(() => _attachmentBusy = false);
+      }
     }
   }
 
   void _reloadTaskAttachments() {
     final task = widget.task;
-    if (task == null) return;
+    if (task == null) {
+      return;
+    }
     final key = (
       accountId: _accountId,
       taskListId: task.taskListId,
@@ -3390,7 +4009,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   }
 
   void _attachmentError(Object error) {
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(context.l10n.exportFailed('$error'))),
     );
@@ -3401,7 +4022,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   ) async {
     final task = widget.task;
     final name = safeAttachmentFileName(attachment.name);
-    if (task == null || !attachment.isFile || name == null) return;
+    if (task == null || !attachment.isFile || name == null) {
+      return;
+    }
     try {
       final client = ref.read(
         microsoftTodoApiClientForAccountProvider(_accountId),
@@ -3454,7 +4077,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
                   t.sourceId == _draft.taskListId,
             )
             .firstOrNull;
-        if (item == null) return;
+        if (item == null) {
+          return;
+        }
         raw = scheduleItemToICalendar(item, nowUtc: DateTime.now().toUtc());
       }
       await BusyMaxAndroidPlatform.instance.createDocument(
@@ -3472,11 +4097,17 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   }
 
   Future<void> _requestClose() async {
-    if (_saving) return;
+    if (_saving) {
+      return;
+    }
     if (!_hasPendingEdits || await _confirmDiscardChanges()) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       await _clearRecovery(finalCleanup: true);
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       setState(() => _allowPop = true);
       Navigator.pop(context);
     }
@@ -3529,14 +4160,18 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       }
       for (final key in keys) {
         final candidate = await storage.read(key: key);
-        if (candidate == null) continue;
+        if (candidate == null) {
+          continue;
+        }
         final Object? value;
         try {
           value = jsonDecode(candidate);
         } on FormatException {
           continue;
         }
-        if (value is! Map) continue;
+        if (value is! Map) {
+          continue;
+        }
         final listId = value['taskListId'];
         final scopeMatches = task == null
             ? listId == _initialDraft.taskListId
@@ -3555,7 +4190,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
           final source = await ref
               .read(tasksRepositoryForAccountProvider(_accountId))
               .readTask(listId, value['taskId']?.toString() ?? task.id);
-          if (source != null) continue;
+          if (source != null) {
+            continue;
+          }
         }
         if (candidate.isNotEmpty) {
           raw = candidate;
@@ -3563,9 +4200,13 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
           break;
         }
       }
-      if (raw == null) return;
+      if (raw == null) {
+        return;
+      }
       final value = jsonDecode(raw);
-      if (value is! Map) return;
+      if (value is! Map) {
+        return;
+      }
       final map = value.cast<String, Object?>();
       final savedAt = DateTime.tryParse(map['savedAt']?.toString() ?? '');
       if (savedAt == null ||
@@ -3785,11 +4426,15 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
           creationRecurrence: (provider: provider!, rule: creationRule),
         );
       }
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       final pendingMoveDestinationId =
           map['pendingMoveDestinationId'] as String?;
       await WidgetsBinding.instance.endOfFrame;
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       final recover = await showDialog<bool>(
         context: context,
         barrierDismissible: false,
@@ -3816,7 +4461,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
         await _clearRecovery(sourceKey: recoverySourceKey);
         return;
       }
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       setState(() {
         _creationAccountId = recoveredAccountId;
         _creationProvider = recoveredProvider;
@@ -3920,7 +4567,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       if (widget.task != null) 'taskId': _observedTask?.id ?? widget.task!.id,
     });
     await _enqueueRecovery(() async {
-      if (_recoveryWritesBlocked) return;
+      if (_recoveryWritesBlocked) {
+        return;
+      }
       await ref
           .read(secureStorageProvider)
           .write(key: recoveryKey, value: payload);
@@ -3968,12 +4617,15 @@ class _AndroidRelativeAlarmDialogState
   final _amount = TextEditingController(text: '10');
   late String _unit = widget.allDay ? 'days' : 'minutes';
   TimeOfDay _time = const TimeOfDay(hour: 9, minute: 0);
+  bool _edited = false;
 
   @override
   void initState() {
     super.initState();
     final offset = widget.initialOffset;
-    if (offset == null) return;
+    if (offset == null) {
+      return;
+    }
     if (widget.allDay) {
       final value = IcalAllDayAlarmOffset.fromDuration(offset);
       _amount.text = '${value.amount}';
@@ -3981,7 +4633,10 @@ class _AndroidRelativeAlarmDialogState
       _time = TimeOfDay(hour: value.hour, minute: value.minute);
     } else {
       final minutes = offset.inMinutes.abs();
-      if (minutes % (7 * 1440) == 0 && minutes > 0) {
+      if (offset.inMicroseconds.abs() % Duration.microsecondsPerMinute != 0) {
+        _unit = 'seconds';
+        _amount.text = '${offset.inSeconds.abs()}';
+      } else if (minutes % (7 * 1440) == 0 && minutes > 0) {
         _unit = 'weeks';
         _amount.text = '${minutes ~/ (7 * 1440)}';
       } else if (minutes % 1440 == 0 && minutes > 0) {
@@ -4007,7 +4662,7 @@ class _AndroidRelativeAlarmDialogState
   Widget build(BuildContext context) {
     final units = widget.allDay
         ? const ['days', 'weeks']
-        : const ['minutes', 'hours', 'days', 'weeks'];
+        : const ['seconds', 'minutes', 'hours', 'days', 'weeks'];
     return AlertDialog(
       title: Text(context.l10n.addReminder),
       content: Column(
@@ -4019,10 +4674,11 @@ class _AndroidRelativeAlarmDialogState
             keyboardType: TextInputType.number,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             decoration: InputDecoration(labelText: context.l10n.reminderAmount),
-            onChanged: (_) => setState(() {}),
+            onChanged: (_) => setState(() => _edited = true),
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
+            isExpanded: true,
             initialValue: _unit,
             decoration: InputDecoration(labelText: context.l10n.reminderUnit),
             items: [
@@ -4033,11 +4689,15 @@ class _AndroidRelativeAlarmDialogState
                     'weeks' => context.l10n.reminderUnitWeeks,
                     'days' => context.l10n.reminderUnitDays,
                     'hours' => context.l10n.reminderUnitHours,
+                    'seconds' => context.l10n.reminderUnitSeconds,
                     _ => context.l10n.reminderUnitMinutes,
                   }),
                 ),
             ],
-            onChanged: (value) => setState(() => _unit = value ?? _unit),
+            onChanged: (value) => setState(() {
+              _unit = value ?? _unit;
+              _edited = true;
+            }),
           ),
           if (widget.allDay)
             ListTile(
@@ -4050,7 +4710,12 @@ class _AndroidRelativeAlarmDialogState
                   context: context,
                   initialTime: _time,
                 );
-                if (value != null) setState(() => _time = value);
+                if (value != null) {
+                  setState(() {
+                    _time = value;
+                    _edited = true;
+                  });
+                }
               },
             ),
         ],
@@ -4067,6 +4732,7 @@ class _AndroidRelativeAlarmDialogState
                 amount: value,
                 unit: _unit,
                 time: widget.allDay ? _time : null,
+                original: _edited ? null : widget.initialOffset,
               )),
             _ => null,
           },
@@ -4115,3 +4781,6 @@ String _recurrenceLabel(BuildContext context, RecurrenceFrequency frequency) =>
       RecurrenceFrequency.monthly => context.l10n.repeatMonthly,
       RecurrenceFrequency.yearly => context.l10n.repeatYearly,
     };
+
+ExternalLocationPlatform _taskLocationPlatform() =>
+    ExternalLocationPlatform.android;

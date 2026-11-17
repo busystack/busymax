@@ -1,17 +1,37 @@
 part of 'android_settings_screen.dart';
 
+Future<void> createAndroidAccountCollection(
+  BuildContext context,
+  WidgetRef ref,
+  AccountEntity account, {
+  required bool calendar,
+}) => _AndroidSourceActions(
+  context,
+  ref,
+)._createAccountCollection(account, calendar: calendar);
+
 Future<void> showAndroidCalendarSourceActions(
   BuildContext context,
   WidgetRef ref,
-  CalendarSourceEntity source,
-) => _AndroidSourceActions(context, ref)._editCalendarSource(source);
+  CalendarSourceEntity source, {
+  List<Widget> Function(BuildContext)? extraActions,
+}) => _AndroidSourceActions(
+  context,
+  ref,
+  extraActions,
+)._editCalendarSource(source);
 
 Future<void> showAndroidTaskListActions(
   BuildContext context,
   WidgetRef ref,
   TaskListEntity list,
-  List<AccountEntity> accounts,
-) => _AndroidSourceActions(context, ref)._editTaskList(list, accounts);
+  List<AccountEntity> accounts, {
+  List<Widget> Function(BuildContext)? extraActions,
+}) => _AndroidSourceActions(
+  context,
+  ref,
+  extraActions,
+)._editTaskList(list, accounts);
 
 Future<void> showAndroidDavCollectionSelection(
   BuildContext context,
@@ -20,10 +40,71 @@ Future<void> showAndroidDavCollectionSelection(
 ) => _AndroidSourceActions(context, ref)._selectCalDavCollection(id);
 
 class _AndroidSourceActions {
-  _AndroidSourceActions(this.context, this.ref);
+  _AndroidSourceActions(this.context, this.ref, [this.extraActions]);
+  final List<Widget> Function(BuildContext)? extraActions;
   final BuildContext context;
   final WidgetRef ref;
   bool get mounted => context.mounted;
+  Future<void> _createAccountCollection(
+    AccountEntity account, {
+    required bool calendar,
+  }) async {
+    final l10n = context.l10n;
+    final modes = accountCollectionCreationModes(account.provider);
+    if (!account.isSignedIn ||
+        (calendar
+            ? !account.calendarsEnabled ||
+                  modes.calendarMode ==
+                      CalendarCollectionCreationMode.unavailable
+            : !account.tasksEnabled ||
+                  modes.taskListMode == TaskListCreationMode.unavailable)) {
+      return;
+    }
+    final title = await _textPrompt(
+      title: calendar ? l10n.newCalendar : l10n.newTaskList,
+      label: l10n.title,
+    );
+    if (title == null || !mounted) {
+      return;
+    }
+    try {
+      if (calendar) {
+        final result = await ref
+            .read(calendarCollectionCreationServiceProvider)
+            .createCalendar(accountId: account.id, title: title);
+        if (result.refreshPending && mounted) {
+          _message(l10n.davRefreshPending);
+        }
+      } else {
+        await ref
+            .read(taskListsRepositoryForAccountProvider(account.id))
+            .createTaskList(title);
+      }
+    } on DavRefreshPending {
+      if (mounted) {
+        _message(l10n.davRefreshPending);
+      }
+    } on Object catch (error) {
+      if (mounted) {
+        _message(
+          calendar
+              ? l10n.calendarCreateFailed(
+                  syncFailureMessage(
+                    error,
+                    networkUnavailableMessage: l10n.networkOfflineTryAgain,
+                  ),
+                )
+              : l10n.taskListCreateFailed(
+                  syncFailureMessage(
+                    error,
+                    networkUnavailableMessage: l10n.networkOfflineTryAgain,
+                  ),
+                ),
+        );
+      }
+    }
+  }
+
   Future<void> _selectCalDavCollection(String id) => showDialog<void>(
     context: context,
     builder: (dialogContext) => Consumer(
@@ -40,6 +121,30 @@ class _AndroidSourceActions {
               : Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    if (ref
+                            .watch(accountsStreamProvider)
+                            .valueOrNull
+                            ?.any(
+                              (account) =>
+                                  account.id == collection.accountId &&
+                                  account.provider == BusyProvider.nextcloud,
+                            ) ==
+                        true)
+                      ListTile(
+                        title: Text(context.l10n.nextcloudCollectionSettings),
+                        leading: const Icon(Icons.settings_outlined),
+                        onTap: () {
+                          Navigator.pop(dialogContext);
+                          Navigator.of(this.context).push<void>(
+                            MaterialPageRoute(
+                              builder: (_) => AndroidNextcloudCollectionScreen(
+                                accountId: collection.accountId,
+                                collectionId: collection.id,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
                     if (!collection.capabilities.permissionsKnown)
                       Text(context.l10n.davPermissionsUnknown),
                     if (collection.readOnly)
@@ -93,7 +198,9 @@ class _AndroidSourceActions {
           await service.changeSubscriptionColor(subscription.id, color);
         }
       } else if (action == 'frequency') {
-        if (!context.mounted) return;
+        if (!context.mounted) {
+          return;
+        }
         final mode = await showModalBottomSheet<WebCalRefreshMode>(
           context: context,
           showDragHandle: true,
@@ -156,7 +263,9 @@ class _AndroidSourceActions {
         .read(accountsRepositoryProvider)
         .accountById(accountId);
     if (!context.mounted || account?.isSyncEligible != true) {
-      if (context.mounted) _message(context.l10n.reconnectAccount);
+      if (context.mounted) {
+        _message(context.l10n.reconnectAccount);
+      }
       return false;
     }
     return !account!.provider.isDav ||
@@ -172,6 +281,7 @@ class _AndroidSourceActions {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              ...?extraActions?.call(context),
               ListTile(
                 title: Text(subscription.name),
                 subtitle: Text(subscription.safeOrigin),
@@ -209,7 +319,9 @@ class _AndroidSourceActions {
       final subscription = subscriptions
           .where((s) => s.calendarSourceId == source.id)
           .firstOrNull;
-      if (!context.mounted || subscription == null) return;
+      if (!context.mounted || subscription == null) {
+        return;
+      }
       await _showSubscription(subscription);
       return;
     }
@@ -222,6 +334,7 @@ class _AndroidSourceActions {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              ...?extraActions?.call(context),
               ListTile(
                 title: Text(source.summary),
                 subtitle:
@@ -328,10 +441,14 @@ class _AndroidSourceActions {
         ),
       ),
     );
-    if (action == null) return;
+    if (action == null) {
+      return;
+    }
     try {
       if (action == 'refresh') {
-        if (!await _networkReady(source.accountId)) return;
+        if (!await _networkReady(source.accountId)) {
+          return;
+        }
         await ref
             .read(accountSyncOperationsProvider)
             .syncCalendar(source.accountId, full: false);
@@ -342,12 +459,18 @@ class _AndroidSourceActions {
         final uri = account == null
             ? null
             : scheduleCalendarProviderWebUri(account, source);
-        if (uri != null) await openScheduleWebLink(uri.toString());
+        if (uri != null) {
+          await openScheduleWebLink(uri.toString());
+        }
       } else if (action == 'enablement') {
-        if (!context.mounted) return;
+        if (!context.mounted) {
+          return;
+        }
         await _selectCalDavCollection(source.davCollectionId!);
       } else if (action == 'visibility') {
-        if (!context.mounted) return;
+        if (!context.mounted) {
+          return;
+        }
         await showModalBottomSheet<void>(
           context: context,
           showDragHandle: true,
@@ -356,8 +479,12 @@ class _AndroidSourceActions {
           ),
         );
       } else if (action == 'metadata') {
-        if (!await _networkReady(source.accountId)) return;
-        if (!context.mounted) return;
+        if (!await _networkReady(source.accountId)) {
+          return;
+        }
+        if (!context.mounted) {
+          return;
+        }
         await Navigator.of(context).push<void>(
           MaterialPageRoute(
             builder: (_) => AndroidNextcloudCollectionScreen(
@@ -383,13 +510,17 @@ class _AndroidSourceActions {
           l10n.reminders,
           source.remindersEnabled,
         );
-        if (reminders == null) return;
+        if (reminders == null) {
+          return;
+        }
         await ref
             .read(calendarRepositoryProvider)
             .setSourceRemindersEnabled(source.id, reminders);
       } else if (action == 'color') {
         final choice = await _selectCalendarColor(source);
-        if (choice == null) return;
+        if (choice == null) {
+          return;
+        }
         await ref
             .read(calendarRepositoryProvider)
             .setSourceColor(source.id, choice);
@@ -410,7 +541,9 @@ class _AndroidSourceActions {
           ),
         );
       } else if (action == 'scheduling') {
-        if (!context.mounted) return;
+        if (!context.mounted) {
+          return;
+        }
         await Navigator.of(context).push<void>(
           MaterialPageRoute(
             builder: (_) => AndroidNextcloudSchedulingScreen(
@@ -438,9 +571,13 @@ class _AndroidSourceActions {
               : l10n.deleteCalendarConfirmation(source.summary),
           remove ? l10n.removeAction : l10n.delete,
         );
-        if (!confirmed) return;
+        if (!confirmed) {
+          return;
+        }
         await ref.read(calendarRepositoryProvider).deleteLocalSource(source.id);
-        if (!openedMicrosoftOwner) _requestQueuedCalendarSync(source);
+        if (!openedMicrosoftOwner) {
+          _requestQueuedCalendarSync(source);
+        }
       }
     } on DavRefreshPending {
       _message(l10n.davRefreshPending);
@@ -479,7 +616,9 @@ class _AndroidSourceActions {
               taskListId: list.id,
             )).future,
           );
-    if (!context.mounted) return;
+    if (!context.mounted) {
+      return;
+    }
     final capabilities = list.davCollectionId != null
         ? davCapabilities ?? noTaskCollectionCapabilities
         : account == null
@@ -502,6 +641,7 @@ class _AndroidSourceActions {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              ...?extraActions?.call(context),
               ListTile(title: Text(list.title)),
               ListTile(
                 leading: const Icon(Icons.refresh),
@@ -514,6 +654,13 @@ class _AndroidSourceActions {
                   leading: const Icon(Icons.open_in_browser_outlined),
                   title: Text(context.l10n.openInProvider),
                   onTap: () => Navigator.pop(context, 'open'),
+                ),
+              if (account?.provider == BusyProvider.nextcloud &&
+                  list.davCollectionId != null)
+                ListTile(
+                  leading: const Icon(Icons.settings_outlined),
+                  title: Text(context.l10n.nextcloudCollectionSettings),
+                  onTap: () => Navigator.pop(context, 'metadata'),
                 ),
               if (list.davCollectionId != null)
                 ListTile(
@@ -566,10 +713,26 @@ class _AndroidSourceActions {
         ),
       ),
     );
-    if (action == null) return;
+    if (action == null) {
+      return;
+    }
     try {
-      if (action == 'refresh') {
-        if (!await _networkReady(list.accountId)) return;
+      if (action == 'metadata') {
+        if (!await _networkReady(list.accountId) || !context.mounted) {
+          return;
+        }
+        await Navigator.of(context).push<void>(
+          MaterialPageRoute(
+            builder: (_) => AndroidNextcloudCollectionScreen(
+              accountId: list.accountId,
+              collectionId: list.davCollectionId!,
+            ),
+          ),
+        );
+      } else if (action == 'refresh') {
+        if (!await _networkReady(list.accountId)) {
+          return;
+        }
         await ref
             .read(accountSyncOperationsProvider)
             .syncTasks(list.accountId, full: false);
@@ -578,14 +741,18 @@ class _AndroidSourceActions {
           scheduleTaskProviderWebUri(account)!.toString(),
         );
       } else if (action == 'enablement') {
-        if (!context.mounted) return;
+        if (!context.mounted) {
+          return;
+        }
         await _selectCalDavCollection(list.davCollectionId!);
       } else if (action == 'clearCompleted') {
         final repository = ref.read(
           tasksRepositoryForAccountProvider(list.accountId),
         );
         final count = await repository.countClearCompleted(list.id);
-        if (!context.mounted || account == null) return;
+        if (!context.mounted || account == null) {
+          return;
+        }
         final confirmed = await _confirm(
           l10n.clearCompleted,
           account.provider == BusyProvider.google
@@ -620,7 +787,9 @@ class _AndroidSourceActions {
           l10n.reminders,
           list.remindersEnabled,
         );
-        if (reminders == null) return;
+        if (reminders == null) {
+          return;
+        }
         await ref
             .read(taskListsRepositoryForAccountProvider(list.accountId))
             .setRemindersEnabled(list.id, reminders);
@@ -649,7 +818,9 @@ class _AndroidSourceActions {
               : l10n.deleteTaskListConfirmation(list.title),
           l10n.delete,
         );
-        if (!confirmed) return;
+        if (!confirmed) {
+          return;
+        }
         await ref
             .read(taskListsRepositoryForAccountProvider(list.accountId))
             .deleteTaskList(list.id);
@@ -737,7 +908,9 @@ class _AndroidSourceActions {
           ),
       ],
     );
-    if (folder != null) _message(l10n.exportedFile(folder));
+    if (folder != null) {
+      _message(l10n.exportedFile(folder));
+    }
   }
 
   Future<String?> _textPrompt({
@@ -757,25 +930,29 @@ class _AndroidSourceActions {
     );
   }
 
-  Future<bool?> _booleanPrompt(String title, bool value) {
-    return showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(title),
-        content: Text(context.l10n.notificationDetailLevel),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text(context.l10n.hide),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(context.l10n.show),
-          ),
-        ],
+  Future<bool?> _booleanPrompt(String title, bool value) => showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: Text(title),
+      content: RadioGroup<bool>(
+        groupValue: value,
+        onChanged: (selected) => Navigator.pop(dialogContext, selected),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            RadioListTile<bool>(value: true, title: Text(context.l10n.onState)),
+            RadioListTile<bool>(value: false, title: Text(context.l10n.off)),
+          ],
+        ),
       ),
-    );
-  }
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext),
+          child: Text(context.l10n.cancel),
+        ),
+      ],
+    ),
+  );
 
   Future<bool> _confirm(String title, String body, String action) async =>
       await showDialog<bool>(
@@ -798,15 +975,22 @@ class _AndroidSourceActions {
       false;
 
   void _message(String message) {
-    if (!context.mounted) return;
+    if (!context.mounted) {
+      return;
+    }
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text(message)));
   }
 }
 
 class AndroidCalendarProviderVisibility extends ConsumerStatefulWidget {
-  const AndroidCalendarProviderVisibility({super.key, required this.source});
+  const AndroidCalendarProviderVisibility({
+    super.key,
+    required this.source,
+    this.showSourceName = true,
+  });
   final CalendarSourceEntity source;
+  final bool showSourceName;
   @override
   ConsumerState<AndroidCalendarProviderVisibility> createState() =>
       _AndroidCalendarProviderVisibilityState();
@@ -816,7 +1000,9 @@ class _AndroidCalendarProviderVisibilityState
     extends ConsumerState<AndroidCalendarProviderVisibility> {
   bool _busy = false;
   Future<void> _resolve(String id, String requestJson, bool discard) async {
-    if (_busy) return;
+    if (_busy) {
+      return;
+    }
     if (discard) {
       final request = jsonDecode(requestJson) as Map;
       final fields = [
@@ -835,7 +1021,9 @@ class _AndroidCalendarProviderVisibilityState
         ),
         context.l10n.discard,
       );
-      if (!confirmed || !mounted) return;
+      if (!confirmed || !mounted) {
+        return;
+      }
     }
     setState(() => _busy = true);
     try {
@@ -853,7 +1041,9 @@ class _AndroidCalendarProviderVisibilityState
             .showSnackBar(SnackBar(content: Text('$error')));
       }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() => _busy = false);
+      }
     }
   }
 
@@ -887,7 +1077,7 @@ class _AndroidCalendarProviderVisibilityState
         children: [
           SwitchListTile(
             title: Text(context.l10n.showInGoogleCalendarList),
-            subtitle: Text(source.summary),
+            subtitle: widget.showSourceName ? Text(source.summary) : null,
             value: !hidden,
             onChanged:
                 !source.capabilities.canChangeProviderVisibility ||
@@ -915,7 +1105,9 @@ class _AndroidCalendarProviderVisibilityState
                             .showSnackBar(SnackBar(content: Text('$error')));
                       }
                     } finally {
-                      if (mounted) setState(() => _busy = false);
+                      if (mounted) {
+                        setState(() => _busy = false);
+                      }
                     }
                   },
           ),

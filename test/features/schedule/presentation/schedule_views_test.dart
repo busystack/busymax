@@ -1,3 +1,8 @@
+import 'package:busymax/src/ui/common/schedule/mini_calendar.dart'
+    as shared_calendar;
+import 'package:busymax/src/ui/common/schedule/schedule_event_block.dart'
+    as shared_event;
+
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -361,7 +366,9 @@ void main() {
     );
     await tester.pump();
 
-    final months = find.byType(YearMonthMiniCalendar);
+    final months = find.byWidgetPredicate(
+      (widget) => widget is shared_calendar.YearMonthMiniCalendar,
+    );
     expect(months, findsNWidgets(DateTime.monthsPerYear));
     final januaryPosition = tester.getTopLeft(months.at(0));
     final februaryPosition = tester.getTopLeft(months.at(1));
@@ -396,7 +403,9 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final months = find.byType(YearMonthMiniCalendar);
+      final months = find.byWidgetPredicate(
+        (widget) => widget is shared_calendar.YearMonthMiniCalendar,
+      );
       final selectedDateKey = ValueKey((
         selectedDate.year,
         selectedDate.month,
@@ -662,7 +671,9 @@ void main() {
     expect(
       find.descendant(
         of: find.byType(ScheduleYearView),
-        matching: find.byType(YearMonthMiniCalendar),
+        matching: find.byWidgetPredicate(
+          (widget) => widget is shared_calendar.YearMonthMiniCalendar,
+        ),
       ),
       findsNWidgets(DateTime.monthsPerYear),
     );
@@ -876,7 +887,9 @@ void main() {
     );
 
     final eventSemantics = find.descendant(
-      of: find.byType(ScheduleEventBlock),
+      of: find.byWidgetPredicate(
+        (widget) => widget is shared_event.ScheduleEventBlock,
+      ),
       matching: find.byWidgetPredicate(
         (widget) =>
             widget is Semantics &&
@@ -895,7 +908,9 @@ void main() {
     await tester.pump();
 
     final focusedSurface = find.descendant(
-      of: find.byType(ScheduleEventBlock),
+      of: find.byWidgetPredicate(
+        (widget) => widget is shared_event.ScheduleEventBlock,
+      ),
       matching: find.byWidgetPredicate((widget) {
         if (widget is! Container || widget.decoration is! BoxDecoration) {
           return false;
@@ -1063,18 +1078,13 @@ void main() {
 
   test('all-day bar uses rendered range and collapses without items', () {
     final source = File(
-      'lib/src/features/schedule/presentation/schedule_day_week_view.dart',
+      'lib/src/ui/common/schedule/schedule_day_week_view.dart',
     ).readAsStringSync();
 
-    expect(
-      source,
-      contains(
-        'final fullDayBarHeight = showFullDayBar ? _fullDayBarHeight : 0.0;',
-      ),
-    );
+    expect(source, contains('final fullDayBarHeight = showFullDayBar'));
     expect(source, contains('fullDayEventsBarVisibility: true'));
     expect(source, contains('fullDayEventsBarHeight: fullDayBarHeight'));
-    expect(source, contains('fullDayEventHeight: showFullDayBar ? 24 : 0'));
+    expect(source, contains('fullDayEventHeight: showFullDayBar'));
     expect(source, contains('fullDayEventsBuilder: (events, width)'));
     expect(source, contains("ValueKey('schedule-all-day-scroll')"));
     expect(source, contains("ValueKey('schedule-all-day-resize-handle')"));
@@ -1084,7 +1094,7 @@ void main() {
     expect(adapters, contains('final displayEnd = _endOfDay('));
     expect(adapters, contains('endTime: displayEnd'));
     expect(source, contains('final visibleStart = _plannerStartDate(widget);'));
-    expect(source, contains('final visibleRange = ScheduleRange('));
+    expect(source, contains('final renderedRange ='));
     expect(
       source,
       contains('end: visibleStart.add(Duration(days: widget.daysShowed))'),
@@ -1468,14 +1478,26 @@ void main() {
       ),
     );
 
-    await tester.tap(find.byType(ScheduleEventBlock).first);
+    await tester.tap(
+      find
+          .byWidgetPredicate(
+            (widget) => widget is shared_event.ScheduleEventBlock,
+          )
+          .first,
+    );
 
     expect(selectedItem, isA<CalendarScheduleItem>());
     expect(pointerPosition, isNotNull);
 
     selectedItem = null;
     pointerPosition = null;
-    final center = tester.getCenter(find.byType(ScheduleEventBlock).first);
+    final center = tester.getCenter(
+      find
+          .byWidgetPredicate(
+            (widget) => widget is shared_event.ScheduleEventBlock,
+          )
+          .first,
+    );
     final secondaryClick = await tester.createGesture(
       kind: PointerDeviceKind.mouse,
       buttons: kSecondaryMouseButton,
@@ -2920,9 +2942,8 @@ void main() {
   });
 
   test('month weekday header uses the semantic window background', () {
-    final source = File(
-      'lib/src/features/schedule/presentation/schedule_month_view.dart',
-    ).readAsStringSync();
+    final source = File('lib/src/ui/common/schedule/schedule_month_view.dart')
+        .readAsStringSync();
 
     expect(source, contains('ColoredBox('));
     expect(source, contains('color: workspaceColor'));
@@ -3368,7 +3389,9 @@ void main() {
                 googleParent,
               ],
               onItemSelected: (_, item, [_]) {
-                if (item is TaskScheduleItem) selectedTaskId = item.id;
+                if (item is TaskScheduleItem) {
+                  selectedTaskId = item.id;
+                }
               },
               onTaskCompletionChanged: (_, _) {},
               onChecklistItemCompletionChanged: (_, _, completed) {
@@ -3920,14 +3943,13 @@ void main() {
   });
 
   test('month overflow uses the shared anchored popover route', () {
-    final month = File(
-      'lib/src/features/schedule/presentation/schedule_month_view.dart',
-    ).readAsStringSync();
+    final month = File('lib/src/ui/common/schedule/schedule_month_view.dart')
+        .readAsStringSync();
     final more = File(
       'lib/src/features/schedule/presentation/schedule_more_popover.dart',
     ).readAsStringSync();
 
-    expect(month, contains('anchorContext: anchorContext'));
+    expect(month, contains('.showMore('));
     expect(
       more,
       contains('showScheduleAnchoredPopover<ScheduleMorePopoverSelection>('),
@@ -3968,12 +3990,11 @@ void main() {
   });
 
   test('agenda list groups use the shared grouped row surface', () {
-    final agenda = File(
-      'lib/src/features/schedule/presentation/schedule_agenda_view.dart',
-    ).readAsStringSync();
+    final agenda = File('lib/src/ui/common/schedule/schedule_agenda_view.dart')
+        .readAsStringSync();
     final design = File('lib/src/app/busymax_design.dart').readAsStringSync();
 
-    expect(agenda, contains('BusyMaxGroupedList('));
+    expect(agenda, contains('ScheduleGroupedList('));
     expect(agenda, isNot(contains('surfaceColor:')));
     expect(agenda, contains('ScheduleProjection.colorForItem'));
     expect(
@@ -3988,9 +4009,8 @@ void main() {
   });
 
   test('search results use each platform Agenda presentation', () {
-    final linux = File(
-      'lib/src/features/schedule/presentation/schedule_agenda_view.dart',
-    ).readAsStringSync();
+    final linux = File('lib/src/ui/common/schedule/schedule_agenda_view.dart')
+        .readAsStringSync();
     final windows = File('lib/src/ui/windows/windows_schedule_page.dart')
         .readAsStringSync();
     final android = File(
@@ -3998,11 +4018,11 @@ void main() {
     ).readAsStringSync();
 
     expect(linux, isNot(contains('ListView.builder(')));
-    expect('BusyMaxGroupedList('.allMatches(linux), hasLength(1));
+    expect('ScheduleGroupedList('.allMatches(linux), hasLength(1));
     expect(linux, contains('scheduleSearchResultDisplayDate(item)'));
     expect(windows, isNot(contains('groupByDate')));
     expect(windows, contains('scheduleSearchResultDisplayDate(item)'));
-    expect(android, contains('scheduleSearchResultDisplayDate(item)'));
+    expect(android, contains('ScheduleAgendaView('));
     expect(windows, isNot(contains('class _SearchResultList')));
     expect(android, isNot(contains('class _SearchResultList')));
   });
@@ -4052,14 +4072,13 @@ void main() {
     expect(sidebar, contains('BusyMaxGlyphs.collapsedFor'));
     expect(sidebar, isNot(contains('if (_expanded)')));
     expect(sidebar, contains('MiniCalendar('));
-    expect(sidebar, isNot(contains('BusyMaxGroupedList(')));
+    expect(sidebar, isNot(contains('ScheduleGroupedList(')));
     expect(sidebar, isNot(contains('hoverColor: Colors.transparent')));
   });
 
   test('mini calendar keeps surface behavior outside the shared grid', () {
-    final source = File(
-      'lib/src/features/schedule/presentation/mini_calendar.dart',
-    ).readAsStringSync();
+    final source = File('lib/src/ui/common/schedule/mini_calendar.dart')
+        .readAsStringSync();
 
     expect(source, contains('class MiniCalendar extends StatefulWidget'));
     expect(source, contains('class YearMonthMiniCalendar'));
@@ -4354,7 +4373,11 @@ void main() {
       ),
     );
 
-    final january = find.byType(YearMonthMiniCalendar).first;
+    final january = find
+        .byWidgetPredicate(
+          (widget) => widget is shared_calendar.YearMonthMiniCalendar,
+        )
+        .first;
     await tester.tap(
       find.descendant(of: january, matching: find.byTooltip('Week 3')),
     );
@@ -4825,7 +4848,7 @@ void main() {
 
   test('day and week today tint stays subtle', () {
     final source = File(
-      'lib/src/features/schedule/presentation/schedule_day_week_view.dart',
+      'lib/src/ui/common/schedule/schedule_day_week_view.dart',
     ).readAsStringSync();
 
     expect(
@@ -4839,12 +4862,14 @@ void main() {
 
   test('day mode removes weekday date header but keeps week headers', () {
     final source = File(
-      'lib/src/features/schedule/presentation/schedule_day_week_view.dart',
+      'lib/src/ui/common/schedule/schedule_day_week_view.dart',
     ).readAsStringSync();
 
     expect(
       source,
-      contains('daysHeaderHeight: widget.daysShowed == 1 ? 0 : 50'),
+      contains(
+        'final daysHeaderHeight = widget.daysShowed == 1\n        ? 0.0',
+      ),
     );
     expect(
       source,
@@ -4855,11 +4880,10 @@ void main() {
 
   test('schedule chips keep grid metadata out of inline text', () {
     final eventBlock = File(
-      'lib/src/features/schedule/presentation/schedule_event_block.dart',
+      'lib/src/ui/common/schedule/schedule_event_block.dart',
     ).readAsStringSync();
-    final taskChip = File(
-      'lib/src/features/schedule/presentation/schedule_task_chip.dart',
-    ).readAsStringSync();
+    final taskChip = File('lib/src/ui/common/schedule/schedule_task_chip.dart')
+        .readAsStringSync();
 
     expect(eventBlock, contains('showTime'));
     expect(eventBlock, contains('_tooltipDetails'));
@@ -4870,11 +4894,10 @@ void main() {
 
   test('schedule item chips keep neutral surfaces with source accents', () {
     final eventBlock = File(
-      'lib/src/features/schedule/presentation/schedule_event_block.dart',
+      'lib/src/ui/common/schedule/schedule_event_block.dart',
     ).readAsStringSync();
-    final taskChip = File(
-      'lib/src/features/schedule/presentation/schedule_task_chip.dart',
-    ).readAsStringSync();
+    final taskChip = File('lib/src/ui/common/schedule/schedule_task_chip.dart')
+        .readAsStringSync();
     final projection = File('lib/src/schedule/schedule_projection.dart')
         .readAsStringSync();
 
@@ -4882,7 +4905,7 @@ void main() {
     expect(eventBlock, contains('sourceAccent'));
     expect(taskChip, contains('color: surfaceColors.control'));
     expect(taskChip, contains('color: surfaceColors.divider'));
-    expect(taskChip, contains('YaruCheckbox('));
+    expect(taskChip, contains('ScheduleCheckbox('));
     expect(taskChip, isNot(contains('selectedColor:')));
     expect(taskChip, isNot(contains('checkmarkColor:')));
     expect(taskChip, isNot(contains('YaruCheckboxTheme')));
@@ -4898,28 +4921,28 @@ void main() {
 
   test('day and week planner jumps when selected date changes', () {
     final source = File(
-      'lib/src/features/schedule/presentation/schedule_day_week_view.dart',
+      'lib/src/ui/common/schedule/schedule_day_week_view.dart',
     ).readAsStringSync();
 
-    expect(source, contains('final _plannerKey = GlobalKey'));
+    expect(source, contains('_plannerKey = GlobalKey'));
     expect(
       source,
       contains(
-        '_controller = icv.EventsController();\n    _jumpToVisibleDayStart();',
+        '_positionedForItems = widget.items.isNotEmpty;\n    _jumpToVisibleDayStart();',
       ),
     );
     expect(source, contains('_plannerKey.currentState?.jumpToDate(date)'));
-    expect(source, contains('initialDate: _plannerStartDate(widget)'));
+    expect(source, contains('initialDate: _plannerOriginDate(widget)'));
   });
 
   test(
     'day and week all-day bar and time gutter use rendered planner state',
     () {
       final source = File(
-        'lib/src/features/schedule/presentation/schedule_day_week_view.dart',
+        'lib/src/ui/common/schedule/schedule_day_week_view.dart',
       ).readAsStringSync();
 
-      expect(source, contains('_hasRenderedFullDayEvents(context, widget)'));
+      expect(source, contains('visibleRange: _visiblePlannerRange()'));
       expect(source, contains('SchedulePlannerEvents.fromItem('));
       expect(source, contains('_fullDayEventIntersectsRange'));
       expect(source, isNot(contains('_allDayItemIntersectsRange')));
@@ -4956,7 +4979,7 @@ void main() {
       'lib/src/features/schedule/presentation/schedule_workspace.dart',
     ).readAsStringSync();
     final agendaSource = File(
-      'lib/src/features/schedule/presentation/schedule_agenda_view.dart',
+      'lib/src/ui/common/schedule/schedule_agenda_view.dart',
     ).readAsStringSync();
 
     expect(source, contains('static const _agendaInitialDays = 30'));
@@ -5035,14 +5058,13 @@ void main() {
   });
 
   test('agenda task markers distinguish hierarchy without checkbox icons', () {
-    final agenda = File(
-      'lib/src/features/schedule/presentation/schedule_agenda_view.dart',
-    ).readAsStringSync();
+    final agenda = File('lib/src/ui/common/schedule/schedule_agenda_view.dart')
+        .readAsStringSync();
 
-    expect(agenda, contains('YaruIcons.task_list'));
-    expect(agenda, contains('BusyMaxGlyphs.subdirectoryFor'));
+    expect(agenda, contains('SchedulePresentation.of(context).taskIcon'));
+    expect(agenda, contains('.subdirectoryIcon('));
     expect(agenda, contains('Icons.account_tree_outlined'));
-    expect(agenda, contains('YaruCheckbox('));
+    expect(agenda, contains('ScheduleCheckbox('));
     expect(agenda, isNot(contains('selectedColor:')));
     expect(agenda, isNot(contains('checkmarkColor:')));
     expect(agenda, isNot(contains('YaruCheckboxTheme')));
@@ -5082,9 +5104,8 @@ void main() {
     final toolbar = File(
       'lib/src/features/schedule/presentation/schedule_toolbar.dart',
     ).readAsStringSync();
-    final yearView = File(
-      'lib/src/features/schedule/presentation/schedule_year_view.dart',
-    ).readAsStringSync();
+    final yearView = File('lib/src/ui/common/schedule/schedule_year_view.dart')
+        .readAsStringSync();
 
     expect(mode, contains('year'));
     expect(range, contains('factory ScheduleRange.year(DateTime day)'));
@@ -5098,14 +5119,14 @@ void main() {
     expect(yearView, contains('final monthWidth ='));
     expect(yearView, contains('Wrap('));
     expect(yearView, contains('children: ['));
-    expect(yearView, contains('spacing: BusyMaxSpacing.md'));
-    expect(yearView, contains('runSpacing: BusyMaxSpacing.md'));
+    expect(yearView, contains('spacing: ScheduleSpacing.md'));
+    expect(yearView, contains('runSpacing: ScheduleSpacing.md'));
     expect(yearView, contains('ColoredBox('));
     expect(
       yearView,
       contains('backgroundColor ?? BusyMaxSurfaceColors.of(context).window'),
     );
-    expect(yearView, contains('BusyMaxGroupedSurface('));
+    expect(yearView, contains('ScheduleGroupedSurface('));
     expect(yearView, contains('YearMonthMiniCalendar('));
     expect(yearView, contains('displayedMonth: DateTime('));
     expect(yearView, contains('onDayDoubleTap: onCreateAtDay'));
@@ -5127,11 +5148,10 @@ void main() {
   });
 
   test('month view uses visible full cell borders', () {
-    final source = File(
-      'lib/src/features/schedule/presentation/schedule_month_view.dart',
-    ).readAsStringSync();
+    final source = File('lib/src/ui/common/schedule/schedule_month_view.dart')
+        .readAsStringSync();
 
-    expect(source, contains('busyMaxCalendarGridColor(context)'));
+    expect(source, contains('scheduleGridColor(context)'));
     expect(source, contains('position: DecorationPosition.foreground'));
     expect(source, contains('left: BorderSide(color: border)'));
     expect(source, contains('bottom: row == rows - 1'));
