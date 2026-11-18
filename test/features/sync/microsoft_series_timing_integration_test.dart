@@ -5,7 +5,7 @@ import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
 import 'package:busymax/src/core/time/provider_date_time.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
-import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
+import 'package:busymax/src/features/calendar/domain/event_editor_draft.dart';
 import 'package:busymax/src/features/sync/calendar_pending_ops_replayer.dart';
 import 'package:busymax/src/features/sync/calendar_sync_engine.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_api_client.dart';

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../calendar_providers/calendar_mutation.dart';
-import '../../features/calendar/presentation/event_editor_draft.dart';
+import '../../features/calendar/domain/event_editor_draft.dart';
 import '../../features/recurrence/domain/series_timing_change.dart';
 import '../../features/recurrence/presentation/recurrence_summary.dart';
 import '../../l10n/l10n.dart';

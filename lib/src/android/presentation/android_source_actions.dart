@@ -80,11 +80,11 @@ class _AndroidSourceActions {
             .read(taskListsRepositoryForAccountProvider(account.id))
             .createTaskList(title);
       }
-    } on DavRefreshPending {
-      if (mounted) {
-        _message(l10n.davRefreshPending);
-      }
     } on Object catch (error) {
+      if (localizedCollectionRefreshPending(l10n, error) case final warning?) {
+        if (mounted) _message(warning);
+        return;
+      }
       if (mounted) {
         _message(
           calendar
@@ -499,7 +499,7 @@ class _AndroidSourceActions {
           label: l10n.setCustomCalendarName,
           initialValue: source.summary,
         );
-        if (name != null && name != source.summary) {
+        if (mounted && name != null && name != source.summary) {
           await ref
               .read(calendarRepositoryProvider)
               .renameLocalSource(source.id, name);
@@ -571,7 +571,7 @@ class _AndroidSourceActions {
               : l10n.deleteCalendarConfirmation(source.summary),
           remove ? l10n.removeAction : l10n.delete,
         );
-        if (!confirmed) {
+        if (!confirmed || !mounted) {
           return;
         }
         await ref.read(calendarRepositoryProvider).deleteLocalSource(source.id);
@@ -579,9 +579,11 @@ class _AndroidSourceActions {
           _requestQueuedCalendarSync(source);
         }
       }
-    } on DavRefreshPending {
-      _message(l10n.davRefreshPending);
     } on Object catch (error) {
+      if (localizedCollectionRefreshPending(l10n, error) case final warning?) {
+        if (mounted) _message(warning);
+        return;
+      }
       if (error is DavException &&
           error.code == 'DavCollectionCreationPending') {
         _message(l10n.davCollectionCreationPending);
@@ -624,15 +626,16 @@ class _AndroidSourceActions {
         : account == null
         ? noTaskCollectionCapabilities
         : adapterDefaultTaskCapabilities(account.provider);
-    final canRename = account?.provider == BusyProvider.microsoft
-        ? list.canRenameOrDeleteForMicrosoft
-        : capabilities.supportsListRename;
-    final canDelete =
-        account?.provider == BusyProvider.caldav && list.davCollectionId == null
-        ? false
-        : account?.provider == BusyProvider.microsoft
-        ? list.canRenameOrDeleteForMicrosoft
-        : capabilities.supportsListDelete;
+    final canRename = canRenameScheduleTaskList(
+      account?.provider,
+      list,
+      davCapabilities,
+    );
+    final canDelete = canDeleteScheduleTaskList(
+      account?.provider,
+      list,
+      davCapabilities,
+    );
     final action = await showModalBottomSheet<String>(
       context: context,
       showDragHandle: true,
@@ -777,7 +780,7 @@ class _AndroidSourceActions {
           label: l10n.list,
           initialValue: list.title,
         );
-        if (name != null && name != list.title) {
+        if (mounted && name != null && name != list.title) {
           await ref
               .read(taskListsRepositoryForAccountProvider(list.accountId))
               .renameTaskList(list.id, name);
@@ -825,9 +828,11 @@ class _AndroidSourceActions {
             .read(taskListsRepositoryForAccountProvider(list.accountId))
             .deleteTaskList(list.id);
       }
-    } on DavRefreshPending {
-      _message(l10n.davRefreshPending);
     } on Object catch (error) {
+      if (localizedCollectionRefreshPending(l10n, error) case final warning?) {
+        if (mounted) _message(warning);
+        return;
+      }
       if (error is DavException &&
           error.code == 'DavCollectionCreationPending') {
         _message(l10n.davCollectionCreationPending);

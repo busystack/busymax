@@ -1,4 +1,8 @@
-import 'dav_event_reminders.dart';
+import '../application/save_event_draft.dart';
+import '../../recurrence/presentation/recurrence_summary.dart'
+    show seriesTimingConfirmationMessage;
+import '../application/attendee_suggestion_session.dart';
+import '../domain/event_reminders.dart';
 
 import 'package:busymax/src/core/auth/authorization_attempt.dart';
 
@@ -20,6 +24,7 @@ import '../../../calendar_providers/calendar_colors.dart';
 import '../../../calendar_providers/calendar_mutation.dart';
 import '../../../calendar_providers/calendar_provider_capabilities.dart';
 import '../../../microsoft_calendar/microsoft_calendar_models.dart';
+import '../../../l10n/nextcloud_collection_error_description.dart';
 import '../../../l10n/l10n.dart';
 import '../../../schedule/schedule_projection.dart';
 
@@ -28,6 +33,7 @@ import 'package:busymax/src/providers/busy_provider.dart';
 import '../../accounts/data/accounts_repository.dart';
 import '../../recurrence/domain/event_recurrence_codec.dart';
 import '../../recurrence/domain/recurrence_rule.dart';
+import '../../recurrence/domain/recurrence_editing.dart';
 import '../../recurrence/domain/series_timing_change.dart';
 import '../../recurrence/presentation/recurrence_editor.dart';
 import '../../tasks/presentation/desktop_date_time_fields.dart';
@@ -35,7 +41,7 @@ import '../../maps/domain/location_result.dart';
 import '../data/calendar_repository.dart';
 import '../domain/event_move_policy.dart';
 import 'event_description_editor.dart';
-import 'event_editor_draft.dart';
+import '../domain/event_editor_draft.dart';
 import '../domain/event_timing_policy.dart';
 import '../domain/google_status_event.dart';
 import 'google_status_event_labels.dart';
@@ -49,6 +55,7 @@ Future<EventEditorDialogResult?> showBusyMaxEventEditorDialog(
   required List<CalendarSourceEntity> sources,
   required List<AccountEntity> accounts,
   bool allowDelete = true,
+  Future<void> Function(EventEditorDraft, CalendarGuestUpdatePolicy)? submit,
   Map<String, List<String>> categorySuggestionsByAccount = const {},
 }) async {
   return showBusyMaxModalEditorDialog<EventEditorDialogResult>(
@@ -62,14 +69,13 @@ Future<EventEditorDialogResult?> showBusyMaxEventEditorDialog(
         accounts: accounts,
         categorySuggestionsByAccount: categorySuggestionsByAccount,
         onCancel: () => Navigator.of(context).pop(),
-        onSave: (draft) => unawaited(
-          _completeEventEditorSave(
-            context,
-            draft: draft,
-            initialDraft: initialDraft,
-            sources: sources,
-            accounts: accounts,
-          ),
+        onSave: (draft) => _completeEventEditorSave(
+          context,
+          draft: draft,
+          initialDraft: initialDraft,
+          sources: sources,
+          accounts: accounts,
+          submit: submit,
         ),
         onDelete: allowDelete && initialDraft.eventId != null
             ? (eventId, scope) => unawaited(
@@ -131,49 +137,30 @@ Future<void> _completeEventEditorSave(
   required EventEditorDraft initialDraft,
   required List<CalendarSourceEntity> sources,
   required List<AccountEntity> accounts,
+  required Future<void> Function(EventEditorDraft, CalendarGuestUpdatePolicy)?
+  submit,
 }) async {
   try {
-    final seriesScope = draft.recurringMutationScope;
-    final change =
-        draft.eventId != null &&
-            (seriesScope == RecurringEventMutationScope.entireSeries ||
-                seriesScope == RecurringEventMutationScope.thisAndFuture)
-        ? await ProviderScope.containerOf(
-            context,
-            listen: false,
-          ).read(calendarRepositoryProvider).prepareSeriesTimingChange(draft)
-        : null;
-    if (!context.mounted) return;
-    if (change?.requiresConfirmation == true) {
-      final confirmed = await showBusyMaxConfirm(
+    final approved = await approveEventSeriesTiming(
+      repository: () => ProviderScope.containerOf(
+        context,
+        listen: false,
+      ).read(calendarRepositoryProvider),
+      draft: draft,
+      isActive: () => context.mounted,
+      confirm: (change, following) => showBusyMaxConfirm(
         context,
         title: context.l10n.repeat,
-        message: context.l10n.seriesPatternChangeConfirmation(
-          recurrenceRuleSummary(
-            context,
-            change!.previewRule(
-              following:
-                  draft.recurringMutationScope ==
-                  RecurringEventMutationScope.thisAndFuture,
-              original: true,
-            ),
-            timeZone: change.timeZone,
-          ),
-          recurrenceRuleSummary(
-            context,
-            change.previewRule(
-              following:
-                  draft.recurringMutationScope ==
-                  RecurringEventMutationScope.thisAndFuture,
-            ),
-            timeZone: change.timeZone,
-          ),
+        message: seriesTimingConfirmationMessage(
+          context,
+          change,
+          following: following,
         ),
         confirmLabel: context.l10n.save,
-      );
-      if (!confirmed || !context.mounted) return;
-      draft = draft.copyWith(seriesTimingApproval: change.signature);
-    }
+      ),
+    );
+    if (approved == null || !context.mounted) return;
+    draft = approved;
   } on Object catch (error) {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -218,6 +205,22 @@ Future<void> _completeEventEditorSave(
     );
     if (choice == null) return;
     guestUpdatePolicy = choice;
+  }
+  if (!context.mounted) return;
+  try {
+    await submit?.call(draft, guestUpdatePolicy);
+  } on Object catch (error) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          error is UnsupportedError
+              ? error.message ?? context.l10n.operationFailed
+              : localizedNextcloudCollectionError(context.l10n, error),
+        ),
+      ),
+    );
+    return;
   }
   if (!context.mounted) return;
   Navigator.of(context).pop(
@@ -383,7 +386,7 @@ class EventEditor extends ConsumerStatefulWidget {
   final List<AccountEntity> accounts;
   final Map<String, List<String>> categorySuggestionsByAccount;
   final VoidCallback onCancel;
-  final ValueChanged<EventEditorDraft> onSave;
+  final FutureOr<void> Function(EventEditorDraft) onSave;
   final EventEditorDeleteCallback? onDelete;
 
   @override
@@ -398,10 +401,11 @@ class _EventEditorState extends ConsumerState<EventEditor> {
   final _guestController = TextEditingController();
   String? _guestError;
   List<BusyMaxContactSuggestion> _guestSuggestions = const [];
-  int _guestSuggestionGeneration = 0;
+  final _suggestionSession = AttendeeSuggestionSession();
   StreamSubscription<void>? _contactsChanges;
   var _addingGuest = false;
   var _addingCategory = false;
+  bool _saving = false;
   var _confirmingCancel = false;
   var _startTimeValid = true;
   var _endTimeValid = true;
@@ -426,7 +430,7 @@ class _EventEditorState extends ConsumerState<EventEditor> {
   @override
   void dispose() {
     _consentCancellation?.cancel();
-    _guestSuggestionGeneration++;
+    _suggestionSession.invalidate();
     unawaited(_contactsChanges?.cancel());
     _shortcutFocusNode.dispose();
     _guestController.dispose();
@@ -437,7 +441,10 @@ class _EventEditorState extends ConsumerState<EventEditor> {
   Widget build(BuildContext context) {
     return BusyMaxWindowCloseGuard(
       onCloseRequested: _confirmWindowClose,
-      child: _buildEditor(context),
+      child: PopScope(
+        canPop: !_saving,
+        child: AbsorbPointer(absorbing: _saving, child: _buildEditor(context)),
+      ),
     );
   }
 
@@ -492,7 +499,11 @@ class _EventEditorState extends ConsumerState<EventEditor> {
               _draft.recurringMutationScope!,
             ));
     final canSave =
-        dirty && _draft.canSave && timeFieldsValid && recurringScopeValid;
+        !_saving &&
+        dirty &&
+        _draft.canSave &&
+        timeFieldsValid &&
+        recurringScopeValid;
     return CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.escape): () {
@@ -500,7 +511,7 @@ class _EventEditorState extends ConsumerState<EventEditor> {
         },
         const SingleActivator(LogicalKeyboardKey.keyS, control: true): () {
           if (canSave) {
-            widget.onSave(_draft);
+            unawaited(_submit());
           }
         },
       },
@@ -512,7 +523,8 @@ class _EventEditorState extends ConsumerState<EventEditor> {
           cancelLabel: l10n.cancel,
           saveLabel: l10n.save,
           onCancel: () => unawaited(_cancel()),
-          onSave: canSave ? () => widget.onSave(_draft) : null,
+          onSave: canSave ? _submit : null,
+          cancelEnabled: !_saving,
           children: [
             if ((_draft.attendees.isNotEmpty ||
                     widget.initialDraft.attendees.isNotEmpty) &&
@@ -650,6 +662,7 @@ class _EventEditorState extends ConsumerState<EventEditor> {
               children: [
                 YaruListTile.square(
                   title: EventDescriptionEditor(
+                    key: ValueKey(provider),
                     provider: provider,
                     text: _draft.editableDescription,
                     contentType: _draft.descriptionContentType,
@@ -813,8 +826,9 @@ class _EventEditorState extends ConsumerState<EventEditor> {
                     ),
                     destructive: true,
                     onTap:
-                        recurringOccurrence &&
-                            _draft.recurringMutationScope == null
+                        _saving ||
+                            (recurringOccurrence &&
+                                _draft.recurringMutationScope == null)
                         ? null
                         : _deleteCurrentEvent,
                   ),
@@ -826,6 +840,16 @@ class _EventEditorState extends ConsumerState<EventEditor> {
     );
   }
 
+  Future<void> _submit() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      await widget.onSave(_draft);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   Future<void> _cancel() async {
     if (await _confirmWindowClose() && mounted) {
       widget.onCancel();
@@ -833,6 +857,7 @@ class _EventEditorState extends ConsumerState<EventEditor> {
   }
 
   Future<bool> _confirmWindowClose() async {
+    if (_saving) return false;
     if (!_hasUnsavedChanges) {
       return true;
     }
@@ -870,7 +895,8 @@ class _EventEditorState extends ConsumerState<EventEditor> {
   }
 
   bool get _canDeleteWithShortcut {
-    return _draft.eventId != null &&
+    return !_saving &&
+        _draft.eventId != null &&
         widget.onDelete != null &&
         (!_requiresRecurringScope || _draft.recurringMutationScope != null);
   }
@@ -984,22 +1010,16 @@ class _EventEditorState extends ConsumerState<EventEditor> {
       _draft.recurrence,
       baseDate: _draft.start,
     );
-    if (!recurrence.isSupported) {
-      return BusyMaxActionRow(
-        title: l10n.repeat,
-        subtitle: l10n.unsupportedRecurrencePreserved,
-        leading: const Icon(Icons.repeat),
-        enabled: false,
-      );
-    }
     return BusyMaxActionRow(
       title: l10n.repeat,
       leading: const Icon(Icons.repeat),
-      subtitle: recurrenceRuleSummary(
-        context,
-        recurrence,
-        timeZone: _draft.startTimeZone,
-      ),
+      subtitle: recurrence.isSupported
+          ? recurrenceRuleSummary(
+              context,
+              recurrence,
+              timeZone: _draft.startTimeZone,
+            )
+          : l10n.unsupportedRecurrencePreserved,
       trailing: const Icon(Icons.chevron_right),
       onTap: () => unawaited(_editRecurrence(provider, recurrence)),
     );
@@ -1188,10 +1208,11 @@ class _EventEditorState extends ConsumerState<EventEditor> {
     }
     final providerChanged =
         currentProvider != null && currentProvider != source.provider;
-    final reminderMinutes = _reminderMinutesList(_draft.reminders);
     final adjustedReminders = providerChanged
-        ? _remindersFor(source.provider, reminderMinutes) ??
-              _disabledRemindersFor(source.provider)
+        ? EventReminderEditor(
+            currentProvider,
+            _draft.reminders,
+          ).forDestination(source.provider)
         : _draft.reminders;
     final adjustedShowAs = providerChanged
         ? eventShowAsForProvider(_draft.showAs, source.provider)
@@ -1229,7 +1250,7 @@ class _EventEditorState extends ConsumerState<EventEditor> {
       if (source.provider == BusyProvider.google) {
         _addingCategory = false;
       }
-      _guestSuggestionGeneration++;
+      _suggestionSession.invalidate();
       _guestSuggestions = const [];
       _draft = updated;
     });
@@ -1290,74 +1311,29 @@ class _EventEditorState extends ConsumerState<EventEditor> {
   List<Widget> _reminderRows(BusyProvider provider) {
     final l10n = context.l10n;
     final colorScheme = Theme.of(context).colorScheme;
-    final davRows =
-        provider.isDav && davEventRemindersHaveIdentities(_draft.reminders)
-        ? davEventEditableReminderRows(_draft.reminders) ??
-              <DavEventReminderRow>[]
-        : null;
-    final minutes = davRows == null
-        ? _reminderMinutesList(_draft.reminders)
-        : [for (final row in davRows) row.minutes];
-    void setDavRows(List<DavEventReminderRow> rows) {
-      setState(() {
-        _draft = _draft.copyWith(
-          reminders: davEventReminderPayload(rows),
-          remindersChanged: true,
-        );
-      });
-    }
-
-    final supportsMultiple = provider != BusyProvider.microsoft;
-    final canAddReminder =
-        minutes.isEmpty ||
-        (supportsMultiple &&
-            minutes.length < _eventReminderMinuteOptions.length);
+    final editor = EventReminderEditor(provider, _draft.reminders);
+    final minutes = editor.minutes;
     return [
+      if (editor.hasUnsupportedRows) Text(l10n.unsupportedReminder),
       for (var index = 0; index < minutes.length; index += 1)
         BusyMaxComboRow<int>(
           title: l10n.reminder,
           leading: const Icon(Icons.notifications_outlined),
-          values: _reminderValuesFor(minutes[index]),
+          values: eventReminderValuesFor(minutes[index]),
           selected: minutes[index],
           labelFor: (value) => _reminderLabel(context, value),
-          onSelected: (value) {
-            if (davRows != null) {
-              setDavRows([
-                ...davRows.take(index),
-                davRows[index].copyWith(minutes: value),
-                ...davRows.skip(index + 1),
-              ]);
-              return;
-            }
-            _setReminderMinutes(provider, [
-              ...minutes.take(index),
-              value,
-              ...minutes.skip(index + 1),
-            ]);
-          },
+          onSelected: (value) => _setReminders(editor.edit(index, value)),
           trailingAction: BusyMaxHeaderIconButton(
             tooltip: l10n.removeReminder,
             iconSize: BusyMaxSizes.headerIcon,
             icon: const Icon(YaruIcons.window_close),
-            onPressed: () {
-              if (davRows != null) {
-                setDavRows([
-                  ...davRows.take(index),
-                  ...davRows.skip(index + 1),
-                ]);
-                return;
-              }
-              _setReminderMinutes(provider, [
-                ...minutes.take(index),
-                ...minutes.skip(index + 1),
-              ]);
-            },
+            onPressed: () => _setReminders(editor.remove(index)),
             foregroundColor: colorScheme.onSurfaceVariant,
             backgroundColor: busyMaxSubtleButtonBackground(context),
             overlayColor: const WidgetStatePropertyAll(Colors.transparent),
           ),
         ),
-      if (canAddReminder)
+      if (editor.canAdd)
         BusyMaxActionRow(
           title: l10n.addReminder,
           titleWidget: Center(
@@ -1373,19 +1349,9 @@ class _EventEditorState extends ConsumerState<EventEditor> {
               ],
             ),
           ),
-          onTap: () {
-            if (davRows != null) {
-              setDavRows([
-                ...davRows,
-                DavEventReminderRow(minutes: _nextReminderMinute(minutes)),
-              ]);
-              return;
-            }
-            _setReminderMinutes(provider, [
-              ...minutes,
-              _nextReminderMinute(minutes),
-            ]);
-          },
+          onTap: () => _setReminders(
+            editor.edit(null, nextEventReminderMinute(minutes)),
+          ),
         ),
     ];
   }
@@ -1975,14 +1941,14 @@ class _EventEditorState extends ConsumerState<EventEditor> {
   }
 
   void _addGuest() {
-    _guestSuggestionGeneration++;
+    _suggestionSession.invalidate();
     _guestSuggestions = const [];
     final email = _guestController.text.trim();
     if (!_looksLikeEmail(email)) {
       setState(() => _guestError = context.l10n.feedbackInvalidEmail);
       return;
     }
-    if (_draft.attendees.any((attendee) => attendee.email == email)) {
+    if (containsEventAttendee(_draft.attendees, email)) {
       _guestController.clear();
       setState(() {
         _addingGuest = false;
@@ -2004,48 +1970,28 @@ class _EventEditorState extends ConsumerState<EventEditor> {
   }
 
   Future<void> _loadGuestSuggestions(String query) async {
-    final generation = ++_guestSuggestionGeneration;
     final accountId = _draft.accountId;
     final sourceId = _draft.sourceId;
-    if (query.trim().isEmpty) {
-      setState(() => _guestSuggestions = const []);
-      return;
-    }
-    try {
-      _contactsChanges ??= ref
-          .read(busyMaxContactsControllerProvider)
-          .changes
-          .listen((_) {
-            _guestSuggestionGeneration++;
-            if (mounted) setState(() => _guestSuggestions = const []);
-          });
-      final suggestions = await ref
-          .read(busyMaxContactsControllerProvider)
-          .suggestAttendees(
-            query,
-            busyMaxAccountId: accountId,
-            excludedAddresses: {
-              for (final attendee in _draft.attendees) attendee.email,
-            },
-          );
-      if (!mounted ||
-          generation != _guestSuggestionGeneration ||
-          _draft.accountId != accountId ||
-          _draft.sourceId != sourceId ||
-          _guestController.text.trim() != query.trim()) {
-        return;
-      }
+    final suggestions = await _suggestionSession.search(
+      contacts: () {
+        final contacts = ref.read(busyMaxContactsControllerProvider);
+        _contactsChanges ??= contacts.changes.listen((_) {
+          _suggestionSession.invalidate();
+          if (mounted) setState(() => _guestSuggestions = const []);
+        });
+        return contacts;
+      },
+      query: query,
+      accountId: accountId,
+      attendees: _draft.attendees,
+      isCurrent: () =>
+          mounted &&
+          _draft.accountId == accountId &&
+          _draft.sourceId == sourceId &&
+          _guestController.text.trim() == query.trim(),
+    );
+    if (mounted && suggestions != null) {
       setState(() => _guestSuggestions = suggestions);
-    } on Object {
-      // Manual attendee entry remains available when contacts are unavailable.
-      if (!mounted ||
-          generation != _guestSuggestionGeneration ||
-          _draft.accountId != accountId ||
-          _draft.sourceId != sourceId ||
-          _guestController.text.trim() != query.trim()) {
-        return;
-      }
-      setState(() => _guestSuggestions = const []);
     }
   }
 
@@ -2053,31 +1999,21 @@ class _EventEditorState extends ConsumerState<EventEditor> {
     if (!_draft.canManageAttendees || !_guestSuggestions.contains(suggestion)) {
       return;
     }
-    final generation = _guestSuggestionGeneration;
     final accountId = _draft.accountId;
     final sourceId = _draft.sourceId;
-    try {
-      if (!await ref
-          .read(busyMaxContactsControllerProvider)
-          .suggestionEligible(suggestion, busyMaxAccountId: accountId)) {
-        return;
-      }
-    } on Object {
-      return;
-    }
-    if (!mounted ||
-        generation != _guestSuggestionGeneration ||
-        _draft.accountId != accountId ||
-        _draft.sourceId != sourceId ||
-        !_draft.canManageAttendees ||
-        !_guestSuggestions.contains(suggestion)) {
-      return;
-    }
-    _guestSuggestionGeneration++;
-    final duplicate = _draft.attendees.any(
-      (attendee) =>
-          attendee.email.toLowerCase() == suggestion.email.toLowerCase(),
+    final accepted = await _suggestionSession.accept(
+      contacts: () => ref.read(busyMaxContactsControllerProvider),
+      accountId: accountId,
+      suggestion: suggestion,
+      isCurrent: () =>
+          mounted &&
+          _draft.accountId == accountId &&
+          _draft.sourceId == sourceId &&
+          _draft.canManageAttendees &&
+          _guestSuggestions.contains(suggestion),
     );
+    if (!accepted || !mounted) return;
+    final duplicate = containsEventAttendee(_draft.attendees, suggestion.email);
     _guestController.clear();
     setState(() {
       _guestSuggestions = const [];
@@ -2126,7 +2062,6 @@ class _EventEditorState extends ConsumerState<EventEditor> {
 
   void _setAllDay(bool allDay, BusyProvider provider) {
     final start = _draft.start;
-    final end = _draft.end;
     final adjustedRecurrence = start == null
         ? null
         : _recurrenceForScheduleChange(
@@ -2138,13 +2073,9 @@ class _EventEditorState extends ConsumerState<EventEditor> {
     setState(() {
       _startTimeValid = true;
       _endTimeValid = true;
-      _draft = _draft.copyWith(
-        allDay: allDay,
-        end: start != null && !_isValidEventEnd(start, end, allDay)
-            ? _defaultEndFor(start, allDay)
-            : end,
-        recurrence: adjustedRecurrence,
-      );
+      _draft = _draft
+          .copyWith(allDay: allDay, recurrence: adjustedRecurrence)
+          .withValidEnd();
     });
   }
 
@@ -2159,7 +2090,6 @@ class _EventEditorState extends ConsumerState<EventEditor> {
   }
 
   void _setStart(DateTime start, BusyProvider provider) {
-    final end = _draft.end;
     final adjustedRecurrence = _recurrenceForScheduleChange(
       provider,
       baseDate: start,
@@ -2167,13 +2097,9 @@ class _EventEditorState extends ConsumerState<EventEditor> {
       timeZone: _draft.startTimeZone,
     );
     setState(() {
-      _draft = _draft.copyWith(
-        start: start,
-        end: !_isValidEventEnd(start, end, _draft.allDay)
-            ? _defaultEndFor(start, _draft.allDay)
-            : end,
-        recurrence: adjustedRecurrence,
-      );
+      _draft = _draft
+          .copyWith(start: start, recurrence: adjustedRecurrence)
+          .withValidEnd();
     });
   }
 
@@ -2204,26 +2130,24 @@ class _EventEditorState extends ConsumerState<EventEditor> {
     if (_draft.providerRecurringEventId != null || _draft.recurrence == null) {
       return null;
     }
-    var rule = EventRecurrenceCodec.decode(
+    final current = EventRecurrenceCodec.decode(
       provider,
       _draft.recurrence,
       baseDate: _draft.start,
     );
-    if (!rule.isSupported || !rule.repeats) return null;
-    final untilDate = rule.untilDateFor(timeZone: _draft.startTimeZone);
-    if (untilDate != null) {
-      rule = rule.withUntilDate(
-        untilDate,
+    if (!current.isSupported || !current.repeats) return null;
+    final rule = retimeRecurrenceEnd(
+      current,
+      previousTimeZone: _draft.startTimeZone,
+      start: baseDate,
+      timeZone: timeZone,
+      allDay: allDay,
+      floating: _isFloatingDavTime(
+        provider,
         allDay: allDay,
-        floating: _isFloatingDavTime(
-          provider,
-          allDay: allDay,
-          timeZone: timeZone,
-        ),
-        baseDate: baseDate,
         timeZone: timeZone,
-      );
-    }
+      ),
+    );
     if (!EventRecurrenceCodec.canEncode(provider, rule)) return null;
     return EventRecurrenceCodec.encode(
       provider,
@@ -2236,22 +2160,12 @@ class _EventEditorState extends ConsumerState<EventEditor> {
   }
 
   void _setEnd(DateTime end) {
-    final start = _draft.start;
-    setState(() {
-      _draft = _draft.copyWith(
-        end: start != null && !_isValidEventEnd(start, end, _draft.allDay)
-            ? _defaultEndFor(start, _draft.allDay)
-            : end,
-      );
-    });
+    setState(() => _draft = _draft.copyWith(end: end).withValidEnd());
   }
 
-  void _setReminderMinutes(BusyProvider provider, List<int> minutes) {
-    final reminders = _remindersFor(provider, minutes);
+  void _setReminders(Object reminders) {
     setState(() {
-      _draft = _draft.copyWith(
-        reminders: reminders ?? _disabledRemindersFor(provider),
-      );
+      _draft = _draft.copyWith(reminders: reminders, remindersChanged: true);
     });
   }
 }
@@ -2291,133 +2205,6 @@ DateTime _withTime(DateTime? current, String? time) {
   final parsed = parseTimeOfDay(time) ?? const TimeOfDay(hour: 9, minute: 0);
   final date = current ?? DateTime.now();
   return DateTime(date.year, date.month, date.day, parsed.hour, parsed.minute);
-}
-
-DateTime _defaultEndFor(DateTime start, bool allDay) {
-  if (!allDay) {
-    return start.add(const Duration(hours: 1));
-  }
-  return start.isUtc
-      ? DateTime.utc(
-          start.year,
-          start.month,
-          start.day + 1,
-          start.hour,
-          start.minute,
-          start.second,
-          start.millisecond,
-          start.microsecond,
-        )
-      : DateTime(
-          start.year,
-          start.month,
-          start.day + 1,
-          start.hour,
-          start.minute,
-          start.second,
-          start.millisecond,
-          start.microsecond,
-        );
-}
-
-bool _isValidEventEnd(DateTime start, DateTime? end, bool allDay) {
-  if (end == null) {
-    return false;
-  }
-  if (!allDay) {
-    return end.isAfter(start);
-  }
-  return _calendarDate(end).isAfter(_calendarDate(start));
-}
-
-DateTime _calendarDate(DateTime value) {
-  return DateTime.utc(value.year, value.month, value.day);
-}
-
-const _eventReminderMinuteOptions = [5, 10, 30, 60, 1440, 0];
-
-List<int> _reminderMinutesList(Object? reminders) {
-  if (reminders is! Map) {
-    return const [];
-  }
-  final map = reminders.cast<String, Object?>();
-  if (map.containsKey('davEditableRows') || map.containsKey('alarms')) {
-    return [
-      for (final row
-          in davEventEditableReminderRows(map) ?? <DavEventReminderRow>[])
-        row.minutes,
-    ];
-  }
-  final minutes = map['reminderMinutesBeforeStart'];
-  if (minutes is int) {
-    return _normalizedReminderMinutes([minutes]);
-  }
-  final overrides = map['overrides'];
-  if (overrides is List) {
-    final values = <int>[];
-    for (final override in overrides) {
-      if (override is Map && override['minutes'] is int) {
-        values.add(override['minutes'] as int);
-      }
-    }
-    return _normalizedReminderMinutes(values);
-  }
-  final davMinutes = map['minutes'];
-  if (davMinutes is List) {
-    return _normalizedReminderMinutes(davMinutes.whereType<int>());
-  }
-  return const [];
-}
-
-Object? _remindersFor(BusyProvider provider, List<int> minutes) {
-  final normalized = _normalizedReminderMinutes(minutes);
-  if (normalized.isEmpty) {
-    return null;
-  }
-  if (provider != BusyProvider.microsoft) {
-    return {
-      'useDefault': false,
-      'overrides': [
-        for (final minutes in normalized)
-          {'method': 'popup', 'minutes': minutes},
-      ],
-    };
-  }
-  return {'isReminderOn': true, 'reminderMinutesBeforeStart': normalized.first};
-}
-
-Object _disabledRemindersFor(BusyProvider provider) {
-  if (provider != BusyProvider.microsoft) {
-    return {'useDefault': false, 'overrides': const []};
-  }
-  return {'isReminderOn': false};
-}
-
-List<int> _normalizedReminderMinutes(Iterable<int> minutes) {
-  final result = <int>[];
-  for (final value in minutes) {
-    if (value < 0 || result.contains(value)) {
-      continue;
-    }
-    result.add(value);
-  }
-  return result;
-}
-
-List<int> _reminderValuesFor(int selected) {
-  if (_eventReminderMinuteOptions.contains(selected)) {
-    return _eventReminderMinuteOptions;
-  }
-  return [..._eventReminderMinuteOptions, selected];
-}
-
-int _nextReminderMinute(List<int> existing) {
-  for (final minutes in _eventReminderMinuteOptions) {
-    if (!existing.contains(minutes)) {
-      return minutes;
-    }
-  }
-  return _eventReminderMinuteOptions.first;
 }
 
 String _reminderLabel(BuildContext context, int minutes) {

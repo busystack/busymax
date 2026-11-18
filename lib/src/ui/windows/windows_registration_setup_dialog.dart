@@ -1,3 +1,5 @@
+import '../../app/common/desktop_registration_wizard.dart';
+
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -32,8 +34,6 @@ Future<RegistrationHandle?> showWindowsRegistrationSetup(
   );
 }
 
-enum _SetupPage { methods, configuration, instructions }
-
 class _RegistrationDialog extends StatefulWidget {
   const _RegistrationDialog({
     required this.provider,
@@ -55,13 +55,7 @@ class _RegistrationDialogState extends State<_RegistrationDialog> {
   late final TextEditingController tenant = TextEditingController(
     text: setup.tenantId,
   );
-  _SetupPage page = _SetupPage.methods;
-  DesktopConnectionMethod method = DesktopConnectionMethod.custom;
-  bool returningFromInstructions = false;
-  bool launching = false;
-  String? linkError;
-  int? failedStep;
-  int linkRevision = 0;
+  final wizard = DesktopRegistrationWizard();
   final linkErrorAnchor = GlobalKey();
   final backFocus = FocusNode(debugLabel: 'Registration Back');
 
@@ -75,36 +69,25 @@ class _RegistrationDialogState extends State<_RegistrationDialog> {
     if (mounted) setState(() {});
   }
 
-  void navigate(_SetupPage target) {
-    setState(() {
-      returningFromInstructions =
-          page == _SetupPage.instructions && target == _SetupPage.configuration;
-      page = target;
-      linkRevision++;
-      launching = false;
-      linkError = null;
-      failedStep = null;
-    });
-    if (target == _SetupPage.instructions) {
+  void navigate(RegistrationWizardPage target) {
+    setState(() => wizard.navigate(target));
+    if (target == RegistrationWizardPage.instructions) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && page == target) backFocus.requestFocus();
+        if (mounted && wizard.page == target) backFocus.requestFocus();
       });
     }
   }
 
   void chooseMethod(DesktopConnectionMethod value) {
-    method = value;
-    navigate(_SetupPage.configuration);
+    wizard.method = value;
+    navigate(RegistrationWizardPage.configuration);
   }
 
-  void showGuide() => navigate(_SetupPage.instructions);
+  void showGuide() => navigate(RegistrationWizardPage.instructions);
 
   void back() {
-    if (page == _SetupPage.instructions) {
-      navigate(_SetupPage.configuration);
-    } else if (page == _SetupPage.configuration) {
-      navigate(_SetupPage.methods);
-    }
+    final target = wizard.previousPage;
+    if (target != null) navigate(target);
   }
 
   bool get sharedAvailable => widget.provider == BusyProvider.google
@@ -136,25 +119,26 @@ class _RegistrationDialogState extends State<_RegistrationDialog> {
     final l10n = AppLocalizations.of(context);
     final google = widget.provider == BusyProvider.google;
     final error = l10n.registrationSetupError(setup);
-    final title = page == _SetupPage.methods
+    final title = wizard.page == RegistrationWizardPage.methods
         ? l10n.registrationSetupTitle(widget.provider.displayName)
-        : page == _SetupPage.instructions
-        ? l10n.registrationInstructionsTitle(widget.provider, method)
-        : l10n.registrationConfigurationTitle(widget.provider, method);
+        : wizard.page == RegistrationWizardPage.instructions
+        ? l10n.registrationInstructionsTitle(widget.provider, wizard.method)
+        : l10n.registrationConfigurationTitle(widget.provider, wizard.method);
     final dialog = ContentDialog(
-      key: ValueKey('registration-${page.name}-dialog'),
+      key: ValueKey('registration-${wizard.page.name}-dialog'),
       title: Row(
         children: [
           SizedBox(
             width: 40,
-            child: page == _SetupPage.methods
+            child: wizard.page == RegistrationWizardPage.methods
                 ? null
                 : Tooltip(
                     message: l10n.registrationBack,
                     child: IconButton(
                       key: const ValueKey('registration-back'),
                       focusNode: backFocus,
-                      autofocus: page == _SetupPage.instructions,
+                      autofocus:
+                          wizard.page == RegistrationWizardPage.instructions,
                       icon: const Icon(FluentIcons.back),
                       onPressed: back,
                     ),
@@ -172,15 +156,17 @@ class _RegistrationDialogState extends State<_RegistrationDialog> {
         ],
       ),
       constraints: const BoxConstraints(maxWidth: 560, maxHeight: 640),
-      actions: page == _SetupPage.instructions
+      actions: wizard.page == RegistrationWizardPage.instructions
           ? null
           : [
               Button(
-                autofocus: page == _SetupPage.methods && !sharedAvailable,
+                autofocus:
+                    wizard.page == RegistrationWizardPage.methods &&
+                    !sharedAvailable,
                 onPressed: () => Navigator.pop(context),
                 child: Text(l10n.cancel),
               ),
-              if (page == _SetupPage.configuration)
+              if (wizard.page == RegistrationWizardPage.configuration)
                 FilledButton(
                   key: const ValueKey('registration-authorize'),
                   onPressed: setup.canConnect ? connect : null,
@@ -191,14 +177,15 @@ class _RegistrationDialogState extends State<_RegistrationDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: page == _SetupPage.instructions
+          children: wizard.page == RegistrationWizardPage.instructions
               ? _guide(l10n)
-              : page == _SetupPage.methods
+              : wizard.page == RegistrationWizardPage.methods
               ? _methods(l10n)
               : [
                   Text(
                     google
-                        ? method == DesktopConnectionMethod.googleWorkspace
+                        ? wizard.method ==
+                                  DesktopConnectionMethod.googleWorkspace
                               ? l10n.registrationWorkspaceIntroduction
                               : l10n.registrationGoogleIntroduction
                         : l10n.registrationMicrosoftIntroduction,
@@ -212,7 +199,7 @@ class _RegistrationDialogState extends State<_RegistrationDialog> {
                   const SizedBox(height: 12),
                   ListTile(
                     key: const ValueKey('registration-guide'),
-                    autofocus: returningFromInstructions,
+                    autofocus: wizard.returningFromInstructions,
                     title: Text(l10n.registrationSetupInstructions),
                     subtitle: Text(l10n.registrationInstructionsDescription),
                     trailing: const Icon(FluentIcons.chevron_right),
@@ -318,7 +305,7 @@ class _RegistrationDialogState extends State<_RegistrationDialog> {
             const SizedBox(width: 12),
             Button(
               key: const ValueKey('registration-import'),
-              autofocus: !returningFromInstructions,
+              autofocus: !wizard.returningFromInstructions,
               onPressed: setup.busy ? null : setup.validate,
               child: Text(
                 selected == null
@@ -349,7 +336,7 @@ class _RegistrationDialogState extends State<_RegistrationDialog> {
         child: TextBox(
           key: const ValueKey('registration-client-id'),
           controller: client,
-          autofocus: !returningFromInstructions,
+          autofocus: !wizard.returningFromInstructions,
           textInputAction: TextInputAction.next,
           onChanged: setup.updateClientId,
         ),
@@ -404,13 +391,9 @@ class _RegistrationDialogState extends State<_RegistrationDialog> {
     ),
   );
   Future<void> openLink(String url, int step) async {
-    if (launching) return;
-    final revision = ++linkRevision;
-    setState(() {
-      launching = true;
-      linkError = null;
-      failedStep = null;
-    });
+    if (wizard.launching) return;
+    late final int revision;
+    setState(() => revision = wizard.beginLinkLaunch());
     var opened = false;
     try {
       opened = await launchUrl(
@@ -420,23 +403,13 @@ class _RegistrationDialogState extends State<_RegistrationDialog> {
     } on Object {
       opened = false;
     }
-    if (!mounted ||
-        page != _SetupPage.instructions ||
-        revision != linkRevision) {
+    if (!mounted || !wizard.isCurrentLink(revision)) {
       return;
     }
-    setState(() {
-      launching = false;
-      if (!opened) {
-        linkError = AppLocalizations.of(context).registrationLinkFailed;
-        failedStep = step;
-      }
-    });
+    setState(() => wizard.finishLinkLaunch(opened: opened, step: step));
     if (!opened) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted ||
-            page != _SetupPage.instructions ||
-            revision != linkRevision) {
+        if (!mounted || !wizard.isCurrentLink(revision)) {
           return;
         }
         final errorContext = linkErrorAnchor.currentContext;
@@ -450,7 +423,7 @@ class _RegistrationDialogState extends State<_RegistrationDialog> {
   List<Widget> _guide(AppLocalizations l10n) {
     final steps = l10n.registrationDesktopSteps(
       widget.provider,
-      method: method,
+      method: wizard.method,
     );
     return [
       for (var i = 0; i < steps.length; i++) ...[
@@ -501,11 +474,11 @@ class _RegistrationDialogState extends State<_RegistrationDialog> {
             ),
           ),
         ],
-        if (linkError != null && failedStep == i)
+        if (wizard.failedStep == i)
           KeyedSubtree(
             key: linkErrorAnchor,
             child: _error(
-              linkError!,
+              l10n.registrationLinkFailed,
               key: const ValueKey('registration-link-error'),
             ),
           ),
@@ -513,11 +486,11 @@ class _RegistrationDialogState extends State<_RegistrationDialog> {
           Align(
             alignment: AlignmentDirectional.centerStart,
             child: HyperlinkButton(
-              onPressed: launching ? null : () => openLink(url, i),
+              onPressed: wizard.launching ? null : () => openLink(url, i),
               child: Text(steps[i].linkLabel!),
             ),
           ),
-        if (linkError != null && failedStep == i && steps[i].link != null)
+        if (wizard.failedStep == i && steps[i].link != null)
           ListTile(
             title: SelectableText(steps[i].link!),
             trailing: Tooltip(

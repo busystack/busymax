@@ -1,3 +1,5 @@
+import '../../features/auth/application/account_connection.dart';
+import '../../features/auth/application/account_removal.dart';
 import 'windows_nextcloud_certificate_dialog.dart';
 import '../common/nextcloud_certificate_review.dart';
 import 'windows_contacts_settings.dart';
@@ -29,6 +31,7 @@ import '../../../l10n/generated/app_localizations.dart';
 import '../../app/app_bootstrap.dart';
 import '../../features/accounts/data/accounts_repository.dart';
 import '../../features/auth/data/auth_repository.dart';
+import '../../features/settings/presentation/account_settings_feedback.dart';
 import '../../dav/dav_errors.dart';
 import '../../dav/http/dav_http_transport.dart';
 import 'windows_dav_account_dialogs.dart';
@@ -1524,20 +1527,13 @@ Future<void> _removeWindowsAccount(
   );
   if (options == null || !context.mounted) return;
   try {
-    final isDav = account.provider.isDav;
-    final authResult = isDav
-        ? null
-        : await ref
-              .read(authRepositoryProvider)
-              .removeAccount(
-                accountId: account.id,
-                revokeAuthorization: options.revokeGoogleAuthorization,
-              );
-    final davResult = isDav
-        ? await ref
-              .read(davAccountOnboardingServiceProvider)
-              .removeAccount(account.id)
-        : null;
+    final outcome = await removeBusyMaxAccount(
+      accountId: account.id,
+      provider: account.provider,
+      revokeGoogleAuthorization: options.revokeGoogleAuthorization,
+      auth: () => ref.read(authRepositoryProvider),
+      dav: () => ref.read(davAccountOnboardingServiceProvider),
+    );
     final remaining = await ref
         .read(accountsRepositoryProvider)
         .listVisibleAccounts();
@@ -1548,14 +1544,8 @@ Future<void> _removeWindowsAccount(
     }
     await ref.read(authSessionControllerProvider.notifier).load();
     if (!context.mounted) return;
-    if (authResult?.authorizationRevocationFailed ?? false) {
-      await _showWindowsMessage(context, l10n.accountRemovedGoogleRevokeFailed);
-    } else if (davResult?.remoteRevocationAttempted == true &&
-        !davResult!.remoteRevocationSucceeded) {
-      await _showWindowsMessage(
-        context,
-        l10n.nextcloudAccountRemovedRevokeFailed,
-      );
+    if (localizedAccountRemovalWarning(l10n, outcome) case final warning?) {
+      await _showWindowsMessage(context, warning);
     }
   } on Object catch (error) {
     if (context.mounted) {
@@ -2071,12 +2061,36 @@ class _WindowsRegistrationCardState
         if (!mounted || cancellation.isCancelled) return;
         request = request.withCancellation(cancellation);
         final repository = ref.read(authRepositoryProvider);
-        if (account.provider == BusyProvider.google) {
-          await repository.signIn(request: request);
-        } else {
-          await repository.signInWithMicrosoft(request: request);
-        }
-        await ref.read(signedInSyncRunnerProvider)(account.id, false);
+        final session = ref.read(authSessionControllerProvider.notifier);
+        final runSync = ref.read(signedInSyncRunnerProvider);
+        final connected = await (account.provider == BusyProvider.google
+            ? repository.signIn(request: request)
+            : repository.signInWithMicrosoft(request: request));
+        await finishAccountConnection(
+          accountId: connected.accountId!,
+          cancellation: cancellation,
+          session: session,
+          synchronize: () => runSync(account.id, false),
+          onFollowUpFailure: (error) {
+            if (context.mounted) {
+              unawaited(
+                displayInfoBar(
+                  context,
+                  builder: (_, close) => InfoBar(
+                    title: Text(
+                      l10n.syncFailed(
+                        AccountSettingsFeedback.fromError(l10n, error).message,
+                      ),
+                    ),
+                    severity: InfoBarSeverity.warning,
+                    onClose: close,
+                  ),
+                ),
+              );
+            }
+          },
+          waitForSync: true,
+        );
       } on Object catch (error) {
         if (error is OAuthException &&
             error.classification == OAuthFailureKind.cancelled) {

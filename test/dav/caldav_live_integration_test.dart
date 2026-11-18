@@ -22,7 +22,7 @@ import 'nextcloud_live_integration_test.dart' show DavLiveFixture;
 import 'support/caldav_fixture.dart';
 import 'support/caldav_qa_targets.dart';
 
-import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
+import 'package:busymax/src/features/calendar/domain/event_editor_draft.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
 import 'package:busymax/src/dav/mutation/dav_collection_administration.dart';
 import 'package:busymax/src/dav/xml/dav_xml.dart';

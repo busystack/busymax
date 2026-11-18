@@ -6,14 +6,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/app_bootstrap.dart';
 import '../../features/schedule/presentation/attachment_download.dart';
-import '../../features/schedule/presentation/attachment_upload_coordinator.dart';
+import '../../features/schedule/application/attachment_upload_coordinator.dart';
 import '../../features/schedule/presentation/schedule_event_details_format.dart';
 import '../../l10n/l10n.dart';
 import '../../microsoft_calendar/microsoft_event_attachment.dart';
 import '../../providers/busy_provider.dart';
 import '../../schedule/event_attachment_link.dart';
 import '../../schedule/schedule_item.dart';
-import '../../features/schedule/presentation/google_event_attachment_reference.dart';
+import '../../features/schedule/application/event_attachment_operations.dart';
 
 Future<void> showWindowsEventAttachmentsDialog(
   BuildContext context,
@@ -312,7 +312,7 @@ class _WindowsEventAttachmentsDialogState
       _error = null;
     });
     try {
-      if (await file.length() > 150 * 1024 * 1024) {
+      if (await file.length() > maximumEventAttachmentBytes) {
         throw StateError('Event file exceeds 150 MB.');
       }
       await ref
@@ -441,41 +441,25 @@ class _WindowsEventAttachmentsDialogState
     String? addFileUrl,
     String? removeFileUrl,
   }) async {
+    if (_saving) return;
     setState(() {
       _saving = true;
       _error = null;
     });
     try {
-      final List<EventAttachmentLink> links;
-      var cacheUpdated = true;
-      if (widget.item.provider == BusyProvider.google) {
-        final changed = await changeGoogleEventAttachmentReference(
-          item: widget.item,
-          client: ref.read(
-            googleCalendarApiClientForAccountProvider(widget.item.accountId),
-          ),
-          repository: ref.read(calendarRepositoryProvider),
-          addFileUrl: addFileUrl,
-          removeFileUrl: removeFileUrl,
-        );
-        links = changed.links;
-        cacheUpdated = changed.cacheUpdated;
-      } else {
-        final detail = await ref
-            .read(calendarRepositoryProvider)
-            .changeNextcloudUriAttachmentReference(
-              accountId: widget.item.accountId,
-              eventId: widget.item.id,
-              addUrl: addFileUrl,
-              removeUrl: removeFileUrl,
-            );
-        links = eventAttachmentLinks(detail?.attachments);
-        cacheUpdated = detail != null;
-      }
+      final result = await changeEventAttachmentReference(
+        item: widget.item,
+        googleClient: () => ref.read(
+          googleCalendarApiClientForAccountProvider(widget.item.accountId),
+        ),
+        repository: ref.read(calendarRepositoryProvider),
+        addUrl: addFileUrl,
+        removeUrl: removeFileUrl,
+      );
       if (!mounted) return;
       setState(() {
-        _referenceLinks = links;
-        if (!cacheUpdated) {
+        _referenceLinks = result.links;
+        if (!result.cacheUpdated) {
           _error = context.l10n.refreshFailed(context.l10n.attachments);
         }
       });
@@ -506,37 +490,27 @@ class _WindowsEventAttachmentsDialogState
         ],
       ),
     );
-    if (confirmed != true || !mounted) return;
+    if (confirmed != true || !mounted || _saving) return;
     setState(() {
       _saving = true;
       _error = null;
     });
     try {
-      await ref
-          .read(
-            microsoftCalendarApiClientForAccountProvider(widget.item.accountId),
-          )
-          .deleteEventAttachment(
-            calendarId: widget.item.providerCalendarId,
-            eventId: eventId,
-            attachmentId: attachment.id,
-          );
-      ref
-          .read(attachmentUploadCoordinatorProvider)
-          .attachmentRemoved(
-            AttachmentUploadCoordinator.eventKey(
-              widget.item.accountId,
-              widget.item.providerCalendarId,
-              eventId,
-            ),
-            attachment.id,
-          );
-      _refresh();
+      await deleteEventAttachment(
+        item: widget.item,
+        attachment: attachment,
+        client: ref.read(
+          microsoftCalendarApiClientForAccountProvider(widget.item.accountId),
+        ),
+        uploads: ref.read(attachmentUploadCoordinatorProvider),
+      );
     } on Object catch (error) {
-      _refresh();
       if (mounted) setState(() => _error = context.l10n.exportFailed('$error'));
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) {
+        _refresh();
+        setState(() => _saving = false);
+      }
     }
   }
 
@@ -553,16 +527,15 @@ class _WindowsEventAttachmentsDialogState
       _error = null;
     });
     try {
-      final bytes = await ref
-          .read(
-            microsoftCalendarApiClientForAccountProvider(widget.item.accountId),
-          )
-          .downloadEventAttachment(
-            calendarId: widget.item.providerCalendarId,
-            eventId: eventId,
-            attachment: attachment,
-          );
-      await saveAttachmentOnDesktop(name: attachment.name, bytes: bytes);
+      final download = await downloadEventAttachment(
+        item: widget.item,
+        attachment: attachment,
+        client: ref.read(
+          microsoftCalendarApiClientForAccountProvider(widget.item.accountId),
+        ),
+      );
+      if (!mounted) return;
+      await saveAttachmentOnDesktop(name: download.name, bytes: download.bytes);
     } on Object catch (error) {
       if (mounted) setState(() => _error = context.l10n.exportFailed('$error'));
     } finally {

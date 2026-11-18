@@ -1,4 +1,4 @@
-import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
+import 'package:busymax/src/features/calendar/domain/event_editor_draft.dart';
 import 'package:busymax/src/features/maps/domain/geographic_point.dart';
 import 'package:busymax/src/features/maps/domain/location_result.dart';
 import 'package:flutter_test/flutter_test.dart';

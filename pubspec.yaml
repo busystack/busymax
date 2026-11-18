@@ -58,6 +58,7 @@ dependencies:
     path: packages/busymax_android_platform
 
 dev_dependencies:
+  analyzer: ^14.4.0
   flutter_test:
     sdk: flutter
   integration_test:

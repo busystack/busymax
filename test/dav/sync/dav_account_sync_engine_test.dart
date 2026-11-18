@@ -26,7 +26,7 @@ import 'package:busymax/src/features/notifications/notification_schedule_service
 import 'package:busymax/src/features/notifications/desktop_notification_service.dart';
 import 'package:busymax/src/features/notifications/notification_scheduler.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
-import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
+import 'package:busymax/src/features/calendar/domain/event_editor_draft.dart';
 import 'package:busymax/src/features/sync/pending_op_resolution_service.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
 import 'package:busymax/src/providers/busy_provider.dart';

@@ -1,3 +1,4 @@
+import 'package:busymax/src/features/recurrence/domain/recurrence_editing.dart';
 import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:busymax/src/android/presentation/android_recurrence_dialog.dart';
 import 'package:busymax/src/features/recurrence/domain/event_recurrence_codec.dart';
@@ -137,7 +138,7 @@ void main() {
   }
 
   test('frequency seed is provider-safe and anchored to the start day', () {
-    final rule = androidRuleForFrequency(
+    final rule = const RecurrenceRule.none().withFrequency(
       RecurrenceFrequency.weekly,
       DateTime(2026, 6, 10),
     );
@@ -167,7 +168,7 @@ void main() {
             body: TextButton(
               onPressed: () async => result = await showAndroidRecurrenceDialog(
                 context,
-                initial: androidRuleForFrequency(
+                initial: const RecurrenceRule.none().withFrequency(
                   RecurrenceFrequency.weekly,
                   base,
                 ),

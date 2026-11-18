@@ -832,7 +832,7 @@ void main() {
       final scheduling = File(
         'lib/src/dav/presentation/nextcloud_scheduling_dialog.dart',
       ).readAsStringSync();
-      final accounts = File('lib/src/dav/auth/dav_account_dialogs.dart')
+      final accounts = File('lib/src/dav/presentation/dav_account_dialogs.dart')
           .readAsStringSync();
       final settings = File(
         'lib/src/features/settings/presentation/settings_screen.dart',

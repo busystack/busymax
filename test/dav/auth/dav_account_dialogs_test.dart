@@ -1,6 +1,6 @@
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/busymax_yaru_theme.dart';
-import 'package:busymax/src/dav/auth/dav_account_dialogs.dart';
+import 'package:busymax/src/dav/presentation/dav_account_dialogs.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:yaru/yaru.dart';

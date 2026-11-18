@@ -1,3 +1,5 @@
+import '../../../l10n/nextcloud_collection_error_description.dart';
+import '../../../schedule/schedule_task_list_actions.dart';
 import '../../../schedule/schedule_provider_links.dart';
 export '../../../schedule/schedule_provider_links.dart';
 import '../../sync/account_recovery_feedback.dart';
@@ -8,7 +10,6 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import '../../../dav/presentation/nextcloud_collection_dialog.dart';
-import '../../../dav/nextcloud/nextcloud_dav_context.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -36,7 +37,6 @@ import '../../connectivity/network_connectivity_service.dart';
 import '../../calendar/presentation/calendar_color_dialog.dart';
 import '../../sync/sync_auth_error.dart';
 import '../../task_lists/data/task_lists_repository.dart';
-import '../../tasks/domain/task_capabilities.dart';
 
 import 'package:busymax/src/providers/busy_provider.dart';
 
@@ -1088,8 +1088,16 @@ class _TaskListScheduleRow extends ConsumerWidget {
                 )),
               )
               .valueOrNull;
-    final canRename = _canRenameTaskList(account, list, davCapabilities);
-    final canDelete = _canDeleteTaskList(account, list, davCapabilities);
+    final canRename = canRenameScheduleTaskList(
+      account.provider,
+      list,
+      davCapabilities,
+    );
+    final canDelete = canDeleteScheduleTaskList(
+      account.provider,
+      list,
+      davCapabilities,
+    );
     final renameRestriction = _taskListRenameRestriction(
       context,
       account,
@@ -1326,38 +1334,6 @@ Future<bool> _manualRefreshAccountIsEligible(
   return false;
 }
 
-bool _canRenameTaskList(
-  AccountEntity account,
-  TaskListEntity list,
-  TaskCollectionCapabilities? davCapabilities,
-) {
-  if (account.provider == BusyProvider.microsoft) {
-    return list.canRenameOrDeleteForMicrosoft;
-  }
-  if (list.davCollectionId != null) {
-    return davCapabilities?.supportsListRename ?? false;
-  }
-  return true;
-}
-
-bool _canDeleteTaskList(
-  AccountEntity account,
-  TaskListEntity list,
-  TaskCollectionCapabilities? davCapabilities,
-) {
-  if (account.provider == BusyProvider.caldav &&
-      (list.isShared == true || list.davCollectionId == null)) {
-    return false;
-  }
-  if (account.provider == BusyProvider.microsoft) {
-    return list.canRenameOrDeleteForMicrosoft;
-  }
-  if (list.davCollectionId != null) {
-    return davCapabilities?.supportsListDelete ?? false;
-  }
-  return true;
-}
-
 String? _taskListRenameRestriction(
   BuildContext context,
   AccountEntity account,
@@ -1534,12 +1510,13 @@ Future<void> _createAccountTaskList(
     await ref
         .read(taskListsRepositoryForAccountProvider(account.id))
         .createTaskList(title);
-  } on DavRefreshPending {
-    if (context.mounted) {
-      _showCalendarMutationFailure(context, context.l10n.davRefreshPending);
-    }
   } on Object catch (error) {
     if (context.mounted) {
+      if (localizedCollectionRefreshPending(context.l10n, error)
+          case final warning?) {
+        _showCalendarMutationFailure(context, warning);
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -1606,19 +1583,13 @@ Future<void> _changeCalendarColor(
         .read(calendarRepositoryProvider)
         .setSourceColor(source.id, choice);
     _requestCalendarMutationSync(ref, source.accountId);
-  } on DavRefreshPending {
-    if (context.mounted) {
-      _showCalendarMutationFailure(context, context.l10n.davRefreshPending);
-    }
-  } on NextcloudRefreshPending {
-    if (context.mounted) {
-      _showCalendarMutationFailure(
-        context,
-        context.l10n.nextcloudRefreshPending,
-      );
-    }
   } on Object catch (error) {
     if (context.mounted) {
+      if (localizedCollectionRefreshPending(context.l10n, error)
+          case final warning?) {
+        _showCalendarMutationFailure(context, warning);
+        return;
+      }
       _showCalendarMutationFailure(
         context,
         context.l10n.calendarUpdateFailed(
@@ -1660,19 +1631,13 @@ Future<void> _renameCalendar(
         .read(calendarRepositoryProvider)
         .renameLocalSource(source.id, title.trim());
     _requestCalendarMutationSync(ref, source.accountId);
-  } on DavRefreshPending {
-    if (context.mounted) {
-      _showCalendarMutationFailure(context, context.l10n.davRefreshPending);
-    }
-  } on NextcloudRefreshPending {
-    if (context.mounted) {
-      _showCalendarMutationFailure(
-        context,
-        context.l10n.nextcloudRefreshPending,
-      );
-    }
   } on Object catch (error) {
     if (context.mounted) {
+      if (localizedCollectionRefreshPending(context.l10n, error)
+          case final warning?) {
+        _showCalendarMutationFailure(context, warning);
+        return;
+      }
       _showCalendarMutationFailure(
         context,
         context.l10n.calendarUpdateFailed(
@@ -1717,19 +1682,13 @@ Future<void> _deleteCalendar(
   try {
     await ref.read(calendarRepositoryProvider).deleteLocalSource(source.id);
     _requestCalendarMutationSync(ref, source.accountId);
-  } on DavRefreshPending {
-    if (context.mounted) {
-      _showCalendarMutationFailure(context, context.l10n.davRefreshPending);
-    }
-  } on NextcloudRefreshPending {
-    if (context.mounted) {
-      _showCalendarMutationFailure(
-        context,
-        context.l10n.nextcloudRefreshPending,
-      );
-    }
   } on Object catch (error) {
     if (context.mounted) {
+      if (localizedCollectionRefreshPending(context.l10n, error)
+          case final warning?) {
+        _showCalendarMutationFailure(context, warning);
+        return;
+      }
       final message =
           (error is CalendarMutationNotAllowed &&
                   error.reason ==
@@ -1780,12 +1739,13 @@ Future<void> _renameTaskList(
     await ref
         .read(taskListsRepositoryForAccountProvider(list.accountId))
         .renameTaskList(list.id, title.trim());
-  } on DavRefreshPending {
-    if (context.mounted) {
-      _showCalendarMutationFailure(context, context.l10n.davRefreshPending);
-    }
   } on Object catch (error) {
     if (context.mounted) {
+      if (localizedCollectionRefreshPending(context.l10n, error)
+          case final warning?) {
+        _showCalendarMutationFailure(context, warning);
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -1832,12 +1792,13 @@ Future<void> _deleteTaskList(
     await ref
         .read(taskListsRepositoryForAccountProvider(list.accountId))
         .deleteTaskList(list.id);
-  } on DavRefreshPending {
-    if (context.mounted) {
-      _showCalendarMutationFailure(context, context.l10n.davRefreshPending);
-    }
   } on Object catch (error) {
     if (context.mounted) {
+      if (localizedCollectionRefreshPending(context.l10n, error)
+          case final warning?) {
+        _showCalendarMutationFailure(context, warning);
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(

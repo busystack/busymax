@@ -1,10 +1,11 @@
+import '../../l10n/nextcloud_collection_error_description.dart';
+import '../../schedule/schedule_task_list_actions.dart';
 import '../../l10n/dav_collection_error_description.dart';
 
 import 'dart:async';
 
 import 'windows_nextcloud_dialogs.dart';
 import 'windows_dav_account_dialogs.dart';
-import '../../dav/nextcloud/nextcloud_dav_context.dart';
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -442,16 +443,16 @@ class _WindowsScheduleSourcePaneState
                 )),
               )
               .valueOrNull;
-    final canRename = account.provider == BusyProvider.microsoft
-        ? list.canRenameOrDeleteForMicrosoft
-        : list.davCollectionId != null
-        ? davCapabilities?.supportsListRename ?? false
-        : true;
-    final canDelete = account.provider == BusyProvider.microsoft
-        ? list.canRenameOrDeleteForMicrosoft
-        : list.davCollectionId != null
-        ? davCapabilities?.supportsListDelete ?? false
-        : true;
+    final canRename = canRenameScheduleTaskList(
+      account.provider,
+      list,
+      davCapabilities,
+    );
+    final canDelete = canDeleteScheduleTaskList(
+      account.provider,
+      list,
+      davCapabilities,
+    );
     return [
       if ((account.provider == BusyProvider.nextcloud ||
               account.provider == BusyProvider.caldav) &&
@@ -695,17 +696,13 @@ class _WindowsScheduleSourcePaneState
     try {
       await operation();
       if (mounted) widget.onSourcesChanged();
-    } on DavRefreshPending {
-      if (mounted) {
-        await _showMessage(AppLocalizations.of(context).davRefreshPending);
-      }
-    } on NextcloudRefreshPending {
-      if (mounted) {
-        await _showMessage(
-          AppLocalizations.of(context).nextcloudRefreshPending,
-        );
-      }
     } on Object catch (error) {
+      if (!mounted) return;
+      if (localizedCollectionRefreshPending(AppLocalizations.of(context), error)
+          case final warning?) {
+        await _showMessage(warning);
+        return;
+      }
       if (mounted) {
         await _showMessage(
           pendingChangesMessage != null &&

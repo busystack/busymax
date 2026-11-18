@@ -1,6 +1,8 @@
+import '../../features/calendar/application/attendee_suggestion_session.dart';
 import 'android_editor_group.dart';
 import '../../features/accounts/domain/account_collection_creation_capabilities.dart';
 import '../../ui/common/schedule/schedule_interactions.dart';
+import '../../features/calendar/application/save_event_draft.dart';
 import '../../features/calendar/domain/event_property_policy.dart';
 import '../../features/connectivity/network_connectivity_service.dart';
 
@@ -13,6 +15,7 @@ import '../../ui/common/schedule/schedule_month_view.dart';
 import '../../ui/common/schedule/schedule_year_view.dart';
 import '../../ui/common/schedule/schedule_agenda_view.dart';
 import '../../ui/common/schedule/mini_calendar.dart';
+import '../../schedule/schedule_navigation_intent.dart';
 import '../../schedule/schedule_creation_destinations.dart';
 import '../../features/calendar/domain/event_move_policy.dart';
 import '../../features/calendar/domain/event_timing_policy.dart';
@@ -27,7 +30,8 @@ import '../../schedule/schedule_agenda_query.dart';
 import '../android_workspace_navigation.dart';
 import '../../features/tasks/domain/task_checklist_item.dart';
 import '../../features/task_lists/data/task_lists_repository.dart';
-import '../../features/calendar/presentation/dav_event_reminders.dart';
+import '../../features/calendar/domain/dav_event_reminders.dart';
+import '../../features/calendar/domain/event_reminders.dart';
 import 'android_dav_attachments_section.dart';
 import '../../features/recurrence/presentation/recurrence_summary.dart';
 
@@ -50,7 +54,7 @@ import '../../calendar_providers/calendar_provider_capabilities.dart';
 import '../../core/logging/redacting_logger.dart';
 import '../../features/accounts/data/accounts_repository.dart';
 import '../../features/calendar/data/calendar_repository.dart';
-import '../../features/calendar/presentation/event_editor_draft.dart';
+import '../../features/calendar/domain/event_editor_draft.dart';
 import '../../features/calendar/domain/google_status_event.dart';
 import '../../features/calendar/presentation/google_status_event_labels.dart';
 import '../../features/maps/application/external_location_launcher.dart';
@@ -60,6 +64,7 @@ import '../../features/schedule/presentation/schedule_item_exporter.dart';
 import '../../features/schedule/presentation/cloud_calendar_series_export.dart';
 import '../../features/tasks/data/tasks_repository.dart';
 import '../../features/recurrence/domain/event_recurrence_codec.dart';
+import '../../features/recurrence/domain/recurrence_editing.dart';
 import '../../features/recurrence/domain/recurrence_rule.dart';
 import '../../l10n/l10n.dart';
 import '../../l10n/localized_formatters.dart';
@@ -1204,7 +1209,7 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
 
   void _movePeriod(ScheduleViewMode mode, int direction) {
     setState(() {
-      _anchor = _move(_anchor, mode, direction);
+      _anchor = adjacentScheduleDate(_anchor, mode, direction);
       _navigationDirection = direction;
       _navigationGeneration += 1;
     });
@@ -2940,7 +2945,9 @@ class _ScheduleBody extends StatelessWidget {
           if (velocity.abs() < 150) {
             return;
           }
-          onSelectDate(_move(anchor, mode, velocity < 0 ? 1 : -1));
+          onSelectDate(
+            adjacentScheduleDate(anchor, mode, velocity < 0 ? 1 : -1),
+          );
         },
         child: ScheduleMonthView(
           key: const ValueKey('android-month-grid'),
@@ -2965,7 +2972,9 @@ class _ScheduleBody extends StatelessWidget {
         onHorizontalDragEnd: (details) {
           final velocity = details.primaryVelocity ?? 0;
           if (velocity.abs() >= 150) {
-            onSelectDate(_move(anchor, mode, velocity < 0 ? 1 : -1));
+            onSelectDate(
+              adjacentScheduleDate(anchor, mode, velocity < 0 ? 1 : -1),
+            );
           }
         },
         child: ScheduleYearView(
@@ -3298,7 +3307,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
   final Map<String, bool> _guestOptionalOverrides = {};
   final Map<String, String> _suggestedGuestNames = {};
   List<BusyMaxContactSuggestion> _guestSuggestions = const [];
-  int _guestSuggestionGeneration = 0;
+  final _suggestionSession = AttendeeSuggestionSession();
   StreamSubscription<void>? _contactsChanges;
   int? _reminderMinutes;
   Object? _editedGoogleReminders;
@@ -3338,7 +3347,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
         .read(busyMaxContactsControllerProvider)
         .changes
         .listen((_) {
-          _guestSuggestionGeneration++;
+          _suggestionSession.invalidate();
           if (mounted) {
             setState(() => _guestSuggestions = const []);
           }
@@ -3352,7 +3361,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
 
   @override
   void dispose() {
-    _guestSuggestionGeneration++;
+    _suggestionSession.invalidate();
     unawaited(_contactsChanges?.cancel());
     _consentCancellation?.cancel();
     _recoveryTimer?.cancel();
@@ -3416,39 +3425,26 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
 
   void _setStart(DateTime value) {
     setState(() {
-      final end = _draft.end;
-      _draft = _draft.copyWith(
-        start: value,
-        end: end == null || !end.isAfter(value)
-            ? value.add(
-                _draft.allDay
-                    ? const Duration(days: 1)
-                    : const Duration(hours: 1),
-              )
-            : end,
-      );
+      _draft = _draft.copyWith(start: value).withValidEnd();
       _adjustRecurrenceTiming();
     });
   }
 
-  void _adjustRecurrenceTiming() {
+  void _adjustRecurrenceTiming({String? previousTimeZone}) {
     if (_draft.providerRecurringEventId != null ||
         !_recurrenceRule.isSupported ||
         !_recurrenceRule.repeats) {
       return;
     }
-    final until = _recurrenceRule.untilDateFor(timeZone: _draft.startTimeZone);
-    if (until != null) {
-      _recurrenceRule = _recurrenceRule.withUntilDate(
-        until,
-        allDay: _draft.allDay,
-        floating:
-            _provider.isDav &&
-            (_draft.startTimeZone == null || _draft.startTimeZone!.isEmpty),
-        baseDate: _draft.start!,
-        timeZone: _draft.startTimeZone,
-      );
-    }
+    _recurrenceRule = retimeRecurrenceEnd(
+      _recurrenceRule,
+      previousTimeZone: previousTimeZone ?? _draft.startTimeZone,
+      start: _draft.start!,
+      timeZone: _draft.startTimeZone,
+      allDay: _draft.allDay,
+      floating:
+          _provider.isDav && (_draft.startTimeZone?.trim().isEmpty ?? true),
+    );
     _recurrenceChanged = true;
   }
 
@@ -3461,8 +3457,11 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
       return;
     }
     if (_provider != source.provider &&
-        _recurrenceRule.repeats &&
-        !EventRecurrenceCodec.canEncode(source.provider, _recurrenceRule) &&
+        (!_recurrenceRule.isSupported ||
+            !EventRecurrenceCodec.canEncode(
+              source.provider,
+              _recurrenceRule,
+            )) &&
         _draft.providerRecurringEventId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -3480,27 +3479,15 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
         _provider == BusyProvider.google && _editedGoogleReminders != null
         ? _editedGoogleReminders
         : _provider.isDav && _editedNextcloudReminders != null
-        ? <String, dynamic>{
-            'davEditableRows': [
-              for (final row in _editedNextcloudReminders!) row.toJson(),
-            ],
-          }
+        ? davEventReminderPayload(_editedNextcloudReminders!)
         : _reminderMinutes != null
         ? _eventReminders(_provider, _reminderMinutes!)
         : _draft.reminders;
-    final minutes = androidEventReminderMinutes(_provider, liveReminders);
+    final reminders = EventReminderEditor(
+      _provider,
+      liveReminders,
+    ).forDestination(source.provider);
     setState(() {
-      final reminders = !changedProvider
-          ? liveReminders
-          : source.provider == BusyProvider.microsoft
-          ? _eventReminders(source.provider, minutes?.firstOrNull ?? -2)
-          : {
-              'useDefault': false,
-              'overrides': [
-                for (final minute in minutes ?? <int>[])
-                  {'method': 'popup', 'minutes': minute},
-              ],
-            };
       _draft = _draft.copyWith(
         accountId: source.accountId,
         sourceId: source.id,
@@ -3544,7 +3531,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
         _editedNextcloudReminders = null;
         _reminderMinutes = null;
       }
-      _guestSuggestionGeneration++;
+      _suggestionSession.invalidate();
       _guestSuggestions = const [];
     });
   }
@@ -3618,41 +3605,21 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
   }
 
   Future<void> _loadGuestSuggestions(String query) async {
-    final generation = ++_guestSuggestionGeneration;
     final accountId = _draft.accountId;
     final sourceId = _draft.sourceId;
-    final term = query.trim();
-    if (term.isEmpty) {
-      setState(() => _guestSuggestions = const []);
-      return;
-    }
-    try {
-      final suggestions = await ref
-          .read(busyMaxContactsControllerProvider)
-          .suggestAttendees(
-            term,
-            busyMaxAccountId: accountId,
-            excludedAddresses: {
-              for (final attendee in _currentAttendees()) attendee.email,
-            },
-          );
-      if (!mounted ||
-          generation != _guestSuggestionGeneration ||
-          _draft.accountId != accountId ||
-          _draft.sourceId != sourceId ||
-          _guestInput.text.trim() != term) {
-        return;
-      }
+    final suggestions = await _suggestionSession.search(
+      contacts: () => ref.read(busyMaxContactsControllerProvider),
+      query: query,
+      accountId: accountId,
+      attendees: _currentAttendees(),
+      isCurrent: () =>
+          mounted &&
+          _draft.accountId == accountId &&
+          _draft.sourceId == sourceId &&
+          _guestInput.text.trim() == query.trim(),
+    );
+    if (mounted && suggestions != null) {
       setState(() => _guestSuggestions = suggestions);
-    } on Object {
-      if (!mounted ||
-          generation != _guestSuggestionGeneration ||
-          _draft.accountId != accountId ||
-          _draft.sourceId != sourceId ||
-          _guestInput.text.trim() != term) {
-        return;
-      }
-      setState(() => _guestSuggestions = const []);
     }
   }
 
@@ -3662,27 +3629,20 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
     if (!_canManageGuests || !_guestSuggestions.contains(suggestion)) {
       return;
     }
-    final generation = _guestSuggestionGeneration;
     final accountId = _draft.accountId;
     final sourceId = _draft.sourceId;
-    try {
-      if (!await ref
-          .read(busyMaxContactsControllerProvider)
-          .suggestionEligible(suggestion, busyMaxAccountId: accountId)) {
-        return;
-      }
-    } on Object {
-      return;
-    }
-    if (!mounted ||
-        generation != _guestSuggestionGeneration ||
-        _draft.accountId != accountId ||
-        _draft.sourceId != sourceId ||
-        !_canManageGuests ||
-        !_guestSuggestions.contains(suggestion)) {
-      return;
-    }
-    _guestSuggestionGeneration++;
+    final accepted = await _suggestionSession.accept(
+      contacts: () => ref.read(busyMaxContactsControllerProvider),
+      accountId: accountId,
+      suggestion: suggestion,
+      isCurrent: () =>
+          mounted &&
+          _draft.accountId == accountId &&
+          _draft.sourceId == sourceId &&
+          _canManageGuests &&
+          _guestSuggestions.contains(suggestion),
+    );
+    if (!accepted || !mounted) return;
     final emails = _guests.text
         .split(RegExp(r'[,;\n]'))
         .map((value) => value.trim())
@@ -3962,7 +3922,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
                         ? _draft.copyWith(startTimeZone: selected)
                         : _draft.copyWith(endTimeZone: selected);
                     if (start) {
-                      _adjustRecurrenceTiming();
+                      _adjustRecurrenceTiming(previousTimeZone: zone);
                     }
                   });
                 },
@@ -3984,7 +3944,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
     }
     final attendees = _currentAttendees();
     setState(() {
-      if (!attendees.any((a) => a.email.toLowerCase() == email.toLowerCase())) {
+      if (!containsEventAttendee(attendees, email)) {
         _guests.text = [
           ...attendees
               .where((a) => !a.self && !a.organizer)
@@ -3996,7 +3956,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
       _guestError = null;
       _addingGuest = false;
       _guestSuggestions = const [];
-      _guestSuggestionGeneration++;
+      _suggestionSession.invalidate();
     });
   }
 
@@ -4103,7 +4063,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
                 _addingGuest = false;
                 _guestInput.clear();
                 _guestSuggestions = const [];
-                _guestSuggestionGeneration++;
+                _suggestionSession.invalidate();
               }),
               child: Text(context.l10n.cancel),
             ),
@@ -4218,18 +4178,9 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
                               _draft.eventType == 'outOfOffice'
                           ? null
                           : (value) => setState(() {
-                              _draft = _draft.copyWith(allDay: value);
-                              if (!_draft.copyWith(title: '_').canSave &&
-                                  _draft.start != null &&
-                                  _draft.end != null) {
-                                _draft = _draft.copyWith(
-                                  end: _draft.start!.add(
-                                    value
-                                        ? const Duration(days: 1)
-                                        : const Duration(hours: 1),
-                                  ),
-                                );
-                              }
+                              _draft = _draft
+                                  .copyWith(allDay: value)
+                                  .withValidEnd();
                               _adjustRecurrenceTiming();
                             }),
                     ),
@@ -4308,10 +4259,8 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
                                     : context.l10n.repeatNone
                               : context.l10n.unsupportedRecurrencePreserved,
                         ),
-                        enabled: _canEdit && _recurrenceRule.isSupported,
-                        onTap: _canEdit && _recurrenceRule.isSupported
-                            ? _editRecurrence
-                            : null,
+                        enabled: _canEdit,
+                        onTap: _canEdit ? _editRecurrence : null,
                       ),
                     ],
                   ),
@@ -4637,8 +4586,8 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
 
   List<Widget> _googleReminderRows() {
     final value = _editedGoogleReminders ?? _draft.reminders;
-    final mode = androidGoogleReminderMode(value);
-    final popupRows = androidGooglePopupReminderRows(value);
+    final mode = googleReminderMode(value);
+    final popupRows = googlePopupReminderRows(value);
     return [
       DropdownButtonFormField<int>(
         isExpanded: true,
@@ -4660,7 +4609,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
                   return;
                 }
                 setState(
-                  () => _editedGoogleReminders = androidSetGoogleReminderMode(
+                  () => _editedGoogleReminders = setGoogleReminderMode(
                     value,
                     selection,
                   ),
@@ -4704,7 +4653,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
                           }
                           setState(
                             () => _editedGoogleReminders =
-                                androidEditGooglePopupReminder(
+                                editGooglePopupReminder(
                                   value,
                                   overrideIndex: row.index,
                                   minutes: minute,
@@ -4718,8 +4667,8 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
                 onPressed: !_canEdit
                     ? null
                     : () => setState(
-                        () => _editedGoogleReminders =
-                            androidRemoveGooglePopupReminder(
+                        () =>
+                            _editedGoogleReminders = removeGooglePopupReminder(
                               value,
                               overrideIndex: row.index,
                             ),
@@ -4728,22 +4677,21 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
               ),
             ],
           ),
-        if (androidGoogleReminderOverrideCount(value) < 5)
+        if (googleReminderOverrideCount(value) < googleReminderLimit)
           TextButton.icon(
             onPressed: !_canEdit
                 ? null
                 : () => setState(
-                    () =>
-                        _editedGoogleReminders = androidEditGooglePopupReminder(
-                          value,
-                          overrideIndex: null,
-                          minutes: 10,
-                        ),
+                    () => _editedGoogleReminders = editGooglePopupReminder(
+                      value,
+                      overrideIndex: null,
+                      minutes: 10,
+                    ),
                   ),
             icon: const Icon(Icons.add),
             label: Text(context.l10n.addReminder),
           ),
-        if (androidGoogleHasUnsupportedReminder(value))
+        if (googleHasUnsupportedReminder(value))
           Text(context.l10n.unsupportedReminder),
       ],
     ];
@@ -5244,11 +5192,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
     }
     if (_provider.isDav && _editedNextcloudReminders != null) {
       draft = draft.copyWith(
-        reminders: {
-          'davEditableRows': [
-            for (final row in _editedNextcloudReminders!) row.toJson(),
-          ],
-        },
+        reminders: davEventReminderPayload(_editedNextcloudReminders!),
         remindersChanged: true,
       );
     }
@@ -5272,123 +5216,102 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
     if (!draft.canSave) {
       return;
     }
-    if (draft.providerRecurringEventId != null &&
-        draft.recurringMutationScope == null) {
-      final scope = await _selectRecurringScope();
-      if (scope == null) {
-        return;
-      }
-      draft = draft.copyWith(recurringMutationScope: scope);
-    }
-    if (!mounted) {
-      return;
-    }
-    final strategy = _moveStrategy(draft);
-    if (strategy == CalendarEventMoveStrategy.copyThenDelete) {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text(context.l10n.copyEventAndDeleteOriginal),
-          content: Text(
-            context.l10n.copyEventMoveWarning(
-              '${_originalSource?.authenticatedAccountEmail ?? widget.draft.accountId} · ${_originalSource?.summary}',
-              '${_source?.authenticatedAccountEmail ?? draft.accountId} · ${_source?.summary}',
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text(context.l10n.cancel),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: Text(context.l10n.copyAndDelete),
-            ),
-          ],
-        ),
-      );
-      if (confirmed != true || !mounted) {
-        return;
-      }
-    }
-    if (!mounted) {
-      return;
-    }
-    var guestPolicy = CalendarGuestUpdatePolicy.send;
-    final externalGuests = [
-      ...draft.attendees,
-      ...widget.draft.attendees,
-    ].any((a) => !a.self && !a.organizer);
-    if ((_source?.usesImplicitScheduling == true &&
-            draft.attendees.isNotEmpty) ||
-        (draft.isOrganizer == true && externalGuests)) {
-      final decision = await showAndroidGuestDeliveryDialog(
-        context,
-        provider: _deliveryProvider,
-      );
-      if (decision == null || !mounted) {
-        return;
-      }
-      guestPolicy = decision;
-    }
+    if (_saving) return;
     setState(() => _saving = true);
     try {
-      final seriesTiming = await ref
-          .read(calendarRepositoryProvider)
-          .prepareSeriesTimingChange(draft);
+      if (draft.providerRecurringEventId != null &&
+          draft.recurringMutationScope == null) {
+        final scope = await _selectRecurringScope();
+        if (scope == null) {
+          return;
+        }
+        draft = draft.copyWith(recurringMutationScope: scope);
+      }
       if (!mounted) {
         return;
       }
-      if (seriesTiming?.requiresConfirmation == true) {
+      final strategy = _moveStrategy(draft);
+      if (strategy == CalendarEventMoveStrategy.copyThenDelete) {
         final confirmed = await showDialog<bool>(
           context: context,
-          builder: (dialogContext) => AlertDialog(
-            title: Text(context.l10n.repeat),
+          builder: (context) => AlertDialog(
+            title: Text(context.l10n.copyEventAndDeleteOriginal),
             content: Text(
-              context.l10n.seriesPatternChangeConfirmation(
-                recurrenceRuleSummary(
-                  dialogContext,
-                  seriesTiming!.previewRule(
-                    following:
-                        draft.recurringMutationScope ==
-                        RecurringEventMutationScope.thisAndFuture,
-                    original: true,
-                  ),
-                  timeZone: seriesTiming.timeZone,
-                ),
-                recurrenceRuleSummary(
-                  dialogContext,
-                  seriesTiming.previewRule(
-                    following:
-                        draft.recurringMutationScope ==
-                        RecurringEventMutationScope.thisAndFuture,
-                  ),
-                  timeZone: seriesTiming.timeZone,
-                ),
+              context.l10n.copyEventMoveWarning(
+                '${_originalSource?.authenticatedAccountEmail ?? widget.draft.accountId} · ${_originalSource?.summary}',
+                '${_source?.authenticatedAccountEmail ?? draft.accountId} · ${_source?.summary}',
               ),
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(dialogContext, false),
+                onPressed: () => Navigator.pop(context, false),
                 child: Text(context.l10n.cancel),
               ),
               FilledButton(
-                onPressed: () => Navigator.pop(dialogContext, true),
-                child: Text(context.l10n.save),
+                onPressed: () => Navigator.pop(context, true),
+                child: Text(context.l10n.copyAndDelete),
               ),
             ],
           ),
         );
-        if (confirmed != true) {
-          if (mounted) {
-            setState(() => _saving = false);
-          }
+        if (confirmed != true || !mounted) {
           return;
         }
-        draft = draft.copyWith(seriesTimingApproval: seriesTiming!.signature);
       }
+      if (!mounted) {
+        return;
+      }
+      var guestPolicy = CalendarGuestUpdatePolicy.send;
+      final externalGuests = [
+        ...draft.attendees,
+        ...widget.draft.attendees,
+      ].any((a) => !a.self && !a.organizer);
+      if ((_source?.usesImplicitScheduling == true &&
+              draft.attendees.isNotEmpty) ||
+          (draft.isOrganizer == true && externalGuests)) {
+        final decision = await showAndroidGuestDeliveryDialog(
+          context,
+          provider: _deliveryProvider,
+        );
+        if (decision == null || !mounted) {
+          return;
+        }
+        guestPolicy = decision;
+      }
+      final approved = await approveEventSeriesTiming(
+        repository: () => ref.read(calendarRepositoryProvider),
+        draft: draft,
+        isActive: () => mounted,
+        confirm: (change, following) async =>
+            (await showDialog<bool>(
+              context: context,
+              builder: (dialogContext) => AlertDialog(
+                title: Text(context.l10n.repeat),
+                content: Text(
+                  seriesTimingConfirmationMessage(
+                    dialogContext,
+                    change,
+                    following: following,
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext, false),
+                    child: Text(context.l10n.cancel),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(dialogContext, true),
+                    child: Text(context.l10n.save),
+                  ),
+                ],
+              ),
+            )) ==
+            true,
+      );
+      if (approved == null || !mounted) return;
+      draft = approved;
       if ((_reminderMinutes ?? -2) >= 0 ||
-          androidGooglePopupReminderRows(_editedGoogleReminders).isNotEmpty ||
+          googlePopupReminderRows(_editedGoogleReminders).isNotEmpty ||
           (_editedNextcloudReminders?.isNotEmpty ?? false)) {
         final notifications = ref.read(androidNotificationServiceProvider);
         final granted = await notifications.requestNotificationPermission();
@@ -5412,36 +5335,31 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
           );
         }
       }
-      if (draft.eventId == null) {
-        await ref
-            .read(calendarRepositoryProvider)
-            .createLocalEvent(draft, guestUpdatePolicy: guestPolicy);
-        unawaited(
-          ref
-              .read(appSettingsControllerProvider.notifier)
-              .rememberCalendar(
-                CreationDestination(
-                  accountId: draft.accountId,
-                  id: draft.sourceId,
-                ),
-              ),
-        );
-      } else {
-        await ref
-            .read(calendarRepositoryProvider)
-            .updateLocalEvent(draft, guestUpdatePolicy: guestPolicy);
-      }
-      for (final accountId in {draft.accountId, widget.draft.accountId}) {
-        ref
-            .read(
-              pendingCalendarMutationSyncRequesterForAccountProvider(accountId),
-            )
-            .request();
-      }
+      final settings = ref.read(appSettingsControllerProvider.notifier);
+      final outcome = await saveEventDraft(
+        repository: ref.read(calendarRepositoryProvider),
+        draft: draft,
+        guestPolicy: guestPolicy,
+        rememberDestination: () => settings.rememberCalendar(
+          CreationDestination(accountId: draft.accountId, id: draft.sourceId),
+        ),
+        requestSync: () {
+          for (final id in {draft.accountId, widget.draft.accountId}) {
+            ref
+                .read(
+                  pendingCalendarMutationSyncRequesterForAccountProvider(id),
+                )
+                .request();
+          }
+        },
+        clearRecovery: () =>
+            _clearRecovery(finalCleanup: true, reportFailure: true),
+      );
       if (mounted) {
-        await _clearRecovery(finalCleanup: true);
-        if (!mounted) {
-          return;
+        if (outcome == EventSaveOutcome.followUpPending) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(context.l10n.pendingLocally)));
         }
         setState(() => _allowPop = true);
         Navigator.pop(context);
@@ -5468,10 +5386,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
 
   bool get _canCheckGuestAvailability {
     final source = _source;
-    if (source == null ||
-        _draft.start == null ||
-        _draft.end == null ||
-        !_draft.end!.isAfter(_draft.start!)) {
+    if (source == null || !_draft.hasValidInterval) {
       return false;
     }
     final hasGuests = mergeAndroidEventAttendees(
@@ -5874,7 +5789,10 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
         } else if (recoveredRule == null &&
             frequency != null &&
             frequency != _recurrenceRule.frequency) {
-          _recurrenceRule = androidRuleForFrequency(frequency, start);
+          _recurrenceRule = const RecurrenceRule.none().withFrequency(
+            frequency,
+            start,
+          );
           _recurrenceChanged = true;
         }
         _descriptionGeneration++;
@@ -6011,20 +5929,27 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
     });
   }
 
-  Future<void> _clearRecovery({bool finalCleanup = false}) {
+  Future<void> _clearRecovery({
+    bool finalCleanup = false,
+    bool reportFailure = false,
+  }) {
     if (finalCleanup) {
       _recoveryWritesBlocked = true;
       _recoveryTimer?.cancel();
     }
     return _enqueueRecovery(
       () => ref.read(secureStorageProvider).delete(key: _recoveryKey),
+      reportFailure: reportFailure,
     );
   }
 
-  Future<void> _enqueueRecovery(Future<void> Function() operation) {
+  Future<void> _enqueueRecovery(
+    Future<void> Function() operation, {
+    bool reportFailure = false,
+  }) {
     final result = _recoveryIo.then((_) => operation());
     _recoveryIo = result.catchError((_) {});
-    return result.catchError((_) {});
+    return reportFailure ? result : _recoveryIo;
   }
 }
 
@@ -6084,7 +6009,7 @@ AndroidEventAttendeeEdit mergeAndroidEventAttendees(
       result.add(attendee);
       continue;
     }
-    final key = attendee.email.trim().toLowerCase();
+    final key = eventAttendeeIdentity(attendee.email);
     if (requested.containsKey(key) && matched.add(key)) {
       result.add(attendee);
     }
@@ -6186,22 +6111,6 @@ ScheduleRange androidYearGridRange(DateTime year, {required int firstWeekday}) {
     ),
   );
 }
-
-DateTime _move(DateTime date, ScheduleViewMode mode, int amount) =>
-    switch (mode) {
-      ScheduleViewMode.day || ScheduleViewMode.agenda => DateTime(
-        date.year,
-        date.month,
-        date.day + amount,
-      ),
-      ScheduleViewMode.week => DateTime(
-        date.year,
-        date.month,
-        date.day + 7 * amount,
-      ),
-      ScheduleViewMode.month => DateTime(date.year, date.month + amount, 1),
-      ScheduleViewMode.year => DateTime(date.year + amount, date.month, 1),
-    };
 
 String _periodLabel(
   BuildContext context,
@@ -6336,119 +6245,6 @@ List<int>? androidEventReminderMinutes(BusyProvider provider, Object? value) {
           minutes.every((element) => element is int && element >= 0)
       ? minutes.cast<int>()
       : null;
-}
-
-int? androidGoogleReminderMode(Object? value) {
-  if (value == null) {
-    return -1;
-  }
-  if (value is! Map) {
-    return null;
-  }
-  if (value['useDefault'] == true) {
-    return -1;
-  }
-  if (value['useDefault'] != false || value['overrides'] is! List) {
-    return null;
-  }
-  return (value['overrides'] as List).isEmpty ? -2 : -3;
-}
-
-List<({int index, int minutes})> androidGooglePopupReminderRows(Object? value) {
-  if (value is! Map || value['overrides'] is! List) {
-    return const [];
-  }
-  final overrides = value['overrides'] as List;
-  return [
-    for (var index = 0; index < overrides.length; index++)
-      if (overrides[index] case final Map entry
-          when entry['method'] == 'popup' &&
-              entry['minutes'] is int &&
-              (entry['minutes'] as int) >= 0)
-        (index: index, minutes: entry['minutes'] as int),
-  ];
-}
-
-int androidGoogleReminderOverrideCount(Object? value) =>
-    value is Map && value['overrides'] is List
-    ? (value['overrides'] as List).length
-    : 0;
-
-bool androidGoogleHasUnsupportedReminder(Object? value) {
-  if (value is! Map || value['overrides'] is! List) {
-    return false;
-  }
-  return androidGooglePopupReminderRows(value).length !=
-      (value['overrides'] as List).length;
-}
-
-Map<String, Object?> androidSetGoogleReminderMode(Object? value, int mode) {
-  if (mode == -1) {
-    return const {'useDefault': true};
-  }
-  if (mode == -2) {
-    return const {'useDefault': false, 'overrides': []};
-  }
-  if (mode != -3) {
-    throw ArgumentError.value(mode, 'mode');
-  }
-  final original = value is Map ? value.cast<String, Object?>() : const {};
-  final existing = original['overrides'];
-  return {
-    ...original,
-    'useDefault': false,
-    'overrides': existing is List && existing.isNotEmpty
-        ? [...existing]
-        : [
-            {'method': 'popup', 'minutes': 10},
-          ],
-  };
-}
-
-Map<String, Object?> androidEditGooglePopupReminder(
-  Object? value, {
-  required int? overrideIndex,
-  required int minutes,
-}) {
-  if (minutes < 0) {
-    throw ArgumentError.value(minutes, 'minutes');
-  }
-  final original = value is Map ? value.cast<String, Object?>() : const {};
-  final overrides = [...?original['overrides'] as List?];
-  if (overrideIndex == null) {
-    if (overrides.length >= 5) {
-      throw StateError('Google allows at most five event reminders.');
-    }
-    overrides.add({'method': 'popup', 'minutes': minutes});
-  } else {
-    if (overrideIndex < 0 ||
-        overrideIndex >= overrides.length ||
-        overrides[overrideIndex] is! Map ||
-        (overrides[overrideIndex] as Map)['method'] != 'popup') {
-      throw RangeError.index(overrideIndex, overrides);
-    }
-    overrides[overrideIndex] = {
-      ...(overrides[overrideIndex] as Map).cast<String, Object?>(),
-      'minutes': minutes,
-    };
-  }
-  return {...original, 'useDefault': false, 'overrides': overrides};
-}
-
-Map<String, Object?> androidRemoveGooglePopupReminder(
-  Object? value, {
-  required int overrideIndex,
-}) {
-  final original = value is Map ? value.cast<String, Object?>() : const {};
-  final overrides = [...?original['overrides'] as List?];
-  if (overrideIndex < 0 ||
-      overrideIndex >= overrides.length ||
-      overrides[overrideIndex] is! Map ||
-      (overrides[overrideIndex] as Map)['method'] != 'popup') {
-    throw RangeError.index(overrideIndex, overrides);
-  }
-  overrides.removeAt(overrideIndex);
-  return {...original, 'useDefault': false, 'overrides': overrides};
 }
 
 List<String> _eventShowAsValues(BusyProvider provider) =>

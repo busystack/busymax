@@ -11,16 +11,17 @@ import '../l10n/l10n.dart';
 import '../platform/native_menu_service.dart';
 import 'busymax_glyphs.dart';
 import 'busymax_surface_colors.dart';
-import 'common/busymax_design_values.dart';
+import 'common/busymax_design_values.dart' hide BusyMaxSpacing;
+import 'common/busymax_design_values.dart' as common show BusyMaxSpacing;
 
 export 'common/busymax_design_values.dart' show BusyMaxMotion;
 
 abstract final class BusyMaxSpacing {
   static const double xxs = 2;
-  static const double xs = 4;
+  static const double xs = common.BusyMaxSpacing.xSmall;
   static const double headerInset = 6;
-  static const double sm = 8;
-  static const double md = 12;
+  static const double sm = common.BusyMaxSpacing.small;
+  static const double md = common.BusyMaxSpacing.medium;
   static const double lg = kYaruPagePadding;
   static const double xl = kYaruPagePadding * 1.5;
   static const double xxl = kYaruPagePadding * 2;

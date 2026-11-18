@@ -11,6 +11,7 @@ import '../../../l10n/localized_formatters.dart';
 import '../../tasks/presentation/desktop_date_time_fields.dart';
 import '../domain/event_recurrence_codec.dart';
 import '../domain/recurrence_rule.dart';
+import '../domain/recurrence_editing.dart';
 import 'recurrence_summary.dart' as shared;
 
 Future<RecurrenceRule?> showRecurrenceEditorDialog(
@@ -80,25 +81,16 @@ class RecurrenceEditorDialog extends StatefulWidget {
   State<RecurrenceEditorDialog> createState() => _RecurrenceEditorDialogState();
 }
 
-enum _RecurrenceEnd { never, until, count }
-
 class _RecurrenceEditorDialogState extends State<RecurrenceEditorDialog> {
   late RecurrenceRule _value;
-  late _RecurrenceEnd _end;
+  RecurrenceEnd get _end => _value.endMode;
   late final TextEditingController _intervalController;
   late final TextEditingController _countController;
 
   @override
   void initState() {
     super.initState();
-    _value = widget.initial.isSupported
-        ? widget.initial
-        : const RecurrenceRule.none();
-    _end = _value.count != null
-        ? _RecurrenceEnd.count
-        : _value.untilRaw != null
-        ? _RecurrenceEnd.until
-        : _RecurrenceEnd.never;
+    _value = widget.initial;
     _intervalController = TextEditingController(text: '${_value.interval}');
     _countController = TextEditingController(text: '${_value.count ?? 10}');
   }
@@ -113,7 +105,7 @@ class _RecurrenceEditorDialogState extends State<RecurrenceEditorDialog> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final repeats = _value.repeats;
+    final repeats = _value.isSupported && _value.repeats;
     return BusyMaxModalEditorScaffold(
       title: l10n.repeat,
       cancelLabel: l10n.cancel,
@@ -125,12 +117,16 @@ class _RecurrenceEditorDialogState extends State<RecurrenceEditorDialog> {
         BusyMaxGroupedList(
           filled: true,
           children: [
-            BusyMaxComboRow<RecurrenceFrequency>(
+            BusyMaxComboRow<RecurrenceFrequency?>(
               title: l10n.repeat,
               values: RecurrenceFrequency.values,
-              selected: _value.frequency,
-              labelFor: _frequencyLabel,
-              onSelected: _setFrequency,
+              selected: _value.isSupported ? _value.frequency : null,
+              labelFor: (frequency) => frequency == null
+                  ? l10n.unsupportedRecurrencePreserved
+                  : _frequencyLabel(frequency),
+              onSelected: (frequency) {
+                if (frequency != null) _setFrequency(frequency);
+              },
             ),
             if (repeats)
               YaruListTile.square(
@@ -154,7 +150,7 @@ class _RecurrenceEditorDialogState extends State<RecurrenceEditorDialog> {
               ),
           ],
         ),
-        if (_value.frequency == RecurrenceFrequency.weekly)
+        if (repeats && _value.frequency == RecurrenceFrequency.weekly)
           BusyMaxGroupedList(
             title: l10n.repeatOn,
             filled: true,
@@ -186,8 +182,9 @@ class _RecurrenceEditorDialogState extends State<RecurrenceEditorDialog> {
               ),
             ],
           ),
-        if (_value.frequency == RecurrenceFrequency.monthly ||
-            _value.frequency == RecurrenceFrequency.yearly)
+        if (repeats &&
+            (_value.frequency == RecurrenceFrequency.monthly ||
+                _value.frequency == RecurrenceFrequency.yearly))
           BusyMaxGroupedList(
             title: l10n.repeatDayOfMonth,
             filled: true,
@@ -253,7 +250,7 @@ class _RecurrenceEditorDialogState extends State<RecurrenceEditorDialog> {
                 ),
             ],
           ),
-        if (_value.frequency == RecurrenceFrequency.yearly)
+        if (repeats && _value.frequency == RecurrenceFrequency.yearly)
           BusyMaxGroupedList(
             title: l10n.repeatMonths,
             filled: true,
@@ -284,18 +281,18 @@ class _RecurrenceEditorDialogState extends State<RecurrenceEditorDialog> {
           BusyMaxGroupedList(
             filled: true,
             children: [
-              BusyMaxComboRow<_RecurrenceEnd>(
+              BusyMaxComboRow<RecurrenceEnd>(
                 title: l10n.repeatEnd,
-                values: _RecurrenceEnd.values,
+                values: RecurrenceEnd.values,
                 selected: _end,
                 labelFor: (value) => switch (value) {
-                  _RecurrenceEnd.never => l10n.repeatNever,
-                  _RecurrenceEnd.until => l10n.repeatUntil,
-                  _RecurrenceEnd.count => l10n.repeatAfter,
+                  RecurrenceEnd.never => l10n.repeatNever,
+                  RecurrenceEnd.until => l10n.repeatUntil,
+                  RecurrenceEnd.count => l10n.repeatAfter,
                 },
                 onSelected: _setEnd,
               ),
-              if (_end == _RecurrenceEnd.until)
+              if (_end == RecurrenceEnd.until)
                 DesktopDateValueRow(
                   label: l10n.repeatUntil,
                   date:
@@ -303,7 +300,7 @@ class _RecurrenceEditorDialogState extends State<RecurrenceEditorDialog> {
                       _dateString(_oneMonthAfter(widget.baseDate)),
                   onChanged: _setUntilDate,
                 ),
-              if (_end == _RecurrenceEnd.count)
+              if (_end == RecurrenceEnd.count)
                 YaruListTile.square(
                   title: TextField(
                     controller: _countController,
@@ -330,81 +327,25 @@ class _RecurrenceEditorDialogState extends State<RecurrenceEditorDialog> {
   }
 
   bool get _isValid {
-    if (!_value.repeats) {
-      return true;
-    }
+    if (!widget.limits.supports(_value)) return false;
+    if (!_value.repeats) return true;
     final interval = int.tryParse(_intervalController.text);
-    if (interval == null || interval < 1 || interval > 366) {
-      return false;
-    }
-    if (_value.frequency == RecurrenceFrequency.weekly &&
-        _value.byDay.isEmpty) {
-      return false;
-    }
-    if ((_value.frequency == RecurrenceFrequency.monthly ||
-            _value.frequency == RecurrenceFrequency.yearly) &&
-        _value.byMonthDay.isEmpty &&
-        (_value.bySetPosition == null || _value.byDay.isEmpty)) {
-      return false;
-    }
-    if (_value.frequency == RecurrenceFrequency.yearly &&
-        _value.byMonth.isEmpty) {
-      return false;
-    }
-    if (_end == _RecurrenceEnd.until && _value.untilRaw == null) {
-      return false;
-    }
-    if (_end == _RecurrenceEnd.count) {
+    if (interval == null || interval < 1 || interval > 366) return false;
+    if (_end == RecurrenceEnd.count) {
       final count = int.tryParse(_countController.text);
-      if (count == null || count < 1 || count > 3500) {
-        return false;
-      }
+      return count != null && count >= 1 && count <= 3500;
     }
-    return widget.limits.supports(_value);
+    return true;
   }
 
   void _setFrequency(RecurrenceFrequency frequency) {
-    final base = widget.baseDate;
     setState(() {
-      _value = switch (frequency) {
-        RecurrenceFrequency.none => _value.copyWith(
-          frequency: frequency,
-          byDay: const [],
-          byMonth: const [],
-          byMonthDay: const [],
-          bySetPosition: null,
-          count: null,
-          untilRaw: null,
-        ),
-        RecurrenceFrequency.weekly => _value.copyWith(
-          frequency: frequency,
-          byDay: [_weekdayCode(base.weekday)],
-          byMonth: const [],
-          byMonthDay: const [],
-          bySetPosition: null,
-        ),
-        RecurrenceFrequency.monthly => _value.copyWith(
-          frequency: frequency,
-          byDay: const [],
-          byMonth: const [],
-          byMonthDay: [base.day],
-          bySetPosition: null,
-        ),
-        RecurrenceFrequency.yearly => _value.copyWith(
-          frequency: frequency,
-          byDay: const [],
-          byMonth: [base.month],
-          byMonthDay: [base.day],
-          bySetPosition: null,
-        ),
-        RecurrenceFrequency.daily => _value.copyWith(
-          frequency: frequency,
-          byDay: const [],
-          byMonth: const [],
-          byMonthDay: const [],
-          bySetPosition: null,
-        ),
-      };
+      final previous = _value;
+      _value = _value.withFrequency(frequency, widget.baseDate);
+      if (previous != _value) {
+        _intervalController.text = '${_value.interval}';
+        _countController.text = '${_value.count ?? 10}';
+      }
     });
   }
 
@@ -487,27 +428,17 @@ class _RecurrenceEditorDialogState extends State<RecurrenceEditorDialog> {
     });
   }
 
-  void _setEnd(_RecurrenceEnd value) {
+  void _setEnd(RecurrenceEnd value) {
     setState(() {
-      _end = value;
-      _value = switch (value) {
-        _RecurrenceEnd.never => _value.copyWith(count: null, untilRaw: null),
-        _RecurrenceEnd.count => _value.copyWith(
-          count: int.tryParse(_countController.text) ?? 10,
-          untilRaw: null,
-        ),
-        _RecurrenceEnd.until =>
-          _value
-              .copyWith(count: null)
-              .withUntilDate(
-                _value.untilDateFor(timeZone: widget.timeZone) ??
-                    _dateString(_oneMonthAfter(widget.baseDate)),
-                allDay: widget.allDay,
-                floating: widget.floating,
-                baseDate: widget.baseDate,
-                timeZone: widget.timeZone,
-              ),
-      };
+      _value = _value.withEndMode(
+        value,
+        baseDate: widget.baseDate,
+        allDay: widget.allDay,
+        timeZone: widget.timeZone,
+        floating: widget.floating,
+        defaultUntil: _dateString(_oneMonthAfter(widget.baseDate)),
+      );
+      _countController.text = '${_value.count ?? 10}';
     });
   }
 

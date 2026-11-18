@@ -6,7 +6,7 @@ import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/busymax_yaru_theme.dart';
 import 'package:busymax/src/dav/nextcloud/nextcloud_scheduling_service.dart';
 import 'package:busymax/src/dav/presentation/nextcloud_scheduling_dialog.dart';
-import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
+import 'package:busymax/src/features/calendar/domain/event_editor_draft.dart';
 import 'package:busymax/src/ui/windows/windows_nextcloud_scheduling_dialog.dart';
 import 'package:fluent_ui/fluent_ui.dart' as fluent;
 import 'package:flutter/material.dart';

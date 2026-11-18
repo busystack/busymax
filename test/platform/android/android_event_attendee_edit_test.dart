@@ -1,5 +1,6 @@
+import 'package:busymax/src/features/calendar/domain/event_reminders.dart';
 import 'package:busymax/src/android/presentation/android_schedule_screen.dart';
-import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
+import 'package:busymax/src/features/calendar/domain/event_editor_draft.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -242,23 +243,19 @@ void main() {
         {'method': 'popup', 'minutes': 60},
       ],
     };
-    final changed = androidEditGooglePopupReminder(
-      original,
-      overrideIndex: 2,
-      minutes: 10,
-    ) as Map;
+    final changed =
+        editGooglePopupReminder(original, overrideIndex: 2, minutes: 10) as Map;
     expect(changed['overrides'], [
       {'method': 'popup', 'minutes': 0, 'providerTag': 'retain'},
       {'method': 'email', 'minutes': 30},
       {'method': 'popup', 'minutes': 10},
     ]);
-    final removed =
-        androidRemoveGooglePopupReminder(changed, overrideIndex: 0) as Map;
+    final removed = removeGooglePopupReminder(changed, overrideIndex: 0) as Map;
     expect(removed['overrides'], [
       {'method': 'email', 'minutes': 30},
       {'method': 'popup', 'minutes': 10},
     ]);
-    final added = androidEditGooglePopupReminder(
+    final added = editGooglePopupReminder(
       removed,
       overrideIndex: null,
       minutes: 5,

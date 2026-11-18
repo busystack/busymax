@@ -14,6 +14,61 @@ class EventDescriptionValue {
   final String? html;
 }
 
+/// Owns the editable text and emits content changes without treating selection
+/// and IME composition changes as event mutations.
+final class EventDescriptionBinding {
+  EventDescriptionBinding({
+    required this.richText,
+    required String? text,
+    required String? contentType,
+    required String? html,
+    required ValueChanged<EventDescriptionValue> onChanged,
+  }) : _onChanged = onChanged,
+       controller = RichDescriptionController(
+         richText && isHtmlContentType(contentType)
+             ? htmlCalendarDescriptionDocument(html ?? '')
+             : CalendarDescriptionDocument(text: text ?? '', ranges: const []),
+       ) {
+    _lastText = controller.text;
+    _lastHtml = _html;
+    controller.addListener(_emitChanged);
+  }
+
+  final bool richText;
+  final RichDescriptionController controller;
+  final ValueChanged<EventDescriptionValue> _onChanged;
+  late String _lastText;
+  String? _lastHtml;
+  bool _notifying = false;
+
+  String? get _html => richText
+      ? calendarDescriptionToHtml(controller.text, controller.ranges)
+      : null;
+
+  void _emitChanged() {
+    if (_notifying) return;
+    final text = controller.text;
+    final html = _html;
+    if (text == _lastText && html == _lastHtml) return;
+    _lastText = text;
+    _lastHtml = html;
+    _notifying = true;
+    try {
+      _onChanged(
+        EventDescriptionValue(
+          text: text,
+          contentType: richText ? 'html' : null,
+          html: html,
+        ),
+      );
+    } finally {
+      _notifying = false;
+    }
+  }
+
+  void dispose() => controller.dispose();
+}
+
 class RichDescriptionController extends TextEditingController {
   RichDescriptionController(CalendarDescriptionDocument document)
     : _ranges = List<CalendarDescriptionStyleRange>.of(document.ranges),

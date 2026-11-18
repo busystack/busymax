@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-import '../../features/calendar/presentation/event_editor_draft.dart';
+import '../../features/calendar/domain/event_editor_draft.dart';
 import 'nextcloud_scheduling_service.dart';
 
 /// Shared request and pending state for the native scheduling dialogs.

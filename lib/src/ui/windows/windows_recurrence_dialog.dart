@@ -4,8 +4,7 @@ import 'package:intl/intl.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../features/recurrence/domain/event_recurrence_codec.dart';
 import '../../features/recurrence/domain/recurrence_rule.dart';
-
-enum _WindowsRecurrenceEnd { never, until, count }
+import '../../features/recurrence/domain/recurrence_editing.dart';
 
 Future<RecurrenceRule?> showWindowsRecurrenceDialog(
   BuildContext context, {
@@ -17,12 +16,9 @@ Future<RecurrenceRule?> showWindowsRecurrenceDialog(
   required RecurrenceRuleLimits limits,
   bool floating = false,
 }) {
-  var value = initial.isSupported ? initial : const RecurrenceRule.none();
-  var end = value.count != null
-      ? _WindowsRecurrenceEnd.count
-      : value.untilRaw != null
-      ? _WindowsRecurrenceEnd.until
-      : _WindowsRecurrenceEnd.never;
+  var value = initial;
+  var intervalInputValid = true;
+  var countInputValid = true;
   var until = DateTime.tryParse(value.untilDateFor(timeZone: timeZone) ?? '');
   return showDialog<RecurrenceRule>(
     context: context,
@@ -30,7 +26,12 @@ Future<RecurrenceRule?> showWindowsRecurrenceDialog(
     builder: (dialogContext) => StatefulBuilder(
       builder: (context, setState) {
         final l10n = AppLocalizations.of(context);
-        final valid = limits.supports(value);
+        final end = value.endMode;
+        final providerSupported = limits.supports(value);
+        final valid =
+            providerSupported &&
+            (!value.repeats || intervalInputValid) &&
+            (end != RecurrenceEnd.count || countInputValid);
         return ContentDialog(
           title: Text(l10n.repeat),
           constraints: const BoxConstraints(maxWidth: 620, maxHeight: 680),
@@ -42,7 +43,7 @@ Future<RecurrenceRule?> showWindowsRecurrenceDialog(
                   label: l10n.repeat,
                   child: ComboBox<RecurrenceFrequency>(
                     isExpanded: true,
-                    value: value.frequency,
+                    value: value.isSupported ? value.frequency : null,
                     items: [
                       for (final frequency in RecurrenceFrequency.values)
                         ComboBoxItem(
@@ -52,32 +53,38 @@ Future<RecurrenceRule?> showWindowsRecurrenceDialog(
                     ],
                     onChanged: (frequency) {
                       if (frequency == null) return;
-                      setState(
-                        () => value = _ruleForFrequency(frequency, baseDate),
-                      );
+                      if (value.isSupported && frequency == value.frequency) {
+                        return;
+                      }
+                      setState(() {
+                        value = value.withFrequency(frequency, baseDate);
+                        intervalInputValid = true;
+                        countInputValid = true;
+                      });
                     },
                   ),
                 ),
-                if (value.repeats) ...[
+                if (value.isSupported && value.repeats) ...[
                   const SizedBox(height: 12),
                   InfoLabel(
                     label: l10n.repeatEvery,
                     child: NumberBox<int>(
+                      key: ValueKey((value.frequency, 'interval')),
                       value: value.interval,
                       min: 1,
                       max: 366,
                       mode: SpinButtonPlacementMode.inline,
-                      onChanged: (interval) {
+                      onChanged: (interval) => setState(() {
+                        intervalInputValid = interval != null;
                         if (interval != null) {
-                          setState(
-                            () => value = value.copyWith(interval: interval),
-                          );
+                          value = value.copyWith(interval: interval);
                         }
-                      },
+                      }),
                     ),
                   ),
                 ],
-                if (value.frequency == RecurrenceFrequency.weekly) ...[
+                if (value.isSupported &&
+                    value.frequency == RecurrenceFrequency.weekly) ...[
                   const SizedBox(height: 12),
                   Text(
                     l10n.repeatOn,
@@ -110,56 +117,44 @@ Future<RecurrenceRule?> showWindowsRecurrenceDialog(
                     ],
                   ),
                 ],
-                if (value.repeats) ...[
+                if (value.isSupported && value.repeats) ...[
                   const SizedBox(height: 16),
                   InfoLabel(
                     label: l10n.repeatEnd,
-                    child: ComboBox<_WindowsRecurrenceEnd>(
+                    child: ComboBox<RecurrenceEnd>(
                       isExpanded: true,
                       value: end,
                       items: [
                         ComboBoxItem(
-                          value: _WindowsRecurrenceEnd.never,
+                          value: RecurrenceEnd.never,
                           child: Text(l10n.repeatNever),
                         ),
                         ComboBoxItem(
-                          value: _WindowsRecurrenceEnd.until,
+                          value: RecurrenceEnd.until,
                           child: Text(l10n.repeatUntil),
                         ),
                         ComboBoxItem(
-                          value: _WindowsRecurrenceEnd.count,
+                          value: RecurrenceEnd.count,
                           child: Text(l10n.repeatAfter),
                         ),
                       ],
                       onChanged: (selection) {
                         if (selection == null) return;
                         setState(() {
-                          end = selection;
-                          value = switch (selection) {
-                            _WindowsRecurrenceEnd.never => value.copyWith(
-                              count: null,
-                              untilRaw: null,
-                            ),
-                            _WindowsRecurrenceEnd.until =>
-                              value
-                                  .copyWith(count: null)
-                                  .withUntilDate(
-                                    _dateValue(until ?? baseDate),
-                                    allDay: allDay,
-                                    baseDate: baseDate,
-                                    timeZone: timeZone,
-                                    floating: floating,
-                                  ),
-                            _WindowsRecurrenceEnd.count => value.copyWith(
-                              count: value.count ?? 10,
-                              untilRaw: null,
-                            ),
-                          };
+                          countInputValid = true;
+                          value = value.withEndMode(
+                            selection,
+                            baseDate: baseDate,
+                            allDay: allDay,
+                            timeZone: timeZone,
+                            floating: floating,
+                            defaultUntil: _dateValue(until ?? baseDate),
+                          );
                         });
                       },
                     ),
                   ),
-                  if (end == _WindowsRecurrenceEnd.until) ...[
+                  if (end == RecurrenceEnd.until) ...[
                     const SizedBox(height: 12),
                     DatePicker(
                       selected: until ?? baseDate,
@@ -176,31 +171,33 @@ Future<RecurrenceRule?> showWindowsRecurrenceDialog(
                       }),
                     ),
                   ],
-                  if (end == _WindowsRecurrenceEnd.count) ...[
+                  if (end == RecurrenceEnd.count) ...[
                     const SizedBox(height: 12),
                     InfoLabel(
                       label: l10n.repeatCount,
                       child: NumberBox<int>(
+                        key: ValueKey((value.frequency, 'count')),
                         value: value.count ?? 10,
                         min: 1,
                         max: 3500,
                         mode: SpinButtonPlacementMode.inline,
-                        onChanged: (count) {
+                        onChanged: (count) => setState(() {
+                          countInputValid = count != null;
                           if (count != null) {
-                            setState(
-                              () => value = value.copyWith(count: count),
-                            );
+                            value = value.copyWith(count: count);
                           }
-                        },
+                        }),
                       ),
                     ),
                   ],
                 ],
-                if (!valid) ...[
+                if (!providerSupported) ...[
                   const SizedBox(height: 12),
                   InfoBar(
                     title: Text(
-                      l10n.recurrenceUnsupportedByProvider(providerLabel),
+                      value.isSupported
+                          ? l10n.recurrenceUnsupportedByProvider(providerLabel)
+                          : l10n.unsupportedRecurrencePreserved,
                     ),
                     severity: InfoBarSeverity.warning,
                   ),
@@ -226,37 +223,6 @@ Future<RecurrenceRule?> showWindowsRecurrenceDialog(
   );
 }
 
-RecurrenceRule _ruleForFrequency(
-  RecurrenceFrequency frequency,
-  DateTime baseDate,
-) {
-  if (frequency == RecurrenceFrequency.none) {
-    return const RecurrenceRule.none();
-  }
-  return RecurrenceRule(
-    frequency: frequency,
-    interval: 1,
-    byDay: frequency == RecurrenceFrequency.weekly
-        ? [_rfcWeekday(baseDate.weekday)]
-        : const [],
-    byMonth: frequency == RecurrenceFrequency.yearly
-        ? [baseDate.month]
-        : const [],
-    byMonthDay:
-        frequency == RecurrenceFrequency.monthly ||
-            frequency == RecurrenceFrequency.yearly
-        ? [baseDate.day]
-        : const [],
-    bySetPosition: null,
-    count: null,
-    untilRaw: null,
-    recurrenceDates: const [],
-    exceptionDates: const [],
-    rawRules: const [],
-    isSupported: true,
-  );
-}
-
 String _frequencyLabel(AppLocalizations l10n, RecurrenceFrequency frequency) =>
     switch (frequency) {
       RecurrenceFrequency.none => l10n.repeatNone,
@@ -265,8 +231,6 @@ String _frequencyLabel(AppLocalizations l10n, RecurrenceFrequency frequency) =>
       RecurrenceFrequency.monthly => l10n.repeatMonthly,
       RecurrenceFrequency.yearly => l10n.repeatYearly,
     };
-
-String _rfcWeekday(int weekday) => rfcWeekdays[weekday - 1];
 
 String _weekdayLabel(BuildContext context, String weekday) {
   final day = rfcWeekdays.indexOf(weekday) + 1;

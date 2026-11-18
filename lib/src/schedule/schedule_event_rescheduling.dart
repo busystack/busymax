@@ -6,7 +6,7 @@ import '../dav/ical/ical_timezone.dart';
 import '../features/calendar/data/calendar_event_detail.dart';
 import '../features/calendar/data/calendar_repository.dart';
 import '../features/calendar/domain/event_timing_policy.dart';
-import '../features/calendar/presentation/event_editor_draft.dart';
+import '../features/calendar/domain/event_editor_draft.dart';
 import '../features/recurrence/domain/series_timing_change.dart';
 import 'schedule_item.dart';
 

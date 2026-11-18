@@ -1,5 +1,5 @@
 import '../../../providers/busy_provider.dart';
-import '../presentation/event_editor_draft.dart';
+import 'event_editor_draft.dart';
 
 enum CalendarEventMoveStrategy { none, googleNative, davNative, copyThenDelete }
 

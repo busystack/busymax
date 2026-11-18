@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:busymax/src/dav/dav_errors.dart';
 import 'package:busymax/src/dav/ical/dav_native_import.dart';
 import 'package:busymax/src/dav/ical/ical_document.dart';
-import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
+import 'package:busymax/src/features/calendar/domain/event_editor_draft.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:xml/xml.dart';
 

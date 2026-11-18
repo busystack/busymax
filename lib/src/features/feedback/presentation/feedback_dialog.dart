@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:uuid/uuid.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../app/busymax_design.dart';
@@ -12,6 +11,7 @@ import '../../../app/busymax_dialogs.dart';
 import '../../../l10n/l10n.dart';
 import '../data/feedback_api_client.dart';
 import '../data/feedback_submission.dart';
+import '../data/feedback_draft_session.dart';
 import '../../connectivity/network_connectivity_service.dart';
 
 typedef FeedbackAppMetadataLoader = Future<FeedbackAppMetadata> Function();
@@ -66,19 +66,18 @@ class _BusyMaxFeedbackDialogState extends State<BusyMaxFeedbackDialog> {
   final _replyEmailController = TextEditingController();
 
   FeedbackCategory? _category;
-  late String _submissionId;
-  var _submissionAttempted = false;
-  var _includeTechnicalDetails = false;
   var _validationAttempted = false;
-  var _submitting = false;
   var _confirmingCancel = false;
   String? _statusMessage;
   var _statusIsError = false;
 
+  late final _session = FeedbackDraftSession(
+    idGenerator: widget.submissionIdGenerator,
+  );
+
   @override
   void initState() {
     super.initState();
-    _submissionId = _newSubmissionId();
   }
 
   @override
@@ -92,7 +91,7 @@ class _BusyMaxFeedbackDialogState extends State<BusyMaxFeedbackDialog> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final technicalDetailsOnChanged = _submitting
+    final technicalDetailsOnChanged = _session.submitting
         ? null
         : _onTechnicalDetailsChanged;
     final categoryInvalid =
@@ -108,7 +107,7 @@ class _BusyMaxFeedbackDialogState extends State<BusyMaxFeedbackDialog> {
         !FeedbackValidation.replyEmailIsValid(_replyEmailController.text);
 
     return PopScope(
-      canPop: !_submitting,
+      canPop: !_session.submitting,
       child: CallbackShortcuts(
         bindings: {
           const SingleActivator(LogicalKeyboardKey.escape): () {
@@ -122,9 +121,9 @@ class _BusyMaxFeedbackDialogState extends State<BusyMaxFeedbackDialog> {
             cancelLabel: l10n.cancel,
             saveLabel: l10n.feedbackSubmit,
             onCancel: () => unawaited(_cancel()),
-            cancelEnabled: !_submitting,
-            onSave: _submitting ? null : _submit,
-            saving: _submitting,
+            cancelEnabled: !_session.submitting,
+            onSave: _session.submitting ? null : _submit,
+            saving: _session.submitting,
             children: [
               BusyMaxGroupedList(
                 filled: true,
@@ -140,7 +139,7 @@ class _BusyMaxFeedbackDialogState extends State<BusyMaxFeedbackDialog> {
                     labelFor: (category) => category == null
                         ? l10n.feedbackSelectCategory
                         : _categoryLabel(context, category),
-                    enabled: !_submitting,
+                    enabled: !_session.submitting,
                     onSelected: (value) {
                       setState(() {
                         _category = value;
@@ -152,7 +151,7 @@ class _BusyMaxFeedbackDialogState extends State<BusyMaxFeedbackDialog> {
                     title: TextField(
                       key: const Key('feedback-subject'),
                       controller: _subjectController,
-                      enabled: !_submitting,
+                      enabled: !_session.submitting,
                       textInputAction: TextInputAction.next,
                       decoration: busyMaxGroupedTextFieldDecoration(
                         context,
@@ -168,7 +167,7 @@ class _BusyMaxFeedbackDialogState extends State<BusyMaxFeedbackDialog> {
                     title: TextField(
                       key: const Key('feedback-message'),
                       controller: _messageController,
-                      enabled: !_submitting,
+                      enabled: !_session.submitting,
                       minLines: 4,
                       maxLines: 8,
                       keyboardType: TextInputType.multiline,
@@ -187,7 +186,7 @@ class _BusyMaxFeedbackDialogState extends State<BusyMaxFeedbackDialog> {
                     title: TextField(
                       key: const Key('feedback-reply-email'),
                       controller: _replyEmailController,
-                      enabled: !_submitting,
+                      enabled: !_session.submitting,
                       keyboardType: TextInputType.emailAddress,
                       textInputAction: TextInputAction.done,
                       decoration: busyMaxGroupedTextFieldDecoration(
@@ -199,7 +198,7 @@ class _BusyMaxFeedbackDialogState extends State<BusyMaxFeedbackDialog> {
                       ),
                       onChanged: (_) => setState(_draftChanged),
                       onSubmitted: (_) {
-                        if (!_submitting) {
+                        if (!_session.submitting) {
                           _submit();
                         }
                       },
@@ -214,12 +213,12 @@ class _BusyMaxFeedbackDialogState extends State<BusyMaxFeedbackDialog> {
                     borderStrokeAlign: BorderSide.strokeAlignInside,
                     builder: (context, rowFocusNode) => YaruCheckboxListTile(
                       key: const Key('feedback-technical-details'),
-                      value: _includeTechnicalDetails,
+                      value: _session.includeTechnicalDetails,
                       onChanged: technicalDetailsOnChanged,
                       focusNode: rowFocusNode,
                       control: BusyMaxYaruFocusBorder(
                         builder: (context, controlFocusNode) => YaruCheckbox(
-                          value: _includeTechnicalDetails,
+                          value: _session.includeTechnicalDetails,
                           onChanged: technicalDetailsOnChanged,
                           focusNode: controlFocusNode,
                           hasFocusBorder: false,
@@ -257,13 +256,13 @@ class _BusyMaxFeedbackDialogState extends State<BusyMaxFeedbackDialog> {
 
   void _onTechnicalDetailsChanged(bool? value) {
     setState(() {
-      _includeTechnicalDetails = value ?? false;
+      _session.includeTechnicalDetails = value ?? false;
       _draftChanged();
     });
   }
 
   Future<void> _cancel() async {
-    if (_submitting || _confirmingCancel) {
+    if (_session.submitting || _confirmingCancel) {
       return;
     }
     final hasDraft =
@@ -271,7 +270,7 @@ class _BusyMaxFeedbackDialogState extends State<BusyMaxFeedbackDialog> {
         _subjectController.text.trim().isNotEmpty ||
         _messageController.text.trim().isNotEmpty ||
         _replyEmailController.text.trim().isNotEmpty ||
-        _includeTechnicalDetails;
+        _session.includeTechnicalDetails;
     if (!hasDraft) {
       widget.onCancel();
       return;
@@ -296,7 +295,7 @@ class _BusyMaxFeedbackDialogState extends State<BusyMaxFeedbackDialog> {
   }
 
   Future<void> _submit() async {
-    if (_submitting) {
+    if (_session.submitting) {
       return;
     }
 
@@ -319,13 +318,13 @@ class _BusyMaxFeedbackDialogState extends State<BusyMaxFeedbackDialog> {
     }
 
     final locale = Localizations.localeOf(context).toLanguageTag();
-    final includeTechnicalDetails = _includeTechnicalDetails;
-    setState(() => _submitting = true);
+    final includeTechnicalDetails = _session.includeTechnicalDetails;
+    setState(() => _session.submitting = true);
 
     try {
       final metadata = await (widget.metadataLoader ?? _loadMetadata)();
       final submission = FeedbackSubmission(
-        submissionId: _submissionId,
+        submissionId: _session.beginAttempt(),
         appVersion: _nonEmptyOr(metadata.version, 'unknown'),
         buildNumber: _nonEmptyOr(metadata.buildNumber, '0'),
         category: category,
@@ -341,7 +340,6 @@ class _BusyMaxFeedbackDialogState extends State<BusyMaxFeedbackDialog> {
               )
             : null,
       );
-      _submissionAttempted = true;
       final receipt = await widget.submissionService.submit(submission);
       if (!mounted) {
         return;
@@ -351,12 +349,10 @@ class _BusyMaxFeedbackDialogState extends State<BusyMaxFeedbackDialog> {
       _replyEmailController.clear();
       setState(() {
         _category = null;
-        _includeTechnicalDetails = false;
         _validationAttempted = false;
         _statusMessage = context.l10n.feedbackSuccess(receipt.id);
         _statusIsError = false;
-        _submissionId = _newSubmissionId();
-        _submissionAttempted = false;
+        _session.reset();
       });
     } on Object catch (error) {
       if (!mounted) {
@@ -368,7 +364,7 @@ class _BusyMaxFeedbackDialogState extends State<BusyMaxFeedbackDialog> {
       });
     } finally {
       if (mounted) {
-        setState(() => _submitting = false);
+        setState(() => _session.submitting = false);
       }
     }
   }
@@ -386,15 +382,8 @@ class _BusyMaxFeedbackDialogState extends State<BusyMaxFeedbackDialog> {
     };
   }
 
-  String _newSubmissionId() {
-    return (widget.submissionIdGenerator ?? _uuidV4)();
-  }
-
   void _draftChanged() {
-    if (_submissionAttempted) {
-      _submissionId = _newSubmissionId();
-      _submissionAttempted = false;
-    }
+    _session.edited();
     _statusMessage = null;
     _statusIsError = false;
   }
@@ -407,8 +396,6 @@ Future<FeedbackAppMetadata> _loadMetadata() async {
     buildNumber: packageInfo.buildNumber,
   );
 }
-
-String _uuidV4() => const Uuid().v4();
 
 String _operatingSystemVersion() => Platform.operatingSystemVersion;
 

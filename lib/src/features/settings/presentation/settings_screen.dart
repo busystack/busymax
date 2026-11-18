@@ -1,3 +1,6 @@
+import '../../../contacts/dav_contacts_enrollment.dart';
+import '../../auth/application/account_connection.dart';
+import '../../auth/application/account_removal.dart';
 import '../../../ui/linux/nextcloud_certificate_dialog.dart';
 import '../../../ui/common/nextcloud_certificate_review.dart';
 import '../../../l10n/oauth_error_description.dart';
@@ -41,7 +44,7 @@ import '../../../app/linux/linux_page_frame.dart';
 import '../../../app/linux/linux_header_style.dart';
 import '../../../core/logging/redacting_logger.dart';
 import '../../../contacts/busymax_contacts_controller.dart';
-import '../../../dav/auth/dav_account_dialogs.dart';
+import '../../../dav/presentation/dav_account_dialogs.dart';
 import '../../../dav/auth/caldav_credential_input.dart';
 import '../../../dav/presentation/nextcloud_collection_dialog.dart';
 import '../../../dav/dav_errors.dart';
@@ -799,7 +802,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       });
 
   Future<void> _addCardDavContacts() async {
-    final input = await showBusyMaxModalDialog<_CardDavContactsInput>(
+    final input = await showBusyMaxModalDialog<DavContactsEnrollment>(
       context,
       barrierDismissible: false,
       builder: (_) => const _CardDavContactsDialog(),
@@ -1378,17 +1381,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             );
         }
         if (accountId != null) {
-          ownedCancellation.committed();
           connected = true;
           if (mounted) {
             setState(() => _registrationRecoveryIds.remove(accountId));
           }
-          unawaited(_syncConnectedAccount(runSync, accountId));
-          await sessionController.reconcileConnectedAccount(accountId);
+          await finishAccountConnection(
+            accountId: accountId,
+            cancellation: ownedCancellation,
+            session: sessionController,
+            synchronize: () => runSync(accountId!, true),
+            onFollowUpFailure: (error) =>
+                _showConnectionSyncFailure(accountId!, error),
+          );
         }
       } on Object catch (error) {
-        if ((error is OAuthException && error.code == 'OAuthSignInCancelled') ||
-            (error is DavException && error.kind == DavErrorKind.cancelled)) {
+        if (accountConnectionWasCancelled(error)) {
           return false;
         }
         if (mounted &&
@@ -1466,23 +1473,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _davCancellation?.cancel();
   }
 
-  Future<void> _syncConnectedAccount(
-    SignedInSyncRunner runSync,
-    String accountId,
-  ) async {
-    try {
-      await runSync(accountId, true);
-    } on Object catch (error) {
-      if (mounted &&
-          _page == SettingsPage.accounts &&
-          (_accountDetails == null || _accountDetails?.id == accountId)) {
-        _showMessage(
-          context,
-          context.l10n.syncFailed(
-            AccountSettingsFeedback.fromError(context.l10n, error).message,
-          ),
-        );
-      }
+  void _showConnectionSyncFailure(String accountId, Object error) {
+    if (mounted &&
+        _page == SettingsPage.accounts &&
+        (_accountDetails == null || _accountDetails?.id == accountId)) {
+      _showMessage(
+        context,
+        context.l10n.syncFailed(
+          AccountSettingsFeedback.fromError(context.l10n, error).message,
+        ),
+      );
     }
   }
 
@@ -1508,34 +1508,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     setState(() => _removingAccountIds.add(account.id));
     try {
-      final dav = account.provider.isDav;
-      final result = dav
-          ? null
-          : await ref
-                .read(authRepositoryProvider)
-                .removeAccount(
-                  accountId: account.id,
-                  revokeAuthorization: options.revokeGoogleAuthorization,
-                );
-      final davResult = dav
-          ? await ref
-                .read(davAccountOnboardingServiceProvider)
-                .removeAccount(account.id)
-          : null;
+      final outcome = await removeBusyMaxAccount(
+        accountId: account.id,
+        provider: account.provider,
+        revokeGoogleAuthorization: options.revokeGoogleAuthorization,
+        auth: () => ref.read(authRepositoryProvider),
+        dav: () => ref.read(davAccountOnboardingServiceProvider),
+      );
       if (context.mounted) {
         final presenting =
             _page == SettingsPage.accounts &&
             (_accountDetails == null || _accountDetails?.id == account.id);
-        if (presenting && (result?.authorizationRevocationFailed ?? false)) {
-          _showMessage(context, context.l10n.accountRemovedGoogleRevokeFailed);
-        } else if (presenting &&
-            davResult?.remoteRevocationAttempted == true &&
-            !davResult!.remoteRevocationSucceeded) {
-          _showMessage(
-            context,
-            context.l10n.nextcloudAccountRemovedRevokeFailed,
-          );
-        }
+        final warning = localizedAccountRemovalWarning(context.l10n, outcome);
+        if (presenting && warning != null) _showMessage(context, warning);
         await _afterAccountRemoved(context, ref, account.id);
         if (mounted && _accountDetails?.id == account.id) {
           _returnAfterAccountDisappeared(account.id);
@@ -3993,20 +3978,6 @@ String _subscriptionTiming(
       : context.l10n.subscriptionLastRefresh(_formatDavDateTime(context, last));
 }
 
-final class _CardDavContactsInput {
-  const _CardDavContactsInput({
-    required this.label,
-    required this.server,
-    required this.username,
-    required this.password,
-  });
-
-  final String label;
-  final Uri server;
-  final String username;
-  final String password;
-}
-
 class _CardDavContactsDialog extends StatefulWidget {
   const _CardDavContactsDialog();
 
@@ -4040,27 +4011,17 @@ class _CardDavContactsDialogState extends State<_CardDavContactsDialog> {
 
   void _changed() => setState(() {});
 
-  Uri? get _validServer {
-    final value = Uri.tryParse(_server.text.trim());
-    return value != null &&
-            value.scheme == 'https' &&
-            value.host.isNotEmpty &&
-            value.userInfo.isEmpty &&
-            !value.hasQuery &&
-            !value.hasFragment
-        ? value
-        : null;
-  }
-
-  bool get _valid =>
-      _label.text.trim().isNotEmpty &&
-      _validServer != null &&
-      _username.text.isNotEmpty &&
-      _password.text.isNotEmpty;
+  DavContactsEnrollment? get _input => DavContactsEnrollment.parse(
+    label: _label.text,
+    server: _server.text,
+    username: _username.text,
+    password: _password.text,
+  );
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final input = _input;
     return BusyMaxDialogShell(
       title: l10n.contactsAddCardDav,
       maxWidth: BusyMaxSizes.compactDetailsWidth,
@@ -4105,16 +4066,9 @@ class _CardDavContactsDialogState extends State<_CardDavContactsDialog> {
         ),
         BusyMaxPushButton.suggested(
           key: const ValueKey('confirm-carddav-contacts'),
-          onPressed: !_valid
+          onPressed: input == null
               ? null
-              : () => Navigator.of(context).pop(
-                  _CardDavContactsInput(
-                    label: _label.text.trim(),
-                    server: _validServer!,
-                    username: _username.text,
-                    password: _password.text,
-                  ),
-                ),
+              : () => Navigator.of(context).pop(input),
           child: Text(l10n.connectAccountAction),
         ),
       ],

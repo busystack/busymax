@@ -7,9 +7,8 @@ import 'package:intl/intl.dart';
 
 import '../../features/recurrence/domain/event_recurrence_codec.dart';
 import '../../features/recurrence/domain/recurrence_rule.dart';
+import '../../features/recurrence/domain/recurrence_editing.dart';
 import '../../l10n/l10n.dart';
-
-enum _RecurrenceEnd { never, date, count }
 
 /// Material editor for the same provider-safe recurrence subset used on desktop.
 /// Unsupported source rules remain visible and locked.
@@ -24,11 +23,6 @@ Future<RecurrenceRule?> showAndroidRecurrenceDialog(
   bool floating = false,
 }) {
   var rule = initial;
-  var end = rule.count != null
-      ? _RecurrenceEnd.count
-      : rule.untilRaw != null
-      ? _RecurrenceEnd.date
-      : _RecurrenceEnd.never;
   var until = DateTime.tryParse(rule.untilDateFor(timeZone: timeZone) ?? '');
   var intervalInputValid = true;
   var countInputValid = true;
@@ -37,11 +31,12 @@ Future<RecurrenceRule?> showAndroidRecurrenceDialog(
     builder: (dialogContext) => StatefulBuilder(
       builder: (context, setState) {
         final l10n = context.l10n;
+        final end = rule.endMode;
         final valid =
             rule.isSupported &&
             limits.supports(rule) &&
             intervalInputValid &&
-            countInputValid;
+            (end != RecurrenceEnd.count || countInputValid);
         return AlertDialog(
           title: Text(l10n.repeat),
           content: SizedBox(
@@ -79,34 +74,17 @@ Future<RecurrenceRule?> showAndroidRecurrenceDialog(
                           }),
                         ),
                     ],
-                    onChanged: !initial.isSupported
-                        ? null
-                        : (frequency) {
-                            if (frequency == null) {
-                              return;
-                            }
-                            setState(() {
-                              if (rule.isSupported &&
-                                  frequency == rule.frequency) {
-                                return;
-                              }
-                              final pattern = androidRuleForFrequency(
-                                frequency,
-                                baseDate,
-                              );
-                              rule = pattern.copyWith(
-                                interval: rule.interval,
-                                count: frequency == RecurrenceFrequency.none
-                                    ? null
-                                    : rule.count,
-                                untilRaw: frequency == RecurrenceFrequency.none
-                                    ? null
-                                    : rule.untilRaw,
-                              );
-                              intervalInputValid = true;
-                              countInputValid = true;
-                            });
-                          },
+                    onChanged: (frequency) {
+                      if (frequency == null ||
+                          (rule.isSupported && frequency == rule.frequency)) {
+                        return;
+                      }
+                      setState(() {
+                        rule = rule.withFrequency(frequency, baseDate);
+                        intervalInputValid = true;
+                        countInputValid = true;
+                      });
+                    },
                   ),
                   if (rule.isSupported && rule.repeats) ...[
                     const SizedBox(height: 12),
@@ -313,22 +291,22 @@ Future<RecurrenceRule?> showAndroidRecurrenceDialog(
                       ),
                     ],
                     const SizedBox(height: 12),
-                    DropdownButtonFormField<_RecurrenceEnd>(
+                    DropdownButtonFormField<RecurrenceEnd>(
                       key: const ValueKey('android-recurrence-end'),
                       isExpanded: true,
                       initialValue: end,
                       decoration: InputDecoration(labelText: l10n.repeatEnd),
                       items: [
                         DropdownMenuItem(
-                          value: _RecurrenceEnd.never,
+                          value: RecurrenceEnd.never,
                           child: Text(l10n.repeatNever),
                         ),
                         DropdownMenuItem(
-                          value: _RecurrenceEnd.date,
+                          value: RecurrenceEnd.until,
                           child: Text(l10n.repeatUntil),
                         ),
                         DropdownMenuItem(
-                          value: _RecurrenceEnd.count,
+                          value: RecurrenceEnd.count,
                           child: Text(l10n.repeatAfter),
                         ),
                       ],
@@ -337,32 +315,19 @@ Future<RecurrenceRule?> showAndroidRecurrenceDialog(
                           return;
                         }
                         setState(() {
-                          end = selection;
                           countInputValid = true;
-                          rule = switch (selection) {
-                            _RecurrenceEnd.never => rule.copyWith(
-                              count: null,
-                              untilRaw: null,
-                            ),
-                            _RecurrenceEnd.date =>
-                              rule
-                                  .copyWith(count: null)
-                                  .withUntilDate(
-                                    _dateValue(until ?? baseDate),
-                                    allDay: allDay,
-                                    floating: floating,
-                                    baseDate: baseDate,
-                                    timeZone: timeZone,
-                                  ),
-                            _RecurrenceEnd.count => rule.copyWith(
-                              count: rule.count ?? 10,
-                              untilRaw: null,
-                            ),
-                          };
+                          rule = rule.withEndMode(
+                            selection,
+                            baseDate: baseDate,
+                            allDay: allDay,
+                            timeZone: timeZone,
+                            floating: floating,
+                            defaultUntil: _dateValue(until ?? baseDate),
+                          );
                         });
                       },
                     ),
-                    if (end == _RecurrenceEnd.date)
+                    if (end == RecurrenceEnd.until)
                       TextButton.icon(
                         key: const ValueKey('android-recurrence-until'),
                         icon: const Icon(Icons.calendar_today_outlined),
@@ -395,7 +360,7 @@ Future<RecurrenceRule?> showAndroidRecurrenceDialog(
                           });
                         },
                       ),
-                    if (end == _RecurrenceEnd.count)
+                    if (end == RecurrenceEnd.count)
                       TextFormField(
                         key: ValueKey(
                           'android-recurrence-count-${rule.frequency}',
@@ -445,22 +410,6 @@ Future<RecurrenceRule?> showAndroidRecurrenceDialog(
     ),
   );
 }
-
-RecurrenceRule androidRuleForFrequency(
-  RecurrenceFrequency frequency,
-  DateTime base,
-) => const RecurrenceRule.none().copyWith(
-  frequency: frequency,
-  byDay: frequency == RecurrenceFrequency.weekly
-      ? [rfcWeekdays[base.weekday - 1]]
-      : const [],
-  byMonthDay:
-      frequency == RecurrenceFrequency.monthly ||
-          frequency == RecurrenceFrequency.yearly
-      ? [base.day]
-      : const [],
-  byMonth: frequency == RecurrenceFrequency.yearly ? [base.month] : const [],
-);
 
 String _dateValue(DateTime date) =>
     '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';

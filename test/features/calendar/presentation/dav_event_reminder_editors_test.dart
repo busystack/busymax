@@ -11,7 +11,7 @@ import 'package:busymax/src/dav/storage/dav_object_repository.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor.dart';
-import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
+import 'package:busymax/src/features/calendar/domain/event_editor_draft.dart';
 import 'package:busymax/src/features/sync/pending_mutation_sync_requester.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/ui/windows/windows_event_editor_dialog.dart';

@@ -9,14 +9,13 @@ import '../core/http/request_dispatch_exception.dart';
 import '../features/sync/sync_failure_notification_policy.dart';
 import '../features/notifications/reminder_delivery_policy.dart';
 import '../features/notifications/reminder_presentation.dart';
-import '../features/notifications/desktop_notification_service.dart'
-    show ReminderDeliveryResult, ReminderDeliveryStatus;
+import '../features/notifications/reminder_action.dart';
+import '../features/notifications/reminder_delivery_result.dart';
 import '../features/notifications/notification_schedule_service.dart';
 import '../features/notifications/daily_summary_policy.dart';
 
 import 'package:busymax_android_platform/busymax_android_platform.dart';
 import 'package:crypto/crypto.dart';
-import 'package:uuid/uuid.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -271,60 +270,23 @@ Future<bool> applyAndroidReminderAction({
   required AndroidReminderActivation activation,
   required String actionId,
   required DateTime nowUtc,
-}) => database.synchronizeNotifications(
-  () => database.transaction(() async {
-    if (!const {
-      androidNotificationActionSnooze,
-      androidNotificationActionDismiss,
-    }.contains(actionId)) {
-      return false;
-    }
-    final row =
-        await (database.select(database.notificationSchedule)..where(
-              (table) =>
-                  table.id.equals(activation.scheduleId) &
-                  table.generation.equals(activation.generation) &
-                  table.accountId.equals(activation.accountId) &
-                  table.sourceType.equals(activation.sourceType) &
-                  table.dismissedAtUtc.isNull() &
-                  table.expiredAtUtc.isNull(),
-            ))
-            .getSingleOrNull();
-    if (row == null ||
-        !await NotificationScheduleService(
-          database: database,
-          nowUtc: () => nowUtc,
-        ).validateAndReconcileReminder(row)) {
-      return false;
-    }
-    final now = nowUtc.millisecondsSinceEpoch;
-    final update = actionId == androidNotificationActionSnooze
-        ? NotificationScheduleCompanion(
-            generation: Value(const Uuid().v4()),
-            snoozedUntilUtc: Value(
-              now + defaultReminderSnoozeDuration.inMilliseconds,
-            ),
-            sentAtUtc: const Value(null),
-            deferredUntilUtc: const Value(null),
-            updatedAtLocal: Value(now),
-          )
-        : NotificationScheduleCompanion(
-            dismissedAtUtc: Value(now),
-            snoozedUntilUtc: const Value(null),
-            deferredUntilUtc: const Value(null),
-            updatedAtLocal: Value(now),
-          );
-    return await (database.update(database.notificationSchedule)..where(
-              (table) =>
-                  table.id.equals(row.id) &
-                  table.generation.equals(row.generation) &
-                  table.dismissedAtUtc.isNull() &
-                  table.expiredAtUtc.isNull(),
-            ))
-            .write(update) !=
-        0;
-  }),
-);
+}) {
+  final action = switch (actionId) {
+    androidNotificationActionSnooze => ReminderNotificationAction.snooze,
+    androidNotificationActionDismiss => ReminderNotificationAction.dismiss,
+    _ => null,
+  };
+  if (action == null) return Future.value(false);
+  return applyReminderAction(
+    database: database,
+    scheduleId: activation.scheduleId,
+    generation: activation.generation,
+    accountId: activation.accountId,
+    sourceType: activation.sourceType,
+    action: action,
+    nowUtc: nowUtc,
+  );
+}
 
 final class AndroidReminderActivation {
   const AndroidReminderActivation({

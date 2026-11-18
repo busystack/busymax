@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import '../../../providers/busy_provider.dart';
 import '../data/calendar_event_detail.dart';
-import '../presentation/event_editor_draft.dart';
+import 'event_editor_draft.dart';
 
 /// Timing edits are narrower than personal edits (for example reminders).
 bool canEditEventTiming({

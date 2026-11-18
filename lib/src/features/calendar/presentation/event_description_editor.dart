@@ -31,61 +31,20 @@ class EventDescriptionEditor extends StatefulWidget {
 }
 
 class _EventDescriptionEditorState extends State<EventDescriptionEditor> {
-  late final RichDescriptionController _controller;
-  var _notifying = false;
-  late String _lastEmittedText;
-  String? _lastEmittedHtml;
-
-  bool get _supportsRichText => widget.provider == BusyProvider.microsoft;
-
-  @override
-  void initState() {
-    super.initState();
-    final document = _supportsRichText && isHtmlContentType(widget.contentType)
-        ? htmlCalendarDescriptionDocument(widget.html ?? '')
-        : CalendarDescriptionDocument(
-            text: widget.text ?? '',
-            ranges: const [],
-          );
-    _controller = RichDescriptionController(document);
-    _lastEmittedText = _controller.text;
-    _lastEmittedHtml = _supportsRichText
-        ? calendarDescriptionToHtml(_controller.text, _controller.ranges)
-        : null;
-    _controller.addListener(_emitChanged);
-  }
+  late final _binding = EventDescriptionBinding(
+    richText: widget.provider == BusyProvider.microsoft,
+    text: widget.text,
+    contentType: widget.contentType,
+    html: widget.html,
+    onChanged: (value) => widget.onChanged(value),
+  );
+  RichDescriptionController get _controller => _binding.controller;
+  bool get _supportsRichText => _binding.richText;
 
   @override
   void dispose() {
-    _controller
-      ..removeListener(_emitChanged)
-      ..dispose();
+    _binding.dispose();
     super.dispose();
-  }
-
-  void _emitChanged() {
-    if (_notifying) {
-      return;
-    }
-    _notifying = true;
-    try {
-      final text = _controller.text;
-      if (_supportsRichText) {
-        final html = calendarDescriptionToHtml(text, _controller.ranges);
-        if (text == _lastEmittedText && html == _lastEmittedHtml) return;
-        _lastEmittedText = text;
-        _lastEmittedHtml = html;
-        widget.onChanged(
-          EventDescriptionValue(text: text, contentType: 'html', html: html),
-        );
-        return;
-      }
-      if (text == _lastEmittedText) return;
-      _lastEmittedText = text;
-      widget.onChanged(EventDescriptionValue(text: text));
-    } finally {
-      _notifying = false;
-    }
   }
 
   @override
@@ -156,7 +115,6 @@ class _EventDescriptionEditorState extends State<EventDescriptionEditor> {
     setState(() {
       _controller.toggleStyle(style);
     });
-    _emitChanged();
   }
 }
 

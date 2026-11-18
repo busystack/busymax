@@ -46,7 +46,7 @@ import '../domain/google_status_event.dart';
 import '../domain/event_timing_policy.dart';
 import '../../maps/domain/location_result.dart';
 import '../../maps/data/location_resolution_repository.dart';
-import '../presentation/event_editor_draft.dart';
+import '../domain/event_editor_draft.dart';
 import 'calendar_event_detail.dart';
 import '../../../dav/nextcloud/nextcloud_scheduling_policy.dart';
 import '../../../dav/nextcloud/nextcloud_meeting_mutations.dart';
@@ -2009,10 +2009,7 @@ class CalendarRepository {
       rebuildNotifications: false,
     );
     if (rebuildNotifications) {
-      await _notificationScheduleService().rebuildUpcomingEventNotifications(
-        draft.accountId,
-      );
-      await _onNotificationScheduleChanged?.call();
+      await _refreshCommittedEventNotifications({draft.accountId});
     }
     return operationId;
   }
@@ -2303,18 +2300,18 @@ class CalendarRepository {
     EventTimingBaseline? timingBaseline,
   }) async {
     if (timingBaseline == null) {
-      final eventChanged = await _database.transaction(() async {
+      final notificationAccounts = {draft.accountId};
+      final eventChanged = await _database.transaction(() {
         return _updateLocalEvent(
           draft,
           guestUpdatePolicy: guestUpdatePolicy,
           deferNotifications: true,
+          notificationAccounts: notificationAccounts,
         );
       });
-      if (!eventChanged) return;
-      await _notificationScheduleService().rebuildUpcomingEventNotifications(
-        draft.accountId,
-      );
-      await _onNotificationScheduleChanged?.call();
+      if (eventChanged) {
+        await _refreshCommittedEventNotifications(notificationAccounts);
+      }
       return;
     }
     // Compare and change timing in the same transaction. Rebase unrelated
@@ -2352,12 +2349,13 @@ class CalendarRepository {
         timingOnly: true,
       );
     });
+    await _refreshCommittedEventNotifications({draft.accountId});
+  }
+
+  Future<void> _refreshCommittedEventNotifications(Set<String> accounts) async {
     try {
-      await _notificationScheduleService().rebuildUpcomingEventNotifications(
-        draft.accountId,
-      );
-      await _onNotificationScheduleChanged?.call();
-    } catch (error) {
+      await _rebuildEventNotificationsFor(accounts);
+    } on Object catch (error) {
       throw EventNotificationRefreshFailure(error);
     }
   }
@@ -2430,6 +2428,7 @@ class CalendarRepository {
         CalendarGuestUpdatePolicy.send,
     bool timingOnly = false,
     bool deferNotifications = false,
+    Set<String>? notificationAccounts,
   }) async {
     if (draft.descriptionEditUnsafe) {
       throw const MicrosoftMeetingBodyEditUnsafe();
@@ -2483,6 +2482,7 @@ class CalendarRepository {
       );
     }
     if (sourceChanged) {
+      notificationAccounts?.add(existing.accountId);
       await _requireWritableSource(
         originalSource,
         database: _database,
@@ -3015,7 +3015,6 @@ class CalendarRepository {
             );
       }
     });
-    await _rebuildEventNotificationsFor({existing.accountId});
   }
 
   Future<void> _moveLocalDavEvent({
@@ -3094,7 +3093,6 @@ class CalendarRepository {
             ),
           );
     });
-    await _rebuildEventNotificationsFor({existing.accountId});
   }
 
   Future<
@@ -3279,7 +3277,6 @@ class CalendarRepository {
       }
     } on Object {
       await _discardQueuedEventCreate(createOperationId);
-      await _rebuildEventNotificationsFor({destinationSource.accountId});
       rethrow;
     }
     await (_database.update(
@@ -3290,10 +3287,6 @@ class CalendarRepository {
         updatedAtLocal: Value(_now().millisecondsSinceEpoch),
       ),
     );
-    await _rebuildEventNotificationsFor({
-      originalSource.accountId,
-      destinationSource.accountId,
-    });
   }
 
   Future<void> _transferDavEventResource({
@@ -3353,10 +3346,6 @@ class CalendarRepository {
       await (_database.update(_database.calendarEvents)
             ..where((r) => r.davObjectId.equals(existing.davObjectId!)))
           .write(const CalendarEventsCompanion(syncStatus: Value('pending')));
-    });
-    await _rebuildEventNotificationsFor({
-      existing.accountId,
-      destinationSource.accountId,
     });
   }
 

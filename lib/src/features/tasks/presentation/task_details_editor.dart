@@ -30,7 +30,7 @@ import '../domain/task_source_links.dart';
 import '../../schedule/presentation/schedule_event_details_format.dart';
 import '../../schedule/presentation/attachment_download.dart';
 import '../../schedule/presentation/dav_attachments_section.dart';
-import '../../schedule/presentation/attachment_upload_coordinator.dart';
+import '../../schedule/application/attachment_upload_coordinator.dart';
 import '../../../microsoft_todo/api/microsoft_todo_api_client.dart';
 import '../../../microsoft_todo/api/microsoft_todo_api_models.dart';
 import '../../../microsoft_calendar/microsoft_calendar_models.dart';

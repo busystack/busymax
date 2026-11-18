@@ -9,7 +9,7 @@ import 'package:busymax/src/dav/mutation/dav_collection_administration.dart';
 import 'package:busymax/src/features/connectivity/network_connectivity_service.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
-import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
+import 'package:busymax/src/features/calendar/domain/event_editor_draft.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;

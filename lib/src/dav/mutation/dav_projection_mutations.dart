@@ -7,7 +7,7 @@ import '../ical/ical_task_alarm.dart';
 import '../ical/ical_timezone.dart';
 import 'dav_conditional_mutation_service.dart';
 import 'dav_mutation_patch.dart';
-import '../../features/calendar/presentation/event_editor_draft.dart';
+import '../../features/calendar/domain/event_editor_draft.dart';
 import '../nextcloud/nextcloud_scheduling_mutations.dart';
 import '../../core/time/provider_date_time.dart';
 import '../../features/recurrence/domain/series_timing_change.dart';

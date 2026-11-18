@@ -13,7 +13,7 @@ import '../../l10n/nextcloud_collection_error_description.dart';
 
 import 'package:busymax/src/dav/nextcloud/nextcloud_scheduling_controller.dart';
 import 'package:busymax/src/dav/nextcloud/nextcloud_scheduling_service.dart';
-import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
+import 'package:busymax/src/features/calendar/domain/event_editor_draft.dart';
 
 Future<void> showWindowsNextcloudSchedulingDialog(
   BuildContext context, {

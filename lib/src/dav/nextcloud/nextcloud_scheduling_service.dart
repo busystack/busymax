@@ -4,7 +4,7 @@ import 'package:drift/drift.dart';
 
 import '../../core/time/provider_date_time.dart';
 import '../../db/app_database.dart';
-import '../../features/calendar/presentation/event_editor_draft.dart';
+import '../../features/calendar/domain/event_editor_draft.dart';
 import '../ical/ical_timezone.dart';
 import '../mutation/dav_pending_operations.dart';
 import '../ical/ical_document.dart';

@@ -1,3 +1,5 @@
+import '../../features/calendar/application/guest_availability.dart';
+
 import 'dart:async';
 
 import 'package:fluent_ui/fluent_ui.dart';
@@ -6,9 +8,8 @@ import 'package:intl/intl.dart';
 
 import '../../app/app_bootstrap.dart';
 import '../../calendar_providers/calendar_sync_dto.dart';
-import '../../calendar_providers/cloud_calendar_client.dart';
 import '../../core/logging/redacting_logger.dart';
-import '../../features/calendar/presentation/event_editor_draft.dart';
+import '../../features/calendar/domain/event_editor_draft.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../l10n/time_format_scope.dart';
 
@@ -59,27 +60,16 @@ class _WindowsCloudAvailabilityDialogState
       _error = null;
     });
     try {
-      final client = ref.read(
-        calendarRemoteApiClientForAccountProvider(widget.draft.accountId),
-      );
-      final interval = widget.draft.cloudAvailabilityInterval(
+      final fetched = await loadCloudGuestAvailability(
+        client: ref.read(
+          calendarRemoteApiClientForAccountProvider(widget.draft.accountId),
+        ),
+        draft: widget.draft,
         calendarTimeZone: widget.calendarTimeZone,
       );
-      if (client is! DetailedFreeBusyClient || interval == null) {
-        throw StateError('Availability is unavailable.');
+      if (mounted && generation == _generation) {
+        _results = fetched.values.toList();
       }
-      final recipients = widget.draft.attendees
-          .where((attendee) => !attendee.self && !attendee.organizer)
-          .map((attendee) => attendee.email.trim())
-          .where((email) => email.isNotEmpty)
-          .toSet()
-          .toList();
-      final fetched = await (client as DetailedFreeBusyClient).freeBusyDetails(
-        calendarIds: recipients,
-        rangeStart: interval.start.toUtc(),
-        rangeEnd: interval.end.toUtc(),
-      );
-      if (mounted && generation == _generation) _results = fetched;
     } on Object catch (error) {
       if (mounted && generation == _generation) _error = error;
     } finally {

@@ -1,3 +1,5 @@
+import '../../features/calendar/application/guest_availability.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -6,10 +8,9 @@ import 'package:intl/intl.dart';
 
 import '../../app/app_bootstrap.dart';
 import '../../calendar_providers/calendar_sync_dto.dart';
-import '../../calendar_providers/cloud_calendar_client.dart';
 import '../../core/logging/redacting_logger.dart';
 import '../../dav/nextcloud/nextcloud_scheduling_service.dart';
-import '../../features/calendar/presentation/event_editor_draft.dart';
+import '../../features/calendar/domain/event_editor_draft.dart';
 import '../../l10n/l10n.dart';
 import '../../l10n/time_format_scope.dart';
 import '../../providers/busy_provider.dart';
@@ -61,13 +62,6 @@ class _AndroidGuestAvailabilityDialogState
   Map<String, FreeBusyCalendarResultDto> _cloud = const {};
   int _loadGeneration = 0;
 
-  List<String> get _recipients => widget.draft.attendees
-      .where((attendee) => !attendee.self && !attendee.organizer)
-      .map((attendee) => attendee.email.trim())
-      .where((email) => email.isNotEmpty)
-      .toSet()
-      .toList(growable: false);
-
   @override
   void initState() {
     super.initState();
@@ -107,45 +101,15 @@ class _AndroidGuestAvailabilityDialogState
         _nextcloud = results;
       } else if (widget.provider == BusyProvider.google ||
           widget.provider == BusyProvider.microsoft) {
-        final client = ref.read(
-          calendarRemoteApiClientForAccountProvider(widget.accountId),
-        );
-        final interval = widget.draft.cloudAvailabilityInterval(
+        final results = await loadCloudGuestAvailability(
+          client: ref.read(
+            calendarRemoteApiClientForAccountProvider(widget.accountId),
+          ),
+          draft: widget.draft,
           calendarTimeZone: widget.calendarTimeZone,
         );
-        if (client == null || interval == null) {
-          throw StateError('Availability is unavailable');
-        }
-        if (client is DetailedFreeBusyClient) {
-          final results = await (client as DetailedFreeBusyClient)
-              .freeBusyDetails(
-                calendarIds: _recipients,
-                rangeStart: interval.start.toUtc(),
-                rangeEnd: interval.end.toUtc(),
-              );
-          final byCalendar = {
-            for (final result in results)
-              result.calendarId.toLowerCase(): result,
-          };
-          if (generation != _loadGeneration || !mounted) return;
-          _cloud = {
-            for (final recipient in _recipients)
-              recipient:
-                  byCalendar[recipient.toLowerCase()] ??
-                  FreeBusyCalendarResultDto(
-                    calendarId: recipient,
-                    status: FreeBusyEvaluationStatus.missing,
-                  ),
-          };
-        } else {
-          _cloud = {
-            for (final recipient in _recipients)
-              recipient: FreeBusyCalendarResultDto(
-                calendarId: recipient,
-                status: FreeBusyEvaluationStatus.missing,
-              ),
-          };
-        }
+        if (generation != _loadGeneration || !mounted) return;
+        _cloud = results;
       } else {
         throw StateError('Availability is unsupported');
       }

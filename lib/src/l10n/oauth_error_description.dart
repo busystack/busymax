@@ -1,3 +1,4 @@
+import '../features/auth/application/account_removal.dart';
 import '../dav/dav_errors.dart';
 import '../features/sync/sync_failure_notification_policy.dart';
 import '../core/http/request_dispatch_exception.dart';
@@ -107,3 +108,14 @@ String localizedSyncFailureMessage(
         networkUnavailableMessage ?? l10n.networkOfflineTryAgain,
   );
 }
+
+String? localizedAccountRemovalWarning(
+  AppLocalizations l10n,
+  AccountRemovalOutcome outcome,
+) => switch (outcome) {
+  AccountRemovalOutcome.removed => null,
+  AccountRemovalOutcome.googleRevocationFailed =>
+    l10n.accountRemovedGoogleRevokeFailed,
+  AccountRemovalOutcome.davRevocationFailed =>
+    l10n.nextcloudAccountRemovedRevokeFailed,
+};

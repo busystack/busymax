@@ -52,28 +52,6 @@ abstract final class BusyMaxMotion {
   static const Curve presentationCurve = Curves.easeOutCubic;
 }
 
-enum BusyMaxSemanticColorRole {
-  accent,
-  canvas,
-  surface,
-  foreground,
-  secondaryForeground,
-  border,
-  success,
-  warning,
-  error,
-  information,
-}
-
-enum BusyMaxInteractionState {
-  normal,
-  hovered,
-  pressed,
-  focused,
-  selected,
-  disabled,
-}
-
 @immutable
 final class BusyMaxPaneState {
   const BusyMaxPaneState({

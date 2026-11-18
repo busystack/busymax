@@ -42,6 +42,7 @@ import '../../../schedule/schedule_filters.dart';
 import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_event_rescheduling.dart';
 import '../../../ui/common/schedule/schedule_interactions.dart';
+import '../../calendar/application/save_event_draft.dart';
 import '../../calendar/domain/event_timing_policy.dart';
 import '../../../schedule/schedule_projection.dart';
 import '../../../schedule/schedule_range.dart';
@@ -55,7 +56,7 @@ import '../../../schedule/schedule_view_mode.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 
 import '../../calendar/presentation/event_editor.dart';
-import '../../calendar/presentation/event_editor_draft.dart';
+import '../../calendar/domain/event_editor_draft.dart';
 import '../../calendar/presentation/event_guest_delivery_dialog.dart';
 import '../../task_lists/data/task_lists_repository.dart';
 import '../../tasks/data/tasks_repository.dart';
@@ -1382,64 +1383,23 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     _workspaceFocusNode.requestFocus();
   }
 
-  void _previous() {
-    if (_searchActive) return;
-    if (_mode == ScheduleViewMode.agenda) {
-      return;
-    }
-    setState(() {
-      final target = switch (_mode) {
-        ScheduleViewMode.day => DateUtils.addDaysToDate(_selectedDate, -1),
-        ScheduleViewMode.week => DateUtils.addDaysToDate(_selectedDate, -7),
-        ScheduleViewMode.month => DateUtils.addMonthsToMonthDate(
-          _selectedDate,
-          -1,
-        ),
-        ScheduleViewMode.year => DateTime(
-          _selectedDate.year - 1,
-          _selectedDate.month,
-          _selectedDate.day,
-        ),
-        ScheduleViewMode.agenda => _selectedDate,
-      };
-      _selectedDate = target;
-      _navigationIntent = ScheduleNavigationIntent(
-        cause: ScheduleNavigationCause.adjacentPeriod,
-        target: target,
-        direction: -1,
-        generation: ++_navigationGeneration,
-      );
-      if (_scope == ScheduleScope.today || _scope == ScheduleScope.upcoming) {
-        _scope = ScheduleScope.all;
-      }
-    });
-  }
+  void _previous() => _movePeriod(-1);
+  void _next() => _movePeriod(1);
 
-  void _next() {
-    if (_searchActive) return;
-    if (_mode == ScheduleViewMode.agenda) {
-      return;
-    }
+  void _movePeriod(int direction) {
+    if (_searchActive || _mode == ScheduleViewMode.agenda) return;
     setState(() {
-      final target = switch (_mode) {
-        ScheduleViewMode.day => DateUtils.addDaysToDate(_selectedDate, 1),
-        ScheduleViewMode.week => DateUtils.addDaysToDate(_selectedDate, 7),
-        ScheduleViewMode.month => DateUtils.addMonthsToMonthDate(
-          _selectedDate,
-          1,
-        ),
-        ScheduleViewMode.year => DateTime(
-          _selectedDate.year + 1,
-          _selectedDate.month,
-          _selectedDate.day,
-        ),
-        ScheduleViewMode.agenda => _selectedDate,
-      };
+      final target = adjacentScheduleDate(
+        _selectedDate,
+        _mode,
+        direction,
+        retainDayInYear: true,
+      );
       _selectedDate = target;
       _navigationIntent = ScheduleNavigationIntent(
         cause: ScheduleNavigationCause.adjacentPeriod,
         target: target,
-        direction: 1,
+        direction: direction,
         generation: ++_navigationGeneration,
       );
       if (_scope == ScheduleScope.today || _scope == ScheduleScope.upcoming) {
@@ -2210,38 +2170,6 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     );
   }
 
-  Future<void> _saveEvent(
-    EventEditorDraft draft, {
-    String? originalAccountId,
-    CalendarGuestUpdatePolicy guestUpdatePolicy =
-        CalendarGuestUpdatePolicy.send,
-  }) async {
-    await ref
-        .read(calendarRepositoryProvider)
-        .updateLocalEvent(draft, guestUpdatePolicy: guestUpdatePolicy);
-    if (draft.eventId == null) {
-      unawaited(
-        ref
-            .read(appSettingsControllerProvider.notifier)
-            .rememberCalendar(
-              CreationDestination(
-                accountId: draft.accountId,
-                id: draft.sourceId,
-              ),
-            ),
-      );
-    }
-    final sourceAccountId = originalAccountId;
-    if (sourceAccountId != null && sourceAccountId != draft.accountId) {
-      unawaited(_syncMovedEvent(draft.accountId, sourceAccountId));
-    } else {
-      _requestCalendarMutationSync(draft.accountId);
-    }
-    if (mounted) {
-      setState(() {});
-    }
-  }
-
   Future<void> _rescheduleEvent(
     ScheduleRescheduleRequest request,
     bool Function() isActive,
@@ -2363,6 +2291,32 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       sources: editableSources,
       accounts: _latestAccounts,
       categorySuggestionsByAccount: _categorySuggestionsByAccount(),
+      submit: (edited, guestPolicy) async {
+        final settings = ref.read(appSettingsControllerProvider.notifier);
+        final outcome = await saveEventDraft(
+          repository: ref.read(calendarRepositoryProvider),
+          draft: edited,
+          guestPolicy: guestPolicy,
+          rememberDestination: () => settings.rememberCalendar(
+            CreationDestination(
+              accountId: edited.accountId,
+              id: edited.sourceId,
+            ),
+          ),
+          requestSync: () {
+            if (draft.accountId == edited.accountId) {
+              _requestCalendarMutationSync(edited.accountId);
+            } else {
+              unawaited(_syncMovedEvent(edited.accountId, draft.accountId));
+            }
+          },
+        );
+        if (mounted && outcome == EventSaveOutcome.followUpPending) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(context.l10n.pendingLocally)));
+        }
+      },
     );
     if (!mounted || result == null) {
       return;
@@ -2375,27 +2329,6 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         guestUpdatePolicy: result.guestUpdatePolicy,
       );
       return;
-    }
-    final savedDraft = result.draft;
-    if (savedDraft != null) {
-      try {
-        await _saveEvent(
-          savedDraft,
-          originalAccountId: draft.accountId,
-          guestUpdatePolicy: result.guestUpdatePolicy,
-        );
-      } on Object catch (error) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              error is UnsupportedError
-                  ? error.message ?? context.l10n.operationFailed
-                  : localizedNextcloudCollectionError(context.l10n, error),
-            ),
-          ),
-        );
-      }
     }
   }
 

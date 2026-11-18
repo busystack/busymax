@@ -5,6 +5,7 @@ import '../../../l10n/l10n.dart';
 import '../../../l10n/localized_formatters.dart';
 import '../domain/recurrence_rule.dart';
 import '../domain/event_recurrence_codec.dart';
+import '../domain/series_timing_change.dart';
 
 String recurrenceRuleSummary(
   BuildContext context,
@@ -328,3 +329,20 @@ bool _sameDaySet(List<String> left, List<String> right) {
   final leftValues = {...left};
   return leftValues.length == left.length && leftValues.containsAll(right);
 }
+
+String seriesTimingConfirmationMessage(
+  BuildContext context,
+  SeriesTimingChange change, {
+  required bool following,
+}) => context.l10n.seriesPatternChangeConfirmation(
+  recurrenceRuleSummary(
+    context,
+    change.previewRule(following: following, original: true),
+    timeZone: change.timeZone,
+  ),
+  recurrenceRuleSummary(
+    context,
+    change.previewRule(following: following),
+    timeZone: change.timeZone,
+  ),
+);

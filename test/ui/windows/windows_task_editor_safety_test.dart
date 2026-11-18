@@ -8,7 +8,7 @@ import 'package:busymax/src/features/recurrence/domain/recurrence_rule.dart';
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
-import 'package:busymax/src/features/schedule/presentation/attachment_upload_coordinator.dart';
+import 'package:busymax/src/features/schedule/application/attachment_upload_coordinator.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_client.dart';
 import 'package:busymax/src/schedule/schedule_item.dart';

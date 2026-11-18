@@ -42,12 +42,22 @@ The public configuration keys have these exact consumers:
 Create Android OAuth registrations for `io.busystack.busymax`, enable the
 Google Calendar and Google Tasks APIs, and register every certificate context
 that will install the app: debug, locally distributed release, and Play app
-signing. Put their SHA-256 fingerprints in the local configuration as an owner
-record; Gradle does not send these values anywhere. Google authorization uses
+signing. The Android OAuth client in Google Cloud must match the application ID
+and the signing certificate's **SHA-1** fingerprint. The SHA-256 values in the
+local configuration are owner records; they do not register an OAuth client,
+and Gradle does not send them to Google. Google authorization uses
 the on-device `AuthorizationClient` with explicit account selection. The
 desktop client ID and desktop client secret are neither required nor embedded
 on Android. An AOSP device without Google Play services intentionally leaves
 only Google unavailable; Microsoft, Apple, Nextcloud, and WebCal remain usable.
+
+The isolated `io.busystack.busymax.caldavqa` and
+`io.busystack.busymax.nextcloudqa` packages need their own Android OAuth clients
+if used for Google testing. Registering `io.busystack.busymax` does not cover
+those package names. A package/signature rejection can occur after the account
+chooser; Google's device log reports that the application is not registered.
+For normal account setup, launch the **BusyMax Android** configuration without
+the QA Gradle properties.
 
 ## Microsoft MSAL
 
@@ -103,6 +113,22 @@ tool/android/run.sh --device DEVICE_ID
 The same entrypoint is available as the checked-in **BusyMax Android** IDE run
 configuration. Live-provider tests must use disposable QA accounts and the
 certificate registration matching the installed build.
+
+In Android Studio, select **BusyMax Android** in the run configuration dropdown.
+Its Dart entrypoint is `lib/main_android.dart`. The auto-generated **main.dart**
+configuration runs the Linux alias and must not be used for Android. An
+existing IDE session may need the configuration selected again after an
+external workspace-settings change.
+
+For a direct Flutter launch, use:
+
+```sh
+flutter run -d DEVICE_ID -t lib/main_android.dart
+```
+
+A white screen with `MissingPluginException` for `yaru_window` and a stack frame
+in `main_linux.dart` means the Linux entrypoint was launched on Android. Stop
+that run and launch **BusyMax Android**; hot reload does not change entrypoints.
 
 On a fresh checkout, the complete non-device verification command is:
 

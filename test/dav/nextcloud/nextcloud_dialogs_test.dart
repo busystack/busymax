@@ -576,6 +576,34 @@ void main() {
     },
   );
 
+  testWidgets('Android trash reports a committed delete with refresh pending', (
+    tester,
+  ) async {
+    final fixture = NextcloudAdminFixture()..failRefresh = true;
+    await tester.runAsync(fixture.seed);
+    addTearDown(fixture.close);
+    await _pumpTrash(tester, fixture, platform: 'Android');
+    final href =
+        '${NextcloudAdminFixture.origin}${NextcloudAdminFixture.bin}objects/41.ics';
+    final menu = find.byKey(ValueKey(('nextcloud-trash-menu', href)));
+    await tester.tap(menu);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Permanently delete'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Permanently delete'));
+    await _settle(tester);
+
+    expect(
+      fixture.requests.where((request) => request.method == 'DELETE'),
+      hasLength(1),
+    );
+    expect(find.textContaining('Refresh is pending'), findsOneWidget);
+    await tester.tap(menu, warnIfMissed: false);
+    await tester.pumpAndSettle();
+    expect(find.text('Permanently delete'), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('trash uses shared rows and confirms permanent deletion', (
     tester,
   ) async {

@@ -57,7 +57,7 @@ import '../dav/nextcloud/nextcloud_federation_service.dart';
 import '../dav/nextcloud/nextcloud_scheduling_service.dart';
 import '../features/calendar/data/calendar_repository.dart';
 import '../features/calendar/data/microsoft_shared_calendar_service.dart';
-import '../features/schedule/presentation/attachment_upload_coordinator.dart';
+import '../features/schedule/application/attachment_upload_coordinator.dart';
 import '../features/sync/cloud_calendar_range_coverage_service.dart';
 import '../features/calendar/data/calendar_collection_creation_service.dart';
 import '../ical/ical_import_service.dart';

@@ -27,12 +27,13 @@ import '../../app/common/busymax_mutation_list.dart';
 import '../../calendar_providers/calendar_mutation.dart';
 import '../../features/accounts/data/accounts_repository.dart';
 import '../../features/calendar/data/calendar_repository.dart';
-import '../../features/calendar/presentation/event_editor_draft.dart';
+import '../../features/calendar/domain/event_editor_draft.dart';
 import '../../features/calendar/presentation/google_status_event_labels.dart';
 import '../../features/schedule/presentation/schedule_item_exporter.dart';
 import '../../features/schedule/presentation/cloud_calendar_series_export.dart';
 import '../../features/task_lists/data/task_lists_repository.dart';
 import '../../features/tasks/domain/task_capabilities.dart';
+import '../../schedule/schedule_agenda_query.dart';
 import '../../schedule/schedule_filters.dart';
 import '../../schedule/schedule_commands.dart';
 import '../../schedule/schedule_projection.dart';
@@ -1250,6 +1251,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     final accountIds = [for (final account in accounts) account.id]..sort();
     final normalKey = [
       _refreshRevision,
+      if (mode == ScheduleViewMode.agenda) agendaTaskLimit,
       mode.name,
       range.start.toIso8601String(),
       range.end.toIso8601String(),
@@ -1317,22 +1319,17 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     required int agendaTaskLimit,
   }) async {
     final repository = ref.read(scheduleRepositoryProvider);
-    final items = <ScheduleItem>[
-      ...await repository.listItems(range: range, filters: filters),
-    ];
-    if (mode == ScheduleViewMode.agenda) {
-      final overdue = await repository.listOverdueTasks(
-        before: range.start,
-        limit: agendaTaskLimit,
-        filters: filters,
-      );
-      final noDate = await repository.listNoDateTasks(
-        limit: agendaTaskLimit,
-        filters: filters,
-      );
-      items.addAll(overdue.items);
-      items.addAll(noDate.items);
-    }
+    final items = mode == ScheduleViewMode.agenda
+        ? (await queryScheduleAgenda(
+            repository,
+            range: range,
+            sourceIds: filters.sourceIds,
+            taskListKeys: filters.taskListKeys,
+            accountIds: filters.accountIds,
+            overdueLimit: agendaTaskLimit,
+            noDateLimit: agendaTaskLimit,
+          )).items
+        : await repository.listItems(range: range, filters: filters);
     final unique = <String, ScheduleItem>{};
     for (final item in items) {
       unique['${item.kind.name}/${item.accountId}/${item.sourceId}/${item.id}'] =
@@ -1401,29 +1398,8 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
   }
 
   void _movePeriod(int direction) {
-    final next = switch (_mode) {
-      ScheduleViewMode.day => DateTime(
-        _selectedDate.year,
-        _selectedDate.month,
-        _selectedDate.day + direction,
-      ),
-      ScheduleViewMode.week => DateTime(
-        _selectedDate.year,
-        _selectedDate.month,
-        _selectedDate.day + (7 * direction),
-      ),
-      ScheduleViewMode.month => DateTime(
-        _selectedDate.year,
-        _selectedDate.month + direction,
-        1,
-      ),
-      ScheduleViewMode.year => DateTime(
-        _selectedDate.year + direction,
-        _selectedDate.month,
-        1,
-      ),
-      ScheduleViewMode.agenda => _selectedDate,
-    };
+    if (_mode == ScheduleViewMode.agenda) return;
+    final next = adjacentScheduleDate(_selectedDate, _mode, direction);
     setState(() {
       _selectedDate = _dateOnly(next);
       _normalItemsKey = null;

@@ -7,7 +7,7 @@ import 'package:busymax/src/dav/http/dav_account_http_client.dart';
 import 'package:busymax/src/dav/sync/dav_account_sync_engine.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor.dart';
-import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
+import 'package:busymax/src/features/calendar/domain/event_editor_draft.dart';
 import 'package:busymax/src/features/connectivity/network_connectivity_service.dart';
 import 'package:busymax/src/features/settings/presentation/settings_screen.dart';
 import 'package:busymax/src/features/tasks/presentation/new_task_dialog.dart';

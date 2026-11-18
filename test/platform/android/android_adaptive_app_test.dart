@@ -34,12 +34,12 @@ import 'package:busymax/src/dav/mutation/dav_mutation_patch.dart';
 import 'package:busymax/src/dav/mutation/dav_pending_operations.dart';
 import 'package:busymax/src/dav/mutation/dav_conditional_mutation_service.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
-import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
+import 'package:busymax/src/features/calendar/domain/event_editor_draft.dart';
 import 'package:busymax/src/features/feedback/data/feedback_api_client.dart';
 import 'package:busymax/src/features/feedback/data/feedback_submission.dart';
 import 'package:busymax/src/features/connectivity/network_connectivity_service.dart';
 import 'package:busymax/src/features/notifications/notification_reconciler.dart';
-import 'package:busymax/src/features/schedule/presentation/attachment_upload_coordinator.dart';
+import 'package:busymax/src/features/schedule/application/attachment_upload_coordinator.dart';
 import 'package:busymax/src/features/recurrence/domain/recurrence_rule.dart';
 import 'package:busymax/src/features/sync/pending_mutation_sync_requester.dart';
 import 'package:busymax/src/google_calendar/google_calendar_api_client.dart';
@@ -6553,7 +6553,7 @@ void main() {
             ops.where((op) => op.operation == 'move_task'),
             hasLength(cancelMove ? 0 : 1),
           );
-          expect(repository.patchCalls, patchCommitted && !cancelMove ? 1 : 2);
+          expect(repository.patchCalls, patchCommitted ? 1 : 2);
           expect(
             repository.moveDestinations,
             patchCommitted

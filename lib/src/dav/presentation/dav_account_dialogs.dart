@@ -5,8 +5,8 @@ import '../../app/busymax_design.dart';
 import '../../app/busymax_dialogs.dart';
 import '../../l10n/l10n.dart';
 import '../../providers/busy_provider.dart';
-import 'caldav_credential_input.dart';
-import 'caldav_material_dialog.dart';
+import '../auth/caldav_credential_input.dart';
+import '../auth/caldav_material_dialog.dart';
 
 Future<CalDavCredentialInput?> showCalDavCredentialDialog(
   BuildContext context, {

@@ -1,3 +1,5 @@
+import '../../features/tasks/application/save_task_draft.dart';
+
 import 'package:busymax/src/core/auth/authorization_attempt.dart';
 
 import 'windows_time_picker.dart';
@@ -28,7 +30,7 @@ import '../../core/time/provider_date_time.dart';
 import '../../features/schedule/presentation/schedule_item_exporter.dart';
 import '../../features/schedule/presentation/schedule_event_details_format.dart';
 import '../../features/schedule/presentation/attachment_download.dart';
-import '../../features/schedule/presentation/attachment_upload_coordinator.dart';
+import '../../features/schedule/application/attachment_upload_coordinator.dart';
 import '../../microsoft_todo/api/microsoft_todo_api_client.dart';
 import '../../microsoft_todo/api/microsoft_todo_api_models.dart';
 import '../../microsoft_calendar/microsoft_calendar_models.dart';
@@ -2187,64 +2189,37 @@ Future<bool> showWindowsTaskDetailsDialog(
                             occurrenceKey: original.occurrenceKey,
                           );
                           report(onTaskMutationStarted, mutation);
-                          if (patch.isNotEmpty) {
-                            await repository.patchTask(
-                              task.sourceId,
-                              task.id,
-                              TaskPatchInput(
+                          try {
+                            await saveTaskDraftChanges(
+                              repository: repository,
+                              sourceListId: original.taskListId,
+                              taskId: original.id,
+                              destinationListId: selectedTaskListId,
+                              patch: taskDraftPatch(
                                 patch,
                                 locationChange: updatedDraft.locationChange,
                                 observedTask: updatedDraft.observedTask,
                                 completionIntent: checkboxCompletionIntent,
-                                observedOccurrenceKey:
-                                    checkboxCompletionIntent != null ||
-                                        patch.keys.any(
-                                          const {
-                                            'status',
-                                            'completed',
-                                            'taskStatus',
-                                            'percentComplete',
-                                            'completedAtUtc',
-                                          }.contains,
-                                        )
-                                    ? updatedDraft.observedTask?.occurrenceKey
-                                    : null,
                               ),
                             );
-                          }
-                          if (selectedTaskListId != original.taskListId) {
-                            try {
-                              await repository.moveTask(
-                                TaskMoveInput(
-                                  sourceTaskListId: original.taskListId,
-                                  taskId: original.id,
-                                  destinationTaskListId: selectedTaskListId,
-                                ),
-                              );
-                            } on Object {
-                              if (patch.isEmpty) rethrow;
-                              final committed = await repository.readTask(
-                                original.taskListId,
-                                original.id,
-                              );
-                              if (committed == null) rethrow;
-                              retainCommittedPatch(committed);
-                              changed = true;
-                              report(
-                                onTaskMutationCommitted,
-                                TaskMutationResult(
-                                  kind: TaskMutationKind.updated,
-                                  accountId: committed.accountId,
-                                  taskListId: committed.taskListId,
-                                  taskId: committed.id,
-                                ),
-                              );
-                              setState(() {
-                                busy = false;
-                                error = l10n.taskMoveAfterSaveFailed;
-                              });
-                              return;
-                            }
+                          } on TaskSavePartialException catch (partial) {
+                            final committed = partial.committedTask;
+                            retainCommittedPatch(committed);
+                            changed = true;
+                            report(
+                              onTaskMutationCommitted,
+                              TaskMutationResult(
+                                kind: TaskMutationKind.updated,
+                                accountId: committed.accountId,
+                                taskListId: committed.taskListId,
+                                taskId: committed.id,
+                              ),
+                            );
+                            setState(() {
+                              busy = false;
+                              error = l10n.taskMoveAfterSaveFailed;
+                            });
+                            return;
                           }
                           report(onTaskMutationCommitted, mutation);
                           changed = true;

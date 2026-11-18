@@ -6,7 +6,7 @@ import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:busymax/src/android/presentation/android_nextcloud_scheduling_screen.dart';
 import 'package:busymax/src/android/presentation/android_settings_screen.dart';
 import 'package:busymax/src/android/presentation/android_availability_dialog.dart';
-import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
+import 'package:busymax/src/features/calendar/domain/event_editor_draft.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/sync/pending_mutation_sync_requester.dart';

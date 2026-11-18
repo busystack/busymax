@@ -1532,6 +1532,7 @@ bool _isTechnicalLiteral(String literal) {
   return literal == 'BusyMax' ||
       literal == 'iCalendar' ||
       literal == 'Ubuntu' ||
+      literal == 'https://cloud.example.com/remote.php/dav' ||
       literal.startsWith(r'$') ||
       !RegExp(r'[A-Za-z]{3,}').hasMatch(interpolationStripped);
 }

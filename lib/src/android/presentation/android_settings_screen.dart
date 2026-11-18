@@ -1,3 +1,7 @@
+import '../../l10n/ical_import_report_description.dart';
+import '../../schedule/schedule_task_list_actions.dart';
+import '../../features/auth/application/account_connection.dart';
+import '../../features/auth/application/account_removal.dart';
 import '../../webcal/webcal_uri.dart';
 import '../../schedule/schedule_creation_destinations.dart';
 import '../../schedule/schedule_projection.dart';
@@ -35,13 +39,14 @@ import 'package:intl/intl.dart';
 
 import '../../app/app_bootstrap.dart';
 import '../../calendar_providers/calendar_colors.dart';
-import '../../core/auth/oauth_models.dart';
 import '../../dav/dav_errors.dart';
 import '../../dav/auth/caldav_material_dialog.dart';
 import '../../dav/http/dav_http_transport.dart';
 import '../../dav/mutation/dav_conflict_repository.dart';
+import '../../dav/nextcloud/nextcloud_collection_controller.dart';
 import '../../dav/nextcloud/nextcloud_sharing_service.dart';
 import '../../dav/nextcloud/nextcloud_trash_service.dart';
+import '../../dav/nextcloud/nextcloud_trash_session.dart';
 import '../../dav/nextcloud/nextcloud_federation_controller.dart';
 import '../../l10n/nextcloud_collection_error_description.dart';
 import '../../features/accounts/data/accounts_repository.dart';
@@ -54,6 +59,7 @@ import '../../features/sync/sync_auth_error.dart';
 import '../../features/task_lists/data/task_lists_repository.dart';
 import '../../features/tasks/domain/task_capabilities.dart';
 import '../../ical/ical_import_service.dart';
+import '../../ical/ical_import_session.dart';
 import '../../ical/ical_ingestion.dart';
 import '../../l10n/app_locale.dart';
 import '../../l10n/l10n.dart';
@@ -1580,20 +1586,27 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
           case BusyProvider.webCal:
             return;
         }
-        if (accountId != null) {
-          ownedCancellation.committed();
-          if (mounted &&
-              identical(_authorizationCancellation, ownedCancellation)) {
-            unawaited(_syncAccount(accountId));
-          }
+        if (accountId != null &&
+            mounted &&
+            identical(_authorizationCancellation, ownedCancellation)) {
+          await finishAccountConnection(
+            accountId: accountId,
+            cancellation: ownedCancellation,
+            session: ref.read(authSessionControllerProvider.notifier),
+            synchronize: () => _syncAccount(accountId!),
+            onFollowUpFailure: (error) {
+              if (mounted) {
+                _message(
+                  context.l10n.syncFailed(
+                    localizedAuthorizationError(context.l10n, error),
+                  ),
+                );
+              }
+            },
+          );
         }
       } on Object catch (error) {
-        if (error is OAuthException && error.code == 'OAuthSignInCancelled') {
-          return;
-        }
-        if (error is DavException && error.kind == DavErrorKind.cancelled) {
-          return;
-        }
+        if (accountConnectionWasCancelled(error)) return;
         if (mounted &&
             identical(_authorizationCancellation, ownedCancellation)) {
           _message(localizedAuthorizationError(context.l10n, error));
@@ -1665,28 +1678,18 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
     }
     setState(() => _removing.add(account.id));
     try {
-      if (account.provider.isDav) {
-        // DAV onboarding owns this account gate, including contact preparation.
-        final result = await ref
-            .read(davAccountOnboardingServiceProvider)
-            .removeAccount(account.id);
-        if (mounted &&
-            result.remoteRevocationAttempted &&
-            !result.remoteRevocationSucceeded) {
-          _message(l10n.nextcloudAccountRemovedRevokeFailed);
-        }
-      } else {
-        await ref
-            .read(crossEngineAccountGateProvider)
-            .run(
-              account.id,
-              () => ref
-                  .read(authRepositoryProvider)
-                  .removeAccount(
-                    accountId: account.id,
-                    revokeAuthorization: revoke,
-                  ),
-            );
+      final outcome = await removeBusyMaxAccount(
+        accountId: account.id,
+        provider: account.provider,
+        revokeGoogleAuthorization: revoke,
+        auth: () => ref.read(authRepositoryProvider),
+        dav: () => ref.read(davAccountOnboardingServiceProvider),
+        guardOAuthRemoval: (remove) =>
+            ref.read(crossEngineAccountGateProvider).run(account.id, remove),
+      );
+      final warning = localizedAccountRemovalWarning(l10n, outcome);
+      if (mounted && warning != null) {
+        _message(warning);
       }
       await ref.read(notificationReconcilerProvider).reconcile();
       if (mounted && widget.notificationAccountId == account.id) {
@@ -2525,140 +2528,46 @@ class AndroidNextcloudSharingScreen extends ConsumerStatefulWidget {
 class _AndroidNextcloudSharingScreenState
     extends ConsumerState<AndroidNextcloudSharingScreen> {
   final _search = TextEditingController();
-  NextcloudSharingState? _state;
-  List<NextcloudShareRecipient> _recipients = const [];
-  var _recipientSearchGeneration = 0;
-  var _searchingRecipients = false;
-  var _recipientQuery = '';
-  String? _recipientResultsQuery;
-  Object? _recipientSearchError;
-  bool _busy = true;
-  Object? _error;
+  late final _model = NextcloudCollectionController(
+    ref.read(nextcloudSharingServiceProvider(widget.accountId)),
+    widget.collectionId,
+  );
 
-  NextcloudSharingService get _service =>
-      ref.read(nextcloudSharingServiceProvider(widget.accountId));
+  bool get _canChange => !_model.busy && !_model.refreshPending;
 
   @override
   void initState() {
     super.initState();
-    _search.addListener(_recipientQueryChanged);
-    unawaited(_load());
+    _model.addListener(_changed);
+    unawaited(_model.load());
   }
+
+  void _changed() => setState(() {});
 
   @override
   void dispose() {
-    _search.removeListener(_recipientQueryChanged);
     _search.dispose();
+    _model.dispose();
     super.dispose();
-  }
-
-  Future<void> _load() async {
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      final state = await _service.load(widget.collectionId);
-      if (mounted) {
-        setState(() => _state = state);
-      }
-    } on Object catch (error) {
-      if (mounted) {
-        setState(() => _error = error);
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _busy = false);
-      }
-    }
   }
 
   Future<void> _findRecipients() async {
     final query = _search.text.trim();
-    if (_busy || query.isEmpty) {
-      return;
-    }
-    final generation = ++_recipientSearchGeneration;
-    setState(() {
-      _searchingRecipients = true;
-      _recipientSearchError = null;
-      _recipientResultsQuery = null;
-      _recipients = const [];
-    });
-    bool current() =>
-        mounted &&
-        generation == _recipientSearchGeneration &&
-        _search.text.trim() == query;
-    try {
-      final recipients = await _service.search(query);
-      if (current()) {
-        setState(() {
-          _recipients = recipients;
-          _recipientResultsQuery = query;
-        });
-      }
-    } on Object catch (error) {
-      if (current()) {
-        setState(() => _recipientSearchError = error);
-      }
-    } finally {
-      if (current()) {
-        setState(() => _searchingRecipients = false);
-      }
-    }
-  }
-
-  void _recipientQueryChanged() {
-    final query = _search.text.trim();
-    if (query == _recipientQuery) {
-      return;
-    }
-    _recipientQuery = query;
-    _recipientSearchGeneration += 1;
-    setState(() {
-      _searchingRecipients = false;
-      _recipientSearchError = null;
-      _recipientResultsQuery = null;
-      _recipients = const [];
-    });
-  }
-
-  void _shareSearchRecipient(NextcloudShareRecipient recipient, bool writable) {
-    if (_busy ||
-        _searchingRecipients ||
-        _recipientResultsQuery != _search.text.trim() ||
-        !_recipients.contains(recipient)) {
-      return;
-    }
-    unawaited(_changeShare(recipient, writable));
+    if (_canChange && query.isNotEmpty) await _model.search(query);
   }
 
   Future<void> _changeShare(
     NextcloudShareRecipient recipient,
-    bool? writable,
-  ) async {
-    setState(() => _busy = true);
-    try {
-      await _service.changeShare(
-        widget.collectionId,
-        recipient,
-        writable: writable,
-      );
-      if (!mounted) {
-        return;
-      }
-      _search.clear();
-      _recipients = const [];
-      await _load();
-    } on Object catch (error) {
-      if (mounted) {
-        setState(() => _error = error);
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _busy = false);
-      }
+    bool? writable, {
+    bool fromSearch = false,
+  }) async {
+    if (!_canChange ||
+        _model.state?.canShare != true ||
+        (fromSearch && !_model.recipients.contains(recipient))) {
+      return;
     }
+    await _model.share(recipient, writable);
+    if (mounted && !_model.failed) _search.clear();
   }
 
   Future<void> _setPublished(bool value) async {
@@ -2684,39 +2593,33 @@ class _AndroidNextcloudSharingScreenState
         return;
       }
     }
-    setState(() => _busy = true);
-    try {
-      await _service.setPublished(widget.collectionId, value);
-      await _load();
-    } on Object catch (error) {
-      if (mounted) {
-        setState(() => _error = error);
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _busy = false);
-      }
-    }
+    if (!mounted || !_canChange || _model.state?.canPublish != true) return;
+    await _model.publish(value);
   }
 
   @override
   Widget build(BuildContext context) {
-    final state = _state;
+    final state = _model.state;
     return Scaffold(
       appBar: AppBar(title: Text(widget.title)),
-      body: _busy && state == null
+      body: _model.busy && state == null
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
-              onRefresh: _load,
+              onRefresh: _model.load,
               child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(16),
                 children: [
-                  if ((_error ?? _recipientSearchError) case final error?)
+                  if (_model.error case final error?)
                     ListTile(
                       leading: const Icon(Icons.error_outline),
                       title: Text(context.l10n.operationFailed),
-                      subtitle: Text('$error'),
+                      subtitle: Text(
+                        localizedNextcloudCollectionError(context.l10n, error),
+                      ),
                     ),
+                  if (_model.refreshPending)
+                    ListTile(title: Text(context.l10n.nextcloudRefreshPending)),
                   if (state?.canPublish ?? false)
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
@@ -2730,34 +2633,34 @@ class _AndroidNextcloudSharingScreenState
                           ? null
                           : SelectableText(state.publishUrl.toString()),
                       value: state.publishUrl != null,
-                      onChanged: _busy ? null : _setPublished,
+                      onChanged: _canChange ? _setPublished : null,
                     ),
                   if (state?.canShare ?? false) ...[
                     TextField(
                       controller: _search,
-                      enabled: !_busy,
+                      enabled: _canChange,
+                      onChanged: (_) => _model.clearSearch(),
                       decoration: InputDecoration(
                         labelText: context.l10n.nextcloudRecipientSearch,
                         suffixIcon: IconButton(
-                          onPressed: _busy || _searchingRecipients
-                              ? null
-                              : _findRecipients,
+                          onPressed: _canChange ? _findRecipients : null,
                           icon: const Icon(Icons.search),
                         ),
                       ),
                       onSubmitted: (_) => unawaited(_findRecipients()),
                     ),
-                    if (_searchingRecipients) const LinearProgressIndicator(),
-                    for (final recipient in _recipients)
+                    if (_model.searching) const LinearProgressIndicator(),
+                    for (final recipient in _model.recipients)
                       ListTile(
                         leading: Icon(
                           recipient.group ? Icons.groups : Icons.person_outline,
                         ),
                         title: Text(recipient.label),
                         trailing: PopupMenuButton<bool>(
-                          enabled: !_busy && !_searchingRecipients,
-                          onSelected: (value) =>
-                              _shareSearchRecipient(recipient, value),
+                          enabled: _canChange,
+                          onSelected: (value) => unawaited(
+                            _changeShare(recipient, value, fromSearch: true),
+                          ),
                           itemBuilder: (context) => [
                             PopupMenuItem(
                               value: false,
@@ -2789,6 +2692,7 @@ class _AndroidNextcloudSharingScreenState
                             : context.l10n.nextcloudReadAccess,
                       ),
                       trailing: PopupMenuButton<String>(
+                        enabled: _canChange && state?.canShare == true,
                         onSelected: (value) => unawaited(
                           _changeShare(share.recipient, switch (value) {
                             'read' => false,
@@ -2814,9 +2718,9 @@ class _AndroidNextcloudSharingScreenState
                     ),
                   if (state != null &&
                       state.shares.isEmpty &&
-                      _recipients.isEmpty)
+                      _model.recipients.isEmpty)
                     ListTile(title: Text(context.l10n.nextcloudNoRecipients)),
-                  if (_busy)
+                  if (_model.busy)
                     const Padding(
                       padding: EdgeInsets.all(16),
                       child: LinearProgressIndicator(),
@@ -2840,97 +2744,23 @@ class AndroidNextcloudTrashScreen extends ConsumerStatefulWidget {
 
 class _AndroidNextcloudTrashScreenState
     extends ConsumerState<AndroidNextcloudTrashScreen> {
-  final _loadCancellation = DavCancellationToken();
-  @override
-  void dispose() {
-    _loadCancellation.cancel();
-    super.dispose();
-  }
-
-  NextcloudTrashListing? _listing;
-  bool _busy = true;
-  Object? _error;
-
-  NextcloudTrashService get _service =>
-      ref.read(nextcloudTrashServiceProvider(widget.accountId));
+  late final _session = NextcloudTrashSession(
+    ref.read(nextcloudTrashServiceProvider(widget.accountId)),
+  );
 
   @override
   void initState() {
     super.initState();
-    unawaited(_load());
+    _session.addListener(_onSessionChanged);
+    unawaited(_session.load());
   }
 
-  int _listingEpoch = 0;
-  final _loadingDetails = <Uri>{};
+  void _onSessionChanged() => setState(() {});
 
-  Future<void> _details(
-    NextcloudTrashItem item, {
-    bool automatic = false,
-  }) async {
-    if (!_loadingDetails.add(item.href)) {
-      return;
-    }
-    final epoch = _listingEpoch;
-    setState(() {});
-    try {
-      final detailed = await ref
-          .read(nextcloudTrashServiceProvider(widget.accountId))
-          .details(item, cancellationToken: _loadCancellation);
-      if (mounted && _listingEpoch == epoch) {
-        setState(
-          () => _listing = NextcloudTrashListing(
-            List.unmodifiable(
-              _listing!.items.map(
-                (row) => row.href == item.href ? detailed : row,
-              ),
-            ),
-            _listing!.retentionSeconds,
-          ),
-        );
-      }
-    } on Object catch (caught) {
-      if (!automatic && mounted && _listingEpoch == epoch) {
-        setState(() => _error = caught);
-      }
-    } finally {
-      _loadingDetails.remove(item.href);
-      if (mounted) {
-        setState(() {});
-      }
-    }
-  }
-
-  Future<void> _load() async {
-    final epoch = ++_listingEpoch;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      final listing = await _service.list(cancellationToken: _loadCancellation);
-      if (mounted && _listingEpoch == epoch) {
-        setState(() => _listing = listing);
-      }
-    } on Object catch (error) {
-      if (mounted && _listingEpoch == epoch) {
-        setState(() => _error = error);
-      }
-    } finally {
-      if (mounted && _listingEpoch == epoch) {
-        setState(() => _busy = false);
-      }
-    }
-    if (mounted && _listingEpoch == epoch) {
-      final previews =
-          _listing?.items.where((item) => item.canPreview).take(5).toList() ??
-          const <NextcloudTrashItem>[];
-      for (final item in previews) {
-        if (!mounted || _listingEpoch != epoch || _busy) {
-          break;
-        }
-        await _details(item, automatic: true);
-      }
-    }
+  @override
+  void dispose() {
+    _session.dispose();
+    super.dispose();
   }
 
   Future<void> _act(NextcloudTrashItem item, {required bool permanent}) async {
@@ -2956,48 +2786,39 @@ class _AndroidNextcloudTrashScreenState
         return;
       }
     }
-    setState(() => _busy = true);
-    try {
-      if (permanent) {
-        await _service.permanentlyDelete(item);
-      } else {
-        await _service.restore(item);
-      }
-      await _load();
-    } on Object catch (error) {
-      if (mounted) {
-        setState(() => _error = error);
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _busy = false);
-      }
-    }
+    if (!mounted) return;
+    await _session.mutate(item, permanent: permanent);
   }
 
   @override
   Widget build(BuildContext context) {
-    final items = _listing?.items ?? const <NextcloudTrashItem>[];
+    final items = _session.listing?.items ?? const <NextcloudTrashItem>[];
     return Scaffold(
       appBar: AppBar(title: Text(context.l10n.nextcloudTrash)),
       body: RefreshIndicator(
-        onRefresh: _load,
+        onRefresh: _session.load,
         child: ListView.builder(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16),
           itemCount: items.length + 1,
           itemBuilder: (context, index) {
             if (index == 0) {
               return Column(
                 children: [
-                  if (_error != null)
+                  if (_session.error != null)
                     ListTile(
                       leading: const Icon(Icons.error_outline),
                       title: Text(context.l10n.operationFailed),
                       subtitle: Text(
-                        localizedNextcloudCollectionError(context.l10n, _error),
+                        localizedNextcloudCollectionError(
+                          context.l10n,
+                          _session.error,
+                        ),
                       ),
                     ),
-                  if (_listing?.retentionSeconds case final seconds?)
+                  if (_session.refreshPending)
+                    ListTile(title: Text(context.l10n.nextcloudRefreshPending)),
+                  if (_session.listing?.retentionSeconds case final seconds?)
                     ListTile(
                       title: Text(
                         seconds == 0
@@ -3007,9 +2828,9 @@ class _AndroidNextcloudTrashScreenState
                               ),
                       ),
                     ),
-                  if (!_busy && items.isEmpty && _error == null)
+                  if (!_session.busy && items.isEmpty && _session.error == null)
                     ListTile(title: Text(context.l10n.nextcloudTrashEmpty)),
-                  if (_busy) const LinearProgressIndicator(),
+                  if (_session.busy) const LinearProgressIndicator(),
                 ],
               );
             }
@@ -3025,7 +2846,7 @@ class _AndroidNextcloudTrashScreenState
                   Icons.folder_copy_outlined,
               }),
               title: Text(item.title),
-              subtitle: _loadingDetails.contains(item.href)
+              subtitle: _session.loadingDetails(item.href)
                   ? const LinearProgressIndicator()
                   : item.deletedAt == null
                   ? null
@@ -3034,23 +2855,23 @@ class _AndroidNextcloudTrashScreenState
                 key: ValueKey(('nextcloud-trash-menu', item.href.toString())),
                 onSelected: (value) => unawaited(
                   value == 'details'
-                      ? _details(item)
+                      ? _session.details(item)
                       : _act(item, permanent: value == 'delete'),
                 ),
-                enabled: !_busy,
+                enabled: !_session.busy,
                 itemBuilder: (context) => [
                   if (item.isObject && !item.contentLoaded)
                     PopupMenuItem(
                       value: 'details',
-                      enabled: !_loadingDetails.contains(item.href),
+                      enabled: !_session.loadingDetails(item.href),
                       child: Text(context.l10n.show),
                     ),
-                  if (item.canRestore)
+                  if (!_session.refreshPending && item.canRestore)
                     PopupMenuItem(
                       value: 'restore',
                       child: Text(context.l10n.nextcloudRestore),
                     ),
-                  if (item.canPermanentlyDelete)
+                  if (!_session.refreshPending && item.canPermanentlyDelete)
                     PopupMenuItem(
                       value: 'delete',
                       child: Text(context.l10n.nextcloudPermanentDelete),
@@ -3312,9 +3133,7 @@ Future<void> showAndroidIcsImport(
     if (!context.mounted) {
       return;
     }
-    CalendarSourceEntity? destination = destinations.firstOrNull;
-    var newCopies = false;
-    var allowScheduling = false;
+    final session = IcalImportSession(preview, destinations);
     final selection = await showDialog<IcalImportSelection>(
       context: context,
       barrierDismissible: false,
@@ -3327,17 +3146,15 @@ Future<void> showAndroidIcsImport(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  destination?.provider == BusyProvider.nextcloud ||
-                          destination?.provider == BusyProvider.caldav
+                  session.native
                       ? context.l10n.nextcloudImportItems(
                           preview.nativePreview.resources.length,
                         )
                       : context.l10n.importEventsFound(preview.eventCount),
                 ),
-                if (destination?.provider == BusyProvider.nextcloud ||
-                    destination?.provider == BusyProvider.caldav) ...[
+                if (session.native) ...[
                   Text(
-                    destination?.provider == BusyProvider.nextcloud
+                    session.destination?.provider == BusyProvider.nextcloud
                         ? context.l10n.nextcloudNativeImport
                         : context.l10n.caldavNativeImport,
                   ),
@@ -3361,7 +3178,7 @@ Future<void> showAndroidIcsImport(
                 else
                   DropdownButtonFormField<CalendarSourceEntity>(
                     isExpanded: true,
-                    initialValue: destination,
+                    initialValue: session.destination,
                     decoration: InputDecoration(
                       labelText: context.l10n.importDestinationCalendar,
                     ),
@@ -3376,28 +3193,26 @@ Future<void> showAndroidIcsImport(
                         ),
                     ],
                     onChanged: (value) => setDialogState(() {
-                      destination = value;
-                      allowScheduling = false;
+                      session.destination = value;
                     }),
                   ),
-                if (destination?.provider == BusyProvider.caldav &&
-                    preview.nativePreview.hasAttendees)
+                if (session.schedulingConsentRequired)
                   CheckboxListTile(
                     key: const ValueKey('caldav-import-scheduling-consent'),
                     contentPadding: EdgeInsets.zero,
                     title: Text(context.l10n.caldavImportSchedulingWarning),
-                    value: allowScheduling,
-                    onChanged: (value) =>
-                        setDialogState(() => allowScheduling = value == true),
+                    value: session.allowScheduling,
+                    onChanged: (value) => setDialogState(
+                      () => session.allowScheduling = value == true,
+                    ),
                   ),
-                if (destination?.provider == BusyProvider.nextcloud ||
-                    destination?.provider == BusyProvider.caldav)
+                if (session.native)
                   CheckboxListTile(
                     contentPadding: EdgeInsets.zero,
                     title: Text(context.l10n.nextcloudImportCopies),
-                    value: newCopies,
+                    value: session.newCopies,
                     onChanged: (value) =>
-                        setDialogState(() => newCopies = value == true),
+                        setDialogState(() => session.newCopies = value == true),
                   ),
               ],
             ),
@@ -3408,20 +3223,9 @@ Future<void> showAndroidIcsImport(
               child: Text(context.l10n.cancel),
             ),
             FilledButton(
-              onPressed:
-                  destination == null ||
-                      (destination?.provider == BusyProvider.caldav &&
-                          preview.nativePreview.hasAttendees &&
-                          !allowScheduling)
+              onPressed: session.selection == null
                   ? null
-                  : () => Navigator.pop(
-                      dialogContext,
-                      IcalImportSelection(
-                        destination!,
-                        newCopies: newCopies,
-                        allowScheduling: allowScheduling,
-                      ),
-                    ),
+                  : () => Navigator.pop(dialogContext, session.selection),
               child: Text(context.l10n.importIcsConfirm),
             ),
           ],
@@ -3431,15 +3235,7 @@ Future<void> showAndroidIcsImport(
     if (selection == null || !context.mounted) {
       return;
     }
-    final report = await service.importPreview(
-      preview: preview,
-      destination: selection.destination,
-      nativeDuplicates: selection.duplicatePolicy,
-      allowScheduling: selection.allowScheduling,
-      normalizeNativeSchedulingMethod:
-          selection.destination.provider == BusyProvider.nextcloud ||
-          selection.destination.provider == BusyProvider.caldav,
-    );
+    final report = await service.importSelection(preview, selection);
     if (!context.mounted) {
       return;
     }
@@ -3447,23 +3243,7 @@ Future<void> showAndroidIcsImport(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text(context.l10n.importIcsComplete),
-        content: Text(
-          [
-            context.l10n.importQueued(report.queued),
-            if (report.followUpPending) context.l10n.nextcloudImportFollowUp,
-            for (final unsupported in report.unsupportedRecurrenceSets)
-              '${unsupported.uid}: ${unsupported.reason}',
-            if (report.fieldsIntentionallyOmitted.isNotEmpty)
-              context.l10n.importFieldsOmitted(
-                (report.fieldsIntentionallyOmitted.toList()..sort()).join(', '),
-              ),
-            context.l10n.importDuplicatesSkipped(report.duplicatesSkipped),
-            context.l10n.importUnsupportedSets(
-              report.unsupportedRecurrenceSets.length,
-            ),
-            context.l10n.importInvalidEvents(report.invalidEvents),
-          ].join('\n'),
-        ),
+        content: Text(localizedIcalImportReport(context.l10n, report)),
         actions: [
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext),

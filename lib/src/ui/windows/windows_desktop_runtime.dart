@@ -5,6 +5,7 @@ import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../l10n/tray_presentation_strings.dart';
 import '../../l10n/time_format_scope.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
@@ -20,7 +21,10 @@ import 'windows_task_editor_dialog.dart';
 bool shouldWindowsHideOnClose({
   required bool runInBackgroundWhenClosed,
   required bool trayAvailable,
-}) => runInBackgroundWhenClosed && trayAvailable;
+}) => DesktopStartupPolicy.hidesOnClose(
+  runInBackgroundWhenClosed: runInBackgroundWhenClosed,
+  trayAvailable: trayAvailable,
+);
 
 class WindowsDesktopRuntime extends ConsumerStatefulWidget {
   const WindowsDesktopRuntime({
@@ -75,34 +79,7 @@ class WindowsDesktopRuntimeState extends ConsumerState<WindowsDesktopRuntime> {
     final clock = BusyMaxTimeFormatScope.of(context);
     if (_clock != clock || _formatter == null) {
       _clock = clock;
-      _formatter = BusyMaxTrayPresentationFormatter(
-        BusyMaxTrayPresentationStrings(
-          showBusyMax: l10n.trayShowBusyMax,
-          newEvent: l10n.trayNewEvent,
-          newTask: l10n.trayNewTask,
-          today: l10n.trayToday,
-          allDay: l10n.trayAllDay,
-          now: l10n.trayNow,
-          calendarEvent: l10n.trayCalendarEvent,
-          untitledEvent: l10n.trayUntitledEvent,
-          nothingElseToday: l10n.trayNothingElseToday,
-          openTodayAgenda: l10n.trayOpenTodayAgenda,
-          syncNow: l10n.traySyncNow,
-          syncing: l10n.traySyncing,
-          notConnected: l10n.trayNotConnected,
-          notYetSynced: l10n.trayNotYetSynced,
-          settings: l10n.traySettings,
-          quitBusyMax: l10n.trayQuitBusyMax,
-          offline: l10n.networkOffline,
-          offlineDescription: l10n.networkOfflineDescription,
-          formatTime: clock.format,
-          tasksDueToday: l10n.trayTasksDueToday,
-          lastSyncedJustNow: l10n.trayLastSyncedJustNow,
-          lastSyncedMinutesAgo: l10n.trayLastSyncedMinutesAgo,
-          lastSyncedHoursAgo: l10n.trayLastSyncedHoursAgo,
-          lastSyncedDaysAgo: l10n.trayLastSyncedDaysAgo,
-        ),
-      );
+      _formatter = localizedTrayFormatter(l10n, clock);
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) unawaited(_configure(settings));

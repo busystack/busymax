@@ -22,6 +22,8 @@ final class NextcloudCollectionController extends ChangeNotifier {
   Map<DavPropertyName, NextcloudCollectionValidation> fieldErrors = {};
   bool _disposed = false;
   int _searchGeneration = 0;
+  bool searching = false;
+  bool _searchFailed = false;
   final values = <DavPropertyName, String>{};
   final _baseline = <DavPropertyName, String>{};
   bool get dirty => !mapEquals(values, _baseline);
@@ -66,15 +68,40 @@ final class NextcloudCollectionController extends ChangeNotifier {
       ..addAll(values);
   });
   Future<void> search(String query) async {
+    final term = query.trim();
+    if (_disposed || busy || term.isEmpty) return;
     final generation = ++_searchGeneration;
-    await _run(() async {
-      final found = await service.search(query);
+    searching = true;
+    _searchFailed = false;
+    recipients = const [];
+    failed = false;
+    error = null;
+    _notify();
+    try {
+      final found = await service.search(term);
       if (!_disposed && generation == _searchGeneration) recipients = found;
-    });
+    } on Object catch (failure) {
+      if (!_disposed && generation == _searchGeneration) {
+        _searchFailed = true;
+        failed = true;
+        error = failure;
+      }
+    } finally {
+      if (!_disposed && generation == _searchGeneration) {
+        searching = false;
+        _notify();
+      }
+    }
   }
 
   void clearSearch() {
     _searchGeneration++;
+    searching = false;
+    if (_searchFailed) {
+      _searchFailed = false;
+      failed = false;
+      error = null;
+    }
     recipients = const [];
     _notify();
   }
@@ -115,6 +142,8 @@ final class NextcloudCollectionController extends ChangeNotifier {
   Future<void> _run(Future<void> Function() action) async {
     if (busy || _disposed) return;
     busy = true;
+    if (searching) clearSearch();
+    _searchFailed = false;
     failed = false;
     error = null;
     _notify();

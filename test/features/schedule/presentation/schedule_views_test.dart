@@ -3909,13 +3909,8 @@ void main() {
       'lib/src/features/schedule/presentation/schedule_workspace.dart',
     ).readAsStringSync();
 
-    expect(
-      source,
-      contains(
-        '.updateLocalEvent(draft, guestUpdatePolicy: guestUpdatePolicy)',
-      ),
-    );
-    expect(source, contains('_requestCalendarMutationSync(draft.accountId)'));
+    expect(source, contains('await saveEventDraft('));
+    expect(source, contains('_requestCalendarMutationSync(edited.accountId)'));
     expect(source, contains('.deleteLocalEvent('));
     expect(source, contains('recurringScope: recurringScope'));
     expect(source, contains('guestUpdatePolicy: guestUpdatePolicy'));

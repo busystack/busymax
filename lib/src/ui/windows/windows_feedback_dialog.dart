@@ -3,13 +3,13 @@ import 'dart:io';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:uuid/uuid.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../../app/app_bootstrap.dart';
 import '../../features/connectivity/network_connectivity_service.dart';
 import '../../features/feedback/data/feedback_api_client.dart';
 import '../../features/feedback/data/feedback_submission.dart';
+import '../../features/feedback/data/feedback_draft_session.dart';
 
 Future<void> showWindowsFeedbackDialog(BuildContext context, WidgetRef ref) {
   return showDialog<void>(
@@ -35,19 +35,18 @@ class _WindowsFeedbackDialogState extends State<WindowsFeedbackDialog> {
   final _message = TextEditingController();
   final _replyEmail = TextEditingController();
   FeedbackCategory? _category;
-  var _includeTechnicalDetails = false;
-  var _submitting = false;
   var _validationAttempted = false;
   String? _status;
   var _statusIsError = false;
-  var _submissionId = const Uuid().v4();
 
   bool get _hasDraft =>
       _category != null ||
       _subject.text.trim().isNotEmpty ||
       _message.text.trim().isNotEmpty ||
       _replyEmail.text.trim().isNotEmpty ||
-      _includeTechnicalDetails;
+      _session.includeTechnicalDetails;
+
+  late final _session = FeedbackDraftSession();
 
   @override
   void dispose() {
@@ -81,9 +80,12 @@ class _WindowsFeedbackDialogState extends State<WindowsFeedbackDialog> {
                       child: Text(_categoryLabel(l10n, category)),
                     ),
                 ],
-                onChanged: _submitting
+                onChanged: _session.submitting
                     ? null
-                    : (value) => setState(() => _category = value),
+                    : (value) => setState(() {
+                        _category = value;
+                        _draftChanged();
+                      }),
               ),
             ),
             const SizedBox(height: 12),
@@ -91,8 +93,8 @@ class _WindowsFeedbackDialogState extends State<WindowsFeedbackDialog> {
               label: l10n.feedbackSubject,
               child: TextBox(
                 controller: _subject,
-                enabled: !_submitting,
-                onChanged: (_) => setState(() => _status = null),
+                enabled: !_session.submitting,
+                onChanged: (_) => setState(_draftChanged),
               ),
             ),
             const SizedBox(height: 12),
@@ -100,10 +102,10 @@ class _WindowsFeedbackDialogState extends State<WindowsFeedbackDialog> {
               label: l10n.feedbackDetailedMessage,
               child: TextBox(
                 controller: _message,
-                enabled: !_submitting,
+                enabled: !_session.submitting,
                 minLines: 4,
                 maxLines: 8,
-                onChanged: (_) => setState(() => _status = null),
+                onChanged: (_) => setState(_draftChanged),
               ),
             ),
             const SizedBox(height: 12),
@@ -111,18 +113,19 @@ class _WindowsFeedbackDialogState extends State<WindowsFeedbackDialog> {
               label: l10n.feedbackReplyEmail,
               child: TextBox(
                 controller: _replyEmail,
-                enabled: !_submitting,
-                onChanged: (_) => setState(() => _status = null),
+                enabled: !_session.submitting,
+                onChanged: (_) => setState(_draftChanged),
               ),
             ),
             const SizedBox(height: 16),
             Checkbox(
-              checked: _includeTechnicalDetails,
-              onChanged: _submitting
+              checked: _session.includeTechnicalDetails,
+              onChanged: _session.submitting
                   ? null
-                  : (value) => setState(
-                      () => _includeTechnicalDetails = value ?? false,
-                    ),
+                  : (value) => setState(() {
+                      _session.includeTechnicalDetails = value ?? false;
+                      _draftChanged();
+                    }),
               content: Text(l10n.feedbackIncludeTechnicalDetails),
             ),
             const SizedBox(height: 4),
@@ -154,12 +157,12 @@ class _WindowsFeedbackDialogState extends State<WindowsFeedbackDialog> {
       ),
       actions: [
         Button(
-          onPressed: _submitting ? null : _cancel,
+          onPressed: _session.submitting ? null : _cancel,
           child: Text(l10n.cancel),
         ),
         FilledButton(
-          onPressed: _submitting ? null : _submit,
-          child: _submitting
+          onPressed: _session.submitting ? null : _submit,
+          child: _session.submitting
               ? const SizedBox(width: 16, height: 16, child: ProgressRing())
               : Text(l10n.feedbackSubmit),
         ),
@@ -210,7 +213,14 @@ class _WindowsFeedbackDialogState extends State<WindowsFeedbackDialog> {
     if ((discard ?? false) && mounted) Navigator.pop(context);
   }
 
+  void _draftChanged() {
+    _session.edited();
+    _status = null;
+    _statusIsError = false;
+  }
+
   Future<void> _submit() async {
+    if (_session.submitting) return;
     setState(() {
       _validationAttempted = true;
       _status = null;
@@ -220,13 +230,13 @@ class _WindowsFeedbackDialogState extends State<WindowsFeedbackDialog> {
         _validationMessage(AppLocalizations.of(context)) != null) {
       return;
     }
-    setState(() => _submitting = true);
+    setState(() => _session.submitting = true);
     final locale = Localizations.localeOf(context).toLanguageTag();
     try {
       final package = await PackageInfo.fromPlatform();
       final receipt = await widget.submissionService.submit(
         FeedbackSubmission(
-          submissionId: _submissionId,
+          submissionId: _session.beginAttempt(),
           appVersion: package.version.isEmpty ? 'unknown' : package.version,
           buildNumber: package.buildNumber.isEmpty ? '0' : package.buildNumber,
           category: category,
@@ -234,7 +244,7 @@ class _WindowsFeedbackDialogState extends State<WindowsFeedbackDialog> {
           message: _message.text,
           replyEmail: _replyEmail.text,
           platform: Platform.operatingSystem,
-          technicalDetails: _includeTechnicalDetails
+          technicalDetails: _session.includeTechnicalDetails
               ? FeedbackTechnicalDetails(
                   osVersion: Platform.operatingSystemVersion,
                   locale: locale,
@@ -248,11 +258,10 @@ class _WindowsFeedbackDialogState extends State<WindowsFeedbackDialog> {
       _replyEmail.clear();
       setState(() {
         _category = null;
-        _includeTechnicalDetails = false;
         _validationAttempted = false;
         _status = AppLocalizations.of(context).feedbackSuccess(receipt.id);
         _statusIsError = false;
-        _submissionId = const Uuid().v4();
+        _session.reset();
       });
     } on Object catch (error) {
       if (!mounted) return;
@@ -261,7 +270,7 @@ class _WindowsFeedbackDialogState extends State<WindowsFeedbackDialog> {
         _statusIsError = true;
       });
     } finally {
-      if (mounted) setState(() => _submitting = false);
+      if (mounted) setState(() => _session.submitting = false);
     }
   }
 }

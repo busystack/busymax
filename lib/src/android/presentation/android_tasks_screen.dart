@@ -1,3 +1,4 @@
+import '../../features/tasks/application/save_task_draft.dart';
 import 'android_editor_group.dart';
 import '../../features/accounts/data/accounts_repository.dart';
 
@@ -36,7 +37,7 @@ import '../../features/recurrence/domain/event_recurrence_codec.dart';
 import '../../features/recurrence/domain/recurrence_rule.dart';
 import '../../features/schedule/presentation/schedule_event_details_format.dart';
 import '../../features/schedule/presentation/attachment_download.dart';
-import '../../features/schedule/presentation/attachment_upload_coordinator.dart';
+import '../../features/schedule/application/attachment_upload_coordinator.dart';
 import '../../microsoft_todo/api/microsoft_todo_api_client.dart';
 import '../../microsoft_todo/api/microsoft_todo_api_models.dart';
 import '../../microsoft_calendar/microsoft_calendar_models.dart';
@@ -3414,28 +3415,15 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       );
       return id;
     }
-    await repository.patchTask(
-      _draft.taskListId,
-      _draft.taskId,
-      TaskPatchInput(
-        _draft.toPatch(
-          _observedTask!,
-          _capabilities,
-          localTimeZone: ref.read(localTimeZoneProvider),
-        ),
+    await saveTaskDraftChanges(
+      repository: repository,
+      sourceListId: _draft.taskListId,
+      taskId: _draft.taskId,
+      destinationListId: _draft.taskListId,
+      patch: taskDraftPatch(
+        changed!,
         observedTask: _observedTask,
-        observedOccurrenceKey:
-            changed!.keys.any(
-              const {
-                'status',
-                'completed',
-                'taskStatus',
-                'percentComplete',
-                'completedAtUtc',
-              }.contains,
-            )
-            ? _observedTask?.occurrenceKey
-            : null,
+        locationChange: _draft.locationChange,
       ),
     );
     final committed = await repository.readTask(

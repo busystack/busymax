@@ -10,7 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
-import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
+import 'package:busymax/src/features/calendar/domain/event_editor_draft.dart';
 import 'package:busymax/src/features/sync/pending_op_resolution_service.dart';
 import 'package:busymax/src/features/sync/pending_ops_replayer.dart';
 import 'package:busymax/src/features/sync/sync_auth_error.dart';

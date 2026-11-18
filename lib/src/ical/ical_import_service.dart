@@ -12,7 +12,7 @@ import '../dav/ical/dav_native_import.dart';
 import '../dav/storage/dav_collection_capabilities.dart';
 import '../db/app_database.dart';
 import '../features/calendar/data/calendar_repository.dart';
-import '../features/calendar/presentation/event_editor_draft.dart';
+import '../features/calendar/domain/event_editor_draft.dart';
 import '../features/recurrence/domain/event_recurrence_codec.dart';
 import '../providers/busy_provider.dart';
 import 'ical_ingestion.dart';

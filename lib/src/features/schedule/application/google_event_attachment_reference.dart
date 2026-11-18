@@ -1,4 +1,4 @@
-import '../../../features/calendar/data/calendar_repository.dart';
+import '../../calendar/data/calendar_repository.dart';
 import '../../../google_calendar/google_calendar_api_client.dart';
 import '../../../providers/busy_provider.dart';
 import '../../../schedule/event_attachment_link.dart';

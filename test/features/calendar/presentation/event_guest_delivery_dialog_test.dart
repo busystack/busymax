@@ -2,7 +2,7 @@ import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/calendar_providers/calendar_mutation.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor.dart';
-import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
+import 'package:busymax/src/features/calendar/domain/event_editor_draft.dart';
 import 'package:busymax/src/features/calendar/presentation/event_guest_delivery_dialog.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:flutter/material.dart';

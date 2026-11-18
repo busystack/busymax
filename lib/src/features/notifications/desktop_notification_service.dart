@@ -14,30 +14,12 @@ import 'desktop_notification_backend.dart';
 import 'notification_cancellation_queue.dart';
 import 'daily_summary_policy.dart';
 
+import 'reminder_action.dart';
+import 'reminder_delivery_result.dart';
+
 export 'desktop_notification_backend.dart';
-
-enum ReminderNotificationAction { open, snooze, dismiss }
-
-enum ReminderDeliveryStatus { delivered, deferred, disabled, failed }
-
-final class ReminderDeliveryResult {
-  const ReminderDeliveryResult._(this.status, {this.retryAtUtc});
-
-  const ReminderDeliveryResult.delivered()
-    : this._(ReminderDeliveryStatus.delivered);
-
-  const ReminderDeliveryResult.disabled()
-    : this._(ReminderDeliveryStatus.disabled);
-
-  const ReminderDeliveryResult.deferred(DateTime retryAtUtc)
-    : this._(ReminderDeliveryStatus.deferred, retryAtUtc: retryAtUtc);
-
-  const ReminderDeliveryResult.failed(DateTime retryAtUtc)
-    : this._(ReminderDeliveryStatus.failed, retryAtUtc: retryAtUtc);
-
-  final ReminderDeliveryStatus status;
-  final DateTime? retryAtUtc;
-}
+export 'reminder_action.dart' show ReminderNotificationAction;
+export 'reminder_delivery_result.dart';
 
 typedef ReminderNotificationActionHandler = Future<void> Function(
   ReminderNotificationAction action,
