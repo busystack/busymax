@@ -560,6 +560,17 @@ class LocationResolutions extends Table {
   Set<Column<Object>> get primaryKey => {kind, accountId, sourceId, itemId};
 }
 
+/// The result of submitting a logical creation draft. Receipts outlive both
+/// the temporary projection ID and the corresponding outbox entry.
+class CreationReceipts extends Table {
+  TextColumn get kind => text()();
+  TextColumn get creationId => text()();
+  TextColumn get resultId => text().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {kind, creationId};
+}
+
 class IcalImportReceipts extends Table {
   TextColumn get calendarSourceId =>
       text().references(CalendarSources, #id, onDelete: KeyAction.cascade)();

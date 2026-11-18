@@ -576,7 +576,7 @@ void main() {
     },
   );
 
-  testWidgets('Android trash reports a committed delete with refresh pending', (
+  testWidgets('Android trash retries synchronization after a committed delete', (
     tester,
   ) async {
     final fixture = NextcloudAdminFixture()..failRefresh = true;
@@ -601,6 +601,30 @@ void main() {
     await tester.tap(menu, warnIfMissed: false);
     await tester.pumpAndSettle();
     expect(find.text('Permanently delete'), findsNothing);
+    expect(fixture.refreshes, 1);
+    final refresh = tester
+        .widget<RefreshIndicator>(find.byType(RefreshIndicator))
+        .onRefresh;
+
+    unawaited(refresh());
+    await _settle(tester);
+    expect(fixture.refreshes, 2);
+    expect(find.textContaining('Refresh is pending'), findsOneWidget);
+    expect(find.byKey(ValueKey(('nextcloud-trash-menu', href))), findsNothing);
+    expect(
+      fixture.requests.where((r) => r.method == 'DELETE' || r.method == 'MOVE'),
+      hasLength(1),
+    );
+
+    fixture.failRefresh = false;
+    unawaited(refresh());
+    await _settle(tester);
+    expect(fixture.refreshes, 3);
+    expect(find.textContaining('Refresh is pending'), findsNothing);
+    expect(
+      fixture.requests.where((r) => r.method == 'DELETE' || r.method == 'MOVE'),
+      hasLength(1),
+    );
     await tester.pumpWidget(const SizedBox());
   });
 

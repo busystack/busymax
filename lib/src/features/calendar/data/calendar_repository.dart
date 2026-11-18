@@ -32,6 +32,7 @@ import '../../../dav/mutation/dav_pending_operations.dart';
 import '../../../dav/mutation/dav_projection_mutations.dart';
 import '../../../dav/storage/dav_object_repository.dart';
 import '../../../db/app_database.dart';
+import '../../../db/creation_receipt_store.dart';
 import '../../../google_calendar/google_calendar_mapper.dart';
 import '../../../microsoft_calendar/microsoft_calendar_mapper.dart';
 import '../../../microsoft_calendar/microsoft_shared_calendar_address.dart';
@@ -2002,16 +2003,24 @@ class CalendarRepository {
     CalendarGuestUpdatePolicy guestUpdatePolicy =
         CalendarGuestUpdatePolicy.send,
     bool rebuildNotifications = true,
+    String? creationId,
   }) async {
-    final operationId = await _createLocalEvent(
+    Future<String> create() => _createLocalEvent(
       draft,
       guestUpdatePolicy: guestUpdatePolicy,
       rebuildNotifications: false,
     );
-    if (rebuildNotifications) {
+    final result = creationId == null
+        ? (resultId: await create(), created: true)
+        : await CreationReceiptStore(_database).createOnce(
+            kind: CreationKind.event,
+            id: creationId,
+            create: create,
+          );
+    if (result.created && rebuildNotifications) {
       await _refreshCommittedEventNotifications({draft.accountId});
     }
-    return operationId;
+    return result.resultId;
   }
 
   Future<String> _createLocalEvent(

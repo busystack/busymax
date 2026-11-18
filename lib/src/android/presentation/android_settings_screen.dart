@@ -2866,12 +2866,12 @@ class _AndroidNextcloudTrashScreenState
                       enabled: !_session.loadingDetails(item.href),
                       child: Text(context.l10n.show),
                     ),
-                  if (!_session.refreshPending && item.canRestore)
+                  if (_session.canMutate && item.canRestore)
                     PopupMenuItem(
                       value: 'restore',
                       child: Text(context.l10n.nextcloudRestore),
                     ),
-                  if (!_session.refreshPending && item.canPermanentlyDelete)
+                  if (_session.canMutate && item.canPermanentlyDelete)
                     PopupMenuItem(
                       value: 'delete',
                       child: Text(context.l10n.nextcloudPermanentDelete),

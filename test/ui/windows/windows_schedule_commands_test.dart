@@ -4,6 +4,7 @@ import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 
 import 'package:flutter/services.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_workspace.dart';
+import 'package:busymax/src/features/schedule/presentation/schedule_toolbar.dart';
 import 'package:busymax/src/schedule/schedule_scope.dart';
 import 'package:busymax/src/platform/common/desktop_services.dart';
 import 'package:flutter/material.dart' as material;
@@ -143,6 +144,28 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     });
   }
+  testWidgets('Linux Schedule rejects a visible read-only DAV task list', (
+    tester,
+  ) async {
+    final db = AppDatabase.memoryForTests();
+    addTearDown(db.close);
+    final calendar = CalendarRepository(database: db);
+    await _seed(db, calendar, provider: BusyProvider.nextcloud);
+    await _mount(
+      tester,
+      db,
+      calendar,
+      linux: true,
+      davCapabilities: nextcloudTaskCollectionCapabilities.asReadOnly(),
+    );
+    await tester.pumpAndSettle();
+    final toolbar = tester.widget<ScheduleToolbar>(
+      find.byType(ScheduleToolbar),
+    );
+    expect(toolbar.canCreateTask, isFalse);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets(
     'Windows creation availability follows destination additions and removals',
     (tester) async {

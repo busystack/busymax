@@ -580,6 +580,9 @@ final class NextcloudTrashService {
     return NextcloudTrashListing(List.unmodifiable(items.values), retention);
   }
 
+  Future<NextcloudMutationOutcome> refreshAccount() =>
+      collections.refreshResult();
+
   Future<NextcloudMutationOutcome> restore(NextcloudTrashItem item) =>
       _mutate(item, permanent: false);
   Future<NextcloudMutationOutcome> permanentlyDelete(NextcloudTrashItem item) =>
@@ -659,7 +662,7 @@ final class NextcloudTrashService {
       await collections.refreshResult();
       throw nextcloudOperationError(409, 'DavTrashOutcomeUnknown');
     }
-    return collections.refreshResult();
+    return refreshAccount();
   }
 
   Future<void> _requireNoPendingChanges(NextcloudTrashItem item) async {

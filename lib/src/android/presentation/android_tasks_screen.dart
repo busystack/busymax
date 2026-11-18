@@ -24,6 +24,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../db/creation_receipt_store.dart';
+import '../android_creation_recovery.dart';
 import '../../app/app_bootstrap.dart';
 import '../../dav/ical/ical_task_alarm.dart';
 import '../../dav/dav_errors.dart';
@@ -524,6 +526,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   String? _recoveryOriginalBaseTitle;
   bool _allowPop = false;
   bool _recoveryLoaded = false;
+  String? _creationId;
   String? _recoverySourceKey;
   String? _pendingMoveDestinationId;
   List<_AndroidTaskEditorState> _hierarchyAncestors = const [];
@@ -585,6 +588,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   @override
   void initState() {
     super.initState();
+    if (widget.task == null) _creationId = newAndroidCreationId();
     _resolveSavedLocation();
     unawaited(_restoreRecovery());
     _recoveryTimer = Timer.periodic(
@@ -3404,6 +3408,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
         _draft.toCreateInput(
           _capabilities,
           localTimeZone: ref.read(localTimeZoneProvider),
+          creationId: _creationId,
         ),
       );
       unawaited(
@@ -4209,6 +4214,15 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
         await _clearRecovery(sourceKey: recoverySourceKey);
         return;
       }
+      final creationId = task == null
+          ? recoverAndroidCreationId(map['creationId'], recoverySourceKey!, raw)
+          : null;
+      if (creationId != null &&
+          await CreationReceiptStore(ref.read(databaseProvider))
+              .hasCommitted(CreationKind.task, creationId)) {
+        await storage.delete(key: recoverySourceKey!);
+        return;
+      }
       TaskEntity? recoveredObserved;
       final rawObserved = map['observedTask'];
       final recoveryBaselineUnavailable =
@@ -4453,6 +4467,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
         return;
       }
       setState(() {
+        _creationId = creationId;
         _creationAccountId = recoveredAccountId;
         _creationProvider = recoveredProvider;
         _recoverySourceKey = recoverySourceKey;
@@ -4526,6 +4541,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
     final recoverySourceKey = _recoverySourceKey;
     final payload = jsonEncode({
       'v': 2,
+      if (_creationId != null) 'creationId': _creationId,
       'scheduledAllDay': _scheduledAllDay,
       'savedAt': DateTime.now().toIso8601String(),
       'baseTitle': _recoveryBaselineUnavailable

@@ -22,6 +22,7 @@ Future<EventSaveOutcome> saveEventDraft({
   required Future<void> Function() rememberDestination,
   required void Function() requestSync,
   Future<void> Function()? clearRecovery,
+  String? creationId,
 }) async {
   var outcome = EventSaveOutcome.committed;
 
@@ -32,7 +33,11 @@ Future<EventSaveOutcome> saveEventDraft({
 
   try {
     if (draft.eventId == null) {
-      await repository.createLocalEvent(draft, guestUpdatePolicy: guestPolicy);
+      await repository.createLocalEvent(
+        draft,
+        guestUpdatePolicy: guestPolicy,
+        creationId: creationId,
+      );
     } else {
       await repository.updateLocalEvent(draft, guestUpdatePolicy: guestPolicy);
     }

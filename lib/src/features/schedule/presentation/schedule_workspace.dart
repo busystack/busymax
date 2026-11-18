@@ -1,3 +1,4 @@
+import '../../../schedule/schedule_creation_destinations.dart';
 import '../../../schedule/schedule_agenda_query.dart';
 
 import 'package:intl/intl.dart';
@@ -220,7 +221,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   var _latestCanShowSidebar = false;
   var _latestAccounts = const <AccountEntity>[];
   var _latestWritableSources = const <CalendarSourceEntity>[];
-  var _latestVisibleTaskLists = const <TaskListEntity>[];
+  var _latestEligibleVisibleTaskLists = const <TaskListEntity>[];
   var _latestCanCreateTask = false;
   var _latestItems = const <ScheduleItem>[];
   final _itemAnchorContexts = <String, BuildContext>{};
@@ -417,10 +418,17 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                       ),
                     )
                     .toList();
-                final canCreateTask = visibleTaskLists.isNotEmpty;
+                final eligibleVisibleLists = visibleTaskLists
+                    .where(
+                      (list) => ref.watch(
+                        scheduleTaskListCreateEligibleProvider(list),
+                      ),
+                    )
+                    .toList();
+                final canCreateTask = eligibleVisibleLists.isNotEmpty;
                 _latestAccounts = accounts;
                 _latestWritableSources = writableSources;
-                _latestVisibleTaskLists = visibleTaskLists;
+                _latestEligibleVisibleTaskLists = eligibleVisibleLists;
                 _latestCanCreateTask = canCreateTask;
 
                 return FutureBuilder<_ScheduleItemsResult>(
@@ -2550,9 +2558,10 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     TaskListEntity? initialList;
     final routedListKey = _initialTaskListKey;
     if (routedListKey != null) {
-      for (final list in _latestVisibleTaskLists) {
+      for (final list in _latestEligibleVisibleTaskLists) {
         if (list.accountId == routedListKey.accountId &&
-            list.id == routedListKey.taskListId) {
+            list.id == routedListKey.taskListId &&
+            ref.read(scheduleTaskListCreateEligibleProvider(list))) {
           initialList = list;
           break;
         }
@@ -2568,7 +2577,8 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
           return;
         }
         for (final list in routedAccountLists) {
-          if (list.id == routedListKey.taskListId) {
+          if (list.id == routedListKey.taskListId &&
+              ref.read(scheduleTaskListCreateEligibleProvider(list))) {
             initialList = list;
             break;
           }
@@ -2578,7 +2588,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     if (initialList == null) {
       final settings = ref.read(appSettingsControllerProvider);
       initialList = preferredCreationDestination(
-        _searchTaskLists.where((list) => !list.pendingDelete),
+        _searchTaskLists.where(
+          (list) => ref.read(scheduleTaskListCreateEligibleProvider(list)),
+        ),
         selected: settings.defaultTaskList,
         lastUsed: settings.lastUsedTaskList,
         destinationOf: (list) =>

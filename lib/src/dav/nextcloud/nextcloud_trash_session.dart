@@ -17,7 +17,11 @@ final class NextcloudTrashSession extends ChangeNotifier {
   NextcloudTrashListing? listing;
   bool busy = false;
   bool refreshPending = false;
+  bool _listingStale = true;
+  Future<NextcloudMutationOutcome>? _accountRefresh;
   Object? error;
+
+  bool get canMutate => !busy && !_listingStale && !refreshPending;
 
   bool loadingDetails(Uri href) => _loadingDetails.contains(href);
 
@@ -33,14 +37,14 @@ final class NextcloudTrashSession extends ChangeNotifier {
     busy = true;
     error = null;
     notifyListeners();
-    await _reload();
+    await _reload(retryAccountRefresh: true);
   }
 
   Future<void> mutate(
     NextcloudTrashItem item, {
     required bool permanent,
   }) async {
-    if (busy || refreshPending || _disposed) return;
+    if (!canMutate || _disposed) return;
     busy = true;
     _mutating = true;
     error = null;
@@ -52,8 +56,9 @@ final class NextcloudTrashSession extends ChangeNotifier {
           : await _service.restore(item);
       if (_disposed) return;
       // Block actions against the previous listing until its replacement loads.
-      refreshPending = true;
-      if (result != NextcloudMutationOutcome.refreshPending) {
+      _listingStale = true;
+      refreshPending = result == NextcloudMutationOutcome.refreshPending;
+      if (!refreshPending) {
         _mutating = false;
         await _reload();
         return;
@@ -67,16 +72,21 @@ final class NextcloudTrashSession extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _reload() async {
+  Future<void> _reload({bool retryAccountRefresh = false}) async {
     final epoch = ++_listingEpoch;
     try {
       final result = await _service.list(cancellationToken: _cancellation);
       if (_disposed || _listingEpoch != epoch) return;
       listing = result;
-      refreshPending = false;
+      _listingStale = false;
     } on Object catch (failure) {
       if (_disposed || _listingEpoch != epoch) return;
+      _listingStale = true;
       error = failure;
+    }
+    if (retryAccountRefresh && refreshPending) {
+      notifyListeners();
+      await _retryAccountRefresh();
     }
     if (_disposed || _listingEpoch != epoch) return;
     busy = false;
@@ -87,6 +97,16 @@ final class NextcloudTrashSession extends ChangeNotifier {
     for (final item in previews) {
       if (_disposed || _listingEpoch != epoch || busy) break;
       await details(item, automatic: true);
+    }
+  }
+
+  Future<void> _retryAccountRefresh() async {
+    final refresh = _accountRefresh ??= _service.refreshAccount();
+    final outcome = await refresh;
+    if (!identical(_accountRefresh, refresh)) return;
+    _accountRefresh = null;
+    if (!_disposed) {
+      refreshPending = outcome == NextcloudMutationOutcome.refreshPending;
     }
   }
 

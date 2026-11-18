@@ -556,10 +556,7 @@ class _WindowsNextcloudTrashState
                           'nextcloud-trash-restore',
                           item.href.toString(),
                         )),
-                        onPressed:
-                            _session.busy ||
-                                _session.refreshPending ||
-                                !item.canRestore
+                        onPressed: !_session.canMutate || !item.canRestore
                             ? null
                             : () => _mutate(item, false),
                         child: Text(l10n.nextcloudRestore),
@@ -570,9 +567,7 @@ class _WindowsNextcloudTrashState
                           item.href.toString(),
                         )),
                         onPressed:
-                            _session.busy ||
-                                _session.refreshPending ||
-                                !item.canPermanentlyDelete
+                            !_session.canMutate || !item.canPermanentlyDelete
                             ? null
                             : () => _mutate(item, true),
                         child: Text(l10n.nextcloudPermanentDelete),

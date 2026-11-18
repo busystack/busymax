@@ -32,7 +32,7 @@ import '../../features/calendar/presentation/google_status_event_labels.dart';
 import '../../features/schedule/presentation/schedule_item_exporter.dart';
 import '../../features/schedule/presentation/cloud_calendar_series_export.dart';
 import '../../features/task_lists/data/task_lists_repository.dart';
-import '../../features/tasks/domain/task_capabilities.dart';
+import '../../schedule/schedule_creation_destinations.dart';
 import '../../schedule/schedule_agenda_query.dart';
 import '../../schedule/schedule_filters.dart';
 import '../../schedule/schedule_commands.dart';
@@ -363,25 +363,11 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
         ) ??
         visibleCalendars.firstOrNull ??
         allCalendars.firstOrNull;
-    final accountsById = {for (final account in accounts) account.id: account};
-    final eligibleTaskLists = taskLists.where((list) {
-      if (list.pendingDelete) return false;
-      final account = accountsById[list.accountId];
-      if (account == null || !account.isTaskCapable) return false;
-      if (account.provider.isDav) {
-        return ref
-                .watch(
-                  davTaskCollectionCapabilitiesProvider((
-                    accountId: account.id,
-                    taskListId: list.id,
-                  )),
-                )
-                .valueOrNull
-                ?.canCreateTasks ==
-            true;
-      }
-      return adapterDefaultTaskCapabilities(account.provider).canCreateTasks;
-    }).toList();
+    final eligibleTaskLists = taskLists
+        .where(
+          (list) => ref.watch(scheduleTaskListCreateEligibleProvider(list)),
+        )
+        .toList();
     final creationTaskList =
         preferredCreationDestination(
           eligibleTaskLists,

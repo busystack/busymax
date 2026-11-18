@@ -19,6 +19,7 @@ import '../../../dav/mutation/dav_pending_operations.dart';
 import '../../../dav/mutation/dav_projection_mutations.dart';
 import '../../../dav/storage/dav_object_repository.dart';
 import '../../../db/app_database.dart';
+import '../../../db/creation_receipt_store.dart';
 import '../../../google_tasks/api/google_tasks_json.dart';
 import '../domain/task_checklist_item.dart';
 import '../domain/task_remote_client.dart';
@@ -407,6 +408,7 @@ class TaskCreateInput {
     this.fields = const {},
     this.parentTaskId,
     this.previousSiblingTaskId,
+    this.creationId,
     this.locationChange = const LocationChange.unchanged(),
   });
 
@@ -418,6 +420,7 @@ class TaskCreateInput {
   final Map<String, Object?> fields;
   final String? parentTaskId;
   final String? previousSiblingTaskId;
+  final String? creationId;
   final LocationChange locationChange;
 
   Map<String, Object?> toFields() {
@@ -753,6 +756,22 @@ class TasksRepository {
   }
 
   Future<String> createTask(String taskListId, TaskCreateInput input) async {
+    final creationId = input.creationId;
+    final result = creationId == null
+        ? (resultId: await _createTask(taskListId, input), created: true)
+        : await CreationReceiptStore(_database).createOnce(
+            kind: CreationKind.task,
+            id: creationId,
+            create: () => _createTask(taskListId, input),
+          );
+    if (result.created) {
+      await _rebuildTaskNotifications();
+      _onMutationQueued?.call();
+    }
+    return result.resultId;
+  }
+
+  Future<String> _createTask(String taskListId, TaskCreateInput input) async {
     final taskList = await _requiredTaskList(taskListId);
     if (taskList.davCollectionId != null) {
       return _createDavTask(taskList, input);
@@ -836,8 +855,6 @@ class TasksRepository {
         );
       }
     });
-    await _rebuildTaskNotifications();
-    _onMutationQueued?.call();
     return localId;
   }
 
@@ -1529,8 +1546,6 @@ class TasksRepository {
         localProjectionId: localId,
       );
     });
-    await _rebuildTaskNotifications();
-    _onMutationQueued?.call();
     return localId;
   }
 

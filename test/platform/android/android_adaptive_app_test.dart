@@ -58,6 +58,7 @@ import 'package:busymax/src/features/tasks/domain/task_checklist_item.dart';
 import 'package:busymax/src/features/tasks/domain/task_remote_client.dart';
 import 'package:busymax/src/features/tasks/domain/task_remote_models.dart';
 import 'package:busymax/src/features/sync/pending_ops_replayer.dart';
+import 'package:busymax/src/features/sync/calendar_pending_ops_replayer.dart';
 import 'package:busymax/src/schedule/schedule_filters.dart';
 import 'package:busymax/src/schedule/schedule_item.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
@@ -405,9 +406,11 @@ void main() {
   final messenger =
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
   late Map<String, String> secureStorage;
+  late bool remainingRecoveryDeletesFail;
 
   setUp(() {
     secureStorage = {};
+    remainingRecoveryDeletesFail = false;
     messenger.setMockMethodCallHandler(platformChannel, (call) async {
       return switch (call.method) {
         'takeInitialActivation' => null,
@@ -429,6 +432,11 @@ void main() {
           return null;
         }(),
         'delete' => () {
+          if (remainingRecoveryDeletesFail &&
+              key != null &&
+              secureStorage.containsKey(key)) {
+            throw PlatformException(code: 'test-delete-failed');
+          }
           if (key != null) {
             secureStorage.remove(key);
           }
@@ -3031,6 +3039,238 @@ void main() {
 
       await harness.dispose();
     });
+  }
+
+  for (final kind in ['event', 'task']) {
+    for (final synchronized in [false, true]) {
+      testWidgets(
+        'Android suppresses a committed $kind recovery after failed cleanup '
+        '(synchronized: $synchronized)',
+        (tester) async {
+          final directory = Directory.systemTemp.createTempSync(
+            'busymax-create-',
+          );
+          addTearDown(() => directory.delete(recursive: true));
+          final file = File('${directory.path}/busymax.sqlite');
+          AppDatabase openDatabase() => AppDatabase(
+            DatabaseConnection(
+              NativeDatabase(file),
+              closeStreamsSynchronously: true,
+            ),
+          );
+          final event = kind == 'event';
+          final accountId = event ? 'google:administration' : 'google:move';
+          final title = 'Recovered $kind';
+          final source = CalendarSourceEntity(
+            id: CalendarRepository.sourceId(
+              accountId: 'google:administration',
+              provider: BusyProvider.google,
+              providerCalendarId: 'administration-calendar',
+            ),
+            accountId: 'google:administration',
+            provider: BusyProvider.google,
+            providerCalendarId: 'administration-calendar',
+            summary: 'Administration calendar',
+            selected: true,
+            hidden: false,
+            readOnly: false,
+            isDeleted: false,
+          );
+          final harness = await _pumpApp(
+            tester,
+            AppSettings.defaults(),
+            databaseOverride: openDatabase(),
+            seedDatabase: event
+                ? (db) => _seedCalendarAdministration(db, sourceId: source.id)
+                : _seedMovableTask,
+            onCalendarSync: (_) async {},
+          );
+          addTearDown(harness.dispose);
+          final eventDraft = EventEditorDraft.newEvent(
+            accountId: source.accountId,
+            sourceId: source.id,
+            providerCalendarId: source.providerCalendarId,
+            start: DateTime(2026, 9, 14, 9),
+            end: DateTime(2026, 9, 14, 10),
+          );
+          const taskEditor = AndroidTaskEditor(
+            accountId: 'google:move',
+            provider: BusyProvider.google,
+            creationList: TaskListEntity(
+              accountId: 'google:move',
+              id: 'source-list',
+              title: 'Source list',
+              localDirty: false,
+              pendingDelete: false,
+              rawJson: '{}',
+            ),
+            accountLabel: 'Move account',
+            listLabel: 'Source list',
+          );
+          final editor = find.byType(
+            event ? AndroidEventEditor : AndroidTaskEditor,
+          );
+          final save = find.widgetWithText(TextButton, 'Save');
+          Future<void> openEditor() async {
+            unawaited(
+              tester
+                  .state<NavigatorState>(find.byType(Navigator).first)
+                  .push<void>(
+                    MaterialPageRoute(
+                      builder: (_) => event
+                          ? AndroidEventEditor(
+                              sources: [source],
+                              draft: eventDraft,
+                            )
+                          : taskEditor,
+                    ),
+                  ),
+            );
+            await tester.pumpAndSettle();
+            expect(editor, findsOneWidget);
+          }
+
+          Future<void> expectSingleCreation(
+            AppDatabase database,
+            int outboxCount,
+          ) async {
+            if (event) {
+              expect(
+                await (database.select(
+                  database.calendarEvents,
+                )..where((row) => row.title.equals(title))).get(),
+                hasLength(1),
+              );
+            } else {
+              expect(
+                await (database.select(
+                  database.tasks,
+                )..where((row) => row.title.equals(title))).get(),
+                hasLength(1),
+              );
+            }
+            expect(
+              await database.select(database.pendingOps).get(),
+              hasLength(outboxCount),
+            );
+          }
+
+          await openEditor();
+          final titleField = event
+              ? find.byType(TextFormField).first
+              : find.widgetWithText(TextField, 'Title');
+          await tester.enterText(titleField, title);
+          await tester.pump(const Duration(milliseconds: 1100));
+          await tester.pumpAndSettle();
+          final recovery = secureStorage.entries.singleWhere(
+            (entry) => entry.key.startsWith('busymax.android.$kind-draft.'),
+          );
+          final id =
+              (jsonDecode(recovery.value) as Map)['creationId'] as String;
+          expect(id, isNotEmpty);
+
+          // Restore the persisted draft before saving, so this exercises the
+          // actual recovery binding and its submitted identity.
+          final navigator = tester.state<NavigatorState>(
+            find.byType(Navigator).first,
+          );
+          navigator.removeRoute(ModalRoute.of(tester.element(editor))!);
+          await tester.pumpAndSettle();
+          await openEditor();
+          await tester.tap(find.text('Restore'));
+          await tester.pumpAndSettle();
+          expect(find.text(title), findsOneWidget);
+          remainingRecoveryDeletesFail = true;
+          await tester.tap(save);
+          await tester.pumpAndSettle();
+          expect(editor, findsNothing);
+          expect(secureStorage, contains(recovery.key));
+          await expectSingleCreation(harness.database, 1);
+
+          if (synchronized) {
+            if (event) {
+              final client = GoogleCalendarApiClient(
+                baseUri: Uri.parse('https://www.googleapis.com'),
+                httpClient: MockClient((request) async {
+                  expect(request.method, 'POST');
+                  return http.Response(request.body, 200);
+                }),
+              );
+              final replayed = await CalendarPendingOpsReplayer(
+                database: harness.database,
+                client: client,
+                accountId: accountId,
+              ).replayDueOps();
+              expect(
+                replayed,
+                1,
+                reason:
+                    (await harness.database
+                            .select(harness.database.pendingOps)
+                            .get())
+                        .toString(),
+              );
+            } else {
+              final client = _AndroidTaskIdentityClient()
+                ..releaseCreation.complete();
+              expect(
+                await PendingOpsReplayer(
+                  database: harness.database,
+                  apiClient: client,
+                  accountId: accountId,
+                ).replayDueOps(),
+                1,
+              );
+            }
+            await expectSingleCreation(harness.database, 0);
+          }
+
+          await harness.dispose();
+          final restarted = await _pumpApp(
+            tester,
+            AppSettings.defaults(),
+            databaseOverride: openDatabase(),
+            onCalendarSync: (_) async {},
+          );
+          addTearDown(restarted.dispose);
+          await openEditor();
+          expect(find.text('Restore'), findsNothing);
+          expect(find.text(title), findsNothing);
+          expect(secureStorage, contains(recovery.key));
+          if (event) {
+            expect(tester.widget<TextButton>(save).onPressed, isNull);
+          } else {
+            await tester.tap(save);
+            await tester.pumpAndSettle();
+            expect(editor, findsOneWidget);
+          }
+
+          // Submission also refuses to create again if the same draft was
+          // already open when its first editor committed.
+          final database = restarted.database;
+          final receipt = await database
+              .select(database.creationReceipts)
+              .getSingle();
+          expect(receipt.creationId, id);
+          final result = event
+              ? await restarted.container
+                    .read(calendarRepositoryProvider)
+                    .createLocalEvent(
+                      eventDraft.copyWith(title: title),
+                      creationId: id,
+                    )
+              : await restarted.container
+                    .read(tasksRepositoryForAccountProvider(accountId))
+                    .createTask(
+                      'source-list',
+                      TaskCreateInput(title: title, creationId: id),
+                    );
+          expect(result, receipt.resultId);
+          await expectSingleCreation(restarted.database, synchronized ? 0 : 1);
+          await restarted.dispose();
+        },
+      );
+    }
   }
 
   testWidgets('event recovery restores its changed account and calendar', (
@@ -8748,7 +8988,10 @@ Future<void> _seedMovableTask(
   );
 }
 
-Future<void> _seedCalendarAdministration(AppDatabase database) async {
+Future<void> _seedCalendarAdministration(
+  AppDatabase database, {
+  String sourceId = 'administration-calendar',
+}) async {
   const timestamp = '2026-09-14T00:00:00.000Z';
   await database
       .into(database.accounts)
@@ -8770,7 +9013,7 @@ Future<void> _seedCalendarAdministration(AppDatabase database) async {
       .into(database.calendarSources)
       .insert(
         CalendarSourcesCompanion.insert(
-          id: 'administration-calendar',
+          id: sourceId,
           accountId: 'google:administration',
           provider: 'google',
           providerCalendarId: 'administration-calendar',

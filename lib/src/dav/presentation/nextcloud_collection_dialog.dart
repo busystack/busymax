@@ -582,10 +582,7 @@ class _LinuxNextcloudTrashState
                         )),
                         title: l10n.nextcloudRestore,
                         leading: const Icon(Icons.restore),
-                        enabled:
-                            !_session.busy &&
-                            !_session.refreshPending &&
-                            item.canRestore,
+                        enabled: _session.canMutate && item.canRestore,
                         onTap: () => _mutate(item, false),
                       ),
                       BusyMaxActionRow(
@@ -596,9 +593,7 @@ class _LinuxNextcloudTrashState
                         title: l10n.nextcloudPermanentDelete,
                         leading: const Icon(YaruIcons.trash),
                         enabled:
-                            !_session.busy &&
-                            !_session.refreshPending &&
-                            item.canPermanentlyDelete,
+                            _session.canMutate && item.canPermanentlyDelete,
                         onTap: () => _mutate(item, true),
                       ),
                     ],

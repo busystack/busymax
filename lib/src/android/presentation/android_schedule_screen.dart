@@ -46,6 +46,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 
+import '../../db/creation_receipt_store.dart';
+import '../android_creation_recovery.dart';
 import '../../app/app_bootstrap.dart';
 import '../../contacts/busymax_contacts_controller.dart';
 import '../../app/common/busymax_motion_widgets.dart';
@@ -3321,6 +3323,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
   bool _saving = false;
   bool _allowPop = false;
   bool _recoveryLoaded = false;
+  String? _creationId;
   bool _recoveryWritesBlocked = false;
   Future<void> _recoveryIo = Future.value();
   Timer? _recoveryTimer;
@@ -3332,6 +3335,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
   @override
   void initState() {
     super.initState();
+    if (widget.draft.eventId == null) _creationId = newAndroidCreationId();
     if (_draft.eventId == null &&
         _provider.isDav &&
         !_draft.allDay &&
@@ -4118,7 +4122,10 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
           ),
           actions: [
             TextButton(
-              onPressed: _saving || !_canEdit || !_draft.canSave ? null : _save,
+              onPressed:
+                  _saving || !_recoveryLoaded || !_canEdit || !_draft.canSave
+                  ? null
+                  : _save,
               child: Text(context.l10n.save),
             ),
           ],
@@ -5153,6 +5160,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
   }
 
   Future<void> _save() async {
+    if (!_recoveryLoaded) return;
     final start = _draft.start;
     if (_title.text.trim().isEmpty || start == null) {
       return;
@@ -5339,6 +5347,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
       final outcome = await saveEventDraft(
         repository: ref.read(calendarRepositoryProvider),
         draft: draft,
+        creationId: _creationId,
         guestPolicy: guestPolicy,
         rememberDestination: () => settings.rememberCalendar(
           CreationDestination(accountId: draft.accountId, id: draft.sourceId),
@@ -5675,6 +5684,15 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
         await _clearRecovery();
         return;
       }
+      final creationId = editingExistingEvent
+          ? null
+          : recoverAndroidCreationId(map['creationId'], _recoveryKey, raw);
+      if (creationId != null &&
+          await CreationReceiptStore(ref.read(databaseProvider))
+              .hasCommitted(CreationKind.event, creationId)) {
+        if (mounted) await _clearRecovery();
+        return;
+      }
       final start = DateTime.tryParse(map['start']?.toString() ?? '');
       final end = DateTime.tryParse(map['end']?.toString() ?? '');
       if (start == null || end == null) {
@@ -5740,6 +5758,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
         return;
       }
       setState(() {
+        _creationId = creationId;
         _title.text = map['title']?.toString() ?? _title.text;
         _location.text = map['location']?.toString() ?? _location.text;
         _description.text = map['description']?.toString() ?? _description.text;
@@ -5863,7 +5882,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
     } on Object {
       // A malformed/locked recovery entry must never block the editor.
     } finally {
-      _recoveryLoaded = true;
+      if (mounted) setState(() => _recoveryLoaded = true);
     }
   }
 
@@ -5878,6 +5897,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
       'v': 3,
       'savedAt': DateTime.now().toIso8601String(),
       'eventId': widget.draft.eventId,
+      if (_creationId != null) 'creationId': _creationId,
       'baseTitle': widget.draft.title,
       'baseStart': widget.draft.start?.toIso8601String(),
       'accountId': _draft.accountId,
