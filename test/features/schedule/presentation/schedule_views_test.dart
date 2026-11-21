@@ -3837,8 +3837,6 @@ void main() {
     expect(source, contains('BusyMaxHeaderAction.viewModeAgenda'));
     expect(source, isNot(contains('BusyMaxHeaderAction.viewModeCompact')));
     expect(source, contains('BusyMaxHeaderAction.refresh'));
-    expect(source, contains('allAccountsSyncRunnerProvider'));
-    expect(source, contains('context.l10n.allTasksRefreshed'));
     expect(source, contains('setScheduleViewMode(mode)'));
     expect(source, contains('settings.scheduleViewMode'));
     expect(

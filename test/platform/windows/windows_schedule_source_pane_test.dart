@@ -332,7 +332,11 @@ void main() {
       const lastCalendar = ('schedule-calendar', 'a', 'c2');
       expect(entry(firstCalendar, 'Move up').onPressed, isNull);
       expect(entry(lastCalendar, 'Move down').onPressed, isNull);
-      expect(menu(('schedule-account', 'a')).items, hasLength(2));
+      expect(menu(('schedule-account', 'a')).items, hasLength(3));
+      expect(
+        entry(('schedule-account', 'a'), 'Refresh account').onPressed,
+        isNotNull,
+      );
       final originalElement = tester.element(
         find.byKey(const ValueKey(lastCalendar)),
       );

@@ -1484,10 +1484,34 @@ class AppLocalizationsAr extends AppLocalizations {
   String get refreshAll => 'تحديث الكل';
 
   @override
-  String get listRefreshed => 'تم تحديث القائمة.';
+  String get refreshAccount => 'تحديث الحساب';
 
   @override
-  String get allTasksRefreshed => 'تم تحديث جميع الحسابات.';
+  String get refreshCollection => 'تحديث المجموعة';
+
+  @override
+  String get syncQueued => 'التحديث في قائمة الانتظار';
+
+  @override
+  String get syncNotYetRefreshed => 'لم تتم المزامنة بعد';
+
+  @override
+  String syncLastRefreshed(String date) {
+    return 'آخر تحديث ⁨$date⁩';
+  }
+
+  @override
+  String get scheduleCoverageStatus => 'تغطية الأحداث';
+
+  @override
+  String get scheduleCoveragePending =>
+      'يجري التحقق من أحداث هذه الفترة أو لم يبدأ التحقق منها بعد.';
+
+  @override
+  String get scheduleCoverageVerified => 'تم التحقق من أحداث هذه الفترة.';
+
+  @override
+  String get listRefreshed => 'تم تحديث القائمة.';
 
   @override
   String exportedFile(String path) {
@@ -2172,7 +2196,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get forceFullResyncDescription =>
-      'إعادة تحميل جميع البيانات بالكامل من كل حساب متصل. استخدم هذا الخيار فقط لاستكشاف مشكلات المزامنة وإصلاحها.';
+      'أعد بناء بيانات المزامنة الأساسية للتقويم والمهام للحسابات المؤهلة حيثما كان ذلك مدعومًا، وتحقق من الاشتراكات. استخدم هذا الخيار لحل مشكلات المزامنة.';
 
   @override
   String get runInBackgroundWhenClosed => 'متابعة التشغيل عند إغلاق النافذة';
@@ -2196,9 +2220,6 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get requiresTrayIcon => 'يتطلب أيقونة شريط النظام.';
-
-  @override
-  String get syncComplete => 'اكتملت المزامنة.';
 
   @override
   String syncFailed(String error) {

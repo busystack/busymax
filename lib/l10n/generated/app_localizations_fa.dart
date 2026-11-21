@@ -1473,10 +1473,34 @@ class AppLocalizationsFa extends AppLocalizations {
   String get refreshAll => 'تازه‌سازی همه';
 
   @override
-  String get listRefreshed => 'فهرست تازه‌سازی شد.';
+  String get refreshAccount => 'تازه‌سازی حساب';
 
   @override
-  String get allTasksRefreshed => 'همهٔ حساب‌ها تازه‌سازی شدند.';
+  String get refreshCollection => 'تازه‌سازی مجموعه';
+
+  @override
+  String get syncQueued => 'تازه‌سازی در صف است';
+
+  @override
+  String get syncNotYetRefreshed => 'هنوز همگام نشده است';
+
+  @override
+  String syncLastRefreshed(String date) {
+    return 'آخرین تازه‌سازی ⁨$date⁩';
+  }
+
+  @override
+  String get scheduleCoverageStatus => 'پوشش رویدادها';
+
+  @override
+  String get scheduleCoveragePending =>
+      'رویدادهای این بازه در حال بررسی‌اند یا هنوز بررسی نشده‌اند.';
+
+  @override
+  String get scheduleCoverageVerified => 'رویدادهای این بازه بررسی شده‌اند.';
+
+  @override
+  String get listRefreshed => 'فهرست تازه‌سازی شد.';
 
   @override
   String exportedFile(String path) {
@@ -2126,7 +2150,7 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String get forceFullResyncDescription =>
-      'همهٔ داده‌های هر حساب متصل را به‌طور کامل دوباره بارگیری می‌کند. فقط برای عیب‌یابی مشکلات همگام‌سازی از این گزینه استفاده کنید.';
+      'داده‌های پایهٔ همگام‌سازی تقویم و کارها را برای حساب‌های واجد شرایط، در صورت پشتیبانی، بازسازی و اشتراک‌ها را بررسی می‌کند. برای رفع مشکلات همگام‌سازی از این گزینه استفاده کنید.';
 
   @override
   String get runInBackgroundWhenClosed => 'ادامهٔ اجرا پس از بسته شدن پنجره';
@@ -2149,9 +2173,6 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String get requiresTrayIcon => 'به نماد سینی سیستم نیاز دارد.';
-
-  @override
-  String get syncComplete => 'همگام‌سازی کامل شد.';
 
   @override
   String syncFailed(String error) {

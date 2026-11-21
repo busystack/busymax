@@ -21,7 +21,7 @@ final class CloudCalendarRangeCoverageService {
   final AppDatabase _database;
   final CalendarMonthRetriever _retrieveMonth;
   final DateTime Function() _nowUtc;
-  final Map<String, Future<void>> _inFlight = {};
+  final Map<(String, String, int, int), Future<void>> _inFlight = {};
 
   /// Returns false if any month could not be verified. Cached events remain
   /// available in that case, but a caller must not present an empty range as
@@ -116,8 +116,7 @@ final class CloudCalendarRangeCoverageService {
             const Duration(minutes: 5).inMilliseconds;
     if (fresh(await state())) return true;
     if (!source.online) return false;
-    final key =
-        '${source.accountId}|${source.sourceId}|${month.year}|${month.month}';
+    final key = (source.accountId, source.sourceId, month.year, month.month);
     final running = _inFlight[key] ??= _retrieveMonth(
       source.accountId,
       source.provider,

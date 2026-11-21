@@ -6,6 +6,8 @@ import '../features/notifications/operational_notification_coordinator.dart';
 import '../core/http/request_dispatch_exception.dart';
 import '../features/sync/domain_sync_schedule.dart';
 import '../features/sync/account_sync_activity.dart';
+import '../features/sync/sync_request.dart';
+import '../features/sync/sync_auth_error.dart';
 import '../dav/storage/dav_collection_creation_notices.dart';
 import '../dav/mutation/dav_collection_creation_failure.dart';
 import '../core/auth/authorization_persistence.dart';
@@ -1290,6 +1292,9 @@ final syncEngineForAccountFactoryProvider =
           apiClient: apiClient,
           accountId: accountId,
           fullRefreshOnly: provider == BusyProvider.microsoft,
+          trackCollection: (id, work) => ref
+              .read(accountSyncActivityProvider.notifier)
+              .resource([taskListSyncScope(accountId, id)], work),
           onTaskListIdReplaced: (oldId, newId) async {
             final oldKey = ScheduleTaskListKey(
               accountId: accountId,
@@ -1352,6 +1357,16 @@ final calendarSyncEngineForAccountFactoryProvider =
           database: ref.read(databaseProvider),
           client: client,
           accountId: accountId,
+          trackCollection: (id, work) => ref
+              .read(accountSyncActivityProvider.notifier)
+              .resource([calendarSyncScope(accountId, id)], work),
+          trackRangeCollection: (id, work) => ref
+              .read(accountSyncActivityProvider.notifier)
+              .resource(
+                [calendarSyncScope(accountId, id)],
+                work,
+                resolveFailure: false,
+              ),
           onCalendarSourceIdReplaced: (oldId, newId) => ref
               .read(appSettingsControllerProvider.notifier)
               .replaceSidebarId(
@@ -1416,16 +1431,21 @@ final calendarMonthRetrieverProvider = Provider<CalendarMonthRetriever>((ref) {
   final engineForAccount = ref.watch(
     calendarSyncEngineForAccountFactoryProvider,
   );
-  return (accountId, provider, month, {required sourceIds}) => gate.run(
-    accountId,
-    () => coordinator.run(accountId, () async {
-      await connectivity.requireNetwork();
-      await engineForAccount(
-        accountId,
-        provider,
-      ).retrieveMonth(month, sourceIds: sourceIds);
-    }),
-  );
+  final authorization = ref.watch(authorizationPersistenceProvider);
+  return (accountId, provider, month, {required sourceIds}) async {
+    final generation = await authorization.generation(accountId);
+    await gate.run(
+      accountId,
+      () => coordinator.run(accountId, () async {
+        if (generation != await authorization.generation(accountId)) return;
+        await connectivity.requireNetwork();
+        await engineForAccount(
+          accountId,
+          provider,
+        ).retrieveMonth(month, sourceIds: sourceIds);
+      }),
+    );
+  };
 });
 
 final accountSyncActivityProvider = ChangeNotifierProvider<AccountSyncActivity>(
@@ -1537,119 +1557,615 @@ final calendarVisibilityOperationProvider =
     });
 
 final accountSyncOperationsProvider = Provider<AccountSyncOperations>((ref) {
-  final accountsRepository = ref.watch(accountsRepositoryProvider);
+  final accounts = ref.watch(accountsRepositoryProvider);
+  final database = ref.watch(databaseProvider);
   final connectivity = ref.watch(networkConnectivityMonitorProvider);
-  final syncCoordinator = ref.watch(accountSyncCoordinatorProvider);
+  final coordinator = ref.watch(accountSyncCoordinatorProvider);
+  final gate = ref.watch(crossEngineAccountGateProvider);
   final activity = ref.watch(accountSyncActivityProvider.notifier);
+  final authorization = ref.watch(authorizationPersistenceProvider);
 
-  Future<BusyProvider> providerForAccount(String accountId) async {
-    final account = await accountsRepository.accountById(accountId);
-    if (account == null) {
-      throw StateError('Account $accountId is unavailable.');
-    }
-    return account.provider;
+  Future<Set<SyncScope>> davProjections(String accountId, String id) async {
+    final calendars =
+        await (database.select(database.calendarSources)..where(
+              (row) =>
+                  row.accountId.equals(accountId) &
+                  row.davCollectionId.equals(id) &
+                  row.isDeleted.equals(false),
+            ))
+            .get();
+    final tasks =
+        await (database.select(database.taskLists)..where(
+              (row) =>
+                  row.accountId.equals(accountId) &
+                  row.davCollectionId.equals(id) &
+                  row.serverMissing.equals(false),
+            ))
+            .get();
+    return {
+      for (final source in calendars) calendarSyncScope(accountId, source.id),
+      for (final list in tasks) taskListSyncScope(accountId, list.id),
+    };
   }
 
-  final routing = RoutingAccountSyncOperations(
-    providerForAccount: providerForAccount,
-    syncDav: (accountId, {required full}) => activity.run(
-      accountId,
-      'dav',
-      () => syncCoordinator.trackTaskImport(accountId, () async {
-        final result = await ref
-            .read(davAccountSyncEngineFactoryProvider)(accountId)
-            .synchronize(full: full);
-        // Pull success and collection-administration outcomes are independent.
-        // Rehydrate terminal diagnostics too: a later sync/restart must not
-        // silently clear a rejection that is no longer in the recovery queue.
-        activity.setCollectionCreationFailures(
-          accountId,
-          await ref
-              .read(davCollectionCreationNoticesProvider)
-              .load(
-                accountId,
-                currentErrors: result.collectionCreationFailures,
-              ),
-        );
-        if (await providerForAccount(accountId) == BusyProvider.nextcloud) {
-          // Piggyback on this refresh without extending DAV sync completion.
-          // The service coalesces overlapping checks and retains its cache.
-          unawaited(
-            Future<void>.sync(
-              () => ref
-                  .read(nextcloudFederationServiceProvider(accountId))
-                  .discoverPending(force: full),
-            ).catchError((Object error, StackTrace stack) {
-              // Optional discovery retains its last known count on failure.
-            }),
-          );
-        }
-      }),
-    ),
-    syncWebCal: (accountId, {required full}) => ref
-        .read(webCalSubscriptionServiceProvider)
-        .refreshAccount(accountId, force: full),
-    syncTasksRest: (accountId, {required full}) {
-      var pulled = false;
-      return activity.run(accountId, 'tasks', () async {
-        final provider = await providerForAccount(accountId);
-        final engine = ref.read(syncEngineForAccountFactoryProvider)(
-          accountId,
-          provider,
-        );
-        await DomainSyncPolicy(ref.read(databaseProvider)).run(
-          accountId,
-          SyncDomain.tasks,
-          full: full,
-          deferred: engine.dispatchPendingWrites,
-          maintainCached: engine.maintainCachedReminders,
-          pull: () => syncCoordinator.trackTaskImport(accountId, () async {
-            if (full) {
-              await engine.fullSync();
-            } else {
-              await engine.incrementalSync();
-            }
-            pulled = true;
-          }, changedOnFailure: () => engine.remoteImportWroteData),
-        );
-      }, clearFailureOnSuccess: () => pulled);
-    },
-    syncCalendarRest: (accountId, {required full}) {
-      var pulled = false;
-      return activity.run(accountId, 'calendar', () async {
-        final provider = await providerForAccount(accountId);
-        final engine = ref.read(calendarSyncEngineForAccountFactoryProvider)(
-          accountId,
-          provider,
-        );
-        await DomainSyncPolicy(ref.read(databaseProvider)).run(
-          accountId,
-          SyncDomain.calendar,
-          full: full,
-          deferred: engine.dispatchPendingWrites,
-          maintainCached: engine.maintainCachedReminders,
-          pull: () async {
-            if (full) {
-              await engine.fullSync();
-            } else {
-              await engine.incrementalSync();
-            }
-            pulled = true;
+  Future<SyncOutcome> executeForAccount(
+    SyncRequest request,
+    AccountEntity account,
+  ) async {
+    final scope = request.scope;
+    final id = account.id;
+    final resource = scope.resourceId;
+    final full = request.strategy == SyncStrategy.fullRecovery;
+    final affected = <SyncScope>{};
+    if (account.provider == BusyProvider.webCal) {
+      if (!account.calendarsEnabled ||
+          scope.kind == SyncScopeKind.tasks ||
+          scope.kind == SyncScopeKind.taskList ||
+          request.origin == SyncTrigger.localMutation) {
+        return SyncOutcome(request, SyncDisposition.disabled);
+      }
+      final service = ref.read(webCalSubscriptionServiceProvider);
+      final subscription = await service.subscriptionForAccount(id);
+      if (subscription == null ||
+          scope.kind == SyncScopeKind.subscription &&
+              resource != subscription.id ||
+          scope.kind == SyncScopeKind.calendarSource &&
+              resource != subscription.calendarSourceId) {
+        return SyncOutcome(request, SyncDisposition.missing);
+      }
+      final source = calendarSyncScope(id, subscription.calendarSourceId);
+      try {
+        final outcome = await service.checkSubscription(
+          subscription.id,
+          accountId: id,
+          manual: request.origin == SyncTrigger.manual,
+          trackCheck: (check) {
+            affected.add(source);
+            return activity.run(
+              id,
+              'webcal',
+              () => activity.resource([source], () async {
+                final result = await check();
+                if (result == SyncDisposition.failed) {
+                  throw const WebCalSubscriptionException(
+                    'WebCalSecretUnavailable',
+                  );
+                }
+                return result;
+              }),
+            );
           },
         );
-      }, clearFailureOnSuccess: () => pulled);
-    },
+        return SyncOutcome(request, outcome, affected: affected);
+      } on Object catch (error) {
+        return SyncOutcome(
+          request,
+          SyncDisposition.failed,
+          affected: affected,
+          error: error,
+        );
+      }
+    }
+
+    if (account.provider.isDav) {
+      String? collection;
+      if (resource != null) {
+        final task = scope.kind == SyncScopeKind.taskList;
+        final physical = scope.kind == SyncScopeKind.davCollection;
+        if (!physical &&
+            (task ? !account.tasksEnabled : !account.calendarsEnabled)) {
+          return SyncOutcome(request, SyncDisposition.disabled);
+        }
+        if (physical) {
+          collection = resource;
+        } else if (task) {
+          final list =
+              await (database.select(database.taskLists)..where(
+                    (row) => row.accountId.equals(id) & row.id.equals(resource),
+                  ))
+                  .getSingleOrNull();
+          if (list?.pendingDelete == true) {
+            return SyncOutcome(request, SyncDisposition.disabled);
+          }
+          collection = list?.davCollectionId;
+        } else {
+          final source =
+              await (database.select(database.calendarSources)..where(
+                    (row) =>
+                        row.accountId.equals(id) &
+                        row.id.equals(resource) &
+                        row.isDeleted.equals(false),
+                  ))
+                  .getSingleOrNull();
+          collection = source?.davCollectionId;
+        }
+        if (collection == null) {
+          return SyncOutcome(request, SyncDisposition.missing);
+        }
+        final row =
+            await (database.select(database.davCollections)..where(
+                  (row) =>
+                      row.accountId.equals(id) & row.id.equals(collection!),
+                ))
+                .getSingleOrNull();
+        if (row == null || row.deleted || row.serverMissing) {
+          return SyncOutcome(request, SyncDisposition.missing);
+        }
+        final eventsEnabled =
+            account.calendarsEnabled &&
+            row.eventProjectionEnabled &&
+            row.eventsSelected;
+        final tasksEnabled =
+            account.tasksEnabled &&
+            row.taskProjectionEnabled &&
+            row.tasksSelected;
+        final selected = physical
+            ? eventsEnabled || tasksEnabled
+            : task
+            ? tasksEnabled
+            : eventsEnabled;
+        if (!selected) return SyncOutcome(request, SyncDisposition.disabled);
+      }
+      if (!account.tasksEnabled && !account.calendarsEnabled) {
+        return SyncOutcome(request, SyncDisposition.disabled);
+      }
+      final dispatchOnly = request.origin == SyncTrigger.localMutation;
+      final physicalId = collection;
+      final engine = ref.read(davAccountSyncEngineFactoryProvider)(id);
+      var completed = false;
+      try {
+        final result = await activity.run(
+          id,
+          'dav',
+          () async {
+            Future<DavAccountSyncResult> pull() => engine.synchronize(
+              full: full,
+              collectionId: physicalId,
+              projection: physicalId == null ? null : scope.kind,
+              dispatchOnly: dispatchOnly,
+              trackCollection: (collectionId, work) async {
+                final projections = await davProjections(id, collectionId);
+                projections.add(davCollectionSyncScope(id, collectionId));
+                affected.addAll(projections);
+                await activity.resource(projections, work);
+              },
+            );
+            Future<DavAccountSyncResult> synchronize() async {
+              if (physicalId == null) return pull();
+              final projections = await davProjections(id, physicalId);
+              return activity.resource(
+                projections,
+                pull,
+                resolveFailure: false,
+              );
+            }
+
+            Future<DavAccountSyncResult> import() async {
+              final result = await synchronize();
+              if (result.disposition == SyncDisposition.deferred) {
+                throw const ScopedSyncDeferred();
+              }
+              return result;
+            }
+
+            final result = dispatchOnly || !account.tasksEnabled
+                ? await synchronize()
+                : await coordinator.trackTaskImport(
+                    id,
+                    import,
+                    coversAccount: physicalId == null,
+                    coversPriorImport: (result) =>
+                        result.disposition == SyncDisposition.completed,
+                  );
+            completed =
+                physicalId == null &&
+                result.disposition == SyncDisposition.completed;
+            return result;
+          },
+          clearFailureOnSuccess: () => completed,
+          rememberFailure: (error) =>
+              physicalId == null && error is! ScopedSyncDeferred,
+        );
+        for (final collectionId in result.affectedCollectionIds) {
+          affected.addAll(await davProjections(id, collectionId));
+        }
+        if (physicalId == null && !dispatchOnly) {
+          activity.setCollectionCreationFailures(
+            id,
+            await ref
+                .read(davCollectionCreationNoticesProvider)
+                .load(id, currentErrors: result.collectionCreationFailures),
+          );
+          if (account.provider == BusyProvider.nextcloud) {
+            unawaited(
+              Future<void>.sync(
+                () => ref
+                    .read(nextcloudFederationServiceProvider(id))
+                    .discoverPending(force: full),
+              ).catchError((Object _, StackTrace _) {}),
+            );
+          }
+        }
+        return SyncOutcome(request, result.disposition, affected: affected);
+      } on ScopedSyncDeferred {
+        return SyncOutcome(
+          request,
+          SyncDisposition.deferred,
+          affected: affected,
+        );
+      } on DavException catch (error) {
+        return SyncOutcome(
+          request,
+          error.kind == DavErrorKind.cancelled
+              ? SyncDisposition.cancelled
+              : SyncDisposition.failed,
+          affected: affected,
+          error: error.kind == DavErrorKind.cancelled ? null : error,
+        );
+      } on Object catch (error) {
+        return SyncOutcome(
+          request,
+          affected.isEmpty ? SyncDisposition.failed : SyncDisposition.partial,
+          affected: affected,
+          error: error,
+        );
+      }
+    }
+
+    Future<SyncOutcome> rest(
+      SyncDomain domain,
+      SyncRequest domainRequest,
+    ) async {
+      final task = domain == SyncDomain.tasks;
+      final domainAffected = <SyncScope>{};
+      final kind = task ? taskListSyncScope : calendarSyncScope;
+      if (task ? !account.tasksEnabled : !account.calendarsEnabled) {
+        return SyncOutcome(domainRequest, SyncDisposition.disabled);
+      }
+      final policy = DomainSyncPolicy(database);
+      var result = SyncDisposition.deferred;
+      var pulled = false;
+      try {
+        await activity.run(
+          id,
+          domain.name,
+          () async {
+            final tasks = task
+                ? ref.read(syncEngineForAccountFactoryProvider)(
+                    id,
+                    account.provider,
+                  )
+                : null;
+            final calendars = task
+                ? null
+                : ref.read(calendarSyncEngineForAccountFactoryProvider)(
+                    id,
+                    account.provider,
+                  );
+            final scheduled = await policy.run(
+              id,
+              domain,
+              full: full,
+              completeDomain: resource == null,
+              deferred: resource == null
+                  ? (tasks?.dispatchPendingWrites ??
+                        calendars!.dispatchPendingWrites)
+                  : () async {},
+              maintainCached:
+                  tasks?.maintainCachedReminders ??
+                  calendars!.maintainCachedReminders,
+              pull: () async {
+                try {
+                  if (resource != null) {
+                    void touched(String value) =>
+                        domainAffected.add(kind(id, value));
+                    Future<void> trackWrite(
+                      Set<String> ids,
+                      Future<void> Function() write,
+                    ) => activity.resource(
+                      ids.map((value) => kind(id, value)),
+                      write,
+                      resolveFailure: false,
+                    );
+                    if (tasks != null) {
+                      result = await coordinator.trackTaskImport(
+                        id,
+                        () async {
+                          final disposition = await tasks.refreshList(
+                            resource,
+                            onAffected: touched,
+                            trackWrite: trackWrite,
+                          );
+                          if (disposition == SyncDisposition.deferred) {
+                            throw const ScopedSyncDeferred();
+                          }
+                          return disposition;
+                        },
+                        coversAccount: false,
+                        changedOnFailure: () => tasks.remoteImportWroteData,
+                      );
+                    } else {
+                      result = await calendars!.refreshSource(
+                        resource,
+                        full: full,
+                        onAffected: touched,
+                        trackWrite: trackWrite,
+                      );
+                    }
+                  } else if (tasks != null) {
+                    await coordinator.trackTaskImport(
+                      id,
+                      full ? tasks.fullSync : tasks.incrementalSync,
+                      changedOnFailure: () => tasks.remoteImportWroteData,
+                    );
+                    result = SyncDisposition.completed;
+                  } else {
+                    await (full
+                        ? calendars!.fullSync()
+                        : calendars!.incrementalSync());
+                    result = SyncDisposition.completed;
+                  }
+                } finally {
+                  domainAffected.addAll(
+                    (tasks?.affectedCollectionIds ??
+                            calendars!.affectedCollectionIds)
+                        .map((value) => kind(id, value)),
+                  );
+                }
+              },
+            );
+            pulled =
+                scheduled == DomainSyncDisposition.pulled &&
+                resource == null &&
+                result == SyncDisposition.completed;
+            if (pulled) {
+              final pending =
+                  await (database.select(database.pendingOps)
+                        ..where(
+                          (row) =>
+                              row.accountId.equals(id) &
+                              row.entityType.isIn(
+                                task
+                                    ? const [
+                                        'task',
+                                        'task_list',
+                                        'task_checklist_item',
+                                      ]
+                                    : const ['calendar', 'event'],
+                              ),
+                        )
+                        ..limit(1))
+                      .get();
+              if (pending.isNotEmpty) result = SyncDisposition.deferred;
+            }
+          },
+          clearFailureOnSuccess: () => pulled,
+          rememberFailure: (error) =>
+              resource == null && error is! DomainCooldownException,
+        );
+        return SyncOutcome(domainRequest, result, affected: domainAffected);
+      } on ScopedSyncDeferred {
+        return SyncOutcome(
+          domainRequest,
+          SyncDisposition.deferred,
+          affected: domainAffected,
+        );
+      } on DomainCooldownException catch (error) {
+        return SyncOutcome(
+          domainRequest,
+          SyncDisposition.deferred,
+          affected: domainAffected,
+          error: error,
+        );
+      } on Object catch (error) {
+        return SyncOutcome(
+          domainRequest,
+          SyncDisposition.failed,
+          affected: domainAffected,
+          error: error,
+        );
+      }
+    }
+
+    switch (scope.kind) {
+      case SyncScopeKind.calendarSource:
+      case SyncScopeKind.calendar:
+        return rest(SyncDomain.calendar, request);
+      case SyncScopeKind.tasks:
+      case SyncScopeKind.taskList:
+        return rest(SyncDomain.tasks, request);
+      case SyncScopeKind.account:
+        final children = [
+          for (final domain in SyncDomain.values)
+            await rest(domain, (
+              origin: request.origin,
+              strategy: request.strategy,
+              scope: (
+                kind: domain == SyncDomain.tasks
+                    ? SyncScopeKind.tasks
+                    : SyncScopeKind.calendar,
+                accountId: id,
+                resourceId: null,
+              ),
+            )),
+        ];
+        final failures = {
+          for (final child in children)
+            if (child.error case final error?)
+              (child.request.scope.kind == SyncScopeKind.tasks
+                      ? 'tasks'
+                      : 'calendar'):
+                  error,
+        };
+        final successful = {
+          for (final child in children)
+            if (child.disposition == SyncDisposition.completed)
+              child.request.scope.kind == SyncScopeKind.tasks
+                  ? 'tasks'
+                  : 'calendar',
+        };
+        return SyncOutcome(
+          request,
+          summarizeSyncOutcomes(children),
+          affected: children.expand((child) => child.affected),
+          children: children,
+          error: failures.isEmpty
+              ? null
+              : PartialAccountSyncException(failures, successful),
+        );
+      case SyncScopeKind.all:
+      case SyncScopeKind.subscription:
+      case SyncScopeKind.davCollection:
+        return SyncOutcome(request, SyncDisposition.missing);
+    }
+  }
+
+  late final RequestAccountSyncOperations operations;
+  operations = RequestAccountSyncOperations(
+    (request) => activity.request(request, (start) async {
+      final id = request.scope.accountId;
+      if (request.scope.kind == SyncScopeKind.all) {
+        return start(() async {
+          final eligible = await accounts.listSyncEligibleAccounts();
+          final children = await Future.wait([
+            for (final account in eligible)
+              operations.execute((
+                scope: accountSyncScope(account.id),
+                origin: request.origin,
+                strategy: request.strategy,
+              )),
+          ]);
+          return SyncOutcome(
+            request,
+            summarizeSyncOutcomes(children),
+            affected: children.expand((child) => child.affected),
+            children: children,
+            error: children.map((child) => child.error).nonNulls.firstOrNull,
+          );
+        });
+      }
+      if (id == null) return SyncOutcome(request, SyncDisposition.missing);
+      final generation = await authorization.generation(id);
+      return gate.run(
+        id,
+        () => coordinator.run(
+          id,
+          () => start(() async {
+            if (generation != await authorization.generation(id)) {
+              return SyncOutcome(request, SyncDisposition.cancelled);
+            }
+            final account = await accounts.accountById(id);
+            if (account == null) {
+              return SyncOutcome(request, SyncDisposition.missing);
+            }
+            if (!account.isSyncEligible) {
+              return SyncOutcome(
+                request,
+                SyncDisposition.disabled,
+                error: request.origin == SyncTrigger.manual
+                    ? AccountNotSyncEligibleException(
+                        needsReconnect: account.needsReconnect,
+                      )
+                    : null,
+              );
+            }
+            SyncOutcome result;
+            try {
+              await connectivity.requireNetwork();
+              result = await withSyncTrigger(
+                request.origin,
+                () => executeForAccount(request, account),
+              );
+            } on Object catch (error) {
+              result = SyncOutcome(
+                request,
+                SyncDisposition.failed,
+                error: error,
+              );
+            }
+            if (result.error case final error?) {
+              final scoped = AuthorizationScopedFailure(
+                accountId: id,
+                generation: generation,
+                cause: error,
+              );
+              if (request.origin == SyncTrigger.manual) {
+                await _markAccountReconnectRequiredForSyncError(
+                  ref,
+                  id,
+                  scoped,
+                );
+                await ref
+                    .read(operationalNotificationReporterProvider)
+                    .notifySyncFailure(scoped, accountId: id);
+              }
+              return SyncOutcome(
+                request,
+                result.disposition,
+                affected: result.affected,
+                children: result.children,
+                error: scoped,
+              );
+            }
+            if (request.scope.kind == SyncScopeKind.account &&
+                result.disposition == SyncDisposition.completed &&
+                generation == await authorization.generation(id)) {
+              final now = DateTime.now().toUtc().toIso8601String();
+              await database
+                  .into(database.domainSyncSchedules)
+                  .insertOnConflictUpdate(
+                    DomainSyncSchedulesCompanion.insert(
+                      accountId: id,
+                      domain: accountRefreshHistoryKey,
+                      lastSuccessfulPullUtc: Value(now),
+                    ),
+                  );
+              await ref
+                  .read(operationalNotificationCoordinatorProvider)
+                  .clearAccountSyncFailure(id);
+            }
+            return result;
+          }),
+        ),
+      );
+    }),
   );
-  return CrossEngineCoordinatedAccountSyncOperations(
-    gate: ref.watch(crossEngineAccountGateProvider),
-    inner: CoordinatedAccountSyncOperations(
-      coordinator: syncCoordinator,
-      inner: ConnectivityAwareAccountSyncOperations(
-        inner: routing,
-        requireNetwork: connectivity.requireNetwork,
-      ),
-    ),
-  );
+  return operations;
+});
+
+typedef ManualSyncRunner = Future<SyncOutcome> Function(
+  SyncScope scope, {
+  SyncStrategy strategy,
+});
+
+final manualSyncRunnerProvider = Provider<ManualSyncRunner>((ref) {
+  return (scope, {strategy = SyncStrategy.ordinary}) async {
+    final operations = ref.read(accountSyncOperationsProvider);
+    final request = (
+      scope: scope,
+      origin: SyncTrigger.manual,
+      strategy: strategy,
+    );
+    if (operations is ScopedAccountSyncOperations) {
+      return operations.execute(request);
+    }
+    // Legacy injected adapters can serve account and domain commands.
+    switch (scope.kind) {
+      case SyncScopeKind.all:
+        await ref.read(allAccountsSyncRunnerProvider)();
+      case SyncScopeKind.account:
+        await withSyncTrigger(
+          SyncTrigger.manual,
+          () => operations.syncAccount(
+            scope.accountId!,
+            full: strategy == SyncStrategy.fullRecovery,
+          ),
+        );
+      default:
+        return SyncOutcome(request, SyncDisposition.disabled);
+    }
+    return SyncOutcome(request, SyncDisposition.deferred);
+  };
 });
 
 typedef SignedInSyncRunner = Future<void> Function(
@@ -2220,7 +2736,22 @@ final trayPresentationServiceProvider =
         settings: () => ref.read(appSettingsControllerProvider),
         connectivity: () =>
             ref.read(networkConnectivityMonitorProvider).availability,
-        synchronizationRunning: () => ref.read(syncSchedulerProvider).isRunning,
+        synchronizationRunning: () =>
+            ref.read(accountSyncActivityProvider).anyRunning,
+        accountHasSyncIssues: (id) =>
+            ref.read(accountSyncActivityProvider).accountHasFailure(id),
+        accountRefreshTimes: () async {
+          final database = ref.read(databaseProvider);
+          final rows = await (database.select(
+            database.domainSyncSchedules,
+          )..where((row) => row.domain.equals(accountRefreshHistoryKey))).get();
+          return {
+            for (final row in rows)
+              if (DateTime.tryParse(row.lastSuccessfulPullUtc ?? '')
+                  case final time?)
+                row.accountId: time,
+          };
+        },
       );
     });
 
@@ -2268,9 +2799,8 @@ Future<void> _runAccountSyncIfEligible(
       .generation(accountId);
   try {
     await synchronize(ref.read(accountSyncOperationsProvider));
-    await ref
-        .read(operationalNotificationCoordinatorProvider)
-        .clearAccountSyncFailure(accountId);
+  } on AuthorizationScopedFailure {
+    rethrow;
   } on Object catch (error) {
     throw AuthorizationScopedFailure(
       accountId: accountId,

@@ -1420,10 +1420,33 @@ class AppLocalizationsKo extends AppLocalizations {
   String get refreshAll => '모두 새로 고침';
 
   @override
-  String get listRefreshed => '목록을 새로 고쳤습니다.';
+  String get refreshAccount => '계정 새로 고침';
 
   @override
-  String get allTasksRefreshed => '모든 계정을 새로 고쳤습니다.';
+  String get refreshCollection => '컬렉션 새로 고침';
+
+  @override
+  String get syncQueued => '새로 고침 대기 중';
+
+  @override
+  String get syncNotYetRefreshed => '아직 동기화되지 않음';
+
+  @override
+  String syncLastRefreshed(String date) {
+    return '마지막 새로 고침 $date';
+  }
+
+  @override
+  String get scheduleCoverageStatus => '일정 확인 상태';
+
+  @override
+  String get scheduleCoveragePending => '이 범위의 일정을 확인 중이거나 아직 확인하지 않았습니다.';
+
+  @override
+  String get scheduleCoverageVerified => '이 범위의 일정을 확인했습니다.';
+
+  @override
+  String get listRefreshed => '목록을 새로 고쳤습니다.';
 
   @override
   String exportedFile(String path) {
@@ -2067,7 +2090,7 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get forceFullResyncDescription =>
-      '연결된 모든 계정의 데이터를 완전히 다시 불러옵니다. 동기화 문제를 해결할 때만 사용하세요.';
+      '가능한 경우 대상 계정의 캘린더와 작업 동기화 기준을 다시 만들고 구독을 확인합니다. 동기화 문제를 해결할 때 사용하세요.';
 
   @override
   String get runInBackgroundWhenClosed => '창을 닫아도 계속 실행';
@@ -2090,9 +2113,6 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get requiresTrayIcon => '트레이 아이콘이 필요합니다.';
-
-  @override
-  String get syncComplete => '동기화가 완료되었습니다.';
 
   @override
   String syncFailed(String error) {

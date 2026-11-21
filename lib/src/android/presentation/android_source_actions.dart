@@ -178,6 +178,17 @@ class _AndroidSourceActions {
     ),
   );
 
+  void _openRefreshRecovery(String accountId) {
+    unawaited(
+      Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          builder: (_) =>
+              AndroidSettingsScreen(notificationAccountId: accountId),
+        ),
+      ),
+    );
+  }
+
   Future<void> _subscriptionAction(
     WebCalSubscriptionEntity subscription,
     String action,
@@ -186,7 +197,14 @@ class _AndroidSourceActions {
     try {
       final service = ref.read(webCalSubscriptionServiceProvider);
       if (action == 'refresh') {
-        await service.refreshSubscription(subscription.id, force: true);
+        await refreshFromMaterial(
+          context,
+          ref,
+          calendarSyncScope(
+            subscription.accountId,
+            subscription.calendarSourceId,
+          ),
+        );
       } else if (action == 'color') {
         final color = await _textPrompt(
           title: l10n.subscriptionColor,
@@ -295,7 +313,7 @@ class _AndroidSourceActions {
               ])
                 ListTile(
                   title: Text(switch (action) {
-                    'refresh' => context.l10n.refreshNow,
+                    'refresh' => context.l10n.refreshCalendar,
                     'rename' => context.l10n.rename,
                     'color' => context.l10n.subscriptionColor,
                     'frequency' => context.l10n.subscriptionRefreshMode,
@@ -449,9 +467,14 @@ class _AndroidSourceActions {
         if (!await _networkReady(source.accountId)) {
           return;
         }
-        await ref
-            .read(accountSyncOperationsProvider)
-            .syncCalendar(source.accountId, full: false);
+        if (context.mounted) {
+          await refreshFromMaterial(
+            context,
+            ref,
+            calendarSyncScope(source.accountId, source.id),
+            openRecovery: () => _openRefreshRecovery(source.accountId),
+          );
+        }
       } else if (action == 'open') {
         final account = await ref
             .read(accountsRepositoryProvider)
@@ -736,9 +759,14 @@ class _AndroidSourceActions {
         if (!await _networkReady(list.accountId)) {
           return;
         }
-        await ref
-            .read(accountSyncOperationsProvider)
-            .syncTasks(list.accountId, full: false);
+        if (context.mounted) {
+          await refreshFromMaterial(
+            context,
+            ref,
+            taskListSyncScope(list.accountId, list.id),
+            openRecovery: () => _openRefreshRecovery(list.accountId),
+          );
+        }
       } else if (action == 'open' && account != null) {
         await openScheduleWebLink(
           scheduleTaskProviderWebUri(account)!.toString(),

@@ -1,3 +1,9 @@
+import 'dart:async';
+
+import '../../sync/sync_activity_icon.dart';
+import '../../sync/sync_request.dart';
+import 'material_schedule_coverage.dart';
+
 import 'package:flutter/material.dart';
 import 'package:yaru/yaru.dart';
 
@@ -37,6 +43,12 @@ class ScheduleToolbar extends StatelessWidget {
     required this.onCreateTask,
     required this.onRefresh,
     this.canRefresh = true,
+    this.showRefreshActivity = false,
+    this.refreshInProgress = false,
+    this.animateRefresh = true,
+    this.coverageComplete = true,
+    this.onRetryCoverage,
+    this.onCoverageSettings,
     this.canShowSidebar = false,
     this.sidebarVisible = false,
     this.onToggleSidebar,
@@ -66,6 +78,12 @@ class ScheduleToolbar extends StatelessWidget {
   final VoidCallback onCreateTask;
   final VoidCallback onRefresh;
   final bool canRefresh;
+  final bool showRefreshActivity;
+  final bool refreshInProgress;
+  final bool animateRefresh;
+  final bool? coverageComplete;
+  final Future<void> Function()? onRetryCoverage;
+  final VoidCallback? onCoverageSettings;
   final bool canShowSidebar;
   final bool sidebarVisible;
   final VoidCallback? onToggleSidebar;
@@ -231,12 +249,45 @@ class ScheduleToolbar extends StatelessWidget {
                   },
                 ),
               ],
+              if (onRetryCoverage != null)
+                BusyMaxLinuxHeaderIconButton(
+                  key: const ValueKey('schedule-coverage-status'),
+                  icon: BusyMaxLinuxHeaderIcon.today,
+                  tooltip: context.l10n.scheduleCoverageStatus,
+                  iconBuilder: (normal) => switch (coverageComplete) {
+                    false => const Icon(Icons.warning_amber_rounded, size: 16),
+                    null => const Icon(Icons.more_horiz, size: 16),
+                    true => normal,
+                  },
+                  onPressed: () => unawaited(
+                    showScheduleCoverage(
+                      context,
+                      coverageComplete,
+                      onRetryCoverage!,
+                      openSettings: onCoverageSettings,
+                    ),
+                  ),
+                ),
               if (!searchActive && !compact)
                 BusyMaxLinuxHeaderIconButton(
                   key: const ValueKey('schedule-refresh-button'),
                   tooltip: context.l10n.refreshAll,
                   icon: BusyMaxLinuxHeaderIcon.refresh,
-                  onPressed: canRefresh ? onRefresh : null,
+                  iconBuilder: !showRefreshActivity
+                      ? null
+                      : (icon) => SyncActivityIcon(
+                          scope: allSyncScope,
+                          animate: animateRefresh,
+                          refresh: icon,
+                          warning: const Icon(
+                            Icons.warning_amber_rounded,
+                            size: 16,
+                          ),
+                          child: icon,
+                        ),
+                  onPressed: canRefresh && !refreshInProgress
+                      ? onRefresh
+                      : null,
                 ),
               if (searchActive && onSearchFilters != null)
                 BusyMaxLinuxHeaderIconButton(
@@ -258,8 +309,23 @@ class ScheduleToolbar extends StatelessWidget {
                 ),
               if (onMenuSelected != null)
                 BusyMaxMainMenuButton(
-                  includeRefresh: compact && !searchActive,
-                  canRefresh: canRefresh,
+                  includeRefresh: compact || searchActive,
+                  canRefresh: canRefresh && !refreshInProgress,
+                  refreshIconBuilder:
+                      showRefreshActivity && (compact || searchActive)
+                      ? (icon) => SyncActivityIcon(
+                          scope: allSyncScope,
+                          animate: animateRefresh,
+                          refresh: const BusyMaxGtkHeaderIcon(
+                            BusyMaxLinuxHeaderIcon.refresh,
+                          ),
+                          warning: const Icon(
+                            Icons.warning_amber_rounded,
+                            size: 16,
+                          ),
+                          child: icon,
+                        )
+                      : null,
                   onSelected: onMenuSelected!,
                 ),
             ],
@@ -277,12 +343,14 @@ class BusyMaxMainMenuButton extends StatelessWidget {
     this.includeRefresh = false,
     this.canRefresh = false,
     this.settingsSelected = false,
+    this.refreshIconBuilder,
   });
 
   final ValueChanged<ScheduleToolbarMenuAction> onSelected;
   final bool includeRefresh;
   final bool canRefresh;
   final bool settingsSelected;
+  final Widget Function(Widget icon)? refreshIconBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -290,6 +358,7 @@ class BusyMaxMainMenuButton extends StatelessWidget {
       key: const ValueKey('busymax-main-menu-button'),
       tooltip: context.l10n.mainMenu,
       icon: BusyMaxLinuxHeaderIcon.mainMenu,
+      iconBuilder: refreshIconBuilder,
       entries: [
         if (includeRefresh)
           BusyMaxMenuEntry(

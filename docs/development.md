@@ -469,3 +469,12 @@ DAV/WebCal projection versions so unchanged server ETags do not retain stale
 occurrences. The tests cover affected 2026 regions through event creation,
 conditional PUT/GET round trips, editing, recurrence, and reminder scheduling,
 plus historical offsets requiring seconds.
+
+### Scoped refresh verification
+
+Run the [native Linux scoped refresh test](../integration_test/scoped_refresh_linux_test.dart)
+in a graphical session with an isolated XDG profile, using the setup in
+[Linux task lifecycle integration](#linux-task-lifecycle-integration). An
+isolated D-Bus session prevents coalescing the test window with another running
+BusyMax instance. The fixture uses two accounts with overlapping remote
+calendar identifiers, controlled provider responses, and a coverage retry.

@@ -139,6 +139,7 @@ class BusyMaxLinuxHeaderIconButton extends StatelessWidget {
     this.selected = false,
     this.selectedIcon,
     this.semanticLabel,
+    this.iconBuilder,
   });
 
   final BusyMaxLinuxHeaderIcon icon;
@@ -148,11 +149,13 @@ class BusyMaxLinuxHeaderIconButton extends StatelessWidget {
   final bool selected;
   final BusyMaxLinuxHeaderIcon? selectedIcon;
   final String? semanticLabel;
+  final Widget Function(Widget icon)? iconBuilder;
 
   @override
   Widget build(BuildContext context) {
+    final glyph = BusyMaxGtkHeaderIcon(icon);
     final button = BusyMaxHeaderIconButton(
-      icon: BusyMaxGtkHeaderIcon(icon),
+      icon: iconBuilder?.call(glyph) ?? glyph,
       tooltip: tooltip,
       onPressed: onPressed,
       focusNode: focusNode,
@@ -197,6 +200,7 @@ class BusyMaxLinuxHeaderMenuButton<T> extends StatelessWidget {
     this.controller,
     this.enabled = true,
     this.highlightWhenOpen = true,
+    this.iconBuilder,
   });
 
   final String tooltip;
@@ -206,6 +210,7 @@ class BusyMaxLinuxHeaderMenuButton<T> extends StatelessWidget {
   final BusyMaxMenuController? controller;
   final bool enabled;
   final bool highlightWhenOpen;
+  final Widget Function(Widget icon)? iconBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -220,6 +225,7 @@ class BusyMaxLinuxHeaderMenuButton<T> extends StatelessWidget {
       triggerBuilder: (context, trigger) => trigger.anchor(
         child: BusyMaxLinuxHeaderIconButton(
           icon: icon,
+          iconBuilder: iconBuilder,
           tooltip: tooltip,
           focusNode: trigger.focusNode,
           selected: highlightWhenOpen && trigger.isOpen,

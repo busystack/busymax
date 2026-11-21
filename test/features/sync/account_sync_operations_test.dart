@@ -1,3 +1,6 @@
+import 'package:busymax/src/features/sync/sync_request.dart';
+import 'package:busymax/src/features/sync/domain_sync_schedule.dart';
+
 import 'dart:async';
 
 import 'package:busymax/src/features/sync/account_sync_operations.dart';
@@ -5,6 +8,49 @@ import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+    'joins only matching requests and waits for each account continuation',
+    () async {
+      final coordinator = AccountSyncCoordinator();
+      addTearDown(coordinator.dispose);
+      final starts = <SyncRequest>[];
+      final releases = <SyncRequest, Completer<void>>{};
+      final entered = <SyncRequest, Completer<void>>{};
+      final operations = RequestAccountSyncOperations(
+        (request) => coordinator.run(request.scope.accountId!, () async {
+          starts.add(request);
+          entered.putIfAbsent(request, Completer<void>.new).complete();
+          await (releases[request] = Completer<void>()).future;
+          return SyncOutcome(request, SyncDisposition.completed);
+        }),
+      );
+      SyncRequest target(String id, SyncStrategy strategy) => (
+        scope: calendarSyncScope('account', id),
+        origin: SyncTrigger.manual,
+        strategy: strategy,
+      );
+      final a = target('a', SyncStrategy.ordinary);
+      final b = target('b', SyncStrategy.ordinary);
+      final full = target('a', SyncStrategy.fullRecovery);
+      final first = operations.execute(a);
+      expect(identical(first, operations.execute(a)), isTrue);
+      final second = operations.execute(b);
+      final recovery = operations.execute(full);
+      expect(starts, [a]);
+      releases[a]!.complete();
+      expect((await first).request, a);
+      await entered.putIfAbsent(b, Completer<void>.new).future;
+      expect(starts, [a, b]);
+      releases[b]!.complete();
+      expect((await second).request, b);
+      await entered.putIfAbsent(full, Completer<void>.new).future;
+      expect(starts, [a, b, full]);
+      releases[full]!.complete();
+      expect((await recovery).request, full);
+      expect(coordinator.isRunning('account'), isFalse);
+    },
+  );
+
   test('failed pull with no imported data retains eligible cached reminder delivery', () async {
     final coordinator = AccountSyncCoordinator();
     await expectLater(
@@ -204,6 +250,13 @@ void main() {
       await coordinator.run<void>('account', () async {});
       expect(await coordinator.blocksDueToday('account'), isTrue);
 
+      await coordinator.trackTaskImport<void>(
+        'account',
+        () async {},
+        coversAccount: false,
+      );
+      expect(await coordinator.blocksDueToday('account'), isTrue);
+      expect(incompleteAccounts, {'account'});
       await coordinator.trackTaskImport<void>('account', () async {});
       expect(await coordinator.blocksDueToday('account'), isFalse);
       expect(incompleteAccounts, isEmpty);

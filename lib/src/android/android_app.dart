@@ -1,3 +1,5 @@
+import 'android_sync_activity.dart';
+import '../features/sync/domain_sync_schedule.dart';
 import '../features/notifications/notification_schedule_service.dart';
 import '../features/notifications/daily_summary_policy.dart';
 
@@ -188,6 +190,10 @@ class _AndroidHomeShellState extends ConsumerState<AndroidHomeShell>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _invalidateExternalDatabaseState();
+      if (ref.read(accountSyncActivityProvider.notifier)
+          case final AndroidSyncActivity activity) {
+        unawaited(activity.reconcilePlatformActivity());
+      }
       unawaited(_refresh());
     }
   }
@@ -199,7 +205,10 @@ class _AndroidHomeShellState extends ConsumerState<AndroidHomeShell>
     }
     await ref.read(androidNotificationServiceProvider).refreshReadiness();
     try {
-      await ref.read(allAccountsSyncRunnerProvider)();
+      await withSyncTrigger(
+        SyncTrigger.foreground,
+        ref.read(allAccountsSyncRunnerProvider),
+      );
     } on Object {
       // SyncRuns and account state expose the individual failure.
     }
@@ -224,6 +233,16 @@ class _AndroidHomeShellState extends ConsumerState<AndroidHomeShell>
   }
 
   Future<void> _handlePlatformEvent(AndroidPlatformEvent event) async {
+    if (event.type == 'syncActivity') {
+      if ((ref.read(accountSyncActivityProvider.notifier), event.data['scopes'])
+          case (
+            final AndroidSyncActivity activity,
+            final List<Object?> scopes,
+          )) {
+        activity.updateFromPlatform(scopes);
+      }
+      return;
+    }
     if (event.type == 'systemSettingsChanged') {
       final zone = await BusyMaxAndroidPlatform.instance.currentTimeZoneId();
       final uses24Hour = await BusyMaxAndroidPlatform.instance
@@ -264,6 +283,7 @@ class _AndroidHomeShellState extends ConsumerState<AndroidHomeShell>
     final database = ref.read(databaseProvider);
     database.notifyUpdates({
       TableUpdate.onTable(database.davCollections),
+      TableUpdate.onTable(database.domainSyncSchedules),
       TableUpdate.onTable(database.davCollectionCreations),
       TableUpdate.onTable(database.davCollectionCreationAcknowledgments),
     });

@@ -16,6 +16,7 @@ final class BusyMaxTrayPresentationStrings {
     required this.openTodayAgenda,
     required this.syncNow,
     required this.syncing,
+    required this.syncIssue,
     required this.notConnected,
     required this.notYetSynced,
     required this.settings,
@@ -42,6 +43,7 @@ final class BusyMaxTrayPresentationStrings {
   final String openTodayAgenda;
   final String syncNow;
   final String syncing;
+  final String syncIssue;
   final String notConnected;
   final String notYetSynced;
   final String settings;
@@ -127,6 +129,7 @@ final class BusyMaxTrayPresentationFormatter {
       return '${strings.offline} — ${strings.offlineDescription}';
     }
     if (presentation.synchronizationRunning) return strings.syncing;
+    if (presentation.hasSyncIssues) return strings.syncIssue;
     if (!presentation.hasSyncEligibleAccount) return strings.notConnected;
     final lastSync = presentation.lastSuccessfulSynchronizationUtc;
     if (lastSync == null) return strings.notYetSynced;

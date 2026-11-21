@@ -1,3 +1,6 @@
+import '../../../platform/gtk_animation_settings_service.dart';
+import '../../sync/material_sync_feedback.dart';
+import '../../sync/sync_request.dart';
 import '../../../schedule/schedule_creation_destinations.dart';
 import '../../../schedule/schedule_agenda_query.dart';
 
@@ -540,6 +543,30 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                       );
                     }
 
+                    final coverageFilters =
+                        searchActive && _searchCriteria != null
+                        ? _searchCriteria!.filters(_searchQuery)
+                        : ScheduleFilters(
+                            accountIds: accountIds.toSet(),
+                            sourceIds: visibility.visibleCalendarSourceIds,
+                            sourceFilterActive: true,
+                            includeCalendarEvents:
+                                _scope != ScheduleScope.tasks,
+                          );
+                    final coverageRange = searchActive
+                        ? _searchCriteria?.range ?? range
+                        : range;
+                    final cloudCoverage =
+                        snapshot.hasData &&
+                            !scheduleLoading &&
+                            coverageFilters.requiresCalendarCoverage
+                        ? ref
+                              .read(scheduleRepositoryProvider)
+                              .cloudCoverageCompleteFor(
+                                coverageRange,
+                                filters: coverageFilters,
+                              )
+                        : true;
                     final header = widget.notificationDeadline != null
                         ? _summaryHeader()
                         : ScheduleToolbar(
@@ -567,6 +594,27 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                             createMenuController: _createMenuController,
                             onRefresh: () => unawaited(_refreshAll()),
                             canRefresh: accounts.isNotEmpty,
+                            showRefreshActivity: true,
+                            refreshInProgress: ref.watch(
+                              accountSyncActivityProvider.select(
+                                (activity) => activity.busy(allSyncScope),
+                              ),
+                            ),
+                            animateRefresh:
+                                ref
+                                    .watch(gtkAnimationsEnabledProvider)
+                                    .valueOrNull !=
+                                false,
+                            coverageComplete: cloudCoverage,
+                            onCoverageSettings: () => unawaited(
+                              context.push<void>('/settings?page=accounts'),
+                            ),
+                            onRetryCoverage: () => ref
+                                .read(scheduleRepositoryProvider)
+                                .retryCloudCoverage(
+                                  coverageRange,
+                                  coverageFilters,
+                                ),
                             canShowSidebar: canShowSidebar,
                             sidebarVisible:
                                 canShowSidebar && !_sidebarCollapsed,
@@ -594,6 +642,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                         onPointerDown: _recordSchedulePointer,
                         child: _ScheduleBody(
                           isLoading: scheduleLoading,
+                          coverageComplete: cloudCoverage,
                           isUnavailable: scheduleUnavailable,
                           mode: displayMode,
                           range: displayRange,
@@ -726,54 +775,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                                 searchActive && _searchCriteria != null,
                             child: buildSidebar(),
                           );
-                          final coverageFilters =
-                              searchActive && _searchCriteria != null
-                              ? _searchCriteria!.filters(_searchQuery)
-                              : ScheduleFilters(
-                                  accountIds: accountIds.toSet(),
-                                  sourceIds:
-                                      visibility.visibleCalendarSourceIds,
-                                  sourceFilterActive: true,
-                                  includeCalendarEvents:
-                                      _scope != ScheduleScope.tasks,
-                                );
-                          final cloudCoverage =
-                              snapshot.hasData &&
-                                  !scheduleLoading &&
-                                  coverageFilters.requiresCalendarCoverage
-                              ? ref
-                                    .read(scheduleRepositoryProvider)
-                                    .cloudCoverageCompleteFor(
-                                      _searchCriteria?.range ?? range,
-                                      filters: coverageFilters,
-                                    )
-                              : true;
                           final frame = LinuxPageFrame(
                             header: header,
-                            body:
-                                widget.notificationDeadline == null &&
-                                    cloudCoverage != true
-                                ? Column(
-                                    children: [
-                                      ListTile(
-                                        leading: Icon(
-                                          cloudCoverage == null
-                                              ? Icons.sync
-                                              : Icons.cloud_off,
-                                        ),
-                                        title: Text(
-                                          cloudCoverage == null
-                                              ? context.l10n.scheduleLoading
-                                              : context
-                                                    .l10n
-                                                    .scheduleRangeIncomplete,
-                                        ),
-                                        dense: true,
-                                      ),
-                                      Expanded(child: main),
-                                    ],
-                                  )
-                                : main,
+                            body: main,
                             sidebarHeader: const BusyMaxLinuxBrandHeader(),
                             sidebarBody: widget.notificationDeadline == null
                                 ? sidebar
@@ -2761,40 +2765,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     }
   }
 
-  Future<void> _refreshAll() async {
-    try {
-      final accounts = await ref
-          .read(accountsRepositoryProvider)
-          .listSyncEligibleAccounts();
-      if (accounts.isEmpty) {
-        return;
-      }
-      await ref.read(allAccountsSyncRunnerProvider)();
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(context.l10n.allTasksRefreshed)));
-    } on Object catch (error) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            context.l10n.refreshFailed(
-              localizedSyncFailureMessage(
-                context.l10n,
-                error,
-                networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-  }
+  Future<void> _refreshAll() => refreshFromMaterial(context, ref, allSyncScope);
 
   void _retrySchedule() {
     ref.invalidate(accountsStreamProvider);
@@ -2964,6 +2935,7 @@ class _ScheduleItemsResult {
 class _ScheduleBody extends StatelessWidget {
   const _ScheduleBody({
     required this.isLoading,
+    required this.coverageComplete,
     required this.isUnavailable,
     required this.mode,
     required this.range,
@@ -3009,6 +2981,7 @@ class _ScheduleBody extends StatelessWidget {
   });
 
   final bool isLoading;
+  final bool? coverageComplete;
   final bool isUnavailable;
   final ScheduleViewMode mode;
   final ScheduleRange range;
@@ -3151,7 +3124,9 @@ class _ScheduleBody extends StatelessWidget {
           onChecklistItemCompletionChanged: onChecklistItemCompletionChanged,
           taskListMutationIntent: taskListMutationIntent,
           onTaskListMutationConsumed: onTaskListMutationConsumed,
-          emptyBuilder: searchActive
+          emptyBuilder: coverageComplete != true
+              ? (_) => const SizedBox.shrink()
+              : searchActive
               ? (context) => searchCriteria?.hasSources == false
                     ? Center(child: Text(context.l10n.searchNoSources))
                     : const ScheduleSearchEmptyState()

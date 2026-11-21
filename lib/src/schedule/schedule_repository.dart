@@ -59,7 +59,9 @@ class ScheduleRepository {
   bool? cloudCoverageCompleteFor(
     ScheduleRange range, {
     ScheduleFilters filters = const ScheduleFilters(),
-  }) => _rangeCoverage[_coverageKey(range, filters)];
+  }) => _ensureCloudCoverage == null
+      ? true
+      : _rangeCoverage[_coverageKey(range, filters)];
 
   String _coverageKey(ScheduleRange range, ScheduleFilters filters) {
     final accounts = filters.accountIds.toList()..sort();
@@ -108,11 +110,20 @@ class ScheduleRepository {
     });
   }
 
-  void _requestCloudCoverage(ScheduleRange range, ScheduleFilters filters) {
+  Future<void> retryCloudCoverage(
+    ScheduleRange range,
+    ScheduleFilters filters,
+  ) => _requestCloudCoverage(range, filters, retry: true);
+
+  Future<void> _requestCloudCoverage(
+    ScheduleRange range,
+    ScheduleFilters filters, {
+    bool retry = false,
+  }) async {
     final ensure = _ensureCloudCoverage;
     if (ensure == null) return;
     final key = _coverageKey(range, filters);
-    if (_coverageInFlight.containsKey(key)) return;
+    if (_coverageInFlight[key] case final active?) return active;
     final now = _nowUtc();
     final previous = _coverageLastAttempt[key];
     // A failed online request must not suppress reconnect for the entire
@@ -121,7 +132,9 @@ class ScheduleRepository {
     final retryInterval = _rangeCoverage[key] == false
         ? const Duration(seconds: 10)
         : const Duration(minutes: 5);
-    if (previous != null && now.difference(previous) < retryInterval) {
+    if (!retry &&
+        previous != null &&
+        now.difference(previous) < retryInterval) {
       return;
     }
     _coverageLastAttempt[key] = now;
@@ -142,7 +155,9 @@ class ScheduleRepository {
       }
     });
     _coverageInFlight[key] = pending;
-    unawaited(pending.whenComplete(() => _coverageInFlight.remove(key)));
+    await pending.whenComplete(() {
+      _coverageInFlight.remove(key);
+    });
   }
 
   Future<ScheduleTaskTarget?> findTaskTarget({
@@ -226,7 +241,7 @@ class ScheduleRepository {
     ScheduleFilters filters = const ScheduleFilters(),
   }) async {
     if (filters.requiresCalendarCoverage) {
-      _requestCloudCoverage(range, filters);
+      unawaited(_requestCloudCoverage(range, filters));
       await _ensureProjectionCoverage?.call(range, filters);
     }
     final context = await _accountContext(filters);

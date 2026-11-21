@@ -8,7 +8,7 @@ import '../../core/logging/redacting_logger.dart';
 import '../../db/app_database.dart';
 import '../../l10n/l10n.dart';
 import '../../providers/busy_provider.dart';
-import '../android_background.dart';
+import '../../features/sync/sync_request.dart';
 import '../android_notifications.dart';
 
 class AndroidDiagnosticsScreen extends ConsumerWidget {
@@ -47,8 +47,18 @@ class AndroidDiagnosticsScreen extends ConsumerWidget {
               if (!embedded)
                 ListTile(
                   leading: const Icon(Icons.sync),
-                  title: Text(context.l10n.sync),
-                  onTap: () => unawaited(enqueueImmediateBusyMaxSync()),
+                  title: Text(
+                    accountId == null
+                        ? context.l10n.refreshAll
+                        : context.l10n.refreshAccount,
+                  ),
+                  onTap: () => unawaited(
+                    ref.read(manualSyncRunnerProvider)(
+                      accountId == null
+                          ? allSyncScope
+                          : accountSyncScope(accountId!),
+                    ),
+                  ),
                 ),
             ],
           ),
@@ -62,7 +72,7 @@ class AndroidDiagnosticsScreen extends ConsumerWidget {
               title: Text(account.displayLabel),
               subtitle: Text(
                 '${account.provider.displayName} · ${account.authState}'
-                '${account.lastSuccessfulSyncAtUtc == null ? '' : '\n${account.lastSuccessfulSyncAtUtc!.toLocal()}'}',
+                '${_refreshTime(ref, account.id)}',
               ),
             ),
           ),
@@ -204,4 +214,11 @@ class AndroidDiagnosticsScreen extends ConsumerWidget {
       }
     }
   }
+}
+
+String _refreshTime(WidgetRef ref, String id) {
+  final time = ref
+      .watch(accountDomainSyncTimesProvider(id))
+      .valueOrNull?[accountRefreshHistoryKey];
+  return time == null ? '' : '\n${time.toLocal()}';
 }

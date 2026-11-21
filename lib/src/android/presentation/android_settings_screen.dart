@@ -1,3 +1,7 @@
+import '../../features/settings/presentation/account_settings_feedback.dart';
+import '../../features/sync/sync_request.dart';
+import '../../features/sync/material_sync_feedback.dart';
+import '../../features/sync/sync_activity_icon.dart';
 import '../../l10n/ical_import_report_description.dart';
 import '../../schedule/schedule_task_list_actions.dart';
 import '../../features/auth/application/account_connection.dart';
@@ -13,7 +17,6 @@ import '../../l10n/time_format_scope.dart';
 export '../android_local_network_access.dart'
     show isAndroidLocalNetworkHost, requiresAndroidLocalNetworkAccess;
 import '../android_local_network_access.dart';
-import '../../features/sync/all_accounts_sync_scheduler.dart';
 import 'android_nextcloud_certificate_dialog.dart';
 import '../../ui/common/nextcloud_certificate_review.dart';
 import 'android_contacts_settings.dart';
@@ -161,6 +164,44 @@ class _AndroidSettingsCategories extends StatelessWidget {
   );
 }
 
+Future<void> refreshAndroidAccounts(
+  BuildContext context,
+  WidgetRef ref, {
+  SyncStrategy strategy = SyncStrategy.ordinary,
+}) async {
+  final runner = ref.read(manualSyncRunnerProvider);
+  final activity = ref.read(accountSyncActivityProvider.notifier);
+  if (activity.busy(allSyncScope)) return;
+  final accounts = await ref
+      .read(accountsRepositoryProvider)
+      .listSyncEligibleAccounts();
+  final allowed = <AccountEntity>[];
+  for (final account in accounts) {
+    if (!context.mounted) return;
+    if (!account.provider.isDav ||
+        await ensureAndroidLocalNetworkAccess(context, account.authority)) {
+      allowed.add(account);
+    }
+  }
+  if (!context.mounted) return;
+  if (allowed.length == accounts.length) {
+    if (strategy == SyncStrategy.ordinary) {
+      await refreshFromMaterial(context, ref, allSyncScope);
+    } else {
+      await runner(allSyncScope, strategy: strategy);
+    }
+  } else if (allowed.isNotEmpty && !activity.busy(allSyncScope)) {
+    await activity.resource(
+      [allSyncScope],
+      () => Future.wait([
+        for (final account in allowed)
+          runner(accountSyncScope(account.id), strategy: strategy),
+      ]),
+      resolveFailure: false,
+    );
+  }
+}
+
 class AndroidSettingsScreen extends ConsumerStatefulWidget {
   const AndroidSettingsScreen({
     super.key,
@@ -190,7 +231,6 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
     super.dispose();
   }
 
-  bool _syncing = false;
   BusyProvider? _connecting;
   AuthorizationCancellation? _authorizationCancellation;
   AuthorizationCancellation? _sharedConsentCancellation;
@@ -336,6 +376,17 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                         ),
                       ],
                       AndroidSettingsCategory.accounts: [
+                        if (widget.notificationAccountId == null)
+                          ListTile(
+                            title: Text(context.l10n.refreshAll),
+                            leading: const SyncActivityIcon(
+                              scope: allSyncScope,
+                              refresh: Icon(Icons.refresh),
+                              warning: Icon(Icons.warning_amber_rounded),
+                              child: Icon(Icons.refresh),
+                            ),
+                            onTap: () => unawaited(_syncAll()),
+                          ),
                         _Section(
                           title: context.l10n.addAccount,
                           children: [
@@ -939,28 +990,18 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                           title: context.l10n.sync,
                           children: [
                             ListTile(
-                              leading: _syncing
-                                  ? const SizedBox.square(
-                                      dimension: 24,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : const Icon(Icons.sync),
-                              title: Text(context.l10n.sync),
-                              enabled: !_syncing,
-                              onTap: _syncing
-                                  ? null
-                                  : () => unawaited(_syncAll()),
-                            ),
-                            ListTile(
                               leading: const Icon(Icons.sync_problem_outlined),
                               title: Text(context.l10n.forceFullResync),
                               subtitle: Text(
                                 context.l10n.forceFullResyncDescription,
                               ),
-                              enabled: !_syncing,
-                              onTap: _syncing
+                              enabled: !ref
+                                  .watch(accountSyncActivityProvider)
+                                  .busy(allSyncScope),
+                              onTap:
+                                  ref
+                                      .watch(accountSyncActivityProvider)
+                                      .busy(allSyncScope)
                                   ? null
                                   : () => unawaited(_syncAll(full: true)),
                             ),
@@ -1038,16 +1079,23 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
             ),
             ListTile(
               key: ValueKey('account-recovery-${account.id}'),
-              leading: Icon(
-                account.needsReconnect ? Icons.key_outlined : Icons.refresh,
+              leading: SyncActivityIcon(
+                scope: accountSyncScope(account.id),
+                refresh: const Icon(Icons.refresh),
+                warning: const Icon(Icons.warning_amber_rounded),
+                child: Icon(
+                  account.needsReconnect ? Icons.key_outlined : Icons.refresh,
+                ),
               ),
               title: Text(
                 account.needsReconnect
                     ? context.l10n.reconnectAccount
-                    : context.l10n.refreshAll,
+                    : context.l10n.refreshAccount,
               ),
               enabled:
-                  !_syncing &&
+                  !ref
+                      .watch(accountSyncActivityProvider)
+                      .busy(accountSyncScope(account.id)) &&
                   _connecting == null &&
                   (account.isSyncEligible || account.needsReconnect),
               onTap: () => unawaited(
@@ -1059,12 +1107,7 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
             ExpansionTile(
               key: PageStorageKey(('account-sync-details', account.id)),
               title: Text(context.l10n.sync),
-              children: [
-                _AndroidAccountSyncStatus(
-                  account: account,
-                  onRefresh: (calendar) => _refreshDomain(account, calendar),
-                ),
-              ],
+              children: [_AndroidAccountSyncStatus(account: account)],
             ),
           ],
         ),
@@ -1105,9 +1148,16 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                 Column(
                   children: [
                     ListTile(
-                      leading: Icon(
-                        Icons.calendar_today_outlined,
-                        color: _settingsSourceColor(source),
+                      leading: IconTheme(
+                        data: IconThemeData(
+                          color: _settingsSourceColor(source),
+                        ),
+                        child: SyncActivityIcon(
+                          scope: calendarSyncScope(source.accountId, source.id),
+                          refresh: const Icon(Icons.refresh),
+                          warning: const Icon(Icons.warning_amber_rounded),
+                          child: const Icon(Icons.calendar_today_outlined),
+                        ),
                       ),
                       title: Text(source.summary),
                       subtitle: Text(
@@ -1144,7 +1194,12 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                 Column(
                   children: [
                     ListTile(
-                      leading: const Icon(Icons.checklist_outlined),
+                      leading: SyncActivityIcon(
+                        scope: taskListSyncScope(list.accountId, list.id),
+                        refresh: const Icon(Icons.refresh),
+                        warning: const Icon(Icons.warning_amber_rounded),
+                        child: const Icon(Icons.checklist_outlined),
+                      ),
                       title: Text(list.title),
                       onTap: () => unawaited(_editTaskList(list, [account])),
                     ),
@@ -1170,7 +1225,28 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
               Column(
                 children: [
                   ListTile(
-                    leading: const Icon(Icons.folder_outlined),
+                    leading: SyncActivityIcon(
+                      scope: davCollectionSyncScope(account.id, collection.id),
+                      refresh: const Icon(Icons.refresh),
+                      warning: const Icon(Icons.warning_amber_rounded),
+                      child: const Icon(Icons.folder_outlined),
+                    ),
+                    trailing: IconButton(
+                      tooltip: context.l10n.refreshCollection,
+                      icon: const Icon(Icons.refresh),
+                      onPressed: () async {
+                        if (await _ensureLocalNetworkAccess(
+                              account.authority,
+                            ) &&
+                            mounted) {
+                          await refreshFromMaterial(
+                            context,
+                            ref,
+                            davCollectionSyncScope(account.id, collection.id),
+                          );
+                        }
+                      },
+                    ),
                     title: Text(collection.name),
                     subtitle: Text(
                       collection.readOnly
@@ -1361,7 +1437,8 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
     final failures = [
       for (final domain in ['calendar', 'tasks', 'dav'])
         if (activity.failure(account.id, domain) case final error?)
-          syncFailureMessage(
+          localizedSyncFailureMessage(
+            context.l10n,
             error,
             networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
           ),
@@ -1390,11 +1467,12 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
       if (inventoryFailed) context.l10n.collectionsLoadFailed,
       if (unavailable) context.l10n.cachedSyncError,
       ...failures.toSet(),
-      if (account.provider.isDav && account.lastSuccessfulSyncAtUtc != null)
+      if (ref
+              .watch(accountDomainSyncTimesProvider(account.id))
+              .valueOrNull?[accountRefreshHistoryKey]
+          case final DateTime time)
         context.l10n.davLastSuccessfulSync(
-          DateFormat.yMd().add_jm().format(
-            account.lastSuccessfulSyncAtUtc!.toLocal(),
-          ),
+          DateFormat.yMd().add_jm().format(time.toLocal()),
         ),
     ].join('\n');
   }
@@ -1725,78 +1803,11 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
     }
   }
 
-  Future<void> _syncAll({bool full = false}) async {
-    final l10n = context.l10n;
-    setState(() => _syncing = true);
-    try {
-      final accounts = await ref
-          .read(accountsRepositoryProvider)
-          .listSyncEligibleAccounts();
-      final blocked = <String>{};
-      for (final account in accounts) {
-        if ((account.provider == BusyProvider.caldav ||
-                account.provider == BusyProvider.nextcloud) &&
-            !await _ensureLocalNetworkAccess(account.authority)) {
-          blocked.add(account.id);
-        }
-      }
-      if (blocked.isEmpty && !full) {
-        await ref.read(allAccountsSyncRunnerProvider)();
-      } else {
-        await runAllSyncEligibleAccountSync(
-          listSyncEligibleAccounts: () async => [
-            for (final account in accounts)
-              if (!blocked.contains(account.id)) account,
-          ],
-          syncAccount: (id) => ref.read(signedInSyncRunnerProvider)(id, full),
-          rethrowFirstFailure: true,
-          onSyncFailure: (error) => ref
-              .read(operationalNotificationReporterProvider)
-              .notifySyncFailure(error),
-        );
-      }
-      await ref.read(notificationReconcilerProvider).reconcile();
-      if (blocked.isEmpty) {
-        _message(l10n.syncComplete);
-      }
-    } on Object catch (error) {
-      _message(
-        l10n.syncFailed(
-          syncFailureMessage(
-            error,
-            networkUnavailableMessage: l10n.networkOfflineTryAgain,
-          ),
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _syncing = false);
-      }
-    }
-  }
-
-  Future<void> _refreshDomain(AccountEntity account, bool calendar) async {
-    final current = await ref
-        .read(accountsRepositoryProvider)
-        .accountById(account.id);
-    if (!mounted || current?.isSyncEligible != true) {
-      return;
-    }
-    if (current!.provider.isDav &&
-        !await _ensureLocalNetworkAccess(current.authority)) {
-      return;
-    }
-    try {
-      final operations = ref.read(accountSyncOperationsProvider);
-      if (calendar) {
-        await operations.syncCalendar(account.id, full: false);
-      } else {
-        await operations.syncTasks(account.id, full: false);
-      }
-    } on Object catch (error) {
-      _message('$error');
-    }
-  }
+  Future<void> _syncAll({bool full = false}) => refreshAndroidAccounts(
+    context,
+    ref,
+    strategy: full ? SyncStrategy.fullRecovery : SyncStrategy.ordinary,
+  );
 
   Future<void> _syncAccount(String accountId) async {
     final l10n = context.l10n;
@@ -1815,17 +1826,17 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
           !await _ensureLocalNetworkAccess(account.authority)) {
         return;
       }
-      await ref.read(signedInSyncRunnerProvider)(accountId, true);
-      await ref.read(notificationReconcilerProvider).reconcile();
-      _message(l10n.syncComplete);
+      if (mounted) {
+        await refreshFromMaterial(
+          context,
+          ref,
+          accountSyncScope(accountId),
+          openRecovery: () => unawaited(_connect(account.provider, account)),
+        );
+      }
     } on Object catch (error) {
       _message(
-        l10n.syncFailed(
-          syncFailureMessage(
-            error,
-            networkUnavailableMessage: l10n.networkOfflineTryAgain,
-          ),
-        ),
+        l10n.syncFailed(AccountSettingsFeedback.fromError(l10n, error).message),
       );
     }
   }
@@ -2887,12 +2898,8 @@ class _AndroidNextcloudTrashScreenState
 }
 
 class _AndroidAccountSyncStatus extends ConsumerWidget {
-  const _AndroidAccountSyncStatus({
-    required this.account,
-    required this.onRefresh,
-  });
+  const _AndroidAccountSyncStatus({required this.account});
   final AccountEntity account;
-  final ValueChanged<bool> onRefresh;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final activity = ref.watch(accountSyncActivityProvider);
@@ -2944,7 +2951,8 @@ class _AndroidAccountSyncStatus extends ConsumerWidget {
       final status = running
           ? context.l10n.traySyncing
           : error != null
-          ? syncFailureMessage(
+          ? localizedSyncFailureMessage(
+              context.l10n,
               error,
               networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
             )
@@ -2976,15 +2984,6 @@ class _AndroidAccountSyncStatus extends ConsumerWidget {
               : calendar
               ? Icons.calendar_month
               : Icons.checklist,
-        ),
-        trailing: IconButton(
-          tooltip: calendar
-              ? context.l10n.refreshCalendar
-              : context.l10n.refreshList,
-          onPressed: !account.isSyncEligible || running
-              ? null
-              : () => onRefresh(calendar),
-          icon: const Icon(Icons.refresh),
         ),
       );
     }

@@ -1,3 +1,6 @@
+import 'package:busymax/src/features/sync/sync_request.dart';
+import 'package:busymax/src/features/sync/domain_sync_schedule.dart';
+
 import 'dart:async';
 
 import 'package:busymax/src/android/presentation/android_schedule_screen.dart';
@@ -204,7 +207,8 @@ void main() {
           tester,
           provider: provider,
           authority: 'https://192.168.1.20/',
-          signedInSyncRunner: (id, _) async => syncs.add(id),
+          manualSyncRunner: (request) async =>
+              syncs.add(request.scope.accountId!),
         );
         addTearDown(harness.dispose);
         Future<void> sync() async {
@@ -260,30 +264,35 @@ void main() {
       const platform = MethodChannel('io.busystack.busymax/android');
       var granted = false, syncs = 0;
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(
-            platform,
-            (call) async =>
-                call.method == 'hasLocalNetworkAccess' ||
-                    call.method == 'requestLocalNetworkAccess'
-                ? granted
-                : null,
-          );
+          .setMockMethodCallHandler(platform, (call) async {
+            if (call.method == 'requiresLocalNetworkAccess') {
+              return (call.arguments as Map)['host'] == '192.168.1.20';
+            }
+            if (call.method == 'hasLocalNetworkAccess' ||
+                call.method == 'requestLocalNetworkAccess') {
+              return granted;
+            }
+            return null;
+          });
       addTearDown(
         () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
             .setMockMethodCallHandler(platform, null),
       );
       final syncedAccounts = <String>[];
+      final strategies = <SyncStrategy>[];
       final harness = await _pumpAndroidSettings(
         tester,
-        category: AndroidSettingsCategory.diagnostics,
+        category: AndroidSettingsCategory.accounts,
+        openAccount: false,
         provider: BusyProvider.caldav,
         authority: 'https://192.168.1.20/',
-        signedInSyncRunner: (id, full) async {
-          expectSync(full, isFalse);
-          syncedAccounts.add(id);
-        },
-        allAccountsSyncRunner: () async {
-          syncs++;
+        manualSyncRunner: (request) async {
+          strategies.add(request.strategy);
+          if (request.scope == allSyncScope) {
+            syncs++;
+          } else {
+            syncedAccounts.add(request.scope.accountId!);
+          }
         },
       );
       addTearDown(harness.dispose);
@@ -300,14 +309,14 @@ void main() {
         );
       }
       await tester.pumpAndSettle();
-      final action = find.widgetWithText(ListTile, 'Sync');
+      final action = find.widgetWithText(ListTile, 'Refresh all');
       await tester.scrollUntilVisible(
         action,
         500,
         scrollable: find.byType(Scrollable).first,
       );
       tester.widget<ListTile>(action).onTap!();
-      // Sync all remains busy while the permission recovery dialog is open.
+      // Permission recovery remains available for the blocked account.
       for (
         var i = 0;
         i < 10 && find.byType(AlertDialog).evaluate().isEmpty;
@@ -317,18 +326,23 @@ void main() {
       }
       expect(find.byType(AlertDialog), findsOneWidget);
       expect(syncs, 0);
-      await tester.tap(find.widgetWithText(TextButton, 'Cancel').last);
+      await tester.tap(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.text('Cancel'),
+        ),
+      );
       await tester.pumpAndSettle();
-      expect(syncedAccounts, [
-        'google:public',
-        'microsoft:public',
-        'dav:public',
-      ]);
+      expect(
+        syncedAccounts,
+        unorderedEquals(['google:public', 'microsoft:public', 'dav:public']),
+      );
       expect(syncs, 0);
       granted = true;
       tester.widget<ListTile>(action).onTap!();
       await tester.pumpAndSettle();
       expect(syncs, 1);
+      expect(strategies, everyElement(SyncStrategy.ordinary));
     },
   );
 
@@ -434,7 +448,7 @@ void main() {
     final calls = <String>[];
     final harness = await _pumpAndroidSettings(
       tester,
-      signedInSyncRunner: (accountId, initial) async => calls.add(accountId),
+      manualSyncRunner: (request) async => calls.add(request.scope.accountId!),
     );
     addTearDown(harness.dispose);
 
@@ -451,7 +465,7 @@ void main() {
     final harness = await _pumpAndroidSettings(
       tester,
       reconnectRequired: true,
-      signedInSyncRunner: (accountId, initial) async => calls.add(accountId),
+      manualSyncRunner: (request) async => calls.add(request.scope.accountId!),
     );
     addTearDown(harness.dispose);
 
@@ -482,7 +496,7 @@ void main() {
     final calls = <String>[];
     final harness = await _pumpAndroidSettings(
       tester,
-      signedInSyncRunner: (accountId, initial) async => calls.add(accountId),
+      manualSyncRunner: (request) async => calls.add(request.scope.accountId!),
     );
     addTearDown(harness.dispose);
 
@@ -517,7 +531,7 @@ void main() {
       );
       final harness = await _pumpAndroidSettings(
         tester,
-        signedInSyncRunner: (accountId, initial) async => throw failure,
+        manualSyncRunner: (request) async => throw failure,
       );
       addTearDown(harness.dispose);
 
@@ -525,7 +539,9 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(
-        find.text('Sync failed: This account needs to be reconnected.'),
+        find.text(
+          'Your Google account needs to be reconnected to resume calendar and task synchronization.',
+        ),
         findsOneWidget,
       );
       expect(find.textContaining('KnownUnsentRequestException'), findsNothing);
@@ -538,11 +554,11 @@ void main() {
   testWidgets(
     'Force full resync explicitly requests every eligible account in full',
     (tester) async {
-      final calls = <(String, bool)>[];
+      final calls = <SyncRequest>[];
       final harness = await _pumpAndroidSettings(
         tester,
         category: AndroidSettingsCategory.diagnostics,
-        signedInSyncRunner: (id, full) async => calls.add((id, full)),
+        manualSyncRunner: (request) async => calls.add(request),
       );
       addTearDown(harness.dispose);
       final action = find.widgetWithText(ListTile, 'Force full resync');
@@ -553,7 +569,8 @@ void main() {
       );
       await tester.tap(action);
       await tester.pumpAndSettle();
-      expect(calls, [('google:g', true)]);
+      expect(calls.single.scope, allSyncScope);
+      expect(calls.single.strategy, SyncStrategy.fullRecovery);
     },
   );
 
@@ -571,11 +588,12 @@ void main() {
     );
     final harness = await _pumpAndroidSettings(
       tester,
-      category: AndroidSettingsCategory.diagnostics,
-      allAccountsSyncRunner: () async => throw failure,
+      category: AndroidSettingsCategory.accounts,
+      openAccount: false,
+      manualSyncRunner: (request) async => throw failure,
     );
     addTearDown(harness.dispose);
-    final syncAll = find.widgetWithText(ListTile, 'Sync');
+    final syncAll = find.widgetWithText(ListTile, 'Refresh all');
     await tester.scrollUntilVisible(
       syncAll,
       500,
@@ -587,10 +605,14 @@ void main() {
     await tester.tap(syncAll);
     await tester.pumpAndSettle();
 
+    // The shared failure is inspectable through the same command.
+    await tester.tap(syncAll);
+    await tester.pumpAndSettle();
     expect(
-      find.text('Sync failed: This account needs to be reconnected.'),
+      find.text(AppLocalizationsEn().accountReconnectRequired),
       findsOneWidget,
     );
+    expect(find.text('Retry'), findsOneWidget);
     expect(find.textContaining('KnownUnsentRequestException'), findsNothing);
     expect(find.textContaining('InternalOAuthException'), findsNothing);
     expect(find.textContaining('sync-all-secret'), findsNothing);
@@ -609,7 +631,9 @@ Future<_AndroidSettingsHarness> _pumpAndroidSettings(
   TaskCollectionCapabilities? taskCapabilities,
   bool reconnectRequired = false,
   bool workspaceSources = false,
+  bool openAccount = true,
   SignedInSyncRunner? signedInSyncRunner,
+  Future<void> Function(SyncRequest)? manualSyncRunner,
   AllAccountsSyncRunner? allAccountsSyncRunner,
 }) async {
   tester.view.devicePixelRatio = 1;
@@ -664,6 +688,33 @@ Future<_AndroidSettingsHarness> _pumpAndroidSettings(
         ),
       webCalSubscriptionsProvider.overrideWith((ref) => Stream.value(const [])),
       davConflictsStreamProvider.overrideWith((ref) => Stream.value(const [])),
+      if (manualSyncRunner != null)
+        manualSyncRunnerProvider.overrideWith(
+          (ref) => (scope, {strategy = SyncStrategy.ordinary}) {
+            final request = (
+              scope: scope,
+              origin: SyncTrigger.manual,
+              strategy: strategy,
+            );
+            return ref
+                .read(accountSyncActivityProvider.notifier)
+                .request(
+                  request,
+                  (start) => start(() async {
+                    try {
+                      await manualSyncRunner(request);
+                      return SyncOutcome(request, SyncDisposition.completed);
+                    } on Object catch (error) {
+                      return SyncOutcome(
+                        request,
+                        SyncDisposition.failed,
+                        error: error,
+                      );
+                    }
+                  }),
+                );
+          },
+        ),
       signedInSyncRunnerProvider.overrideWithValue(
         signedInSyncRunner ?? (accountId, initial) async {},
       ),
@@ -692,7 +743,9 @@ Future<_AndroidSettingsHarness> _pumpAndroidSettings(
     ),
   );
   await tester.pumpAndSettle();
-  if (!workspaceSources && category == AndroidSettingsCategory.accounts) {
+  if (openAccount &&
+      !workspaceSources &&
+      category == AndroidSettingsCategory.accounts) {
     await tester.tap(find.byKey(const ValueKey('account-entry-google:g')));
     await tester.pumpAndSettle();
   }

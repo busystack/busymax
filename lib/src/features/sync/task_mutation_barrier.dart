@@ -1,6 +1,5 @@
-import 'dart:convert';
-
 import '../../db/app_database.dart';
+import 'scoped_pending_replay.dart';
 
 const taskBarrierOperationIdsKey = '_busymaxTaskBarrierOpIds';
 
@@ -19,6 +18,5 @@ bool taskOperationTouchesList(PendingOp operation, String taskListId) {
   }
   if (operation.taskListId == taskListId) return true;
   if (operation.operation != 'move_task') return false;
-  final request = jsonDecode(operation.requestJson);
-  return request is Map && request['destinationTasklist'] == taskListId;
+  return pendingReplayPayload(operation)['destinationTasklist'] == taskListId;
 }

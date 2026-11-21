@@ -1,3 +1,8 @@
+import '../../features/sync/sync_request.dart';
+import '../../features/sync/sync_activity_icon.dart';
+import '../../features/sync/material_sync_feedback.dart';
+import '../../features/schedule/presentation/material_schedule_coverage.dart';
+import '../android_local_network_access.dart';
 import '../../features/calendar/application/attendee_suggestion_session.dart';
 import 'android_editor_group.dart';
 import '../../features/accounts/domain/account_collection_creation_capabilities.dart';
@@ -372,11 +377,13 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
     }
     final displayedRange =
         searchCriteria?.range ??
-        _rangeFor(
-          DateTime(_anchor.year, _anchor.month, _anchor.day),
-          mode,
-          firstWeekday: _firstWeekday(context),
-        );
+        (mode == ScheduleViewMode.agenda
+            ? ScheduleRange.days(DateTime.now(), count: _agendaDays)
+            : _rangeFor(
+                DateTime(_anchor.year, _anchor.month, _anchor.day),
+                mode,
+                firstWeekday: _firstWeekday(context),
+              ));
     final coverageFilters = _searching && searchCriteria != null
         ? searchCriteria.filters(_query)
         : ScheduleFilters(
@@ -390,7 +397,9 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
             sourceFilterActive: true,
           );
     final bool? coverageComplete =
-        items.hasValue && coverageFilters.requiresCalendarCoverage
+        _notificationDate == null &&
+            items.hasValue &&
+            coverageFilters.requiresCalendarCoverage
         ? ref
               .read(scheduleRepositoryProvider)
               .cloudCoverageCompleteFor(
@@ -403,11 +412,13 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
             items: items,
             criteria: searchCriteria,
             query: _query,
+            coverageComplete: coverageComplete,
           )
         : _buildCalendarPresentation(
             items: items,
             mode: mode,
             agendaPage: page.valueOrNull ?? _cachedAgendaPage,
+            coverageComplete: coverageComplete,
           );
     return PopScope(
       canPop: !_searching,
@@ -495,6 +506,33 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
           ),
           actions: [
             IconButton(
+              key: const ValueKey('schedule-coverage-status'),
+              tooltip: context.l10n.scheduleCoverageStatus,
+              icon: Icon(switch (coverageComplete) {
+                false => Icons.warning_amber_rounded,
+                null => Icons.more_horiz,
+                true => Icons.calendar_today_outlined,
+              }),
+              onPressed: () => unawaited(
+                showScheduleCoverage(
+                  context,
+                  coverageComplete,
+                  () => ref
+                      .read(scheduleRepositoryProvider)
+                      .retryCloudCoverage(displayedRange, coverageFilters),
+                  openSettings: () => unawaited(
+                    Navigator.of(context).push<void>(
+                      MaterialPageRoute(
+                        builder: (_) => const AndroidSettingsScreen(
+                          category: AndroidSettingsCategory.accounts,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            IconButton(
               tooltip: context.l10n.windowsSearch,
               onPressed: _searching ? _closeSearch : _openSearch,
               icon: Icon(_searching ? Icons.close : Icons.search),
@@ -502,12 +540,25 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
             if (!_searching && MediaQuery.sizeOf(context).width >= 760)
               IconButton(
                 tooltip: context.l10n.refreshAll,
-                icon: const Icon(Icons.refresh),
+                icon: const SyncActivityIcon(
+                  scope: allSyncScope,
+                  refresh: Icon(Icons.refresh),
+                  warning: Icon(Icons.warning_amber_rounded),
+                  child: Icon(Icons.refresh),
+                ),
                 onPressed: () => unawaited(_refreshWorkspace()),
               ),
             PopupMenuButton<String>(
               key: const ValueKey('android-workspace-menu'),
               tooltip: context.l10n.options,
+              icon: _searching || MediaQuery.sizeOf(context).width < 760
+                  ? const SyncActivityIcon(
+                      scope: allSyncScope,
+                      refresh: Icon(Icons.refresh),
+                      warning: Icon(Icons.warning_amber_rounded),
+                      child: Icon(Icons.more_vert),
+                    )
+                  : null,
               onSelected: (value) async {
                 switch (value) {
                   case 'refresh':
@@ -541,7 +592,7 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
                 }
               },
               itemBuilder: (context) => [
-                if (MediaQuery.sizeOf(context).width < 760)
+                if (_searching || MediaQuery.sizeOf(context).width < 760)
                   PopupMenuItem(
                     value: 'refresh',
                     child: Text(context.l10n.refreshAll),
@@ -587,22 +638,6 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
                 Expanded(
                   child: Column(
                     children: [
-                      if (coverageComplete != true && items.hasValue)
-                        Card(
-                          child: ListTile(
-                            leading: Icon(
-                              coverageComplete == null
-                                  ? Icons.sync
-                                  : Icons.cloud_off_outlined,
-                            ),
-                            title: Text(
-                              coverageComplete == null
-                                  ? context.l10n.scheduleLoading
-                                  : context.l10n.scheduleRangeIncomplete,
-                            ),
-                            dense: true,
-                          ),
-                        ),
                       Expanded(
                         child: BusyMaxBinaryPresentation(
                           alternateActive: _searching,
@@ -624,6 +659,7 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
     required AsyncValue<List<ScheduleItem>> items,
     required ScheduleViewMode mode,
     ScheduleAgendaPage? agendaPage,
+    required bool? coverageComplete,
   }) {
     final accounts = ref.watch(accountsStreamProvider);
     final sourceState = ref.watch(calendarSourcesStreamProvider);
@@ -729,7 +765,7 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
             dayEndMinute: ref
                 .watch(appSettingsControllerProvider)
                 .scheduleDayEndMinute,
-            agendaEmptyBuilder: items.isLoading
+            agendaEmptyBuilder: items.isLoading || coverageComplete != true
                 ? (context) => const SizedBox.shrink()
                 : (context) => Center(
                     child: Column(
@@ -814,6 +850,7 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
     required AsyncValue<List<ScheduleItem>> items,
     required ScheduleSearchCriteria criteria,
     required String query,
+    required bool? coverageComplete,
   }) {
     if (items.isLoading && items.valueOrNull == null) {
       return const Center(child: CircularProgressIndicator());
@@ -851,8 +888,16 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
           ),
         Expanded(
           child: RefreshIndicator(
-            onRefresh: () async {
-              _retrySchedule();
+            onRefresh: () {
+              final filters = criteria.filters(query);
+              final range = criteria.range;
+              if (range == null || !filters.requiresCalendarCoverage) {
+                _retrySchedule();
+                return Future.value();
+              }
+              return ref
+                  .read(scheduleRepositoryProvider)
+                  .retryCloudCoverage(range, filters);
             },
             child: _AgendaList(
               key: const ValueKey('android-search-results'),
@@ -865,13 +910,15 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
               taskMutationIntent: _taskMutationIntent,
               taskMutationsInFlight: _taskMutationsInFlight,
               onTaskMutationConsumed: _consumeTaskMutation,
-              emptyBuilder: (context) => _Message(
-                icon: Icons.search_off,
-                title: !criteria.hasSources
-                    ? context.l10n.searchNoSources
-                    : context.l10n.scheduleNoSearchResults,
-                detail: context.l10n.scheduleNoSearchResultsDescription,
-              ),
+              emptyBuilder: (context) => coverageComplete != true
+                  ? const SizedBox.shrink()
+                  : _Message(
+                      icon: Icons.search_off,
+                      title: !criteria.hasSources
+                          ? context.l10n.searchNoSources
+                          : context.l10n.scheduleNoSearchResults,
+                      detail: context.l10n.scheduleNoSearchResultsDescription,
+                    ),
             ),
           ),
         ),
@@ -1093,23 +1140,7 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
     });
   }
 
-  Future<void> _refreshWorkspace() async {
-    try {
-      await ref.read(allAccountsSyncRunnerProvider)();
-    } on Object catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${context.l10n.scheduleUnavailable}: $error'),
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        _retrySchedule();
-      }
-    }
-  }
+  Future<void> _refreshWorkspace() => refreshAndroidAccounts(context, ref);
 
   Widget _searchFilterPanel() => AndroidScheduleSearchFilters(
     value: _searchCriteria!,
@@ -2618,7 +2649,7 @@ class _AndroidSourcesPaneState extends ConsumerState<_AndroidSourcesPane> {
     return ExpansionTile(
       controller: disclosure,
       initiallyExpanded: true,
-      maintainState: true,
+      maintainState: false,
       tilePadding: const EdgeInsetsDirectional.only(start: 8),
       leading: ListenableBuilder(
         listenable: disclosure,
@@ -2640,13 +2671,18 @@ class _AndroidSourcesPaneState extends ConsumerState<_AndroidSourcesPane> {
         children: [
           Tooltip(
             message: account.provider.displayName,
-            child: Icon(
-              account.provider == BusyProvider.google
-                  ? Icons.g_mobiledata
-                  : account.provider == BusyProvider.microsoft
-                  ? Icons.window
-                  : Icons.cloud_outlined,
-              size: 18,
+            child: SyncActivityIcon(
+              scope: accountSyncScope(account.id),
+              refresh: const Icon(Icons.refresh, size: 18),
+              warning: const Icon(Icons.warning_amber_rounded, size: 18),
+              child: Icon(
+                account.provider == BusyProvider.google
+                    ? Icons.g_mobiledata
+                    : account.provider == BusyProvider.microsoft
+                    ? Icons.window
+                    : Icons.cloud_outlined,
+                size: 18,
+              ),
             ),
           ),
           const SizedBox(width: 6),
@@ -2657,7 +2693,22 @@ class _AndroidSourcesPaneState extends ConsumerState<_AndroidSourcesPane> {
       trailing: PopupMenuButton<String>(
         tooltip: context.l10n.options,
         onSelected: (action) async {
-          if (action == 'calendar' || action == 'task-list') {
+          if (action == 'refresh') {
+            if (account.provider.isDav &&
+                !await ensureAndroidLocalNetworkAccess(
+                  context,
+                  account.authority,
+                )) {
+              return;
+            }
+            if (mounted) {
+              await refreshFromMaterial(
+                context,
+                ref,
+                accountSyncScope(account.id),
+              );
+            }
+          } else if (action == 'calendar' || action == 'task-list') {
             final running = action == 'calendar'
                 ? _creatingCalendarAccounts
                 : _creatingTaskListAccounts;
@@ -2695,6 +2746,10 @@ class _AndroidSourcesPaneState extends ConsumerState<_AndroidSourcesPane> {
           }
         },
         itemBuilder: (_) => [
+          PopupMenuItem(
+            value: 'refresh',
+            child: Text(context.l10n.refreshAccount),
+          ),
           if (account.provider == BusyProvider.nextcloud)
             PopupMenuItem(
               value: 'trash',
@@ -2768,7 +2823,12 @@ class _AndroidSourcesPaneState extends ConsumerState<_AndroidSourcesPane> {
             ),
             title: Row(
               children: [
-                const Icon(Icons.checklist_outlined, size: 18),
+                SyncActivityIcon(
+                  scope: taskListSyncScope(list.accountId, list.id),
+                  refresh: const Icon(Icons.refresh, size: 18),
+                  warning: const Icon(Icons.warning_amber_rounded, size: 18),
+                  child: const Icon(Icons.checklist_outlined, size: 18),
+                ),
                 const SizedBox(width: 8),
                 Expanded(child: Text(list.title)),
               ],
@@ -2812,10 +2872,17 @@ class _AndroidSourcesPaneState extends ConsumerState<_AndroidSourcesPane> {
           width: 18,
           height: 18,
           margin: const EdgeInsetsDirectional.only(end: 6),
-          child: Icon(
-            Icons.calendar_today_outlined,
-            size: 18,
-            color: _androidSourceColor(source, Theme.of(context).brightness),
+          child: IconTheme(
+            data: IconThemeData(
+              size: 18,
+              color: _androidSourceColor(source, Theme.of(context).brightness),
+            ),
+            child: SyncActivityIcon(
+              scope: calendarSyncScope(source.accountId, source.id),
+              refresh: const Icon(Icons.refresh),
+              warning: const Icon(Icons.warning_amber_rounded),
+              child: const Icon(Icons.calendar_today_outlined),
+            ),
           ),
         ),
         Expanded(child: Text(source.summary)),

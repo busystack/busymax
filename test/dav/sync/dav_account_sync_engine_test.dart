@@ -1,3 +1,5 @@
+import 'package:busymax/src/features/sync/sync_request.dart';
+
 import 'dart:async';
 
 import 'package:busymax/src/dav/mutation/dav_collection_administration.dart';
@@ -53,6 +55,85 @@ void main() {
     await database.close();
     await applicationDirectory?.delete(recursive: true);
     applicationDirectory = null;
+  });
+
+  test('one DAV projection pulls its mixed physical collection during complete discovery', () async {
+    await _seedDestination(database);
+    final paths = <String>[];
+    var discoveryInventories = 0;
+    final started = Completer<void>();
+    final release = Completer<void>();
+    final client = MockClient((request) async {
+      if (request.method == 'OPTIONS') {
+        return http.Response('', 200, headers: {'dav': 'calendar-access'});
+      }
+      if (request.method == 'PROPFIND') {
+        if (request.body.contains('<d:current-user-principal/>')) {
+          return _discoveryMultistatus(_currentPrincipalResponse);
+        }
+        if (request.body.contains('<c:calendar-home-set/>')) {
+          return _discoveryMultistatus(_principalPropertiesResponse);
+        }
+        discoveryInventories++;
+        return _discoveryMultistatus(_twoCollectionInventoryResponse);
+      }
+      if (request.method == 'REPORT') {
+        paths.add(request.url.path);
+        if (!started.isCompleted) started.complete();
+        await release.future;
+        return http.Response(_syncResponse(token: 'urn:mixed:once'), 207);
+      }
+      throw StateError('Unexpected synthetic DAV request');
+    });
+    final monitor = NetworkConnectivityMonitor.withoutPlatformObservation();
+    final container = ProviderContainer(
+      overrides: [
+        databaseProvider.overrideWithValue(database),
+        secretStoreProvider.overrideWithValue(secrets),
+        davAccountHttpClientProvider('account').overrideWithValue(client),
+        networkConnectivityMonitorProvider.overrideWithValue(monitor),
+        notificationReconcilerProvider.overrideWithValue(
+          CallbackNotificationReconciler(() async {}),
+        ),
+      ],
+    );
+    addTearDown(() async {
+      if (!release.isCompleted) release.complete();
+      container.dispose();
+      await monitor.dispose();
+      client.close();
+    });
+    final calendar = calendarSyncScope('account', 'dav-calendar-collection');
+    final taskList = taskListSyncScope('account', 'dav-task-list-collection');
+    final refresh = container.read(manualSyncRunnerProvider)(
+      calendar,
+      strategy: SyncStrategy.fullRecovery,
+    );
+    await started.future.timeout(const Duration(seconds: 3));
+    final activity = container.read(accountSyncActivityProvider);
+    expect(activity.executing(calendar), isTrue);
+    expect(activity.executing(taskList), isTrue);
+    release.complete();
+    final result = await refresh;
+    expect(result.disposition, SyncDisposition.completed);
+    expect(result.affected, containsAll([calendar, taskList]));
+    expect(activity.anyRunning, isFalse);
+    expect(paths, [_collectionHref]);
+    expect(discoveryInventories, 1);
+    final collections = await database.select(database.davCollections).get();
+    expect(
+      collections.singleWhere((row) => row.id == 'destination').serverMissing,
+      isFalse,
+    );
+    expect(
+      collections.singleWhere((row) => row.id == 'destination').syncToken,
+      isNull,
+    );
+    expect(
+      collections.singleWhere((row) => row.id == 'collection').syncToken,
+      'urn:mixed:once',
+    );
+    expect(await database.select(database.domainSyncSchedules).get(), isEmpty);
   });
 
   test('optional federation cannot hold ordinary DAV completion or its busy indicator', () async {

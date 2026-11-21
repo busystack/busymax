@@ -1,3 +1,4 @@
+import '../../features/sync/sync_request.dart';
 import '../../schedule/schedule_commands.dart';
 
 import 'dart:async';
@@ -75,6 +76,10 @@ class WindowsDesktopRuntimeState extends ConsumerState<WindowsDesktopRuntime> {
   @override
   Widget build(BuildContext context) {
     final settings = ref.watch(appSettingsControllerProvider);
+    ref.listen(
+      accountSyncActivityProvider.select((activity) => activity.anyRunning),
+      (_, _) => unawaited(_tray?.refresh()),
+    );
     final l10n = AppLocalizations.of(context);
     final clock = BusyMaxTimeFormatScope.of(context);
     if (_clock != clock || _formatter == null) {
@@ -217,7 +222,7 @@ class WindowsDesktopRuntimeState extends ConsumerState<WindowsDesktopRuntime> {
             .read(desktopNavigationServiceProvider)
             .open(DesktopNavigationDestination.schedule);
       case WindowsTrayCommand.synchronize:
-        await ref.read(syncSchedulerProvider).runNow();
+        await ref.read(manualSyncRunnerProvider)(allSyncScope);
         await _tray?.refresh();
       case WindowsTrayCommand.settings:
         await window.showWindow();

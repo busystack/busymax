@@ -491,8 +491,15 @@
   "clearCompleted": "Eemalda lõpetatud ülesanded",
   "refreshList": "Värskenda loendit",
   "refreshAll": "Värskenda kõiki",
+  "refreshAccount": "Värskenda kontot",
+  "refreshCollection": "Värskenda kogu",
+  "syncQueued": "Värskendus on järjekorras",
+  "syncNotYetRefreshed": "Veel sünkroonimata",
+  "syncLastRefreshed": "Viimati värskendatud {date}",
+  "scheduleCoverageStatus": "Sündmuste kaetus",
+  "scheduleCoveragePending": "Selle ajavahemiku sündmusi kontrollitakse või pole veel kontrollitud.",
+  "scheduleCoverageVerified": "Selle ajavahemiku sündmused on kontrollitud.",
   "listRefreshed": "Loend on värskendatud.",
-  "allTasksRefreshed": "Kõik kontod on värskendatud.",
   "exportedFile": "Eksporditud asukohta {path}",
   "@exportedFile": {
     "placeholders": {
@@ -625,7 +632,7 @@
   "account": "Konto",
   "sync": "Sünkroonimine",
   "forceFullResync": "Sunni täielik uuesti sünkroonimine",
-  "forceFullResyncDescription": "Laadib kõigi ühendatud kontode andmed täielikult uuesti. Kasutage seda ainult sünkroonimisprobleemide tõrkeotsinguks.",
+  "forceFullResyncDescription": "Loob toetatud kontode kalendrite ja ülesannete sünkroonimise lähteoleku uuesti ning kontrollib tellimusi. Kasutage seda sünkroonimisprobleemide tõrkeotsinguks.",
   "runInBackgroundWhenClosed": "Jätka töötamist, kui aken on suletud",
   "showTrayIcon": "Kuva süsteemisalve ikoon",
   "startMinimizedToTray": "Käivita minimeerituna süsteemisalves",
@@ -633,7 +640,6 @@
   "launchAtLoginDescription": "BusyMax käivitatakse taustal, et meeldetuletused töötaksid pärast sisselogimist.",
   "launchAtLoginFailed": "Sisselogimisel käivitamise seadet ei saanud uuendada.",
   "requiresTrayIcon": "Nõuab süsteemisalve ikooni.",
-  "syncComplete": "Sünkroonimine on lõpetatud.",
   "syncFailed": "Sünkroonimine nurjus: {error}",
   "@syncFailed": {
     "placeholders": {

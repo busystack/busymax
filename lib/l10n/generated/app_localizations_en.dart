@@ -1476,10 +1476,35 @@ class AppLocalizationsEn extends AppLocalizations {
   String get refreshAll => 'Refresh all';
 
   @override
-  String get listRefreshed => 'List refreshed.';
+  String get refreshAccount => 'Refresh account';
 
   @override
-  String get allTasksRefreshed => 'All accounts refreshed.';
+  String get refreshCollection => 'Refresh collection';
+
+  @override
+  String get syncQueued => 'Refresh queued';
+
+  @override
+  String get syncNotYetRefreshed => 'Not synced yet';
+
+  @override
+  String syncLastRefreshed(String date) {
+    return 'Last refreshed $date';
+  }
+
+  @override
+  String get scheduleCoverageStatus => 'Event coverage';
+
+  @override
+  String get scheduleCoveragePending =>
+      'Events in this range are being checked or have yet to be verified.';
+
+  @override
+  String get scheduleCoverageVerified =>
+      'Events in this range have been checked.';
+
+  @override
+  String get listRefreshed => 'List refreshed.';
 
   @override
   String exportedFile(String path) {
@@ -2126,7 +2151,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get forceFullResyncDescription =>
-      'Completely reload data from every connected account. Use this only to troubleshoot synchronization problems.';
+      'Rebuild Calendar and Tasks baselines where supported for eligible accounts, and check subscriptions. Use this to troubleshoot synchronization.';
 
   @override
   String get runInBackgroundWhenClosed =>
@@ -2151,9 +2176,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get requiresTrayIcon => 'Requires the tray icon.';
-
-  @override
-  String get syncComplete => 'Sync complete.';
 
   @override
   String syncFailed(String error) {

@@ -1,3 +1,6 @@
+import '../../features/sync/sync_request.dart';
+import '../../features/sync/sync_activity_icon.dart';
+import 'windows_sync_feedback.dart';
 import '../../features/auth/application/account_connection.dart';
 import '../../features/auth/application/account_removal.dart';
 import 'windows_nextcloud_certificate_dialog.dart';
@@ -671,6 +674,19 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
           ),
         ),
         const SizedBox(height: 20),
+        _SectionTitle(l10n.diagnostics),
+        Card(
+          child: ListTile(
+            leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.refresh)),
+            title: Text(l10n.forceFullResync),
+            subtitle: Text(l10n.forceFullResyncDescription),
+            onPressed: () => ref.read(manualSyncRunnerProvider)(
+              allSyncScope,
+              strategy: SyncStrategy.fullRecovery,
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
         const WindowsContactsSettings(),
         KeyedSubtree(key: _accountsKey, child: _SectionTitle(l10n.accounts)),
         Card(
@@ -685,6 +701,17 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
             ),
             data: (values) => Column(
               children: [
+                ListTile(
+                  title: Text(l10n.refreshAll),
+                  leading: SyncActivityIcon(
+                    scope: allSyncScope,
+                    refresh: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.refresh)),
+                    warning: const Icon(FluentIcons.warning),
+                    child: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.refresh)),
+                  ),
+                  onPressed: () =>
+                      refreshWindowsScope(context, ref, allSyncScope),
+                ),
                 if (session.message != null || _davError != null)
                   InfoBar(
                     title: Text(
@@ -797,6 +824,14 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                     trailing: DropDownButton(
                       title: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.more)),
                       items: [
+                        MenuFlyoutItem(
+                          text: Text(l10n.refreshAccount),
+                          onPressed: () => refreshWindowsScope(
+                            context,
+                            ref,
+                            accountSyncScope(values[index].id),
+                          ),
+                        ),
                         if (values[index].provider == BusyProvider.caldav)
                           MenuFlyoutItem(
                             text: Text(l10n.reconnectAccount),
@@ -979,6 +1014,19 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                           ),
                     ),
                   ],
+                  if (values[index].isTaskCapable &&
+                      !values[index].provider.isDav)
+                    for (final list
+                        in ref.watch(scheduleTaskListsProvider).valueOrNull ??
+                            const [])
+                      if (list.accountId == values[index].id)
+                        ListTile(
+                          title: Text(list.title),
+                          trailing: _WindowsCollectionRefresh(
+                            scope: taskListSyncScope(list.accountId, list.id),
+                            label: l10n.refreshList,
+                          ),
+                        ),
                   if (values[index].provider == BusyProvider.nextcloud ||
                       values[index].provider == BusyProvider.caldav)
                     for (final collection
@@ -991,6 +1039,13 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                               collection.supportsTasks))
                         ListTile(
                           title: Text(collection.name),
+                          trailing: _WindowsCollectionRefresh(
+                            scope: davCollectionSyncScope(
+                              collection.accountId,
+                              collection.id,
+                            ),
+                            label: l10n.refreshCollection,
+                          ),
                           subtitle: Text(
                             !collection.capabilities.permissionsKnown
                                 ? l10n.davPermissionsUnknown
@@ -1048,7 +1103,7 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                             leading: Icon(
                               windowsBusyMaxGlyph(BusyMaxGlyph.refresh),
                             ),
-                            text: Text(l10n.refresh),
+                            text: Text(l10n.refreshCalendar),
                             onPressed: () => unawaited(
                               _refreshWindowsSubscription(
                                 context,
@@ -1294,6 +1349,26 @@ class _WindowsCalendarSettingsColumnLabel extends StatelessWidget {
   }
 }
 
+class _WindowsCollectionRefresh extends ConsumerWidget {
+  const _WindowsCollectionRefresh({required this.scope, required this.label});
+  final SyncScope scope;
+  final String label;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => Tooltip(
+    message: label,
+    child: IconButton(
+      icon: SyncActivityIcon(
+        scope: scope,
+        refresh: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.refresh), size: 16),
+        warning: const Icon(FluentIcons.warning, size: 16),
+        child: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.refresh), size: 16),
+      ),
+      onPressed: () => refreshWindowsScope(context, ref, scope),
+    ),
+  );
+}
+
 class _WindowsCalendarSettingsRow extends ConsumerWidget {
   const _WindowsCalendarSettingsRow({
     super.key,
@@ -1348,6 +1423,10 @@ class _WindowsCalendarSettingsRow extends ConsumerWidget {
                 semanticLabel: l10n.visibility,
               ),
             ),
+          _WindowsCollectionRefresh(
+            scope: calendarSyncScope(source.accountId, source.id),
+            label: l10n.refreshCalendar,
+          ),
           if (source.provider == BusyProvider.microsoft &&
               source.capabilities.removalMode ==
                   CalendarRemovalMode.removeFromList)
@@ -1561,11 +1640,10 @@ Future<void> _refreshWindowsSubscription(
   BuildContext context,
   WidgetRef ref,
   WebCalSubscriptionEntity subscription,
-) => _runWindowsSubscriptionOperation(
+) => refreshWindowsScope(
   context,
-  () => ref
-      .read(webCalSubscriptionServiceProvider)
-      .refreshSubscription(subscription.id, force: true),
+  ref,
+  calendarSyncScope(subscription.accountId, subscription.calendarSourceId),
 );
 
 Future<void> _renameWindowsSubscription(

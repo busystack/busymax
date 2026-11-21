@@ -24,6 +24,7 @@ import '../config/build_config.dart';
 import '../core/secrets/secret_store.dart';
 import '../db/app_database.dart';
 import 'android_account_gate.dart';
+import 'android_sync_activity.dart';
 import 'android_notification_gate.dart';
 import 'android_runtime_resources.dart';
 import 'android_authorization.dart';
@@ -257,6 +258,9 @@ final class AndroidHeadlessRuntime {
               broker.persistence!,
             ),
             registrationStagingProvider.overrideWithValue(registrations),
+            accountSyncActivityProvider.overrideWith(
+              (ref) => AndroidSyncActivity(platform),
+            ),
             crossEngineAccountGateProvider.overrideWithValue(
               AndroidCrossEngineAccountGate(platform),
             ),

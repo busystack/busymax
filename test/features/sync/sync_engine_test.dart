@@ -1,3 +1,4 @@
+import 'package:busymax/src/features/sync/sync_request.dart';
 import 'package:busymax/src/features/notifications/notification_scheduler.dart';
 import 'package:busymax/src/features/notifications/notification_schedule_service.dart';
 
@@ -44,6 +45,162 @@ void main() {
     if (directory != null && await directory.exists()) {
       await directory.delete(recursive: true);
     }
+  });
+
+  test(
+    'targeted task snapshot isolates replay, lists, accounts and checkpoint',
+    () async {
+      final account = await database.select(database.accounts).getSingle();
+      await database
+          .into(database.accounts)
+          .insert(
+            account
+                .toCompanion(false)
+                .copyWith(
+                  id: const Value('other'),
+                  providerAccountId: const Value('other'),
+                ),
+          );
+      await _insertSuccessfulRun(
+        database,
+        id: 'prior',
+        startedAtUtc: '2026-06-04T00:10:00.000Z',
+        finishedAtUtc: '2026-06-04T00:15:00.000Z',
+      );
+      await database.taskListsDao.upsertTaskList(
+        _localTaskList('list-1')
+            .copyWith(lastSyncedAtUtc: const Value('2026-06-04T00:16:00.000Z')),
+      );
+      await database.taskListsDao.upsertTaskList(_localTaskList('list-2'));
+      await database.taskListsDao.upsertTaskList(
+        _localTaskList('list-1').copyWith(accountId: const Value('other')),
+      );
+      await database.tasksDao.upsertTask(_localTask('absent'));
+      await database.tasksDao.upsertTask(
+        _localTask('unchanged', taskListId: 'list-2'),
+      );
+      await database.tasksDao.upsertTask(
+        _localTask('older').copyWith(accountId: const Value('other')),
+      );
+      final pending = TasksRepository(
+        database: database,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4),
+      );
+      await pending.createTask(
+        'list-2',
+        const TaskCreateInput(title: 'Unrelated queued task'),
+      );
+      final queued = await database.select(database.pendingOps).getSingle();
+      apiClient.taskPages['list-1'] = [
+        TasksPageDto(
+          items: [_taskDto('older')],
+          nextPageToken: 'next',
+          rawJson: const {},
+        ),
+        TasksPageDto(items: [_taskDto('second')], rawJson: const {}),
+        const TasksPageDto(items: [], rawJson: {}),
+      ];
+      apiClient.checklistPages['list-1/older'] = [
+        const TaskChecklistItemsPageDto(
+          items: [],
+          nextPageToken: 'checklist-next',
+          rawJson: {},
+        ),
+        const TaskChecklistItemsPageDto(items: [], rawJson: {}),
+      ];
+      final engine = SyncEngine(
+        database: database,
+        apiClient: apiClient,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+      );
+      expect(await engine.refreshList('list-1'), SyncDisposition.completed);
+      expect(apiClient.listPageTokens, isEmpty);
+      expect(apiClient.taskPageTokens, {
+        'list-1': [null, 'next'],
+      });
+      expect(apiClient.checklistPageTokens['list-1/older'], [
+        null,
+        'checklist-next',
+      ]);
+      expect(apiClient.lastUpdatedMin, isNull);
+      expect(await database.select(database.pendingOps).getSingle(), queued);
+      expect(
+        await database.syncRunsDao
+            .latestSuccessfulRun('account')
+            .then((row) => row?.id),
+        'prior',
+      );
+      final target = await database.tasksDao.listTasks('account', 'list-1');
+      expect(
+        target.singleWhere((task) => task.id == 'absent').serverMissing,
+        isTrue,
+      );
+      expect(
+        target.where((task) => !task.serverMissing).map((task) => task.id),
+        unorderedEquals(['older', 'second']),
+      );
+      expect(
+        (await database.tasksDao.listTasks('other', 'list-1')).single.title,
+        'Local task',
+      );
+      expect(
+        (await database.tasksDao.listTasks(
+          'account',
+          'list-2',
+        )).singleWhere((task) => task.id == 'unchanged').serverMissing,
+        isFalse,
+      );
+      apiClient.taskListsPages = [
+        TaskListsPageDto(
+          items: [_taskListDto('list-1'), _taskListDto('list-2')],
+          rawJson: const {},
+        ),
+      ];
+      apiClient.taskPages['list-2'] = [
+        TasksPageDto(items: [_taskDto('intervening')], rawJson: const {}),
+      ];
+      await engine.incrementalSync();
+      expect(apiClient.lastUpdatedMin, DateTime.utc(2026, 6, 4, 0, 8));
+      expect(
+        (await database.tasksDao.listTasks(
+          'account',
+          'list-2',
+        )).map((row) => row.id),
+        contains('intervening'),
+      );
+    },
+  );
+
+  test('a failed later target page cannot reconcile missing tasks or sibling lists', () async {
+    await database.taskListsDao.upsertTaskList(_localTaskList('list-1'));
+    await database.taskListsDao.upsertTaskList(_localTaskList('list-2'));
+    await database.tasksDao.upsertTask(_localTask('cached'));
+    apiClient.taskPages['list-1'] = [
+      TasksPageDto(
+        items: [_taskDto('first')],
+        nextPageToken: 'failed',
+        rawJson: const {},
+      ),
+    ];
+    apiClient.blockedTaskPageToken = 'failed';
+    apiClient.blockedTaskPageError = StateError('synthetic late page failure');
+    final engine = SyncEngine(
+      database: database,
+      apiClient: apiClient,
+      accountId: 'account',
+    );
+    await expectLater(engine.refreshList('list-1'), throwsStateError);
+    final tasks = await database.tasksDao.listTasks('account', 'list-1');
+    expect(tasks.map((task) => task.id), unorderedEquals(['cached', 'first']));
+    expect(tasks.every((task) => !task.serverMissing), isTrue);
+    expect(
+      (await database.taskListsDao.listTaskLists('account'))
+          .every((row) => !row.serverMissing),
+      isTrue,
+    );
+    expect(await database.select(database.syncRuns).get(), isEmpty);
   });
 
   for (final action in [
@@ -487,7 +644,7 @@ void main() {
     final account = await (database.select(
       database.accounts,
     )..where((row) => row.id.equals('account'))).getSingle();
-    expect(account.lastSuccessfulSyncAtUtc, '2026-06-04T00:20:00.000Z');
+    expect(account.lastSuccessfulSyncAtUtc, '2026-06-04T00:15:00.000Z');
   });
 
   test(

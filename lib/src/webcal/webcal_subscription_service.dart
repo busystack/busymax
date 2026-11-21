@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import '../features/sync/sync_request.dart';
 import '../features/maps/data/location_resolution_repository.dart';
 
 import 'dart:math' as math;
@@ -81,6 +82,10 @@ final class WebCalSubscriptionException implements Exception {
   @override
   String toString() => 'WebCalSubscriptionException($code)';
 }
+
+typedef WebCalCheckActivity = Future<SyncDisposition> Function(
+  Future<SyncDisposition> Function() check,
+);
 
 final class WebCalSubscriptionService {
   WebCalSubscriptionService({
@@ -291,51 +296,89 @@ final class WebCalSubscriptionService {
   Future<void> refreshSubscription(
     String subscriptionId, {
     bool force = false,
+  }) async {
+    await checkSubscription(subscriptionId, manual: force);
+  }
+
+  Future<SyncDisposition> checkSubscription(
+    String subscriptionId, {
+    required bool manual,
+    String? accountId,
+    WebCalCheckActivity? trackCheck,
   }) => _serializeSubscriptionOperation(
     subscriptionId,
-    () => _refreshSubscription(subscriptionId, force: force),
+    () => _refreshSubscription(
+      subscriptionId,
+      force: manual,
+      accountId: accountId,
+      trackCheck: trackCheck,
+    ),
   );
 
-  Future<void> _serializeSubscriptionOperation(
+  Future<T> _serializeSubscriptionOperation<T>(
     String subscriptionId,
-    Future<void> Function() operation,
+    Future<T> Function() operation,
   ) {
     final previous = _operationTails[subscriptionId] ?? Future.value();
     final next = previous.catchError((Object _) {}).then((_) => operation());
-    _operationTails[subscriptionId] = next;
+    final tail = next.then<void>((_) {}, onError: (Object _, StackTrace _) {});
+    _operationTails[subscriptionId] = tail;
     return next.whenComplete(() {
-      if (identical(_operationTails[subscriptionId], next)) {
+      if (identical(_operationTails[subscriptionId], tail)) {
         _operationTails.remove(subscriptionId);
       }
     });
   }
 
   Future<void> refreshAccount(String accountId, {required bool force}) async {
-    final subscription = await (_database.select(
-      _database.webCalSubscriptions,
-    )..where((row) => row.accountId.equals(accountId))).getSingleOrNull();
-    if (subscription == null) return;
-    await refreshSubscription(subscription.id, force: force);
+    final subscription = await subscriptionForAccount(accountId);
+    if (subscription != null) {
+      await checkSubscription(
+        subscription.id,
+        accountId: accountId,
+        manual: force,
+      );
+    }
   }
 
-  Future<void> _refreshSubscription(
+  Future<WebCalSubscription?> subscriptionForAccount(String accountId) =>
+      (_database.select(
+        _database.webCalSubscriptions,
+      )..where((row) => row.accountId.equals(accountId))).getSingleOrNull();
+
+  Future<SyncDisposition> _refreshSubscription(
     String subscriptionId, {
     required bool force,
+    String? accountId,
+    WebCalCheckActivity? trackCheck,
   }) async {
     final subscription = await (_database.select(
       _database.webCalSubscriptions,
     )..where((row) => row.id.equals(subscriptionId))).getSingleOrNull();
-    if (subscription == null) return;
+    if (subscription == null ||
+        (accountId != null && subscription.accountId != accountId)) {
+      return SyncDisposition.missing;
+    }
     final now = _nowUtc();
     final due = DateTime.tryParse(subscription.nextRefreshAtUtc)?.toUtc();
-    if (!force && due != null && due.isAfter(now)) return;
+    if (!force && due != null && due.isAfter(now)) {
+      return SyncDisposition.deferred;
+    }
+    Future<SyncDisposition> check() => _checkSubscription(subscription, now);
+    return trackCheck?.call(check) ?? check();
+  }
+
+  Future<SyncDisposition> _checkSubscription(
+    WebCalSubscription subscription,
+    DateTime now,
+  ) async {
     final secret = await _secretStore.readCredential(subscription.accountId);
     if (secret is! WebCalSecretRecord) {
       await _recordFailure(
         subscription,
         const WebCalSubscriptionException('WebCalSecretUnavailable'),
       );
-      return;
+      return SyncDisposition.failed;
     }
     final target = secret.validatorTargetUri;
     final subscriptionUri = Uri.parse(secret.normalizedSubscriptionUri);
@@ -425,16 +468,13 @@ final class WebCalSubscriptionService {
           await (_database.update(
             _database.accounts,
           )..where((row) => row.id.equals(subscription.accountId))).write(
-            AccountsCompanion(
-              lastSuccessfulSyncAtUtc: Value(now.toIso8601String()),
-              updatedAtUtc: Value(now.toIso8601String()),
-            ),
+            AccountsCompanion(updatedAtUtc: Value(now.toIso8601String())),
           );
         });
         if (cachedProjection != null) {
           await _rebuildNotifications(subscription.accountId);
         }
-        return;
+        return SyncDisposition.completed;
       }
       final candidate = _prepareAcceptedResponse(
         response,
@@ -515,7 +555,6 @@ final class WebCalSubscriptionService {
           )..where((row) => row.id.equals(subscription.accountId))).write(
             AccountsCompanion(
               authState: const Value(accountAuthStateSignedIn),
-              lastSuccessfulSyncAtUtc: Value(now.toIso8601String()),
               updatedAtUtc: Value(now.toIso8601String()),
             ),
           );
@@ -525,6 +564,7 @@ final class WebCalSubscriptionService {
         rethrow;
       }
       await _rebuildNotifications(subscription.accountId);
+      return SyncDisposition.completed;
     } on Object catch (error) {
       await _recordFailure(subscription, error);
       rethrow;

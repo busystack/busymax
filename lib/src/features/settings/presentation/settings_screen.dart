@@ -1,3 +1,6 @@
+import '../../sync/sync_request.dart';
+import '../../sync/material_sync_feedback.dart';
+import '../../sync/sync_activity_icon.dart';
 import '../../../contacts/dav_contacts_enrollment.dart';
 import '../../auth/application/account_connection.dart';
 import '../../auth/application/account_removal.dart';
@@ -117,7 +120,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   DavCancellationToken? _davCancellation;
   final _removingAccountIds = <String>{};
   final _registrationRecoveryIds = <String>{};
-  final _refreshingAccountIds = <String>{};
   BusyMaxContactsController? _contactOperationsController;
   final _busySubscriptionIds = <String>{};
   final _busyContactAccountIds = <String>{};
@@ -325,7 +327,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             unawaited(_connectAccount(account.provider, reconnecting: account)),
         removingAccountIds: _removingAccountIds,
         registrationRecoveryIds: _registrationRecoveryIds,
-        refreshingAccountIds: _refreshingAccountIds,
+        refreshingAccountIds: {
+          for (final account in accounts)
+            if (ref
+                .watch(accountSyncActivityProvider)
+                .accountRunning(account.id))
+              account.id,
+        },
         onRetryContacts: (contact) => unawaited(_retryContacts(contact)),
         onReconnectContacts: (contact) =>
             unawaited(_reconnectContacts(contact)),
@@ -942,11 +950,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Future<void> _refreshSubscription(
     WebCalSubscriptionEntity subscription,
   ) async {
-    await _runSubscriptionOperation(subscription.id, () async {
-      await ref
-          .read(webCalSubscriptionServiceProvider)
-          .refreshSubscription(subscription.id, force: true);
-    });
+    await refreshFromMaterial(
+      context,
+      ref,
+      calendarSyncScope(subscription.accountId, subscription.calendarSourceId),
+    );
   }
 
   Future<void> _renameSubscription(
@@ -1544,51 +1552,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _forceFullResync(BuildContext context, WidgetRef ref) async {
-    try {
-      final repository = ref.read(accountsRepositoryProvider);
-      final accounts = await repository.listSyncEligibleAccounts();
-      if (accounts.isEmpty) {
-        return;
-      }
-      final runSync = ref.read(signedInSyncRunnerProvider);
-      for (final account in accounts) {
-        final stillEligible = (await repository.listSyncEligibleAccounts()).any(
-          (current) => current.id == account.id,
-        );
-        if (!stillEligible) {
-          continue;
-        }
-        await runSync(account.id, true);
-      }
-      if (context.mounted) {
-        _showMessage(context, context.l10n.syncComplete);
-      }
-    } on Object catch (error) {
-      if (context.mounted) {
-        _showMessage(
-          context,
-          context.l10n.syncFailed(
-            AccountSettingsFeedback.fromError(context.l10n, error).message,
-          ),
-        );
-      }
-    }
+    await ref.read(manualSyncRunnerProvider)(
+      allSyncScope,
+      strategy: SyncStrategy.fullRecovery,
+    );
   }
 
   Future<void> _refreshCollections(AccountEntity account) async {
-    if (_refreshingAccountIds.contains(account.id)) return;
     final navigationGeneration = _accountNavigationGeneration;
-    setState(() => _refreshingAccountIds.add(account.id));
     try {
       var current = await ref
           .read(accountsRepositoryProvider)
           .accountById(account.id);
-      if ((current?.provider == BusyProvider.nextcloud ||
+      final requiresRevalidation =
+          (current?.provider == BusyProvider.nextcloud ||
               current?.provider == BusyProvider.caldav) &&
           (current?.connectionState ==
                   AccountConnectionState.permissionChanged ||
               current?.connectionState ==
-                  AccountConnectionState.unsupportedServerProfile)) {
+                  AccountConnectionState.unsupportedServerProfile);
+      if (requiresRevalidation) {
         await ref
             .read(davAccountOnboardingServiceProvider)
             .revalidateAccount(account.id);
@@ -1606,9 +1589,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         }
         return;
       }
-      await ref.read(signedInSyncRunnerProvider)(account.id, true);
       if (mounted && navigationGeneration == _accountNavigationGeneration) {
-        _showMessage(context, context.l10n.syncComplete);
+        if (requiresRevalidation) {
+          await ref.read(manualSyncRunnerProvider)(
+            accountSyncScope(account.id),
+            strategy: SyncStrategy.fullRecovery,
+          );
+          return;
+        }
+        await refreshFromMaterial(
+          context,
+          ref,
+          accountSyncScope(account.id),
+          inspectFailure: false,
+        );
       }
     } on Object catch (error) {
       if (mounted && navigationGeneration == _accountNavigationGeneration) {
@@ -1619,8 +1613,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
         );
       }
-    } finally {
-      if (mounted) setState(() => _refreshingAccountIds.remove(account.id));
     }
   }
 
@@ -2220,12 +2212,25 @@ class _AccountManagementSection extends ConsumerWidget {
             ],
           ),
           _AccountsLoadState(state: ref.watch(accountManagementStreamProvider)),
-          if (accounts.isNotEmpty)
+          if (accounts.isNotEmpty || subscriptions.isNotEmpty)
             BusyMaxGroupedList(
               title: l10n.connectedAccounts,
               titleStyle: _settingsAccountSubsectionStyle(context),
               filled: true,
               children: [
+                BusyMaxActionRow(
+                  title: l10n.refreshAll,
+                  leading: const SyncActivityIcon(
+                    scope: allSyncScope,
+                    refresh: Icon(YaruIcons.refresh),
+                    warning: Icon(YaruIcons.warning),
+                    child: Icon(YaruIcons.refresh),
+                  ),
+                  onTap:
+                      ref.watch(accountSyncActivityProvider).busy(allSyncScope)
+                      ? null
+                      : () => refreshFromMaterial(context, ref, allSyncScope),
+                ),
                 for (final account in accounts)
                   _AccountOverviewRow(
                     key: ValueKey('account-entry-${account.id}'),
@@ -2281,6 +2286,34 @@ class _AccountManagementSection extends ConsumerWidget {
                   onSelected: onCalendarSelected,
                   onProviderVisibilityChanged:
                       onCalendarProviderVisibilityChanged,
+                ),
+              if (!account.provider.isDav && account.isTaskCapable)
+                BusyMaxGroupedList(
+                  title: l10n.taskContent,
+                  filled: true,
+                  children: [
+                    for (final list
+                        in ref.watch(scheduleTaskListsProvider).valueOrNull ??
+                            const <TaskListEntity>[])
+                      if (list.accountId == account.id)
+                        BusyMaxActionRow(
+                          title: list.title,
+                          trailing: YaruIconButton(
+                            tooltip: l10n.refreshList,
+                            icon: SyncActivityIcon(
+                              scope: taskListSyncScope(account.id, list.id),
+                              refresh: const Icon(YaruIcons.refresh),
+                              warning: const Icon(YaruIcons.warning),
+                              child: const Icon(YaruIcons.refresh),
+                            ),
+                            onPressed: () => refreshFromMaterial(
+                              context,
+                              ref,
+                              taskListSyncScope(account.id, list.id),
+                            ),
+                          ),
+                        ),
+                  ],
                 ),
               if (account.provider.isDav)
                 _DavCollectionsCard(
@@ -2620,11 +2653,10 @@ class _AccountOverviewRow extends ConsumerWidget {
     final feedback = _primaryAccountFeedback(context, ref, account);
     final activity = ref.watch(accountSyncActivityProvider);
     final dav = account.provider.isDav;
-    final running = [
-      'dav',
-      'calendar',
-      'tasks',
-    ].any((d) => activity.isRunning(account.id, d));
+    final running = activity.accountRunning(account.id);
+    final refreshed = ref
+        .watch(accountDomainSyncTimesProvider(account.id))
+        .valueOrNull?[accountRefreshHistoryKey];
     final loading = dav
         ? ref.watch(davCollectionsStreamProvider).isLoading ||
               ref.watch(davAccountDiscoveryProvider(account.id)).isLoading
@@ -2653,6 +2685,7 @@ class _AccountOverviewRow extends ConsumerWidget {
                           ].contains(operation.state));
             });
     final domainFailure =
+        activity.accountHasFailure(account.id) ||
         [
           'calendar',
           'tasks',
@@ -2686,7 +2719,9 @@ class _AccountOverviewRow extends ConsumerWidget {
         ? l10n.collectionsLoading
         : domainFailure || inventoryFailed || visibilityFailed
         ? l10n.accountSyncProblem
-        : l10n.accountReadyToSync;
+        : refreshed == null
+        ? l10n.syncNotYetRefreshed
+        : l10n.syncLastRefreshed(_formatDavDateTime(context, refreshed));
     return BusyMaxActionRow(
       focusNode: focusNode,
       title: _accountIdentityLabel(context, account),
@@ -3573,6 +3608,20 @@ class _CalendarSettingsRowState extends ConsumerState<_CalendarSettingsRow> {
         ),
       ),
     );
+    final refresh = YaruIconButton(
+      tooltip: l10n.refreshCalendar,
+      icon: SyncActivityIcon(
+        scope: calendarSyncScope(source.accountId, source.id),
+        refresh: const Icon(YaruIcons.refresh),
+        warning: const Icon(YaruIcons.warning),
+        child: const Icon(YaruIcons.refresh),
+      ),
+      onPressed: () => refreshFromMaterial(
+        context,
+        ref,
+        calendarSyncScope(source.accountId, source.id),
+      ),
+    );
     final localRow = BusyMaxActionRow(
       title: google ? l10n.showInBusyMax : source.summary,
       titleWidget: Text(google ? l10n.showInBusyMax : source.summary),
@@ -3580,12 +3629,16 @@ class _CalendarSettingsRowState extends ConsumerState<_CalendarSettingsRow> {
       subtitleWidget: google || details.isEmpty ? null : Text(details),
       leading: google
           ? null
-          : _DavCollectionIndicator(color: source.backgroundColor),
+          : _DavCollectionIndicator(
+              color: source.backgroundColor,
+              scope: calendarSyncScope(source.accountId, source.id),
+            ),
       onTap: source.hidden ? null : () => selectLocal(!localValue),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           localVisibilityControl(),
+          refresh,
           if (source.provider == BusyProvider.microsoft &&
               source.capabilities.removalMode ==
                   CalendarRemovalMode.removeFromList)
@@ -3617,7 +3670,10 @@ class _CalendarSettingsRowState extends ConsumerState<_CalendarSettingsRow> {
               titleWidget: Text(source.summary),
               subtitle: details.isEmpty ? null : details,
               subtitleWidget: details.isEmpty ? null : Text(details),
-              leading: _DavCollectionIndicator(color: source.backgroundColor),
+              leading: _DavCollectionIndicator(
+                color: source.backgroundColor,
+                scope: calendarSyncScope(source.accountId, source.id),
+              ),
             ),
             child: Column(
               children: [
@@ -3907,7 +3963,13 @@ class _CalendarSubscriptionsCard extends StatelessWidget {
               BusyMaxActionRow(
                 title: subscription.name,
                 subtitle: subscription.safeOrigin,
-                leading: _DavCollectionIndicator(color: subscription.color),
+                leading: _DavCollectionIndicator(
+                  color: subscription.color,
+                  scope: calendarSyncScope(
+                    subscription.accountId,
+                    subscription.calendarSourceId,
+                  ),
+                ),
               ),
               BusyMaxActionRow(
                 title: l10n.subscriptionReadOnly,
@@ -3930,7 +3992,7 @@ class _CalendarSubscriptionsCard extends StatelessWidget {
                 ),
               ),
               BusyMaxActionRow(
-                title: l10n.refreshNow,
+                title: l10n.refreshCalendar,
                 leading: const Icon(YaruIcons.sync),
                 onTap: busySubscriptionIds.contains(subscription.id)
                     ? null
@@ -4409,7 +4471,7 @@ class _AccountManagementCard extends ConsumerWidget {
           failureRow(primary)
         else ...[
           BusyMaxActionRow(
-            title: refreshing ? l10n.traySyncing : l10n.refreshNow,
+            title: l10n.refreshAccount,
             leading: const Icon(YaruIcons.sync),
             onTap: removing || refreshing ? null : onRefreshCollections,
           ),
@@ -4519,7 +4581,7 @@ class _DavCollectionsCard extends ConsumerWidget {
   }
 }
 
-class _DavCollectionItem extends StatefulWidget {
+class _DavCollectionItem extends ConsumerStatefulWidget {
   const _DavCollectionItem({
     super.key,
     required this.collection,
@@ -4532,10 +4594,10 @@ class _DavCollectionItem extends StatefulWidget {
   final void Function(DavCollectionSettingsEntity, bool) onEventsSelected,
       onTasksSelected;
   @override
-  State<_DavCollectionItem> createState() => _DavCollectionItemState();
+  ConsumerState<_DavCollectionItem> createState() => _DavCollectionItemState();
 }
 
-class _DavCollectionItemState extends State<_DavCollectionItem> {
+class _DavCollectionItemState extends ConsumerState<_DavCollectionItem> {
   bool _expanded = false;
   @override
   Widget build(BuildContext context) {
@@ -4549,6 +4611,17 @@ class _DavCollectionItemState extends State<_DavCollectionItem> {
       if (error != null && error.kind != widget.sharedFailure?.kind)
         error.message,
     ].join(' · ');
+    final scope = davCollectionSyncScope(collection.accountId, collection.id);
+    final refresh = YaruIconButton(
+      tooltip: l10n.refreshCollection,
+      icon: SyncActivityIcon(
+        scope: scope,
+        refresh: const Icon(YaruIcons.refresh),
+        warning: const Icon(YaruIcons.warning),
+        child: const Icon(YaruIcons.refresh),
+      ),
+      onPressed: () => refreshFromMaterial(context, ref, scope),
+    );
     final settings = collection.provider != BusyProvider.nextcloud
         ? null
         : YaruIconButton(
@@ -4571,7 +4644,10 @@ class _DavCollectionItemState extends State<_DavCollectionItem> {
               ),
               title: collection.name,
               subtitle: subtitle,
-              leading: _DavCollectionIndicator(color: collection.color),
+              leading: _DavCollectionIndicator(
+                color: collection.color,
+                scope: scope,
+              ),
               value: collection.supportsEvents
                   ? collection.eventsSelected
                   : collection.tasksSelected,
@@ -4580,6 +4656,7 @@ class _DavCollectionItemState extends State<_DavCollectionItem> {
                   : widget.onTasksSelected(collection, selected),
             ),
           ),
+          refresh,
           if (settings != null)
             Padding(
               padding: const EdgeInsetsDirectional.only(end: BusyMaxSpacing.md),
@@ -4600,8 +4677,14 @@ class _DavCollectionItemState extends State<_DavCollectionItem> {
           titleWidget: Text(collection.name),
           subtitle: subtitle,
           subtitleWidget: Text(subtitle),
-          leading: _DavCollectionIndicator(color: collection.color),
-          trailing: settings,
+          leading: _DavCollectionIndicator(
+            color: collection.color,
+            scope: scope,
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [refresh, ?settings],
+          ),
         ),
         child: Column(
           children: [
@@ -4629,13 +4712,14 @@ class _DavCollectionItemState extends State<_DavCollectionItem> {
 }
 
 class _DavCollectionIndicator extends StatelessWidget {
-  const _DavCollectionIndicator({required this.color});
+  const _DavCollectionIndicator({required this.color, this.scope});
 
   final String? color;
+  final SyncScope? scope;
 
   @override
   Widget build(BuildContext context) {
-    return ExcludeSemantics(
+    final indicator = ExcludeSemantics(
       child: Container(
         width: BusyMaxSizes.iconSm,
         height: BusyMaxSizes.iconSm,
@@ -4647,6 +4731,24 @@ class _DavCollectionIndicator extends StatelessWidget {
           ),
         ),
       ),
+    );
+    final key = scope;
+    if (key == null) return indicator;
+    final resolvedColor =
+        _parseDavColor(color) ?? Theme.of(context).colorScheme.primary;
+    return SyncActivityIcon(
+      scope: key,
+      refresh: Icon(
+        YaruIcons.refresh,
+        color: resolvedColor,
+        size: BusyMaxSizes.iconSm,
+      ),
+      warning: Icon(
+        YaruIcons.warning,
+        color: resolvedColor,
+        size: BusyMaxSizes.iconSm,
+      ),
+      child: indicator,
     );
   }
 }

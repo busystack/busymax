@@ -1,3 +1,8 @@
+import 'package:busymax/src/platform/gtk_animation_settings_service.dart';
+import 'package:go_router/go_router.dart';
+import 'package:busymax/l10n/generated/app_localizations.dart';
+import 'package:busymax/src/features/sync/sync_request.dart';
+
 import 'dart:async';
 
 import 'package:busymax/src/dav/dav_errors.dart';
@@ -230,6 +235,55 @@ void main() {
     },
   );
 
+  for (final motion in [true, false]) {
+    testWidgets(
+      'calendar synchronization restores the row quietly with GTK animations $motion',
+      (tester) async {
+        final account = _account(BusyProvider.google, id: 'account');
+        final source = _calendar(
+          account.id,
+          'calendar',
+          backgroundColor: '#123456',
+        );
+        await _pumpSidebar(
+          tester,
+          [account],
+          calendarSources: [source],
+          gtkAnimations: motion,
+        );
+        final row = _row(('schedule-calendar', account.id, source.id));
+        final original = tester.getRect(row);
+        final scope = calendarSyncScope(account.id, source.id);
+        final container = ProviderScope.containerOf(tester.element(row));
+        final activity = container.read(accountSyncActivityProvider.notifier);
+        final release = Completer<void>();
+        final active = activity.resource([scope], () => release.future);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 180));
+        final rotation = find.descendant(
+          of: row,
+          matching: find.byType(RotationTransition),
+        );
+        expect(rotation, motion ? findsOneWidget : findsNothing);
+        final icon = tester.widget<Icon>(
+          find.descendant(of: row, matching: find.byIcon(YaruIcons.refresh)),
+        );
+        expect(icon.color, const Color(0xff123456));
+        expect(tester.getRect(row), original);
+        release.complete();
+        await active;
+        await tester.pumpAndSettle();
+        expect(rotation, findsNothing);
+        expect(
+          find.descendant(of: row, matching: find.byIcon(YaruIcons.calendar)),
+          findsOneWidget,
+        );
+        expect(find.byType(SnackBar), findsNothing);
+        expect(tester.getRect(row), original);
+      },
+    );
+  }
+
   testWidgets('eligible calendar refresh dispatches synchronization', (
     tester,
   ) async {
@@ -258,6 +312,10 @@ void main() {
     menu.onSelected('refresh');
     await tester.pumpAndSettle();
 
+    expect(
+      sync.requests.single.scope,
+      calendarSyncScope(account.id, 'calendar'),
+    );
     expect(sync.calendarCalls, 1);
   });
 
@@ -279,6 +337,7 @@ void main() {
         accountsRepository: accounts,
         authRepository: auth,
         syncOperations: sync,
+        recoveryRouter: true,
         calendarSources: [_calendar(account.id, 'calendar')],
       );
 
@@ -307,9 +366,10 @@ void main() {
       expect(refresh.enabled, isFalse);
       expect(refresh.tooltip, 'This account needs to be reconnected.');
 
-      menu.onSelected('refresh');
-      await tester.pumpAndSettle();
       expect(sync.calendarCalls, 1);
+      await tester.tap(find.text('Reconnect Google account'));
+      await tester.pumpAndSettle();
+      expect(find.text('Reconnect account account'), findsOneWidget);
     },
   );
 
@@ -331,6 +391,7 @@ void main() {
         accountsRepository: accounts,
         authRepository: auth,
         syncOperations: sync,
+        recoveryRouter: true,
         taskLists: [_list(account.id, 'tasks')],
       );
 
@@ -340,6 +401,10 @@ void main() {
       menu.onSelected('refresh');
       await tester.pumpAndSettle();
 
+      expect(
+        sync.requests.single.scope,
+        taskListSyncScope(account.id, 'tasks'),
+      );
       expect(sync.taskCalls, 1);
       expect(auth.markedAccountIds, ['account']);
       expect(accounts.account.needsReconnect, isTrue);
@@ -358,9 +423,10 @@ void main() {
         isFalse,
       );
 
-      menu.onSelected('refresh');
-      await tester.pumpAndSettle();
       expect(sync.taskCalls, 1);
+      await tester.tap(find.text('Reconnect Google account'));
+      await tester.pumpAndSettle();
+      expect(find.text('Reconnect account account'), findsOneWidget);
     },
   );
 
@@ -808,8 +874,17 @@ void main() {
             )),
           ),
         );
-    expect(menu.entries.map((entry) => entry.label), ['Move up', 'Move down']);
-    expect(menu.entries.every((entry) => !entry.enabled), isTrue);
+    expect(menu.entries.map((entry) => entry.label), [
+      'Refresh account',
+      'Move up',
+      'Move down',
+    ]);
+    expect(
+      menu.entries
+          .where((entry) => entry.label.startsWith('Move'))
+          .every((entry) => !entry.enabled),
+      isTrue,
+    );
     expect(find.text('No calendars synced yet.'), findsOneWidget);
     expect(find.text('No task lists synced yet.'), findsOneWidget);
   });
@@ -894,7 +969,7 @@ void main() {
           ),
         );
 
-    expect(menu.entries, hasLength(5));
+    expect(menu.entries, hasLength(6));
     expect(menu.entries.every((entry) => !entry.enabled), isTrue);
   });
 
@@ -1106,14 +1181,63 @@ Future<void> _pumpSidebar(
   AccountsRepository? accountsRepository,
   AuthRepository? authRepository,
   AccountSyncOperations? syncOperations,
+  bool recoveryRouter = false,
+  bool? gtkAnimations,
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = const Size(900, 1200);
   addTearDown(tester.view.resetDevicePixelRatio);
   addTearDown(tester.view.resetPhysicalSize);
+  final sidebar = Scaffold(
+    body: Align(
+      alignment: Alignment.topLeft,
+      child: SizedBox(
+        width: width,
+        height: height,
+        child: ScheduleSidebar(
+          selectedDate: DateTime(2026, 8, 29),
+          firstWeekday: DateTime.monday,
+          items: const [],
+          onDateSelected: (_) {},
+          onMonthSelected: (_) {},
+          onYearSelected: (_) {},
+          onWeekSelected: (_) {},
+        ),
+      ),
+    ),
+  );
+  final router = !recoveryRouter
+      ? null
+      : GoRouter(
+          routes: [
+            GoRoute(path: '/', builder: (_, _) => sidebar),
+            GoRoute(
+              path: '/settings',
+              builder: (_, state) => Scaffold(
+                body: Text(
+                  'Reconnect account ${state.uri.queryParameters['reconnect']}',
+                ),
+              ),
+            ),
+          ],
+        );
+  if (router != null) addTearDown(router.dispose);
+  final root = router == null
+      ? localizedTestApp(child: sidebar, locale: locale, theme: theme)
+      : MaterialApp.router(
+          routerConfig: router,
+          locale: locale,
+          theme: theme,
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+        );
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        if (gtkAnimations != null)
+          gtkAnimationsEnabledProvider.overrideWith(
+            (ref) => Stream.value(gtkAnimations),
+          ),
         authorizationGenerationReaderProvider.overrideWithValue((_) async => 0),
         localSettingsStoreProvider.overrideWithValue(
           settingsStore ?? MemorySettingsStore(),
@@ -1159,28 +1283,7 @@ Future<void> _pumpSidebar(
             creationService,
           ),
       ],
-      child: localizedTestApp(
-        locale: locale,
-        theme: theme,
-        child: Scaffold(
-          body: Align(
-            alignment: Alignment.topLeft,
-            child: SizedBox(
-              width: width,
-              height: height,
-              child: ScheduleSidebar(
-                selectedDate: DateTime(2026, 8, 29),
-                firstWeekday: DateTime.monday,
-                items: const [],
-                onDateSelected: (_) {},
-                onMonthSelected: (_) {},
-                onYearSelected: (_) {},
-                onWeekSelected: (_) {},
-              ),
-            ),
-          ),
-        ),
-      ),
+      child: root,
     ),
   );
   await tester.pumpAndSettle();
@@ -1309,13 +1412,32 @@ const _wrappedInvalidGrant = KnownUnsentRequestException(
   ),
 );
 
-final class _RecordingAccountSyncOperations implements AccountSyncOperations {
+final class _RecordingAccountSyncOperations
+    implements ScopedAccountSyncOperations {
   _RecordingAccountSyncOperations({this.calendarError, this.taskError});
 
   final Object? calendarError;
   final Object? taskError;
   int calendarCalls = 0;
   int taskCalls = 0;
+  final requests = <SyncRequest>[];
+
+  @override
+  Future<SyncOutcome> execute(SyncRequest request) async {
+    requests.add(request);
+    final error = switch (request.scope.kind) {
+      SyncScopeKind.calendarSource => calendarError,
+      SyncScopeKind.taskList => taskError,
+      _ => null,
+    };
+    if (request.scope.kind == SyncScopeKind.calendarSource) calendarCalls++;
+    if (request.scope.kind == SyncScopeKind.taskList) taskCalls++;
+    return SyncOutcome(
+      request,
+      error == null ? SyncDisposition.completed : SyncDisposition.failed,
+      error: error,
+    );
+  }
 
   @override
   Future<void> syncAccount(String accountId, {required bool full}) async {}

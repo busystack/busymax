@@ -1453,10 +1453,35 @@ class AppLocalizationsDe extends AppLocalizations {
   String get refreshAll => 'Alle aktualisieren';
 
   @override
-  String get listRefreshed => 'Liste aktualisiert.';
+  String get refreshAccount => 'Konto aktualisieren';
 
   @override
-  String get allTasksRefreshed => 'Alle Konten aktualisiert.';
+  String get refreshCollection => 'Sammlung aktualisieren';
+
+  @override
+  String get syncQueued => 'Aktualisierung in Warteschlange';
+
+  @override
+  String get syncNotYetRefreshed => 'Noch nicht synchronisiert';
+
+  @override
+  String syncLastRefreshed(String date) {
+    return 'Zuletzt aktualisiert $date';
+  }
+
+  @override
+  String get scheduleCoverageStatus => 'Terminabdeckung';
+
+  @override
+  String get scheduleCoveragePending =>
+      'Termine in diesem Zeitraum werden geprüft oder wurden noch nicht überprüft.';
+
+  @override
+  String get scheduleCoverageVerified =>
+      'Die Termine in diesem Zeitraum wurden überprüft.';
+
+  @override
+  String get listRefreshed => 'Liste aktualisiert.';
 
   @override
   String exportedFile(String path) {
@@ -2109,7 +2134,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get forceFullResyncDescription =>
-      'Lädt alle Daten aus jedem verbundenen Konto vollständig neu. Verwenden Sie diese Option nur zur Behebung von Synchronisierungsproblemen.';
+      'Erstellt, soweit unterstützt, den Synchronisierungsstand für Kalender und Aufgaben berechtigter Konten neu und prüft Abonnements. Verwenden Sie dies zur Fehlerbehebung bei der Synchronisierung.';
 
   @override
   String get runInBackgroundWhenClosed =>
@@ -2136,9 +2161,6 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get requiresTrayIcon =>
       'Erfordert das Symbol im Benachrichtigungsbereich.';
-
-  @override
-  String get syncComplete => 'Synchronisierung abgeschlossen.';
 
   @override
   String syncFailed(String error) {

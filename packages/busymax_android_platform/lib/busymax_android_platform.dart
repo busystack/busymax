@@ -205,6 +205,13 @@ final class BusyMaxAndroidPlatform {
     ),
   );
 
+  Future<void> publishSyncActivity(List<List<String?>> scopes) =>
+      _methodChannel.invokeMethod<void>('publishSyncActivity', scopes);
+
+  Future<List<Object?>> externalSyncActivity() async =>
+      await _methodChannel.invokeListMethod<Object?>('externalSyncActivity') ??
+      const [];
+
   Future<void> notifyDataChanged() =>
       _methodChannel.invokeMethod<void>('notifyDataChanged');
 

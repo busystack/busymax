@@ -196,6 +196,34 @@ void main() {
     release.complete();
   });
 
+  test(
+    'a caller arriving during a pass awaits its queued continuation',
+    () async {
+      final firstRelease = Completer<void>();
+      final secondRelease = Completer<void>();
+      var starts = 0;
+      final scheduler = AllAccountsSyncScheduler(
+        listSyncEligibleAccounts: () async => [_account('a')],
+        syncAccount: (_) =>
+            ++starts == 1 ? firstRelease.future : secondRelease.future,
+        onSyncFailure: (_) async {},
+      );
+      addTearDown(scheduler.dispose);
+      final first = scheduler.runNow();
+      await _waitFor(() => starts == 1);
+      var secondDone = false;
+      final second = scheduler.runNow().then((_) => secondDone = true);
+      firstRelease.complete();
+      await first;
+      await _waitFor(() => starts == 2);
+      expect(secondDone, isFalse);
+      expect(scheduler.isRunning, isTrue);
+      secondRelease.complete();
+      await second;
+      expect(scheduler.isRunning, isFalse);
+    },
+  );
+
   test('all-account scheduler exposes its read-only running state', () async {
     final release = Completer<void>();
     final states = <bool>[];

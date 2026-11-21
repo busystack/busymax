@@ -18,6 +18,8 @@ import '../notifications/notification_schedule_service.dart';
 import 'calendar_pending_ops_replayer.dart';
 import 'collection_id_replacement.dart';
 import 'domain_sync_schedule.dart';
+import 'sync_request.dart';
+import 'scoped_pending_replay.dart';
 
 // Google sync tokens are bound to their request shape. Bump this marker when
 // changing token-compatible event-list parameters so old cursors are rebased.
@@ -36,11 +38,15 @@ class CalendarSyncEngine {
     required CloudCalendarClient client,
     required String accountId,
     DateTime Function()? nowUtc,
+    CollectionActivity? trackCollection,
+    CollectionActivity? trackRangeCollection,
     Future<void> Function(String summary)? onConflictBlocked,
     CollectionIdReplacement? onCalendarSourceIdReplaced,
     Future<void> Function()? onNotificationScheduleChanged,
   }) : _repository = CalendarRepository(database: database, now: nowUtc),
        _database = database,
+       _trackCollection = trackCollection,
+       _trackRangeCollection = trackRangeCollection,
        _client = client,
        _accountId = accountId,
        _onConflictBlocked = onConflictBlocked,
@@ -56,6 +62,12 @@ class CalendarSyncEngine {
   final CollectionIdReplacement? _onCalendarSourceIdReplaced;
   final Future<void> Function()? _onNotificationScheduleChanged;
   final DateTime Function() _nowUtc;
+  final CollectionActivity? _trackCollection;
+  final _affectedCollectionIds = <String>{};
+  Set<String> get affectedCollectionIds =>
+      Set.unmodifiable(_affectedCollectionIds);
+
+  final CollectionActivity? _trackRangeCollection;
   MicrosoftCalendarApiError? _sharedAccessFailure;
 
   Future<void> dispatchPendingWrites() async {
@@ -109,105 +121,114 @@ class CalendarSyncEngine {
       await policy.checkCooldown(_accountId, SyncDomain.calendar);
       for (final source in sources) {
         await policy.checkCooldown(_accountId, SyncDomain.calendar);
-        // Both clients finish pagination before returning. A failed later page
-        // therefore cannot turn a partial response into an empty snapshot.
-        final events = await _client.listEvents(
-          calendarId: source.providerCalendarId,
-          rangeStart: start,
-          rangeEnd: end,
-        );
-        final recurringIds = <String>{
-          for (final event in events) ?event.providerRecurringEventId,
-        };
-        final existingInstances =
-            await (_database.select(_database.calendarEvents)..where(
-                  (row) =>
-                      row.calendarSourceId.equals(source.id) &
-                      row.providerRecurringEventId.isNotNull(),
-                ))
-                .get();
-        recurringIds.addAll(
-          existingInstances
-              .where((row) {
-                return storedCalendarEventOverlapsUtcRange(row, start, end);
-              })
-              .map((row) => row.providerRecurringEventId!),
-        );
-        final instances = <CalendarEventDto>[];
-        final masters = <CalendarEventDto>[];
-        for (final id in recurringIds) {
-          try {
-            await policy.checkCooldown(_accountId, SyncDomain.calendar);
-            instances.addAll(
-              await _client.listEventInstances(
-                calendarId: source.providerCalendarId,
-                recurringEventId: id,
-                rangeStart: start,
-                rangeEnd: end,
-              ),
-            );
-            await policy.checkCooldown(_accountId, SyncDomain.calendar);
-            masters.add(
-              await _client.getEvent(
-                calendarId: source.providerCalendarId,
-                eventId: id,
-              ),
-            );
-          } on GoogleCalendarApiError catch (error) {
-            if (error.statusCode != 404 && error.statusCode != 410) rethrow;
-          } on MicrosoftCalendarApiError catch (error) {
-            if (error.statusCode != 404 && error.statusCode != 410) rethrow;
+        Future<void> pull() async {
+          // Both clients finish pagination before returning. A failed later page
+          // therefore cannot turn a partial response into an empty snapshot.
+          final events = await _client.listEvents(
+            calendarId: source.providerCalendarId,
+            rangeStart: start,
+            rangeEnd: end,
+          );
+          final recurringIds = <String>{
+            for (final event in events) ?event.providerRecurringEventId,
+          };
+          final existingInstances =
+              await (_database.select(_database.calendarEvents)..where(
+                    (row) =>
+                        row.calendarSourceId.equals(source.id) &
+                        row.providerRecurringEventId.isNotNull(),
+                  ))
+                  .get();
+          recurringIds.addAll(
+            existingInstances
+                .where((row) {
+                  return storedCalendarEventOverlapsUtcRange(row, start, end);
+                })
+                .map((row) => row.providerRecurringEventId!),
+          );
+          final instances = <CalendarEventDto>[];
+          final masters = <CalendarEventDto>[];
+          for (final id in recurringIds) {
+            try {
+              await policy.checkCooldown(_accountId, SyncDomain.calendar);
+              instances.addAll(
+                await _client.listEventInstances(
+                  calendarId: source.providerCalendarId,
+                  recurringEventId: id,
+                  rangeStart: start,
+                  rangeEnd: end,
+                ),
+              );
+              await policy.checkCooldown(_accountId, SyncDomain.calendar);
+              masters.add(
+                await _client.getEvent(
+                  calendarId: source.providerCalendarId,
+                  eventId: id,
+                ),
+              );
+            } on GoogleCalendarApiError catch (error) {
+              if (error.statusCode != 404 && error.statusCode != 410) rethrow;
+            } on MicrosoftCalendarApiError catch (error) {
+              if (error.statusCode != 404 && error.statusCode != 410) rethrow;
+            }
           }
-        }
-        final returnedIds = <String>{};
-        for (final event in [...events, ...instances]) {
-          await _repository.upsertEvent(
-            accountId: _accountId,
-            event: event,
-            preservePendingLocalChanges: true,
-          );
-          returnedIds.add(
-            CalendarRepository.eventId(
+          final returnedIds = <String>{};
+          for (final event in [...events, ...instances]) {
+            await _repository.upsertEvent(
               accountId: _accountId,
-              provider: event.provider,
-              providerCalendarId: event.providerCalendarId,
-              providerEventId: event.providerEventId,
-              providerOriginalStartKey: event.providerOriginalStartKey,
-            ),
-          );
-        }
-        for (final master in masters) {
-          await _repository.upsertEvent(
+              event: event,
+              preservePendingLocalChanges: true,
+            );
+            returnedIds.add(
+              CalendarRepository.eventId(
+                accountId: _accountId,
+                provider: event.provider,
+                providerCalendarId: event.providerCalendarId,
+                providerEventId: event.providerEventId,
+                providerOriginalStartKey: event.providerOriginalStartKey,
+              ),
+            );
+          }
+          for (final master in masters) {
+            await _repository.upsertEvent(
+              accountId: _accountId,
+              event: master,
+              preservePendingLocalChanges: true,
+            );
+          }
+          await _repository.markExpandedRecurringMastersDeleted(
             accountId: _accountId,
-            event: master,
-            preservePendingLocalChanges: true,
+            provider: provider,
+            providerCalendarId: source.providerCalendarId,
+            providerRecurringEventIds: recurringIds,
+          );
+          await _repository.markMissingEventsDeleted(
+            accountId: _accountId,
+            provider: provider,
+            providerCalendarId: source.providerCalendarId,
+            rangeStart: start,
+            rangeEnd: end,
+            returnedLocalEventIds: returnedIds,
+          );
+          await _repository.saveSyncState(
+            accountId: _accountId,
+            provider: provider,
+            syncKind: 'events_range_${start.year}_${start.month}',
+            calendarSourceId: source.id,
+            rangeStart: start.toIso8601String(),
+            rangeEnd: end.toIso8601String(),
+            cursorKind: 'snapshot_generation',
+            cursorValue: '0',
+            full: true,
           );
         }
-        await _repository.markExpandedRecurringMastersDeleted(
-          accountId: _accountId,
-          provider: provider,
-          providerCalendarId: source.providerCalendarId,
-          providerRecurringEventIds: recurringIds,
-        );
-        await _repository.markMissingEventsDeleted(
-          accountId: _accountId,
-          provider: provider,
-          providerCalendarId: source.providerCalendarId,
-          rangeStart: start,
-          rangeEnd: end,
-          returnedLocalEventIds: returnedIds,
-        );
-        await _repository.saveSyncState(
-          accountId: _accountId,
-          provider: provider,
-          syncKind: 'events_range_${start.year}_${start.month}',
-          calendarSourceId: source.id,
-          rangeStart: start.toIso8601String(),
-          rangeEnd: end.toIso8601String(),
-          cursorKind: 'snapshot_generation',
-          cursorValue: '0',
-          full: true,
-        );
+
+        final track = _trackRangeCollection;
+        if (track == null) {
+          await pull();
+        } else {
+          await track(source.id, pull);
+        }
       }
     } on Object catch (error) {
       await policy.recordFailureCooldown(
@@ -225,94 +246,146 @@ class CalendarSyncEngine {
     }
   }
 
-  Future<void> fullSync() async {
+  Future<void> fullSync() => _syncAccount(full: true);
+
+  Future<void> incrementalSync() => _syncAccount(full: false);
+
+  Future<void> _syncAccount({required bool full}) async {
     try {
       await _replayPendingOps();
       final calendars = await _refreshCalendarSources();
-
-      final window = _calendarSyncWindow(_nowUtc());
       for (final calendar in calendars.where((source) => !source.isDeleted)) {
-        await _syncCalendarRange(
-          providerCalendarId: calendar.providerCalendarId,
-          primaryCalendar: calendar.primaryCalendar,
-          rangeStart: window.start,
-          rangeEnd: window.end,
-          full: true,
+        final sourceId = _sourceId(calendar.providerCalendarId);
+        _affectedCollectionIds.add(sourceId);
+        Future<void> pull() => _pullSource(
+          calendar.providerCalendarId,
+          calendar.primaryCalendar,
+          full: full,
         );
+        final track = _trackCollection;
+        if (track == null) {
+          await pull();
+        } else {
+          await track(sourceId, pull);
+        }
       }
       if (_sharedAccessFailure case final failure?) throw failure;
     } finally {
-      // Earlier pages and pending operations may already have committed.
-      await NotificationScheduleService(
-        database: _database,
-        nowUtc: _nowUtc,
-      ).rebuildUpcomingEventNotifications(_accountId);
-      await _onNotificationScheduleChanged?.call();
+      await _maintainEventReminders();
     }
   }
 
-  Future<void> incrementalSync() async {
+  Future<SyncDisposition> refreshSource(
+    String sourceId, {
+    bool full = false,
+    void Function(String)? onAffected,
+    CollectionWriteActivity? trackWrite,
+  }) async {
+    var id = sourceId;
+    final initial = await _source(id);
+    if (initial == null || initial.isDeleted) return SyncDisposition.missing;
+    var deferred = false;
     try {
-      await _replayPendingOps();
-      final calendars = await _refreshCalendarSources();
-
-      final window = _calendarSyncWindow(_nowUtc());
-      final rangeStartValue = window.start.toIso8601String();
-      final rangeEndValue = window.end.toIso8601String();
-      for (final calendar in calendars.where((source) => !source.isDeleted)) {
-        final sourceId = CalendarRepository.sourceId(
-          accountId: _accountId,
-          provider: provider,
-          providerCalendarId: calendar.providerCalendarId,
+      try {
+        await _replayPendingOps(
+          sourceId: id,
+          providerCalendarId: initial.providerCalendarId,
+          onIdReplaced: (oldId, newId) async {
+            if (id == oldId) id = newId;
+            onAffected?.call(newId);
+            await _onCalendarSourceIdReplaced?.call(oldId, newId);
+          },
+          trackOperation: (op, work) {
+            final ids = {
+              ?op.calendarSourceId,
+              if (pendingReplayPayload(op)['destinationCalendarId']
+                  case final String destination)
+                _sourceId(destination),
+            };
+            for (final id in ids) {
+              onAffected?.call(id);
+            }
+            return trackWrite?.call(ids, work) ?? work();
+          },
         );
-        final state = await _repository.syncState(
-          accountId: _accountId,
-          provider: provider,
-          syncKind: 'events',
-          calendarSourceId: sourceId,
-        );
-        final rangeMatches =
-            state?.rangeStart == rangeStartValue &&
-            state?.rangeEnd == rangeEndValue;
-        final expectedCursorKind = provider == BusyProvider.google
-            ? 'google_sync_token'
-            : 'microsoft_delta_link';
-        final savedCursor = state?.cursorKind == expectedCursorKind
-            ? state?.cursorValue
-            : null;
-        final supportsIncrementalCursor =
-            provider == BusyProvider.google || calendar.primaryCalendar;
-        final syncOptionsMatch =
-            provider != BusyProvider.google ||
-            state?.stateJson == _googleExpandedEventsSyncState;
-        final tokenOrLink =
-            supportsIncrementalCursor &&
-                rangeMatches &&
-                syncOptionsMatch &&
-                savedCursor?.isNotEmpty == true
-            ? savedCursor
-            : null;
-        final requiresSnapshot =
-            tokenOrLink == null ||
-            (provider == BusyProvider.microsoft && !calendar.primaryCalendar);
-        await _syncCalendarRange(
-          providerCalendarId: calendar.providerCalendarId,
-          primaryCalendar: calendar.primaryCalendar,
-          rangeStart: window.start,
-          rangeEnd: window.end,
-          tokenOrLink: tokenOrLink,
-          full: requiresSnapshot,
-        );
+      } on ScopedSyncDeferred {
+        deferred = true;
       }
-      if (_sharedAccessFailure case final failure?) throw failure;
+      final source = await _source(id);
+      if (source == null || source.isDeleted) return SyncDisposition.missing;
+      if (source.providerCalendarId.startsWith('local:')) {
+        return SyncDisposition.deferred;
+      }
+      onAffected?.call(id);
+      await _pullSource(
+        source.providerCalendarId,
+        source.primaryCalendar,
+        full: full,
+      );
+      return deferred ? SyncDisposition.deferred : SyncDisposition.completed;
     } finally {
-      // Earlier pages and pending operations may already have committed.
-      await NotificationScheduleService(
-        database: _database,
-        nowUtc: _nowUtc,
-      ).rebuildUpcomingEventNotifications(_accountId);
-      await _onNotificationScheduleChanged?.call();
+      await _maintainEventReminders();
     }
+  }
+
+  String _sourceId(String providerCalendarId) => CalendarRepository.sourceId(
+    accountId: _accountId,
+    provider: provider,
+    providerCalendarId: providerCalendarId,
+  );
+
+  Future<CalendarSource?> _source(String id) =>
+      (_database.select(_database.calendarSources)..where(
+            (row) =>
+                row.accountId.equals(_accountId) &
+                row.provider.equals(provider.storageValue) &
+                row.id.equals(id),
+          ))
+          .getSingleOrNull();
+
+  Future<void> _maintainEventReminders() async {
+    await NotificationScheduleService(
+      database: _database,
+      nowUtc: _nowUtc,
+    ).rebuildUpcomingEventNotifications(_accountId);
+    await _onNotificationScheduleChanged?.call();
+  }
+
+  Future<void> _pullSource(
+    String providerCalendarId,
+    bool primaryCalendar, {
+    required bool full,
+  }) async {
+    final window = _calendarSyncWindow(_nowUtc());
+    String? tokenOrLink;
+    if (!full && (provider == BusyProvider.google || primaryCalendar)) {
+      final state = await _repository.syncState(
+        accountId: _accountId,
+        provider: provider,
+        syncKind: 'events',
+        calendarSourceId: _sourceId(providerCalendarId),
+      );
+      final expectedCursorKind = provider == BusyProvider.google
+          ? 'google_sync_token'
+          : 'microsoft_delta_link';
+      if (state != null &&
+          state.rangeStart == window.start.toIso8601String() &&
+          state.rangeEnd == window.end.toIso8601String() &&
+          state.cursorKind == expectedCursorKind &&
+          (provider != BusyProvider.google ||
+              state.stateJson == _googleExpandedEventsSyncState) &&
+          state.cursorValue.isNotEmpty) {
+        tokenOrLink = state.cursorValue;
+      }
+    }
+    await _syncCalendarRange(
+      providerCalendarId: providerCalendarId,
+      primaryCalendar: primaryCalendar,
+      rangeStart: window.start,
+      rangeEnd: window.end,
+      tokenOrLink: tokenOrLink,
+      full: tokenOrLink == null,
+    );
   }
 
   Future<List<CalendarSourceDto>> _refreshCalendarSources() async {
@@ -576,15 +649,24 @@ class CalendarSyncEngine {
     }
   }
 
-  Future<int> _replayPendingOps() {
+  Future<int> _replayPendingOps({
+    String? sourceId,
+    String? providerCalendarId,
+    CollectionIdReplacement? onIdReplaced,
+    Future<void> Function(PendingOp, Future<void> Function())? trackOperation,
+  }) {
     return CalendarPendingOpsReplayer(
       database: _database,
       client: _client,
       accountId: _accountId,
       nowUtc: _nowUtc,
       onConflictBlocked: _onConflictBlocked,
-      onCalendarSourceIdReplaced: _onCalendarSourceIdReplaced,
-    ).replayDueOps();
+      onCalendarSourceIdReplaced: onIdReplaced ?? _onCalendarSourceIdReplaced,
+    ).replayDueOps(
+      sourceId: sourceId,
+      providerCalendarId: providerCalendarId,
+      trackOperation: trackOperation,
+    );
   }
 }
 

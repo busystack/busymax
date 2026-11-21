@@ -1,3 +1,5 @@
+import 'package:busymax/src/features/sync/sync_request.dart';
+
 import 'dart:async';
 import 'dart:convert';
 
@@ -42,6 +44,118 @@ void main() {
 
   tearDown(() async {
     await database.close();
+  });
+
+  test('targeted calendar recovers an expired baseline without touching its range or siblings', () async {
+    await _insertAccount(database, provider: BusyProvider.google);
+    final account = await database.select(database.accounts).getSingle();
+    await database
+        .into(database.accounts)
+        .insert(
+          account
+              .toCompanion(false)
+              .copyWith(
+                id: const Value('other'),
+                providerAccountId: const Value('other'),
+              ),
+        );
+    final repository = CalendarRepository(database: database);
+    final ids = <String>[];
+    for (final (accountId, id) in [
+      ('account', 'a'),
+      ('account', 'b'),
+      ('other', 'a'),
+    ]) {
+      await repository.upsertSource(
+        accountId: accountId,
+        source: CalendarSourceDto(
+          provider: BusyProvider.google,
+          providerCalendarId: id,
+          summary: 'Synthetic calendar',
+          hidden: true,
+          selected: false,
+          readOnly: true,
+        ),
+      );
+      final sourceId = CalendarRepository.sourceId(
+        accountId: accountId,
+        provider: BusyProvider.google,
+        providerCalendarId: id,
+      );
+      ids.add(sourceId);
+      await repository.saveSyncState(
+        accountId: accountId,
+        provider: BusyProvider.google,
+        syncKind: 'events',
+        calendarSourceId: sourceId,
+        rangeStart: DateTime.utc(2025, 7).toIso8601String(),
+        rangeEnd: DateTime.utc(2028, 8).toIso8601String(),
+        cursorKind: 'google_sync_token',
+        cursorValue: 'prior-$accountId-$id',
+        stateJson: '{"singleEvents":true,"version":1}',
+        full: true,
+      );
+    }
+    await repository.saveSyncState(
+      accountId: 'account',
+      provider: BusyProvider.google,
+      syncKind: 'events_range_2027_1',
+      calendarSourceId: ids.first,
+      rangeStart: '2027-01-01',
+      rangeEnd: '2027-02-01',
+      cursorKind: 'snapshot_generation',
+      cursorValue: 'range-stamp',
+      full: true,
+    );
+    final client = _FakeCalendarClient(
+      provider: BusyProvider.google,
+      calendars: const [],
+      pages: [
+        const CalendarSyncPageDto(events: [], requiresFullSync: true),
+        CalendarSyncPageDto(
+          events: [
+            _event(provider: BusyProvider.google, providerCalendarId: 'a'),
+          ],
+          nextSyncTokenOrDeltaLink: 'new-a',
+        ),
+      ],
+    );
+    expect(
+      await CalendarSyncEngine(
+        database: database,
+        client: client,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 7, 15),
+      ).refreshSource(ids.first),
+      SyncDisposition.completed,
+    );
+    expect(client.inventoryCalls, 0);
+    expect(client.syncCalendarIds, ['a', 'a']);
+    expect(client.syncCalls.map((call) => call.syncTokenOrDeltaLink), [
+      'prior-account-a',
+      null,
+    ]);
+    final cursors = await database.select(database.syncCursors).get();
+    expect(
+      cursors.map((row) => row.cursorValue),
+      unorderedEquals([
+        'new-a',
+        'prior-account-b',
+        'prior-other-a',
+        'range-stamp',
+      ]),
+    );
+    expect(
+      (await database.select(database.calendarSources).get()).every(
+        (row) => !row.isDeleted,
+      ),
+      isTrue,
+    );
+    expect(
+      (await database.select(database.calendarEvents).getSingle())
+          .calendarSourceId,
+      ids.first,
+    );
   });
 
   test('shared primary access loss retains cached events and reports Calendar sync failure', () async {
@@ -2377,6 +2491,8 @@ class _FakeCalendarClient implements CloudCalendarClient {
   final List<String> listCalendarIds = [];
   final List<CalendarSyncPageDto> _pages;
   final List<_SyncCall> syncCalls = [];
+  final syncCalendarIds = <String>[];
+  var inventoryCalls = 0;
   Completer<void>? secondPageStarted;
   Completer<void>? secondPageRelease;
 
@@ -2387,7 +2503,10 @@ class _FakeCalendarClient implements CloudCalendarClient {
       : googleCalendarProviderCapabilities;
 
   @override
-  Future<List<CalendarSourceDto>> listCalendars() async => calendars;
+  Future<List<CalendarSourceDto>> listCalendars() async {
+    inventoryCalls++;
+    return calendars;
+  }
 
   @override
   Future<CalendarSyncPageDto> syncEvents({
@@ -2397,6 +2516,7 @@ class _FakeCalendarClient implements CloudCalendarClient {
     String? syncTokenOrDeltaLink,
     bool primaryCalendar = false,
   }) async {
+    syncCalendarIds.add(calendarId);
     syncCalls.add(
       _SyncCall(
         rangeStart: rangeStart,

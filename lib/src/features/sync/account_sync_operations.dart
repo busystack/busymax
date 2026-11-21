@@ -1,6 +1,9 @@
 import 'dart:async';
 
 import '../../providers/busy_provider.dart';
+import '../../core/http/request_dispatch_exception.dart';
+import 'sync_request.dart';
+import 'domain_sync_schedule.dart';
 
 typedef AccountSyncAction = Future<void> Function(
   String accountId, {
@@ -19,6 +22,60 @@ abstract interface class AccountSyncOperations {
   Future<void> syncTasks(String accountId, {required bool full});
 
   Future<void> syncCalendar(String accountId, {required bool full});
+}
+
+abstract interface class ScopedAccountSyncOperations
+    implements AccountSyncOperations {
+  Future<SyncOutcome> execute(SyncRequest request);
+}
+
+/// The scope runner uses the same account locks and provider factories as the
+/// legacy domain entry points. Only identical origin/strategy/scope requests
+/// join. A broader request and a child each retain their own completion.
+final class RequestAccountSyncOperations
+    implements ScopedAccountSyncOperations {
+  RequestAccountSyncOperations(this._execute);
+
+  final Future<SyncOutcome> Function(SyncRequest) _execute;
+  final _requests = <SyncRequest, Future<SyncOutcome>>{};
+
+  @override
+  Future<SyncOutcome> execute(SyncRequest request) => _requests.putIfAbsent(
+    request,
+    () => Future.sync(() => _execute(request)).whenComplete(() {
+      _requests.remove(request);
+    }),
+  );
+
+  @override
+  Future<void> syncAccount(String accountId, {required bool full}) =>
+      _runLegacy(accountSyncScope(accountId), full);
+
+  @override
+  Future<void> syncTasks(String accountId, {required bool full}) => _runLegacy((
+    kind: SyncScopeKind.tasks,
+    accountId: accountId,
+    resourceId: null,
+  ), full);
+
+  @override
+  Future<void> syncCalendar(String accountId, {required bool full}) =>
+      _runLegacy((
+        kind: SyncScopeKind.calendar,
+        accountId: accountId,
+        resourceId: null,
+      ), full);
+
+  Future<void> _runLegacy(SyncScope scope, bool full) async {
+    final outcome = await execute((
+      scope: scope,
+      origin: currentSyncTrigger,
+      strategy: full ? SyncStrategy.fullRecovery : SyncStrategy.ordinary,
+    ));
+    if (outcome.error case final error?) {
+      throw error is AuthorizationScopedFailure ? error.cause : error;
+    }
+  }
 }
 
 abstract interface class CrossEngineAccountGate {
@@ -85,6 +142,8 @@ final class AccountSyncCoordinator {
     String accountId,
     Future<T> Function() import, {
     bool Function()? changedOnFailure,
+    bool coversAccount = true,
+    bool Function(T)? coversPriorImport,
   }) async {
     await _restoration;
     final alreadyIncomplete = _incompleteTaskImports.contains(accountId);
@@ -98,8 +157,12 @@ final class AccountSyncCoordinator {
       ifAbsent: () => 1,
     );
     if (!_runningChanges.isClosed) _runningChanges.add(accountId);
+    var coveringCompletion = coversAccount;
     try {
-      return await import();
+      final result = await import();
+      coveringCompletion =
+          coversAccount && (coversPriorImport?.call(result) ?? true);
+      return result;
     } on Object {
       if (alreadyIncomplete || changedOnFailure == null || changedOnFailure()) {
         _taskImportFailed.add(accountId);
@@ -109,7 +172,8 @@ final class AccountSyncCoordinator {
       final remaining = (_activeTaskImportCounts[accountId] ?? 1) - 1;
       if (remaining == 0) {
         _activeTaskImportCounts.remove(accountId);
-        if (!_taskImportFailed.remove(accountId)) {
+        if (!_taskImportFailed.remove(accountId) &&
+            (coveringCompletion || !alreadyIncomplete)) {
           await _persistTaskImportIncomplete(accountId, false);
           _incompleteTaskImports.remove(accountId);
         }

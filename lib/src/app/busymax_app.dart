@@ -1,3 +1,5 @@
+import '../features/sync/sync_request.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -321,7 +323,9 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
         ref.watch(gtkAnimationsEnabledProvider).valueOrNull ?? true;
     ref.watch(networkAvailabilityProvider);
     ref.watch(syncSchedulerProvider);
-    ref.watch(syncSchedulerRunningProvider);
+    ref.watch(
+      accountSyncActivityProvider.select((activity) => activity.anyRunning),
+    );
     ref.watch(networkReconnectSyncCoordinatorProvider);
     ref.watch(notificationSchedulerProvider);
     ref.watch(dueTodayNotificationProvider);
@@ -576,7 +580,9 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
         openEvent: (event) => _openTrayEvent(windowService, event),
         openTasksDueToday: () => _openTrayTasksDueToday(windowService),
         openTodayAgenda: () => _openMainAgenda(windowService),
-        synchronize: () => ref.read(syncSchedulerProvider).runNow(),
+        synchronize: () async {
+          await ref.read(manualSyncRunnerProvider)(allSyncScope);
+        },
         openSettings: () => _openTraySettings(windowService),
         quitBusyMax: () => _requestQuit(windowService),
       ),

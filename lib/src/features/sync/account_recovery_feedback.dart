@@ -14,12 +14,16 @@ Future<void> showAccountSyncFailure(
   BuildContext context,
   WidgetRef ref,
   String accountId,
-  Object error,
-) async {
+  Object error, {
+  VoidCallback? openRecovery,
+}) async {
   final reconnect =
       syncFailureNotificationDisposition(error) ==
       SyncFailureNotificationDisposition.reconnectRequired;
-  if (reconnect) {
+  final account = await ref
+      .read(accountsRepositoryProvider)
+      .accountById(accountId);
+  if (reconnect && account?.needsReconnect != true) {
     await ref
         .read(authRepositoryProvider)
         .markReconnectRequired(
@@ -30,12 +34,10 @@ Future<void> showAccountSyncFailure(
           ),
         );
   }
-  final account = await ref
-      .read(accountsRepositoryProvider)
-      .accountById(accountId);
   if (!context.mounted) return;
   final l10n = context.l10n;
   final google = account?.provider == BusyProvider.google;
+  final router = GoRouter.maybeOf(context);
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
       content: Text(
@@ -43,18 +45,26 @@ Future<void> showAccountSyncFailure(
             ? l10n.googleReconnectRequired
             : localizedSyncFailureMessage(l10n, error),
       ),
-      action: !reconnect || account == null
+      action:
+          !reconnect ||
+              account == null ||
+              (router == null && openRecovery == null)
           ? null
           : SnackBarAction(
               label: google
                   ? l10n.reconnectGoogleAccount
                   : l10n.reconnectAccount,
-              onPressed: () => context.go(
-                Uri(
-                  path: '/settings',
-                  queryParameters: {'page': 'accounts', 'reconnect': accountId},
-                ).toString(),
-              ),
+              onPressed:
+                  openRecovery ??
+                  () => router!.go(
+                    Uri(
+                      path: '/settings',
+                      queryParameters: {
+                        'page': 'accounts',
+                        'reconnect': accountId,
+                      },
+                    ).toString(),
+                  ),
             ),
     ),
   );

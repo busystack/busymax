@@ -1460,10 +1460,34 @@ class AppLocalizationsHi extends AppLocalizations {
   String get refreshAll => 'सभी रीफ़्रेश करें';
 
   @override
-  String get listRefreshed => 'सूची रीफ़्रेश हो गई।';
+  String get refreshAccount => 'खाता रीफ़्रेश करें';
 
   @override
-  String get allTasksRefreshed => 'सभी खाते रीफ़्रेश हो गए।';
+  String get refreshCollection => 'संग्रह रीफ़्रेश करें';
+
+  @override
+  String get syncQueued => 'रीफ़्रेश कतार में है';
+
+  @override
+  String get syncNotYetRefreshed => 'अभी सिंक नहीं हुआ';
+
+  @override
+  String syncLastRefreshed(String date) {
+    return 'पिछला रीफ़्रेश $date';
+  }
+
+  @override
+  String get scheduleCoverageStatus => 'इवेंट कवरेज';
+
+  @override
+  String get scheduleCoveragePending =>
+      'इस अवधि के इवेंट की जाँच चल रही है या अब तक उनकी जाँच नहीं हुई है।';
+
+  @override
+  String get scheduleCoverageVerified => 'इस अवधि के इवेंट की जाँच हो गई है।';
+
+  @override
+  String get listRefreshed => 'सूची रीफ़्रेश हो गई।';
 
   @override
   String exportedFile(String path) {
@@ -2112,7 +2136,7 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get forceFullResyncDescription =>
-      'हर कनेक्ट किए गए खाते से सभी डेटा पूरी तरह फिर से लोड करता है। इसका उपयोग केवल सिंक संबंधी समस्याओं के निवारण के लिए करें।';
+      'योग्य खातों के कैलेंडर और टास्क का सिंक आधार फिर से बनाएँ, जहाँ यह समर्थित हो, और सब्सक्रिप्शन की जाँच करें। सिंक समस्याएँ हल करने के लिए इसका उपयोग करें।';
 
   @override
   String get runInBackgroundWhenClosed => 'विंडो बंद होने पर भी चलते रहें';
@@ -2136,9 +2160,6 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get requiresTrayIcon => 'ट्रे आइकन आवश्यक है।';
-
-  @override
-  String get syncComplete => 'सिंक पूरा हुआ।';
 
   @override
   String syncFailed(String error) {

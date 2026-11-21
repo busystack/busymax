@@ -699,8 +699,16 @@
   "clearCompleted": "Clear completed",
   "refreshList": "Refresh list",
   "refreshAll": "Refresh all",
+  "refreshAccount": "Refresh account",
+  "refreshCollection": "Refresh collection",
+  "syncQueued": "Refresh queued",
+  "syncNotYetRefreshed": "Not synced yet",
+  "syncLastRefreshed": "Last refreshed {date}",
+  "@syncLastRefreshed": {"placeholders": {"date": {"type": "String"}}},
+  "scheduleCoverageStatus": "Event coverage",
+  "scheduleCoveragePending": "Events in this range are being checked or have yet to be verified.",
+  "scheduleCoverageVerified": "Events in this range have been checked.",
   "listRefreshed": "List refreshed.",
-  "allTasksRefreshed": "All accounts refreshed.",
   "exportedFile": "Exported to {path}",
   "@exportedFile": {
     "placeholders": {
@@ -1083,7 +1091,7 @@
   "@forceFullResync": {
     "description": "Troubleshooting action that forces a complete resynchronization of every connected account."
   },
-  "forceFullResyncDescription": "Completely reload data from every connected account. Use this only to troubleshoot synchronization problems.",
+  "forceFullResyncDescription": "Rebuild Calendar and Tasks baselines where supported for eligible accounts, and check subscriptions. Use this to troubleshoot synchronization.",
   "@forceFullResyncDescription": {
     "description": "Explanation shown above the force-full-resync troubleshooting action in Diagnostics."
   },
@@ -1094,7 +1102,6 @@
   "launchAtLoginDescription": "Start BusyMax in the background so reminders work after you sign in.",
   "launchAtLoginFailed": "Could not update the launch-at-login setting.",
   "requiresTrayIcon": "Requires the tray icon.",
-  "syncComplete": "Sync complete.",
   "syncFailed": "Sync failed: {error}",
   "@syncFailed": {
     "placeholders": {

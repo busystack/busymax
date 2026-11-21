@@ -19,6 +19,7 @@ BusyMaxTrayPresentationFormatter localizedTrayFormatter(
     openTodayAgenda: l10n.trayOpenTodayAgenda,
     syncNow: l10n.traySyncNow,
     syncing: l10n.traySyncing,
+    syncIssue: l10n.accountSyncProblem,
     notConnected: l10n.trayNotConnected,
     notYetSynced: l10n.trayNotYetSynced,
     settings: l10n.traySettings,

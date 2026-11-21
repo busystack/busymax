@@ -695,8 +695,15 @@
   "clearCompleted": "Wyczyść ukończone",
   "refreshList": "Odśwież listę",
   "refreshAll": "Odśwież wszystko",
+  "refreshAccount": "Odśwież konto",
+  "refreshCollection": "Odśwież kolekcję",
+  "syncQueued": "Odświeżanie w kolejce",
+  "syncNotYetRefreshed": "Jeszcze nie synchronizowano",
+  "syncLastRefreshed": "Ostatnio odświeżono {date}",
+  "scheduleCoverageStatus": "Zakres sprawdzenia wydarzeń",
+  "scheduleCoveragePending": "Trwa sprawdzanie wydarzeń w tym okresie lub jeszcze ich nie sprawdzono.",
+  "scheduleCoverageVerified": "Sprawdzono wydarzenia w tym okresie.",
   "listRefreshed": "Odświeżono listę.",
-  "allTasksRefreshed": "Odświeżono wszystkie konta.",
   "exportedFile": "Wyeksportowano do {path}",
   "@exportedFile": {
     "placeholders": {
@@ -1077,7 +1084,7 @@
   "@forceFullResync": {
     "description": "Troubleshooting action that forces a complete resynchronization of every connected account."
   },
-  "forceFullResyncDescription": "Ponownie wczytaj wszystkie dane z każdego połączonego konta. Używaj tej opcji wyłącznie do rozwiązywania problemów z synchronizacją.",
+  "forceFullResyncDescription": "Odtwarza stan bazowy synchronizacji kalendarzy i zadań na kwalifikujących się kontach, jeśli jest to obsługiwane, i sprawdza subskrypcje. Służy do rozwiązywania problemów z synchronizacją.",
   "@forceFullResyncDescription": {
     "description": "Explanation shown above the force-full-resync troubleshooting action in Diagnostics."
   },
@@ -1088,7 +1095,6 @@
   "launchAtLoginDescription": "Uruchamiaj BusyMax w tle, aby przypomnienia działały po zalogowaniu do systemu.",
   "launchAtLoginFailed": "Nie udało się zmienić ustawienia uruchamiania przy logowaniu.",
   "requiresTrayIcon": "Wymaga ikony w zasobniku systemowym.",
-  "syncComplete": "Synchronizacja zakończona.",
   "syncFailed": "Synchronizacja nie powiodła się: {error}",
   "@syncFailed": {
     "placeholders": {
