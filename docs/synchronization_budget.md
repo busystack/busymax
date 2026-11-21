@@ -96,7 +96,12 @@ continues to commit complete account inventory. Due writes are selected from the
 durable queues, including moves that touch the target and required predecessors.
 A dependency that cannot run remains queued. DAV readback also checks
 collections changed by a successful mutation. The readable Nextcloud scheduling
-inbox remains available for scheduling-related checks.
+inbox remains available for Calendar and account refresh. A Calendar or Tasks
+domain pull selects the physical collections enrolled for that domain. A mixed
+collection updates both enabled projections through the same physical
+synchronization. Domain mutation dispatch replays the requested component type
+and its prerequisites, then reads back affected collections. It leaves
+ordinary collection pulls and account-wide completion history to refresh.
 
 Explicit subscription refresh bypasses ordinary due time and local failure
 backoff. It keeps validators bound to their origin, and a valid HTTP 304 counts
@@ -112,8 +117,11 @@ synchronization schedule table under an independent history key. Historical
 provider account fields are excluded from this value. Disabled domains are
 excluded from the required scope, and deferred work cannot record account-wide
 success. A narrow task import preserves a prior incomplete account import
-marker until a covering import succeeds. Successful downloads, unresolved
-failures and pending writes have distinct presentation state.
+marker until a covering import succeeds. Linux, Android and Windows Settings
+use the same account status. A partial or deferred refresh retains the prior
+verified account-wide completion time. Pending local changes have a separate
+indicator and can coexist with a verified time or a partial result. Provider
+failures still surface through the existing recovery actions.
 
 Android publishes executing scopes through the existing platform channel.
 The native plugin owns each engine's activity in memory and drops it on detach

@@ -1475,6 +1475,15 @@ class AppLocalizationsFi extends AppLocalizations {
   String get refreshCollection => 'Päivitä kokoelma';
 
   @override
+  String get syncPartiallyCompleted => 'Päivitys valmistui osittain';
+
+  @override
+  String get syncDeferred => 'Päivitystä lykättiin';
+
+  @override
+  String get syncPendingChanges => 'Paikallisia muutoksia odottaa';
+
+  @override
   String get syncQueued => 'Päivitys jonossa';
 
   @override

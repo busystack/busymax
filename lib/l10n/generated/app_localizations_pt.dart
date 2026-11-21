@@ -1482,6 +1482,15 @@ class AppLocalizationsPt extends AppLocalizations {
   String get refreshCollection => 'Refresh collection';
 
   @override
+  String get syncPartiallyCompleted => 'Refresh partially completed';
+
+  @override
+  String get syncDeferred => 'Refresh deferred';
+
+  @override
+  String get syncPendingChanges => 'Local changes pending';
+
+  @override
   String get syncQueued => 'Refresh queued';
 
   @override
@@ -5534,6 +5543,15 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
 
   @override
   String get refreshCollection => 'Atualizar coleção';
+
+  @override
+  String get syncPartiallyCompleted => 'Atualização parcialmente concluída';
+
+  @override
+  String get syncDeferred => 'Atualização adiada';
+
+  @override
+  String get syncPendingChanges => 'Alterações locais pendentes';
 
   @override
   String get syncQueued => 'Atualização em fila';

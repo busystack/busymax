@@ -22,6 +22,7 @@ import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/notifications/notification_reconciler.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
+import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -31,6 +32,11 @@ import '../../support/memory_settings_store.dart';
 import '../../test_localized_app.dart';
 
 void main() {
+  testWidgets(
+    'Android overview and detail retain verified history after a partial refresh',
+    verifyAndroidAccountRefreshStatus,
+  );
+
   testWidgets(
     'Android settings delete explains partial deletion and retains the collection',
     (tester) async {
@@ -619,6 +625,144 @@ void main() {
   });
 }
 
+Future<void> verifyAndroidAccountRefreshStatus(
+  WidgetTester tester, {
+  bool useDeviceViewport = false,
+}) async {
+  final harness = await _pumpAndroidSettings(
+    tester,
+    openAccount: false,
+    useDeviceViewport: useDeviceViewport,
+  );
+  addTearDown(harness.dispose);
+  final l10n = AppLocalizationsEn();
+  const id = 'google:g';
+  final activity = harness.container.read(accountSyncActivityProvider);
+  final request = (
+    scope: accountSyncScope(id),
+    origin: SyncTrigger.manual,
+    strategy: SyncStrategy.ordinary,
+  );
+  Future<void> record(SyncOutcome outcome) async {
+    await activity.request(request, (start) => start(() async => outcome));
+    await tester.pumpAndSettle();
+  }
+
+  final entry = find.byKey(const ValueKey('account-entry-google:g'));
+  await tester.scrollUntilVisible(
+    entry,
+    200,
+    scrollable: find.byType(Scrollable).first,
+  );
+  await tester.pumpAndSettle();
+  expect(find.textContaining(l10n.syncNotYetRefreshed), findsOneWidget);
+  final database = harness.database;
+  await database
+      .into(database.domainSyncSchedules)
+      .insert(
+        DomainSyncSchedulesCompanion.insert(
+          accountId: id,
+          domain: accountRefreshHistoryKey,
+          lastSuccessfulPullUtc: const Value('2026-06-01T12:00:00.000Z'),
+        ),
+      );
+  await tester.pumpAndSettle();
+  final verified = find.textContaining('Last refreshed');
+  expect(verified, findsOneWidget);
+  final verifiedLabel = tester.widget<Text>(verified).data!;
+  final verifiedText = verifiedLabel.substring(
+    verifiedLabel.indexOf('Last refreshed'),
+  );
+
+  await database
+      .into(database.pendingOps)
+      .insert(
+        PendingOpsCompanion.insert(
+          id: 'queued-task',
+          accountId: id,
+          entityType: 'task',
+          operation: 'update',
+          requestJson: '{}',
+          createdAtUtc: '2026-06-02T12:00:00.000Z',
+          updatedAtUtc: '2026-06-02T12:00:00.000Z',
+        ),
+      );
+  final calendar = (
+    kind: SyncScopeKind.calendar,
+    accountId: id,
+    resourceId: null,
+  );
+  final tasks = (kind: SyncScopeKind.tasks, accountId: id, resourceId: null);
+  await record(
+    SyncOutcome(
+      request,
+      SyncDisposition.partial,
+      children: [
+        SyncOutcome((
+          scope: calendar,
+          origin: request.origin,
+          strategy: request.strategy,
+        ), SyncDisposition.completed),
+        SyncOutcome((
+          scope: tasks,
+          origin: request.origin,
+          strategy: request.strategy,
+        ), SyncDisposition.deferred),
+      ],
+    ),
+  );
+  expect(activity.accountNeedsAttention(id), isTrue);
+  expect(activity.accountHasFailure(id), isFalse);
+  final partial = find.textContaining(l10n.syncPartiallyCompleted);
+  expect(partial, findsOneWidget);
+  expect(tester.widget<Text>(partial).data, contains(verifiedText));
+  expect(tester.widget<Text>(partial).data, contains(l10n.syncPendingChanges));
+
+  await tester.tap(entry);
+  await tester.pumpAndSettle();
+  expect(partial, findsOneWidget);
+  expect(tester.widget<Text>(partial).data, contains(verifiedText));
+  expect(tester.widget<Text>(partial).data, contains(l10n.syncPendingChanges));
+
+  await record(
+    SyncOutcome(
+      request,
+      SyncDisposition.deferred,
+      error: DomainCooldownException(
+        SyncDomain.tasks,
+        DateTime.utc(2026, 6, 2),
+      ),
+    ),
+  );
+  expect(activity.accountHasFailure(id), isFalse);
+  expect(find.textContaining(l10n.syncDeferred), findsOneWidget);
+  expect(find.textContaining(l10n.syncPendingChanges), findsOneWidget);
+  expect(verified, findsOneWidget);
+
+  await record(
+    SyncOutcome(request, SyncDisposition.failed, error: StateError('broken')),
+  );
+  expect(activity.accountHasFailure(id), isTrue);
+  expect(find.textContaining(l10n.accountSyncProblem), findsOneWidget);
+  expect(verified, findsOneWidget);
+
+  final release = Completer<SyncOutcome>();
+  final refresh = activity.request(
+    request,
+    (start) => start(() => release.future),
+  );
+  await tester.pump();
+  expect(find.textContaining(l10n.traySyncing), findsOneWidget);
+  await database.delete(database.pendingOps).go();
+  release.complete(SyncOutcome(request, SyncDisposition.completed));
+  await refresh;
+  await tester.pumpAndSettle();
+  expect(find.textContaining(l10n.syncPendingChanges), findsNothing);
+  expect(find.textContaining(l10n.accountSyncProblem), findsNothing);
+  expect(find.byType(SnackBar), findsNothing);
+  expect(verified, findsOneWidget);
+}
+
 Future<_AndroidSettingsHarness> _pumpAndroidSettings(
   WidgetTester tester, {
   AndroidSettingsCategory category = AndroidSettingsCategory.accounts,
@@ -635,11 +779,14 @@ Future<_AndroidSettingsHarness> _pumpAndroidSettings(
   SignedInSyncRunner? signedInSyncRunner,
   Future<void> Function(SyncRequest)? manualSyncRunner,
   AllAccountsSyncRunner? allAccountsSyncRunner,
+  bool useDeviceViewport = false,
 }) async {
-  tester.view.devicePixelRatio = 1;
-  tester.view.physicalSize = const Size(1000, 1800);
-  addTearDown(tester.view.resetDevicePixelRatio);
-  addTearDown(tester.view.resetPhysicalSize);
+  if (!useDeviceViewport) {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1000, 1800);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+  }
   final database = AppDatabase.memoryForTests();
   final accounts = AccountsRepository(database: database);
   await accounts.upsertSignedInAccount(

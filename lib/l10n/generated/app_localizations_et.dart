@@ -1446,6 +1446,15 @@ class AppLocalizationsEt extends AppLocalizations {
   String get refreshCollection => 'Värskenda kogu';
 
   @override
+  String get syncPartiallyCompleted => 'Värskendamine osaliselt lõpetatud';
+
+  @override
+  String get syncDeferred => 'Värskendamine edasi lükatud';
+
+  @override
+  String get syncPendingChanges => 'Kohalikud muudatused ootel';
+
+  @override
   String get syncQueued => 'Värskendus on järjekorras';
 
   @override

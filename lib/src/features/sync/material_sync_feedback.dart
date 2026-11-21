@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/app_bootstrap.dart';
 import '../../l10n/l10n.dart';
+import '../../l10n/sync_outcome_description.dart';
 import '../settings/presentation/account_settings_feedback.dart';
 import 'account_recovery_feedback.dart';
 import 'sync_failure_notification_policy.dart';
@@ -41,19 +42,14 @@ Future<void> refreshFromMaterial(
         }
       }
       final l10n = context.l10n;
+      final title = syncOutcomeDescription(l10n, prior?.disposition);
       final retry = await showDialog<bool>(
         context: context,
         builder: (dialogContext) => AlertDialog(
-          title: Text(l10n.cachedSyncError),
-          content: Text(
-            error == null
-                ? switch (prior?.disposition) {
-                    SyncDisposition.missing => l10n.collectionsUnavailable,
-                    SyncDisposition.disabled => l10n.off,
-                    _ => l10n.cachedSyncError,
-                  }
-                : AccountSettingsFeedback.fromError(l10n, error).message,
-          ),
+          title: Text(title),
+          content: error == null
+              ? null
+              : Text(AccountSettingsFeedback.fromError(l10n, error).message),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),

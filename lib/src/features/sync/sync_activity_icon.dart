@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/app_bootstrap.dart';
 import '../../l10n/l10n.dart';
+import '../../l10n/sync_outcome_description.dart';
 import 'sync_request.dart';
 
 /// Replaces the glyph in its existing slot for the duration of a request.
@@ -32,16 +33,16 @@ class SyncActivityIcon extends ConsumerWidget {
         activity.busy(scope) ||
         account != null && activity.accountRunning(account);
     final outcome = activity.outcome(scope);
-    final failed =
+    final needsStatus =
         outcome != null ||
         activity.resourceFailure(scope) != null ||
-        account != null && activity.accountHasFailure(account);
-    if (!busy && !failed) return child;
+        account != null && activity.accountNeedsAttention(account);
+    if (!busy && !needsStatus) return child;
     final queued = activity.queued(scope) && !activity.executing(scope);
     return Semantics(
       label: busy
           ? (queued ? context.l10n.syncQueued : context.l10n.traySyncing)
-          : context.l10n.cachedSyncError,
+          : syncOutcomeDescription(context.l10n, outcome?.disposition),
       child: busy
           ? SyncRotation(enabled: animate && !queued, child: refresh)
           : warning,

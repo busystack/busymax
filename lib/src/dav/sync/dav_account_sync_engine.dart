@@ -1,3 +1,5 @@
+import '../../features/sync/domain_sync_schedule.dart';
+
 import 'dart:convert';
 
 import 'package:drift/drift.dart';
@@ -125,7 +127,14 @@ final class DavAccountSyncEngine {
 
   final _requests =
       <
-        (bool, bool, String?, SyncScopeKind?, DavCancellationToken?),
+        (
+          bool,
+          bool,
+          String?,
+          SyncScopeKind?,
+          SyncDomain?,
+          DavCancellationToken?,
+        ),
         Future<DavAccountSyncResult>
       >{};
   Future<void> _tail = Future.value();
@@ -134,6 +143,7 @@ final class DavAccountSyncEngine {
     bool full = false,
     String? collectionId,
     SyncScopeKind? projection,
+    SyncDomain? domain,
     bool dispatchOnly = false,
     DavCancellationToken? cancellationToken,
     CollectionActivity? trackCollection,
@@ -143,6 +153,7 @@ final class DavAccountSyncEngine {
       dispatchOnly,
       collectionId,
       projection,
+      domain,
       cancellationToken,
     );
     return _requests.putIfAbsent(key, () {
@@ -152,6 +163,7 @@ final class DavAccountSyncEngine {
               full: full,
               collectionId: collectionId,
               projection: projection,
+              domain: domain,
               dispatchOnly: dispatchOnly,
               cancellationToken: cancellationToken ?? DavCancellationToken(),
               trackCollection: trackCollection,
@@ -172,6 +184,7 @@ final class DavAccountSyncEngine {
     required bool full,
     required String? collectionId,
     required SyncScopeKind? projection,
+    required SyncDomain? domain,
     required bool dispatchOnly,
     required DavCancellationToken cancellationToken,
     required CollectionActivity? trackCollection,
@@ -184,6 +197,18 @@ final class DavAccountSyncEngine {
         kind: DavErrorKind.notFound,
         code: 'DavAccountRemoved',
         safeMessage: 'The DAV account is no longer available.',
+      );
+    }
+    if (domain == SyncDomain.calendar && !account.calendarsEnabled ||
+        domain == SyncDomain.tasks && !account.tasksEnabled) {
+      return const DavAccountSyncResult(
+        discoveryRefreshed: false,
+        collectionsSynchronized: 0,
+        pendingOperationsApplied: 0,
+        conflictsCreated: 0,
+        followUpCollectionsSynchronized: 0,
+        affectedObjectIds: {},
+        disposition: SyncDisposition.disabled,
       );
     }
     final provider = BusyProviderCodec.requireStorageValue(account.provider);
@@ -261,25 +286,28 @@ final class DavAccountSyncEngine {
       // Permissions and delegated scheduling identities can change while
       // edits are offline. Refresh the complete inventory before replay; a
       // failed discovery keeps every queued operation and cached source.
-      final scopedOperations = collectionId == null
+      final accountWide = collectionId == null && domain == null;
+      final scopedOperations = accountWide
           ? null
           : await scopedReplayIds(
               _database,
               _accountId,
               (op) =>
                   isDavPendingOperation(op) &&
-                  (op.davCollectionId == collectionId ||
-                      op.destinationCollectionId == collectionId),
+                  (collectionId != null
+                      ? op.davCollectionId == collectionId ||
+                            op.destinationCollectionId == collectionId
+                      : op.entityType ==
+                            (domain == SyncDomain.calendar ? 'event' : 'task')),
               followsSelectedCopy: (op) =>
+                  isDavPendingOperation(op) &&
                   pendingReplayPayload(
-                    op,
-                  )[calendarEventCopyConfirmationRequiredKey] ==
-                  true,
+                        op,
+                      )[calendarEventCopyConfirmationRequiredKey] ==
+                      true,
             );
       final pendingCreations =
-          !dispatchOnly &&
-              collectionId == null &&
-              provider == BusyProvider.caldav
+          !dispatchOnly && accountWide && provider == BusyProvider.caldav
           ? await (_database.select(_database.davCollectionCreations)..where(
                   (r) =>
                       r.accountId.equals(_accountId) &
@@ -386,7 +414,7 @@ final class DavAccountSyncEngine {
 
       final eligible = dispatchOnly
           ? <DavCollection>[]
-          : await _selectedCollections();
+          : await _selectedCollections(domain: domain);
       final target = eligible
           .where((row) => row.id == collectionId)
           .firstOrNull;
@@ -612,7 +640,7 @@ final class DavAccountSyncEngine {
           replay.retryCount != 0 ||
           replay.conflictCount != 0 ||
           hasPendingWrites;
-      if (!replay.paused && !dispatchOnly && collectionId == null) {
+      if (!replay.paused && !dispatchOnly && accountWide) {
         await _finishAccountPass(recordFull: full && !deferred);
       }
       if (affected.isNotEmpty || notificationProjectionsChanged) {
@@ -632,9 +660,13 @@ final class DavAccountSyncEngine {
         affectedObjectIds: Set.unmodifiable(affected),
         collectionCreationFailures: Map.unmodifiable(creationFailures),
         affectedCollectionIds: Set.unmodifiable(affectedCollections),
-        disposition: deferred || dispatchOnly
+        disposition: dispatchOnly
             ? SyncDisposition.deferred
-            : collections.isEmpty && !discoveryRefreshed
+            : deferred
+            ? (initialResults.results.isEmpty
+                  ? SyncDisposition.deferred
+                  : SyncDisposition.partial)
+            : collections.isEmpty && (domain != null || !discoveryRefreshed)
             ? SyncDisposition.disabled
             : SyncDisposition.completed,
       );
@@ -775,21 +807,22 @@ final class DavAccountSyncEngine {
             _policy.inventoryMaxAge;
   }
 
-  Future<List<DavCollection>> _selectedCollections() async {
+  Future<List<DavCollection>> _selectedCollections({SyncDomain? domain}) async {
     final account = await (_database.select(
       _database.accounts,
     )..where((r) => r.id.equals(_accountId))).getSingle();
     return (await _availableCollections())
         .where(
           (collection) =>
-              (account.calendarsEnabled &&
-                  collection.eventProjectionEnabled &&
-                  collection.eventsSelected) ||
-              (account.tasksEnabled &&
+              (domain != SyncDomain.tasks &&
+                  account.calendarsEnabled &&
+                  ((collection.eventProjectionEnabled &&
+                          collection.eventsSelected) ||
+                      _isSchedulingInbox(account.provider, collection))) ||
+              (domain != SyncDomain.calendar &&
+                  account.tasksEnabled &&
                   collection.taskProjectionEnabled &&
-                  collection.tasksSelected) ||
-              account.calendarsEnabled &&
-                  _isSchedulingInbox(account.provider, collection),
+                  collection.tasksSelected),
         )
         .toList();
   }

@@ -229,6 +229,19 @@ refuses to replace an existing target installation. Build
 real database overlap. Traces record operation timing, never SQL text, parameters
 or credentials. The same APK and original periodic jobs must survive restart.
 
+### Android account refresh status
+
+Run the native Settings regression on an unlocked Android device with the
+isolated QA package slot available. The fixture uses an in-memory database and
+synthetic refresh outcomes.
+
+```bash
+ORG_GRADLE_PROJECT_busymaxNextcloudQa=true \
+ORG_GRADLE_PROJECT_busymaxTestSigning=true \
+flutter test --no-pub -d YOUR_DEVICE_ID integration_test/account_sync_status_android_test.dart \
+  --dart-define=BUSYMAX_SYNC_STATUS_QA=true
+```
+
 ### DAV transport regression comparison
 
 Run `BUSYMAX_DAV_BENCHMARK=1 flutter test test/dav/trust/dav_transport_benchmark_test.dart`

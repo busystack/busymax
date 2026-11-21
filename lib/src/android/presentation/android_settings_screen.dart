@@ -1,3 +1,4 @@
+import '../../features/settings/presentation/account_sync_status.dart';
 import '../../features/settings/presentation/account_settings_feedback.dart';
 import '../../features/sync/sync_request.dart';
 import '../../features/sync/material_sync_feedback.dart';
@@ -1428,53 +1429,8 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
   }
 
   String _accountSubtitle(AccountEntity account) {
-    final state = account.isSignedIn
-        ? context.l10n.signedInAccount
-        : account.needsReconnect
-        ? context.l10n.accountReconnectRequired
-        : account.authState;
-    final activity = ref.watch(accountSyncActivityProvider);
-    final failures = [
-      for (final domain in ['calendar', 'tasks', 'dav'])
-        if (activity.failure(account.id, domain) case final error?)
-          localizedSyncFailureMessage(
-            context.l10n,
-            error,
-            networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
-          ),
-    ];
-    final sources = ref.watch(calendarSourcesStreamProvider);
-    final lists = ref.watch(scheduleTaskListsProvider);
-    final discovery = account.provider.isDav
-        ? ref.watch(davAccountDiscoveryProvider(account.id))
-        : null;
-    final collections = ref.watch(davCollectionsStreamProvider);
-    final inventoryFailed =
-        sources.hasError ||
-        lists.hasError ||
-        discovery?.hasError == true ||
-        collections.hasError;
-    final unavailable =
-        (sources.valueOrNull ?? []).any(
-          (s) => s.accountId == account.id && s.accessRole == 'unavailable',
-        ) ||
-        (collections.valueOrNull ?? []).any(
-          (c) => c.accountId == account.id && c.syncErrorCode != null,
-        ) ||
-        discovery?.valueOrNull?.lastDiscoveryErrorCode != null;
-    return [
-      '${account.provider.displayName} · $state',
-      if (inventoryFailed) context.l10n.collectionsLoadFailed,
-      if (unavailable) context.l10n.cachedSyncError,
-      ...failures.toSet(),
-      if (ref
-              .watch(accountDomainSyncTimesProvider(account.id))
-              .valueOrNull?[accountRefreshHistoryKey]
-          case final DateTime time)
-        context.l10n.davLastSuccessfulSync(
-          DateFormat.yMd().add_jm().format(time.toLocal()),
-        ),
-    ].join('\n');
+    final sync = ref.watch(accountSyncStatusProvider(account));
+    return '${account.provider.displayName} · ${sync.label(context)}';
   }
 
   Future<void> _connect(
@@ -2927,14 +2883,12 @@ class _AndroidAccountSyncStatus extends ConsumerWidget {
             .map((c) => c.lastSyncAtUtc!)
             .reduce((a, b) => a.isBefore(b) ? a : b);
       }
-      final running = activity.isRunning(
-        account.id,
-        account.provider.isDav ? 'dav' : name,
-      );
-      final error = activity.failure(
-        account.id,
-        account.provider.isDav ? 'dav' : name,
-      );
+      final running =
+          activity.isRunning(account.id, name) ||
+          account.provider.isDav && activity.isRunning(account.id, 'dav');
+      final error =
+          activity.failure(account.id, name) ??
+          (account.provider.isDav ? activity.failure(account.id, 'dav') : null);
       final failed =
           times.hasError || collections.hasError || discovery?.hasError == true;
       final loading = account.provider.isDav

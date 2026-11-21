@@ -1490,6 +1490,15 @@ class AppLocalizationsAr extends AppLocalizations {
   String get refreshCollection => 'تحديث المجموعة';
 
   @override
+  String get syncPartiallyCompleted => 'اكتمل التحديث جزئيًا';
+
+  @override
+  String get syncDeferred => 'تم تأجيل التحديث';
+
+  @override
+  String get syncPendingChanges => 'تغييرات محلية معلّقة';
+
+  @override
   String get syncQueued => 'التحديث في قائمة الانتظار';
 
   @override

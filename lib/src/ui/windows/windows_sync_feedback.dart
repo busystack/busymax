@@ -6,6 +6,7 @@ import '../../../l10n/generated/app_localizations.dart';
 import '../../app/app_bootstrap.dart';
 import '../../features/settings/presentation/account_settings_feedback.dart';
 import '../../features/sync/sync_request.dart';
+import '../../l10n/sync_outcome_description.dart';
 
 Future<void> refreshWindowsScope(
   BuildContext context,
@@ -32,8 +33,8 @@ Future<void> refreshWindowsScope(
     final retry = await showDialog<bool>(
       context: context,
       builder: (context) => ContentDialog(
-        title: Text(l10n.cachedSyncError),
-        content: Text(error == null ? l10n.cachedSyncError : feedback!.message),
+        title: Text(syncOutcomeDescription(l10n, prior?.disposition)),
+        content: feedback == null ? null : Text(feedback.message),
         actions: [
           Button(
             onPressed: () => Navigator.pop(context),

@@ -3,11 +3,68 @@ import 'package:busymax/src/features/sync/domain_sync_schedule.dart';
 
 import 'dart:async';
 
+import 'package:busymax/src/features/sync/account_sync_activity.dart';
 import 'package:busymax/src/features/sync/account_sync_operations.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('partial account refresh resolves only the completed domain', () async {
+    final activity = AccountSyncActivity();
+    addTearDown(activity.dispose);
+    SyncRequest request(SyncScopeKind kind) => (
+      scope: (kind: kind, accountId: 'account', resourceId: null),
+      origin: SyncTrigger.manual,
+      strategy: SyncStrategy.ordinary,
+    );
+    final calendar = request(SyncScopeKind.calendar);
+    final tasks = request(SyncScopeKind.tasks);
+    final account = request(SyncScopeKind.account);
+    final calendarFailure = StateError('Calendar failed');
+    final taskFailure = StateError('Tasks failed');
+    Future<void> record(SyncOutcome outcome) => activity.request(
+      outcome.request,
+      (start) => start(() async => outcome),
+    );
+
+    await record(
+      SyncOutcome(calendar, SyncDisposition.failed, error: calendarFailure),
+    );
+    await record(
+      SyncOutcome(tasks, SyncDisposition.failed, error: taskFailure),
+    );
+    await record(
+      SyncOutcome(
+        account,
+        SyncDisposition.partial,
+        children: [
+          SyncOutcome(calendar, SyncDisposition.completed),
+          SyncOutcome(tasks, SyncDisposition.deferred),
+        ],
+      ),
+    );
+    expect(activity.outcome(calendar.scope), isNull);
+    expect(activity.outcome(tasks.scope)?.error, same(taskFailure));
+    expect(
+      activity.outcome(account.scope)?.disposition,
+      SyncDisposition.partial,
+    );
+    expect(activity.accountHasFailure('account'), isTrue);
+
+    await record(
+      SyncOutcome(
+        account,
+        SyncDisposition.completed,
+        children: [
+          SyncOutcome(calendar, SyncDisposition.completed),
+          SyncOutcome(tasks, SyncDisposition.completed),
+        ],
+      ),
+    );
+    expect(activity.outcome(tasks.scope), isNull);
+    expect(activity.accountNeedsAttention('account'), isFalse);
+  });
+
   test(
     'joins only matching requests and waits for each account continuation',
     () async {

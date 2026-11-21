@@ -2556,6 +2556,24 @@ abstract class AppLocalizations {
   /// **'Refresh collection'**
   String get refreshCollection;
 
+  /// No description provided for @syncPartiallyCompleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh partially completed'**
+  String get syncPartiallyCompleted;
+
+  /// No description provided for @syncDeferred.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh deferred'**
+  String get syncDeferred;
+
+  /// No description provided for @syncPendingChanges.
+  ///
+  /// In en, this message translates to:
+  /// **'Local changes pending'**
+  String get syncPendingChanges;
+
   /// No description provided for @syncQueued.
   ///
   /// In en, this message translates to:

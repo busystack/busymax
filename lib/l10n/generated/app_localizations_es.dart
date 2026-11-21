@@ -1462,6 +1462,15 @@ class AppLocalizationsEs extends AppLocalizations {
   String get refreshCollection => 'Actualizar colección';
 
   @override
+  String get syncPartiallyCompleted => 'Actualización completada parcialmente';
+
+  @override
+  String get syncDeferred => 'Actualización aplazada';
+
+  @override
+  String get syncPendingChanges => 'Cambios locales pendientes';
+
+  @override
   String get syncQueued => 'Actualización en cola';
 
   @override

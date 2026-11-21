@@ -1,3 +1,4 @@
+import 'account_sync_status.dart';
 import '../../sync/sync_request.dart';
 import '../../sync/material_sync_feedback.dart';
 import '../../sync/sync_activity_icon.dart';
@@ -2649,79 +2650,8 @@ class _AccountOverviewRow extends ConsumerWidget {
   final VoidCallback onOpen;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = context.l10n;
-    final feedback = _primaryAccountFeedback(context, ref, account);
-    final activity = ref.watch(accountSyncActivityProvider);
-    final dav = account.provider.isDav;
-    final running = activity.accountRunning(account.id);
-    final refreshed = ref
-        .watch(accountDomainSyncTimesProvider(account.id))
-        .valueOrNull?[accountRefreshHistoryKey];
-    final loading = dav
-        ? ref.watch(davCollectionsStreamProvider).isLoading ||
-              ref.watch(davAccountDiscoveryProvider(account.id)).isLoading
-        : ref.watch(calendarSourcesStreamProvider).isLoading ||
-              ref.watch(accountDomainSyncTimesProvider(account.id)).isLoading;
-    final inventoryFailed = dav
-        ? ref.watch(davCollectionsStreamProvider).hasError ||
-              ref.watch(davAccountDiscoveryProvider(account.id)).hasError
-        : ref.watch(calendarSourcesStreamProvider).hasError ||
-              ref.watch(accountDomainSyncTimesProvider(account.id)).hasError;
-    final visibilityFailed =
-        account.provider == BusyProvider.google &&
-        (ref.watch(calendarSourcesStreamProvider).valueOrNull ?? const [])
-            .where((source) => source.accountId == account.id)
-            .any((source) {
-              final state = ref.watch(
-                calendarVisibilityOperationProvider(source.id),
-              );
-              final operation = state.valueOrNull;
-              return state.hasError ||
-                  operation != null &&
-                      (operation.lastErrorCode != null ||
-                          !const [
-                            'pending',
-                            'in_progress',
-                          ].contains(operation.state));
-            });
-    final domainFailure =
-        activity.accountHasFailure(account.id) ||
-        [
-          'calendar',
-          'tasks',
-        ].any((d) => activity.failure(account.id, d) != null) ||
-        ref
-                .watch(davCollectionsStreamProvider)
-                .valueOrNull
-                ?.any(
-                  (c) => c.accountId == account.id && c.syncErrorCode != null,
-                ) ==
-            true ||
-        ref
-                .watch(calendarSourcesStreamProvider)
-                .valueOrNull
-                ?.any(
-                  (s) =>
-                      s.accountId == account.id &&
-                      s.accessRole == 'unavailable',
-                ) ==
-            true;
-    final status = running
-        ? l10n.traySyncing
-        : feedback != null
-        ? switch (feedback.kind) {
-            AccountSettingsFailure.authorization => l10n.accountReconnectStatus,
-            AccountSettingsFailure.registration =>
-              l10n.accountRegistrationStatus,
-            _ => feedback.message,
-          }
-        : loading
-        ? l10n.collectionsLoading
-        : domainFailure || inventoryFailed || visibilityFailed
-        ? l10n.accountSyncProblem
-        : refreshed == null
-        ? l10n.syncNotYetRefreshed
-        : l10n.syncLastRefreshed(_formatDavDateTime(context, refreshed));
+    final sync = ref.watch(accountSyncStatusProvider(account));
+    final status = sync.label(context);
     return BusyMaxActionRow(
       focusNode: focusNode,
       title: _accountIdentityLabel(context, account),
@@ -2731,10 +2661,7 @@ class _AccountOverviewRow extends ConsumerWidget {
         '${_accountProviderLabel(context, account.provider)} · $status',
       ),
       leading: Icon(
-        feedback != null ||
-                domainFailure ||
-                inventoryFailed ||
-                visibilityFailed ||
+        sync.needsAttention ||
                 (account.provider.isDav &&
                     ref
                         .watch(
@@ -2852,8 +2779,10 @@ class _AccountSyncStatusCard extends ConsumerWidget {
             .map((c) => c.lastSyncAtUtc!)
             .reduce((a, b) => a.isBefore(b) ? a : b);
       }
-      final running = activity.isRunning(account.id, dav ? 'dav' : domain);
-      final error = dav ? null : activity.failure(account.id, domain);
+      final running =
+          activity.isRunning(account.id, domain) ||
+          dav && activity.isRunning(account.id, 'dav');
+      final error = activity.failure(account.id, domain);
       final calendarUnavailable =
           domain == 'calendar' &&
           ref
@@ -2926,6 +2855,12 @@ class _AccountSyncStatusCard extends ConsumerWidget {
             BusyMaxActionRow(
               title: l10n.davConnectionState,
               subtitle: _accountConnectionStateLabel(context, account),
+            ),
+            BusyMaxActionRow(
+              title: l10n.sync,
+              subtitleWidget: Text(
+                ref.watch(accountSyncStatusProvider(account)).label(context),
+              ),
             ),
             if (account.calendarsEnabled) domain('calendar', l10n.calendar),
             if (account.isTaskCapable) domain('tasks', l10n.tasks),

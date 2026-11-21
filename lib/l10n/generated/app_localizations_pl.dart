@@ -1512,6 +1512,15 @@ class AppLocalizationsPl extends AppLocalizations {
   String get refreshCollection => 'Odśwież kolekcję';
 
   @override
+  String get syncPartiallyCompleted => 'Odświeżanie zakończone częściowo';
+
+  @override
+  String get syncDeferred => 'Odświeżanie odłożone';
+
+  @override
+  String get syncPendingChanges => 'Oczekujące zmiany lokalne';
+
+  @override
   String get syncQueued => 'Odświeżanie w kolejce';
 
   @override

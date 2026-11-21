@@ -1466,6 +1466,15 @@ class AppLocalizationsHi extends AppLocalizations {
   String get refreshCollection => 'संग्रह रीफ़्रेश करें';
 
   @override
+  String get syncPartiallyCompleted => 'रीफ़्रेश आंशिक रूप से पूरा हुआ';
+
+  @override
+  String get syncDeferred => 'रीफ़्रेश स्थगित है';
+
+  @override
+  String get syncPendingChanges => 'स्थानीय बदलाव लंबित हैं';
+
+  @override
   String get syncQueued => 'रीफ़्रेश कतार में है';
 
   @override

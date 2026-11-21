@@ -1,6 +1,7 @@
 import '../../../platform/gtk_animation_settings_service.dart';
 import '../../sync/material_sync_feedback.dart';
 import '../../sync/sync_request.dart';
+import '../../sync/domain_sync_schedule.dart';
 import '../../../schedule/schedule_creation_destinations.dart';
 import '../../../schedule/schedule_agenda_query.dart';
 
@@ -2266,9 +2267,12 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
           needsReconnect: account?.needsReconnect == true,
         );
       }
-      await ref
-          .read(accountSyncOperationsProvider)
-          .syncCalendar(accountId, full: false);
+      await withSyncTrigger(
+        SyncTrigger.localMutation,
+        () => ref
+            .read(accountSyncOperationsProvider)
+            .syncCalendar(accountId, full: false),
+      );
       return true;
     } on Object catch (error) {
       if (!mounted) {

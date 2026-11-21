@@ -1473,6 +1473,15 @@ class AppLocalizationsIt extends AppLocalizations {
   String get refreshCollection => 'Aggiorna raccolta';
 
   @override
+  String get syncPartiallyCompleted => 'Aggiornamento parzialmente completato';
+
+  @override
+  String get syncDeferred => 'Aggiornamento rinviato';
+
+  @override
+  String get syncPendingChanges => 'Modifiche locali in sospeso';
+
+  @override
   String get syncQueued => 'Aggiornamento in coda';
 
   @override

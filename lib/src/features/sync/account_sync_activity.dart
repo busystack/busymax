@@ -49,8 +49,12 @@ class AccountSyncActivity extends ChangeNotifier {
       _resourceFailures.keys.any((scope) => scope.accountId == id) ||
       _failures.keys.any((key) => key.$1 == id) ||
       _outcomes.entries.any(
-        (entry) => entry.key.accountId == id && entry.value.error != null,
+        (entry) => entry.key.accountId == id && entry.value.hasFailure,
       );
+
+  bool accountNeedsAttention(String id) =>
+      accountHasFailure(id) ||
+      outcome(accountSyncScope(id))?.disposition == SyncDisposition.partial;
 
   void _adjust(Map<SyncScope, int> state, SyncScope key, int delta) {
     final count = (state[key] ?? 0) + delta;
@@ -80,7 +84,12 @@ class AccountSyncActivity extends ChangeNotifier {
           _adjust(_executing, scope, 1);
           _adjust(_queued, scope, -1);
           try {
-            return await work();
+            final result = await work();
+            if (scope.accountId case final id?
+                when scope.kind == SyncScopeKind.account) {
+              _resolveCompletedDomains(id, result.children);
+            }
+            return result;
           } finally {
             _adjust(_executing, scope, -1);
           }
@@ -88,7 +97,8 @@ class AccountSyncActivity extends ChangeNotifier {
       } on Object catch (error) {
         outcome = SyncOutcome(request, SyncDisposition.failed, error: error);
       }
-      if (outcome.error != null ||
+      if (outcome.hasFailure ||
+          outcome.error != null ||
           outcome.disposition == SyncDisposition.partial ||
           request.origin == SyncTrigger.manual &&
               const {
@@ -96,7 +106,11 @@ class AccountSyncActivity extends ChangeNotifier {
                 SyncDisposition.disabled,
                 SyncDisposition.missing,
               }.contains(outcome.disposition)) {
-        _outcomes[scope] = outcome;
+        if (_outcomes[scope]?.hasFailure != true ||
+            outcome.hasFailure ||
+            outcome.disposition == SyncDisposition.partial) {
+          _outcomes[scope] = outcome;
+        }
       } else if (outcome.disposition == SyncDisposition.completed) {
         _outcomes.remove(scope);
         _resourceFailures.remove(scope);
@@ -105,6 +119,25 @@ class AccountSyncActivity extends ChangeNotifier {
     } finally {
       if (!started) _adjust(_queued, scope, -1);
       _notify();
+    }
+  }
+
+  void _resolveCompletedDomains(String id, Iterable<SyncOutcome> children) {
+    for (final child in children) {
+      final covered = child.request.scope;
+      if (covered.accountId != id ||
+          child.disposition != SyncDisposition.completed) {
+        continue;
+      }
+      final domain = switch (covered.kind) {
+        SyncScopeKind.calendar => SyncDomain.calendar,
+        SyncScopeKind.tasks => SyncDomain.tasks,
+        _ => null,
+      };
+      if (domain != null) {
+        _outcomes.remove(covered);
+        _failures.remove((id, domain.name));
+      }
     }
   }
 

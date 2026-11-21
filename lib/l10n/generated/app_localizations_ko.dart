@@ -1426,6 +1426,15 @@ class AppLocalizationsKo extends AppLocalizations {
   String get refreshCollection => '컬렉션 새로 고침';
 
   @override
+  String get syncPartiallyCompleted => '새로 고침이 일부 완료됨';
+
+  @override
+  String get syncDeferred => '새로 고침이 보류됨';
+
+  @override
+  String get syncPendingChanges => '보류 중인 로컬 변경 사항';
+
+  @override
   String get syncQueued => '새로 고침 대기 중';
 
   @override

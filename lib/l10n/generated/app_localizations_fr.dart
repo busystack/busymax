@@ -1463,6 +1463,15 @@ class AppLocalizationsFr extends AppLocalizations {
   String get refreshCollection => 'Actualiser la collection';
 
   @override
+  String get syncPartiallyCompleted => 'Actualisation partiellement terminée';
+
+  @override
+  String get syncDeferred => 'Actualisation différée';
+
+  @override
+  String get syncPendingChanges => 'Modifications locales en attente';
+
+  @override
   String get syncQueued => 'Actualisation en attente';
 
   @override

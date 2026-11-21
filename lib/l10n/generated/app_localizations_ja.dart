@@ -1421,6 +1421,15 @@ class AppLocalizationsJa extends AppLocalizations {
   String get refreshCollection => 'コレクションを更新';
 
   @override
+  String get syncPartiallyCompleted => '更新が一部完了しました';
+
+  @override
+  String get syncDeferred => '更新が延期されました';
+
+  @override
+  String get syncPendingChanges => '未同期のローカル変更があります';
+
+  @override
   String get syncQueued => '更新待ち';
 
   @override

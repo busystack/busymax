@@ -1,3 +1,4 @@
+import '../../features/settings/presentation/account_sync_status.dart';
 import '../../features/sync/sync_request.dart';
 import '../../features/sync/sync_activity_icon.dart';
 import 'windows_sync_feedback.dart';
@@ -808,18 +809,23 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                       ),
                     ),
                     subtitle: Text(
-                      values[index].provider == BusyProvider.nextcloud &&
-                              (ref
-                                          .watch(
-                                            nextcloudPendingInvitationCountProvider(
-                                              values[index].id,
-                                            ),
-                                          )
-                                          .valueOrNull ??
-                                      0) >
-                                  0
-                          ? '${l10n.nextcloudFederationInvitations} (${ref.watch(nextcloudPendingInvitationCountProvider(values[index].id)).valueOrNull ?? 0})'
-                          : values[index].provider.storageValue,
+                      [
+                        values[index].provider.displayName,
+                        ref
+                            .watch(accountSyncStatusProvider(values[index]))
+                            .label(context),
+                        if (values[index].provider == BusyProvider.nextcloud &&
+                            (ref
+                                        .watch(
+                                          nextcloudPendingInvitationCountProvider(
+                                            values[index].id,
+                                          ),
+                                        )
+                                        .valueOrNull ??
+                                    0) >
+                                0)
+                          '${l10n.nextcloudFederationInvitations} (${ref.watch(nextcloudPendingInvitationCountProvider(values[index].id)).valueOrNull})',
+                      ].join('\n'),
                     ),
                     trailing: DropDownButton(
                       title: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.more)),

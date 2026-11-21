@@ -1479,6 +1479,15 @@ class AppLocalizationsFa extends AppLocalizations {
   String get refreshCollection => 'تازه‌سازی مجموعه';
 
   @override
+  String get syncPartiallyCompleted => 'تازه‌سازی تا حدی انجام شد';
+
+  @override
+  String get syncDeferred => 'تازه‌سازی به تعویق افتاد';
+
+  @override
+  String get syncPendingChanges => 'تغییرات محلی در انتظار';
+
+  @override
   String get syncQueued => 'تازه‌سازی در صف است';
 
   @override

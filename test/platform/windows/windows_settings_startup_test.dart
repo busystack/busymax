@@ -3,12 +3,16 @@ import 'dart:ui' show ViewFocusEvent, ViewFocusState, ViewFocusDirection;
 
 import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
+import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
+import 'package:busymax/src/features/sync/domain_sync_schedule.dart';
+import 'package:busymax/src/features/sync/sync_request.dart';
 import 'package:busymax/src/google_calendar/google_calendar_api_client.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/platform/common/desktop_services.dart';
 import 'package:busymax/src/ui/windows/windows_settings_page.dart';
+import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -19,9 +23,80 @@ import '../../support/fake_autostart_service.dart';
 import '../../support/memory_settings_store.dart';
 
 void main() {
+  testWidgets(
+    'Windows Settings shows verified refresh time and a later partial result',
+    (tester) async {
+      final database = AppDatabase.memoryForTests();
+      addTearDown(database.close);
+      const account = AccountEntity(
+        id: 'google:g',
+        provider: BusyProvider.google,
+        authority: 'https://accounts.google.com',
+        providerAccountId: 'g',
+        displayName: 'Sync review account',
+        authState: 'signed_in',
+      );
+      await AccountsRepository(database: database).upsertSignedInAccount(
+        id: account.id,
+        provider: account.provider,
+        grantedScopes: 'calendar tasks',
+      );
+      final container = _container(
+        FakeAutostartService(),
+        accounts: [account],
+        database: database,
+      );
+      addTearDown(container.dispose);
+      await _pumpSettings(tester, container, initialPage: 'accounts');
+      await container.read(accountDomainSyncTimesProvider(account.id).future);
+      await tester.pumpAndSettle();
+      final row = find.ancestor(
+        of: find.text(account.displayName!),
+        matching: find.byType(ListTile),
+      );
+      expect(
+        (tester.widget<ListTile>(row).subtitle as Text).data,
+        contains('Not synced yet'),
+      );
+
+      await database
+          .into(database.domainSyncSchedules)
+          .insert(
+            DomainSyncSchedulesCompanion.insert(
+              accountId: account.id,
+              domain: accountRefreshHistoryKey,
+              lastSuccessfulPullUtc: const Value('2026-06-01T12:00:00.000Z'),
+            ),
+          );
+      await tester.pumpAndSettle();
+      final verified = find.textContaining('Last refreshed');
+      expect(verified, findsOneWidget);
+      final prior = tester.widget<Text>(verified).data!.split('\n').last;
+      final request = (
+        scope: accountSyncScope(account.id),
+        origin: SyncTrigger.manual,
+        strategy: SyncStrategy.ordinary,
+      );
+      await container
+          .read(accountSyncActivityProvider)
+          .request(
+            request,
+            (start) => start(
+              () async => SyncOutcome(request, SyncDisposition.partial),
+            ),
+          );
+      await tester.pumpAndSettle();
+      final partial = find.textContaining('Refresh partially completed');
+      expect(partial, findsOneWidget);
+      expect(tester.widget<Text>(partial).data, contains(prior));
+    },
+  );
+
   testWidgets('Windows settings opens owner sharing management', (
     tester,
   ) async {
+    final database = AppDatabase.memoryForTests();
+    addTearDown(database.close);
     var permissionReads = 0;
     final client = GoogleCalendarApiClient(
       httpClient: MockClient((request) async {
@@ -35,6 +110,7 @@ void main() {
     );
     final container = _container(
       FakeAutostartService(),
+      database: database,
       accounts: const [
         AccountEntity(
           id: 'google:g',
@@ -245,8 +321,11 @@ ProviderContainer _container(
   List<AccountEntity> accounts = const [],
   List<CalendarSourceEntity> sources = const [],
   GoogleCalendarApiClient? googleSharingClient,
+  AppDatabase? database,
 }) => ProviderContainer(
   overrides: [
+    if (database != null) databaseProvider.overrideWithValue(database),
+    signedInSyncRunnerProvider.overrideWithValue((_, _) async {}),
     desktopAutostartServiceProvider.overrideWithValue(service),
     localSettingsStoreProvider.overrideWithValue(
       settingsStore ?? MemorySettingsStore(),
@@ -265,8 +344,9 @@ ProviderContainer _container(
 
 Future<void> _pumpSettings(
   WidgetTester tester,
-  ProviderContainer container,
-) async {
+  ProviderContainer container, {
+  String? initialPage,
+}) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = const Size(1200, 1200);
   addTearDown(tester.view.resetDevicePixelRatio);
@@ -274,10 +354,10 @@ Future<void> _pumpSettings(
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
-      child: const FluentApp(
+      child: FluentApp(
         localizationsDelegates: [AppLocalizations.delegate],
         supportedLocales: AppLocalizations.supportedLocales,
-        home: WindowsSettingsPage(),
+        home: WindowsSettingsPage(initialPage: initialPage),
       ),
     ),
   );

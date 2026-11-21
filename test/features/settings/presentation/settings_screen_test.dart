@@ -21,7 +21,9 @@ import 'dart:async';
 import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
 import 'package:busymax/src/calendar_providers/calendar_colors.dart';
 import 'package:busymax/src/features/sync/calendar_sync_engine.dart';
+import 'package:busymax/src/features/sync/domain_sync_schedule.dart';
 import 'package:busymax/src/features/sync/pending_op_resolution_service.dart';
+import 'package:busymax/src/features/sync/sync_request.dart';
 
 import 'dart:convert';
 import 'dart:io';
@@ -67,7 +69,7 @@ import 'package:busymax/src/webcal/webcal_subscription_service.dart';
 import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:drift/native.dart';
 import 'package:drift/drift.dart'
-    show QueryInterceptor, QueryExecutor, ApplyInterceptor;
+    show QueryInterceptor, QueryExecutor, ApplyInterceptor, Value;
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:ubuntu_localizations/ubuntu_localizations.dart';
@@ -2205,6 +2207,59 @@ void main() {
       isNull,
     );
   });
+
+  testWidgets(
+    'Linux Accounts overview retains verified history alongside a partial result',
+    (tester) async {
+      final database = AppDatabase.memoryForTests();
+      addTearDown(database.close);
+      await AccountsRepository(database: database).upsertSignedInAccount(
+        id: _googleAccount.id,
+        provider: _googleAccount.provider,
+        grantedScopes: 'calendar tasks',
+      );
+      await database
+          .into(database.domainSyncSchedules)
+          .insert(
+            DomainSyncSchedulesCompanion.insert(
+              accountId: _googleAccount.id,
+              domain: accountRefreshHistoryKey,
+              lastSuccessfulPullUtc: const Value('2026-06-01T12:00:00.000Z'),
+            ),
+          );
+      final container = _container(
+        selectedAccountId: _googleAccount.id,
+        authRepository: _FakeAuthRepository(),
+        accounts: const [_googleAccount],
+        databaseOverride: database,
+      );
+      addTearDown(container.dispose);
+      await _pumpSettings(tester, container, openSelectedAccount: false);
+      final verified = find.textContaining('Last refreshed');
+      expect(verified, findsOneWidget);
+      final verifiedLabel = tester.widget<Text>(verified).data!;
+      final prior = verifiedLabel.substring(
+        verifiedLabel.indexOf('Last refreshed'),
+      );
+      final request = (
+        scope: accountSyncScope(_googleAccount.id),
+        origin: SyncTrigger.manual,
+        strategy: SyncStrategy.ordinary,
+      );
+      await container
+          .read(accountSyncActivityProvider)
+          .request(
+            request,
+            (start) => start(
+              () async => SyncOutcome(request, SyncDisposition.partial),
+            ),
+          );
+      await tester.pumpAndSettle();
+      final partial = find.textContaining('Refresh partially completed');
+      expect(partial, findsOneWidget);
+      expect(tester.widget<Text>(partial).data, contains(prior));
+    },
+  );
 
   testWidgets('Settings Flutter header uses native geometry and title style', (
     tester,

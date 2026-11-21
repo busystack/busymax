@@ -70,6 +70,15 @@ final class SyncOutcome {
   final Set<SyncScope> affected;
   final List<SyncOutcome> children;
   final Object? error;
+
+  bool get hasFailure => switch (disposition) {
+    SyncDisposition.failed => true,
+    SyncDisposition.partial =>
+      children.isEmpty
+          ? error != null
+          : children.any((child) => child.hasFailure),
+    _ => false,
+  };
 }
 
 final class ScopedSyncDeferred implements Exception {

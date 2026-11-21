@@ -1479,6 +1479,15 @@ class AppLocalizationsRu extends AppLocalizations {
   String get refreshCollection => 'Обновить коллекцию';
 
   @override
+  String get syncPartiallyCompleted => 'Обновление выполнено частично';
+
+  @override
+  String get syncDeferred => 'Обновление отложено';
+
+  @override
+  String get syncPendingChanges => 'Локальные изменения ожидают синхронизации';
+
+  @override
   String get syncQueued => 'Обновление в очереди';
 
   @override

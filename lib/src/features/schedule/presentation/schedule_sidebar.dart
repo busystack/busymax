@@ -27,6 +27,7 @@ import '../../../calendar_providers/calendar_colors.dart';
 import '../../../calendar_providers/calendar_provider_capabilities.dart';
 import '../../../dav/dav_errors.dart';
 import '../../../l10n/l10n.dart';
+import '../../../l10n/sync_outcome_description.dart';
 import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
 import '../../../schedule/schedule_sidebar_order.dart';
@@ -808,12 +809,14 @@ class _AccountHeaderRow extends ConsumerWidget {
     final hasSecondaryLabel =
         secondaryLabel != null && secondaryLabel.isNotEmpty;
     final providerName = _accountProviderName(context, account.provider);
+    final activity = ref.watch(accountSyncActivityProvider);
+    final outcome = activity.outcome(accountSyncScope(account.id));
     final accountSemanticsLabel = [
       providerName,
-      if (ref.watch(accountSyncActivityProvider).accountRunning(account.id))
-        context.l10n.traySyncing,
-      if (ref.watch(accountSyncActivityProvider).accountHasFailure(account.id))
-        context.l10n.cachedSyncError,
+      if (activity.accountRunning(account.id))
+        context.l10n.traySyncing
+      else if (outcome != null || activity.accountHasFailure(account.id))
+        syncOutcomeDescription(context.l10n, outcome?.disposition),
       account.displayLabel,
       if (hasSecondaryLabel) secondaryLabel,
       if (pending > 0)

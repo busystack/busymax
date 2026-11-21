@@ -1392,6 +1392,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get refreshCollection => '刷新集合';
 
   @override
+  String get syncPartiallyCompleted => '刷新部分完成';
+
+  @override
+  String get syncDeferred => '刷新已推迟';
+
+  @override
+  String get syncPendingChanges => '本地更改待同步';
+
+  @override
   String get syncQueued => '刷新已排队';
 
   @override
@@ -5244,6 +5253,15 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get refreshCollection => '刷新集合';
 
   @override
+  String get syncPartiallyCompleted => '刷新部分完成';
+
+  @override
+  String get syncDeferred => '刷新已推迟';
+
+  @override
+  String get syncPendingChanges => '本地更改待同步';
+
+  @override
   String get syncQueued => '刷新已排队';
 
   @override
@@ -9094,6 +9112,15 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get refreshCollection => '重新整理集合';
+
+  @override
+  String get syncPartiallyCompleted => '重新整理已部分完成';
+
+  @override
+  String get syncDeferred => '重新整理已延後';
+
+  @override
+  String get syncPendingChanges => '本機變更等待同步';
 
   @override
   String get syncQueued => '等待重新整理';

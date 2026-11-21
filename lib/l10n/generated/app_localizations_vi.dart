@@ -1465,6 +1465,15 @@ class AppLocalizationsVi extends AppLocalizations {
   String get refreshCollection => 'Làm mới bộ sưu tập';
 
   @override
+  String get syncPartiallyCompleted => 'Đã làm mới một phần';
+
+  @override
+  String get syncDeferred => 'Đã hoãn làm mới';
+
+  @override
+  String get syncPendingChanges => 'Có thay đổi cục bộ đang chờ';
+
+  @override
   String get syncQueued => 'Đang chờ làm mới';
 
   @override
