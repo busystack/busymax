@@ -2065,26 +2065,34 @@ void main() {
     await tester.tap(eventLabel);
     await tester.pump(const Duration(milliseconds: 350));
     await tester.pumpAndSettle();
+    final details = find.byKey(
+      const ValueKey('android-schedule-details-scroll'),
+    );
     expect(
-      find.byKey(const ValueKey('android-schedule-details-scroll')),
+      details,
       findsOneWidget,
       reason: 'the detail sheet opened before timezone assertions',
     );
-    await tester.drag(
-      find.byKey(const ValueKey('android-schedule-details-scroll')),
-      const Offset(0, -250),
-    );
+    await tester.drag(details, const Offset(0, -250));
     await tester.pumpAndSettle();
     final localNoon = noon.toLocal();
-    expect(find.textContaining(localNoon.timeZoneName), findsWidgets);
+    final expectedZone = localNoon.timeZoneOffset == Duration.zero
+        ? ' · UTC'
+        : localNoon.timeZoneName.trim();
     expect(
-      find.textContaining('${localNoon.hour.toString().padLeft(2, '0')}:00'),
+      find.descendant(of: details, matching: find.textContaining(expectedZone)),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: details,
+        matching: find.textContaining(
+          '${localNoon.hour.toString().padLeft(2, '0')}:00',
+        ),
+      ),
       findsWidgets,
       reason: find
-          .descendant(
-            of: find.byKey(const ValueKey('android-schedule-details-scroll')),
-            matching: find.byType(Text),
-          )
+          .descendant(of: details, matching: find.byType(Text))
           .evaluate()
           .map((e) => (e.widget as Text).data)
           .join(' | '),
