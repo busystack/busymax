@@ -1306,7 +1306,7 @@ class TasksRepository {
           providerMetadataJson:
               input.destinationTaskListId != null &&
                   input.destinationTaskListId != input.sourceTaskListId
-              ? Value(_taskMetadataAfterListMove(baseline))
+              ? Value(taskMetadataAfterListMove(baseline))
               : const Value.absent(),
           parent: Value(parentId),
           pendingMove: const Value(true),
@@ -2450,7 +2450,7 @@ class TasksRepository {
         TasksCompanion(
           taskListId: Value(destinationList.id),
           davCollectionId: Value(destinationList.davCollectionId),
-          providerMetadataJson: Value(_taskMetadataAfterListMove(task)),
+          providerMetadataJson: Value(taskMetadataAfterListMove(task)),
           locationLatitude: fields.containsKey('locationPoint')
               ? Value(
                   GeographicPoint.fromJson(fields['locationPoint'])?.latitude,
@@ -2551,7 +2551,7 @@ class TasksRepository {
               .write(
                 TasksCompanion(
                   providerMetadataJson: Value(
-                    _taskMetadataAfterListMove(
+                    taskMetadataAfterListMove(
                       moved,
                       sourceListId: sourceList.id,
                     ),
@@ -4165,7 +4165,8 @@ Set<String> _taskPreviousListIds(String? metadata) {
   }
 }
 
-String _taskMetadataAfterListMove(Task task, {String? sourceListId}) {
+/// Preserves the previous list identity for drafts and reminders after a move.
+String taskMetadataAfterListMove(Task task, {String? sourceListId}) {
   final source = task.providerMetadataJson;
   final metadata = source == null
       ? <String, Object?>{}

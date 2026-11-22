@@ -326,11 +326,27 @@ class PendingOpsReplayer {
               ),
             );
       }
-      await _database.customStatement(
-        'UPDATE tasks SET task_list_id = ? WHERE account_id = ? '
-        'AND task_list_id = ?',
-        [dto.id, _accountId, tempId],
-      );
+      if (tempId != dto.id) {
+        final tasks = _database.tasks;
+        final inTemporaryList =
+            tasks.accountId.equals(_accountId) &
+            tasks.taskListId.equals(tempId);
+        final pendingTasks = await (_database.select(
+          tasks,
+        )..where((_) => inTemporaryList)).get();
+        await _database.batch((batch) {
+          for (final task in pendingTasks) {
+            batch.update(
+              tasks,
+              TasksCompanion(
+                taskListId: Value(dto.id),
+                providerMetadataJson: Value(taskMetadataAfterListMove(task)),
+              ),
+              where: (row) => inTemporaryList & row.id.equals(task.id),
+            );
+          }
+        });
+      }
       await _replacePendingReference(
         tempId,
         dto.id,
