@@ -1,3 +1,4 @@
+import 'package:busymax/src/core/http/request_dispatch_exception.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/sync/account_sync_activity.dart';
@@ -114,18 +115,38 @@ void main() {
       );
       expect(activity.outcome(allSyncScope)?.hasFailure, isTrue);
       expect(activity.accountHasFailure(id), isTrue);
-      expect(activity.outcome(scope(SyncDomain.tasks))?.error, same(error));
-      expect(activity.outcome(scope(SyncDomain.calendar))?.error, same(error));
+      expect(
+        resolveEffectiveSyncFailure(
+          activity.outcome(scope(SyncDomain.tasks))!.error!,
+        ),
+        same(error),
+      );
+      expect(
+        resolveEffectiveSyncFailure(
+          activity.outcome(scope(SyncDomain.calendar))!.error!,
+        ),
+        same(error),
+      );
 
       failing.remove(SyncDomain.calendar);
       await makeDue(SyncDomain.calendar);
       await refresh(SyncTrigger.background);
       expect(activity.outcome(scope(SyncDomain.calendar)), isNull);
-      expect(activity.outcome(scope(SyncDomain.tasks))?.error, same(error));
+      expect(
+        resolveEffectiveSyncFailure(
+          activity.outcome(scope(SyncDomain.tasks))!.error!,
+        ),
+        same(error),
+      );
       expect(
         activity.outcome(account)?.children.map((child) => child.request.scope),
         [scope(SyncDomain.tasks)],
       );
+      final retained =
+          activity.outcome(account)!.error as AuthorizationScopedFailure;
+      expect(retained.accountId, id);
+      expect(retained.generation, 0);
+      expect(resolveEffectiveSyncFailure(retained), same(error));
       expect(activity.accountNeedsAttention(id), isTrue);
       expect(await history(accountRefreshHistoryKey), verified);
 

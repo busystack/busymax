@@ -633,23 +633,12 @@ final class AccountSynchronizationService {
                   error: error,
                 );
               }
-              if (result.error case final error?) {
-                final scoped = AuthorizationScopedFailure(
-                  accountId: id,
-                  generation: generation,
-                  cause: error,
-                );
+              if (result.error != null) {
+                final scoped = _scopeFailure(result, id, generation);
                 if (request.origin == SyncTrigger.manual) {
-                  await onManualFailure(id, scoped);
+                  await onManualFailure(id, scoped.error!);
                 }
-                return SyncOutcome(
-                  request,
-                  result.disposition,
-                  affected: result.affected,
-                  completedResources: result.completedResources,
-                  children: result.children,
-                  error: scoped,
-                );
+                return scoped;
               }
               if (request.scope.kind == SyncScopeKind.account &&
                   result.disposition == SyncDisposition.completed &&
@@ -671,6 +660,26 @@ final class AccountSynchronizationService {
           ),
         );
       });
+
+  SyncOutcome _scopeFailure(SyncOutcome outcome, String id, int generation) {
+    final error = outcome.error;
+    if (error == null) return outcome;
+    return SyncOutcome(
+      outcome.request,
+      outcome.disposition,
+      affected: outcome.affected,
+      completedResources: outcome.completedResources,
+      children: outcome.children.map(
+        (child) => _scopeFailure(child, id, generation),
+      ),
+      error: AuthorizationScopedFailure(
+        accountId: id,
+        generation: generation,
+        cause: error,
+      ),
+      deferral: outcome.deferral,
+    );
+  }
 }
 
 SyncScope _domainScope(String id, SyncDomain domain) => (
