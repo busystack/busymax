@@ -1,6 +1,6 @@
 import 'account_sync_status.dart';
 import '../../sync/sync_request.dart';
-import '../../sync/material_sync_feedback.dart';
+import '../../sync/linux_sync_feedback.dart';
 import '../../sync/sync_activity_icon.dart';
 import '../../../contacts/dav_contacts_enrollment.dart';
 import '../../auth/application/account_connection.dart';
@@ -951,7 +951,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Future<void> _refreshSubscription(
     WebCalSubscriptionEntity subscription,
   ) async {
-    await refreshFromMaterial(
+    await refreshFromLinux(
       context,
       ref,
       calendarSyncScope(subscription.accountId, subscription.calendarSourceId),
@@ -1598,7 +1598,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           );
           return;
         }
-        await refreshFromMaterial(
+        await refreshFromLinux(
           context,
           ref,
           accountSyncScope(account.id),
@@ -2230,7 +2230,7 @@ class _AccountManagementSection extends ConsumerWidget {
                   onTap:
                       ref.watch(accountSyncActivityProvider).busy(allSyncScope)
                       ? null
-                      : () => refreshFromMaterial(context, ref, allSyncScope),
+                      : () => refreshFromLinux(context, ref, allSyncScope),
                 ),
                 for (final account in accounts)
                   _AccountOverviewRow(
@@ -2307,7 +2307,7 @@ class _AccountManagementSection extends ConsumerWidget {
                               warning: const Icon(YaruIcons.warning),
                               child: const Icon(YaruIcons.refresh),
                             ),
-                            onPressed: () => refreshFromMaterial(
+                            onPressed: () => refreshFromLinux(
                               context,
                               ref,
                               taskListSyncScope(account.id, list.id),
@@ -3551,7 +3551,7 @@ class _CalendarSettingsRowState extends ConsumerState<_CalendarSettingsRow> {
         warning: const Icon(YaruIcons.warning),
         child: const Icon(YaruIcons.refresh),
       ),
-      onPressed: () => refreshFromMaterial(
+      onPressed: () => refreshFromLinux(
         context,
         ref,
         calendarSyncScope(source.accountId, source.id),
@@ -4555,7 +4555,7 @@ class _DavCollectionItemState extends ConsumerState<_DavCollectionItem> {
         warning: const Icon(YaruIcons.warning),
         child: const Icon(YaruIcons.refresh),
       ),
-      onPressed: () => refreshFromMaterial(context, ref, scope),
+      onPressed: () => refreshFromLinux(context, ref, scope),
     );
     final settings = collection.provider != BusyProvider.nextcloud
         ? null

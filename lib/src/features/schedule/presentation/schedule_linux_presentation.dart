@@ -41,9 +41,10 @@ class LinuxSchedulePresentation extends SchedulePresentation {
   @override
   IconData get createIcon => YaruIcons.plus;
   @override
-  IconData get previousIcon => BusyMaxGlyphs.startFor(TextDirection.ltr);
+  IconData previousIcon(TextDirection direction) =>
+      BusyMaxGlyphs.startFor(direction);
   @override
-  IconData get nextIcon => BusyMaxGlyphs.endFor(TextDirection.ltr);
+  IconData nextIcon(TextDirection direction) => BusyMaxGlyphs.endFor(direction);
   @override
   IconData subdirectoryIcon(TextDirection direction) =>
       BusyMaxGlyphs.subdirectoryFor(direction);

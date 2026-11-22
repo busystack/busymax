@@ -54,7 +54,9 @@ class AccountSyncActivity extends ChangeNotifier {
 
   bool accountNeedsAttention(String id) =>
       accountHasFailure(id) ||
-      outcome(accountSyncScope(id))?.disposition == SyncDisposition.partial;
+      _outcomes.entries.any(
+        (entry) => entry.key.accountId == id && entry.value.needsAttention,
+      );
 
   void _adjust(Map<SyncScope, int> state, SyncScope key, int delta) {
     final count = (state[key] ?? 0) + delta;
@@ -121,25 +123,30 @@ class AccountSyncActivity extends ChangeNotifier {
         }
       }
       if (scope.kind == SyncScopeKind.account) {
-        _resolveCompletedDomains(id, outcome.children);
+        for (final child in outcome.children) {
+          final covered = child.request.scope;
+          if (covered.accountId == id &&
+              _domainFor(covered) != null &&
+              child.disposition != SyncDisposition.disabled) {
+            _recordDomainOutcome(id, covered, child);
+          }
+        }
+      } else if (_domainFor(scope) != null) {
+        _recordDomainOutcome(id, scope, outcome);
+        _pruneResolvedOutcome(accountSyncScope(id));
+        _pruneResolvedOutcome(allSyncScope);
+        return;
       }
     }
     if (outcome.disposition == SyncDisposition.completed) {
       _clearOutcome(scope);
-    } else if (outcome.hasFailure ||
-        outcome.error != null ||
-        outcome.disposition == SyncDisposition.partial ||
-        request.origin == SyncTrigger.manual &&
-            const {
-              SyncDisposition.deferred,
-              SyncDisposition.disabled,
-              SyncDisposition.missing,
-            }.contains(outcome.disposition)) {
-      if (_outcomes[scope]?.hasFailure != true ||
-          outcome.hasFailure ||
-          outcome.disposition == SyncDisposition.partial) {
-        _outcomes[scope] = outcome;
-      }
+    } else if (outcome.needsAttention) {
+      _retainOutcome(scope, outcome);
+    } else if (outcome.children.isNotEmpty) {
+      _pruneResolvedOutcome(scope);
+    }
+    if (scope.kind == SyncScopeKind.account) {
+      _pruneResolvedOutcome(allSyncScope);
     }
   }
 
@@ -148,22 +155,56 @@ class AccountSyncActivity extends ChangeNotifier {
     _resourceFailures.remove(scope);
   }
 
-  void _resolveCompletedDomains(String id, Iterable<SyncOutcome> children) {
-    for (final child in children) {
-      final covered = child.request.scope;
-      if (covered.accountId != id ||
-          child.disposition != SyncDisposition.completed) {
-        continue;
-      }
-      final domain = switch (covered.kind) {
-        SyncScopeKind.calendar => SyncDomain.calendar,
-        SyncScopeKind.tasks => SyncDomain.tasks,
-        _ => null,
-      };
-      if (domain != null) {
-        _outcomes.remove(covered);
-        _failures.remove((id, domain.name));
-      }
+  SyncDomain? _domainFor(SyncScope scope) => switch (scope.kind) {
+    SyncScopeKind.calendar => SyncDomain.calendar,
+    SyncScopeKind.tasks => SyncDomain.tasks,
+    _ => null,
+  };
+
+  void _recordDomainOutcome(String id, SyncScope scope, SyncOutcome outcome) {
+    if (outcome.disposition == SyncDisposition.completed) {
+      _clearOutcome(scope);
+      _failures.remove((id, _domainFor(scope)!.name));
+    } else if (outcome.deferral == SyncDeferral.pendingWrites) {
+      // A verified pull clears the earlier pull failure. The unresolved
+      // writes retain their own status and durable replay information.
+      _clearOutcome(scope);
+      _outcomes[scope] = outcome;
+    } else if (outcome.needsAttention) {
+      _retainOutcome(scope, outcome);
+    }
+  }
+
+  void _retainOutcome(SyncScope scope, SyncOutcome outcome) {
+    final previous = _outcomes[scope];
+    if (previous == null ||
+        !(previous.hasFailure || previous.error != null) ||
+        outcome.hasFailure ||
+        outcome.error != null) {
+      _outcomes[scope] = outcome;
+    }
+  }
+
+  void _pruneResolvedOutcome(SyncScope scope) {
+    final previous = _outcomes[scope];
+    if (previous == null || previous.children.isEmpty) return;
+    final remaining = [
+      for (final child in previous.children)
+        if (_outcomes[child.request.scope] case final retained?) retained,
+    ];
+    if (remaining.isEmpty) {
+      _clearOutcome(scope);
+    } else if (previous.children.any(
+      (child) =>
+          !identical(_outcomes[child.request.scope], child) &&
+          child.needsAttention,
+    )) {
+      _outcomes[scope] = SyncOutcome(
+        previous.request,
+        SyncDisposition.partial,
+        children: remaining,
+        error: remaining.map((child) => child.error).nonNulls.firstOrNull,
+      );
     }
   }
 

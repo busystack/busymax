@@ -1,7 +1,7 @@
 import '../../features/settings/presentation/account_sync_status.dart';
 import '../../features/settings/presentation/account_settings_feedback.dart';
 import '../../features/sync/sync_request.dart';
-import '../../features/sync/material_sync_feedback.dart';
+import 'android_sync_feedback.dart';
 import '../../features/sync/sync_activity_icon.dart';
 import '../../l10n/ical_import_report_description.dart';
 import '../../schedule/schedule_task_list_actions.dart';
@@ -187,7 +187,7 @@ Future<void> refreshAndroidAccounts(
   if (!context.mounted) return;
   if (allowed.length == accounts.length) {
     if (strategy == SyncStrategy.ordinary) {
-      await refreshFromMaterial(context, ref, allSyncScope);
+      await refreshFromAndroid(context, ref, allSyncScope);
     } else {
       await runner(allSyncScope, strategy: strategy);
     }
@@ -1240,7 +1240,7 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                               account.authority,
                             ) &&
                             mounted) {
-                          await refreshFromMaterial(
+                          await refreshFromAndroid(
                             context,
                             ref,
                             davCollectionSyncScope(account.id, collection.id),
@@ -1783,7 +1783,7 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
         return;
       }
       if (mounted) {
-        await refreshFromMaterial(
+        await refreshFromAndroid(
           context,
           ref,
           accountSyncScope(accountId),

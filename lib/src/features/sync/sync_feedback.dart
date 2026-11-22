@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/app_bootstrap.dart';
@@ -11,12 +11,13 @@ import 'sync_request.dart';
 
 /// Routes explicit user actions through shared synchronization. A retained
 /// failure can be inspected and retried from the same contextual action.
-Future<void> refreshFromMaterial(
+Future<void> refreshWithFeedback(
   BuildContext context,
   WidgetRef ref,
   SyncScope scope, {
   bool inspectFailure = true,
   VoidCallback? openRecovery,
+  required Future<bool?> Function(BuildContext, String, String?) confirmRetry,
 }) async {
   final runner = ref.read(manualSyncRunnerProvider);
   if (inspectFailure) {
@@ -43,26 +44,14 @@ Future<void> refreshFromMaterial(
       }
       final l10n = context.l10n;
       final title = syncOutcomeDescription(l10n, prior?.disposition);
-      final retry = await showDialog<bool>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: Text(title),
-          content: error == null
-              ? null
-              : Text(AccountSettingsFeedback.fromError(l10n, error).message),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: Text(l10n.cancel),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: Text(l10n.retry),
-            ),
-          ],
-        ),
+      final retry = await confirmRetry(
+        context,
+        title,
+        error == null
+            ? null
+            : AccountSettingsFeedback.fromError(l10n, error).message,
       );
-      if (retry != true) return;
+      if (retry != true || !context.mounted) return;
     }
   }
   final result = await runner(scope);

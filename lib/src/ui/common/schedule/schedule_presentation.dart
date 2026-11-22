@@ -109,8 +109,8 @@ class SchedulePresentation {
   IconData get calendarIcon => Icons.calendar_today_outlined;
   IconData get taskIcon => Icons.checklist_outlined;
   IconData get createIcon => Icons.add;
-  IconData get previousIcon => Icons.chevron_left;
-  IconData get nextIcon => Icons.chevron_right;
+  IconData previousIcon(TextDirection direction) => Icons.chevron_left;
+  IconData nextIcon(TextDirection direction) => Icons.chevron_right;
   IconData subdirectoryIcon(TextDirection direction) =>
       direction == TextDirection.rtl
       ? Icons.subdirectory_arrow_left

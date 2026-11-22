@@ -21,6 +21,7 @@ import 'dart:async';
 import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
 import 'package:busymax/src/calendar_providers/calendar_colors.dart';
 import 'package:busymax/src/features/sync/calendar_sync_engine.dart';
+import 'package:busymax/src/features/sync/account_sync_operations.dart';
 import 'package:busymax/src/features/sync/domain_sync_schedule.dart';
 import 'package:busymax/src/features/sync/pending_op_resolution_service.dart';
 import 'package:busymax/src/features/sync/sync_request.dart';
@@ -77,8 +78,11 @@ import 'package:ubuntu_localizations/ubuntu_localizations.dart';
 import '../../../test_localized_app.dart';
 import '../../../support/fake_autostart_service.dart';
 import '../../../support/memory_settings_store.dart';
+import '../../../support/rest_sync_fixture.dart';
 
 import 'package:busymax/src/platform/common/desktop_services.dart';
+
+final _english = lookupAppLocalizations(const Locale('en'));
 
 const _nativeMenuChannel = MethodChannel(nativeMenuChannelName);
 
@@ -882,8 +886,9 @@ void main() {
         final local = find.byKey(
           ValueKey('settings-calendar-schedule-${ordinary.id}'),
         );
-        await tester.ensureVisible(local);
-        await tester.tap(local);
+        await Scrollable.ensureVisible(tester.element(local), alignment: .5);
+        await tester.pumpAndSettle();
+        await tester.tap(local.hitTestable());
         await settle(tester);
         expect(
           (await complete(
@@ -3002,7 +3007,7 @@ void main() {
 
       expect(find.text('Calendars and task lists'), findsOneWidget);
       expect(find.text('Collections'), findsNothing);
-      expect(find.text('Refresh now'), findsOneWidget);
+      expect(find.text(_english.refreshAccount), findsOneWidget);
 
       final calendar = find.byKey(
         const ValueKey('dav-collection-personal-calendar'),
@@ -3057,38 +3062,44 @@ void main() {
   );
 
   testWidgets('eligible DAV account can refresh collections', (tester) async {
-    final calls = <String>[];
+    final calls = <SyncRequest>[];
     final container = _container(
       selectedAccountId: _nextcloudAccount.id,
       authRepository: _FakeAuthRepository(),
       accounts: const [_nextcloudAccount],
-      signedInSyncRunner: (accountId, full) async => calls.add(accountId),
+      syncOperationsFactory: (_) => _recordSyncRequests(calls),
     );
     addTearDown(container.dispose);
 
     await _pumpSettings(tester, container, logicalSize: const Size(1000, 900));
-    await tester.ensureVisible(find.text('Refresh now'));
-    await tester.tap(find.text('Refresh now'));
+    await tester.ensureVisible(find.text(_english.refreshAccount));
+    await tester.tap(find.text(_english.refreshAccount));
     await tester.pumpAndSettle();
 
-    expect(calls, [_nextcloudAccount.id]);
+    expect(calls, [
+      (
+        scope: accountSyncScope(_nextcloudAccount.id),
+        origin: SyncTrigger.manual,
+        strategy: SyncStrategy.ordinary,
+      ),
+    ]);
   });
 
   testWidgets('reconnect-required DAV account cannot refresh collections', (
     tester,
   ) async {
-    final calls = <String>[];
+    final calls = <SyncRequest>[];
     final container = _container(
       selectedAccountId: _reconnectRequiredNextcloudAccount.id,
       authRepository: _FakeAuthRepository(),
       accounts: const [_reconnectRequiredNextcloudAccount],
-      signedInSyncRunner: (accountId, full) async => calls.add(accountId),
+      syncOperationsFactory: (_) => _recordSyncRequests(calls),
     );
     addTearDown(container.dispose);
 
     await _pumpSettings(tester, container, logicalSize: const Size(1000, 900));
 
-    expect(find.text('Refresh now'), findsNothing);
+    expect(find.text(_english.refreshAccount), findsNothing);
     expect(
       find.text(accountReconnectRequiredActionLabel).hitTestable(),
       findsOneWidget,
@@ -3099,7 +3110,7 @@ void main() {
   testWidgets('DAV collection refresh re-reads eligibility before dispatch', (
     tester,
   ) async {
-    final calls = <String>[];
+    final calls = <SyncRequest>[];
     final repository = _MutableEligibilityAccountsRepository([
       _nextcloudAccount,
     ]);
@@ -3114,14 +3125,14 @@ void main() {
       accounts: const [_nextcloudAccount],
       accountsRepository: repository,
       davCollections: [cachedCollection],
-      signedInSyncRunner: (accountId, full) async => calls.add(accountId),
+      syncOperationsFactory: (_) => _recordSyncRequests(calls),
     );
     addTearDown(container.dispose);
 
     await _pumpSettings(tester, container, logicalSize: const Size(1000, 900));
     repository.canonicalAccounts = const [_reconnectRequiredNextcloudAccount];
-    await tester.ensureVisible(find.text('Refresh now'));
-    await tester.tap(find.text('Refresh now'));
+    await tester.ensureVisible(find.text(_english.refreshAccount));
+    await tester.tap(find.text(_english.refreshAccount));
     await tester.pumpAndSettle();
 
     expect(calls, isEmpty);
@@ -3388,13 +3399,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Force full resync'), findsOneWidget);
-    expect(
-      find.text(
-        'Completely reload data from every connected account. Use this only '
-        'to troubleshoot synchronization problems.',
-      ),
-      findsOneWidget,
-    );
+    expect(find.text(_english.forceFullResyncDescription), findsOneWidget);
     expect(find.text('Google Tasks API'), findsOneWidget);
     expect(
       tester.widget<Text>(find.text('Sync')).style,
@@ -3414,70 +3419,88 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   });
 
-  testWidgets('Force full resync runs for a connected account', (tester) async {
-    final calls = <String>[];
-    final container = _container(
-      selectedAccountId: _googleAccount.id,
-      authRepository: _FakeAuthRepository(),
-      accounts: const [_googleAccount],
-      signedInSyncRunner: (accountId, full) async => calls.add(accountId),
-    );
-    addTearDown(container.dispose);
-
-    await _pumpSettings(
-      tester,
-      container,
-      logicalSize: const Size(1000, 700),
-      initialPage: SettingsPage.diagnostics,
-    );
-    await tester.tap(find.text('Force full resync'));
-    await tester.pumpAndSettle();
-
-    expect(calls, [_googleAccount.id]);
-    await _disposeDiagnosticsWidget(tester);
-  });
-
-  testWidgets('Force full resync skips reconnect-required accounts', (
-    tester,
-  ) async {
-    final calls = <String>[];
-    const reconnect = AccountEntity(
-      id: 'google:reauth',
-      provider: BusyProvider.google,
-      authority: 'https://accounts.google.com',
-      providerAccountId: 'reauth',
-      authState: accountAuthStateReauthRequired,
-    );
-    final container = _container(
-      selectedAccountId: _googleAccount.id,
-      authRepository: _FakeAuthRepository(),
-      accounts: const [_googleAccount, reconnect],
-      signedInSyncRunner: (accountId, full) async => calls.add(accountId),
-    );
-    addTearDown(container.dispose);
-
-    await _pumpSettings(
-      tester,
-      container,
-      logicalSize: const Size(1000, 700),
-      initialPage: SettingsPage.diagnostics,
-    );
-    await tester.tap(find.text('Force full resync'));
-    await tester.pumpAndSettle();
-
-    expect(calls, [_googleAccount.id]);
-    await _disposeDiagnosticsWidget(tester);
-  });
+  for (final scenario in [
+    'connected',
+    'also reconnect-required',
+    'lost eligibility',
+  ]) {
+    testWidgets('Force full resync handles $scenario accounts', (tester) async {
+      final accounts = [
+        _googleAccount,
+        if (scenario == 'also reconnect-required')
+          const AccountEntity(
+            id: 'google:reauth',
+            provider: BusyProvider.google,
+            authority: 'https://accounts.google.com',
+            providerAccountId: 'reauth',
+            authState: accountAuthStateReauthRequired,
+          ),
+      ];
+      final repository = _MutableEligibilityAccountsRepository(accounts);
+      final database = AppDatabase.memoryForTests();
+      addTearDown(database.close);
+      await tester.runAsync(() async {
+        for (final account in accounts) {
+          await RestSyncFixture.insertAccount(database, account);
+        }
+      });
+      final pulls = <(String, bool)>[];
+      late RestSyncFixture fixture;
+      final container = _container(
+        selectedAccountId: _googleAccount.id,
+        authRepository: _FakeAuthRepository(),
+        accounts: accounts,
+        accountsRepository: repository,
+        databaseOverride: database,
+        syncOperationsFactory: (ref) {
+          fixture = RestSyncFixture(
+            database: database,
+            accounts: repository,
+            coordinator: ref.read(accountSyncCoordinatorProvider),
+            activity: ref.read(accountSyncActivityProvider),
+            pullTasks: (id, full) async => pulls.add((id, full)),
+            pullCalendar: (_, _) async {},
+          );
+          return fixture.operations;
+        },
+      );
+      addTearDown(container.dispose);
+      await _pumpSettings(
+        tester,
+        container,
+        logicalSize: const Size(1000, 700),
+        initialPage: SettingsPage.diagnostics,
+      );
+      if (scenario == 'lost eligibility') {
+        repository.canonicalAccounts = const [_reconnectRequiredGoogleAccount];
+      }
+      await tester.tap(find.text('Force full resync').hitTestable());
+      await settle(tester);
+      expect(fixture.requests, [
+        (
+          scope: allSyncScope,
+          origin: SyncTrigger.manual,
+          strategy: SyncStrategy.fullRecovery,
+        ),
+      ]);
+      expect(pulls, [
+        if (scenario != 'lost eligibility') (_googleAccount.id, true),
+      ]);
+      expect(fixture.failures, isEmpty);
+      expect(tester.takeException(), isNull);
+      await _disposeDiagnosticsWidget(tester);
+    });
+  }
 
   testWidgets('Force full resync is disabled without eligible accounts', (
     tester,
   ) async {
-    final calls = <String>[];
+    final calls = <SyncRequest>[];
     final container = _container(
       selectedAccountId: _reconnectRequiredGoogleAccount.id,
       authRepository: _FakeAuthRepository(),
       accounts: const [_reconnectRequiredGoogleAccount],
-      signedInSyncRunner: (accountId, full) async => calls.add(accountId),
+      syncOperationsFactory: (_) => _recordSyncRequests(calls),
     );
     addTearDown(container.dispose);
 
@@ -3497,35 +3520,6 @@ void main() {
     expect(row.enabled, isFalse);
     expect(row.onTap, isNull);
     expect(calls, isEmpty);
-    await _disposeDiagnosticsWidget(tester);
-  });
-
-  testWidgets('Force full resync re-reads eligibility before dispatch', (
-    tester,
-  ) async {
-    final calls = <String>[];
-    final repository = _MutableEligibilityAccountsRepository([_googleAccount]);
-    final container = _container(
-      selectedAccountId: _googleAccount.id,
-      authRepository: _FakeAuthRepository(),
-      accounts: const [_googleAccount],
-      accountsRepository: repository,
-      signedInSyncRunner: (accountId, full) async => calls.add(accountId),
-    );
-    addTearDown(container.dispose);
-
-    await _pumpSettings(
-      tester,
-      container,
-      logicalSize: const Size(1000, 700),
-      initialPage: SettingsPage.diagnostics,
-    );
-    repository.canonicalAccounts = const [_reconnectRequiredGoogleAccount];
-    await tester.tap(find.text('Force full resync'));
-    await tester.pumpAndSettle();
-
-    expect(calls, isEmpty);
-    expect(tester.takeException(), isNull);
     await _disposeDiagnosticsWidget(tester);
   });
 
@@ -3890,6 +3884,7 @@ ProviderContainer _container({
   LocalSettingsStore? settingsStore,
   AccountsRepository? accountsRepository,
   SignedInSyncRunner? signedInSyncRunner,
+  AccountSyncOperations Function(Ref)? syncOperationsFactory,
   Harness? productionHarness,
   ContactsFixture? contactsFixture,
   Stream<Map<String, RegistrationSummary>>? registrationSummaryStream,
@@ -3969,6 +3964,8 @@ ProviderContainer _container({
       ),
       if (signedInSyncRunner != null)
         signedInSyncRunnerProvider.overrideWithValue(signedInSyncRunner),
+      if (syncOperationsFactory != null)
+        accountSyncOperationsProvider.overrideWith(syncOperationsFactory),
       accountsStreamProvider.overrideWith((ref) => Stream.value(accounts)),
       accountManagementStreamProvider.overrideWith(
         (ref) => managedAccountStream ?? Stream.value(accounts),
@@ -3996,6 +3993,12 @@ ProviderContainer _container({
     ],
   );
 }
+
+AccountSyncOperations _recordSyncRequests(List<SyncRequest> calls) =>
+    RequestAccountSyncOperations((request) async {
+      calls.add(request);
+      return SyncOutcome(request, SyncDisposition.completed);
+    });
 
 const _useDefaultActiveAccountId = '__busymax_default_active_account__';
 
@@ -4080,11 +4083,17 @@ Future<void> _expandAccountAdvanced(WidgetTester tester, String id) async {
 
 Future<void> _expandCalendar(WidgetTester tester, String id) async {
   final expander = find.byKey(ValueKey('settings-calendar-expander-$id'));
-  await tester.ensureVisible(expander);
-  await tester.tap(
-    find.descendant(of: expander, matching: find.byType(YaruIconButton)).last,
+  final toggle = find.descendant(
+    of: expander,
+    matching: find.byWidgetPredicate(
+      (widget) => widget is YaruIconButton && widget.icon is AnimatedRotation,
+    ),
   );
+  await Scrollable.ensureVisible(tester.element(toggle), alignment: .5);
   await tester.pumpAndSettle();
+  await tester.tap(toggle.hitTestable());
+  await tester.pumpAndSettle();
+  expect(tester.widget<YaruExpandable>(expander).isExpanded, isTrue);
 }
 
 Future<void> _disposeDiagnosticsWidget(WidgetTester tester) async {
@@ -4638,7 +4647,7 @@ void registerContactsOverviewRegressions() {
 }
 
 class _FakeAccountsRepository implements AccountsRepository {
-  const _FakeAccountsRepository(this.accounts);
+  _FakeAccountsRepository(this.accounts);
 
   final List<AccountEntity> accounts;
 
@@ -4660,13 +4669,32 @@ class _FakeAccountsRepository implements AccountsRepository {
     return null;
   }
 
+  final _incompleteTaskImports = <String>{};
+
+  @override
+  Future<Set<String>> incompleteTaskImportAccountIds() async =>
+      Set.of(_incompleteTaskImports);
+
+  @override
+  Future<void> setTaskImportIncomplete(
+    String accountId,
+    bool incomplete,
+  ) async {
+    if (incomplete) {
+      _incompleteTaskImports.add(accountId);
+    } else {
+      _incompleteTaskImports.remove(accountId);
+    }
+  }
+
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 final class _MutableEligibilityAccountsRepository
-    implements AccountsRepository {
-  _MutableEligibilityAccountsRepository(this.canonicalAccounts);
+    extends _FakeAccountsRepository {
+  _MutableEligibilityAccountsRepository(this.canonicalAccounts)
+    : super(canonicalAccounts);
 
   List<AccountEntity> canonicalAccounts;
 
@@ -4681,9 +4709,6 @@ final class _MutableEligibilityAccountsRepository
     }
     return null;
   }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 final class _SettingsWebCalTransport implements WebCalHttpTransport {

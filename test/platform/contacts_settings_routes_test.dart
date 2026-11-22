@@ -534,12 +534,22 @@ void main() {
             ),
             findsOneWidget,
           );
-          await tester.ensureVisible(
-            find.text('Enable contact suggestions').first,
+          final enable = find.widgetWithText(
+            windows ? fluent.Button : TextButton,
+            'Enable contact suggestions',
           );
-          await tester.tap(find.text('Enable contact suggestions').first);
+          await Scrollable.ensureVisible(tester.element(enable), alignment: .5);
+          await tester.pumpAndSettle();
+          expect(enable.hitTestable(), findsOneWidget);
+          await tester.tap(enable);
           await settle(tester);
           final id = 'contacts:${provider.name}';
+          final enrolled = await complete(
+            tester,
+            () => fixture.store.read((tx) => tx.accounts()),
+          );
+          expect(enrolled.single.id, id);
+          expect(enrolled.single.enabled, isTrue);
           await complete(
             tester,
             () => fixture.controller.synchronizeAccount(id),

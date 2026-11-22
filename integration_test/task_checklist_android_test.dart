@@ -83,15 +83,23 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Schedule display'));
+      await tester.tap(find.byTooltip('Search'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('All tasks').last);
+      final search = find.widgetWithText(TextField, 'Search');
+      await tester.enterText(search, 'Native checklist parent');
+      FocusManager.instance.primaryFocus?.unfocus();
       await tester.pumpAndSettle();
       final parent = find.widgetWithText(ListTile, 'Native checklist parent');
       await _wait(tester, () => parent.evaluate().isNotEmpty);
       await tester.tap(parent);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Edit Task').last);
+      final editTask = find.descendant(
+        of: find.byKey(const ValueKey('android-schedule-details-scroll')),
+        matching: find.widgetWithText(FilledButton, 'Edit Task'),
+      );
+      await tester.ensureVisible(editTask);
+      await tester.pumpAndSettle();
+      await tester.tap(editTask.hitTestable());
       await _wait(
         tester,
         () => find.byType(AndroidTaskEditor).evaluate().isNotEmpty,
@@ -297,13 +305,11 @@ Future<void> _waitItems(
 
 Future<void> _action(WidgetTester tester, String action) async {
   final button = find.byKey(const ValueKey('android-checklist-actions-step-1'));
-  for (var attempt = 0; attempt < 30 && button.evaluate().isEmpty; attempt++) {
-    await tester.drag(find.byType(ListView).last, const Offset(0, -400));
-    await tester.pumpAndSettle();
-  }
+  await _wait(tester, () => button.evaluate().isNotEmpty);
   expect(button, findsOneWidget);
   await tester.ensureVisible(button);
-  await tester.tap(button);
+  await tester.pumpAndSettle();
+  await tester.tap(button.hitTestable());
   await tester.pumpAndSettle();
   await tester.tap(find.text(action).last);
   await tester.pumpAndSettle();

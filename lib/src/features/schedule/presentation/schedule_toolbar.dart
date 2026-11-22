@@ -2,7 +2,7 @@ import 'dart:async';
 
 import '../../sync/sync_activity_icon.dart';
 import '../../sync/sync_request.dart';
-import 'material_schedule_coverage.dart';
+import 'schedule_coverage_dialog.dart';
 
 import 'package:flutter/material.dart';
 import 'package:yaru/yaru.dart';

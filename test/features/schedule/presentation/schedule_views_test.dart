@@ -4272,50 +4272,85 @@ void main() {
     expect(find.text('июля'), findsNothing);
   });
 
-  testWidgets('mini calendar header arrows page without selecting a date', (
-    tester,
-  ) async {
-    final selectedDates = <DateTime>[];
+  for (final direction in ui.TextDirection.values) {
+    testWidgets(
+      'mini calendar arrows page in $direction without selecting a date',
+      (tester) async {
+        final selectedDates = <DateTime>[];
 
-    await tester.pumpWidget(
-      localizedTestApp(
-        child: Scaffold(
-          body: SizedBox(
-            width: 300,
-            child: MiniCalendar(
-              selectedDate: DateTime(2026, 1, 15),
-              firstWeekday: DateTime.monday,
-              onSelected: selectedDates.add,
-              onMonthSelected: (_) {},
-              onYearSelected: (_) {},
-              onWeekSelected: (_) {},
+        await tester.pumpWidget(
+          localizedTestApp(
+            child: Scaffold(
+              body: Directionality(
+                textDirection: direction,
+                child: SizedBox(
+                  width: 300,
+                  child: MiniCalendar(
+                    selectedDate: DateTime(2026, 1, 15),
+                    firstWeekday: DateTime.monday,
+                    onSelected: selectedDates.add,
+                    onMonthSelected: (_) {},
+                    onYearSelected: (_) {},
+                    onWeekSelected: (_) {},
+                  ),
+                ),
+              ),
             ),
           ),
-        ),
-      ),
+        );
+
+        final rtl = direction == ui.TextDirection.rtl;
+        for (final unit in ['month', 'year']) {
+          final previous = find.byTooltip('Previous $unit');
+          final next = find.byTooltip('Next $unit');
+          expect(
+            find.descendant(
+              of: previous,
+              matching: find.byIcon(
+                rtl ? YaruIcons.pan_end : YaruIcons.pan_start,
+              ),
+            ),
+            findsOneWidget,
+          );
+          expect(
+            find.descendant(
+              of: next,
+              matching: find.byIcon(
+                rtl ? YaruIcons.pan_start : YaruIcons.pan_end,
+              ),
+            ),
+            findsOneWidget,
+          );
+          expect(
+            tester.getCenter(previous).dx,
+            rtl
+                ? greaterThan(tester.getCenter(next).dx)
+                : lessThan(tester.getCenter(next).dx),
+          );
+        }
+        await tester.tap(find.byTooltip('Next month'));
+        await tester.pump();
+        expect(find.text('February'), findsOneWidget);
+        expect(find.text('2026'), findsOneWidget);
+
+        await tester.tap(find.byTooltip('Next year'));
+        await tester.pump();
+        expect(find.text('February'), findsOneWidget);
+        expect(find.text('2027'), findsOneWidget);
+
+        await tester.tap(find.byTooltip('Previous month'));
+        await tester.pump();
+        expect(find.text('January'), findsOneWidget);
+        expect(find.text('2027'), findsOneWidget);
+
+        await tester.tap(find.byTooltip('Previous year'));
+        await tester.pump();
+        expect(find.text('January'), findsOneWidget);
+        expect(find.text('2026'), findsOneWidget);
+        expect(selectedDates, isEmpty);
+      },
     );
-
-    await tester.tap(find.byTooltip('Next month'));
-    await tester.pump();
-    expect(find.text('February'), findsOneWidget);
-    expect(find.text('2026'), findsOneWidget);
-
-    await tester.tap(find.byTooltip('Next year'));
-    await tester.pump();
-    expect(find.text('February'), findsOneWidget);
-    expect(find.text('2027'), findsOneWidget);
-
-    await tester.tap(find.byTooltip('Previous month'));
-    await tester.pump();
-    expect(find.text('January'), findsOneWidget);
-    expect(find.text('2027'), findsOneWidget);
-
-    await tester.tap(find.byTooltip('Previous year'));
-    await tester.pump();
-    expect(find.text('January'), findsOneWidget);
-    expect(find.text('2026'), findsOneWidget);
-    expect(selectedDates, isEmpty);
-  });
+  }
 
   testWidgets('mini calendar week number selects that week', (tester) async {
     DateTime? selectedWeek;

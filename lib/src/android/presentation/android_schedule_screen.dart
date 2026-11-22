@@ -1,7 +1,7 @@
 import '../../features/sync/sync_request.dart';
 import '../../features/sync/sync_activity_icon.dart';
-import '../../features/sync/material_sync_feedback.dart';
-import '../../features/schedule/presentation/material_schedule_coverage.dart';
+import 'android_sync_feedback.dart';
+import 'android_schedule_coverage_dialog.dart';
 import '../android_local_network_access.dart';
 import '../../features/calendar/application/attendee_suggestion_session.dart';
 import 'android_editor_group.dart';
@@ -986,17 +986,24 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
       return;
     }
     final repository = ref.read(scheduleRepositoryProvider);
-    final items = await repository.listItems(
-      range: ScheduleRange.day(request.date),
-      filters: ScheduleFilters(
-        accountIds: request.accountId == null ? const {} : {request.accountId!},
-        ignoreDateRange: true,
-        taskCompletion: ScheduleTaskCompletion.all,
-        includeCalendarEvents: !request.task,
-        includeTasks: request.task,
-      ),
-    );
-    final item = items.where((item) => item.id == request.itemId).firstOrNull;
+    final accountId = request.accountId;
+    final itemId = request.itemId;
+    final item = request.task
+        ? accountId == null || itemId == null
+              ? null
+              : await repository.findReminderTask(
+                  accountId: accountId,
+                  taskListId: request.taskListId!,
+                  taskId: itemId,
+                )
+        : (await repository.listItems(
+            range: ScheduleRange.day(request.date),
+            filters: ScheduleFilters(
+              accountIds: accountId == null ? const {} : {accountId},
+              ignoreDateRange: true,
+              includeTasks: false,
+            ),
+          )).where((item) => item.id == itemId).firstOrNull;
     if (!mounted) {
       return;
     }
@@ -2703,7 +2710,7 @@ class _AndroidSourcesPaneState extends ConsumerState<_AndroidSourcesPane> {
               return;
             }
             if (mounted) {
-              await refreshFromMaterial(
+              await refreshFromAndroid(
                 context,
                 ref,
                 accountSyncScope(account.id),

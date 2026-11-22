@@ -30,6 +30,10 @@ import 'package:busymax/src/app/busymax_app.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/notifications/notification_reconciler.dart';
 import 'package:busymax/src/features/sync/pending_mutation_sync_requester.dart';
+import 'package:busymax/src/features/sync/account_sync_operations.dart';
+import 'package:busymax/src/features/sync/domain_sync_schedule.dart';
+import 'package:busymax/src/features/sync/sync_request.dart';
+import 'package:busymax/src/features/settings/presentation/settings_screen.dart';
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
 import 'package:busymax/src/schedule/schedule_repository.dart';
@@ -133,7 +137,7 @@ void main() {
     if (headerIcons != null) {
       await tester.runAsync(() => headerIcons.initialize());
     }
-    var workspaceRefreshes = 0;
+    final workspaceRefreshes = <SyncRequest>[];
     final container = ProviderContainer(
       overrides: [
         if (headerIcons != null)
@@ -167,9 +171,12 @@ void main() {
         tasksRepositoryForAccountProvider.overrideWith(
           (ref, id) => TasksRepository(database: db, accountId: id),
         ),
-        allAccountsSyncRunnerProvider.overrideWithValue(() async {
-          workspaceRefreshes++;
-        }),
+        accountSyncOperationsProvider.overrideWithValue(
+          RequestAccountSyncOperations((request) async {
+            workspaceRefreshes.add(request);
+            return SyncOutcome(request, SyncDisposition.completed);
+          }),
+        ),
         signedInSyncRunnerProvider.overrideWithValue((_, _) async {}),
         pendingCalendarMutationSyncRequesterForAccountProvider.overrideWith((
           ref,
@@ -385,8 +392,16 @@ void main() {
       await controller.setThemeModePreference(BusyMaxThemeModePreference.light);
       await tester.pumpAndSettle();
       await capture('sources-header');
+      final refreshCount = workspaceRefreshes.length;
       await tester.tap(find.byKey(const ValueKey('schedule-refresh-button')));
       await tester.pumpAndSettle();
+      expect(workspaceRefreshes.skip(refreshCount), [
+        (
+          scope: allSyncScope,
+          origin: SyncTrigger.manual,
+          strategy: SyncStrategy.ordinary,
+        ),
+      ]);
       await tester.tap(find.byKey(const ValueKey('schedule-create-button')));
       await tester.pumpAndSettle();
       await tester.runAsync(
@@ -465,16 +480,13 @@ void main() {
       await capture('event-editor');
       await tester.tap(find.text('Cancel').last);
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey('busymax-main-menu-button')));
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyS);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
       await tester.pumpAndSettle();
-      await tester.runAsync(
-        () => Process.run('/usr/bin/python3', [
-          'tool/linux/parity_input.py',
-          'Home',
-          'Return',
-        ]),
-      );
-      await tester.pumpAndSettle();
+      expect(find.byType(SettingsScreen), findsOneWidget);
       await capture('settings');
       final accountsNavigation = find.byKey(
         const ValueKey('settings-navigation-accounts'),
@@ -527,9 +539,15 @@ void main() {
       }
     }
     if (androidUi) {
-      final refreshCount = workspaceRefreshes;
+      final refreshCount = workspaceRefreshes.length;
       await workspaceCommand('refresh');
-      expect(workspaceRefreshes, refreshCount + 1);
+      expect(workspaceRefreshes.skip(refreshCount), [
+        (
+          scope: allSyncScope,
+          origin: SyncTrigger.manual,
+          strategy: SyncStrategy.ordinary,
+        ),
+      ]);
       await workspaceCommand('about');
       await capture('about');
       await tester.tap(find.text('Close').last);
@@ -776,7 +794,7 @@ void main() {
         date: DateTime.now(),
         itemId: 'date-only-task',
         accountId: 'google:populated',
-        task: true,
+        taskListId: 'visible-list',
       );
       await tester.pumpAndSettle();
       expect(find.textContaining('Project notes, line 30.'), findsOneWidget);
@@ -1050,7 +1068,7 @@ void main() {
             date: DateTime.now(),
             itemId: 'old-0',
             accountId: 'google:populated',
-            task: true,
+            taskListId: 'visible-list',
           );
           await tester.pumpAndSettle();
           await tester.ensureVisible(find.text('Edit Task').last);

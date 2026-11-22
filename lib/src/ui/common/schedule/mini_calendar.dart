@@ -838,7 +838,8 @@ class _MiniCalendarStepper extends StatelessWidget {
                     context,
                     colorScheme: colorScheme,
                     tooltip: previousTooltip,
-                    icon: SchedulePresentation.of(context).previousIcon,
+                    icon: SchedulePresentation.of(context)
+                        .previousIcon(Directionality.of(context)),
                     onPressed: onPrevious,
                   ),
                 ),
@@ -850,7 +851,8 @@ class _MiniCalendarStepper extends StatelessWidget {
                     context,
                     colorScheme: colorScheme,
                     tooltip: nextTooltip,
-                    icon: SchedulePresentation.of(context).nextIcon,
+                    icon: SchedulePresentation.of(context)
+                        .nextIcon(Directionality.of(context)),
                     onPressed: onNext,
                   ),
                 ),
@@ -865,7 +867,8 @@ class _MiniCalendarStepper extends StatelessWidget {
               context,
               colorScheme: colorScheme,
               tooltip: previousTooltip,
-              icon: SchedulePresentation.of(context).previousIcon,
+              icon: SchedulePresentation.of(context)
+                  .previousIcon(Directionality.of(context)),
               onPressed: onPrevious,
             ),
             const SizedBox(width: ScheduleSpacing.xs),
@@ -875,7 +878,8 @@ class _MiniCalendarStepper extends StatelessWidget {
               context,
               colorScheme: colorScheme,
               tooltip: nextTooltip,
-              icon: SchedulePresentation.of(context).nextIcon,
+              icon: SchedulePresentation.of(context)
+                  .nextIcon(Directionality.of(context)),
               onPressed: onNext,
             ),
           ],

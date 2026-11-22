@@ -373,10 +373,16 @@ class _AndroidHomeShellState extends ConsumerState<AndroidHomeShell>
                   schedule.sourceType.equals(activation.sourceType),
             ))
             .getSingleOrNull();
+    final schedules = NotificationScheduleService(database: database);
+    final task = activation.sourceType == 'task';
+    final taskListId = task && row != null
+        ? await schedules.taskListForOpenReminder(row)
+        : null;
     final valid =
         row != null &&
-        await NotificationScheduleService(database: database)
-            .validateAndReconcileReminder(row, forOpen: true);
+        (task
+            ? taskListId != null
+            : await schedules.validateAndReconcileReminder(row, forOpen: true));
     if (!mounted) {
       return;
     }
@@ -392,7 +398,7 @@ class _AndroidHomeShellState extends ConsumerState<AndroidHomeShell>
       date: DateTime.now(),
       itemId: row.sourceId,
       accountId: activation.accountId,
-      task: activation.sourceType == 'task',
+      taskListId: taskListId,
     );
   }
 

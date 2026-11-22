@@ -412,6 +412,7 @@ final class AccountSynchronizationService {
     final policy = DomainSyncPolicy(database);
     var result = SyncDisposition.deferred;
     var pulled = false;
+    SyncDeferral? deferral;
     try {
       await activity.run(
         id,
@@ -496,6 +497,12 @@ final class AccountSynchronizationService {
               }
             },
           );
+          if (scheduled == DomainSyncDisposition.deferred) {
+            deferral = SyncDeferral.scheduled;
+          }
+          if (scheduled == DomainSyncDisposition.skipped) {
+            result = SyncDisposition.disabled;
+          }
           pulled =
               scheduled == DomainSyncDisposition.pulled &&
               resource == null &&
@@ -518,7 +525,10 @@ final class AccountSynchronizationService {
                       )
                       ..limit(1))
                     .get();
-            if (pending.isNotEmpty) result = SyncDisposition.deferred;
+            if (pending.isNotEmpty) {
+              result = SyncDisposition.deferred;
+              deferral = SyncDeferral.pendingWrites;
+            }
           }
         },
         clearFailureOnSuccess: () => pulled,
@@ -530,6 +540,7 @@ final class AccountSynchronizationService {
         result,
         affected: domainAffected,
         completedResources: completedResources,
+        deferral: deferral,
       );
     } on ScopedSyncDeferred {
       return SyncOutcome(

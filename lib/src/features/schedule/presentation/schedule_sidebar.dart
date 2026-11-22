@@ -4,7 +4,7 @@ import '../../../schedule/schedule_provider_links.dart';
 export '../../../schedule/schedule_provider_links.dart';
 import '../../sync/sync_request.dart';
 import '../../sync/sync_activity_icon.dart';
-import '../../sync/material_sync_feedback.dart';
+import '../../sync/linux_sync_feedback.dart';
 import '../../../platform/gtk_animation_settings_service.dart';
 import '../../../l10n/oauth_error_description.dart';
 
@@ -207,7 +207,7 @@ class _SourceRow extends ConsumerWidget {
                 );
               case 'refresh':
                 unawaited(
-                  refreshFromMaterial(
+                  refreshFromLinux(
                     context,
                     ref,
                     calendarSyncScope(source.accountId, source.id),
@@ -604,7 +604,7 @@ class _AccountSourcesGroupState extends ConsumerState<_AccountSourcesGroup>
   ) async {
     switch (action) {
       case AccountHeaderCollectionAction.refresh:
-        await refreshFromMaterial(
+        await refreshFromLinux(
           context,
           ref,
           accountSyncScope(widget.account.id),
@@ -735,7 +735,7 @@ class _SubscriptionSourceRow extends ConsumerWidget {
                 );
               case 'refresh':
                 unawaited(
-                  refreshFromMaterial(
+                  refreshFromLinux(
                     context,
                     ref,
                     calendarSyncScope(source.accountId, source.id),
@@ -1215,7 +1215,7 @@ class _TaskListScheduleRow extends ConsumerWidget {
                 );
               case 'refresh':
                 unawaited(
-                  refreshFromMaterial(
+                  refreshFromLinux(
                     context,
                     ref,
                     taskListSyncScope(list.accountId, list.id),

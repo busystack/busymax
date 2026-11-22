@@ -523,6 +523,77 @@ void main() {
     expect(scenario.edits, isEmpty);
     expect(region(tester).active, isFalse);
   });
+  for (final releaseSecondFirst in [false, true]) {
+    testWidgets('stationary two-finger hold cannot select (reverse release: '
+        '$releaseSecondFirst)', (tester) async {
+      final scenario = await mount(tester);
+      final a = await tester.startGesture(slot(tester, 11 * 60), pointer: 1);
+      final b = await tester.startGesture(slot(tester, 12 * 60), pointer: 2);
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(region(tester).preview, isNull);
+      for (var i = 0; i < 6; i++) {
+        await a.moveBy(const Offset(0, -4));
+        await b.moveBy(const Offset(0, 4));
+        await tester.pump();
+      }
+      await (releaseSecondFirst ? b : a).up();
+      await tester.pump();
+      await (releaseSecondFirst ? a : b).up();
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 1));
+      expect(scenario.selections, isEmpty);
+      expect(scenario.edits, isEmpty);
+      expect(region(tester).preview, isNull);
+    });
+  }
+
+  testWidgets('adding a second pointer cancels an event resize preview', (
+    tester,
+  ) async {
+    final scenario = await mount(tester);
+    final endHandle = find.byKey(
+      const ValueKey('schedule-resizeEnd-drag-event'),
+    );
+    final a = await hold(tester, tester.getCenter(endHandle));
+    await a.moveBy(const Offset(0, 20));
+    await tester.pump();
+    expect(region(tester).preview, isNotNull);
+    final b = await tester.startGesture(slot(tester, 11 * 60));
+    await tester.pump();
+    expect(region(tester).preview, isNull);
+    await b.moveBy(const Offset(0, 25));
+    await b.up();
+    await a.up();
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(scenario.edits, isEmpty);
+    expect(scenario.selections, isEmpty);
+  });
+
+  testWidgets(
+    'cancelling the second finger cannot revive a pending selection',
+    (tester) async {
+      final scenario = await mount(tester);
+      final a = await tester.startGesture(slot(tester, 11 * 60), pointer: 1);
+      final b = await tester.startGesture(slot(tester, 12 * 60), pointer: 2);
+      await b.cancel();
+      await tester.pump(const Duration(milliseconds: 600));
+      await a.up();
+      await tester.pumpAndSettle();
+      expect(scenario.selections, isEmpty);
+      expect(scenario.edits, isEmpty);
+      expect(region(tester).preview, isNull);
+
+      final fresh = await hold(tester, slot(tester, 11 * 60));
+      expect(region(tester).preview, isNotNull);
+      await fresh.cancel();
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 1));
+      expect(scenario.selections, isEmpty);
+      expect(region(tester).preview, isNull);
+    },
+  );
+
   testWidgets('two fingers zoom the planner without a visible zoom control', (
     tester,
   ) async {

@@ -39,6 +39,8 @@ const allSyncScope = (
 
 enum SyncStrategy { ordinary, fullRecovery }
 
+enum SyncDeferral { scheduled, pendingWrites }
+
 typedef SyncRequest = ({
   SyncScope scope,
   SyncTrigger origin,
@@ -63,6 +65,7 @@ final class SyncOutcome {
     Iterable<SyncScope> completedResources = const [],
     Iterable<SyncOutcome> children = const [],
     this.error,
+    this.deferral,
   }) : affected = Set.unmodifiable(affected),
        completedResources = Set.unmodifiable(completedResources),
        children = List.unmodifiable(children);
@@ -76,6 +79,34 @@ final class SyncOutcome {
   final Set<SyncScope> completedResources;
   final List<SyncOutcome> children;
   final Object? error;
+
+  final SyncDeferral? deferral;
+
+  bool get needsAttention {
+    if (error != null) return true;
+    return switch (disposition) {
+      SyncDisposition.failed => true,
+      SyncDisposition.partial =>
+        children.isEmpty || children.any((child) => !child._routine),
+      SyncDisposition.deferred =>
+        deferral != SyncDeferral.scheduled &&
+            (deferral == SyncDeferral.pendingWrites ||
+                request.origin == SyncTrigger.manual ||
+                children.any(
+                  (child) => !child._routine && child.needsAttention,
+                )),
+      SyncDisposition.disabled ||
+      SyncDisposition.missing => request.origin == SyncTrigger.manual,
+      SyncDisposition.completed || SyncDisposition.cancelled => false,
+    };
+  }
+
+  bool get _routine =>
+      error == null &&
+      (deferral == SyncDeferral.scheduled ||
+          disposition == SyncDisposition.completed ||
+          disposition == SyncDisposition.disabled ||
+          children.isNotEmpty && children.every((child) => child._routine));
 
   bool get hasFailure => switch (disposition) {
     SyncDisposition.failed => true,

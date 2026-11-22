@@ -1,5 +1,5 @@
 import '../../../platform/gtk_animation_settings_service.dart';
-import '../../sync/material_sync_feedback.dart';
+import '../../sync/linux_sync_feedback.dart';
 import '../../sync/sync_request.dart';
 import '../../sync/domain_sync_schedule.dart';
 import '../../../schedule/schedule_creation_destinations.dart';
@@ -2769,7 +2769,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     }
   }
 
-  Future<void> _refreshAll() => refreshFromMaterial(context, ref, allSyncScope);
+  Future<void> _refreshAll() => refreshFromLinux(context, ref, allSyncScope);
 
   void _retrySchedule() {
     ref.invalidate(accountsStreamProvider);

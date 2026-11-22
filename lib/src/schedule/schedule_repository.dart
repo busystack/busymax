@@ -180,6 +180,56 @@ class ScheduleRepository {
     required String accountId,
     required String taskListId,
     required String taskId,
+  }) =>
+      _taskTargetQuery(
+        accountId: accountId,
+        taskListId: taskListId,
+        taskId: taskId,
+        requireSelected: true,
+      ).watchSingleOrNull().map((row) {
+        if (row == null ||
+            !isVisibleTaskProjection(row.readTable(_database.tasks))) {
+          return null;
+        }
+        final task = row.readTable(_database.tasks);
+        return ScheduleTaskTarget(
+          accountId: task.accountId,
+          taskListId: task.taskListId,
+          taskId: task.id,
+        );
+      });
+
+  /// Loads the live task behind a validated reminder by its full identity.
+  Future<TaskScheduleItem?> findReminderTask({
+    required String accountId,
+    required String taskListId,
+    required String taskId,
+  }) async {
+    final row = await _taskTargetQuery(
+      accountId: accountId,
+      taskListId: taskListId,
+      taskId: taskId,
+      requireSelected: false,
+    ).getSingleOrNull();
+    if (row == null ||
+        !isVisibleTaskProjection(row.readTable(_database.tasks))) {
+      return null;
+    }
+    final account = row.readTable(_database.accounts);
+    return _taskItemFromRow(
+      row,
+      {accountId: BusyProviderCodec.requireStorageValue(account.provider)},
+      {accountId: account.displayName},
+      {accountId: account.email},
+      await _taskHierarchy([row]),
+    );
+  }
+
+  Selectable<TypedResult> _taskTargetQuery({
+    required String accountId,
+    required String taskListId,
+    required String taskId,
+    required bool requireSelected,
   }) {
     final query =
         _database.select(_database.tasks).join([
@@ -197,8 +247,11 @@ class ScheduleRepository {
             leftOuterJoin(
               _database.davCollections,
               _database.davCollections.id.equalsExp(
-                _database.taskLists.davCollectionId,
-              ),
+                    _database.taskLists.davCollectionId,
+                  ) &
+                  _database.davCollections.accountId.equalsExp(
+                    _database.tasks.accountId,
+                  ),
             ),
           ])
           ..where(_database.tasks.accountId.equals(accountId))
@@ -218,22 +271,28 @@ class ScheduleRepository {
           ..where(_database.taskLists.serverMissing.equals(false))
           ..where(
             _database.taskLists.davCollectionId.isNull() |
-                _database.davCollections.tasksSelected.equals(true),
+                (_database.davCollections.deleted.equals(false) &
+                    _database.davCollections.serverMissing.equals(false) &
+                    (requireSelected
+                        ? _database.davCollections.tasksSelected.equals(true)
+                        : const Constant(true))),
           )
           ..where(
-            _database.accounts.authState.isIn(accountCachedAvailableStates),
+            _database.accounts.authState.isIn(
+              requireSelected
+                  ? accountCachedAvailableStates
+                  : accountLocalReminderEligibleStates,
+            ),
           );
-    return query.watchSingleOrNull().map((row) {
-      if (row == null) {
-        return null;
-      }
-      final task = row.readTable(_database.tasks);
-      return ScheduleTaskTarget(
-        accountId: task.accountId,
-        taskListId: task.taskListId,
-        taskId: task.id,
-      );
-    });
+    if (!requireSelected) {
+      query
+        ..where(_database.taskLists.remindersEnabled.equals(true))
+        ..where(
+          _database.taskLists.davCollectionId.isNull() |
+              _database.davCollections.taskProjectionEnabled.equals(true),
+        );
+    }
+    return query;
   }
 
   Future<List<ScheduleItem>> listItems({

@@ -39,6 +39,7 @@ import 'package:busymax/src/features/feedback/data/feedback_api_client.dart';
 import 'package:busymax/src/features/feedback/data/feedback_submission.dart';
 import 'package:busymax/src/features/connectivity/network_connectivity_service.dart';
 import 'package:busymax/src/features/notifications/notification_reconciler.dart';
+import 'package:busymax/src/features/notifications/notification_schedule_service.dart';
 import 'package:busymax/src/features/schedule/application/attachment_upload_coordinator.dart';
 import 'package:busymax/src/features/recurrence/domain/recurrence_rule.dart';
 import 'package:busymax/src/features/sync/pending_mutation_sync_requester.dart';
@@ -66,6 +67,7 @@ import 'package:busymax/src/schedule/schedule_repository.dart';
 import 'package:busymax/src/schedule/schedule_range.dart';
 import 'package:busymax/src/schedule/schedule_view_mode.dart';
 import 'package:drift/drift.dart' hide isNull, isNotNull;
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -113,7 +115,7 @@ void main() {
         date: DateTime.now(),
         itemId: 'date-only-task',
         accountId: 'google:populated',
-        task: true,
+        taskListId: 'visible-list',
       );
       await tester.pumpAndSettle();
       expect(find.text('Edit Task'), findsWidgets);
@@ -263,16 +265,61 @@ void main() {
       seedDatabase: (db) async {
         await seedScheduleParityFixture(db);
         await db.delete(db.calendarEvents).go();
+        final today = DateTime.now().toIso8601String().substring(0, 10);
+        for (var i = 0; i < 12; i++) {
+          await db
+              .into(db.calendarEvents)
+              .insert(
+                CalendarEventsCompanion.insert(
+                  id: 'overflow-$i',
+                  accountId: 'google:populated',
+                  calendarSourceId: 'calendar',
+                  provider: 'google',
+                  providerCalendarId: 'calendar',
+                  providerEventId: 'overflow-$i',
+                  title: 'Overflow event $i',
+                  allDay: const Value(true),
+                  startDate: Value(today),
+                  rawJson: const Value('{}'),
+                  createdAtLocal: 1,
+                  updatedAtLocal: 1,
+                ),
+              );
+        }
       },
     );
     addTearDown(harness.dispose);
-    final more = find.textContaining('more').hitTestable().first;
+    final more = find
+        .byWidgetPredicate(
+          (widget) =>
+              widget is TextButton &&
+              widget.child is Text &&
+              RegExp(r'^\+?\d+ more$')
+                  .hasMatch((widget.child as Text).data ?? ''),
+        )
+        .hitTestable();
+    expect(more, findsOneWidget);
     await tester.tap(more);
     await tester.pumpAndSettle();
     final row = find.widgetWithText(ListTile, 'Date-only task');
+    await tester.scrollUntilVisible(
+      row,
+      200,
+      scrollable: find.descendant(
+        of: find.byType(BottomSheet),
+        matching: find.byType(Scrollable),
+      ),
+    );
     await tester.tap(_completionControl(row));
     await tester.pumpAndSettle();
     expect(tester.widget<Checkbox>(_completionControl(row)).value, isTrue);
+    expect(
+      (await harness.database.tasksDao.listTasks(
+        'google:populated',
+        'visible-list',
+      )).single.status,
+      'completed',
+    );
     await tester.tap(_completionControl(row));
     await tester.pumpAndSettle();
     expect(tester.widget<Checkbox>(_completionControl(row)).value, isFalse);
@@ -758,6 +805,119 @@ void main() {
     await harness.dispose();
   });
 
+  for (final selected in [true, false]) {
+    testWidgets(
+      'a validated reminder opens a task with DAV visibility $selected',
+      (tester) async {
+        final backend = _ReminderTapBackend();
+        const account = 'nextcloud:android-editor';
+        const list = 'editor-list';
+        const task = 'editor-task';
+        final day = DateTime.now().toIso8601String().substring(0, 10);
+        final alarm = encodeIcalTaskAlarms([
+          IcalTaskAlarm.displayAbsolute(
+            DateTime.now().toUtc().add(const Duration(minutes: 10)),
+          ),
+        ]);
+        final harness = await _pumpApp(
+          tester,
+          AppSettings.defaults(),
+          notificationBackend: backend,
+          seedDatabase: (db) async {
+            await _seedAndroidEditorTask(db, due: day);
+            await _seedAndroidDavMoveDestination(db, account);
+            await (db.update(db.davCollections)
+                  ..where((row) => row.id.equals('editor-destination')))
+                .write(DavCollectionsCompanion(tasksSelected: Value(selected)));
+            await (db.update(
+              db.taskLists,
+            )..where((row) => row.id.equals(list))).write(
+              const TaskListsCompanion(
+                davCollectionId: Value('editor-destination'),
+              ),
+            );
+            final projection = (await db.tasksDao.listTasks(
+              account,
+              list,
+            )).single;
+            await db.tasksDao.upsertTask(
+              projection
+                  .toCompanion(true)
+                  .copyWith(taskAlarmsJson: Value(alarm)),
+            );
+            await db.tasksDao.upsertTask(
+              projection
+                  .toCompanion(true)
+                  .copyWith(
+                    taskListId: const Value('dav-task-list-editor-destination'),
+                    title: const Value('Other task with the same provider ID'),
+                    taskAlarmsJson: Value(alarm),
+                  ),
+            );
+            await NotificationScheduleService(database: db)
+                .rebuildUpcomingTaskNotifications(account);
+          },
+        );
+        addTearDown(harness.dispose);
+        await harness.container
+            .read(androidNotificationServiceProvider)
+            .initialize(timeZoneId: 'UTC');
+        final db = harness.database;
+        final row = (await db.select(db.notificationSchedule).get())
+            .singleWhere((entry) => entry.id == 'task|$account|$list|$task');
+        final items = await harness.container
+            .read(scheduleRepositoryProvider)
+            .listItems(
+              range: ScheduleRange.day(DateTime.now()),
+              filters: const ScheduleFilters(
+                ignoreDateRange: true,
+                includeCalendarEvents: false,
+              ),
+            );
+        expect(items.any((item) => item.title == 'Editable task'), selected);
+
+        final details = find.byKey(
+          const ValueKey('android-schedule-details-scroll'),
+        );
+        backend.tap(row, accountId: 'nextcloud:someone-else');
+        await tester.pumpAndSettle();
+        expect(details, findsNothing);
+        expect(
+          find.textContaining('This reminder is no longer available.'),
+          findsOneWidget,
+        );
+        await tester.pump(const Duration(seconds: 5));
+        await tester.pumpAndSettle();
+
+        backend.tap(row);
+        await tester.pumpAndSettle();
+        expect(details, findsOneWidget);
+        expect(
+          find.descendant(of: details, matching: find.text('Editable task')),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: details,
+            matching: find.text('Other task with the same provider ID'),
+          ),
+          findsNothing,
+        );
+        await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+        await db.tasksDao.deleteTask(account, list, task);
+        backend.tap(row);
+        await tester.pumpAndSettle();
+        expect(details, findsNothing);
+        expect(
+          find.textContaining('This reminder is no longer available.'),
+          findsOneWidget,
+        );
+        await harness.dispose();
+      },
+    );
+  }
+
   testWidgets('item deep link previews then edits one task in the workspace', (
     tester,
   ) async {
@@ -773,7 +933,7 @@ void main() {
       date: DateTime.now(),
       itemId: 'date-only-task',
       accountId: 'google:populated',
-      task: true,
+      taskListId: 'visible-list',
     );
     await tester.pumpAndSettle();
     expect(
@@ -3685,6 +3845,186 @@ void main() {
       hasLength(1),
     );
 
+    await harness.dispose();
+  });
+
+  for (final keepServer in [false, true]) {
+    testWidgets(
+      'Android preserves timed due date after '
+      '${keepServer ? 'accepting the server version' : 'merging a recovered draft'}',
+      (tester) async {
+        final harness = await _pumpApp(
+          tester,
+          AppSettings.defaults(),
+          localTimeZone: 'UTC',
+        );
+        addTearDown(harness.dispose);
+        final task = await _seedAndroidEditorTask(
+          harness.database,
+          provider: BusyProvider.microsoft,
+          due: '2026-08-12',
+        );
+        final database = harness.database;
+        Future<Task> readTask() async => (await database.tasksDao.listTasks(
+          task.accountId,
+          task.taskListId,
+        )).single;
+        final allDay = find.widgetWithText(SwitchListTile, 'All day');
+        final dueTime = find.widgetWithText(ListTile, 'Due time');
+        final save = find.widgetWithText(TextButton, 'Save');
+
+        await _openAndroidTaskEditor(tester, task, BusyProvider.microsoft);
+        await _scrollUntilBuilt(tester, allDay);
+        expect(tester.widget<SwitchListTile>(allDay).value, isTrue);
+        final field = find.widgetWithText(
+          TextField,
+          keepServer ? 'Title' : 'Notes',
+        );
+        await _scrollUntilBuilt(tester, field);
+        await tester.enterText(field, 'Local draft text');
+        await tester.pump(const Duration(milliseconds: 1100));
+        if (!keepServer) {
+          final key = _scopedTaskRecoveryKey(
+            task.accountId,
+            task.taskListId,
+            task.id,
+          );
+          expect(jsonDecode(secureStorage[key]!)['scheduledAllDay'], isTrue);
+          final editor = tester.element(find.byType(AndroidTaskEditor));
+          // Simulate the editor disappearing without an explicit discard.
+          Navigator.of(editor).removeRoute(ModalRoute.of(editor)!);
+          await tester.pumpAndSettle();
+        }
+        await (database.update(
+          database.tasks,
+        )..where((row) => row.accountId.equals(task.accountId))).write(
+          const TasksCompanion(
+            title: Value('Remote title'),
+            rawJson: Value('{"id":"editor-task","title":"Remote title"}'),
+            microsoftDueDateTime: Value('2026-08-12T16:45:00'),
+          ),
+        );
+        if (keepServer) {
+          await tester.tap(save);
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('Keep server version').hitTestable());
+          await tester.pumpAndSettle();
+          await tester.tap(find.widgetWithText(FilledButton, 'Discard'));
+          await tester.pumpAndSettle();
+        } else {
+          await _openAndroidTaskEditor(
+            tester,
+            TaskEntity.fromRow(await readTask()),
+            BusyProvider.microsoft,
+          );
+          await tester.tap(find.text('Restore'));
+          await tester.pumpAndSettle();
+        }
+
+        await _scrollUntilBuilt(tester, allDay);
+        expect(tester.widget<SwitchListTile>(allDay).value, isFalse);
+        await _scrollUntilBuilt(tester, dueTime);
+        expect(
+          find.descendant(of: dueTime, matching: find.text('16:45')),
+          findsOneWidget,
+        );
+        final dueDate = find.widgetWithText(ListTile, 'Due date');
+        await _scrollUntilBuilt(tester, dueDate);
+        await tester.tap(dueDate.hitTestable());
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find
+              .descendant(
+                of: find.byType(DatePickerDialog),
+                matching: find.text('13'),
+              )
+              .hitTestable(),
+        );
+        await tester.tap(find.text('OK'));
+        await tester.pumpAndSettle();
+        await tester.tap(save);
+        await tester.pumpAndSettle();
+        expect(find.byType(AndroidTaskEditor), findsNothing);
+        final stored = await readTask();
+        expect(stored.title, 'Remote title');
+        expect(stored.notes ?? '', keepServer ? '' : 'Local draft text');
+        expect(stored.microsoftDueDateTime, '2026-08-13T16:45:00');
+
+        await _openAndroidTaskEditor(
+          tester,
+          TaskEntity.fromRow(stored),
+          BusyProvider.microsoft,
+        );
+        await _scrollUntilBuilt(tester, allDay);
+        expect(tester.widget<SwitchListTile>(allDay).value, isFalse);
+        await tester.tap(allDay.hitTestable());
+        await tester.pumpAndSettle();
+        expect(dueTime, findsNothing);
+        await tester.tap(save);
+        await tester.pumpAndSettle();
+        final dateOnly = await readTask();
+        expect(dateOnly.microsoftDueDateTime, '2026-08-13');
+        await _openAndroidTaskEditor(
+          tester,
+          TaskEntity.fromRow(dateOnly),
+          BusyProvider.microsoft,
+        );
+        await _scrollUntilBuilt(tester, allDay);
+        expect(tester.widget<SwitchListTile>(allDay).value, isTrue);
+        expect(dueTime, findsNothing);
+        await harness.dispose();
+      },
+    );
+  }
+
+  testWidgets('an undated recovered task remembers the timed-date preference', (
+    tester,
+  ) async {
+    final harness = await _pumpApp(tester, AppSettings.defaults());
+    addTearDown(harness.dispose);
+    final task = await _seedAndroidEditorTask(
+      harness.database,
+      provider: BusyProvider.microsoft,
+    );
+    await _openAndroidTaskEditor(tester, task, BusyProvider.microsoft);
+    final allDay = find.widgetWithText(SwitchListTile, 'All day');
+    await _scrollUntilBuilt(tester, allDay);
+    await tester.tap(allDay.hitTestable());
+    final notes = find.widgetWithText(TextField, 'Notes');
+    await _scrollUntilBuilt(tester, notes);
+    await tester.enterText(notes, 'Undated draft');
+    await tester.pump(const Duration(milliseconds: 1100));
+    final editor = tester.element(find.byType(AndroidTaskEditor));
+    Navigator.of(editor).removeRoute(ModalRoute.of(editor)!);
+    await tester.pumpAndSettle();
+
+    await _openAndroidTaskEditor(tester, task, BusyProvider.microsoft);
+    await tester.tap(find.text('Restore'));
+    await tester.pumpAndSettle();
+    await _scrollUntilBuilt(tester, allDay);
+    expect(tester.widget<SwitchListTile>(allDay).value, isFalse);
+    final dueTime = find.widgetWithText(ListTile, 'Due time');
+    expect(dueTime, findsNothing);
+
+    final dueDate = find.widgetWithText(ListTile, 'Due date');
+    await _scrollUntilBuilt(tester, dueDate);
+    await tester.tap(dueDate.hitTestable());
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+    await _scrollUntilBuilt(tester, dueTime);
+    expect(
+      find.descendant(of: dueTime, matching: find.text('09:00')),
+      findsOneWidget,
+    );
+    await tester.tap(find.widgetWithText(TextButton, 'Save'));
+    await tester.pumpAndSettle();
+    final row = (await harness.database.tasksDao.listTasks(
+      task.accountId,
+      task.taskListId,
+    )).single;
+    expect(row.notes, 'Undated draft');
+    expect(row.microsoftDueDateTime, endsWith('T09:00:00'));
     await harness.dispose();
   });
 
@@ -9105,6 +9445,43 @@ final class _RecordingFeedbackService implements FeedbackSubmissionService {
     }
     return const FeedbackReceipt(id: 'feedback-test-receipt');
   }
+}
+
+final class _ReminderTapBackend extends Fake
+    implements AndroidNotificationBackend {
+  late final DidReceiveNotificationResponseCallback _onResponse;
+
+  @override
+  Future<bool?> initialize({
+    required InitializationSettings settings,
+    DidReceiveNotificationResponseCallback? onDidReceiveNotificationResponse,
+    DidReceiveBackgroundNotificationResponseCallback?
+    onDidReceiveBackgroundNotificationResponse,
+  }) async {
+    _onResponse = onDidReceiveNotificationResponse!;
+    return true;
+  }
+
+  @override
+  Future<NotificationAppLaunchDetails?>
+  getNotificationAppLaunchDetails() async => null;
+
+  @override
+  Future<bool> canScheduleExactly() async => true;
+
+  void tap(NotificationScheduleData row, {String? accountId}) => _onResponse(
+    NotificationResponse(
+      notificationResponseType: NotificationResponseType.selectedNotification,
+      payload: jsonEncode({
+        'v': 1,
+        'schedule': row.id,
+        'generation': row.generation,
+        'type': row.sourceType,
+        'account': accountId ?? row.accountId,
+        'source': row.sourceId,
+      }),
+    ),
+  );
 }
 
 final class _PermissionOnlyNotifications extends Fake

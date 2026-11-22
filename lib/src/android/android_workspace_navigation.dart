@@ -8,13 +8,14 @@ class AndroidWorkspaceRequest {
     required this.date,
     this.itemId,
     this.accountId,
-    this.task = false,
+    this.taskListId,
     this.summary = false,
   });
   final DateTime date;
   final String? itemId;
   final String? accountId;
-  final bool task;
+  final String? taskListId;
+  bool get task => taskListId != null;
   final bool summary;
 }
 

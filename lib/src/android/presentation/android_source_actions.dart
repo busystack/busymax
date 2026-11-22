@@ -197,7 +197,7 @@ class _AndroidSourceActions {
     try {
       final service = ref.read(webCalSubscriptionServiceProvider);
       if (action == 'refresh') {
-        await refreshFromMaterial(
+        await refreshFromAndroid(
           context,
           ref,
           calendarSyncScope(
@@ -468,7 +468,7 @@ class _AndroidSourceActions {
           return;
         }
         if (context.mounted) {
-          await refreshFromMaterial(
+          await refreshFromAndroid(
             context,
             ref,
             calendarSyncScope(source.accountId, source.id),
@@ -760,7 +760,7 @@ class _AndroidSourceActions {
           return;
         }
         if (context.mounted) {
-          await refreshFromMaterial(
+          await refreshFromAndroid(
             context,
             ref,
             taskListSyncScope(list.accountId, list.id),

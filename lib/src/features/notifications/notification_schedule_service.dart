@@ -184,6 +184,7 @@ class NotificationScheduleService {
                   (row.hidden.isNull() | row.hidden.equals(false)),
             ))
             .get();
+    final alarmsById = <String, (Task, _TaskReminder)>{};
     for (final task in rows) {
       if (!isVisibleTaskProjection(task)) continue;
       if (!reminderEnabledTaskListIds.contains(task.taskListId)) {
@@ -197,33 +198,39 @@ class NotificationScheduleService {
           : _providerTaskReminders(task);
       final baseId = 'task|${task.accountId}|${task.taskListId}|${task.id}';
       for (final reminder in reminders) {
-        final canonicalId = reminder.key == null
-            ? baseId
-            : '$baseId|${reminder.key}';
-        // ID replacement preserves the delivery ID so notification-center
-        // actions remain valid. Reuse that identity for the unchanged alarm.
-        final previous =
-            (existingBySource[task.id] ?? const <NotificationScheduleData>[])
-                .where(
-                  (row) =>
-                      row.scheduledAtUtc ==
-                          reminder.scheduledAtUtc.millisecondsSinceEpoch &&
-                      !notifications.containsKey(row.id),
-                );
-        final id = existingById.containsKey(canonicalId)
-            ? canonicalId
-            : previous.firstOrNull?.id ?? canonicalId;
-        notifications[id] = _PendingNotification(
-          id: id,
-          accountId: accountId,
-          sourceType: 'task',
-          sourceId: task.id,
-          scheduledAtUtc: reminder.scheduledAtUtc,
-          expiresAtUtc: taskReminderExpiry(reminder.scheduledAtUtc),
-          title: task.title,
-          body: task.notes ?? task.bodyContent,
-        );
+        alarmsById[reminder.key == null ? baseId : '$baseId|${reminder.key}'] =
+            (task, reminder);
       }
+    }
+    for (final entry in alarmsById.entries) {
+      final canonicalId = entry.key;
+      final (task, reminder) = entry.value;
+      // ID replacement preserves the delivery ID for an unchanged alarm.
+      // Reserve the canonical IDs of other live alarms before reusing any ID.
+      final previous =
+          (existingBySource[task.id] ?? const <NotificationScheduleData>[])
+              .where(
+                (row) =>
+                    row.scheduledAtUtc ==
+                        reminder.scheduledAtUtc.millisecondsSinceEpoch &&
+                    !alarmsById.containsKey(row.id) &&
+                    !notifications.containsKey(row.id) &&
+                    _matchesPreviousTaskReminderId(row.id, task),
+              );
+      final id = existingById.containsKey(canonicalId)
+          ? canonicalId
+          : previous.firstOrNull?.id ?? canonicalId;
+      notifications[id] = _PendingNotification(
+        id: id,
+        accountId: accountId,
+        sourceType: 'task',
+        sourceId: task.id,
+        taskListId: task.taskListId,
+        scheduledAtUtc: reminder.scheduledAtUtc,
+        expiresAtUtc: taskReminderExpiry(reminder.scheduledAtUtc),
+        title: task.title,
+        body: task.notes ?? task.bodyContent,
+      );
     }
     return notifications;
   }
@@ -234,6 +241,16 @@ class NotificationScheduleService {
   Future<bool> validateAndReconcileReminder(
     NotificationScheduleData row, {
     bool forOpen = false,
+  }) async => await _validatedReminder(row, forOpen: forOpen) != null;
+
+  /// Resolves the current list from the matched alarm, including after a
+  /// verified local ID replacement. Delivery IDs may retain an old list or ID.
+  Future<String?> taskListForOpenReminder(NotificationScheduleData row) async =>
+      (await _validatedReminder(row, forOpen: true))?.taskListId;
+
+  Future<_PendingNotification?> _validatedReminder(
+    NotificationScheduleData row, {
+    required bool forOpen,
   }) => _database.synchronizeNotifications(
     () => _database.transaction(() async {
       final current = await (_database.select(
@@ -241,11 +258,14 @@ class NotificationScheduleService {
       )..where((table) => table.id.equals(row.id))).getSingleOrNull();
       if (current == null ||
           current.generation != row.generation ||
+          current.accountId != row.accountId ||
+          current.sourceType != row.sourceType ||
+          current.sourceId != row.sourceId ||
           current.scheduledAtUtc != row.scheduledAtUtc ||
           !forOpen &&
               (current.dismissedAtUtc != null ||
                   current.expiredAtUtc != null)) {
-        return false;
+        return null;
       }
       final account = await (_database.select(
         _database.accounts,
@@ -283,10 +303,12 @@ class NotificationScheduleService {
         // Android auto-cancels a body-clicked post before cold reconciliation.
         // Open may reveal its valid source without clearing terminal delivery
         // state. Snooze, Dismiss and delivery still require an actionable row.
-        return reconciled != null &&
-            (forOpen || !reminderHasExpired(reconciled, _nowUtc()));
+        if (reconciled != null &&
+            (forOpen || !reminderHasExpired(reconciled, _nowUtc()))) {
+          return reminder;
+        }
       }
-      return false;
+      return null;
     }),
   );
 
@@ -674,6 +696,7 @@ class _PendingNotification {
     required this.expiresAtUtc,
     required this.title,
     this.body,
+    this.taskListId,
   });
 
   final String id;
@@ -684,7 +707,57 @@ class _PendingNotification {
   final DateTime expiresAtUtc;
   final String title;
   final String? body;
+  final String? taskListId;
 }
+
+bool _matchesPreviousTaskReminderId(String scheduleId, Task task) {
+  final currentListPrefix = 'task|${task.accountId}|${task.taskListId}|';
+  if (scheduleId.startsWith(currentListPrefix)) {
+    // The schedule row already points to task.id. Acknowledgement can update
+    // that reference while preserving the original delivery key in this list.
+    final itemAndAlarm = scheduleId.substring(currentListPrefix.length);
+    final separator = itemAndAlarm.indexOf('|');
+    if (separator == -1 ||
+        _taskAlarmSuffix.hasMatch(itemAndAlarm.substring(separator))) {
+      return true;
+    }
+  }
+  final metadata = _decodeJson(task.providerMetadataJson ?? '{}');
+  final aliases = metadata is Map ? metadata['_busymaxTaskIdAliases'] : null;
+  final previousLists = metadata is Map
+      ? metadata['_busymaxTaskPreviousListIds']
+      : null;
+  for (final id in [
+    task.id,
+    if (aliases is List) ...aliases.whereType<String>(),
+  ]) {
+    for (final list in [
+      if (previousLists is List) ...previousLists.whereType<String>(),
+    ]) {
+      final base = 'task|${task.accountId}|$list|$id';
+      if (_matchesTaskAlarmId(scheduleId, base)) return true;
+    }
+    // A locally created task can retain its alarm across acknowledgement of
+    // both its temporary list and its temporary task ID.
+    final temporaryListPrefix = 'task|${task.accountId}|local-tasklist-';
+    if (id.startsWith('local-task-') &&
+        scheduleId.startsWith(temporaryListPrefix)) {
+      final rest = scheduleId.substring(temporaryListPrefix.length);
+      final separator = rest.indexOf('|');
+      if (separator != -1) {
+        final previousId = rest.substring(separator + 1);
+        if (_matchesTaskAlarmId(previousId, id)) return true;
+      }
+    }
+  }
+  return false;
+}
+
+final _taskAlarmSuffix = RegExp(r'^\|dav-\d+(?:-repeat-\d+)?$');
+
+bool _matchesTaskAlarmId(String id, String base) =>
+    id == base ||
+    id.startsWith(base) && _taskAlarmSuffix.hasMatch(id.substring(base.length));
 
 List<_EventReminder> _eventReminders(
   CalendarEvent event, {

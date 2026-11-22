@@ -509,8 +509,12 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   late final TextEditingController _categories = TextEditingController(
     text: _draft.categories.join(', '),
   );
-  late bool _scheduledAllDay =
-      _draft.microsoftDueTime == null && _draft.microsoftStartTime == null;
+  bool _undatedAllDay = true;
+  bool get _hasScheduledDate =>
+      _draft.dueDate != null || _draft.microsoftStartDate != null;
+  bool get _scheduledAllDay => _hasScheduledDate
+      ? _draft.microsoftDueTime == null && _draft.microsoftStartTime == null
+      : _undatedAllDay;
   bool _saving = false;
   bool _showValidation = false;
   final _titleFocus = FocusNode();
@@ -1166,7 +1170,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
                       onChanged: !canWrite
                           ? null
                           : (allDay) => setState(() {
-                              _scheduledAllDay = allDay;
+                              _undatedAllDay = allDay;
                               _draft = _draft.copyWith(
                                 microsoftDueTime: allDay
                                     ? null
@@ -2129,8 +2133,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
     final noOtherDate = due
         ? _draft.microsoftStartDate == null
         : _draft.dueDate == null;
-    setState(
-      () => _draft = due
+    setState(() {
+      _undatedAllDay = _scheduledAllDay;
+      _draft = due
           ? _draft.copyWith(
               dueDate: null,
               microsoftDueTime: null,
@@ -2148,8 +2153,8 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
                   ? (provider: _provider, rule: const RecurrenceRule.none())
                   : _draft.creationRecurrence,
               alarms: alarms,
-            ),
-    );
+            );
+    });
   }
 
   Future<void> _pickDue() async {
@@ -2167,9 +2172,12 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       setState(
         () => _draft = _draft.copyWith(
           dueDate: _date(value),
-          microsoftDueTime: !_scheduledAllDay && _capabilities.supportsDueTime
-              ? _draft.microsoftDueTime ?? '09:00'
-              : null,
+          microsoftDueTime:
+              _draft.dueDate == null &&
+                  !_scheduledAllDay &&
+                  _capabilities.supportsDueTime
+              ? '09:00'
+              : _draft.microsoftDueTime,
         ),
       );
     }
@@ -2696,9 +2704,10 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       setState(
         () => _draft = _draft.copyWith(
           microsoftStartDate: _date(value),
-          microsoftStartTime: _scheduledAllDay
-              ? null
-              : _draft.microsoftStartTime ?? '09:00',
+          microsoftStartTime:
+              _draft.microsoftStartDate == null && !_scheduledAllDay
+              ? '09:00'
+              : _draft.microsoftStartTime,
         ),
       );
     }
@@ -3236,6 +3245,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
           latest,
           ref.read(localTimeZoneProvider),
         );
+        _undatedAllDay = true;
         _initialDraft = _draft;
         _pendingMoveDestinationId = null;
         _showValidation = false;
@@ -3435,12 +3445,14 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       _draft.taskListId,
       _draft.taskId,
     );
-    if (committed != null) {
+    if (committed != null && mounted) {
       _observedTask = committed;
       _draft = TaskDetailsDraft.fromTask(
         committed,
         ref.read(localTimeZoneProvider),
       );
+      _undatedAllDay = true;
+      _recurrenceFrequency = _taskRecurrence().frequency;
       _syncControllersFromDraft();
       _recoveryComparisonTask = null;
       _recoveryBaselineUnavailable = false;
@@ -4480,10 +4492,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
           _pendingMoveDestinationId = null;
         }
         _draft = recovered;
-        _scheduledAllDay =
-            map['scheduledAllDay'] as bool? ??
-            (recovered.microsoftDueTime == null &&
-                recovered.microsoftStartTime == null);
+        _undatedAllDay = map['scheduledAllDay'] as bool? ?? true;
         _recurrenceFrequency =
             creationRule?.frequency ?? _taskRecurrence().frequency;
         _syncControllersFromDraft();

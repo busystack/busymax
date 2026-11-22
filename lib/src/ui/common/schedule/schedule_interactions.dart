@@ -317,6 +317,8 @@ class ScheduleInteractionRegionState extends State<ScheduleInteractionRegion>
   }
 
   final _touchPointers = <int>{};
+  bool _multiTouch = false;
+  _TouchGridSelectionGesture? _touchSelection;
 
   SchedulePointerTime? at(Offset global) {
     final planner = widget.coordinates;
@@ -335,7 +337,8 @@ class ScheduleInteractionRegionState extends State<ScheduleInteractionRegion>
   }
 
   bool begin(ScheduleEventDragData data, ScheduleTimingAction action) {
-    if (active ||
+    if (_multiTouch ||
+        active ||
         widget.onReschedule == null ||
         !data.item.canReschedule ||
         data.grab == null) {
@@ -605,9 +608,10 @@ class ScheduleInteractionRegionState extends State<ScheduleInteractionRegion>
         if (widget.touch)
           _TouchGridSelectionGesture:
               GestureRecognizerFactoryWithHandlers<_TouchGridSelectionGesture>(
-                _TouchGridSelectionGesture.new,
+                () => _touchSelection = _TouchGridSelectionGesture(),
                 (recognizer) => recognizer
-                  ..allowed = _backgroundAllowed
+                  ..allowed = ((event) =>
+                      _touchPointers.isEmpty && _backgroundAllowed(event))
                   ..onLongPressStart = (details) {
                     beginSelection(details.globalPosition);
                     update(details.globalPosition);
@@ -651,12 +655,14 @@ class ScheduleInteractionRegionState extends State<ScheduleInteractionRegion>
                 }
                 _touchPointers.add(event.pointer);
                 if (_touchPointers.length > 1) {
+                  _multiTouch = true;
+                  _touchSelection?.rejectSelection();
                   cancel();
                 }
               },
-        onPointerUp: (event) => _touchPointers.remove(event.pointer),
+        onPointerUp: (event) => _removeTouchPointer(event.pointer),
         onPointerCancel: (event) {
-          _touchPointers.remove(event.pointer);
+          _removeTouchPointer(event.pointer);
           if (widget.touch) {
             cancel();
           }
@@ -664,6 +670,11 @@ class ScheduleInteractionRegionState extends State<ScheduleInteractionRegion>
         child: body,
       ),
     );
+  }
+
+  void _removeTouchPointer(int pointer) {
+    _touchPointers.remove(pointer);
+    if (_touchPointers.isEmpty) _multiTouch = false;
   }
 }
 
@@ -779,6 +790,12 @@ class _TouchGridSelectionGesture extends LongPressGestureRecognizer {
   @override
   bool isPointerAllowed(PointerDownEvent event) =>
       (allowed?.call(event) ?? false) && super.isPointerAllowed(event);
+
+  void rejectSelection() {
+    if (state != GestureRecognizerState.possible) return;
+    resolve(GestureDisposition.rejected);
+    stopTrackingPointer(primaryPointer!);
+  }
 }
 
 /// Wrap each actual event, including each member of an equal-time strip.

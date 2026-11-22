@@ -68,9 +68,12 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Schedule display'));
+      await tester.tap(find.byTooltip('Search'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('All tasks').last);
+      final search = find.widgetWithText(TextField, 'Search');
+      await tester.enterText(search, 'Native parent');
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
       await _waitFor(tester, find.widgetWithText(ListTile, 'Native parent'));
       await tester.pumpAndSettle();
       final storage = runtime.container.read(secureStorageProvider);
@@ -92,7 +95,13 @@ void main() {
       }
       await tester.tap(find.widgetWithText(ListTile, 'Native parent'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Edit Task').last);
+      final editTask = find.descendant(
+        of: find.byKey(const ValueKey('android-schedule-details-scroll')),
+        matching: find.widgetWithText(FilledButton, 'Edit Task'),
+      );
+      await tester.ensureVisible(editTask);
+      await tester.pumpAndSettle();
+      await tester.tap(editTask.hitTestable());
       await _waitFor(tester, find.byType(AndroidTaskEditor));
       await tester.pumpAndSettle();
       if (phase == 'prepare') {
@@ -300,7 +309,9 @@ void main() {
       expect(repository.calls, 2);
       await tester.tap(find.widgetWithText(ListTile, 'Native parent'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Edit Task').last);
+      await tester.ensureVisible(editTask);
+      await tester.pumpAndSettle();
+      await tester.tap(editTask.hitTestable());
       await _waitFor(tester, find.byType(AndroidTaskEditor));
       await tester.pumpAndSettle();
       await _waitWritable(tester);
@@ -520,7 +531,7 @@ Future<void> _waitForRecovery(
 
 Future<void> _scrollTo(WidgetTester tester, Finder finder) async {
   for (var attempt = 0; attempt < 30 && finder.evaluate().isEmpty; attempt++) {
-    await tester.drag(find.byType(ListView).last, const Offset(0, -450));
+    await tester.drag(_editorScrollView, const Offset(0, -450));
     await tester.pumpAndSettle();
   }
   expect(finder, findsOneWidget);
@@ -528,18 +539,26 @@ Future<void> _scrollTo(WidgetTester tester, Finder finder) async {
   await tester.pumpAndSettle();
 }
 
+final _editorScrollView = find.descendant(
+  of: find.byType(AndroidTaskEditor),
+  matching: find.byWidgetPredicate(
+    (widget) => widget is SingleChildScrollView && widget.controller != null,
+  ),
+);
+
 Future<void> _top(WidgetTester tester) async {
   FocusManager.instance.primaryFocus?.unfocus();
   await tester.pump(const Duration(milliseconds: 300));
-  final list = find.byType(ListView).last;
+  final scroll = tester
+      .widget<SingleChildScrollView>(_editorScrollView)
+      .controller!;
   for (var attempt = 0; attempt < 30; attempt++) {
-    final position = tester.widget<ListView>(list).controller!.position;
-    if (position.pixels <= 0) break;
-    await tester.drag(list, const Offset(0, 500));
+    if (scroll.position.pixels <= 0) break;
+    await tester.drag(_editorScrollView, const Offset(0, 500));
     await tester.pumpAndSettle();
   }
   await tester.pumpAndSettle();
-  expect(tester.widget<ListView>(list).controller!.position.pixels, 0);
+  expect(scroll.position.pixels, 0);
 }
 
 Future<void> _waitWritable(WidgetTester tester) => _waitUntil(
