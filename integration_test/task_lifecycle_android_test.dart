@@ -340,9 +340,14 @@ void main() {
       );
       for (final completed in [true, false]) {
         final tile = find.widgetWithText(ListTile, 'Native parent');
-        await tester.tap(
-          find.descendant(of: tile, matching: find.byType(IconButton)).first,
+        final completion = find.descendant(
+          of: tile,
+          matching: find.byType(Checkbox),
         );
+        await tester.ensureVisible(completion);
+        await tester.pumpAndSettle();
+        expect(tester.widget<Checkbox>(completion).value, !completed);
+        await tester.tap(completion.hitTestable());
         await tester.pumpAndSettle();
         final status = completed ? 'completed' : 'needsAction';
         var observedStatus = '';
