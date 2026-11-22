@@ -468,6 +468,7 @@
   "syncPartiallyCompleted": "Actualización completada parcialmente",
   "syncDeferred": "Actualización aplazada",
   "syncPendingChanges": "Cambios locales pendientes",
+  "syncFailedLocalChanges": "No se pudieron sincronizar algunos cambios locales",
   "syncQueued": "Actualización en cola",
   "syncNotYetRefreshed": "Aún sin sincronizar",
   "syncLastRefreshed": "Última actualización {date}",

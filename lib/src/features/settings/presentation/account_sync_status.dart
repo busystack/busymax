@@ -1,3 +1,4 @@
+import 'package:drift/drift.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -26,16 +27,36 @@ typedef AccountSyncStatus = ({
   AccountRefreshStatus status,
   DateTime? lastRefreshed,
   bool hasPendingChanges,
+  bool hasFailedChanges,
+  bool hasInventoryLoadFailure,
 });
 
 final _accountPendingChangesProvider = StreamProvider.autoDispose
-    .family<bool, String>((ref, accountId) {
+    .family<({bool queued, bool failed}), String>((ref, accountId) {
       final database = ref.watch(databaseProvider);
-      return (database.select(database.pendingOps)
-            ..where((row) => row.accountId.equals(accountId))
-            ..limit(1))
+      final ops = database.pendingOps;
+      // Cloud replayers can leave a failed write in the pending state.
+      final failed =
+          ops.lastErrorCode.isNotNull() |
+          ops.lastError.isNotNull() |
+          ops.conflictState.equals('unresolved') |
+          ops.state.isIn(const [
+            'failed',
+            'conflict',
+            'auth_blocked',
+            'permission_blocked',
+          ]);
+      return (database.selectOnly(ops)
+            ..addColumns([failed])
+            ..where(ops.accountId.equals(accountId))
+            ..groupBy([failed]))
           .watch()
-          .map((rows) => rows.isNotEmpty)
+          .map(
+            (rows) => (
+              queued: rows.any((row) => row.read(failed) != true),
+              failed: rows.any((row) => row.read(failed) == true),
+            ),
+          )
           .distinct();
     });
 
@@ -49,9 +70,12 @@ final accountSyncStatusProvider = Provider.autoDispose
       final history = ref.watch(accountDomainSyncTimesProvider(id));
       final lastRefreshed = history.valueOrNull?[accountRefreshHistoryKey];
       final latest = activity.outcome(accountSyncScope(id))?.disposition;
-      final pending =
-          ref.watch(_accountPendingChangesProvider(id)).valueOrNull ?? false;
+      final pending = ref.watch(_accountPendingChangesProvider(id));
+      final hasFailedChanges = pending.valueOrNull?.failed == true;
       final sources = ref.watch(calendarSourcesStreamProvider);
+      final taskLists = account.isTaskCapable
+          ? ref.watch(scheduleTaskListsForAccountProvider(id))
+          : null;
       final discovery = account.provider.isDav
           ? ref.watch(davAccountDiscoveryProvider(id))
           : null;
@@ -72,13 +96,18 @@ final accountSyncStatusProvider = Provider.autoDispose
               ) ==
               true ||
           discovery?.valueOrNull?.lastDiscoveryErrorCode != null;
-      final failed =
-          activity.accountHasFailure(id) ||
-          unavailable ||
+      final inventoryLoadFailed =
           sources.hasError ||
-          history.hasError ||
+          taskLists?.hasError == true ||
           discovery?.hasError == true ||
           collections?.hasError == true;
+      final failed =
+          activity.accountHasFailure(id) ||
+          hasFailedChanges ||
+          unavailable ||
+          pending.hasError ||
+          inventoryLoadFailed ||
+          history.hasError;
       final status = switch (account.connectionState) {
         AccountConnectionState.reauthenticationRequired =>
           AccountRefreshStatus.reconnect,
@@ -102,7 +131,9 @@ final accountSyncStatusProvider = Provider.autoDispose
       return (
         status: status,
         lastRefreshed: lastRefreshed,
-        hasPendingChanges: pending,
+        hasPendingChanges: pending.valueOrNull?.queued == true,
+        hasFailedChanges: hasFailedChanges,
+        hasInventoryLoadFailure: inventoryLoadFailed,
       );
     });
 
@@ -119,6 +150,11 @@ extension AccountSyncStatusPresentation on AccountSyncStatus {
   String label(BuildContext context) {
     final l10n = context.l10n;
     final verified = lastRefreshed;
+    final failureMessage = hasFailedChanges
+        ? l10n.syncFailedLocalChanges
+        : hasInventoryLoadFailure
+        ? l10n.collectionsLoadFailed
+        : l10n.accountSyncProblem;
     return [
       if (status != AccountRefreshStatus.refreshed)
         switch (status) {
@@ -127,7 +163,7 @@ extension AccountSyncStatusPresentation on AccountSyncStatus {
           AccountRefreshStatus.unsupported => l10n.davUnsupportedServer,
           AccountRefreshStatus.refreshing => l10n.traySyncing,
           AccountRefreshStatus.partial => l10n.syncPartiallyCompleted,
-          AccountRefreshStatus.failed => l10n.accountSyncProblem,
+          AccountRefreshStatus.failed => failureMessage,
           AccountRefreshStatus.deferred => l10n.syncDeferred,
           AccountRefreshStatus.loading => l10n.collectionsLoading,
           AccountRefreshStatus.neverRefreshed => l10n.syncNotYetRefreshed,
@@ -139,6 +175,11 @@ extension AccountSyncStatusPresentation on AccountSyncStatus {
               .add_jm()
               .format(verified.toLocal()),
         ),
+      if (hasFailedChanges && status != AccountRefreshStatus.failed)
+        l10n.syncFailedLocalChanges,
+      if (hasInventoryLoadFailure &&
+          (status != AccountRefreshStatus.failed || hasFailedChanges))
+        l10n.collectionsLoadFailed,
       if (hasPendingChanges) l10n.syncPendingChanges,
     ].join('\n');
   }

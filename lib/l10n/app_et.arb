@@ -496,6 +496,7 @@
   "syncPartiallyCompleted": "Värskendamine osaliselt lõpetatud",
   "syncDeferred": "Värskendamine edasi lükatud",
   "syncPendingChanges": "Kohalikud muudatused ootel",
+  "syncFailedLocalChanges": "Mõnda kohalikku muudatust ei saanud sünkroonida",
   "syncQueued": "Värskendus on järjekorras",
   "syncNotYetRefreshed": "Veel sünkroonimata",
   "syncLastRefreshed": "Viimati värskendatud {date}",

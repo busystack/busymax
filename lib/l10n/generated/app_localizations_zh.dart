@@ -1401,6 +1401,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get syncPendingChanges => '本地更改待同步';
 
   @override
+  String get syncFailedLocalChanges => '部分本地更改无法同步';
+
+  @override
   String get syncQueued => '刷新已排队';
 
   @override
@@ -5262,6 +5265,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get syncPendingChanges => '本地更改待同步';
 
   @override
+  String get syncFailedLocalChanges => '部分本地更改无法同步';
+
+  @override
   String get syncQueued => '刷新已排队';
 
   @override
@@ -9121,6 +9127,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get syncPendingChanges => '本機變更等待同步';
+
+  @override
+  String get syncFailedLocalChanges => '部分本機變更無法同步';
 
   @override
   String get syncQueued => '等待重新整理';

@@ -1491,6 +1491,9 @@ class AppLocalizationsPt extends AppLocalizations {
   String get syncPendingChanges => 'Local changes pending';
 
   @override
+  String get syncFailedLocalChanges => 'Some local changes could not sync';
+
+  @override
   String get syncQueued => 'Refresh queued';
 
   @override
@@ -5552,6 +5555,10 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
 
   @override
   String get syncPendingChanges => 'Alterações locais pendentes';
+
+  @override
+  String get syncFailedLocalChanges =>
+      'Não foi possível sincronizar algumas alterações locais';
 
   @override
   String get syncQueued => 'Atualização em fila';

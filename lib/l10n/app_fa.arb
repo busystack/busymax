@@ -445,6 +445,7 @@
   "syncPartiallyCompleted": "تازه‌سازی تا حدی انجام شد",
   "syncDeferred": "تازه‌سازی به تعویق افتاد",
   "syncPendingChanges": "تغییرات محلی در انتظار",
+  "syncFailedLocalChanges": "همگام‌سازی برخی تغییرات محلی ممکن نشد",
   "syncQueued": "تازه‌سازی در صف است",
   "syncNotYetRefreshed": "هنوز همگام نشده است",
   "syncLastRefreshed": "آخرین تازه‌سازی ⁨{date}⁩",

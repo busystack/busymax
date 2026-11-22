@@ -2574,6 +2574,12 @@ abstract class AppLocalizations {
   /// **'Local changes pending'**
   String get syncPendingChanges;
 
+  /// No description provided for @syncFailedLocalChanges.
+  ///
+  /// In en, this message translates to:
+  /// **'Some local changes could not sync'**
+  String get syncFailedLocalChanges;
+
   /// No description provided for @syncQueued.
   ///
   /// In en, this message translates to:

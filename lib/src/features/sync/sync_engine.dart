@@ -47,6 +47,9 @@ class SyncEngine {
   final _affectedCollectionIds = <String>{};
   Set<String> get affectedCollectionIds =>
       Set.unmodifiable(_affectedCollectionIds);
+  final _completedCollectionIds = <String>{};
+  Set<String> get completedCollectionIds =>
+      Set.unmodifiable(_completedCollectionIds);
 
   final DateTime Function() _nowUtc;
   bool _remoteImportWroteData = false;
@@ -77,6 +80,8 @@ class SyncEngine {
     void Function(String)? onAffected,
     CollectionWriteActivity? trackWrite,
   }) async {
+    _affectedCollectionIds.clear();
+    _completedCollectionIds.clear();
     _remoteImportWroteData = false;
     var id = taskListId;
     final initial = await _taskList(id);
@@ -127,6 +132,7 @@ class SyncEngine {
       onAffected?.call(id);
       final tasks = await _pullTasks(id, updatedMin: null);
       await _markMissingTasks({id: tasks});
+      if (!deferred) _completedCollectionIds.add(id);
       return deferred ? SyncDisposition.deferred : SyncDisposition.completed;
     } finally {
       await maintainCachedReminders();
@@ -177,6 +183,8 @@ class SyncEngine {
     required DateTime? updatedMin,
     required bool markMissingTasks,
   }) async {
+    _affectedCollectionIds.clear();
+    _completedCollectionIds.clear();
     _remoteImportWroteData = false;
     final runId = _uuid.v4();
     final startedAt = _now();
@@ -225,6 +233,7 @@ class SyncEngine {
           } else {
             await track(taskListId, pull);
           }
+          _completedCollectionIds.add(taskListId);
         }
       } finally {
         // Keep reminders consistent even when a later page or list fails.

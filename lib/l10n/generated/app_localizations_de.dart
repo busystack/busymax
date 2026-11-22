@@ -1468,6 +1468,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get syncPendingChanges => 'Lokale Änderungen ausstehend';
 
   @override
+  String get syncFailedLocalChanges =>
+      'Einige lokale Änderungen konnten nicht synchronisiert werden';
+
+  @override
   String get syncQueued => 'Aktualisierung in Warteschlange';
 
   @override

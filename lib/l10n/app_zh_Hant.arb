@@ -440,6 +440,7 @@
   "syncPartiallyCompleted": "重新整理已部分完成",
   "syncDeferred": "重新整理已延後",
   "syncPendingChanges": "本機變更等待同步",
+  "syncFailedLocalChanges": "部分本機變更無法同步",
   "syncQueued": "等待重新整理",
   "syncNotYetRefreshed": "尚未同步",
   "syncLastRefreshed": "上次重新整理 {date}",

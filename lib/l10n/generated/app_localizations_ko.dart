@@ -1435,6 +1435,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get syncPendingChanges => '보류 중인 로컬 변경 사항';
 
   @override
+  String get syncFailedLocalChanges => '일부 로컬 변경 사항을 동기화하지 못했습니다';
+
+  @override
   String get syncQueued => '새로 고침 대기 중';
 
   @override

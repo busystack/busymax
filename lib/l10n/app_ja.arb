@@ -440,6 +440,7 @@
   "syncPartiallyCompleted": "更新が一部完了しました",
   "syncDeferred": "更新が延期されました",
   "syncPendingChanges": "未同期のローカル変更があります",
+  "syncFailedLocalChanges": "一部のローカル変更を同期できませんでした",
   "syncQueued": "更新待ち",
   "syncNotYetRefreshed": "未同期",
   "syncLastRefreshed": "最終更新 {date}",

@@ -1474,6 +1474,10 @@ class AppLocalizationsVi extends AppLocalizations {
   String get syncPendingChanges => 'Có thay đổi cục bộ đang chờ';
 
   @override
+  String get syncFailedLocalChanges =>
+      'Không thể đồng bộ một số thay đổi cục bộ';
+
+  @override
   String get syncQueued => 'Đang chờ làm mới';
 
   @override

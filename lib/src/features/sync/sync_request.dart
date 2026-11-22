@@ -60,14 +60,20 @@ final class SyncOutcome {
     this.request,
     this.disposition, {
     Iterable<SyncScope> affected = const [],
+    Iterable<SyncScope> completedResources = const [],
     Iterable<SyncOutcome> children = const [],
     this.error,
   }) : affected = Set.unmodifiable(affected),
+       completedResources = Set.unmodifiable(completedResources),
        children = List.unmodifiable(children);
 
   final SyncRequest request;
   final SyncDisposition disposition;
   final Set<SyncScope> affected;
+
+  /// Resources whose content work reached completion, including successful
+  /// resources in a pass where another resource failed or was skipped.
+  final Set<SyncScope> completedResources;
   final List<SyncOutcome> children;
   final Object? error;
 

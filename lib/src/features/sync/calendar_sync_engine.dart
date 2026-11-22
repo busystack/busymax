@@ -66,6 +66,9 @@ class CalendarSyncEngine {
   final _affectedCollectionIds = <String>{};
   Set<String> get affectedCollectionIds =>
       Set.unmodifiable(_affectedCollectionIds);
+  final _completedCollectionIds = <String>{};
+  Set<String> get completedCollectionIds =>
+      Set.unmodifiable(_completedCollectionIds);
 
   final CollectionActivity? _trackRangeCollection;
   MicrosoftCalendarApiError? _sharedAccessFailure;
@@ -251,6 +254,8 @@ class CalendarSyncEngine {
   Future<void> incrementalSync() => _syncAccount(full: false);
 
   Future<void> _syncAccount({required bool full}) async {
+    _affectedCollectionIds.clear();
+    _completedCollectionIds.clear();
     try {
       await _replayPendingOps();
       final calendars = await _refreshCalendarSources();
@@ -268,6 +273,7 @@ class CalendarSyncEngine {
         } else {
           await track(sourceId, pull);
         }
+        _completedCollectionIds.add(sourceId);
       }
       if (_sharedAccessFailure case final failure?) throw failure;
     } finally {
@@ -281,6 +287,8 @@ class CalendarSyncEngine {
     void Function(String)? onAffected,
     CollectionWriteActivity? trackWrite,
   }) async {
+    _affectedCollectionIds.clear();
+    _completedCollectionIds.clear();
     var id = sourceId;
     final initial = await _source(id);
     if (initial == null || initial.isDeleted) return SyncDisposition.missing;
@@ -322,6 +330,7 @@ class CalendarSyncEngine {
         source.primaryCalendar,
         full: full,
       );
+      if (!deferred) _completedCollectionIds.add(id);
       return deferred ? SyncDisposition.deferred : SyncDisposition.completed;
     } finally {
       await _maintainEventReminders();

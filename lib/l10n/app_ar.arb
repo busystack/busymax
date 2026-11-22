@@ -440,6 +440,7 @@
   "syncPartiallyCompleted": "اكتمل التحديث جزئيًا",
   "syncDeferred": "تم تأجيل التحديث",
   "syncPendingChanges": "تغييرات محلية معلّقة",
+  "syncFailedLocalChanges": "تعذرت مزامنة بعض التغييرات المحلية",
   "syncQueued": "التحديث في قائمة الانتظار",
   "syncNotYetRefreshed": "لم تتم المزامنة بعد",
   "syncLastRefreshed": "آخر تحديث ⁨{date}⁩",

@@ -704,6 +704,7 @@
   "syncPartiallyCompleted": "Refresh partially completed",
   "syncDeferred": "Refresh deferred",
   "syncPendingChanges": "Local changes pending",
+  "syncFailedLocalChanges": "Some local changes could not sync",
   "syncQueued": "Refresh queued",
   "syncNotYetRefreshed": "Not synced yet",
   "syncLastRefreshed": "Last refreshed {date}",

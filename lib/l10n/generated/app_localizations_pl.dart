@@ -1521,6 +1521,10 @@ class AppLocalizationsPl extends AppLocalizations {
   String get syncPendingChanges => 'Oczekujące zmiany lokalne';
 
   @override
+  String get syncFailedLocalChanges =>
+      'Nie udało się zsynchronizować niektórych zmian lokalnych';
+
+  @override
   String get syncQueued => 'Odświeżanie w kolejce';
 
   @override

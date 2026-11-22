@@ -1488,6 +1488,10 @@ class AppLocalizationsRu extends AppLocalizations {
   String get syncPendingChanges => 'Локальные изменения ожидают синхронизации';
 
   @override
+  String get syncFailedLocalChanges =>
+      'Не удалось синхронизировать некоторые локальные изменения';
+
+  @override
   String get syncQueued => 'Обновление в очереди';
 
   @override

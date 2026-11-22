@@ -1471,6 +1471,10 @@ class AppLocalizationsEs extends AppLocalizations {
   String get syncPendingChanges => 'Cambios locales pendientes';
 
   @override
+  String get syncFailedLocalChanges =>
+      'No se pudieron sincronizar algunos cambios locales';
+
+  @override
   String get syncQueued => 'Actualización en cola';
 
   @override

@@ -94,6 +94,7 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
       ref.invalidate(accountsStreamProvider);
     }
     if (ref.read(scheduleTaskListsProvider).hasError) {
+      ref.invalidate(scheduleTaskListsForAccountProvider);
       ref.invalidate(scheduleTaskListsProvider);
     }
     _reload();

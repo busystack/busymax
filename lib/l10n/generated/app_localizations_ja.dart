@@ -1430,6 +1430,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get syncPendingChanges => '未同期のローカル変更があります';
 
   @override
+  String get syncFailedLocalChanges => '一部のローカル変更を同期できませんでした';
+
+  @override
   String get syncQueued => '更新待ち';
 
   @override

@@ -440,6 +440,7 @@
   "syncPartiallyCompleted": "रीफ़्रेश आंशिक रूप से पूरा हुआ",
   "syncDeferred": "रीफ़्रेश स्थगित है",
   "syncPendingChanges": "स्थानीय बदलाव लंबित हैं",
+  "syncFailedLocalChanges": "कुछ स्थानीय बदलाव सिंक नहीं हो सके",
   "syncQueued": "रीफ़्रेश कतार में है",
   "syncNotYetRefreshed": "अभी सिंक नहीं हुआ",
   "syncLastRefreshed": "पिछला रीफ़्रेश {date}",

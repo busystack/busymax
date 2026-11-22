@@ -1482,6 +1482,10 @@ class AppLocalizationsIt extends AppLocalizations {
   String get syncPendingChanges => 'Modifiche locali in sospeso';
 
   @override
+  String get syncFailedLocalChanges =>
+      'Impossibile sincronizzare alcune modifiche locali';
+
+  @override
   String get syncQueued => 'Aggiornamento in coda';
 
   @override

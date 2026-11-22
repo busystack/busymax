@@ -1475,6 +1475,9 @@ class AppLocalizationsHi extends AppLocalizations {
   String get syncPendingChanges => 'स्थानीय बदलाव लंबित हैं';
 
   @override
+  String get syncFailedLocalChanges => 'कुछ स्थानीय बदलाव सिंक नहीं हो सके';
+
+  @override
   String get syncQueued => 'रीफ़्रेश कतार में है';
 
   @override

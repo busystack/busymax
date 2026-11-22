@@ -700,6 +700,7 @@
   "syncPartiallyCompleted": "Odświeżanie zakończone częściowo",
   "syncDeferred": "Odświeżanie odłożone",
   "syncPendingChanges": "Oczekujące zmiany lokalne",
+  "syncFailedLocalChanges": "Nie udało się zsynchronizować niektórych zmian lokalnych",
   "syncQueued": "Odświeżanie w kolejce",
   "syncNotYetRefreshed": "Jeszcze nie synchronizowano",
   "syncLastRefreshed": "Ostatnio odświeżono {date}",

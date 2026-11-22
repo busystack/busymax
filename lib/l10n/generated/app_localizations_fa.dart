@@ -1488,6 +1488,9 @@ class AppLocalizationsFa extends AppLocalizations {
   String get syncPendingChanges => 'تغییرات محلی در انتظار';
 
   @override
+  String get syncFailedLocalChanges => 'همگام‌سازی برخی تغییرات محلی ممکن نشد';
+
+  @override
   String get syncQueued => 'تازه‌سازی در صف است';
 
   @override

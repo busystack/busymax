@@ -440,6 +440,7 @@
   "syncPartiallyCompleted": "Đã làm mới một phần",
   "syncDeferred": "Đã hoãn làm mới",
   "syncPendingChanges": "Có thay đổi cục bộ đang chờ",
+  "syncFailedLocalChanges": "Không thể đồng bộ một số thay đổi cục bộ",
   "syncQueued": "Đang chờ làm mới",
   "syncNotYetRefreshed": "Chưa đồng bộ",
   "syncLastRefreshed": "Làm mới lần cuối {date}",

@@ -927,6 +927,7 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
   }
 
   void _retrySchedule() {
+    ref.invalidate(scheduleTaskListsForAccountProvider);
     ref.invalidate(scheduleTaskListsProvider);
     ref.invalidate(calendarSourcesStreamProvider);
     ref.invalidate(_androidScheduleItemsProvider);

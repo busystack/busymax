@@ -1312,6 +1312,7 @@ final syncEngineForAccountFactoryProvider =
                 entry.key: entry.value == oldKey ? newKey : entry.value,
               oldKey: newKey,
             });
+            ref.invalidate(scheduleTaskListsForAccountProvider(accountId));
             ref.invalidate(scheduleTaskListsProvider);
             await ref
                 .read(appSettingsControllerProvider.notifier)
@@ -1805,16 +1806,21 @@ final scheduleDataRevisionProvider = StreamProvider<int>((ref) async* {
   }
 });
 
+final scheduleTaskListsForAccountProvider = FutureProvider.autoDispose
+    .family<List<TaskListEntity>, String>((ref, accountId) {
+      ref.watch(scheduleDataRevisionProvider);
+      return ref
+          .watch(taskListsRepositoryForAccountProvider(accountId))
+          .listTaskLists();
+    });
+
 final scheduleTaskListsProvider = FutureProvider<List<TaskListEntity>>((
   ref,
 ) async {
-  ref.watch(scheduleDataRevisionProvider);
   final accounts = await ref.watch(accountsStreamProvider.future);
   final groups = await Future.wait([
     for (final account in accounts.where((account) => account.isTaskCapable))
-      ref
-          .watch(taskListsRepositoryForAccountProvider(account.id))
-          .listTaskLists(),
+      ref.watch(scheduleTaskListsForAccountProvider(account.id).future),
   ]);
   return [for (final group in groups) ...group];
 });

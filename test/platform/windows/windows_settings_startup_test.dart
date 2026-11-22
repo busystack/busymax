@@ -24,7 +24,7 @@ import '../../support/memory_settings_store.dart';
 
 void main() {
   testWidgets(
-    'Windows Settings shows verified refresh time and a later partial result',
+    'Windows Settings shows verified history, failed local changes and partial results',
     (tester) async {
       final database = AppDatabase.memoryForTests();
       addTearDown(database.close);
@@ -72,6 +72,33 @@ void main() {
       final verified = find.textContaining('Last refreshed');
       expect(verified, findsOneWidget);
       final prior = tester.widget<Text>(verified).data!.split('\n').last;
+      await database
+          .into(database.pendingOps)
+          .insert(
+            PendingOpsCompanion.insert(
+              id: 'failed-visibility',
+              accountId: account.id,
+              entityType: 'calendar',
+              operation: 'patch_calendar',
+              operationType: const Value('calendar.patch'),
+              requestJson: '{"hidden":true}',
+              lastErrorCode: const Value('GoogleCalendarApiError'),
+              lastErrorMessage: const Value(
+                'Synthetic private provider detail',
+              ),
+              createdAtUtc: '2026-06-02T12:00:00.000Z',
+              updatedAtUtc: '2026-06-02T12:00:00.000Z',
+            ),
+          );
+      await tester.pumpAndSettle();
+      final failed = find.textContaining('Some local changes could not sync');
+      expect(failed, findsOneWidget);
+      expect(tester.widget<Text>(failed).data, contains(prior));
+      expect(find.textContaining('Local changes pending'), findsNothing);
+      expect(
+        find.textContaining('Synthetic private provider detail'),
+        findsNothing,
+      );
       final request = (
         scope: accountSyncScope(account.id),
         origin: SyncTrigger.manual,
@@ -89,6 +116,7 @@ void main() {
       final partial = find.textContaining('Refresh partially completed');
       expect(partial, findsOneWidget);
       expect(tester.widget<Text>(partial).data, contains(prior));
+      expect(failed, findsOneWidget);
     },
   );
 

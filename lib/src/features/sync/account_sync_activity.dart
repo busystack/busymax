@@ -77,49 +77,75 @@ class AccountSyncActivity extends ChangeNotifier {
     _adjust(_queued, scope, 1);
     var started = false;
     try {
-      SyncOutcome outcome;
-      try {
-        outcome = await queue((work) async {
-          started = true;
-          _adjust(_executing, scope, 1);
-          _adjust(_queued, scope, -1);
-          try {
-            final result = await work();
-            if (scope.accountId case final id?
-                when scope.kind == SyncScopeKind.account) {
-              _resolveCompletedDomains(id, result.children);
-            }
-            return result;
-          } finally {
-            _adjust(_executing, scope, -1);
-          }
-        });
-      } on Object catch (error) {
-        outcome = SyncOutcome(request, SyncDisposition.failed, error: error);
-      }
-      if (outcome.hasFailure ||
-          outcome.error != null ||
-          outcome.disposition == SyncDisposition.partial ||
-          request.origin == SyncTrigger.manual &&
-              const {
-                SyncDisposition.deferred,
-                SyncDisposition.disabled,
-                SyncDisposition.missing,
-              }.contains(outcome.disposition)) {
-        if (_outcomes[scope]?.hasFailure != true ||
-            outcome.hasFailure ||
-            outcome.disposition == SyncDisposition.partial) {
-          _outcomes[scope] = outcome;
+      final outcome = await queue((work) async {
+        started = true;
+        _adjust(_executing, scope, 1);
+        _adjust(_queued, scope, -1);
+        try {
+          final result = await work();
+          // Settle while this request still owns the account gate.
+          _recordOutcome(request, result);
+          return result;
+        } on Object catch (error) {
+          _recordOutcome(
+            request,
+            SyncOutcome(request, SyncDisposition.failed, error: error),
+          );
+          rethrow;
+        } finally {
+          _adjust(_executing, scope, -1);
         }
-      } else if (outcome.disposition == SyncDisposition.completed) {
-        _outcomes.remove(scope);
-        _resourceFailures.remove(scope);
-      }
+      });
+      if (!started) _recordOutcome(request, outcome);
+      return outcome;
+    } on Object catch (error) {
+      final outcome = SyncOutcome(
+        request,
+        SyncDisposition.failed,
+        error: error,
+      );
+      if (!started) _recordOutcome(request, outcome);
       return outcome;
     } finally {
       if (!started) _adjust(_queued, scope, -1);
       _notify();
     }
+  }
+
+  void _recordOutcome(SyncRequest request, SyncOutcome outcome) {
+    final scope = request.scope;
+    if (scope.accountId case final id?) {
+      for (final resource in outcome.completedResources) {
+        if (resource.accountId == id && resource.resourceId != null) {
+          _clearOutcome(resource);
+        }
+      }
+      if (scope.kind == SyncScopeKind.account) {
+        _resolveCompletedDomains(id, outcome.children);
+      }
+    }
+    if (outcome.disposition == SyncDisposition.completed) {
+      _clearOutcome(scope);
+    } else if (outcome.hasFailure ||
+        outcome.error != null ||
+        outcome.disposition == SyncDisposition.partial ||
+        request.origin == SyncTrigger.manual &&
+            const {
+              SyncDisposition.deferred,
+              SyncDisposition.disabled,
+              SyncDisposition.missing,
+            }.contains(outcome.disposition)) {
+      if (_outcomes[scope]?.hasFailure != true ||
+          outcome.hasFailure ||
+          outcome.disposition == SyncDisposition.partial) {
+        _outcomes[scope] = outcome;
+      }
+    }
+  }
+
+  void _clearOutcome(SyncScope scope) {
+    _outcomes.remove(scope);
+    _resourceFailures.remove(scope);
   }
 
   void _resolveCompletedDomains(String id, Iterable<SyncOutcome> children) {
@@ -155,7 +181,6 @@ class AccountSyncActivity extends ChangeNotifier {
       if (resolveFailure) {
         for (final key in keys) {
           _resourceFailures.remove(key);
-          _outcomes.remove(key);
         }
       }
       return result;

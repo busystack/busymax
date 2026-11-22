@@ -18,6 +18,8 @@ import 'package:busymax/src/features/notifications/notification_reconciler.dart'
 import 'package:busymax/src/features/sync/account_sync_operations.dart';
 import 'package:busymax/src/features/sync/calendar_sync_engine.dart';
 import 'package:busymax/src/features/sync/domain_sync_schedule.dart';
+import 'package:busymax/src/features/sync/sync_engine.dart';
+import 'package:busymax/src/features/tasks/domain/task_remote_models.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_api_client.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_shared_calendar_address.dart';
 import 'package:busymax/src/microsoft_todo/oauth/microsoft_oauth_service.dart';
@@ -29,7 +31,148 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
+import 'sync_engine_test.dart' show FakeTaskRemoteClient;
+
 void main() {
+  for (final (target, domain) in [
+    (SyncScopeKind.calendarSource, SyncScopeKind.calendar),
+    (SyncScopeKind.taskList, SyncScopeKind.tasks),
+  ]) {
+    for (final recovery in [target, domain, SyncScopeKind.account]) {
+      test('$target failure clears after successful $recovery', () async {
+        final tasks = target == SyncScopeKind.taskList
+            ? FakeTaskRemoteClient()
+            : null;
+        final fixture = await _Fixture.create(tasks: tasks);
+        addTearDown(fixture.dispose);
+        final db = fixture.database;
+        final source = await db.select(db.calendarSources).getSingle();
+        final scope = tasks == null
+            ? calendarSyncScope(_accountId, source.id)
+            : taskListSyncScope(_accountId, 'list');
+        if (tasks == null) {
+          await db
+              .update(db.accounts)
+              .write(const AccountsCompanion(tasksEnabled: Value(false)));
+          fixture.client.rejectedCalendarId = source.providerCalendarId;
+        } else {
+          await db
+              .update(db.accounts)
+              .write(const AccountsCompanion(calendarsEnabled: Value(false)));
+          await db
+              .into(db.taskLists)
+              .insert(
+                TaskListsCompanion.insert(
+                  accountId: _accountId,
+                  id: 'list',
+                  title: 'List',
+                  rawJson: '{}',
+                  createdLocalAtUtc: fixture.month.toIso8601String(),
+                  updatedLocalAtUtc: fixture.month.toIso8601String(),
+                ),
+              );
+          tasks.blockedTaskPageError = StateError(
+            'Synthetic task list rejection',
+          );
+          tasks.taskListsPages = const [
+            TaskListsPageDto(
+              items: [TaskListDto(id: 'list', title: 'List', rawJson: {})],
+              rawJson: {},
+            ),
+          ];
+          tasks.taskPages['list'] = const [
+            TasksPageDto(
+              items: [
+                TaskDto(id: 'task', title: 'Recovered task', rawJson: {}),
+              ],
+              rawJson: {},
+            ),
+          ];
+        }
+        final runner = fixture.container.read(manualSyncRunnerProvider);
+        final activity = fixture.container.read(accountSyncActivityProvider);
+        expect((await runner(scope)).disposition, SyncDisposition.failed);
+        expect(activity.outcome(scope)?.hasFailure, isTrue);
+        expect(activity.accountHasFailure(_accountId), isTrue);
+
+        fixture.client.rejectedCalendarId = null;
+        tasks?.blockedTaskPageError = null;
+        final result = await runner((
+          kind: recovery,
+          accountId: _accountId,
+          resourceId: recovery == target ? scope.resourceId : null,
+        ));
+        expect(result.disposition, SyncDisposition.completed);
+        expect(result.completedResources, {scope});
+        expect(activity.outcome(scope), isNull);
+        expect(activity.accountHasFailure(_accountId), isFalse);
+        if (tasks == null) {
+          expect(
+            (await db.select(db.calendarEvents).getSingle()).title,
+            'New event',
+          );
+        } else {
+          expect(
+            (await db.select(db.tasks).getSingle()).title,
+            'Recovered task',
+          );
+        }
+        final history = await db.select(db.domainSyncSchedules).get();
+        expect(
+          history.any((row) => row.domain == accountRefreshHistoryKey),
+          recovery == SyncScopeKind.account,
+        );
+      });
+    }
+  }
+
+  test(
+    'account refresh preserves a failed sibling and a skipped calendar',
+    () async {
+      final tasks = FakeTaskRemoteClient()
+        ..taskListsPages = const [TaskListsPageDto(items: [], rawJson: {})];
+      final fixture = await _Fixture.create(tasks: tasks);
+      addTearDown(fixture.dispose);
+      final db = fixture.database;
+      final repo = CalendarRepository(database: db);
+      final sibling = CalendarSourceDto(
+        provider: fixture.client.provider,
+        providerCalendarId: 'sibling',
+        summary: 'Second',
+      );
+      final skipped = CalendarSourceDto(
+        provider: fixture.client.provider,
+        providerCalendarId: 'skipped',
+        summary: 'Third',
+      );
+      fixture.client.additionalSources.add(sibling);
+      for (final source in [sibling, skipped]) {
+        await repo.upsertSource(accountId: _accountId, source: source);
+      }
+      final scopes = {
+        for (final row in await db.select(db.calendarSources).get())
+          row.providerCalendarId: calendarSyncScope(_accountId, row.id),
+      };
+      final runner = fixture.container.read(manualSyncRunnerProvider);
+      final activity = fixture.container.read(accountSyncActivityProvider);
+      for (final entry in scopes.entries) {
+        fixture.client.rejectedCalendarId = entry.key;
+        expect((await runner(entry.value)).disposition, SyncDisposition.failed);
+      }
+      final skippedFailure = activity.outcome(scopes['skipped']!);
+      fixture.client.rejectedCalendarId = 'sibling';
+      fixture.client.syncCalendarIds.clear();
+      final result = await runner(accountSyncScope(_accountId));
+      expect(result.disposition, SyncDisposition.partial);
+      expect(result.completedResources, {scopes['calendar']});
+      expect(fixture.client.syncCalendarIds, ['calendar', 'sibling']);
+      expect(activity.outcome(scopes['calendar']!), isNull);
+      expect(activity.outcome(scopes['sibling']!)?.hasFailure, isTrue);
+      expect(activity.outcome(scopes['skipped']!), same(skippedFailure));
+      expect(activity.accountHasFailure(_accountId), isTrue);
+    },
+  );
+
   test(
     'a successful sibling cannot resolve a failed calendar or account history',
     () async {
@@ -461,6 +604,7 @@ final class _Fixture {
     BusyProvider provider = BusyProvider.google,
     _SharedCalendarAuthorization? authorization,
     MicrosoftCalendarApiClient? discovery,
+    FakeTaskRemoteClient? tasks,
   }) async {
     final database = AppDatabase(NativeDatabase.memory());
     final now = DateTime.now().toUtc();
@@ -528,6 +672,15 @@ final class _Fixture {
             nowUtc: () => now,
           ),
         ),
+        if (tasks != null)
+          syncEngineForAccountFactoryProvider.overrideWithValue(
+            (accountId, _) => SyncEngine(
+              database: database,
+              apiClient: tasks,
+              accountId: accountId,
+              nowUtc: () => now,
+            ),
+          ),
         if (authorization != null)
           applicationMicrosoftOAuthServiceProvider.overrideWithValue(
             authorization,
@@ -585,6 +738,8 @@ final class _HeldCalendarClient implements CloudCalendarClient {
   final releaseRange = Completer<void>();
   final releaseSync = Completer<void>();
   final List<String> rangeCalendarIds = [];
+  final List<String> syncCalendarIds = [];
+  final additionalSources = <CalendarSourceDto>[];
   List<CalendarEventDto> rangeEvents = [];
   bool holdRange = false;
   bool holdSync = false;
@@ -606,7 +761,7 @@ final class _HeldCalendarClient implements CloudCalendarClient {
   Future<List<CalendarSourceDto>> listCalendars() async {
     calendarDiscoveryCalls++;
     if (syncFailure case final failure?) throw failure;
-    return [source];
+    return [source, ...additionalSources];
   }
 
   @override
@@ -631,6 +786,7 @@ final class _HeldCalendarClient implements CloudCalendarClient {
     String? syncTokenOrDeltaLink,
     bool primaryCalendar = false,
   }) async {
+    syncCalendarIds.add(calendarId);
     if (!syncStarted.isCompleted) syncStarted.complete();
     if (holdSync) await releaseSync.future;
     if (calendarId == rejectedCalendarId) {

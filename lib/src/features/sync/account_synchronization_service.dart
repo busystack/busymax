@@ -130,6 +130,9 @@ final class AccountSynchronizationService {
           request,
           summarizeSyncOutcomes(children),
           affected: children.expand((child) => child.affected),
+          completedResources: children.expand(
+            (child) => child.completedResources,
+          ),
           children: children,
           error: failures.isEmpty
               ? null
@@ -166,6 +169,11 @@ final class AccountSynchronizationService {
       return SyncOutcome(request, SyncDisposition.missing);
     }
     final source = calendarSyncScope(id, subscription.calendarSourceId);
+    final subscriptionScope = (
+      kind: SyncScopeKind.subscription,
+      accountId: id,
+      resourceId: subscription.id,
+    );
     try {
       final outcome = await service.checkSubscription(
         subscription.id,
@@ -188,7 +196,14 @@ final class AccountSynchronizationService {
           );
         },
       );
-      return SyncOutcome(request, outcome, affected: affected);
+      return SyncOutcome(
+        request,
+        outcome,
+        affected: affected,
+        completedResources: outcome == SyncDisposition.completed
+            ? [source, subscriptionScope]
+            : const [],
+      );
     } on Object catch (error) {
       return SyncOutcome(
         request,
@@ -208,6 +223,7 @@ final class AccountSynchronizationService {
     final resource = scope.resourceId;
     final full = request.strategy == SyncStrategy.fullRecovery;
     final affected = <SyncScope>{};
+    final completedResources = <SyncScope>{};
     final domain = switch (scope.kind) {
       SyncScopeKind.calendar => SyncDomain.calendar,
       SyncScopeKind.tasks => SyncDomain.tasks,
@@ -297,7 +313,10 @@ final class AccountSynchronizationService {
               final projections = await _davProjections(id, collectionId);
               projections.add(davCollectionSyncScope(id, collectionId));
               affected.addAll(projections);
+              // A failed readback supersedes an earlier successful pull.
+              completedResources.removeAll(projections);
               await activity.resource(projections, work);
+              completedResources.addAll(projections);
             },
           );
           Future<DavAccountSyncResult> synchronize() async {
@@ -342,6 +361,7 @@ final class AccountSynchronizationService {
         request,
         result.disposition,
         affected: affected,
+        completedResources: completedResources,
         children: [
           if (accountWide && result.disposition == SyncDisposition.completed)
             for (final domain in SyncDomain.values)
@@ -360,6 +380,7 @@ final class AccountSynchronizationService {
             ? SyncDisposition.cancelled
             : SyncDisposition.failed,
         affected: affected,
+        completedResources: completedResources,
         error: error.kind == DavErrorKind.cancelled ? null : error,
       );
     } on Object catch (error) {
@@ -367,6 +388,7 @@ final class AccountSynchronizationService {
         request,
         affected.isEmpty ? SyncDisposition.failed : SyncDisposition.partial,
         affected: affected,
+        completedResources: completedResources,
         error: error,
       );
     }
@@ -382,6 +404,7 @@ final class AccountSynchronizationService {
     final full = domainRequest.strategy == SyncStrategy.fullRecovery;
     final task = domain == SyncDomain.tasks;
     final domainAffected = <SyncScope>{};
+    final completedResources = <SyncScope>{};
     final kind = task ? taskListSyncScope : calendarSyncScope;
     if (task ? !account.tasksEnabled : !account.calendarsEnabled) {
       return SyncOutcome(domainRequest, SyncDisposition.disabled);
@@ -465,6 +488,11 @@ final class AccountSynchronizationService {
                           calendars!.affectedCollectionIds)
                       .map((value) => kind(id, value)),
                 );
+                completedResources.addAll(
+                  (tasks?.completedCollectionIds ??
+                          calendars!.completedCollectionIds)
+                      .map((value) => kind(id, value)),
+                );
               }
             },
           );
@@ -497,18 +525,25 @@ final class AccountSynchronizationService {
         rememberFailure: (error) =>
             resource == null && error is! DomainCooldownException,
       );
-      return SyncOutcome(domainRequest, result, affected: domainAffected);
+      return SyncOutcome(
+        domainRequest,
+        result,
+        affected: domainAffected,
+        completedResources: completedResources,
+      );
     } on ScopedSyncDeferred {
       return SyncOutcome(
         domainRequest,
         SyncDisposition.deferred,
         affected: domainAffected,
+        completedResources: completedResources,
       );
     } on DomainCooldownException catch (error) {
       return SyncOutcome(
         domainRequest,
         SyncDisposition.deferred,
         affected: domainAffected,
+        completedResources: completedResources,
         error: error,
       );
     } on Object catch (error) {
@@ -516,6 +551,7 @@ final class AccountSynchronizationService {
         domainRequest,
         SyncDisposition.failed,
         affected: domainAffected,
+        completedResources: completedResources,
         error: error,
       );
     }
@@ -539,6 +575,9 @@ final class AccountSynchronizationService {
               request,
               summarizeSyncOutcomes(children),
               affected: children.expand((child) => child.affected),
+              completedResources: children.expand(
+                (child) => child.completedResources,
+              ),
               children: children,
               error: children.map((child) => child.error).nonNulls.firstOrNull,
             );
@@ -596,6 +635,7 @@ final class AccountSynchronizationService {
                   request,
                   result.disposition,
                   affected: result.affected,
+                  completedResources: result.completedResources,
                   children: result.children,
                   error: scoped,
                 );

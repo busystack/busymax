@@ -119,9 +119,12 @@ excluded from the required scope, and deferred work cannot record account-wide
 success. A narrow task import preserves a prior incomplete account import
 marker until a covering import succeeds. Linux, Android and Windows Settings
 use the same account status. A partial or deferred refresh retains the prior
-verified account-wide completion time. Pending local changes have a separate
-indicator and can coexist with a verified time or a partial result. Provider
-failures still surface through the existing recovery actions.
+verified account-wide completion time. A collection warning clears after a
+confirmed pull for that collection, including during a partial account or
+domain refresh. An untouched collection keeps its warning. Settings reads
+failed local operations and queued changes from the durable replay queue and
+reports task-list inventory errors for the affected account. Provider failures
+still surface through the existing recovery actions.
 
 Android publishes executing scopes through the existing platform channel.
 The native plugin owns each engine's activity in memory and drops it on detach

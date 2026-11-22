@@ -1499,6 +1499,9 @@ class AppLocalizationsAr extends AppLocalizations {
   String get syncPendingChanges => 'تغييرات محلية معلّقة';
 
   @override
+  String get syncFailedLocalChanges => 'تعذرت مزامنة بعض التغييرات المحلية';
+
+  @override
   String get syncQueued => 'التحديث في قائمة الانتظار';
 
   @override

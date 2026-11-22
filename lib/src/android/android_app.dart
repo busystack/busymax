@@ -284,6 +284,7 @@ class _AndroidHomeShellState extends ConsumerState<AndroidHomeShell>
     database.notifyUpdates({
       TableUpdate.onTable(database.davCollections),
       TableUpdate.onTable(database.domainSyncSchedules),
+      TableUpdate.onTable(database.pendingOps),
       TableUpdate.onTable(database.davCollectionCreations),
       TableUpdate.onTable(database.davCollectionCreationAcknowledgments),
     });

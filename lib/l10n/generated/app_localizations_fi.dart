@@ -1484,6 +1484,10 @@ class AppLocalizationsFi extends AppLocalizations {
   String get syncPendingChanges => 'Paikallisia muutoksia odottaa';
 
   @override
+  String get syncFailedLocalChanges =>
+      'Joitakin paikallisia muutoksia ei voitu synkronoida';
+
+  @override
   String get syncQueued => 'Päivitys jonossa';
 
   @override

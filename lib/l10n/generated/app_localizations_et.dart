@@ -1455,6 +1455,10 @@ class AppLocalizationsEt extends AppLocalizations {
   String get syncPendingChanges => 'Kohalikud muudatused ootel';
 
   @override
+  String get syncFailedLocalChanges =>
+      'Mõnda kohalikku muudatust ei saanud sünkroonida';
+
+  @override
   String get syncQueued => 'Värskendus on järjekorras';
 
   @override

@@ -1472,6 +1472,10 @@ class AppLocalizationsFr extends AppLocalizations {
   String get syncPendingChanges => 'Modifications locales en attente';
 
   @override
+  String get syncFailedLocalChanges =>
+      'Certaines modifications locales n’ont pas pu être synchronisées';
+
+  @override
   String get syncQueued => 'Actualisation en attente';
 
   @override
