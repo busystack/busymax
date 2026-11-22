@@ -157,6 +157,17 @@ void main() {
       expect(activity.outcome(allSyncScope), isNull);
       expect(await history(accountRefreshHistoryKey), verified);
 
+      failing.add(SyncDomain.tasks);
+      final failed = await refresh(SyncTrigger.manual);
+      expect(failed.disposition, SyncDisposition.partial);
+      expect(failed.children.map((child) => child.disposition), [
+        SyncDisposition.failed,
+        SyncDisposition.completed,
+      ]);
+      expect(activity.outcome(account)?.error, isNotNull);
+      expect(activity.accountHasFailure(id), isTrue);
+
+      failing.clear();
       await database
           .into(database.pendingOps)
           .insert(
@@ -176,19 +187,60 @@ void main() {
       );
       expect(partial.disposition, SyncDisposition.partial);
       expect(partial.children.first.deferral, SyncDeferral.pendingWrites);
+      expect(partial.children.last.disposition, SyncDisposition.completed);
+      expect(partial.error, isNull);
       expect(partial.hasFailure, isFalse);
+      expect(
+        activity.outcome(scope(SyncDomain.tasks))?.deferral,
+        SyncDeferral.pendingWrites,
+      );
+      final queued = activity.outcome(account)!;
+      expect(queued.disposition, SyncDisposition.partial);
+      expect(queued.error, isNull);
+      expect(queued.hasFailure, isFalse);
+      expect(queued.children.first.deferral, SyncDeferral.pendingWrites);
+      expect(activity.accountHasFailure(id), isFalse);
       expect(activity.accountNeedsAttention(id), isTrue);
       expect(
         (await database.select(database.pendingOps).getSingle()).state,
         'pending',
       );
       expect(await history(accountRefreshHistoryKey), verified);
+
+      failing.addAll(SyncDomain.values);
+      await refresh(SyncTrigger.manual, target: allSyncScope);
+      final calendarFailure = activity.outcome(scope(SyncDomain.calendar))!;
+      expect(calendarFailure.hasFailure, isTrue);
+      failing.clear();
+      await makeDue(SyncDomain.tasks);
+      final deferred = await refresh(SyncTrigger.background);
+      expect(deferred.children.map((child) => child.deferral), [
+        SyncDeferral.pendingWrites,
+        SyncDeferral.scheduled,
+      ]);
+      expect(deferred.error, isNull);
+      final unresolved = activity.outcome(account)!;
+      expect(unresolved.children, [
+        activity.outcome(scope(SyncDomain.tasks)),
+        calendarFailure,
+      ]);
+      expect(unresolved.children.first.deferral, SyncDeferral.pendingWrites);
+      expect(unresolved.error, same(calendarFailure.error));
+      expect(unresolved.hasFailure, isTrue);
+      expect(activity.accountHasFailure(id), isTrue);
+      expect(
+        activity.outcome(allSyncScope)?.error,
+        same(calendarFailure.error),
+      );
+
       await database.delete(database.pendingOps).go();
       expect(
         (await refresh(SyncTrigger.manual)).disposition,
         SyncDisposition.completed,
       );
       expect(activity.accountNeedsAttention(id), isFalse);
+      expect(activity.outcome(account), isNull);
+      expect(activity.outcome(allSyncScope), isNull);
       expect(
         (await history(accountRefreshHistoryKey)).lastSuccessfulPullUtc,
         isNot(verified.lastSuccessfulPullUtc),

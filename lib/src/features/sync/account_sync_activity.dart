@@ -140,10 +140,11 @@ class AccountSyncActivity extends ChangeNotifier {
     }
     if (outcome.disposition == SyncDisposition.completed) {
       _clearOutcome(scope);
-    } else if (outcome.needsAttention) {
-      _retainOutcome(scope, outcome);
-    } else if (outcome.children.isNotEmpty) {
-      _pruneResolvedOutcome(scope);
+    } else {
+      // A recovered child can clear an old error even if queued writes keep
+      // the aggregate actionable.
+      if (outcome.children.isNotEmpty) _pruneResolvedOutcome(scope);
+      if (outcome.needsAttention) _retainOutcome(scope, outcome);
     }
     if (scope.kind == SyncScopeKind.account) {
       _pruneResolvedOutcome(allSyncScope);
