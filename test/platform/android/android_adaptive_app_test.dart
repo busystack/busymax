@@ -110,6 +110,55 @@ void main() {
       final list = find.byKey(
         const ValueKey(('task-list-visibility', accountId, 'visible-list')),
       );
+      final calendar = find.byKey(
+        const ValueKey(('calendar-visibility', 'calendar')),
+      );
+      final options = find.byKey(
+        const ValueKey(('account-collection-options', accountId)),
+      );
+      final collapse = find.byKey(
+        const ValueKey(('account-collapse', accountId)),
+      );
+      final sheet = tester.getRect(find.byType(BottomSheet));
+      Finder tile(Finder leading) =>
+          find.ancestor(of: leading, matching: find.byType(ListTile)).first;
+      for (final (leading, title, menu) in [
+        (toggle, 'Calendar Account', options),
+        (
+          calendar,
+          'Populated calendar',
+          find.descendant(
+            of: tile(calendar),
+            matching: find.byTooltip('Options'),
+          ),
+        ),
+        (
+          list,
+          'Visible tasks',
+          find.descendant(of: tile(list), matching: find.byTooltip('Options')),
+        ),
+      ]) {
+        final leadingBounds = tester.getRect(leading);
+        final menuBounds = tester.getRect(menu);
+        final titleBounds = tester.getRect(
+          find.descendant(of: tile(leading), matching: find.text(title)),
+        );
+        expect(leadingBounds.size, const Size.square(48));
+        expect(menuBounds.size, leadingBounds.size);
+        expect(leadingBounds.left - sheet.left, 2);
+        expect(sheet.right - menuBounds.right, 2);
+        final sourceIcon = tester
+            .widget<ScheduleSidebarVisibilityIcon>(leading)
+            .icon;
+        final more = find.descendant(
+          of: menu,
+          matching: find.byIcon(Icons.more_vert),
+        );
+        expect(tester.getCenter(find.byWidget(sourceIcon)).dx - sheet.left, 18);
+        expect(sheet.right - tester.getCenter(more).dx, 18);
+        expect(titleBounds.left - leadingBounds.right, 8);
+      }
+      expect(tester.getRect(options).left - tester.getRect(collapse).right, 4);
       expect(tester.getSize(toggle).shortestSide, greaterThanOrEqualTo(48));
       expect(list, findsOneWidget);
       await tester.tap(toggle);
@@ -124,9 +173,6 @@ void main() {
             .read(appSettingsControllerProvider)
             .isAccountVisibleInSchedule(accountId),
         isFalse,
-      );
-      final options = find.byKey(
-        const ValueKey(('account-collection-options', accountId)),
       );
       await tester.tap(options);
       await tester.pumpAndSettle();

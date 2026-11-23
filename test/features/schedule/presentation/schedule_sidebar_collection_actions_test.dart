@@ -4,7 +4,7 @@ import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:busymax/src/features/sync/sync_request.dart';
 
 import 'dart:async';
-import 'dart:ui' show Tristate;
+import 'dart:ui' show PointerDeviceKind, Tristate;
 
 import 'package:busymax/src/dav/dav_errors.dart';
 import 'package:busymax/src/dav/nextcloud/nextcloud_dav_context.dart';
@@ -32,6 +32,7 @@ import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart'
 import 'package:busymax/src/platform/native_menu_service.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -886,9 +887,12 @@ void main() {
   });
 
   testWidgets(
-    'provider indicator stays visible with truncated text in both themes',
+    'sidebar hover surfaces stay inset and aligned with long names and during sync',
     (tester) async {
-      for (final brightness in [Brightness.light, Brightness.dark]) {
+      for (final (brightness, width) in [
+        (Brightness.light, 300.0),
+        (Brightness.dark, 240.0),
+      ]) {
         final theme = BusyMaxYaruTheme.build(
           brightness: brightness,
           accentColor: const Color(0xFFE95464),
@@ -897,6 +901,8 @@ void main() {
         const displayName =
             'A very long account display name that must be truncated';
         const email = 'a-very-long-address-for-sidebar@example.test';
+        const calendarName = 'A long calendar name that must also truncate';
+        const taskName = 'A long task list name that must also truncate';
         await _pumpSidebar(
           tester,
           [
@@ -907,18 +913,24 @@ void main() {
               email: email,
             ),
           ],
-          calendarSources: [_calendar(accountId, 'calendar')],
+          calendarSources: [
+            _calendar(accountId, 'calendar', title: calendarName),
+          ],
+          taskLists: [_list(accountId, 'tasks', title: taskName)],
           theme: theme,
-          width: 240,
+          width: width,
+          alignment: Alignment.topCenter,
+          gtkAnimations: true,
         );
 
         final indicator = find.byKey(
           const ValueKey(('account-provider-indicator', accountId)),
         );
+        final sidebar = tester.getRect(find.byType(ScheduleSidebar));
         final indicatorRect = tester.getRect(indicator);
         expect(indicatorRect.size, const Size.square(16));
-        expect(indicatorRect.left, greaterThanOrEqualTo(0));
-        expect(indicatorRect.right, lessThanOrEqualTo(240));
+        expect(indicatorRect.left, greaterThanOrEqualTo(sidebar.left));
+        expect(indicatorRect.right, lessThanOrEqualTo(sidebar.right));
         final decoration =
             tester
                     .widget<DecoratedBox>(
@@ -953,26 +965,125 @@ void main() {
           nameRect.expandToInclude(addressRect).center.dy,
           closeTo(indicatorRect.center.dy, 0.01),
         );
-        final calendarIcon = find.byIcon(YaruIcons.calendar);
-        expect(tester.getCenter(calendarIcon).dx, indicatorRect.center.dx);
-        final calendarMenu = _row(('calendar-options', 'calendar'));
-        final accountMenu = _row(('account-collection-options', accountId));
-        final collapse = _row(('account-collapse', accountId));
-        expect(
-          tester.getCenter(calendarMenu).dx,
-          tester.getCenter(accountMenu).dx,
+        final leadingButtons = [
+          _row(('account-visibility', accountId)),
+          _row(('calendar-visibility', 'calendar')),
+          _row(('task-list-visibility', accountId, 'tasks')),
+        ].map(_sidebarButtonSurface).toList();
+        for (final leading in leadingButtons) {
+          final bounds = tester.getRect(leading);
+          expect(bounds.size, const Size.square(32));
+          expect(bounds.left - sidebar.left, closeTo(8, 1));
+          expect(bounds.center.dx, indicatorRect.center.dx);
+        }
+        for (final glyph in [YaruIcons.calendar, YaruIcons.task_list]) {
+          expect(
+            tester.getCenter(find.byIcon(glyph)).dx,
+            indicatorRect.center.dx,
+          );
+        }
+        for (final label in [
+          find.text(displayName),
+          find.text(calendarName),
+          find.text(taskName),
+        ]) {
+          expect(tester.widget<Text>(label).overflow, TextOverflow.ellipsis);
+          expect(
+            tester.renderObject<RenderParagraph>(label).didExceedMaxLines,
+            isTrue,
+          );
+          expect(tester.getTopLeft(label).dx, nameRect.left);
+        }
+        expect(nameRect.left - tester.getRect(leadingButtons.first).right, 8);
+        final optionsButtons = [
+          _row(('account-collection-options', accountId)),
+          _row(('calendar-options', 'calendar')),
+          _row(('task-list-options', accountId, 'tasks')),
+        ].map(_sidebarButtonSurface).toList();
+        final accountMenu = optionsButtons.first;
+        final collapse = _sidebarButtonSurface(
+          _row(('account-collapse', accountId)),
         );
+        for (final menu in optionsButtons) {
+          final bounds = tester.getRect(menu);
+          expect(bounds.size, const Size.square(32));
+          expect(sidebar.right - bounds.right, closeTo(8, 1));
+          expect(bounds.center.dx, tester.getCenter(accountMenu).dx);
+        }
         expect(
-          tester.getRect(collapse).right,
-          lessThan(tester.getRect(accountMenu).left),
+          tester.getRect(accountMenu).left - tester.getRect(collapse).right,
+          4,
         );
 
+        final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+        await mouse.addPointer(location: sidebar.topRight);
+        for (final button in [...leadingButtons, ...optionsButtons]) {
+          final bounds = tester.getRect(button);
+          await mouse.moveTo(bounds.center);
+          await tester.pump();
+          await tester.pump(BusyMaxMotion.fast);
+          final hoverSurface = find.descendant(
+            of: button,
+            matching: find.byType(PhysicalShape),
+          );
+          final shape = tester.widget<PhysicalShape>(hoverSurface);
+          expect(
+            shape.color,
+            colorScheme.onSurfaceVariant.withValues(alpha: 0.08),
+          );
+          final box = tester.getRect(hoverSurface);
+          final paintBounds = shape.clipper
+              .getClip(box.size)
+              .getBounds()
+              .shift(box.topLeft);
+          expect(paintBounds, bounds);
+        }
+        await mouse.removePointer();
+        await tester.pump();
+
+        final controls = [...leadingButtons, collapse, ...optionsButtons];
+        final idleBounds = controls.map(tester.getRect).toList();
+        final release = Completer<void>();
+        final activity = ProviderScope.containerOf(tester.element(indicator))
+            .read(accountSyncActivityProvider.notifier);
+        final running = activity.resource([
+          calendarSyncScope(accountId, 'calendar'),
+        ], () => release.future);
+        try {
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 180));
+          for (final button in leadingButtons.take(2)) {
+            expect(
+              find.descendant(
+                of: button,
+                matching: find.byType(RotationTransition),
+              ),
+              findsOneWidget,
+            );
+          }
+          expect(controls.map(tester.getRect), idleBounds);
+        } finally {
+          release.complete();
+          await running;
+        }
+        await tester.pumpAndSettle();
+
+        final menuBounds = tester.getRect(accountMenu);
+        await tester.tapAt(Offset(menuBounds.right - 2, menuBounds.center.dy));
+        await tester.pumpAndSettle();
+        expect(find.text('Account settings'), findsOneWidget);
+        await tester.tapAt(const Offset(790, 790));
+        await tester.pumpAndSettle();
         await tester.tap(
           find.byKey(const ValueKey(('account-collapse', accountId))),
         );
         await tester.pumpAndSettle();
         expect(indicator, findsOneWidget);
         expect(tester.getRect(indicator).size, const Size.square(16));
+        expect(tester.getRect(leadingButtons.first), idleBounds.first);
+        expect(tester.getRect(accountMenu), menuBounds);
+        await tester.tap(collapse);
+        await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
       }
     },
@@ -1151,22 +1262,35 @@ void main() {
   testWidgets('account-header controls follow RTL without overlap', (
     tester,
   ) async {
-    await _pumpSidebar(tester, [
-      _account(BusyProvider.google),
-    ], locale: const Locale('ar'));
-    final options = find.byKey(
-      const ValueKey(('account-collection-options', 'google-account')),
+    await _pumpSidebar(
+      tester,
+      [_account(BusyProvider.google)],
+      calendarSources: [_calendar('google-account', 'calendar')],
+      locale: const Locale('ar'),
     );
-    final collapse = find.byKey(
-      const ValueKey(('account-collapse', 'google-account')),
+    final options = _sidebarButtonSurface(
+      _row(('account-collection-options', 'google-account')),
+    );
+    final collapse = _sidebarButtonSurface(
+      _row(('account-collapse', 'google-account')),
     );
 
     expect(Directionality.of(tester.element(options)), TextDirection.rtl);
-    final provider = _row(('account-provider-indicator', 'google-account'));
-    expect(
-      tester.getRect(options).right,
-      lessThan(tester.getRect(collapse).left),
+    final provider = _sidebarButtonSurface(
+      _row(('account-visibility', 'google-account')),
     );
+    final calendar = _sidebarButtonSurface(
+      _row(('calendar-visibility', 'calendar')),
+    );
+    final calendarOptions = _sidebarButtonSurface(
+      _row(('calendar-options', 'calendar')),
+    );
+    final sidebar = tester.getRect(find.byType(ScheduleSidebar));
+    expect(tester.getRect(collapse).left - tester.getRect(options).right, 4);
+    expect(tester.getRect(options).left - sidebar.left, closeTo(8, 1));
+    expect(sidebar.right - tester.getRect(provider).right, closeTo(8, 1));
+    expect(tester.getCenter(calendar).dx, tester.getCenter(provider).dx);
+    expect(tester.getCenter(calendarOptions).dx, tester.getCenter(options).dx);
     expect(
       tester.getCenter(provider).dx,
       greaterThan(tester.getCenter(collapse).dx),
@@ -1508,6 +1632,7 @@ Future<void> _pumpSidebar(
   ThemeData? theme,
   double width = 320,
   double height = 800,
+  Alignment alignment = Alignment.topLeft,
   MemorySettingsStore? settingsStore,
   Stream<List<CalendarSourceEntity>>? calendarSnapshots,
   Stream<List<TaskListEntity>>? taskSnapshots,
@@ -1524,7 +1649,7 @@ Future<void> _pumpSidebar(
   addTearDown(tester.view.resetPhysicalSize);
   final sidebar = Scaffold(
     body: Align(
-      alignment: Alignment.topLeft,
+      alignment: alignment,
       child: SizedBox(
         width: width,
         height: height,
@@ -1626,6 +1751,13 @@ Future<void> _pumpSidebar(
 Finder _row(Object value) => find.byWidgetPredicate(
   (widget) =>
       widget.key is ValueKey && (widget.key! as ValueKey).value == value,
+);
+
+Finder _sidebarButtonSurface(Finder control) => find.descendant(
+  of: find.descendant(of: control, matching: find.byType(IconButton)),
+  matching: find.byWidgetPredicate(
+    (widget) => widget is Material && widget.shape is RoundedRectangleBorder,
+  ),
 );
 
 void _expectRows(WidgetTester tester, List<Object> keys) {

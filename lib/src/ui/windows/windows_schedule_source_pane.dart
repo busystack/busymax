@@ -15,6 +15,7 @@ import 'package:intl/intl.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../../app/app_bootstrap.dart';
+import '../../app/common/busymax_design_values.dart';
 import '../../calendar_providers/calendar_colors.dart';
 import '../../dav/dav_errors.dart';
 import '../../features/accounts/data/accounts_repository.dart';
@@ -826,6 +827,10 @@ class _WindowsScheduleSourcePaneState
   );
 }
 
+// Keep the existing compact Fluent control heights.
+const _sidebarVisibilitySize = Size(BusyMaxDimensions.sidebarActionWidth, 26);
+const _sidebarOptionsSize = Size(BusyMaxDimensions.sidebarActionWidth, 25);
+
 Widget _windowsVisibilityButton(
   BuildContext context,
   Widget icon,
@@ -833,8 +838,8 @@ Widget _windowsVisibilityButton(
   VoidCallback? onPressed,
 ) => Tooltip(
   message: tooltip,
-  child: SizedBox.square(
-    dimension: 26,
+  child: SizedBox.fromSize(
+    size: _sidebarVisibilitySize,
     child: IconButton(
       onPressed: onPressed,
       icon: icon,
@@ -884,10 +889,15 @@ class _AccountHeader extends ConsumerWidget {
         capabilities.supportsTaskListCreation;
     final visible = visibility != ScheduleAccountVisibility.hidden;
     return Padding(
-      padding: const EdgeInsetsDirectional.fromSTEB(12, 10, 8, 4),
+      padding: const EdgeInsetsDirectional.fromSTEB(
+        BusyMaxDimensions.sidebarRowInset,
+        10,
+        BusyMaxDimensions.sidebarRowInset,
+        4,
+      ),
       child: Row(
         children: [
-          if (!account.isSubscription) ...[
+          if (!account.isSubscription)
             ScheduleSidebarVisibilityIcon(
               key: ValueKey(('account-visibility', account.id)),
               scope: accountSyncScope(account.id),
@@ -923,9 +933,10 @@ class _AccountHeader extends ConsumerWidget {
                       visible: !visible,
                     ),
               ),
-            ),
-            const SizedBox(width: 8),
-          ],
+            )
+          else
+            const SizedBox(width: BusyMaxDimensions.sidebarActionWidth),
+          const SizedBox(width: BusyMaxSpacing.small),
           Expanded(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -1018,9 +1029,16 @@ Widget _windowsSidebarOptions(
   List<MenuFlyoutItemBase> items,
 ) => Tooltip(
   message: AppLocalizations.of(context).options,
-  child: DropDownButton(
-    title: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.more), size: 16),
-    items: items,
+  child: SizedBox.fromSize(
+    size: _sidebarOptionsSize,
+    child: DropDownButton(
+      title: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.more), size: 16),
+      trailing: null,
+      style: const ButtonStyle(
+        padding: WidgetStatePropertyAll(EdgeInsets.zero),
+      ),
+      items: items,
+    ),
   ),
 );
 
@@ -1052,7 +1070,10 @@ class _VisibilityRow extends StatelessWidget {
     final color =
         iconColor ?? FluentTheme.of(context).resources.textFillColorSecondary;
     return Padding(
-      padding: const EdgeInsetsDirectional.fromSTEB(12, 3, 8, 3),
+      padding: const EdgeInsets.symmetric(
+        horizontal: BusyMaxDimensions.sidebarRowInset,
+        vertical: 3,
+      ),
       child: Row(
         children: [
           ScheduleSidebarVisibilityIcon(
@@ -1071,7 +1092,7 @@ class _VisibilityRow extends StatelessWidget {
             icon: Icon(windowsBusyMaxGlyph(icon), size: 16, color: color),
             onPressed: accountVisible ? () => onChanged(!visible) : null,
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: BusyMaxSpacing.small),
           Expanded(
             child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
           ),

@@ -56,6 +56,7 @@ import '../../db/creation_receipt_store.dart';
 import '../android_creation_recovery.dart';
 import '../../app/app_bootstrap.dart';
 import '../../contacts/busymax_contacts_controller.dart';
+import '../../app/common/busymax_design_values.dart';
 import '../../app/common/busymax_motion_widgets.dart';
 import '../../calendar_providers/calendar_mutation.dart';
 import '../../calendar_providers/calendar_provider_capabilities.dart';
@@ -2596,7 +2597,12 @@ class _AndroidSourcesPaneState extends ConsumerState<_AndroidSourcesPane> {
           const Divider(height: 1),
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(8, 0, 8, 24),
+              padding: const EdgeInsetsDirectional.fromSTEB(
+                BusyMaxDimensions.sidebarRowInset,
+                0,
+                BusyMaxDimensions.sidebarRowInset,
+                BusyMaxSpacing.xLarge,
+              ),
               children: [
                 if (accounts.isLoading) const LinearProgressIndicator(),
                 if (accounts.hasError)
@@ -2694,7 +2700,7 @@ class _AndroidSourcesPaneState extends ConsumerState<_AndroidSourcesPane> {
     );
     final visible = visibility != ScheduleAccountVisibility.hidden;
     final color = Theme.of(context).colorScheme.onSurfaceVariant;
-    return ExpansionTile(
+    final tile = ExpansionTile(
       key: ValueKey(('schedule-account', account.id)),
       controller: disclosure,
       initiallyExpanded: true,
@@ -2744,21 +2750,27 @@ class _AndroidSourcesPaneState extends ConsumerState<_AndroidSourcesPane> {
             listenable: disclosure,
             builder: (context, _) => IconButton(
               key: ValueKey(('account-collapse', account.id)),
+              style: _androidSidebarTrailingStyle,
               tooltip: disclosure.isExpanded
                   ? MaterialLocalizations.of(context).expandedIconTapHint
                   : MaterialLocalizations.of(context).collapsedIconTapHint,
-              icon: Icon(
-                disclosure.isExpanded
-                    ? Icons.expand_more
-                    : Directionality.of(context) == TextDirection.rtl
-                    ? Icons.chevron_left
-                    : Icons.chevron_right,
+              icon: _androidSidebarActionIcon(
+                Icon(
+                  disclosure.isExpanded
+                      ? Icons.expand_more
+                      : Directionality.of(context) == TextDirection.rtl
+                      ? Icons.chevron_left
+                      : Icons.chevron_right,
+                ),
               ),
               onPressed: disclosure.toggle,
             ),
           ),
+          const SizedBox(width: BusyMaxSpacing.xSmall),
           PopupMenuButton<String>(
             key: ValueKey(('account-collection-options', account.id)),
+            style: _androidSidebarTrailingStyle,
+            icon: _androidSidebarActionIcon(Icon(Icons.adaptive.more)),
             tooltip: context.l10n.options,
             onSelected: (action) async {
               if (action == 'refresh') {
@@ -2934,6 +2946,10 @@ class _AndroidSourcesPaneState extends ConsumerState<_AndroidSourcesPane> {
           ),
       ],
     );
+    return ListTileTheme.merge(
+      horizontalTitleGap: BusyMaxSpacing.small,
+      child: tile,
+    );
   }
 
   Widget _taskListVisibility(TaskListEntity list) {
@@ -2986,6 +3002,7 @@ class _AndroidSourcesPaneState extends ConsumerState<_AndroidSourcesPane> {
     final visible = accountVisible && source.selected;
     return ListTile(
       contentPadding: EdgeInsets.zero,
+      horizontalTitleGap: BusyMaxSpacing.small,
       leading: ScheduleSidebarVisibilityIcon(
         key: ValueKey(('calendar-visibility', source.id)),
         scope: calendarSyncScope(source.accountId, source.id),
@@ -3034,7 +3051,8 @@ class _AndroidSourcesPaneState extends ConsumerState<_AndroidSourcesPane> {
     void Function(List<Widget> Function(BuildContext)) actions,
   ) => IconButton(
     tooltip: context.l10n.options,
-    icon: const Icon(Icons.more_vert),
+    style: _androidSidebarTrailingStyle,
+    icon: _androidSidebarActionIcon(const Icon(Icons.more_vert)),
     onPressed: () => actions(
       (sheetContext) => [
         for (final direction in [-1, 1])
@@ -3068,6 +3086,25 @@ class _AndroidSourcesPaneState extends ConsumerState<_AndroidSourcesPane> {
   );
 }
 
+// Align the artwork at the outer end of each 48 dp touch target.
+const _androidSidebarButtonStyle = ButtonStyle(
+  fixedSize: WidgetStatePropertyAll(Size.square(kMinInteractiveDimension)),
+  padding: WidgetStatePropertyAll(EdgeInsets.zero),
+);
+
+final _androidSidebarLeadingStyle = _androidSidebarButtonStyle.copyWith(
+  alignment: AlignmentDirectional.centerStart,
+);
+
+final _androidSidebarTrailingStyle = _androidSidebarButtonStyle.copyWith(
+  alignment: AlignmentDirectional.centerEnd,
+);
+
+Widget _androidSidebarActionIcon(Widget icon) => SizedBox(
+  width: BusyMaxDimensions.sidebarActionWidth,
+  child: Center(heightFactor: 1, child: icon),
+);
+
 Widget _androidSidebarVisibilityButton(
   BuildContext context,
   Widget icon,
@@ -3075,10 +3112,10 @@ Widget _androidSidebarVisibilityButton(
   VoidCallback? onPressed,
 ) => IconButton(
   tooltip: tooltip,
-  icon: icon,
+  icon: _androidSidebarActionIcon(icon),
   onPressed: onPressed,
   iconSize: 28,
-  constraints: const BoxConstraints.tightFor(width: 48, height: 48),
+  style: _androidSidebarLeadingStyle,
 );
 
 PopupMenuItem<String> _androidAccountMenuItem(

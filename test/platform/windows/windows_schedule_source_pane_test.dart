@@ -164,6 +164,10 @@ void main() {
             tester.getTopLeft(_row(('schedule-account', id))).dy,
             greaterThan(heading),
           );
+          expect(
+            tester.getTopLeft(find.text(id)).dx,
+            tester.getTopLeft(find.text(auth.first)).dx,
+          );
         }
         expect(find.text('Subscriptions'), findsOneWidget);
         expect(find.text('Add account'), findsNothing);
@@ -285,6 +289,38 @@ void main() {
 
       final calendarRow = _row(('schedule-calendar', account.id, 'calendar'));
       final taskListRow = _row(('schedule-task-list', account.id, 'tasks'));
+      final accountRow = _row(('schedule-account', account.id));
+      final pane = tester.getRect(find.byType(WindowsScheduleSourcePane));
+      for (final (row, title) in [
+        (accountRow, account.displayLabel),
+        (calendarRow, 'Work'),
+        (taskListRow, 'Work'),
+      ]) {
+        final leading = tester.getRect(
+          find.descendant(
+            of: row,
+            matching: find.byType(ScheduleSidebarVisibilityIcon),
+          ),
+        );
+        final options = tester.getRect(
+          find.descendant(of: row, matching: find.byType(DropDownButton)),
+        );
+        final text = tester.getRect(
+          find.descendant(of: row, matching: find.text(title)),
+        );
+        expect(leading.size, const Size(32, 26));
+        expect(options.size, const Size(32, 25));
+        expect(leading.center.dx - pane.left, 18);
+        final more = find.descendant(
+          of: row,
+          matching: find.byIcon(windowsBusyMaxGlyph(BusyMaxGlyph.more)),
+        );
+        expect(pane.right - tester.getCenter(more).dx, 18);
+        expect(options.center.dx, tester.getCenter(more).dx);
+        expect(text.left - leading.right, 8);
+      }
+      expect(tester.getSize(calendarRow).height, 32);
+      expect(tester.getSize(taskListRow).height, 32);
       final calendarIcon = tester.widget<Icon>(
         find.descendant(
           of: calendarRow,

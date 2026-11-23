@@ -45,6 +45,8 @@ import 'package:busymax/src/providers/busy_provider.dart';
 
 import 'mini_calendar.dart';
 
+const _sidebarRowMargin = BusyMaxSpacing.sm;
+
 class ScheduleSidebar extends ConsumerWidget {
   const ScheduleSidebar({
     super.key,
@@ -106,44 +108,53 @@ class ScheduleSidebar extends ConsumerWidget {
           ),
           const Divider(height: 1),
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(vertical: BusyMaxSpacing.sm),
-              children: [
-                if (showAddAccount)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: BusyMaxSpacing.md,
-                      vertical: BusyMaxSpacing.sm,
-                    ),
-                    child: BusyMaxPushButton.standard(
-                      key: const ValueKey('schedule-add-account'),
-                      onPressed: onAddAccount,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(YaruIcons.plus, size: BusyMaxSizes.iconSm),
-                          const SizedBox(width: BusyMaxSpacing.sm),
-                          Flexible(child: Text(context.l10n.addAccount)),
-                        ],
+            child: ScrollbarTheme(
+              // Keep the expanded Yaru scrollbar inside the row margin.
+              data: ScrollbarTheme.of(context).copyWith(crossAxisMargin: 0),
+              child: ListView(
+                padding: const EdgeInsets.symmetric(
+                  vertical: BusyMaxSpacing.sm,
+                ),
+                children: [
+                  if (showAddAccount)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: BusyMaxSpacing.md,
+                        vertical: BusyMaxSpacing.sm,
+                      ),
+                      child: BusyMaxPushButton.standard(
+                        key: const ValueKey('schedule-add-account'),
+                        onPressed: onAddAccount,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              YaruIcons.plus,
+                              size: BusyMaxSizes.iconSm,
+                            ),
+                            const SizedBox(width: BusyMaxSpacing.sm),
+                            Flexible(child: Text(context.l10n.addAccount)),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                for (final account in accounts.where(
-                  (account) => !account.isSubscription,
-                ))
-                  _AccountSourcesGroup(
-                    key: ValueKey(('schedule-account', account.id)),
-                    account: account,
-                    siblingIds: siblingIds,
-                  ),
-                if (accounts.any((account) => account.isSubscription))
-                  _SubscriptionSourcesGroup(
-                    accounts: [
-                      for (final account in accounts)
-                        if (account.isSubscription) account,
-                    ],
-                  ),
-              ],
+                  for (final account in accounts.where(
+                    (account) => !account.isSubscription,
+                  ))
+                    _AccountSourcesGroup(
+                      key: ValueKey(('schedule-account', account.id)),
+                      account: account,
+                      siblingIds: siblingIds,
+                    ),
+                  if (accounts.any((account) => account.isSubscription))
+                    _SubscriptionSourcesGroup(
+                      accounts: [
+                        for (final account in accounts)
+                          if (account.isSubscription) account,
+                      ],
+                    ),
+                ],
+              ),
             ),
           ),
         ],
@@ -315,15 +326,14 @@ class _CompactSourceRow extends StatelessWidget {
         minHeight: BusyMaxSizes.sidebarRowHeight,
       ),
       child: Padding(
-        padding: const EdgeInsetsDirectional.only(
-          start: BusyMaxSpacing.md,
-          end: BusyMaxSpacing.xs,
+        padding: const EdgeInsetsDirectional.symmetric(
+          horizontal: _sidebarRowMargin,
         ),
         child: Row(
           children: [
             if (leading != null) ...[
               leading!,
-              const SizedBox(width: BusyMaxSpacing.md),
+              const SizedBox(width: BusyMaxSpacing.sm),
             ],
             Expanded(
               child: Text(
@@ -366,6 +376,7 @@ Widget _sidebarOptionsTrigger(
     child: BusyMaxHeaderIconButton(
       tooltip: context.l10n.options,
       iconSize: BusyMaxSizes.sidebarActionIcon,
+      fixedSize: const Size.square(BusyMaxSizes.sidebarActionButton),
       icon: const Icon(YaruIcons.view_more),
       focusNode: trigger.focusNode,
       onPressed: trigger.onPressed,
@@ -799,12 +810,10 @@ class _AccountHeaderRow extends ConsumerWidget {
       if (pending > 0)
         '${context.l10n.nextcloudFederationInvitations} ($pending)',
     ].join(', ');
-    return Padding(
-      padding: const EdgeInsetsDirectional.only(
-        start: BusyMaxSpacing.md,
-        top: BusyMaxSpacing.sm,
-        end: BusyMaxSpacing.xs,
-        bottom: BusyMaxSpacing.xs,
+    final row = ConstrainedBox(
+      // Keep the original header height for accounts with a single-line label.
+      constraints: const BoxConstraints(
+        minHeight: BusyMaxSizes.headerIconButton,
       ),
       child: Row(
         children: [
@@ -833,7 +842,7 @@ class _AccountHeaderRow extends ConsumerWidget {
                   ),
             ),
           ),
-          const SizedBox(width: BusyMaxSpacing.md),
+          const SizedBox(width: BusyMaxSpacing.sm),
           Expanded(
             child: Semantics(
               key: ValueKey(('account-identity', account.id)),
@@ -877,6 +886,7 @@ class _AccountHeaderRow extends ConsumerWidget {
                 ? MaterialLocalizations.of(context).expandedIconTapHint
                 : MaterialLocalizations.of(context).collapsedIconTapHint,
             iconSize: BusyMaxSizes.sidebarActionIcon,
+            fixedSize: const Size.square(BusyMaxSizes.sidebarActionButton),
             icon: Transform.rotate(
               angle:
                   expansionProgress *
@@ -939,6 +949,15 @@ class _AccountHeaderRow extends ConsumerWidget {
           ),
         ],
       ),
+    );
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(
+        start: _sidebarRowMargin,
+        top: BusyMaxSpacing.sm,
+        end: _sidebarRowMargin,
+        bottom: BusyMaxSpacing.xs,
+      ),
+      child: row,
     );
   }
 }
