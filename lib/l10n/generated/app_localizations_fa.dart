@@ -1502,14 +1502,8 @@ class AppLocalizationsFa extends AppLocalizations {
   }
 
   @override
-  String get scheduleCoverageStatus => 'پوشش رویدادها';
-
-  @override
-  String get scheduleCoveragePending =>
-      'رویدادهای این بازه در حال بررسی‌اند یا هنوز بررسی نشده‌اند.';
-
-  @override
-  String get scheduleCoverageVerified => 'رویدادهای این بازه بررسی شده‌اند.';
+  String get scheduleCoverageWarning =>
+      'ممکن است برخی رویدادها نمایش داده نشوند.';
 
   @override
   String get listRefreshed => 'فهرست تازه‌سازی شد.';

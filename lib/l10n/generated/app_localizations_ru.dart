@@ -1503,14 +1503,8 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
-  String get scheduleCoverageStatus => 'Проверка событий';
-
-  @override
-  String get scheduleCoveragePending =>
-      'События за этот период проверяются или ещё не были проверены.';
-
-  @override
-  String get scheduleCoverageVerified => 'События за этот период проверены.';
+  String get scheduleCoverageWarning =>
+      'Некоторые события могут отсутствовать.';
 
   @override
   String get listRefreshed => 'Список обновлён.';

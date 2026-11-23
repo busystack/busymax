@@ -1489,14 +1489,7 @@ class AppLocalizationsHi extends AppLocalizations {
   }
 
   @override
-  String get scheduleCoverageStatus => 'इवेंट कवरेज';
-
-  @override
-  String get scheduleCoveragePending =>
-      'इस अवधि के इवेंट की जाँच चल रही है या अब तक उनकी जाँच नहीं हुई है।';
-
-  @override
-  String get scheduleCoverageVerified => 'इस अवधि के इवेंट की जाँच हो गई है।';
+  String get scheduleCoverageWarning => 'हो सकता है कि कुछ इवेंट दिखाई न दें।';
 
   @override
   String get listRefreshed => 'सूची रीफ़्रेश हो गई।';

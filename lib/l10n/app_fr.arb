@@ -472,9 +472,7 @@
   "syncQueued": "Actualisation en attente",
   "syncNotYetRefreshed": "Jamais synchronisé",
   "syncLastRefreshed": "Dernière actualisation le {date}",
-  "scheduleCoverageStatus": "Couverture des événements",
-  "scheduleCoveragePending": "Les événements de cette période sont en cours de vérification ou doivent encore être vérifiés.",
-  "scheduleCoverageVerified": "Les événements de cette période ont été vérifiés.",
+  "scheduleCoverageWarning": "Certains événements peuvent manquer.",
   "listRefreshed": "Liste actualisée.",
   "exportedFile": "Exporté vers {path}",
   "@exportedFile": {

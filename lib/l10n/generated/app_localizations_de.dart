@@ -1483,15 +1483,7 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get scheduleCoverageStatus => 'Terminabdeckung';
-
-  @override
-  String get scheduleCoveragePending =>
-      'Termine in diesem Zeitraum werden geprüft oder wurden noch nicht überprüft.';
-
-  @override
-  String get scheduleCoverageVerified =>
-      'Die Termine in diesem Zeitraum wurden überprüft.';
+  String get scheduleCoverageWarning => 'Einige Termine fehlen möglicherweise.';
 
   @override
   String get listRefreshed => 'Liste aktualisiert.';

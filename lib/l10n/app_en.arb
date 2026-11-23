@@ -709,9 +709,7 @@
   "syncNotYetRefreshed": "Not synced yet",
   "syncLastRefreshed": "Last refreshed {date}",
   "@syncLastRefreshed": {"placeholders": {"date": {"type": "String"}}},
-  "scheduleCoverageStatus": "Event coverage",
-  "scheduleCoveragePending": "Events in this range are being checked or have yet to be verified.",
-  "scheduleCoverageVerified": "Events in this range have been checked.",
+  "scheduleCoverageWarning": "Some events may be missing.",
   "listRefreshed": "List refreshed.",
   "exportedFile": "Exported to {path}",
   "@exportedFile": {

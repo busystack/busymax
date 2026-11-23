@@ -1497,15 +1497,7 @@ class AppLocalizationsIt extends AppLocalizations {
   }
 
   @override
-  String get scheduleCoverageStatus => 'Copertura degli eventi';
-
-  @override
-  String get scheduleCoveragePending =>
-      'Gli eventi di questo intervallo sono in fase di verifica o devono ancora essere verificati.';
-
-  @override
-  String get scheduleCoverageVerified =>
-      'Gli eventi di questo intervallo sono stati verificati.';
+  String get scheduleCoverageWarning => 'Alcuni eventi potrebbero mancare.';
 
   @override
   String get listRefreshed => 'Elenco aggiornato.';

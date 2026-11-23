@@ -1415,13 +1415,7 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get scheduleCoverageStatus => '日程检查状态';
-
-  @override
-  String get scheduleCoveragePending => '正在检查此范围内的日程，或尚未验证。';
-
-  @override
-  String get scheduleCoverageVerified => '已检查此范围内的日程。';
+  String get scheduleCoverageWarning => '部分日程可能未显示。';
 
   @override
   String get listRefreshed => '列表已刷新。';
@@ -5279,13 +5273,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   }
 
   @override
-  String get scheduleCoverageStatus => '日程检查状态';
-
-  @override
-  String get scheduleCoveragePending => '正在检查此范围内的日程，或尚未验证。';
-
-  @override
-  String get scheduleCoverageVerified => '已检查此范围内的日程。';
+  String get scheduleCoverageWarning => '部分日程可能未显示。';
 
   @override
   String get listRefreshed => '列表已刷新。';
@@ -9143,13 +9131,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   }
 
   @override
-  String get scheduleCoverageStatus => '行程檢查狀態';
-
-  @override
-  String get scheduleCoveragePending => '正在檢查此範圍內的行程，或尚未驗證。';
-
-  @override
-  String get scheduleCoverageVerified => '已檢查此範圍內的行程。';
+  String get scheduleCoverageWarning => '部分行程可能未顯示。';
 
   @override
   String get listRefreshed => '清單已重新整理。';

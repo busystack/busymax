@@ -2598,23 +2598,11 @@ abstract class AppLocalizations {
   /// **'Last refreshed {date}'**
   String syncLastRefreshed(String date);
 
-  /// No description provided for @scheduleCoverageStatus.
+  /// No description provided for @scheduleCoverageWarning.
   ///
   /// In en, this message translates to:
-  /// **'Event coverage'**
-  String get scheduleCoverageStatus;
-
-  /// No description provided for @scheduleCoveragePending.
-  ///
-  /// In en, this message translates to:
-  /// **'Events in this range are being checked or have yet to be verified.'**
-  String get scheduleCoveragePending;
-
-  /// No description provided for @scheduleCoverageVerified.
-  ///
-  /// In en, this message translates to:
-  /// **'Events in this range have been checked.'**
-  String get scheduleCoverageVerified;
+  /// **'Some events may be missing.'**
+  String get scheduleCoverageWarning;
 
   /// No description provided for @listRefreshed.
   ///

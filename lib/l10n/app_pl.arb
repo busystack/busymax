@@ -704,9 +704,7 @@
   "syncQueued": "Odświeżanie w kolejce",
   "syncNotYetRefreshed": "Jeszcze nie synchronizowano",
   "syncLastRefreshed": "Ostatnio odświeżono {date}",
-  "scheduleCoverageStatus": "Zakres sprawdzenia wydarzeń",
-  "scheduleCoveragePending": "Trwa sprawdzanie wydarzeń w tym okresie lub jeszcze ich nie sprawdzono.",
-  "scheduleCoverageVerified": "Sprawdzono wydarzenia w tym okresie.",
+  "scheduleCoverageWarning": "Niektórych wydarzeń może brakować.",
   "listRefreshed": "Odświeżono listę.",
   "exportedFile": "Wyeksportowano do {path}",
   "@exportedFile": {

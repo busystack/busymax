@@ -1489,15 +1489,7 @@ class AppLocalizationsVi extends AppLocalizations {
   }
 
   @override
-  String get scheduleCoverageStatus => 'Phạm vi kiểm tra sự kiện';
-
-  @override
-  String get scheduleCoveragePending =>
-      'Các sự kiện trong khoảng này đang được kiểm tra hoặc chưa được xác minh.';
-
-  @override
-  String get scheduleCoverageVerified =>
-      'Đã kiểm tra các sự kiện trong khoảng này.';
+  String get scheduleCoverageWarning => 'Một số sự kiện có thể bị thiếu.';
 
   @override
   String get listRefreshed => 'Đã làm mới danh sách.';

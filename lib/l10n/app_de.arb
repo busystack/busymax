@@ -472,9 +472,7 @@
   "syncQueued": "Aktualisierung in Warteschlange",
   "syncNotYetRefreshed": "Noch nicht synchronisiert",
   "syncLastRefreshed": "Zuletzt aktualisiert {date}",
-  "scheduleCoverageStatus": "Terminabdeckung",
-  "scheduleCoveragePending": "Termine in diesem Zeitraum werden geprüft oder wurden noch nicht überprüft.",
-  "scheduleCoverageVerified": "Die Termine in diesem Zeitraum wurden überprüft.",
+  "scheduleCoverageWarning": "Einige Termine fehlen möglicherweise.",
   "listRefreshed": "Liste aktualisiert.",
   "exportedFile": "Exportiert nach {path}",
   "@exportedFile": {

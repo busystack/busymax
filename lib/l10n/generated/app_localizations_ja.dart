@@ -1444,13 +1444,7 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
-  String get scheduleCoverageStatus => '予定の確認状況';
-
-  @override
-  String get scheduleCoveragePending => 'この期間の予定を確認中か、まだ確認していません。';
-
-  @override
-  String get scheduleCoverageVerified => 'この期間の予定を確認しました。';
+  String get scheduleCoverageWarning => '一部の予定が表示されていない可能性があります。';
 
   @override
   String get listRefreshed => 'リストを更新しました。';

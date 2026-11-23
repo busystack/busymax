@@ -1449,13 +1449,7 @@ class AppLocalizationsKo extends AppLocalizations {
   }
 
   @override
-  String get scheduleCoverageStatus => '일정 확인 상태';
-
-  @override
-  String get scheduleCoveragePending => '이 범위의 일정을 확인 중이거나 아직 확인하지 않았습니다.';
-
-  @override
-  String get scheduleCoverageVerified => '이 범위의 일정을 확인했습니다.';
+  String get scheduleCoverageWarning => '일부 일정이 표시되지 않을 수 있습니다.';
 
   @override
   String get listRefreshed => '목록을 새로 고쳤습니다.';

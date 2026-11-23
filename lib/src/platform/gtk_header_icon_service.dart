@@ -39,6 +39,7 @@ enum BusyMaxLinuxHeaderIcon {
   mainMenu,
   create,
   refresh,
+  warning,
   viewDay,
   viewWeek,
   viewMonth,
@@ -65,6 +66,7 @@ extension BusyMaxLinuxHeaderIconNames on BusyMaxLinuxHeaderIcon {
     BusyMaxLinuxHeaderIcon.mainMenu => const ['open-menu-symbolic'],
     BusyMaxLinuxHeaderIcon.create => const ['list-add-symbolic'],
     BusyMaxLinuxHeaderIcon.refresh => const ['view-refresh-symbolic'],
+    BusyMaxLinuxHeaderIcon.warning => const ['dialog-warning-symbolic'],
     BusyMaxLinuxHeaderIcon.viewDay => const ['view-continuous-symbolic'],
     BusyMaxLinuxHeaderIcon.viewWeek => const [
       'calendar-week-symbolic',

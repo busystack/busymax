@@ -1470,15 +1470,7 @@ class AppLocalizationsEt extends AppLocalizations {
   }
 
   @override
-  String get scheduleCoverageStatus => 'Sündmuste kaetus';
-
-  @override
-  String get scheduleCoveragePending =>
-      'Selle ajavahemiku sündmusi kontrollitakse või pole veel kontrollitud.';
-
-  @override
-  String get scheduleCoverageVerified =>
-      'Selle ajavahemiku sündmused on kontrollitud.';
+  String get scheduleCoverageWarning => 'Mõned sündmused võivad puududa.';
 
   @override
   String get listRefreshed => 'Loend on värskendatud.';

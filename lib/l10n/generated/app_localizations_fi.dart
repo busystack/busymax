@@ -1499,15 +1499,7 @@ class AppLocalizationsFi extends AppLocalizations {
   }
 
   @override
-  String get scheduleCoverageStatus => 'Tapahtumien kattavuus';
-
-  @override
-  String get scheduleCoveragePending =>
-      'Tämän ajanjakson tapahtumia tarkistetaan tai niitä ei ole vielä tarkistettu.';
-
-  @override
-  String get scheduleCoverageVerified =>
-      'Tämän ajanjakson tapahtumat on tarkistettu.';
+  String get scheduleCoverageWarning => 'Jotkin tapahtumat saattavat puuttua.';
 
   @override
   String get listRefreshed => 'Luettelo päivitetty.';

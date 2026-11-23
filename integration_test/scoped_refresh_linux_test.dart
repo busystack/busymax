@@ -10,6 +10,8 @@ import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/connectivity/network_connectivity_service.dart';
 import 'package:busymax/src/features/notifications/notification_reconciler.dart';
+import 'package:busymax/src/features/schedule/presentation/schedule_day_week_view.dart';
+import 'package:busymax/src/features/schedule/presentation/schedule_toolbar.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_workspace.dart';
 import 'package:busymax/src/features/sync/sync_request.dart';
 import 'package:busymax/src/google_calendar/google_calendar_api_client.dart';
@@ -58,7 +60,7 @@ void main() {
       final requests = <String>[];
       var rejected = false;
       var coverageAvailable = false;
-      final coverageAttempts = <Object>[];
+      final coverageAttempts = <(DateTime, DateTime, Set<String>)>[];
       final client = MockClient((request) async {
         requests.add(request.url.path);
         expect(request.url.path, contains('/calendars/a/events'));
@@ -178,8 +180,28 @@ void main() {
       final row = find.byKey(ValueKey(('schedule-calendar', 'one', sourceId)));
       final options = find.byKey(ValueKey(('calendar-options', sourceId)));
       final original = tester.getRect(row);
-      final status = find.byKey(const ValueKey('schedule-coverage-status'));
-      final statusBounds = tester.getRect(status);
+      final warning = find.byTooltip('Some events may be missing.');
+      final toolbarAction = find.byKey(const ValueKey('schedule-next-button'));
+      final calendar = find.byType(ScheduleDayWeekView);
+      final toolbarBounds = tester.getRect(toolbarAction);
+      final calendarBounds = tester.getRect(calendar);
+      final displayedRange = tester
+          .widget<ScheduleToolbar>(find.byType(ScheduleToolbar))
+          .range;
+      int displayedRangeAttempts() => coverageAttempts
+          .where(
+            (attempt) =>
+                attempt.$1 == displayedRange.start &&
+                attempt.$2 == displayedRange.end,
+          )
+          .length;
+      expect(warning, findsOneWidget);
+      expect(
+        icons.catalog
+            .assetFor(BusyMaxLinuxHeaderIcon.warning, TextDirection.ltr)
+            ?.resolvedName,
+        'dialog-warning-symbolic',
+      );
       final scope = calendarSyncScope('one', sourceId);
 
       Future<void> refresh() async {
@@ -216,9 +238,9 @@ void main() {
       await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
 
-      final previous = coverageAttempts.length;
+      final previous = displayedRangeAttempts();
       coverageAvailable = true;
-      await tester.tap(status);
+      await tester.tap(warning);
       await tester.pumpAndSettle();
       expect(
         find.text('Some events could not be checked. Showing downloaded data.'),
@@ -226,8 +248,17 @@ void main() {
       );
       await tester.tap(find.text('Retry'));
       await tester.pumpAndSettle();
-      expect(coverageAttempts.length, greaterThan(previous));
-      expect(tester.getRect(status), statusBounds);
+      for (
+        var frame = 0;
+        frame < 40 && warning.evaluate().isNotEmpty;
+        frame++
+      ) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      expect(displayedRangeAttempts(), greaterThan(previous));
+      expect(warning, findsNothing);
+      expect(tester.getRect(toolbarAction), toolbarBounds);
+      expect(tester.getRect(calendar), calendarBounds);
       expect(tester.getRect(row), original);
     },
   );

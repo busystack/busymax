@@ -420,6 +420,30 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
             agendaPage: page.valueOrNull ?? _cachedAgendaPage,
             coverageComplete: coverageComplete,
           );
+    final coverageWarning = coverageComplete == false
+        ? IconButton(
+            key: const ValueKey('schedule-coverage-warning'),
+            tooltip: context.l10n.scheduleCoverageWarning,
+            icon: const Icon(Icons.warning_amber_rounded, size: 20),
+            onPressed: () => unawaited(
+              showScheduleCoverage(
+                context,
+                () => ref
+                    .read(scheduleRepositoryProvider)
+                    .retryCloudCoverage(displayedRange, coverageFilters),
+                openSettings: () => unawaited(
+                  Navigator.of(context).push<void>(
+                    MaterialPageRoute(
+                      builder: (_) => const AndroidSettingsScreen(
+                        category: AndroidSettingsCategory.accounts,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          )
+        : null;
     return PopScope(
       canPop: !_searching,
       onPopInvokedWithResult: (didPop, _) {
@@ -454,7 +478,7 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
               ? null
               : PreferredSize(
                   preferredSize: const Size.fromHeight(52),
-                  child: _navigationRow(context, mode),
+                  child: _navigationRow(context, mode, coverageWarning),
                 ),
           title: BusyMaxBinaryPresentation(
             alternateActive: _searching,
@@ -465,6 +489,7 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
                     decoration: InputDecoration(
                       hintText: context.l10n.windowsSearch,
                       border: InputBorder.none,
+                      prefixIcon: coverageWarning,
                       suffixIcon: IconButton(
                         tooltip: MaterialLocalizations.of(context)
                             .clearButtonTooltip,
@@ -505,33 +530,6 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
                   ),
           ),
           actions: [
-            IconButton(
-              key: const ValueKey('schedule-coverage-status'),
-              tooltip: context.l10n.scheduleCoverageStatus,
-              icon: Icon(switch (coverageComplete) {
-                false => Icons.warning_amber_rounded,
-                null => Icons.more_horiz,
-                true => Icons.calendar_today_outlined,
-              }),
-              onPressed: () => unawaited(
-                showScheduleCoverage(
-                  context,
-                  coverageComplete,
-                  () => ref
-                      .read(scheduleRepositoryProvider)
-                      .retryCloudCoverage(displayedRange, coverageFilters),
-                  openSettings: () => unawaited(
-                    Navigator.of(context).push<void>(
-                      MaterialPageRoute(
-                        builder: (_) => const AndroidSettingsScreen(
-                          category: AndroidSettingsCategory.accounts,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
             IconButton(
               tooltip: context.l10n.windowsSearch,
               onPressed: _searching ? _closeSearch : _openSearch,
@@ -1163,7 +1161,11 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
     onClear: () => setState(() => _searchCriteria = _initialSearchCriteria),
   );
 
-  Widget _navigationRow(BuildContext context, ScheduleViewMode mode) => Padding(
+  Widget _navigationRow(
+    BuildContext context,
+    ScheduleViewMode mode,
+    Widget? coverageWarning,
+  ) => Padding(
     padding: const EdgeInsets.symmetric(horizontal: 4),
     child: Row(
       children: [
@@ -1190,37 +1192,45 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
         Expanded(
           child: Align(
             alignment: AlignmentDirectional.centerEnd,
-            child: PopupMenuButton<ScheduleViewMode>(
-              tooltip: context.l10n.viewSelector,
-              onSelected: (value) => unawaited(
-                ref
-                    .read(appSettingsControllerProvider.notifier)
-                    .setAndroidScheduleViewMode(value),
-              ),
-              itemBuilder: (context) => [
-                for (final value in ScheduleViewMode.values)
-                  CheckedPopupMenuItem(
-                    value: value,
-                    checked: value == mode,
-                    child: Text(_modeLabel(context, value)),
-                  ),
-              ],
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: 48),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Flexible(
-                      child: Text(
-                        _modeLabel(context, mode),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ?coverageWarning,
+                Flexible(
+                  child: PopupMenuButton<ScheduleViewMode>(
+                    tooltip: context.l10n.viewSelector,
+                    onSelected: (value) => unawaited(
+                      ref
+                          .read(appSettingsControllerProvider.notifier)
+                          .setAndroidScheduleViewMode(value),
+                    ),
+                    itemBuilder: (context) => [
+                      for (final value in ScheduleViewMode.values)
+                        CheckedPopupMenuItem(
+                          value: value,
+                          checked: value == mode,
+                          child: Text(_modeLabel(context, value)),
+                        ),
+                    ],
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(minHeight: 48),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              _modeLabel(context, mode),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const Icon(Icons.arrow_drop_down),
+                        ],
                       ),
                     ),
-                    const Icon(Icons.arrow_drop_down),
-                  ],
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
         ),

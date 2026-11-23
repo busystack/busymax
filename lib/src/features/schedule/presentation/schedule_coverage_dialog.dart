@@ -6,7 +6,6 @@ import '../../../l10n/l10n.dart';
 
 Future<void> showScheduleCoverage(
   BuildContext context,
-  bool? complete,
   Future<void> Function() retry, {
   VoidCallback? openSettings,
 }) async {
@@ -14,32 +13,24 @@ Future<void> showScheduleCoverage(
   final requested = await showBusyMaxModalDialog<_CoverageAction>(
     context,
     builder: (dialogContext) => BusyMaxDialogShell(
-      title: l10n.scheduleCoverageStatus,
+      title: l10n.scheduleCoverageWarning,
       actions: [
         BusyMaxPushButton.standard(
           onPressed: () => Navigator.pop(dialogContext),
           child: Text(l10n.close),
         ),
-        if (complete == false && openSettings != null)
+        if (openSettings != null)
           BusyMaxPushButton.standard(
             onPressed: () =>
                 Navigator.pop(dialogContext, _CoverageAction.settings),
             child: Text(l10n.settings),
           ),
-        if (complete != true)
-          BusyMaxPushButton.standard(
-            onPressed: () =>
-                Navigator.pop(dialogContext, _CoverageAction.retry),
-            child: Text(l10n.retry),
-          ),
+        BusyMaxPushButton.standard(
+          onPressed: () => Navigator.pop(dialogContext, _CoverageAction.retry),
+          child: Text(l10n.retry),
+        ),
       ],
-      children: [
-        Text(switch (complete) {
-          null => l10n.scheduleCoveragePending,
-          false => l10n.scheduleRangeIncomplete,
-          true => l10n.scheduleCoverageVerified,
-        }),
-      ],
+      children: [Text(l10n.scheduleRangeIncomplete)],
     ),
   );
   if (!context.mounted) return;

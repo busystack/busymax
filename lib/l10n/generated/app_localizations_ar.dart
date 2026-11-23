@@ -1513,14 +1513,7 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
-  String get scheduleCoverageStatus => 'تغطية الأحداث';
-
-  @override
-  String get scheduleCoveragePending =>
-      'يجري التحقق من أحداث هذه الفترة أو لم يبدأ التحقق منها بعد.';
-
-  @override
-  String get scheduleCoverageVerified => 'تم التحقق من أحداث هذه الفترة.';
+  String get scheduleCoverageWarning => 'قد تكون بعض الأحداث مفقودة.';
 
   @override
   String get listRefreshed => 'تم تحديث القائمة.';
