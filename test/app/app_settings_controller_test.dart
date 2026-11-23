@@ -8,6 +8,45 @@ import '../support/memory_settings_store.dart';
 
 void main() {
   test(
+    'account visibility survives restart and can be reset on removal',
+    () async {
+      final store = MemorySettingsStore({
+        'taskListScheduleVisibility': {'account-a::inbox': false},
+      });
+      final controller = AppSettingsController(store);
+      addTearDown(controller.dispose);
+      await controller.ready;
+      expect(controller.state.isAccountVisibleInSchedule('account-a'), isTrue);
+      await controller.setAccountVisibleInSchedule(
+        accountId: 'account-a',
+        visible: false,
+      );
+
+      final restarted = AppSettingsController(store);
+      addTearDown(restarted.dispose);
+      await restarted.ready;
+      expect(restarted.state.isAccountVisibleInSchedule('account-a'), isFalse);
+      expect(restarted.state.isAccountVisibleInSchedule('account-b'), isTrue);
+      expect(
+        restarted.state.isTaskListVisibleInSchedule('account-a', 'inbox'),
+        isFalse,
+      );
+      await restarted.setAccountVisibleInSchedule(
+        accountId: 'account-a',
+        visible: true,
+      );
+      expect(
+        AppSettings.fromJson(store.value).accountScheduleVisibility,
+        isEmpty,
+      );
+      expect(
+        restarted.state.isTaskListVisibleInSchedule('account-a', 'inbox'),
+        isFalse,
+      );
+    },
+  );
+
+  test(
     'creation defaults and last used destinations survive restart',
     () async {
       final store = MemorySettingsStore();

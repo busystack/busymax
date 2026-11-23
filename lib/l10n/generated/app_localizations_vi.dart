@@ -524,6 +524,44 @@ class AppLocalizationsVi extends AppLocalizations {
   String get options => 'Tùy chọn';
 
   @override
+  String get showScheduleCalendar => 'Hiện lịch';
+
+  @override
+  String get hideScheduleCalendar => 'Ẩn lịch';
+
+  @override
+  String get showScheduleTaskList => 'Hiện danh sách công việc';
+
+  @override
+  String get hideScheduleTaskList => 'Ẩn danh sách công việc';
+
+  @override
+  String get showScheduleAccount => 'Hiện tài khoản';
+
+  @override
+  String get hideScheduleAccount => 'Ẩn tài khoản';
+
+  @override
+  String get someAccountSourcesVisible => 'Một số bộ sưu tập đang hiển thị';
+
+  @override
+  String get noAccountSourcesVisible =>
+      'Tất cả bộ sưu tập đều được ẩn riêng lẻ';
+
+  @override
+  String get accountHiddenInSchedule => 'Tài khoản bị ẩn khỏi lịch trình';
+
+  @override
+  String get showAccountToChangeVisibility =>
+      'Hiện tài khoản để thay đổi chế độ hiển thị của bộ sưu tập';
+
+  @override
+  String get scheduleAccountSettings => 'Cài đặt tài khoản';
+
+  @override
+  String get scheduleAccountUnavailable => 'Không thể truy cập tài khoản';
+
+  @override
   String get hide => 'Ẩn';
 
   @override

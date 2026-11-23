@@ -4,6 +4,7 @@ import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:busymax/src/features/sync/sync_request.dart';
 
 import 'dart:async';
+import 'dart:ui' show Tristate;
 
 import 'package:busymax/src/dav/dav_errors.dart';
 import 'package:busymax/src/dav/nextcloud/nextcloud_dav_context.dart';
@@ -13,6 +14,10 @@ import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/schedule/schedule_sidebar_order.dart';
 import 'package:busymax/src/schedule/schedule_sidebar_sources.dart';
 import 'package:busymax/src/app/busymax_design.dart';
+import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
+import 'package:busymax/src/db/app_database.dart';
+import 'package:busymax/src/schedule/schedule_sidebar_visibility_icon.dart';
+import 'package:busymax/src/schedule/schedule_source_visibility.dart';
 import 'package:busymax/src/app/busymax_yaru_theme.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/auth/data/auth_repository.dart';
@@ -266,10 +271,46 @@ void main() {
         );
         expect(rotation, motion ? findsOneWidget : findsNothing);
         final icon = tester.widget<Icon>(
-          find.descendant(of: row, matching: find.byIcon(YaruIcons.refresh)),
+          find.descendant(of: row, matching: find.byIcon(YaruIcons.calendar)),
         );
         expect(icon.color, const Color(0xff123456));
         expect(tester.getRect(row), original);
+        final accountIcon = _row(('account-visibility', account.id));
+        final provider = _row(('account-provider-indicator', account.id));
+        expect(provider, findsOneWidget);
+        final controls = [
+          provider,
+          _row(('account-collapse', account.id)),
+          _row(('account-collection-options', account.id)),
+        ].map(tester.getRect).toList();
+        final accountRotation = find.descendant(
+          of: accountIcon,
+          matching: find.byType(RotationTransition),
+        );
+        expect(accountRotation, motion ? findsOneWidget : findsNothing);
+        await tester.tap(accountIcon);
+        await tester.pump();
+        expect(activity.busy(scope), isTrue);
+        expect(
+          tester.widget<ScheduleSidebarVisibilityIcon>(accountIcon).visible,
+          isFalse,
+        );
+        expect(
+          controls,
+          [
+            provider,
+            _row(('account-collapse', account.id)),
+            _row(('account-collection-options', account.id)),
+          ].map(tester.getRect).toList(),
+        );
+        if (motion) {
+          await tester.tap(_row(('account-collapse', account.id)));
+          await tester.pump();
+          expect(rotation, findsNothing);
+          expect(accountRotation, findsOneWidget);
+          await tester.tap(_row(('account-collapse', account.id)));
+          await tester.pump(const Duration(milliseconds: 250));
+        }
         release.complete();
         await active;
         await tester.pumpAndSettle();
@@ -280,9 +321,74 @@ void main() {
         );
         expect(find.byType(SnackBar), findsNothing);
         expect(tester.getRect(row), original);
+        await expectLater(
+          activity.resource<void>([
+            scope,
+          ], () async => throw StateError('fixture failure')),
+          throwsStateError,
+        );
+        await tester.pumpAndSettle();
+        expect(
+          find.descendant(of: row, matching: find.byIcon(YaruIcons.warning)),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(of: row, matching: find.byIcon(YaruIcons.calendar)),
+          findsOneWidget,
+        );
+        expect(tester.getRect(row), original);
       },
     );
   }
+
+  testWidgets('offscreen collections do not keep the sync ring rotating', (
+    tester,
+  ) async {
+    final account = _account(BusyProvider.google, id: 'a');
+    await _pumpSidebar(
+      tester,
+      [account],
+      calendarSources: [
+        for (var i = 0; i < 25; i++) _calendar('a', 'source-$i'),
+      ],
+      height: 420,
+      gtkAnimations: true,
+    );
+    final icon = _row(('calendar-visibility', 'source-0'));
+    final ring = find.descendant(
+      of: icon,
+      matching: find.byType(RotationTransition),
+    );
+    final container = ProviderScope.containerOf(tester.element(icon));
+    final activity = container.read(accountSyncActivityProvider.notifier);
+    final release = Completer<void>();
+    final scope = calendarSyncScope('a', 'source-0');
+    final pending = activity.resource([scope], () => release.future);
+    await tester.pump();
+    await tester.pump();
+    expect(ring, findsOneWidget);
+    final scrollable = tester.state<ScrollableState>(
+      find
+          .descendant(
+            of: find.byType(ListView).first,
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    scrollable.position.jumpTo(240);
+    await tester.pump();
+    await tester.pump();
+    expect(activity.executing(scope), isTrue);
+    expect(ring, findsNothing);
+    scrollable.position.jumpTo(0);
+    await tester.pump();
+    await tester.pump();
+    expect(ring, findsOneWidget);
+    release.complete();
+    await pending;
+    await tester.pumpAndSettle();
+    expect(ring, findsNothing);
+  });
 
   testWidgets('eligible calendar refresh dispatches synchronization', (
     tester,
@@ -732,12 +838,8 @@ void main() {
           findsOneWidget,
         );
         expect(
-          tester
-              .widget<Tooltip>(
-                find.descendant(of: indicator, matching: find.byType(Tooltip)),
-              )
-              .message,
-          expected.$3,
+          find.bySemanticsLabel('Hide account, ${expected.$3}, Shared account'),
+          findsOneWidget,
         );
         expect(
           find.bySemanticsLabel('${expected.$3}, Shared account, $email'),
@@ -805,6 +907,7 @@ void main() {
               email: email,
             ),
           ],
+          calendarSources: [_calendar(accountId, 'calendar')],
           theme: theme,
           width: 240,
         );
@@ -845,8 +948,24 @@ void main() {
         final addressRect = tester.getRect(find.text(email));
         expect(nameRect.top, lessThan(addressRect.top));
         expect(nameRect.left, closeTo(addressRect.left, 0.01));
-        expect(addressRect.right, lessThan(indicatorRect.left));
-        expect(addressRect.center.dy, closeTo(indicatorRect.center.dy, 0.01));
+        expect(indicatorRect.right, lessThan(nameRect.left));
+        expect(
+          nameRect.expandToInclude(addressRect).center.dy,
+          closeTo(indicatorRect.center.dy, 0.01),
+        );
+        final calendarIcon = find.byIcon(YaruIcons.calendar);
+        expect(tester.getCenter(calendarIcon).dx, indicatorRect.center.dx);
+        final calendarMenu = _row(('calendar-options', 'calendar'));
+        final accountMenu = _row(('account-collection-options', accountId));
+        final collapse = _row(('account-collapse', accountId));
+        expect(
+          tester.getCenter(calendarMenu).dx,
+          tester.getCenter(accountMenu).dx,
+        );
+        expect(
+          tester.getRect(collapse).right,
+          lessThan(tester.getRect(accountMenu).left),
+        );
 
         await tester.tap(
           find.byKey(const ValueKey(('account-collapse', accountId))),
@@ -876,6 +995,7 @@ void main() {
         );
     expect(menu.entries.map((entry) => entry.label), [
       'Refresh account',
+      'Account settings',
       'Move up',
       'Move down',
     ]);
@@ -969,8 +1089,11 @@ void main() {
           ),
         );
 
-    expect(menu.entries, hasLength(6));
-    expect(menu.entries.every((entry) => !entry.enabled), isTrue);
+    expect(menu.entries, hasLength(7));
+    expect(
+      menu.entries.where((entry) => entry.enabled).map((entry) => entry.value),
+      [AccountHeaderCollectionAction.settings],
+    );
   });
 
   testWidgets('active creation disables repeat activation and runs once', (
@@ -1039,7 +1162,218 @@ void main() {
     );
 
     expect(Directionality.of(tester.element(options)), TextDirection.rtl);
-    expect(tester.getRect(options).overlaps(tester.getRect(collapse)), isFalse);
+    final provider = _row(('account-provider-indicator', 'google-account'));
+    expect(
+      tester.getRect(options).right,
+      lessThan(tester.getRect(collapse).left),
+    );
+    expect(
+      tester.getCenter(provider).dx,
+      greaterThan(tester.getCenter(collapse).dx),
+    );
+  });
+
+  testWidgets(
+    'visibility icons preserve local preferences and disabled children across reload',
+    (tester) async {
+      final database = AppDatabase.memoryForTests();
+      addTearDown(database.close);
+      final calendar = CalendarRepository(database: database);
+      final account = _account(BusyProvider.google, id: 'a');
+      final other = _account(BusyProvider.google, id: 'b');
+      final store = MemorySettingsStore();
+      final sources = [
+        for (final account in [account, other]) (account, 'personal', false),
+        (account, 'provider-hidden', true),
+      ];
+      await tester.runAsync(() async {
+        final accounts = AccountsRepository(database: database);
+        for (final entry in [account, other]) {
+          await accounts.upsertSignedInAccount(
+            id: entry.id,
+            provider: entry.provider,
+            providerAccountId: entry.id,
+            grantedScopes: 'calendar tasks',
+          );
+        }
+        for (final (owner, id, hidden) in sources) {
+          await calendar.upsertSource(
+            accountId: owner.id,
+            source: CalendarSourceDto(
+              provider: owner.provider,
+              providerCalendarId: id,
+              summary: id,
+              hidden: hidden,
+              backgroundColor: '#123456',
+            ),
+          );
+        }
+      });
+      Future<void> mount() => _pumpSidebar(
+        tester,
+        [account, other],
+        calendarRepository: calendar,
+        taskLists: [_list('a', 'tasks')],
+        settingsStore: store,
+      );
+      String sourceId(String accountId, String id) =>
+          CalendarRepository.sourceId(
+            accountId: accountId,
+            provider: BusyProvider.google,
+            providerCalendarId: id,
+          );
+      final accountIcon = _row(('account-visibility', 'a'));
+      final personal = _row(('calendar-visibility', sourceId('a', 'personal')));
+      final unrelated = _row((
+        'calendar-visibility',
+        sourceId('b', 'personal'),
+      ));
+      final tasks = _row(('task-list-visibility', 'a', 'tasks'));
+      ScheduleSidebarVisibilityIcon icon(Finder finder) =>
+          tester.widget(finder);
+      await mount();
+      expect(
+        icon(accountIcon).accountVisibility,
+        ScheduleAccountVisibility.visible,
+      );
+      expect(
+        _row(('calendar-visibility', sourceId('a', 'provider-hidden'))),
+        findsNothing,
+      );
+      expect(icon(personal).actionLabel, 'Hide calendar');
+      final semantics = tester.ensureSemantics();
+      try {
+        Tristate toggled() => tester
+            .getSemantics(personal)
+            .getSemanticsData()
+            .flagsCollection
+            .isToggled;
+        await tester.pump();
+        expect(toggled(), Tristate.isTrue);
+        final glyph = find.descendant(
+          of: personal,
+          matching: find.byIcon(YaruIcons.calendar),
+        );
+        Focus.of(tester.element(glyph)).requestFocus();
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pumpAndSettle();
+        expect(toggled(), Tristate.isFalse);
+      } finally {
+        semantics.dispose();
+      }
+      expect(icon(personal).actionLabel, 'Show calendar');
+      expect((icon(personal).icon as Icon).color, const Color(0xff123456));
+      expect(
+        tester
+            .widgetList<Opacity>(
+              find.descendant(of: personal, matching: find.byType(Opacity)),
+            )
+            .map((widget) => widget.opacity),
+        contains(0.4),
+      );
+      expect(
+        icon(accountIcon).accountVisibility,
+        ScheduleAccountVisibility.partial,
+      );
+      await tester.tap(personal);
+      await tester.pumpAndSettle();
+      expect(icon(personal).visible, isTrue);
+
+      await tester.tap(tasks);
+      await tester.pumpAndSettle();
+      expect(icon(tasks).actionLabel, 'Show task list');
+      await tester.tap(accountIcon);
+      await tester.pumpAndSettle();
+      expect(
+        icon(accountIcon).accountVisibility,
+        ScheduleAccountVisibility.hidden,
+      );
+      expect(icon(accountIcon).actionLabel, 'Show account');
+      expect(icon(personal).onPressed, isNull);
+      expect(
+        icon(tasks).actionLabel,
+        'Show the account to change collection visibility',
+      );
+      expect(icon(unrelated).visible, isTrue);
+      await tester.tap(_row(('account-collapse', 'a')));
+      await tester.pumpAndSettle();
+      expect(personal.hitTestable(), findsNothing);
+      expect(icon(accountIcon).visible, isFalse);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await mount();
+      expect(icon(accountIcon).visible, isFalse);
+      expect(icon(personal).visible, isFalse);
+      await tester.tap(accountIcon);
+      await tester.pumpAndSettle();
+      expect(icon(personal).visible, isTrue);
+      expect(icon(tasks).visible, isFalse);
+      await tester.tap(personal);
+      await tester.pumpAndSettle();
+      expect(
+        icon(accountIcon).accountVisibility,
+        ScheduleAccountVisibility.noVisibleSources,
+      );
+      expect(icon(accountIcon).actionLabel, 'Hide account');
+      expect(icon(tasks).onPressed, isNotNull);
+      await tester.tap(tasks);
+      await tester.pumpAndSettle();
+      expect(icon(tasks).actionLabel, 'Hide task list');
+    },
+  );
+
+  testWidgets('native sidebar menus send GTK icons and account group breaks', (
+    tester,
+  ) async {
+    List<dynamic>? entries;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_nativeMenuChannel, (call) async {
+          if (call.method == 'show') {
+            entries =
+                (call.arguments as Map<Object?, Object?>)['entries']
+                    as List<dynamic>;
+          }
+          return null;
+        });
+    final account = _account(BusyProvider.nextcloud);
+    await _pumpSidebar(
+      tester,
+      [account],
+      calendarSources: [
+        _calendar(account.id, 'work', provider: account.provider),
+      ],
+      taskLists: [_list(account.id, 'tasks')],
+    );
+    Future<Map<String, Map<dynamic, dynamic>>> open(Object rowKey) async {
+      await tester.tap(_row(rowKey));
+      await tester.pumpAndSettle();
+      return {
+        for (final entry in entries!.cast<Map>())
+          entry['label'] as String: entry,
+      };
+    }
+
+    final accountMenu = await open(('account-collection-options', account.id));
+    expect(accountMenu['New calendar…']?['icon'], 'appointment-new-symbolic');
+    expect(
+      accountMenu['New task list…']?['icon'],
+      'busymax-task-list-add-symbolic',
+    );
+    expect(
+      accountMenu['Account settings']?['icon'],
+      'preferences-system-symbolic',
+    );
+    expect(accountMenu['Refresh account']?['separatorBefore'], isTrue);
+    expect(accountMenu['Move up']?['separatorBefore'], isTrue);
+    for (final menu in [
+      accountMenu,
+      await open(('calendar-options', 'work')),
+      await open(('task-list-options', account.id, 'tasks')),
+    ]) {
+      expect(menu['Move up']?['icon'], 'go-up-symbolic');
+      expect(menu['Move down']?['icon'], 'go-down-symbolic');
+    }
   });
 
   testWidgets('calendar reminder actions show their current state', (

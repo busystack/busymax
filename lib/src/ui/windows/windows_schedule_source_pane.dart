@@ -1,5 +1,4 @@
 import '../../features/sync/sync_request.dart';
-import '../../features/sync/sync_activity_icon.dart';
 import 'windows_sync_feedback.dart';
 import '../../l10n/nextcloud_collection_error_description.dart';
 import '../../schedule/schedule_task_list_actions.dart';
@@ -24,9 +23,10 @@ import '../../features/calendar/data/calendar_repository.dart';
 import '../../features/connectivity/network_connectivity_service.dart';
 import '../../features/task_lists/data/task_lists_repository.dart';
 import '../../providers/busy_provider.dart';
-import '../../schedule/schedule_filters.dart';
 import '../../schedule/schedule_sidebar_order.dart';
 import '../../schedule/schedule_sidebar_sources.dart';
+import '../../schedule/schedule_sidebar_visibility_icon.dart';
+import '../../schedule/schedule_source_visibility.dart';
 import '../common/busymax_glyph.dart';
 import 'windows_busymax_glyphs.dart';
 
@@ -37,13 +37,13 @@ class WindowsScheduleSourcePane extends ConsumerStatefulWidget {
     required this.accounts,
     required this.calendarSources,
     required this.taskLists,
-    required this.visibleCalendarSourceIds,
-    required this.visibleTaskListKeys,
+    required this.selectedCalendarSourceIds,
     required this.onDateSelected,
     required this.onCalendarVisibilityChanged,
     required this.onTaskListVisibilityChanged,
     required this.onSourcesChanged,
     this.onAddAccount,
+    this.onAccountSettings,
     this.accountInventoryResolved = true,
     super.key,
   });
@@ -53,8 +53,7 @@ class WindowsScheduleSourcePane extends ConsumerStatefulWidget {
   final List<AccountEntity> accounts;
   final List<CalendarSourceEntity> calendarSources;
   final List<TaskListEntity> taskLists;
-  final Set<String> visibleCalendarSourceIds;
-  final Set<ScheduleTaskListKey> visibleTaskListKeys;
+  final Set<String> selectedCalendarSourceIds;
   final ValueChanged<DateTime> onDateSelected;
   final void Function(CalendarSourceEntity source, bool visible)
   onCalendarVisibilityChanged;
@@ -62,6 +61,7 @@ class WindowsScheduleSourcePane extends ConsumerStatefulWidget {
   onTaskListVisibilityChanged;
   final VoidCallback onSourcesChanged;
   final VoidCallback? onAddAccount;
+  final ValueChanged<String>? onAccountSettings;
   final bool accountInventoryResolved;
 
   @override
@@ -140,7 +140,8 @@ class _WindowsScheduleSourcePaneState
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final locale = Localizations.localeOf(context).toLanguageTag();
-    final order = ref.watch(appSettingsControllerProvider).sidebarOrder;
+    final settings = ref.watch(appSettingsControllerProvider);
+    final order = settings.sidebarOrder;
     final orderedAccounts = order.apply(
       SidebarOrderSection.accounts,
       widget.accounts,
@@ -234,6 +235,16 @@ class _WindowsScheduleSourcePaneState
                         NetworkAvailability.offline,
                     key: ValueKey(('schedule-account', account.id)),
                     account: account,
+                    visibility: ScheduleAccountVisibility.fromSources(
+                      accountId: account.id,
+                      settings: settings,
+                      calendars: _calendarsFor(account.id),
+                      taskLists: _taskListsFor(account.id),
+                      selectedCalendarIds: widget.selectedCalendarSourceIds,
+                    ),
+                    onAccountSettings: widget.onAccountSettings == null
+                        ? null
+                        : () => widget.onAccountSettings!(account.id),
                     movementItems: _movementItems(
                       context,
                       SidebarOrderSection.accounts,
@@ -264,8 +275,11 @@ class _WindowsScheduleSourcePaneState
                       scope: calendarSyncScope(source.accountId, source.id),
                       iconColor: _calendarSourceColor(source),
                       title: source.summary,
-                      checked: widget.visibleCalendarSourceIds.contains(
+                      selected: widget.selectedCalendarSourceIds.contains(
                         source.id,
+                      ),
+                      accountVisible: settings.isAccountVisibleInSchedule(
+                        account.id,
                       ),
                       onChanged: (value) =>
                           widget.onCalendarVisibilityChanged(source, value),
@@ -281,11 +295,12 @@ class _WindowsScheduleSourcePaneState
                       icon: BusyMaxGlyph.task,
                       scope: taskListSyncScope(list.accountId, list.id),
                       title: list.title,
-                      checked: widget.visibleTaskListKeys.contains(
-                        ScheduleTaskListKey(
-                          accountId: list.accountId,
-                          taskListId: list.id,
-                        ),
+                      selected: settings.isTaskListVisibleInSchedule(
+                        list.accountId,
+                        list.id,
+                      ),
+                      accountVisible: settings.isAccountVisibleInSchedule(
+                        account.id,
                       ),
                       onChanged: (value) =>
                           widget.onTaskListVisibilityChanged(list, value),
@@ -344,7 +359,10 @@ class _WindowsScheduleSourcePaneState
     return [
       for (final offset in [-1, 1])
         MenuFlyoutItem(
-          leading: Icon(offset == -1 ? FluentIcons.up : FluentIcons.down),
+          leading: Icon(
+            offset == -1 ? FluentIcons.up : FluentIcons.down,
+            size: 16,
+          ),
           text: Text(offset == -1 ? l10n.moveUp : l10n.moveDown),
           onPressed: order.canMove(id, offset, siblings)
               ? () => unawaited(
@@ -808,98 +826,203 @@ class _WindowsScheduleSourcePaneState
   );
 }
 
+Widget _windowsVisibilityButton(
+  BuildContext context,
+  Widget icon,
+  String tooltip,
+  VoidCallback? onPressed,
+) => Tooltip(
+  message: tooltip,
+  child: SizedBox.square(
+    dimension: 26,
+    child: IconButton(
+      onPressed: onPressed,
+      icon: icon,
+      style: const ButtonStyle(
+        padding: WidgetStatePropertyAll(EdgeInsets.zero),
+      ),
+    ),
+  ),
+);
+
 class _AccountHeader extends ConsumerWidget {
   const _AccountHeader({
     super.key,
     required this.account,
+    required this.visibility,
     required this.capabilities,
     required this.onCreateCalendar,
     required this.onCreateTaskList,
+    required this.onAccountSettings,
     required this.movementItems,
     required this.online,
   });
 
   final AccountEntity account;
+  final ScheduleAccountVisibility visibility;
   final AccountCollectionCreationCapabilities capabilities;
   final VoidCallback onCreateCalendar;
   final VoidCallback onCreateTaskList;
+  final VoidCallback? onAccountSettings;
   final List<MenuFlyoutItem> movementItems;
   final bool online;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) => Padding(
-    padding: const EdgeInsetsDirectional.fromSTEB(14, 10, 8, 4),
-    child: Row(
-      children: [
-        Expanded(
-          child: Text(
-            account.provider == BusyProvider.nextcloud &&
-                    (ref
-                                .watch(
-                                  nextcloudPendingInvitationCountProvider(
-                                    account.id,
-                                  ),
-                                )
-                                .valueOrNull ??
-                            0) >
-                        0
-                ? '${account.displayLabel} • ${AppLocalizations.of(context).nextcloudFederationInvitations} (${ref.watch(nextcloudPendingInvitationCountProvider(account.id)).valueOrNull ?? 0})'
-                : account.displayLabel,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: FluentTheme.of(context).typography.caption,
-          ),
-        ),
-        DropDownButton(
-          title: SyncActivityIcon(
-            scope: accountSyncScope(account.id),
-            refresh: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.refresh), size: 16),
-            warning: const Icon(FluentIcons.warning, size: 16),
-            child: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.more), size: 16),
-          ),
-          items: [
-            MenuFlyoutItem(
-              text: Text(AppLocalizations.of(context).refreshAccount),
-              leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.refresh)),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final theme = FluentTheme.of(context);
+    final color = theme.resources.textFillColorSecondary;
+    final secondaryLabel = scheduleAccountSecondaryLabel(account);
+    final invitations = account.provider == BusyProvider.nextcloud
+        ? ref
+                  .watch(nextcloudPendingInvitationCountProvider(account.id))
+                  .valueOrNull ??
+              0
+        : 0;
+    final hasCreation =
+        capabilities.supportsCalendarCreation ||
+        capabilities.supportsTaskListCreation;
+    final visible = visibility != ScheduleAccountVisibility.hidden;
+    return Padding(
+      padding: const EdgeInsetsDirectional.fromSTEB(12, 10, 8, 4),
+      child: Row(
+        children: [
+          if (!account.isSubscription) ...[
+            ScheduleSidebarVisibilityIcon(
+              key: ValueKey(('account-visibility', account.id)),
+              scope: accountSyncScope(account.id),
+              label: '${account.provider.displayName}, ${account.displayLabel}',
+              actionLabel: scheduleAccountVisibilityAction(context, visibility),
+              accountVisibility: visibility,
+              visible: visible,
+              color: color,
+              buttonBuilder: _windowsVisibilityButton,
+              warningIcon: FluentIcons.warning,
+              icon: Container(
+                width: 16,
+                height: 16,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: theme.resources.controlStrokeColorDefault,
+                  ),
+                ),
+                child: Text(
+                  scheduleAccountProviderLetter(account.provider),
+                  style: theme.typography.caption?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
               onPressed: () => unawaited(
-                refreshWindowsScope(context, ref, accountSyncScope(account.id)),
+                ref
+                    .read(appSettingsControllerProvider.notifier)
+                    .setAccountVisibleInSchedule(
+                      accountId: account.id,
+                      visible: !visible,
+                    ),
               ),
             ),
-            ...movementItems,
-            if (account.provider == BusyProvider.nextcloud)
-              MenuFlyoutItem(
-                text: Text(AppLocalizations.of(context).nextcloudTrash),
-                onPressed: !online
-                    ? null
-                    : () => unawaited(
-                        showWindowsNextcloudTrashDialog(
-                          context,
-                          accountId: account.id,
-                        ),
-                      ),
-              ),
+            const SizedBox(width: 8),
+          ],
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  account.displayLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.typography.body,
+                ),
+                if (secondaryLabel != null)
+                  Text(
+                    secondaryLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.typography.caption?.copyWith(color: color),
+                  ),
+                if (invitations > 0)
+                  Text(
+                    '${l10n.nextcloudFederationInvitations} ($invitations)',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.typography.caption?.copyWith(color: color),
+                  ),
+              ],
+            ),
+          ),
+          _windowsSidebarOptions(context, [
             if (capabilities.supportsCalendarCreation)
               MenuFlyoutItem(
-                leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.calendar)),
-                text: Text(AppLocalizations.of(context).newCalendar),
+                leading: const Icon(FluentIcons.add_event, size: 16),
+                text: Text(l10n.newCalendar),
                 onPressed: capabilities.calendarActionEnabled
                     ? onCreateCalendar
                     : null,
               ),
             if (capabilities.supportsTaskListCreation)
               MenuFlyoutItem(
-                leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.task)),
-                text: Text(AppLocalizations.of(context).newTaskList),
+                leading: const Icon(FluentIcons.task_add, size: 16),
+                text: Text(l10n.newTaskList),
                 onPressed: capabilities.taskListActionEnabled
                     ? onCreateTaskList
                     : null,
               ),
-          ],
-        ),
-      ],
-    ),
-  );
+            if (hasCreation) const MenuFlyoutSeparator(),
+            MenuFlyoutItem(
+              text: Text(l10n.refreshAccount),
+              leading: Icon(
+                windowsBusyMaxGlyph(BusyMaxGlyph.refresh),
+                size: 16,
+              ),
+              onPressed: () => unawaited(
+                refreshWindowsScope(context, ref, accountSyncScope(account.id)),
+              ),
+            ),
+            if (!account.isSubscription)
+              MenuFlyoutItem(
+                text: Text(l10n.scheduleAccountSettings),
+                leading: Icon(
+                  windowsBusyMaxGlyph(BusyMaxGlyph.settings),
+                  size: 16,
+                ),
+                onPressed: onAccountSettings,
+              ),
+            if (account.provider == BusyProvider.nextcloud)
+              MenuFlyoutItem(
+                text: Text(l10n.nextcloudTrash),
+                leading: const Icon(FluentIcons.delete, size: 16),
+                onPressed: online
+                    ? () => unawaited(
+                        showWindowsNextcloudTrashDialog(
+                          context,
+                          accountId: account.id,
+                        ),
+                      )
+                    : null,
+              ),
+            const MenuFlyoutSeparator(),
+            ...movementItems,
+          ]),
+        ],
+      ),
+    );
+  }
 }
+
+Widget _windowsSidebarOptions(
+  BuildContext context,
+  List<MenuFlyoutItemBase> items,
+) => Tooltip(
+  message: AppLocalizations.of(context).options,
+  child: DropDownButton(
+    title: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.more), size: 16),
+    items: items,
+  ),
+);
 
 class _VisibilityRow extends StatelessWidget {
   const _VisibilityRow({
@@ -907,7 +1030,8 @@ class _VisibilityRow extends StatelessWidget {
     required this.icon,
     required this.scope,
     required this.title,
-    required this.checked,
+    required this.selected,
+    required this.accountVisible,
     required this.onChanged,
     required this.menuItems,
     this.iconColor,
@@ -917,48 +1041,42 @@ class _VisibilityRow extends StatelessWidget {
   final SyncScope scope;
   final Color? iconColor;
   final String title;
-  final bool checked;
+  final bool selected;
+  final bool accountVisible;
   final ValueChanged<bool> onChanged;
   final List<MenuFlyoutItem> menuItems;
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      label: title,
-      checked: checked,
-      child: Padding(
-        padding: const EdgeInsetsDirectional.fromSTEB(12, 3, 8, 3),
-        child: Row(
-          children: [
-            Checkbox(
-              checked: checked,
-              onChanged: (value) => onChanged(value ?? false),
+    final visible = accountVisible && selected;
+    final color =
+        iconColor ?? FluentTheme.of(context).resources.textFillColorSecondary;
+    return Padding(
+      padding: const EdgeInsetsDirectional.fromSTEB(12, 3, 8, 3),
+      child: Row(
+        children: [
+          ScheduleSidebarVisibilityIcon(
+            scope: scope,
+            label: title,
+            actionLabel: scheduleCollectionVisibilityAction(
+              context,
+              calendar: icon == BusyMaxGlyph.calendar,
+              accountVisible: accountVisible,
+              visible: visible,
             ),
-            const SizedBox(width: 8),
-            SyncActivityIcon(
-              scope: scope,
-              refresh: Icon(
-                windowsBusyMaxGlyph(BusyMaxGlyph.refresh),
-                size: 16,
-                color: iconColor,
-              ),
-              warning: Icon(FluentIcons.warning, size: 16, color: iconColor),
-              child: Icon(
-                windowsBusyMaxGlyph(icon),
-                size: 16,
-                color: iconColor,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
-            ),
-            DropDownButton(
-              title: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.more), size: 16),
-              items: menuItems,
-            ),
-          ],
-        ),
+            visible: visible,
+            color: color,
+            buttonBuilder: _windowsVisibilityButton,
+            warningIcon: FluentIcons.warning,
+            icon: Icon(windowsBusyMaxGlyph(icon), size: 16, color: color),
+            onPressed: accountVisible ? () => onChanged(!visible) : null,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+          ),
+          _windowsSidebarOptions(context, menuItems),
+        ],
       ),
     );
   }

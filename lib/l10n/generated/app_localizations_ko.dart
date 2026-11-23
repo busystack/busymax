@@ -504,6 +504,42 @@ class AppLocalizationsKo extends AppLocalizations {
   String get options => '옵션';
 
   @override
+  String get showScheduleCalendar => '캘린더 표시';
+
+  @override
+  String get hideScheduleCalendar => '캘린더 숨기기';
+
+  @override
+  String get showScheduleTaskList => '작업 목록 표시';
+
+  @override
+  String get hideScheduleTaskList => '작업 목록 숨기기';
+
+  @override
+  String get showScheduleAccount => '계정 표시';
+
+  @override
+  String get hideScheduleAccount => '계정 숨기기';
+
+  @override
+  String get someAccountSourcesVisible => '일부 컬렉션이 표시됩니다';
+
+  @override
+  String get noAccountSourcesVisible => '모든 컬렉션이 개별적으로 숨겨져 있습니다';
+
+  @override
+  String get accountHiddenInSchedule => '일정에서 계정이 숨겨져 있습니다';
+
+  @override
+  String get showAccountToChangeVisibility => '컬렉션 표시 여부를 변경하려면 계정을 표시하세요';
+
+  @override
+  String get scheduleAccountSettings => '계정 설정';
+
+  @override
+  String get scheduleAccountUnavailable => '계정을 사용할 수 없음';
+
+  @override
   String get hide => '숨기기';
 
   @override

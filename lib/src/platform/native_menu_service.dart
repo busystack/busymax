@@ -32,6 +32,7 @@ final class NativeMenuEntry {
     this.role = NativeMenuEntryRole.command,
     this.selected = false,
     this.shortcut,
+    this.separatorBefore = false,
   });
 
   final String label;
@@ -40,6 +41,7 @@ final class NativeMenuEntry {
   final NativeMenuEntryRole role;
   final bool selected;
   final String? shortcut;
+  final bool separatorBefore;
 
   Map<String, Object> _toPlatformMap() {
     return <String, Object>{
@@ -49,6 +51,7 @@ final class NativeMenuEntry {
       'role': role.name,
       'selected': selected,
       if (shortcut != null && shortcut!.isNotEmpty) 'shortcut': shortcut!,
+      if (separatorBefore) 'separatorBefore': true,
     };
   }
 }

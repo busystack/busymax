@@ -29,6 +29,7 @@ import '../../calendar_providers/calendar_description.dart';
 import 'android_time_zone_picker.dart';
 import '../../schedule/schedule_sidebar_order.dart';
 import '../../schedule/schedule_sidebar_sources.dart';
+import '../../schedule/schedule_sidebar_visibility_icon.dart';
 import '../../schedule/schedule_event_rescheduling.dart';
 import 'android_event_actions.dart';
 import '../../schedule/schedule_agenda_query.dart';
@@ -155,7 +156,9 @@ final _androidScheduleItemsProvider = FutureProvider.autoDispose
               key.search?.range ??
               _rangeFor(key.anchor, key.mode, firstWeekday: key.firstWeekday),
           filters:
-              key.search?.filters(key.query) ??
+              (key.search == null
+                  ? null
+                  : visibility.maskSearch(key.search!).filters(key.query)) ??
               ScheduleFilters(
                 query: key.query,
                 sourceIds: visibility.visibleCalendarSourceIds,
@@ -328,15 +331,15 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
         notificationDate: _notificationDate,
       )),
     );
+    final sourceInventory = ref.watch(calendarSourcesStreamProvider);
+    final taskInventory = ref.watch(scheduleTaskListsProvider);
+    final visibility = ScheduleSourceVisibility.fromSources(
+      calendarSources: sourceInventory.valueOrNull ?? const [],
+      taskLists: taskInventory.valueOrNull ?? const [],
+      settings: settings,
+    );
     var items = page.whenData((value) => value.items);
     if (!_searching && mode == ScheduleViewMode.agenda) {
-      final sourceInventory = ref.watch(calendarSourcesStreamProvider);
-      final taskInventory = ref.watch(scheduleTaskListsProvider);
-      final visibility = ScheduleSourceVisibility.fromSources(
-        calendarSources: sourceInventory.valueOrNull ?? const [],
-        taskLists: taskInventory.valueOrNull ?? const [],
-        settings: settings,
-      );
       final sourceKeys = visibility.visibleCalendarSourceIds.toList()..sort();
       final listKeys =
           visibility.visibleTaskListKeys
@@ -375,6 +378,17 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
         items = items.copyWithPrevious(AsyncData(_cachedSearchItems!));
       }
     }
+    if (_notificationDate == null && visibility.hiddenAccountIds.isNotEmpty) {
+      items = items.whenData(
+        (visibleItems) => [
+          for (final item in visibleItems)
+            if (!visibility.hiddenAccountIds.contains(item.accountId)) item,
+        ],
+      );
+    }
+    final effectiveSearch = searchCriteria == null
+        ? null
+        : visibility.maskSearch(searchCriteria);
     final displayedRange =
         searchCriteria?.range ??
         (mode == ScheduleViewMode.agenda
@@ -384,16 +398,10 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
                 mode,
                 firstWeekday: _firstWeekday(context),
               ));
-    final coverageFilters = _searching && searchCriteria != null
-        ? searchCriteria.filters(_query)
+    final coverageFilters = _searching && effectiveSearch != null
+        ? effectiveSearch.filters(_query)
         : ScheduleFilters(
-            sourceIds: ScheduleSourceVisibility.fromSources(
-              calendarSources:
-                  ref.watch(calendarSourcesStreamProvider).valueOrNull ??
-                  const [],
-              taskLists: const [],
-              settings: settings,
-            ).visibleCalendarSourceIds,
+            sourceIds: visibility.visibleCalendarSourceIds,
             sourceFilterActive: true,
           );
     final bool? coverageComplete =
@@ -407,10 +415,10 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
                 filters: coverageFilters,
               )
         : true;
-    final presentation = _searching && searchCriteria != null
+    final presentation = _searching && effectiveSearch != null
         ? _buildSearchPresentation(
             items: items,
-            criteria: searchCriteria,
+            criteria: effectiveSearch,
             query: _query,
             coverageComplete: coverageComplete,
           )
@@ -1150,7 +1158,9 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
 
   Widget _searchFilterPanel() => AndroidScheduleSearchFilters(
     value: _searchCriteria!,
-    accounts: ref.watch(accountsStreamProvider).valueOrNull ?? const [],
+    accounts: _searchAccounts(
+      ref.watch(accountsStreamProvider).valueOrNull ?? const [],
+    ),
     sources: ref.watch(calendarSourcesStreamProvider).valueOrNull ?? const [],
     taskLists: ref.watch(scheduleTaskListsProvider).valueOrNull ?? const [],
     onChanged: (value) => setState(() {
@@ -1160,6 +1170,14 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
     }),
     onClear: () => setState(() => _searchCriteria = _initialSearchCriteria),
   );
+
+  List<AccountEntity> _searchAccounts(List<AccountEntity> accounts) {
+    final settings = ref.read(appSettingsControllerProvider);
+    return [
+      for (final account in accounts)
+        if (settings.isAccountVisibleInSchedule(account.id)) account,
+    ];
+  }
 
   Widget _navigationRow(
     BuildContext context,
@@ -1286,8 +1304,9 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
                 height: MediaQuery.sizeOf(context).height * .8,
                 child: AndroidScheduleSearchFilters(
                   value: _searchCriteria!.copyWith(firstWeekday: firstWeekday),
-                  accounts:
-                      ref.read(accountsStreamProvider).valueOrNull ?? const [],
+                  accounts: _searchAccounts(
+                    ref.read(accountsStreamProvider).valueOrNull ?? const [],
+                  ),
                   sources:
                       ref.read(calendarSourcesStreamProvider).valueOrNull ??
                       const [],
@@ -2526,10 +2545,13 @@ class _AndroidSourcesPaneState extends ConsumerState<_AndroidSourcesPane> {
       accounts.valueOrNull ?? const <AccountEntity>[],
       (a) => a.id,
     );
+    final authAccounts = orderedAccounts
+        .where((account) => !account.isSubscription)
+        .toList();
     final subscriptionsState = ref.watch(sidebarSubscriptionSourcesProvider);
     final subscriptions = settings.sidebarOrder.apply(
       SidebarOrderSection.subscriptions,
-      subscriptionsState.valueOrNull ?? const <CalendarSourceEntity>[],
+      calendarSourcesShownInSidebar(subscriptionsState.valueOrNull ?? const []),
       (source) => source.id,
     );
     final month =
@@ -2579,10 +2601,8 @@ class _AndroidSourcesPaneState extends ConsumerState<_AndroidSourcesPane> {
                 if (accounts.isLoading) const LinearProgressIndicator(),
                 if (accounts.hasError)
                   ListTile(title: Text(context.l10n.scheduleUnavailable)),
-                for (final account in orderedAccounts.where(
-                  (account) => !account.isSubscription,
-                ))
-                  _account(account, orderedAccounts),
+                for (final account in authAccounts)
+                  _account(account, authAccounts),
                 if (subscriptions.isNotEmpty ||
                     subscriptionsState.isLoading) ...[
                   ListTile(title: Text(context.l10n.subscriptions)),
@@ -2598,9 +2618,7 @@ class _AndroidSourcesPaneState extends ConsumerState<_AndroidSourcesPane> {
                 if (accounts.hasValue &&
                     !accounts.isLoading &&
                     !accounts.hasError &&
-                    orderedAccounts
-                        .where((account) => !account.isSubscription)
-                        .isEmpty)
+                    authAccounts.isEmpty)
                   ListTile(
                     leading: const Icon(Icons.person_add_outlined),
                     title: Text(context.l10n.addAccount),
@@ -2635,7 +2653,9 @@ class _AndroidSourcesPaneState extends ConsumerState<_AndroidSourcesPane> {
     );
     final lists = settings.sidebarOrder.apply(
       SidebarOrderSection.taskLists,
-      listsState.valueOrNull ?? const <TaskListEntity>[],
+      (listsState.valueOrNull ?? const <TaskListEntity>[]).where(
+        (list) => !list.pendingDelete,
+      ),
       (l) => l.id,
       accountId: account.id,
     );
@@ -2660,142 +2680,209 @@ class _AndroidSourcesPaneState extends ConsumerState<_AndroidSourcesPane> {
         : 0;
     final secondaryLabel = scheduleAccountSecondaryLabel(account);
     final subtitle = [
+      if (secondaryLabel != null) secondaryLabel,
       if (invitations > 0)
         '${context.l10n.nextcloudFederationInvitations} ($invitations)',
-      if (secondaryLabel != null) secondaryLabel,
     ].join('\n');
+    final visibility = ScheduleAccountVisibility.fromSources(
+      accountId: account.id,
+      settings: settings,
+      calendars: account.calendarsEnabled
+          ? sources
+          : const <CalendarSourceEntity>[],
+      taskLists: lists,
+    );
+    final visible = visibility != ScheduleAccountVisibility.hidden;
+    final color = Theme.of(context).colorScheme.onSurfaceVariant;
     return ExpansionTile(
+      key: ValueKey(('schedule-account', account.id)),
       controller: disclosure,
       initiallyExpanded: true,
       maintainState: false,
-      tilePadding: const EdgeInsetsDirectional.only(start: 8),
-      leading: ListenableBuilder(
-        listenable: disclosure,
-        builder: (context, _) => IconButton(
-          tooltip: disclosure.isExpanded
-              ? MaterialLocalizations.of(context).expandedIconTapHint
-              : MaterialLocalizations.of(context).collapsedIconTapHint,
-          icon: Icon(
-            disclosure.isExpanded
-                ? Icons.expand_more
-                : Directionality.of(context) == TextDirection.rtl
-                ? Icons.chevron_left
-                : Icons.chevron_right,
-          ),
-          onPressed: disclosure.toggle,
+      tilePadding: EdgeInsets.zero,
+      leading: ScheduleSidebarVisibilityIcon(
+        key: ValueKey(('account-visibility', account.id)),
+        scope: accountSyncScope(account.id),
+        label: '${account.provider.displayName}, ${account.displayLabel}',
+        actionLabel: scheduleAccountVisibilityAction(context, visibility),
+        visible: visible,
+        accountVisibility: visibility,
+        color: color,
+        buttonBuilder: _androidSidebarVisibilityButton,
+        warningIcon: Icons.warning_amber_rounded,
+        ringSize: 24,
+        icon: Icon(
+          account.provider == BusyProvider.google
+              ? Icons.g_mobiledata
+              : account.provider == BusyProvider.microsoft
+              ? Icons.window
+              : Icons.cloud_outlined,
+          color: color,
+          size: 18,
+        ),
+        onPressed: () => unawaited(
+          ref
+              .read(appSettingsControllerProvider.notifier)
+              .setAccountVisibleInSchedule(
+                accountId: account.id,
+                visible: !visible,
+              ),
         ),
       ),
-      title: Row(
-        children: [
-          Tooltip(
-            message: account.provider.displayName,
-            child: SyncActivityIcon(
-              scope: accountSyncScope(account.id),
-              refresh: const Icon(Icons.refresh, size: 18),
-              warning: const Icon(Icons.warning_amber_rounded, size: 18),
-              child: Icon(
-                account.provider == BusyProvider.google
-                    ? Icons.g_mobiledata
-                    : account.provider == BusyProvider.microsoft
-                    ? Icons.window
-                    : Icons.cloud_outlined,
-                size: 18,
-              ),
-            ),
-          ),
-          const SizedBox(width: 6),
-          Expanded(child: Text(account.displayLabel)),
-        ],
+      title: Text(
+        account.displayLabel,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
       ),
-      subtitle: subtitle.isEmpty ? null : Text(subtitle),
-      trailing: PopupMenuButton<String>(
-        tooltip: context.l10n.options,
-        onSelected: (action) async {
-          if (action == 'refresh') {
-            if (account.provider.isDav &&
-                !await ensureAndroidLocalNetworkAccess(
-                  context,
-                  account.authority,
-                )) {
-              return;
-            }
-            if (mounted) {
-              await refreshFromAndroid(
-                context,
-                ref,
-                accountSyncScope(account.id),
-              );
-            }
-          } else if (action == 'calendar' || action == 'task-list') {
-            final running = action == 'calendar'
-                ? _creatingCalendarAccounts
-                : _creatingTaskListAccounts;
-            if (!running.add(account.id)) return;
-            setState(() {});
-            try {
-              await createAndroidAccountCollection(
-                context,
-                ref,
-                account,
-                calendar: action == 'calendar',
-              );
-            } finally {
-              running.remove(account.id);
-              if (mounted) setState(() {});
-            }
-          } else if (action == 'trash') {
-            if (context.mounted) {
-              await Navigator.of(context).push<void>(
-                MaterialPageRoute(
-                  builder: (_) =>
-                      AndroidNextcloudTrashScreen(accountId: account.id),
-                ),
-              );
-            }
-          } else {
-            await ref
-                .read(appSettingsControllerProvider.notifier)
-                .moveSidebarItem(
-                  SidebarOrderSection.accounts,
-                  account.id,
-                  action == 'up' ? -1 : 1,
-                  accounts.map((a) => a.id),
+      subtitle: subtitle.isEmpty
+          ? null
+          : Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListenableBuilder(
+            listenable: disclosure,
+            builder: (context, _) => IconButton(
+              key: ValueKey(('account-collapse', account.id)),
+              tooltip: disclosure.isExpanded
+                  ? MaterialLocalizations.of(context).expandedIconTapHint
+                  : MaterialLocalizations.of(context).collapsedIconTapHint,
+              icon: Icon(
+                disclosure.isExpanded
+                    ? Icons.expand_more
+                    : Directionality.of(context) == TextDirection.rtl
+                    ? Icons.chevron_left
+                    : Icons.chevron_right,
+              ),
+              onPressed: disclosure.toggle,
+            ),
+          ),
+          PopupMenuButton<String>(
+            key: ValueKey(('account-collection-options', account.id)),
+            tooltip: context.l10n.options,
+            onSelected: (action) async {
+              if (action == 'refresh') {
+                if (account.provider.isDav &&
+                    !await ensureAndroidLocalNetworkAccess(
+                      context,
+                      account.authority,
+                    )) {
+                  return;
+                }
+                if (mounted) {
+                  await refreshFromAndroid(
+                    context,
+                    ref,
+                    accountSyncScope(account.id),
+                  );
+                }
+              } else if (action == 'calendar' || action == 'task-list') {
+                final running = action == 'calendar'
+                    ? _creatingCalendarAccounts
+                    : _creatingTaskListAccounts;
+                if (!running.add(account.id)) return;
+                setState(() {});
+                try {
+                  await createAndroidAccountCollection(
+                    context,
+                    ref,
+                    account,
+                    calendar: action == 'calendar',
+                  );
+                } finally {
+                  running.remove(account.id);
+                  if (mounted) setState(() {});
+                }
+              } else if (action == 'settings') {
+                await Navigator.of(context).push<void>(
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        AndroidSettingsScreen(accountDetailId: account.id),
+                  ),
                 );
-          }
-        },
-        itemBuilder: (_) => [
-          PopupMenuItem(
-            value: 'refresh',
-            child: Text(context.l10n.refreshAccount),
+              } else if (action == 'trash') {
+                if (context.mounted) {
+                  await Navigator.of(context).push<void>(
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          AndroidNextcloudTrashScreen(accountId: account.id),
+                    ),
+                  );
+                }
+              } else {
+                await ref
+                    .read(appSettingsControllerProvider.notifier)
+                    .moveSidebarItem(
+                      SidebarOrderSection.accounts,
+                      account.id,
+                      action == 'up' ? -1 : 1,
+                      accounts.map((a) => a.id),
+                    );
+              }
+            },
+            itemBuilder: (_) => [
+              if (capabilities.supportsCalendarCreation)
+                _androidAccountMenuItem(
+                  'calendar',
+                  context.l10n.newCalendar,
+                  const SizedBox.square(
+                    dimension: 24,
+                    child: Stack(
+                      alignment: AlignmentDirectional.topStart,
+                      children: [
+                        Icon(Icons.calendar_today_outlined, size: 18),
+                        PositionedDirectional(
+                          end: 0,
+                          bottom: 0,
+                          child: Icon(Icons.add, size: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+                  enabled: capabilities.calendarActionEnabled,
+                ),
+              if (capabilities.supportsTaskListCreation)
+                _androidAccountMenuItem(
+                  'task-list',
+                  context.l10n.newTaskList,
+                  const Icon(Icons.playlist_add),
+                  enabled: capabilities.taskListActionEnabled,
+                ),
+              if (capabilities.supportsCalendarCreation ||
+                  capabilities.supportsTaskListCreation)
+                const PopupMenuDivider(),
+              _androidAccountMenuItem(
+                'refresh',
+                context.l10n.refreshAccount,
+                const Icon(Icons.refresh),
+              ),
+              _androidAccountMenuItem(
+                'settings',
+                context.l10n.scheduleAccountSettings,
+                const Icon(Icons.settings_outlined),
+              ),
+              if (account.provider == BusyProvider.nextcloud)
+                _androidAccountMenuItem(
+                  'trash',
+                  context.l10n.nextcloudTrash,
+                  const Icon(Icons.delete_outline),
+                  enabled: networkAvailability != NetworkAvailability.offline,
+                ),
+              const PopupMenuDivider(),
+              _androidAccountMenuItem(
+                'up',
+                context.l10n.moveUp,
+                const Icon(Icons.arrow_upward),
+                enabled: accounts.indexOf(account) > 0,
+              ),
+              _androidAccountMenuItem(
+                'down',
+                context.l10n.moveDown,
+                const Icon(Icons.arrow_downward),
+                enabled: accounts.indexOf(account) < accounts.length - 1,
+              ),
+            ],
           ),
-          if (account.provider == BusyProvider.nextcloud)
-            PopupMenuItem(
-              value: 'trash',
-              enabled: networkAvailability != NetworkAvailability.offline,
-              child: Text(context.l10n.nextcloudTrash),
-            ),
-          PopupMenuItem(
-            value: 'up',
-            enabled: accounts.indexOf(account) > 0,
-            child: Text(context.l10n.moveUp),
-          ),
-          PopupMenuItem(
-            value: 'down',
-            enabled: accounts.indexOf(account) < accounts.length - 1,
-            child: Text(context.l10n.moveDown),
-          ),
-          if (capabilities.supportsCalendarCreation)
-            PopupMenuItem(
-              value: 'calendar',
-              enabled: capabilities.calendarActionEnabled,
-              child: Text(context.l10n.newCalendar),
-            ),
-          if (capabilities.supportsTaskListCreation)
-            PopupMenuItem(
-              value: 'task-list',
-              enabled: capabilities.taskListActionEnabled,
-              child: Text(context.l10n.newTaskList),
-            ),
         ],
       ),
       children: [
@@ -2825,33 +2912,12 @@ class _AndroidSourcesPaneState extends ConsumerState<_AndroidSourcesPane> {
         for (final list in lists)
           ListTile(
             contentPadding: EdgeInsets.zero,
-            leading: Checkbox(
-              value: settings.isTaskListVisibleInSchedule(
-                list.accountId,
-                list.id,
-              ),
-              semanticLabel: '${context.l10n.scheduleSection}: ${list.title}',
-              onChanged: (v) => ref
-                  .read(appSettingsControllerProvider.notifier)
-                  .setTaskListVisibleInSchedule(
-                    accountId: list.accountId,
-                    taskListId: list.id,
-                    visible: v == true,
-                  ),
+            leading: _taskListVisibility(list),
+            title: Text(
+              list.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-            title: Row(
-              children: [
-                SyncActivityIcon(
-                  scope: taskListSyncScope(list.accountId, list.id),
-                  refresh: const Icon(Icons.refresh, size: 18),
-                  warning: const Icon(Icons.warning_amber_rounded, size: 18),
-                  child: const Icon(Icons.checklist_outlined, size: 18),
-                ),
-                const SizedBox(width: 8),
-                Expanded(child: Text(list.title)),
-              ],
-            ),
-
             trailing: _orderMenu(
               SidebarOrderSection.taskLists,
               list.id,
@@ -2870,56 +2936,95 @@ class _AndroidSourcesPaneState extends ConsumerState<_AndroidSourcesPane> {
     );
   }
 
+  Widget _taskListVisibility(TaskListEntity list) {
+    final settings = ref.watch(appSettingsControllerProvider);
+    final accountVisible = settings.isAccountVisibleInSchedule(list.accountId);
+    final visible =
+        accountVisible &&
+        settings.isTaskListVisibleInSchedule(list.accountId, list.id);
+    final color = Theme.of(context).colorScheme.onSurfaceVariant;
+    return ScheduleSidebarVisibilityIcon(
+      key: ValueKey(('task-list-visibility', list.accountId, list.id)),
+      scope: taskListSyncScope(list.accountId, list.id),
+      label: list.title,
+      actionLabel: scheduleCollectionVisibilityAction(
+        context,
+        calendar: false,
+        accountVisible: accountVisible,
+        visible: visible,
+      ),
+      visible: visible,
+      color: color,
+      buttonBuilder: _androidSidebarVisibilityButton,
+      warningIcon: Icons.warning_amber_rounded,
+      ringSize: 24,
+      icon: Icon(Icons.checklist_outlined, color: color, size: 18),
+      onPressed: accountVisible
+          ? () => unawaited(
+              ref
+                  .read(appSettingsControllerProvider.notifier)
+                  .setTaskListVisibleInSchedule(
+                    accountId: list.accountId,
+                    taskListId: list.id,
+                    visible: !visible,
+                  ),
+            )
+          : null,
+    );
+  }
+
   Widget _calendarSource(
     CalendarSourceEntity source,
     SidebarOrderSection section,
     List<String> siblings, {
     String? accountId,
-  }) => ListTile(
-    contentPadding: EdgeInsets.zero,
-    leading: Checkbox(
-      value: source.selected,
-      semanticLabel: '${context.l10n.scheduleSection}: ${source.summary}',
-      onChanged: (v) => ref
-          .read(calendarRepositoryProvider)
-          .setSourceSelected(source.id, v == true),
-    ),
-    title: Row(
-      children: [
-        Container(
-          width: 18,
-          height: 18,
-          margin: const EdgeInsetsDirectional.only(end: 6),
-          child: IconTheme(
-            data: IconThemeData(
-              size: 18,
-              color: _androidSourceColor(source, Theme.of(context).brightness),
-            ),
-            child: SyncActivityIcon(
-              scope: calendarSyncScope(source.accountId, source.id),
-              refresh: const Icon(Icons.refresh),
-              warning: const Icon(Icons.warning_amber_rounded),
-              child: const Icon(Icons.calendar_today_outlined),
-            ),
-          ),
+  }) {
+    final color = _androidSourceColor(source, Theme.of(context).brightness);
+    final accountVisible = ref
+        .watch(appSettingsControllerProvider)
+        .isAccountVisibleInSchedule(source.accountId);
+    final visible = accountVisible && source.selected;
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: ScheduleSidebarVisibilityIcon(
+        key: ValueKey(('calendar-visibility', source.id)),
+        scope: calendarSyncScope(source.accountId, source.id),
+        label: source.summary,
+        actionLabel: scheduleCollectionVisibilityAction(
+          context,
+          calendar: true,
+          accountVisible: accountVisible,
+          visible: visible,
         ),
-        Expanded(child: Text(source.summary)),
-      ],
-    ),
-
-    trailing: _orderMenu(
-      section,
-      source.id,
-      siblings,
-      accountId,
-      (extra) => showAndroidCalendarSourceActions(
-        context,
-        ref,
-        source,
-        extraActions: extra,
+        visible: visible,
+        color: color,
+        buttonBuilder: _androidSidebarVisibilityButton,
+        warningIcon: Icons.warning_amber_rounded,
+        ringSize: 24,
+        icon: Icon(Icons.calendar_today_outlined, color: color, size: 18),
+        onPressed: accountVisible
+            ? () => unawaited(
+                ref
+                    .read(calendarRepositoryProvider)
+                    .setSourceSelected(source.id, !visible),
+              )
+            : null,
       ),
-    ),
-  );
+      title: Text(source.summary, maxLines: 1, overflow: TextOverflow.ellipsis),
+      trailing: _orderMenu(
+        section,
+        source.id,
+        siblings,
+        accountId,
+        (extra) => showAndroidCalendarSourceActions(
+          context,
+          ref,
+          source,
+          extraActions: extra,
+        ),
+      ),
+    );
+  }
 
   Widget _orderMenu(
     SidebarOrderSection section,
@@ -2962,6 +3067,36 @@ class _AndroidSourcesPaneState extends ConsumerState<_AndroidSourcesPane> {
     ),
   );
 }
+
+Widget _androidSidebarVisibilityButton(
+  BuildContext context,
+  Widget icon,
+  String tooltip,
+  VoidCallback? onPressed,
+) => IconButton(
+  tooltip: tooltip,
+  icon: icon,
+  onPressed: onPressed,
+  iconSize: 28,
+  constraints: const BoxConstraints.tightFor(width: 48, height: 48),
+);
+
+PopupMenuItem<String> _androidAccountMenuItem(
+  String value,
+  String label,
+  Widget icon, {
+  bool enabled = true,
+}) => PopupMenuItem(
+  value: value,
+  enabled: enabled,
+  child: Row(
+    children: [
+      SizedBox.square(dimension: 24, child: Center(child: icon)),
+      const SizedBox(width: 12),
+      Expanded(child: Text(label)),
+    ],
+  ),
+);
 
 Color _androidSourceColor(CalendarSourceEntity source, Brightness brightness) {
   final color = calendarSourceBackgroundColorHex(

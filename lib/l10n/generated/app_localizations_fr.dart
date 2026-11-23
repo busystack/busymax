@@ -532,6 +532,44 @@ class AppLocalizationsFr extends AppLocalizations {
   String get options => 'Choix';
 
   @override
+  String get showScheduleCalendar => 'Afficher le calendrier';
+
+  @override
+  String get hideScheduleCalendar => 'Masquer le calendrier';
+
+  @override
+  String get showScheduleTaskList => 'Afficher la liste de tâches';
+
+  @override
+  String get hideScheduleTaskList => 'Masquer la liste de tâches';
+
+  @override
+  String get showScheduleAccount => 'Afficher le compte';
+
+  @override
+  String get hideScheduleAccount => 'Masquer le compte';
+
+  @override
+  String get someAccountSourcesVisible => 'Certaines collections sont visibles';
+
+  @override
+  String get noAccountSourcesVisible =>
+      'Toutes les collections sont masquées individuellement';
+
+  @override
+  String get accountHiddenInSchedule => 'Compte masqué dans le planning';
+
+  @override
+  String get showAccountToChangeVisibility =>
+      'Affichez le compte pour modifier la visibilité des collections';
+
+  @override
+  String get scheduleAccountSettings => 'Paramètres du compte';
+
+  @override
+  String get scheduleAccountUnavailable => 'Compte indisponible';
+
+  @override
   String get hide => 'Masquer';
 
   @override

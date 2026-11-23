@@ -14,6 +14,7 @@ Future<AccountRemovalOutcome> removeBusyMaxAccount({
   required bool revokeGoogleAuthorization,
   required AuthRepository Function() auth,
   required DavAccountOnboardingService Function() dav,
+  required Future<void> Function() resetScheduleVisibility,
   Future<AccountRemovalResult> Function(
     Future<AccountRemovalResult> Function(),
   )?
@@ -21,6 +22,7 @@ Future<AccountRemovalOutcome> removeBusyMaxAccount({
 }) async {
   if (provider.isDav) {
     final result = await dav().removeAccount(accountId);
+    await resetScheduleVisibility();
     return result.remoteRevocationAttempted && !result.remoteRevocationSucceeded
         ? AccountRemovalOutcome.davRevocationFailed
         : AccountRemovalOutcome.removed;
@@ -32,6 +34,7 @@ Future<AccountRemovalOutcome> removeBusyMaxAccount({
   final result = await (guardOAuthRemoval == null
       ? remove()
       : guardOAuthRemoval(remove));
+  await resetScheduleVisibility();
   return result.authorizationRevocationFailed
       ? AccountRemovalOutcome.googleRevocationFailed
       : AccountRemovalOutcome.removed;

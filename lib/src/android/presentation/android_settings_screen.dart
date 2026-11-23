@@ -208,10 +208,12 @@ class AndroidSettingsScreen extends ConsumerStatefulWidget {
     super.key,
     this.category,
     this.notificationAccountId,
+    this.accountDetailId,
     this.notificationConflicts = false,
   });
   final AndroidSettingsCategory? category;
   final String? notificationAccountId;
+  final String? accountDetailId;
   final bool notificationConflicts;
 
   @override
@@ -220,6 +222,9 @@ class AndroidSettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
+  String? get _detailAccountId =>
+      widget.accountDetailId ?? widget.notificationAccountId;
+
   late AndroidSettingsCategory _selectedCategory =
       widget.category ??
       (widget.notificationConflicts
@@ -243,8 +248,7 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
     final accounts = (allAccounts.valueOrNull ?? const <AccountEntity>[])
         .where(
           (account) =>
-              widget.notificationAccountId == null ||
-              account.id == widget.notificationAccountId,
+              _detailAccountId == null || account.id == _detailAccountId,
         )
         .toList();
     final sourceState = ref.watch(calendarSourcesStreamProvider);
@@ -252,15 +256,13 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
     final sources = (sourceState.valueOrNull ?? const <CalendarSourceEntity>[])
         .where(
           (source) =>
-              widget.notificationAccountId == null ||
-              source.accountId == widget.notificationAccountId,
+              _detailAccountId == null || source.accountId == _detailAccountId,
         )
         .toList();
     final lists = (listState.valueOrNull ?? const <TaskListEntity>[])
         .where(
           (list) =>
-              widget.notificationAccountId == null ||
-              list.accountId == widget.notificationAccountId,
+              _detailAccountId == null || list.accountId == _detailAccountId,
         )
         .toList();
     final subscriptions =
@@ -273,7 +275,7 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          widget.notificationAccountId != null
+          _detailAccountId != null
               ? accounts.firstOrNull?.displayLabel ?? context.l10n.accounts
               : context.l10n.settings,
         ),
@@ -296,10 +298,20 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
             ),
           Expanded(
             child:
-                widget.notificationAccountId != null &&
+                _detailAccountId != null &&
                     !widget.notificationConflicts &&
                     accounts.isNotEmpty
                 ? _accountDetails(accounts.first, sources, lists)
+                : widget.accountDetailId != null
+                ? Center(
+                    child: allAccounts.isLoading
+                        ? const CircularProgressIndicator()
+                        : Text(
+                            allAccounts.hasError
+                                ? context.l10n.accountsLoadFailed
+                                : context.l10n.scheduleAccountUnavailable,
+                          ),
+                  )
                 : _AndroidSettingsCategories(
                     category: category,
                     onOpen: (category) =>
@@ -435,7 +447,7 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                                 onTap: () => Navigator.of(context).push<void>(
                                   MaterialPageRoute(
                                     builder: (_) => AndroidSettingsScreen(
-                                      notificationAccountId: account.id,
+                                      accountDetailId: account.id,
                                     ),
                                   ),
                                 ),
@@ -1712,12 +1724,15 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
     }
     setState(() => _removing.add(account.id));
     try {
+      final scheduleSettings = ref.read(appSettingsControllerProvider.notifier);
       final outcome = await removeBusyMaxAccount(
         accountId: account.id,
         provider: account.provider,
         revokeGoogleAuthorization: revoke,
         auth: () => ref.read(authRepositoryProvider),
         dav: () => ref.read(davAccountOnboardingServiceProvider),
+        resetScheduleVisibility: () => scheduleSettings
+            .setAccountVisibleInSchedule(accountId: account.id, visible: true),
         guardOAuthRemoval: (remove) =>
             ref.read(crossEngineAccountGateProvider).run(account.id, remove),
       );
@@ -1726,7 +1741,7 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
         _message(warning);
       }
       await ref.read(notificationReconcilerProvider).reconcile();
-      if (mounted && widget.notificationAccountId == account.id) {
+      if (mounted && _detailAccountId == account.id) {
         Navigator.of(context).pop();
       }
     } on Object catch (error) {

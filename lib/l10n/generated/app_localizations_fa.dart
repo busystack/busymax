@@ -518,6 +518,43 @@ class AppLocalizationsFa extends AppLocalizations {
   String get options => 'گزینه‌ها';
 
   @override
+  String get showScheduleCalendar => 'نمایش تقویم';
+
+  @override
+  String get hideScheduleCalendar => 'پنهان کردن تقویم';
+
+  @override
+  String get showScheduleTaskList => 'نمایش فهرست کارها';
+
+  @override
+  String get hideScheduleTaskList => 'پنهان کردن فهرست کارها';
+
+  @override
+  String get showScheduleAccount => 'نمایش حساب';
+
+  @override
+  String get hideScheduleAccount => 'پنهان کردن حساب';
+
+  @override
+  String get someAccountSourcesVisible => 'برخی مجموعه‌ها نمایان هستند';
+
+  @override
+  String get noAccountSourcesVisible => 'همهٔ مجموعه‌ها جداگانه پنهان شده‌اند';
+
+  @override
+  String get accountHiddenInSchedule => 'حساب از برنامه پنهان شده است';
+
+  @override
+  String get showAccountToChangeVisibility =>
+      'برای تغییر نمایش مجموعه‌ها، حساب را نمایش دهید';
+
+  @override
+  String get scheduleAccountSettings => 'تنظیمات حساب';
+
+  @override
+  String get scheduleAccountUnavailable => 'حساب در دسترس نیست';
+
+  @override
   String get hide => 'پنهان کردن';
 
   @override

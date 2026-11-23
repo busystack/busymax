@@ -519,6 +519,43 @@ class AppLocalizationsAr extends AppLocalizations {
   String get options => 'خيارات';
 
   @override
+  String get showScheduleCalendar => 'إظهار التقويم';
+
+  @override
+  String get hideScheduleCalendar => 'إخفاء التقويم';
+
+  @override
+  String get showScheduleTaskList => 'إظهار قائمة المهام';
+
+  @override
+  String get hideScheduleTaskList => 'إخفاء قائمة المهام';
+
+  @override
+  String get showScheduleAccount => 'إظهار الحساب';
+
+  @override
+  String get hideScheduleAccount => 'إخفاء الحساب';
+
+  @override
+  String get someAccountSourcesVisible => 'بعض المجموعات ظاهرة';
+
+  @override
+  String get noAccountSourcesVisible => 'كل المجموعات مخفية بشكل فردي';
+
+  @override
+  String get accountHiddenInSchedule => 'الحساب مخفي من الجدول';
+
+  @override
+  String get showAccountToChangeVisibility =>
+      'أظهر الحساب لتغيير ظهور المجموعات';
+
+  @override
+  String get scheduleAccountSettings => 'إعدادات الحساب';
+
+  @override
+  String get scheduleAccountUnavailable => 'الحساب غير متاح';
+
+  @override
   String get hide => 'إخفاء';
 
   @override

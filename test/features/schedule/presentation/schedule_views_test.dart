@@ -4799,35 +4799,6 @@ void main() {
     expect(workspace, contains('onWeekSelected: onWeekSelected'));
   });
 
-  test('sidebar source rows keep visibility actions on the right', () {
-    final sidebar = File(
-      'lib/src/features/schedule/presentation/schedule_sidebar.dart',
-    ).readAsStringSync();
-
-    expect(sidebar, contains('class _CompactSourceRow'));
-    expect(sidebar, contains('class _SourceRowActions'));
-    expect(sidebar, contains('class _SourceVisibilityButton'));
-    expect(sidebar, contains('visibilityButton: _SourceVisibilityButton'));
-    expect(sidebar, contains('menuButton: BusyMaxMenuButton'));
-    expect(sidebar, contains('tooltip: context.l10n.options'));
-    expect('highlightWhenOpen: false'.allMatches(sidebar), hasLength(4));
-    expect(sidebar, contains('value ? context.l10n.hide : context.l10n.show'));
-    expect(sidebar, isNot(contains('tooltip: context.l10n.sourceCalendar')));
-    expect(sidebar, isNot(contains('tooltip: context.l10n.sourceTaskList')));
-    expect(sidebar, isNot(contains('? context.l10n.hideFromSchedule')));
-    expect(sidebar, isNot(contains(': context.l10n.showInSchedule')));
-    expect(sidebar, contains('minHeight: BusyMaxSizes.sidebarRowHeight'));
-    expect(sidebar, contains('leading: _SourceIcon'));
-    expect(sidebar, contains('class _SourceIcon'));
-    expect(sidebar, contains('icon: YaruIcons.calendar'));
-    expect(sidebar, contains('icon: YaruIcons.task_list'));
-    expect(sidebar, contains('YaruIcons.checkmark'));
-    expect(sidebar, contains('busyMaxSubtleButtonBackground(context)'));
-    expect(sidebar, isNot(contains('YaruIcons.checkbox')));
-    expect(sidebar, isNot(contains('InkWell(')));
-    expect(sidebar, isNot(contains('_SourceVisibilityIndicator')));
-  });
-
   test('sidebar does not expose the one-time calendar import action', () {
     final sidebar = File(
       'lib/src/features/schedule/presentation/schedule_sidebar.dart',

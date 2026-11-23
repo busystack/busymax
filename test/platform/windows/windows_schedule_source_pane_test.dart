@@ -8,6 +8,7 @@ import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/connectivity/network_connectivity_service.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/schedule/schedule_sidebar_order.dart';
+import 'package:busymax/src/schedule/schedule_sidebar_visibility_icon.dart';
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/ui/common/busymax_glyph.dart';
 import 'package:busymax/src/ui/windows/windows_busymax_glyphs.dart';
@@ -332,7 +333,10 @@ void main() {
       const lastCalendar = ('schedule-calendar', 'a', 'c2');
       expect(entry(firstCalendar, 'Move up').onPressed, isNull);
       expect(entry(lastCalendar, 'Move down').onPressed, isNull);
-      expect(menu(('schedule-account', 'a')).items, hasLength(3));
+      expect(
+        menu(('schedule-account', 'a')).items.whereType<MenuFlyoutItem>(),
+        hasLength(4),
+      );
       expect(
         entry(('schedule-account', 'a'), 'Refresh account').onPressed,
         isNotNull,
@@ -360,13 +364,13 @@ void main() {
       );
       expect(
         tester
-            .widget<Checkbox>(
+            .widget<ScheduleSidebarVisibilityIcon>(
               find.descendant(
                 of: find.byKey(const ValueKey(lastCalendar)),
-                matching: find.byType(Checkbox),
+                matching: find.byType(ScheduleSidebarVisibilityIcon),
               ),
             )
-            .checked,
+            .visible,
         isFalse,
       );
       entry(('schedule-task-list', 'a', 'l2'), 'Move up').onPressed!();
@@ -537,8 +541,7 @@ void main() {
               accounts: const [account],
               calendarSources: const [source],
               taskLists: const [],
-              visibleCalendarSourceIds: const {'calendar-1'},
-              visibleTaskListKeys: const {},
+              selectedCalendarSourceIds: const {'calendar-1'},
               onDateSelected: (_) {},
               onCalendarVisibilityChanged: (_, _) {},
               onTaskListVisibilityChanged: (_, _) {},
@@ -607,8 +610,7 @@ Future<void> _pumpPane(
               accountInventoryResolved: accountInventoryResolved,
               calendarSources: calendars,
               taskLists: lists,
-              visibleCalendarSourceIds: const {},
-              visibleTaskListKeys: const {},
+              selectedCalendarSourceIds: const {},
               onDateSelected: (_) {},
               onCalendarVisibilityChanged: (_, _) =>
                   fail('Movement changed visibility'),

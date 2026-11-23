@@ -954,6 +954,78 @@ abstract class AppLocalizations {
   /// **'Options'**
   String get options;
 
+  /// No description provided for @showScheduleCalendar.
+  ///
+  /// In en, this message translates to:
+  /// **'Show calendar'**
+  String get showScheduleCalendar;
+
+  /// No description provided for @hideScheduleCalendar.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide calendar'**
+  String get hideScheduleCalendar;
+
+  /// No description provided for @showScheduleTaskList.
+  ///
+  /// In en, this message translates to:
+  /// **'Show task list'**
+  String get showScheduleTaskList;
+
+  /// No description provided for @hideScheduleTaskList.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide task list'**
+  String get hideScheduleTaskList;
+
+  /// No description provided for @showScheduleAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Show account'**
+  String get showScheduleAccount;
+
+  /// No description provided for @hideScheduleAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide account'**
+  String get hideScheduleAccount;
+
+  /// No description provided for @someAccountSourcesVisible.
+  ///
+  /// In en, this message translates to:
+  /// **'Some collections are visible'**
+  String get someAccountSourcesVisible;
+
+  /// No description provided for @noAccountSourcesVisible.
+  ///
+  /// In en, this message translates to:
+  /// **'All collections are individually hidden'**
+  String get noAccountSourcesVisible;
+
+  /// No description provided for @accountHiddenInSchedule.
+  ///
+  /// In en, this message translates to:
+  /// **'Account hidden from Schedule'**
+  String get accountHiddenInSchedule;
+
+  /// No description provided for @showAccountToChangeVisibility.
+  ///
+  /// In en, this message translates to:
+  /// **'Show the account to change collection visibility'**
+  String get showAccountToChangeVisibility;
+
+  /// No description provided for @scheduleAccountSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Account settings'**
+  String get scheduleAccountSettings;
+
+  /// No description provided for @scheduleAccountUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Account unavailable'**
+  String get scheduleAccountUnavailable;
+
   /// No description provided for @hide.
   ///
   /// In en, this message translates to:

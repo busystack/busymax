@@ -56,6 +56,7 @@ final windowsAppRouter = GoRouter(
         child: WindowsSettingsPage(
           initialPage: state.uri.queryParameters['page'],
           reconnectAccountId: state.uri.queryParameters['reconnect'],
+          accountDetailId: state.uri.queryParameters['accountDetail'],
         ),
       ),
     ),

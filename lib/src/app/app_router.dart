@@ -80,6 +80,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           child: SettingsScreen(
             reconnectAccountId: state.uri.queryParameters['reconnect'],
             notificationAccountId: state.uri.queryParameters['account'],
+            accountDetailId: state.uri.queryParameters['accountDetail'],
             initialPage: settingsPageFromRouteValue(
               state.uri.queryParameters['page'],
             ),

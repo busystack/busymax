@@ -523,6 +523,43 @@ class AppLocalizationsRu extends AppLocalizations {
   String get options => 'Параметры';
 
   @override
+  String get showScheduleCalendar => 'Показать календарь';
+
+  @override
+  String get hideScheduleCalendar => 'Скрыть календарь';
+
+  @override
+  String get showScheduleTaskList => 'Показать список задач';
+
+  @override
+  String get hideScheduleTaskList => 'Скрыть список задач';
+
+  @override
+  String get showScheduleAccount => 'Показать аккаунт';
+
+  @override
+  String get hideScheduleAccount => 'Скрыть аккаунт';
+
+  @override
+  String get someAccountSourcesVisible => 'Некоторые коллекции видны';
+
+  @override
+  String get noAccountSourcesVisible => 'Все коллекции скрыты по отдельности';
+
+  @override
+  String get accountHiddenInSchedule => 'Аккаунт скрыт в расписании';
+
+  @override
+  String get showAccountToChangeVisibility =>
+      'Покажите аккаунт, чтобы изменить видимость коллекций';
+
+  @override
+  String get scheduleAccountSettings => 'Настройки аккаунта';
+
+  @override
+  String get scheduleAccountUnavailable => 'Аккаунт недоступен';
+
+  @override
   String get hide => 'Скрыть';
 
   @override

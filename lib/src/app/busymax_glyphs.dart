@@ -20,6 +20,12 @@ abstract final class BusyMaxGlyphs {
     if (icon == YaruIcons.refresh || icon == Icons.refresh) {
       return 'view-refresh-symbolic';
     }
+    if (icon == Icons.arrow_upward) return 'go-up-symbolic';
+    if (icon == Icons.arrow_downward) return 'go-down-symbolic';
+    if (icon == YaruIcons.calendar_new) return 'appointment-new-symbolic';
+    if (icon == YaruIcons.unordered_list_new) {
+      return 'busymax-task-list-add-symbolic';
+    }
     if (icon == YaruIcons.trash || icon == Icons.delete_outline) {
       return 'user-trash-symbolic';
     }

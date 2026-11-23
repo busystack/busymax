@@ -12,11 +12,13 @@ void main() {
     () async {
       final auth = _Auth();
       var guarded = false;
+      var cleared = false;
       when(
         () =>
             auth.removeAccount(accountId: 'account', revokeAuthorization: true),
       ).thenAnswer((_) async {
         expect(guarded, isTrue);
+        expect(cleared, isFalse);
         return const AccountRemovalResult(
           authorizationRevocationStatus:
               AccountAuthorizationRevocationStatus.failed,
@@ -28,11 +30,13 @@ void main() {
         revokeGoogleAuthorization: true,
         auth: () => auth,
         dav: () => throw StateError('unexpected DAV client'),
+        resetScheduleVisibility: () async => cleared = true,
         guardOAuthRemoval: (remove) {
           guarded = true;
           return remove();
         },
       );
+      expect(cleared, isTrue);
       expect(result, AccountRemovalOutcome.googleRevocationFailed);
     },
   );

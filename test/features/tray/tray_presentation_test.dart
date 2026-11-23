@@ -79,6 +79,21 @@ void main() {
     expect(presentation.events.single.eventId, 'visible-event');
   });
 
+  test('account-hidden events and tasks are absent from the tray', () {
+    final presentation = _project(
+      now: now,
+      settings: AppSettings.defaults().copyWith(
+        accountScheduleVisibility: const {'account': false},
+      ),
+      scheduleItems: [
+        _event('event', start: now),
+        _task('task', start: now),
+      ],
+    );
+    expect(presentation.events, isEmpty);
+    expect(presentation.incompleteTasksDueToday, 0);
+  });
+
   test('task summary respects visibility, completion, and no-date state', () {
     const visibleKey = ScheduleTaskListKey(
       accountId: 'account',

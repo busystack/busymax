@@ -232,6 +232,50 @@ void main() {
     },
   );
 
+  testWidgets('a requested account opens once its inventory loads', (
+    tester,
+  ) async {
+    final inventory = StreamController<List<AccountEntity>>();
+    addTearDown(inventory.close);
+    final container = _container(
+      selectedAccountId: _googleAccount.id,
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_googleAccount, _microsoftAccount],
+      managedAccountStream: inventory.stream,
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: localizedTestApp(
+          child: SettingsScreen(accountDetailId: _microsoftAccount.id),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.text('Loading accounts…'), findsOneWidget);
+    inventory.add(const [_googleAccount, _microsoftAccount]);
+    await tester.pumpAndSettle();
+    final detail = find.byKey(
+      ValueKey('account-detail-${_microsoftAccount.id}'),
+    );
+    expect(detail, findsOneWidget);
+    expect(
+      find.byKey(ValueKey('account-detail-${_googleAccount.id}')),
+      findsNothing,
+    );
+    inventory.add(const [_googleAccount]);
+    await tester.pumpAndSettle();
+    expect(detail, findsNothing);
+    expect(find.text('Account unavailable'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('settings-header-back-button')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(ValueKey('account-entry-${_googleAccount.id}')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets(
     'Accounts overview opens stable identities and Back restores scroll, focus and category navigation',
     (tester) async {

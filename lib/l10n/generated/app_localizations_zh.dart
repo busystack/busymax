@@ -481,6 +481,42 @@ class AppLocalizationsZh extends AppLocalizations {
   String get options => '选项';
 
   @override
+  String get showScheduleCalendar => '显示日历';
+
+  @override
+  String get hideScheduleCalendar => '隐藏日历';
+
+  @override
+  String get showScheduleTaskList => '显示任务列表';
+
+  @override
+  String get hideScheduleTaskList => '隐藏任务列表';
+
+  @override
+  String get showScheduleAccount => '显示账户';
+
+  @override
+  String get hideScheduleAccount => '隐藏账户';
+
+  @override
+  String get someAccountSourcesVisible => '部分集合可见';
+
+  @override
+  String get noAccountSourcesVisible => '所有集合均已单独隐藏';
+
+  @override
+  String get accountHiddenInSchedule => '账户已从日程中隐藏';
+
+  @override
+  String get showAccountToChangeVisibility => '显示账户后即可更改集合的可见性';
+
+  @override
+  String get scheduleAccountSettings => '账户设置';
+
+  @override
+  String get scheduleAccountUnavailable => '账户不可用';
+
+  @override
   String get hide => '隐藏';
 
   @override
@@ -4339,6 +4375,42 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get options => '选项';
 
   @override
+  String get showScheduleCalendar => '显示日历';
+
+  @override
+  String get hideScheduleCalendar => '隐藏日历';
+
+  @override
+  String get showScheduleTaskList => '显示任务列表';
+
+  @override
+  String get hideScheduleTaskList => '隐藏任务列表';
+
+  @override
+  String get showScheduleAccount => '显示账户';
+
+  @override
+  String get hideScheduleAccount => '隐藏账户';
+
+  @override
+  String get someAccountSourcesVisible => '部分集合可见';
+
+  @override
+  String get noAccountSourcesVisible => '所有集合均已单独隐藏';
+
+  @override
+  String get accountHiddenInSchedule => '账户已从日程中隐藏';
+
+  @override
+  String get showAccountToChangeVisibility => '显示账户后即可更改集合的可见性';
+
+  @override
+  String get scheduleAccountSettings => '账户设置';
+
+  @override
+  String get scheduleAccountUnavailable => '账户不可用';
+
+  @override
   String get hide => '隐藏';
 
   @override
@@ -8195,6 +8267,42 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get options => '選項';
+
+  @override
+  String get showScheduleCalendar => '顯示行事曆';
+
+  @override
+  String get hideScheduleCalendar => '隱藏行事曆';
+
+  @override
+  String get showScheduleTaskList => '顯示工作清單';
+
+  @override
+  String get hideScheduleTaskList => '隱藏工作清單';
+
+  @override
+  String get showScheduleAccount => '顯示帳戶';
+
+  @override
+  String get hideScheduleAccount => '隱藏帳戶';
+
+  @override
+  String get someAccountSourcesVisible => '部分集合可見';
+
+  @override
+  String get noAccountSourcesVisible => '所有集合均已個別隱藏';
+
+  @override
+  String get accountHiddenInSchedule => '帳戶已從排程中隱藏';
+
+  @override
+  String get showAccountToChangeVisibility => '顯示帳戶後即可變更集合的可見性';
+
+  @override
+  String get scheduleAccountSettings => '帳戶設定';
+
+  @override
+  String get scheduleAccountUnavailable => '帳戶無法使用';
 
   @override
   String get hide => '隱藏';

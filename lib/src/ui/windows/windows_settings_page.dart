@@ -69,9 +69,11 @@ class WindowsSettingsPage extends ConsumerStatefulWidget {
     super.key,
     this.initialPage,
     this.reconnectAccountId,
+    this.accountDetailId,
   });
 
   final String? reconnectAccountId;
+  final String? accountDetailId;
 
   final String? initialPage;
 
@@ -86,17 +88,30 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
   final _scrollController = ScrollController();
   final _accountsKey = GlobalKey();
   final _accountsFocus = FocusNode();
+  final _requestedAccountKey = GlobalKey();
+  final _requestedAccountFocus = FocusNode(
+    debugLabel: 'Requested account options',
+  );
   BusyProvider? _connectingDavProvider;
   DavCancellationToken? _davCancellation;
   AuthorizationCancellation? _authorizationCancellation;
   String? _davError;
 
   void _revealAccounts() {
-    if (!mounted || widget.initialPage != 'accounts') return;
+    if (!mounted ||
+        widget.initialPage != 'accounts' && widget.accountDetailId == null) {
+      return;
+    }
+    final requestedAccount = _requestedAccountKey.currentContext;
+    if (requestedAccount != null) {
+      unawaited(Scrollable.ensureVisible(requestedAccount, alignment: 0.1));
+      _requestedAccountFocus.requestFocus();
+      return;
+    }
     final target = _accountsKey.currentContext;
     if (target != null) {
       unawaited(Scrollable.ensureVisible(target));
-      _accountsFocus.requestFocus();
+      if (widget.accountDetailId == null) _accountsFocus.requestFocus();
     } else if (_scrollController.hasClients) {
       // ListView builds lazily. Advance until the account section is laid out,
       // then align and focus its first connection action.
@@ -114,7 +129,8 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
   @override
   void didUpdateWidget(covariant WindowsSettingsPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.initialPage != oldWidget.initialPage) {
+    if (widget.initialPage != oldWidget.initialPage ||
+        widget.accountDetailId != oldWidget.accountDetailId) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _revealAccounts());
     }
   }
@@ -135,6 +151,7 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
     _davCancellation?.cancel();
     _scrollController.dispose();
     _accountsFocus.dispose();
+    _requestedAccountFocus.dispose();
     _autostartRefresh.dispose();
     super.dispose();
   }
@@ -302,6 +319,16 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
     final autostart = ref.watch(launchAtLoginStateProvider);
     final changingAutostart = ref.watch(launchAtLoginControllerProvider);
     final accounts = ref.watch(accountManagementStreamProvider);
+    if (widget.accountDetailId case final id?) {
+      ref.listen(accountManagementStreamProvider, (previous, next) {
+        if (next.valueOrNull?.any((account) => account.id == id) == true &&
+            previous?.valueOrNull?.any((account) => account.id == id) != true) {
+          WidgetsBinding.instance.addPostFrameCallback(
+            (_) => _revealAccounts(),
+          );
+        }
+      });
+    }
     final calendarSources = ref.watch(calendarSourcesStreamProvider);
     final subscriptions = ref.watch(webCalSubscriptionsProvider);
     final config = ref.watch(buildConfigProvider);
@@ -702,6 +729,14 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
             ),
             data: (values) => Column(
               children: [
+                if (widget.accountDetailId != null &&
+                    !values.any(
+                      (account) => account.id == widget.accountDetailId,
+                    ))
+                  InfoBar(
+                    title: Text(l10n.scheduleAccountUnavailable),
+                    severity: InfoBarSeverity.warning,
+                  ),
                 ListTile(
                   title: Text(l10n.refreshAll),
                   leading: SyncActivityIcon(
@@ -798,6 +833,9 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                       onAddSeparate: () => _setup(BusyProvider.google),
                     ),
                   ListTile(
+                    key: values[index].id == widget.accountDetailId
+                        ? _requestedAccountKey
+                        : null,
                     leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.account)),
                     title: Semantics(
                       header: true,
@@ -828,6 +866,9 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                       ].join('\n'),
                     ),
                     trailing: DropDownButton(
+                      focusNode: values[index].id == widget.accountDetailId
+                          ? _requestedAccountFocus
+                          : null,
                       title: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.more)),
                       items: [
                         MenuFlyoutItem(
@@ -1612,12 +1653,15 @@ Future<void> _removeWindowsAccount(
   );
   if (options == null || !context.mounted) return;
   try {
+    final scheduleSettings = ref.read(appSettingsControllerProvider.notifier);
     final outcome = await removeBusyMaxAccount(
       accountId: account.id,
       provider: account.provider,
       revokeGoogleAuthorization: options.revokeGoogleAuthorization,
       auth: () => ref.read(authRepositoryProvider),
       dav: () => ref.read(davAccountOnboardingServiceProvider),
+      resetScheduleVisibility: () => scheduleSettings
+          .setAccountVisibleInSchedule(accountId: account.id, visible: true),
     );
     final remaining = await ref
         .read(accountsRepositoryProvider)

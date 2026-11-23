@@ -30,6 +30,7 @@ import 'package:busymax/src/ui/windows/windows_schedule_search_pane.dart';
 import 'package:fluent_ui/fluent_ui.dart' as fluent;
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:yaru/yaru.dart';
@@ -44,6 +45,23 @@ void main() {
     testWidgets(
       '${platform.name} warns only for incomplete displayed coverage',
       (tester) async {
+        if (platform == _Platform.linux) {
+          const windowChannel = MethodChannel('yaru_window');
+          const windowEvents = EventChannel('yaru_window/events');
+          final messenger = tester.binding.defaultBinaryMessenger;
+          messenger.setMockMethodCallHandler(
+            windowChannel,
+            (call) async => call.method == 'state' ? <String, Object?>{} : null,
+          );
+          messenger.setMockStreamHandler(
+            windowEvents,
+            MockStreamHandler.inline(onListen: (_, _) {}),
+          );
+          addTearDown(() {
+            messenger.setMockMethodCallHandler(windowChannel, null);
+            messenger.setMockStreamHandler(windowEvents, null);
+          });
+        }
         tester.view.devicePixelRatio = 1;
         tester.view.physicalSize = switch (platform) {
           _Platform.linux => const Size(680, 800),
@@ -257,6 +275,21 @@ void main() {
         expect(warning, findsNothing);
         expect(bounds(), normalBounds);
 
+        final settings = container.read(appSettingsControllerProvider.notifier);
+        await settings.setAccountVisibleInSchedule(
+          accountId: 'account',
+          visible: false,
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Planning'), findsNothing);
+        expect(warning, findsNothing);
+        await settings.setAccountVisibleInSchedule(
+          accountId: 'account',
+          visible: true,
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Planning'), findsWidgets);
+
         final searchField = platform == _Platform.windows
             ? find.byType(fluent.TextBox)
             : find.descendant(of: toolbar, matching: find.byType(TextField));
@@ -340,6 +373,18 @@ void main() {
             greaterThanOrEqualTo(48),
           );
         }
+
+        await settings.setAccountVisibleInSchedule(
+          accountId: 'account',
+          visible: false,
+        );
+        await tester.pumpAndSettle();
+        expect(warning, findsNothing);
+        await settings.setAccountVisibleInSchedule(
+          accountId: 'account',
+          visible: true,
+        );
+        await _waitFor(tester, warning);
 
         searchResult = Completer<bool>();
         await _retryWarning(tester, warning);

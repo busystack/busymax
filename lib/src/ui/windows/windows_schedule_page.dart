@@ -410,8 +410,11 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     final coverageRange = _searchActive
         ? searchCriteria?.range ?? range
         : range;
-    final coverageFilters = _searchActive && searchCriteria != null
-        ? searchCriteria.filters(searchQuery)
+    final effectiveSearch = searchCriteria == null
+        ? null
+        : visibility.maskSearch(searchCriteria);
+    final coverageFilters = _searchActive && effectiveSearch != null
+        ? effectiveSearch.filters(searchQuery)
         : ScheduleFilters(
             accountIds: {for (final account in accounts) account.id},
             sourceIds: visibility.visibleCalendarSourceIds,
@@ -424,15 +427,16 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
             filters: coverageFilters,
           )
         : true;
-    final presentation = _searchActive && searchCriteria != null
+    final presentation = _searchActive && effectiveSearch != null
         ? _buildSearchPresentation(
             future: _searchItemsFor(
               range: range,
               accounts: accounts,
-              criteria: searchCriteria,
+              criteria: effectiveSearch,
               query: searchQuery,
             ),
-            criteria: searchCriteria,
+            criteria: effectiveSearch,
+            hiddenAccountIds: visibility.hiddenAccountIds,
             query: searchQuery,
             locale: locale,
             mutationIntent: presentationMutationIntent,
@@ -447,6 +451,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
               agendaTaskLimit: _agendaTaskLimit,
             ),
             mode: presentationMode,
+            hiddenAccountIds: visibility.hiddenAccountIds,
             selectedDate: presentationDate,
             firstWeekday: presentationFirstWeekday,
             range: range,
@@ -471,11 +476,14 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
                 accountInventoryResolved: _accountInventoryResolved,
                 calendarSources: sources,
                 taskLists: taskLists,
-                visibleCalendarSourceIds: visibility.visibleCalendarSourceIds,
-                visibleTaskListKeys: visibility.visibleTaskListKeys,
+                selectedCalendarSourceIds: {
+                  for (final source in sources)
+                    if (source.selected) source.id,
+                },
                 onDateSelected: _openDay,
                 onCalendarVisibilityChanged: _setCalendarVisible,
                 onTaskListVisibilityChanged: _setTaskListVisible,
+                onAccountSettings: _openAccountSettings,
                 onAddAccount: () =>
                     unawaited(context.push<void>('/settings?page=accounts')),
                 onSourcesChanged: _reload,
@@ -495,7 +503,6 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
                     accounts: accounts,
                     sources: sources,
                     taskLists: taskLists,
-                    visibility: visibility,
                   ),
                 );
               }
@@ -616,7 +623,6 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
                                   accounts: accounts,
                                   sources: sources,
                                   taskLists: taskLists,
-                                  visibility: visibility,
                                 ),
                               );
                             }
@@ -839,6 +845,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     required String query,
     required String locale,
     required bool? coverageComplete,
+    required Set<String> hiddenAccountIds,
     required TaskListMutationIntent? mutationIntent,
   }) => FutureBuilder<List<ScheduleItem>>(
     key: const ValueKey('windows-search-presentation'),
@@ -856,7 +863,10 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
           Expanded(
             child: _AgendaList(
               key: const ValueKey('windows-search-results'),
-              items: snapshot.data ?? const [],
+              items: [
+                for (final item in snapshot.data ?? const <ScheduleItem>[])
+                  if (!hiddenAccountIds.contains(item.accountId)) item,
+              ],
               locale: locale,
               onOpen: _showItemDetails,
               searchCriteria: criteria,
@@ -885,6 +895,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     required String locale,
     required List<CalendarSourceEntity> sources,
     required bool? coverageComplete,
+    required Set<String> hiddenAccountIds,
     required ScheduleNavigationIntent? navigationIntent,
     required TaskListMutationIntent? mutationIntent,
   }) => FutureBuilder<List<ScheduleItem>>(
@@ -908,7 +919,10 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
                 mode: mode,
                 selectedDate: selectedDate,
                 range: range,
-                items: snapshot.data ?? const [],
+                items: [
+                  for (final item in snapshot.data ?? const <ScheduleItem>[])
+                    if (!hiddenAccountIds.contains(item.accountId)) item,
+                ],
                 coverageComplete: coverageComplete,
                 locale: locale,
                 onOpen: _showItemDetails,
@@ -1216,9 +1230,13 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     int? firstWeekday,
   }) {
     final currentFirstWeekday = firstWeekday ?? _firstWeekday;
+    final settings = ref.read(appSettingsControllerProvider);
     return WindowsScheduleSearchPane(
       value: _searchCriteria!.copyWith(firstWeekday: currentFirstWeekday),
-      accounts: accounts,
+      accounts: [
+        for (final account in accounts)
+          if (settings.isAccountVisibleInSchedule(account.id)) account,
+      ],
       sources: sources,
       taskLists: taskLists,
       onChanged: (value) {
@@ -1508,11 +1526,19 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     );
   }
 
+  void _openAccountSettings(String accountId) => unawaited(
+    context.push<void>(
+      Uri(
+        path: '/settings',
+        queryParameters: {'page': 'accounts', 'accountDetail': accountId},
+      ).toString(),
+    ),
+  );
+
   Future<void> _showSourcesDialog({
     required List<AccountEntity> accounts,
     required List<CalendarSourceEntity> sources,
     required List<TaskListEntity> taskLists,
-    required ScheduleSourceVisibility visibility,
   }) {
     if (_searchActive && _searchCriteria != null) {
       return showDialog<void>(
@@ -1546,8 +1572,10 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
         ),
       );
     }
-    final visibleCalendars = {...visibility.visibleCalendarSourceIds};
-    final visibleTaskLists = {...visibility.visibleTaskListKeys};
+    final selectedCalendars = {
+      for (final source in sources)
+        if (source.selected) source.id,
+    };
     return showDialog<void>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
@@ -1563,8 +1591,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
               accountInventoryResolved: _accountInventoryResolved,
               calendarSources: sources,
               taskLists: taskLists,
-              visibleCalendarSourceIds: visibleCalendars,
-              visibleTaskListKeys: visibleTaskLists,
+              selectedCalendarSourceIds: selectedCalendars,
               onDateSelected: (date) {
                 Navigator.pop(dialogContext);
                 _openDay(date);
@@ -1572,26 +1599,17 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
               onCalendarVisibilityChanged: (source, visible) {
                 setDialogState(() {
                   if (visible) {
-                    visibleCalendars.add(source.id);
+                    selectedCalendars.add(source.id);
                   } else {
-                    visibleCalendars.remove(source.id);
+                    selectedCalendars.remove(source.id);
                   }
                 });
                 _setCalendarVisible(source, visible);
               },
-              onTaskListVisibilityChanged: (list, visible) {
-                final key = ScheduleTaskListKey(
-                  accountId: list.accountId,
-                  taskListId: list.id,
-                );
-                setDialogState(() {
-                  if (visible) {
-                    visibleTaskLists.add(key);
-                  } else {
-                    visibleTaskLists.remove(key);
-                  }
-                });
-                _setTaskListVisible(list, visible);
+              onTaskListVisibilityChanged: _setTaskListVisible,
+              onAccountSettings: (accountId) {
+                Navigator.pop(dialogContext);
+                _openAccountSettings(accountId);
               },
               onAddAccount: () {
                 Navigator.pop(dialogContext);
